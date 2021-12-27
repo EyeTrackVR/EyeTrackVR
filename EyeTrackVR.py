@@ -2,9 +2,13 @@ import cv2
 import numpy as np
 import threading
 from multiprocessing import Process,Queue,Pipe
-cap = cv2.VideoCapture(3)
-bl = False
 
+
+fy= open("camport.txt","r+")
+camport = fy.read().strip()
+fy.close
+bl = False
+cap = cv2.VideoCapture(int(camport))
 import time
 
 def lefteye():
