@@ -21,7 +21,7 @@ from kivy.uix.textinput import TextInput
 from kivy.uix.boxlayout import BoxLayout
 
 from kivy.core.window import Window
-Window.size = (500, 200)
+Window.size = (600, 200)
 
 class WidgetContainer(GridLayout):
  
