@@ -89,7 +89,7 @@ class WidgetContainer(GridLayout):
 
         ###############################
 
-        self.deth = Slider(min = 0, max = 40,
+        self.deth = Slider(min = 1, max = 40,
         value_track = True,
         value_track_color =[1, 1, 1, 1])
         self.add_widget(Label(text ='Detection thresh default (18)'))
@@ -99,7 +99,15 @@ class WidgetContainer(GridLayout):
         self.deth.bind(value = self.on_value4)
         
 #####################################################
-
+        self.cam = Slider(min = 0, max = 5,
+        value_track = True,
+        value_track_color =[1, 1, 1, 1])
+        self.add_widget(Label(text ='Camera input'))
+        self.add_widget(self.cam)
+        self.camv= Label(text ='Select')
+        self.add_widget(self.camv)
+        self.cam.bind(value = self.on_value5)
+        ################################################
     def on_value(self, instance, brightness):
         self.xValue.text = "% d"% brightness
         fx= open("valueX.txt","w+")
@@ -128,6 +136,12 @@ class WidgetContainer(GridLayout):
         self.dethv.text = "% d"% brightness
         fyl= open("thresh.txt","w+")
         fyl.write(self.dethv.text)
+        fyl.close
+
+    def on_value5(self, instance, brightness,):
+        self.camv.text = "% d"% brightness
+        fyl= open("camport.txt","w+")
+        fyl.write(self.camv.text)
         fyl.close
 
 class Eyetrack(App):
