@@ -61,14 +61,9 @@ class WidgetContainer(GridLayout):
   
         self.add_widget(Label(text ='Search Size Y R'))
         self.add_widget(self.Y)
- 
 
-        
         self.YV = Label(text ='1')
         self.add_widget(self.YV)
-        
- 
-
         self.Y.bind(value = self.on_value1)
         ###############################################
 
@@ -90,6 +85,18 @@ class WidgetContainer(GridLayout):
         self.ylValue = Label(text ='1')
         self.add_widget(self.ylValue)
         self.ylc.bind(value = self.on_value3)
+        
+
+        ###############################
+
+        self.deth = Slider(min = 0, max = 40,
+        value_track = True,
+        value_track_color =[1, 1, 1, 1])
+        self.add_widget(Label(text ='Detection thresh default (18)'))
+        self.add_widget(self.deth)
+        self.dethv= Label(text ='1')
+        self.add_widget(self.dethv)
+        self.deth.bind(value = self.on_value4)
         
 #####################################################
 
@@ -117,6 +124,11 @@ class WidgetContainer(GridLayout):
         fyl.write(self.ylValue.text)
         fyl.close
 
+    def on_value4(self, instance, brightness,):
+        self.dethv.text = "% d"% brightness
+        fyl= open("thresh.txt","w+")
+        fyl.write(self.dethv.text)
+        fyl.close
 
 class Eyetrack(App):
     def build(self):
