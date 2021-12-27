@@ -38,6 +38,10 @@ def lefteye():
         vxll= open("valueXl.txt","r+")
         vxl = vxll.read().strip()
         vxll.close
+##########################
+        thresh= open("thresh.txt","r+")
+        threshr = thresh.read().strip()
+        thresh.close
 
   
         try:
@@ -48,7 +52,7 @@ def lefteye():
         gray_roi = cv2.cvtColor(roi, cv2.COLOR_BGR2GRAY)
         gray_roi = cv2.GaussianBlur(gray_roi, (7, 7), 0)
 
-        _, threshold = cv2.threshold(gray_roi, 18, 255, cv2.THRESH_BINARY_INV)
+        _, threshold = cv2.threshold(gray_roi, int(threshr), 255, cv2.THRESH_BINARY_INV)
         contours, _ = cv2.findContours(threshold, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
         contours = sorted(contours, key=lambda x: cv2.contourArea(x), reverse=True)
 
