@@ -1,2 +1,12 @@
 # EyeTrackVR
-Opensource, affordable VR eye tracker for VR Chat
+Open source and affordable VR eye tracker for VR Chat and more
+#### This project is in rapid development and is not fully finished.
+## Hardware
+Hardware will hopefully be a esp cam 32 with a 160fov ir camera
+## Headset support
+Initial support will be Quest 2 (pcvr) 
+Support for index and vive after everything is working 100% as expected
+
+#### Contact me
+
+##### For more info feel free to DM me on discord prohurtz#0001
