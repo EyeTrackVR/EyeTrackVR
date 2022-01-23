@@ -23,17 +23,17 @@ print(width, height)
 
 
 def lefteye():
-    x = 1
+    x = 1 #defining variables for smoothing
     y = 1
     x1 = 1
     y1 = 1
     h = 1 #defines hight value so blink check doesnt error out
-    
+  
     def smooth(x, x1, y, y1):
-        xsmooth = x1 + x / 2
-        ysmooth = y1 + y / 2
-        print('x filtered:', xsmooth, 'y filtered:', ysmooth)
-        print('x raw:', x, 'y raw:', y)
+        xsmooth = (x1 + x) / 2
+        ysmooth = (y1 + y) / 2
+        print('x filtered:', xsmooth, 'y filtered:', ysmooth, 'x raw:', x, 'y raw:', y)
+        #print('x raw:', x, 'y raw:', y)
 	    
 	    
     while True: #loop for eye detection
@@ -104,22 +104,14 @@ def lefteye():
             
             
 ################################################
-        
-        try:  # trys at set size if it errors it will revert to working size/ doesnt do what was orrigionally planed, it kinda helps, entire thing will eventually go into try and except later 
+       # try:
+        try:  # trys at set size if it errors it will revert to working size/ doesnt do what was orrigionally planed, it kinda helps
             roi = frame[int(vxl): int(float(vy)), int(vyl): int(float(vx))]
         except:
             roi = frame[100: 300, 200: 316]
-        
         try:
-            if x == 1:
-            	print('no data to smooth')
-            else:
-            	x1 == x
-            	
-            if y == 1:
-            	print('no data to smooth')
-            else:
-            	y1 == y     	
+            x1 = x
+            y1 = y   	
             rows, cols, _ = roi.shape
             gray_roi = cv2.cvtColor(roi, cv2.COLOR_BGR2GRAY)
             gray_roi = cv2.GaussianBlur(gray_roi, (7, 7), 0)
@@ -136,6 +128,7 @@ def lefteye():
                 openes = 95
                 if h <= 25: #way to find if eye is closed and sets value (hopefully will train tensorflow model for correct openess detection)
                     openes = 0 
+              
                 smooth(x, x1, y, y1)
                 #print('Left:   x:', x, 'y:', y, 'openess:', openes)
                 #print('Right:  x:', x, 'y:', y, 'openess:', openes)
