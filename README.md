@@ -11,5 +11,5 @@ Support for index and vive after everything is working 100% as expected
 
 #### Contact me
 
-##### For more info feel free to DM me on discord prohurtz#0001
+##### For more info feel free to DM me on discord Prohurtz#0001
 
