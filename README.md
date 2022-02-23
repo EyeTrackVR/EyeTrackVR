@@ -4,7 +4,7 @@ Open source and affordable VR eye tracker for VR Chat via OSC
 ## Hardware
 3d files for mounting brackets willbe found here https://github.com/RedHawk989/EyeTrackVR-Hardware
 
-Hardware will hopefully be a esp cam 32 with a 160fov ir camera
+Hardware will hopefully be a esp cam 32 with a 160fov ir camera this is not confirmed and very likely will change
 ## Headset support
 Initial support will be Quest 2 (pcvr) 
 Support for index and vive after everything is working 100% as expected
