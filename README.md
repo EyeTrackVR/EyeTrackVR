@@ -25,7 +25,7 @@ Support for index and vive after everything is working 100% as expected
 
 #### Contact 
 
-Please join our discord for updates and andy questions.
+Please join our discord for updates and and any questions.
 
 https://discord.gg/kkXYbVykZX
 
