@@ -14,7 +14,9 @@ The saftey measures were put in place to REDUCE the potential falure risk. All f
 This includes visually checking with an IR camera that the brightness is correct.
 
 https://www.ncbi.nlm.nih.gov/labs/pmc/articles/PMC3116568/
+
 https://www.osha.gov/sites/default/files/training-library_nir_stds_20021011.ppt
+
 https://dammedia.osram.info/media/bin/osram-dam-2496608/AN002_Details%20on%20photobiological%20safety%20of%20LED%20light%20sources.pdf
 
 ## Headset support
