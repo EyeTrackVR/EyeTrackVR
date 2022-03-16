@@ -21,7 +21,7 @@ https://dammedia.osram.info/media/bin/osram-dam-2496608/AN002_Details%20on%20pho
 
 ## Headset support
 Initial support will be Quest 2 (pcvr) 
-Support for index and vive after everything is working 100% as expected
+Support for other headsets from the community.
 
 #### Contact 
 
