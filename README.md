@@ -8,9 +8,9 @@ Hardware will hopefully be a esp cam 32 with a 160fov ir camera this is not conf
 
 ## ABOUT IR EMMITTER SAFETY
 Please exercise extreme caution when messing around with IR emmitters.
-Once safty testing has been compleated links and files will be provided for the emmitters. Please do not try to make, or use any emmitters unless you know exactly what you are doing as it could be very harmful for your eyes if not done correctly. 
+Once safety testing has been compleated links and files will be provided for the emmitters. Please do not try to make, or use any emmitters unless you know exactly what you are doing as it could be very harmful for your eyes if not done correctly. 
 When files and reasorces are released DO NOT BYPASS OR NOT DO ANY SAFTY FEATURES PUT IN PLACE. This can result in a very harmful outcome. 
-The saftey measures were put in place to REDUCE the potential falure risk. All further safty responsibilities is on the user.
+The saftey measures were put in place to REDUCE the potential falure risk. All further safety responsibilities is on the user.
 This includes visually checking with an IR camera that the brightness is correct.
 
 https://www.ncbi.nlm.nih.gov/labs/pmc/articles/PMC3116568/
