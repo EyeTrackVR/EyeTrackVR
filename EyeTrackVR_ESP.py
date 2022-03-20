@@ -7,12 +7,6 @@ from pythonosc import udp_client
 
 
 
-#def smooth(x, x1, y, y1):
- #   xsmooth = (x1 + x) / 2
-  #  ysmooth = (y1 + y) / 2
-   # print('x filtered:', xsmooth, 'y filtered:', ysmooth, 'x raw:', x, 'y raw:', y)
-    #print('x raw:', x, 'y raw:', y)
-
 class config:
     X_RES = 128
     Y_RES = 128
@@ -24,6 +18,13 @@ def writet(addressipn):
     print(addressips)
     camadd.close
 
+
+def vc():
+    vc.xmax = 1          
+    vc.xmin = 6969  
+    vc.ymax = 1
+    vc.ymin = 6969 
+      
 
 class ThreadedCamera(object):
 
@@ -67,7 +68,6 @@ class ThreadedCamera(object):
         thresh= open("thresh.txt","r+")
         threshr = thresh.read().strip()
         thresh.close
-       ## /\
 
         # trys at set size if it errors it will revert to working size/ doesnt do what was orrigionally planed, it kinda helps
         try:
@@ -75,7 +75,6 @@ class ThreadedCamera(object):
         except:
             print('[ERROR] Camera crop invalid size. Try making it larger.')
     
-        
         try:  	
             rows, cols, = roi.shape
             gray_roi = cv2.GaussianBlur(roi, (7, 7), 0)
@@ -83,43 +82,65 @@ class ThreadedCamera(object):
             _, threshold = cv2.threshold(gray_roi, int(threshr), 255, cv2.THRESH_BINARY_INV)
             contours, _ = cv2.findContours(threshold, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
             contours = sorted(contours, key=lambda x: cv2.contourArea(x), reverse=True)
+
         except:
             print('[INFO] No Eye Detected')
         try:
             for cnt in contours:
                 
+
                 (x, y, w, h) = cv2.boundingRect(cnt)
-                    
+                
+
+                
+
 
                 blink = False
                 if h <= 25: #way to find if eye is closed and sets value (hopefully will train a model for correct openess detection) Help appriciated since I have no clue how to do ml models
                     blink = True 
             
-            
-                xpercentage = (((x - xmin) * 100) / (xmax - xmin)) / 100 #TESTING NEEDED AM UNSURE IF VALUES NEED TO BE FLIPPED
-                ypercentage = (((y - ymin) * 100) / (ymax - ymin)) / 100
+                xt = x + int(w/2) 
+                yt = y + int(h/2)
+
+                try:
+                    xpercentage = (((xt - vc.xmin) * 100) / (vc.xmax - vc.xmin)) / 100 #TESTING NEEDED AM UNSURE IF VALUES NEED TO BE FLIPPED
+                    ypercentage = (((yt - vc.ymin) * 100) / (vc.ymax - vc.ymin)) / 100
+                    if xpercentage >= 1: 
+                        print('[WARN] X Value Exceedes Calibrated Value.')
+                        xpercentage = 1
+                    if ypercentage >= 1: 
+                        print('[WARN] Y Value Exceedes Calibrated Value.')
+                        ypercentage = 1
                 
+                    client.send_message("/Avatar/RightEyeX", xpercentage) #sends to vr chat needs to use calibration function
+                    client.send_message("/Avatar/LeftEyeX", xpercentage)
+                    client.send_message("/Avatar/LeftEyeY", ypercentage)
+                    client.send_message("/Avatar/RightEyeY", ypercentage)
+                    print('X: ', xpercentage, ' Y: ', ypercentage)
+
+                except:
+                    print('[WARN] Calculation Error: Move Eye Around or Adjust Detection Threshold.')
                 
-
-
-                if xpercentage >= 1: 
-                    print('[WARN] X Value Exceedes Calibrated Value. Please Re Calibrate.')
-                    xpercentage = 1
-                if ypercentage >= 1: 
-                    print('[WARN] X Value Exceedes Calibrated Value. Please Re Calibrate.')
-                    ypercentage = 1
+                if xt > vc.xmax:
+                    if vc.xmax != 0:
+                        vc.xmax = xt
                 
+                if xt < vc.xmin:
+                    if vc.xmin != 0:
+                        vc.xmin = xt
 
-                print('X: ', xpercentage, ' Y: ', ypercentage)
+                if yt > vc.ymax:
+                    if vc.ymax != 0:
+                        vc.ymax = yt
+                
+                if yt < vc.ymin:
+                    if vc.ymin != 0:
+                        vc.ymin = yt
 
+                xt = x + int(w/2) 
+                yt = y + int(h/2)
 
-                client.send_message("/Avatar/EyeRightX", xpercentage) #sends to vr chat needs to use calibration function
-                client.send_message("/Avatar/EyeleftX", xpercentage)
-                client.send_message("/Avatar/EyeY", ypercentage)
-                client.send_message("/Avatar/Blink", blink)
-
-
-
+                
                 cv2.line(threshold, (x + int(w/2), 0), (x + int(w/2), rows), (255, 0, 0), 1) #visualizes eyetracking on threshold
                 cv2.line(threshold, (0, y + int(h/2)), (cols, y + int(h/2)), (255, 0, 0), 1)
                 cv2.drawContours(threshold, [cnt], -1, (255, 0, 0), 3)
@@ -144,51 +165,33 @@ class ThreadedCamera(object):
         
 if __name__ == '__main__':
     #'http://192.168.0.202:81/stream'
-
- 
-    with open("calibration.txt") as calibratefl:
         
-        lines=calibratefl.readlines()
-        xmin = float(lines[0].strip())
-        ymin = float(lines[1].strip())
-        calibratedcenterx = float(lines[2].strip())
-        calibratedcentery = float(lines[3].strip())
-        xmax = float(lines[4].strip())
-        ymax = float(lines[5].strip())
-
-
     try:
-        
         OSCip="127.0.0.1" 
         OSCport=9000 #VR Chat OSC port
-       
         client = udp_client.SimpleUDPClient(OSCip, OSCport)
     except:
         print('[ERROR] Connection to VR Chat via OSC Failed')
             
-
     try:
         camadd= open("cam.txt","r+")
         src = camadd.read().strip()
-        camadd.close
-        
+        camadd.close  
     except:
         addressipn = input('Enter IP Stream Address of Camera :>: ')
-
         writet(addressipn)
         src = addressipn.strip().lower()
     
 
     threaded_camera = ThreadedCamera(src)
-    x = 1 #defining variables for smoothing
-    y = 1
-    x1 = 1
-    y1 = 1
-    h = 1 #defines hight value so blink check doesnt error out
 
+    h = 1 #defines hight value so blink check doesnt error out
+    ronce = 0
     while True:
-        
-        try:
+        try:   
+            if ronce == 0:  
+                vc()
+                ronce = 1
             threaded_camera.show_frame()
         except AttributeError:
             pass
