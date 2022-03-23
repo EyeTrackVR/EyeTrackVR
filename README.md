@@ -1,5 +1,5 @@
 # EyeTrackVR
-Open source and affordable VR eye tracker for VR Chat via OSC
+Open source and affordable VR eye tracker platform for VR Chat via OSC
 #### This project is in development and is not fully finished.
 ## Hardware
 3d files for mounting brackets will be found here https://github.com/RedHawk989/EyeTrackVR-Hardware
