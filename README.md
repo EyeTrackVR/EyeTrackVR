@@ -29,7 +29,7 @@ Support for other headsets from the community.
 
 #### Contact 
 
-Please join our discord for updates and and any questions.
+Please join our discord for updates and any questions.
 
 https://discord.gg/kkXYbVykZX
 
