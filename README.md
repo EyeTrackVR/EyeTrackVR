@@ -3,6 +3,7 @@ Open source and affordable VR eye tracker platform for VR Chat via OSC
 #### This project is in development and is not fully finished.
 ## Hardware
 3d files for mounting brackets will be found here https://github.com/RedHawk989/EyeTrackVR-Hardware
+IR emmitter files will also be located there.
 
 Hardware will hopefully be a esp cam 32 with a 160fov ir camera this is not confirmed and very likely could change
 
