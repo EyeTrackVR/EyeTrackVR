@@ -1,0 +1,5 @@
+tensorflow==2.5.3
+tensorflow_hub==0.8.0
+pyttsx3
+python-osc
+opencv-python
