@@ -14,6 +14,8 @@ When files and reasorces are released DO NOT BYPASS OR NOT DO ANY SAFTY FEATURES
 The saftey measures were put in place to REDUCE the potential falure risk. All further safety responsibilities is on the user.
 This includes visually checking with an IR camera that the brightness is correct.
 
+**Make sure you are using NON-focused emmiters and at around 5ma total power**
+
 https://www.ncbi.nlm.nih.gov/labs/pmc/articles/PMC3116568/
 
 https://www.osha.gov/sites/default/files/training-library_nir_stds_20021011.ppt
