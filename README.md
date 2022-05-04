@@ -26,8 +26,8 @@ Hardware will hopefully be a `ESP32-Cam` with a `160fov ir camera`. ***This is n
 ## About IR Emitter Safety
 
 Please *exercise extreme caution* when messing around with IR emitters.
-<u style="color:#ff0e01;">Once safety testing has been completed links and files will be provided for the emitters</u>. Please do not try to make, or use any emitters unless you know exactly what you are doing as it could be very harmful for your eyes if not done correctly.
-When files and resources are released <u style="color:#ff0e01;">**DO NOT BYPASS (OR NOT DO) ANY SAFETY FEATURES PUT IN PLACE**</u>. This can result in irreversible bodily harm.
+<ins>Once safety testing has been completed links and files will be provided for the emitters</ins>. Please do not try to make, or use any emitters unless you know exactly what you are doing as it could be very harmful for your eyes if not done correctly.
+When files and resources are released <ins>**DO NOT BYPASS (OR NOT DO) ANY SAFETY FEATURES PUT IN PLACE**</ins>. This can result in irreversible bodily harm.
 The safety measures were put in place to REDUCE the potential failure risk. All further safety responsibilities is on the user.
 This includes visually checking with an IR camera that the brightness is correct.
 
