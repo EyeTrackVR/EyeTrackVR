@@ -1,0 +1,38 @@
+title: 'Open Air Cyan Documentation'
+remote_theme: just-the-docs/just-the-docs
+color_scheme: 'light'
+search_enabled: true
+logo: './assets/images/openair-logo.png'
+heading_level: 6
+previews: 3
+preview_words_before: 5
+preview_words_after: 10
+tokenizer_separator: /[\s/]+/
+rel_url: true
+button: true
+aux_links:
+  'Documentation':
+    - '//github.com/openair-collective/openair-cyan/tree/main/docs/Reference_Docs'
+  'Code':
+    - '//github.com/openair-collective/openair-cyan/tree/dev/Code'
+aux_links_new_tab: false
+heading_anchors: true
+gh_edit_link: true # show or hide edit this page link
+gh_edit_link_text: 'Edit this page on GitHub.'
+gh_edit_repository: 'https://github.com/openair-collective/openair-cyan/' # the github URL for your repo
+gh_edit_branch: 'docs' # the branch that your docs is served from
+gh_edit_source: docs # the source that your files originate from
+gh_edit_view_mode: 'edit' # "tree" or "edit" if you want the user to jump into the editor immediately
+ga_tracking: UA-5555555-55 # Google Analytics tracking code - Dahl Winters please update this to your own code
+ga_tracking_anonymize_ip: true # Use GDPR compliant Google Analytics settings (true by default)
+
+# Google Forms configuration
+# comment-post: https://docs.google.com/forms/d/e/1FAIpQLScuqqkKDIUbPJpGfyLQJQe3mBNvQh45-eryzMWbqm7k7ALjGA
+# comment-read: https://docs.google.com/spreadsheets/d/1szz__qSlPZ5LmDlR9ovNqdSCOgoUAYCWg-gWwkCQlmw/
+# comment-post-fields: [entry.1141065141, entry.484163683, entry.231340692]
+google_forms_comments:
+  google_app_script: https://script.google.com/macros/s/AKfycbwnErJEKIMcwQ5tlNS9rZ1KxHkhkJGkR9BNvKfkaz4X7MrZzc42VKN4ehzQ9AhfGChJ/exec
+  recaptcha_site_key: 6LfKJsMfAAAAAFLjDTY0PG9RdcpLBuiuoFNyQLsh
+  chunked_comment_loading: true
+  lazy_load_comments: true
+  comment_replies_enabled: true

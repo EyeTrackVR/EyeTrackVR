@@ -1,0 +1,235 @@
+<head>
+    <style>
+        html {
+            font-family: Arial, Helvetica, sans-serif, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue';
+            display: inline-block;
+        }
+
+        h1 {
+            font-size: 1.8rem;
+        }
+
+        h5 {
+            background: #03a9f4;
+            width: 100%;
+            height: 11px;
+            border-style: none;
+            border-radius: 10px;
+        }
+
+        i {
+            font-size: 2.2rem;
+        }
+
+        p {
+            font-size: 1.4rem;
+        }
+
+        body {
+            margin: 0;
+        }
+
+        hr {
+            margin-left: 3px;
+            width: 99%;
+            background-color: #dadce0;
+        }
+
+        .content-form {
+            padding: 5%;
+        }
+
+        .card-grid {
+            max-width: 800px;
+            margin: 0 auto;
+            display: grid;
+            grid-gap: 2rem;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+        }
+
+        .input-group {
+            display: flex;
+        }
+
+        .card {
+            background-color: white;
+            box-shadow: 2px 2px 12px 1px rgba(8, 8, 8, 0.5);
+            border-radius: 10px;
+        }
+
+        .card-header {
+            font-size: 1.2rem;
+            font-weight: bold;
+            color: #47464b;
+        }
+
+        input[type=submit] {
+            border: none;
+            color: #FEFCFB;
+            background-color: #034078;
+            padding: 15px 15px;
+            text-align: center;
+            text-decoration: none;
+            display: inline-block;
+            font-size: 16px;
+            width: 100px;
+            margin-right: 10px;
+            margin-left: 10px;
+            border-radius: 10px;
+            transition-duration: 0.4s;
+        }
+
+        input[type=submit]:hover {
+            background-color: #1282A2;
+        }
+
+        input[type=text],
+        input[type=number],
+        select {
+            width: 50%;
+            padding: 12px 20px;
+            margin: 18px;
+            display: inline-block;
+            border: 1px solid #ccc;
+            border-radius: 10px;
+            box-sizing: border-box;
+        }
+
+        .value {
+            font-size: 1.2rem;
+            color: #1282A2;
+        }
+
+        .state {
+            font-size: 1.2rem;
+            color: #1282A2;
+        }
+
+        button {
+            border: none;
+            color: #FEFCFB;
+            padding: 15px 32px;
+            text-align: center;
+            font-size: 16px;
+            width: 100px;
+            border-radius: 10px;
+            transition-duration: 0.4s;
+        }
+
+        .button-on {
+            background-color: #034078;
+        }
+
+        .button-on:hover {
+            background-color: #1282A2;
+        }
+
+        .button-off {
+            background-color: #858585;
+        }
+
+        .button-off:hover {
+            background-color: #252524;
+        }
+
+        .ideation label {
+            font-size: 1.2rem;
+            width: 100%;
+            padding: 10px;
+            display: inline-block;
+            text-align: left;
+        }
+
+        .ideation large {
+            width: 100%;
+            padding-left: 10px;
+            padding-top: 10px;
+            padding-right: 10px;
+            display: inline-block;
+            text-align: left;
+            font-weight: bold;
+        }
+
+        .ideation small {
+            width: 100%;
+            padding: 10px;
+            display: inline-block;
+            text-align: left;
+        }
+
+        input[type=button] {
+            padding: 1px 2px;
+            margin-left: 10px;
+            text-align: right;
+            border-radius: 6px;
+            display: inline-block;
+            width: auto;
+            font-size: large;
+            color: #1b0c8787;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="content-form">
+        <div style="color: #47464b;" align="center" class="title">
+            <h1>Sheet Design to Improve CYAN Capacity</h1>
+            <hr>
+        </div>
+        <div class="card-grid">
+            <div class="card">
+                <h5></h5>
+                <form action="" method="POST">
+                    <section class="ideation">
+                        <p>
+                            <large style="font-size: xx-large;">CYAN Ideation - Sheet Design</large>
+                            <small style="font-size: large;">
+                                We are looking for a way to form calcium hydroxide (or
+                                magnesium hydroxide) into easily-made sheets. The idea is that this would allow us
+                                to extend the current single-layer CYAN design to one with multiple layers that can
+                                capture even more CO2. Humid CO2-filled air will be passed parallel to the
+                                sheets. Then the sheets will be weighed before and after to calculate the weight change,
+                                which is relatable to the amount of CO2 taken up. <br>
+                                <br>
+                                The calcium hydroxide will yield calcium carbonate upon absorbing CO2. Note that
+                                calcium carbonate is a solid that will not dissolve in water. This property could be
+                                used to separate out the calcium carbonate. Calcium hydroxide is slightly soluble in
+                                water.<br>
+                                <br>
+                                Requirements:<br>
+                                <ul>
+                                    1) The sheets must be as thin and stiff as possible without being brittle and thus
+                                    easy to break. Sheets that are no more than 0.5 mm are ideal.<br>
+                                    <br>
+                                    2) The sheets must not come apart when exposed to humid air.<br>
+                                    <br>
+                                    3) It must be easy to separate the resulting calcium carbonate from the sheet. This
+                                    can be done by making any adhesive dissolvable in water or another easily available
+                                    solvent, or the sheet might be entirely made from calcium hydroxide + binder.<br>
+                                    <br>
+                                    4) Once the calcium carbonate is removed, the sheet material must either be
+                                    recyclable, compostable, or otherwise reusable in the process of making more
+                                    sheets.<br>
+                                    <br>
+                                    5) The embodied carbon of the sheets should be as low as possible.<br> In general,
+                                    metals, cement, and other materials that require high temperatures for manufacturing
+                                    will be high embodied carbon sources.<br>
+                                </ul>
+                                Current Ideas:<br>
+                                <ul>
+                                    1) Use a binder to make a thin film of calcium hydroxide.<br>
+                                    <br>
+                                    2) Adhere calcium hydroxide to a backing board of some material.<br>
+                                    <br>
+                                    3) Use a thin film of calcium hydroxide to form a sheet.<br>
+                                </ul>
+                            </small>
+                            <hr>
+                            
+                        </p>
+                    </section>
+                </form>
+            </div>
+        </div>
+    </div>
+</body>
