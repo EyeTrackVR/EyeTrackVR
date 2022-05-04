@@ -12,7 +12,7 @@ permalink: index.html
       - [This project is in development and is not fully finished](#this-project-is-in-development-and-is-not-fully-finished)
   - [Hardware](#hardware)
   - [About IR Emitter Safety](#about-ir-emitter-safety)
-        - [Make sure you are using NON-focused emiters and at around 5ma total power](#make-sure-you-are-using-non-focused-emiters-and-at-around-5ma-total-power)
+        - [Make sure you are using NON-focused emitters and at around 5ma total power](#make-sure-you-are-using-non-focused-emitters-and-at-around-5ma-total-power)
   - [Firmware](#firmware)
   - [Headset support](#headset-support)
       - [Contact](#contact)
@@ -39,7 +39,7 @@ When files and resources are released <ins>**DO NOT BYPASS (OR NOT DO) ANY SAFET
 The safety measures were put in place to REDUCE the potential failure risk. All further safety responsibilities is on the user.
 This includes visually checking with an IR camera that the brightness is correct.
 
-##### Make sure you are using NON-focused emiters and at around 5ma total power
+##### Make sure you are using NON-focused emitters and at around 5ma total power
 
 [Effect of infrared radiation on the lens](./docs/Reference_Docs/saftey/effect_of_ir_on_the_lens.pdf)
 
