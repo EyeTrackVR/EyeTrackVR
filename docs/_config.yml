@@ -1,8 +1,7 @@
-title: 'Open Air Cyan Documentation'
+title: 'EyeTrackVR Documentation'
 remote_theme: just-the-docs/just-the-docs
 color_scheme: 'light'
 search_enabled: true
-logo: './assets/images/openair-logo.png'
 heading_level: 6
 previews: 3
 preview_words_before: 5
@@ -12,14 +11,24 @@ rel_url: true
 button: true
 aux_links:
   'Documentation':
-    - '//github.com/openair-collective/openair-cyan/tree/main/docs/Reference_Docs'
-  'Code':
-    - '//github.com/openair-collective/openair-cyan/tree/dev/Code'
+    - '//github.com/RedHawk989/EyeTrackVR/tree/main/docs/Reference_Docs'
+  'Scripts':
+    - '//github.com/RedHawk989/EyeTrackVR/tree/main/scripts'
+  'InceptionNet':
+    - '//github.com/RedHawk989/EyeTrackVR/tree/main/InceptionNet'
+  'RANSAC':
+    - '//github.com/RedHawk989/EyeTrackVR/tree/main/RANSAC'
+  'Issues':
+    - '//github.com/RedHawk989/EyeTrackVR/issues'
+  'GitHub':
+    - '//github.com/RedHawk989/EyeTrackVR'
+  'Wiki':
+    - '//github.com/RedHawk989/EyeTrackVR/wiki'
 aux_links_new_tab: false
 heading_anchors: true
 gh_edit_link: true # show or hide edit this page link
 gh_edit_link_text: 'Edit this page on GitHub.'
-gh_edit_repository: 'https://github.com/openair-collective/openair-cyan/' # the github URL for your repo
+gh_edit_repository: 'https://github.com/RedHawk989/EyeTrackVR/' # the github URL for your repo
 gh_edit_branch: 'docs' # the branch that your docs is served from
 gh_edit_source: docs # the source that your files originate from
 gh_edit_view_mode: 'edit' # "tree" or "edit" if you want the user to jump into the editor immediately

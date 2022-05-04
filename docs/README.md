@@ -1,94 +1,76 @@
 ---
 layout: default
-title: Summary
+title: EyeTrackVR
 nav_order: 1
 has_children: false
 ---
 
-# Summary
+[![GitHub issues](https://img.shields.io/github/issues/RedHawk989/EyeTrackVR?style=plastic)](https://github.com/RedHawk989/EyeTrackVR/issues) [![GitHub forks](https://img.shields.io/github/forks/RedHawk989/EyeTrackVR?style=plastic)](https://github.com/RedHawk989/EyeTrackVR/network) [![GitHub stars](https://img.shields.io/github/stars/RedHawk989/EyeTrackVR?style=plastic)](https://github.com/RedHawk989/EyeTrackVR/stargazers)
 
-Welcome to the documentation for the Cyan Decarbonizer version 1, a DIY small-scale open hardware direct air carbon capture (DACC) system.
+- [EyeTrackVR](#eyetrackvr)
+      - [This project is in development and is not fully finished](#this-project-is-in-development-and-is-not-fully-finished)
+  - [Hardware](#hardware)
+  - [About IR Emitter Safety](#about-ir-emitter-safety)
+        - [Make sure you are using NON-focused emmiters and at around 5ma total power](#make-sure-you-are-using-non-focused-emmiters-and-at-around-5ma-total-power)
+  - [Firmware](#firmware)
+  - [Headset support](#headset-support)
+      - [Contact](#contact)
+- [Licenses](#licenses)
 
-| ![Build Status](./assets/images/assemblyinst/cyan_side_view.png) |
-|:--:|
-| *The outer box and fan are optional for experimentation. The humidification chamber and air pump are the minimum required items.* |
+# EyeTrackVR
 
-## Purpose
+Open source and *affordable* VR eye tracker platform for [VRChat](https://hello.vrchat.com/) via `OSC` and `UDP` protocol.
 
-This portable system operates at a small enough scale to empower individuals to tangibly experience carbon removal. It is also designed to get people actively thinking and sharing their carbon footprint and their role in the carbon cycle.
+#### This project is in development and is not fully finished
 
-You can take a 5-minute tour of a Cyan system and learn more about the details of the project here:
+## Hardware
 
-<div align="center">
-<a href="https://www.youtube.com/watch?v=yOzDFJZBM_w&t=2s"><img src="./assets/images/assemblyinst/cyan_blk_bg.png" width="400" alt="Cyan version 1" /></a>
-</div>
+3d files for mounting brackets will be found [here](https://github.com/RedHawk989/EyeTrackVR-Hardware)
+IR emitter files will also be located there.
 
-If you have twenty-something minutes, details about the device design, current challenges, opportunities and big questions, and the Cyan mission's general goals and aspirations are available here:
+Hardware will hopefully be a `ESP32-Cam` with a `160fov ir camera`. ***This is not confirmed and very likely could change***.
 
-<div align="center">
-<a href="https://www.youtube.com/watch?v=98940CgZHI0" target="_blank"><img src="./assets/images/vtEUvj4.jpeg" width="400" alt="TSM: Hello, Cyan! - with Dahl Winters" /></a>
-</div>
+## About IR Emitter Safety
 
-# Vision
+Please *exercise extreme caution* when messing around with IR emitters.
+<ins>Once safety testing has been completed links and files will be provided for the emitters</ins>. Please do not try to make, or use any emitters unless you know exactly what you are doing as it could be very harmful for your eyes if not done correctly.
+When files and resources are released <ins>**DO NOT BYPASS (OR NOT DO) ANY SAFETY FEATURES PUT IN PLACE**</ins>. This can result in irreversible bodily harm.
+The safety measures were put in place to REDUCE the potential failure risk. All further safety responsibilities is on the user.
+This includes visually checking with an IR camera that the brightness is correct.
 
-Cyan is named in honor of `cyanobacteria`. As cyanobacteria did with oxygen, the vision was that many of these small-scale DACC units might come to have a significant impact on atmospheric CO2 and thus climate change. If not directly due to their small size, then indirectly through the promotion of DACC as a technology and through the educational experience of using Cyan.
+##### Make sure you are using NON-focused emmiters and at around 5ma total power
 
-The educational experience might be the biggest way that Cyan units will combat climate change. One can quickly see what CO2 emissions look like in trapped form, how much it weighs, and how long it takes to capture it. DACC starts to become a conversation point among friends and family. People start wanting to run Cyans to erase the emissions from their light bulbs, for example. And if they can neutralize those emissions, what’s next? Household emissions? Should I buy a bigger DACC unit to cover my home’s emissions? And so on.
+[Effect of infrared radiation on the lens](./docs/Reference_Docs/saftey/effect_of_ir_on_the_lens.pdf)
 
-# The Documentation, Q&A, Wiki, and Project Updates
+[Training-library Nir Stds](./docs/Reference_Docs/saftey/training-library_nir_stds_20021011.pdf)
 
-The [Cyan Assembly Instructions](./Reference_Docs/assembly/Cyan_Assembly_Instructions.pdf) will get you started with an overview of how it works, a parts list, and instructions for putting it together. All this information is also found on our [Wiki](https://github.com/openair-collective/openair-cyan/wiki).
+[AN002_Details on photobiological safety of LED light sources](./docs/Reference_Docs/saftey/AN002_Details_on_photobiological_safety_of_LED_light_sources.pdf)
 
-We now have a [Cyan Q&A](./Reference_Docs/extras/Cyan_Q_and_A.md) that goes over some common general and technical questions.
+## Firmware
 
-The [Supporting System Calculations](./Reference_Docs/data/Cyan%20-%20Supporting%20System%20Calculations.xlsx) describe the logic that went into designing the system, from a LCA/TEA perspective.
+Current testing has been with `loucass003's` firmware found [here](https://github.com/Futurabeast/futura-face-cam).
+There has been work for a different firmware by a community member but that ***has not been tested by me*** [here](https://github.com/lorow/OpenIris).
 
-The [CO2 Capture Measurements](./Reference_Docs/data/Cyan%20-%20CO2%20Capture%20Measurements.xlsx) describe results obtained so far on how well this system can perform.
+## Headset support
 
-To report your `modifications`, `experimental results`, and `feedback` for making Cyan better, please visit the [Cyan DataShare](https://sites.google.com/view/cyan-datashare/) site.
+Initial support will be Quest 2 (pcvr)
+Support for other headsets from the community.
 
-To see an overview of where we are with current progress, please view the [Projects board](https://github.com/openair-collective/openair-cyan/projects/1).
+#### Contact
 
-Lastly, to view Cyan Project Progress updates on the OpenAir Forum, those are [available here](https://www.openairforum.org/t/cyan-project-progress/105/14).
+Please join our discord for updates and any questions.
 
-# Carbon Capture Details
-
-<div align="center">
-<img src="./assets/images/assemblyinst/Cyan_Process.jpg" width="600" alt="Diagram of Cyan's Carbon Removal Process" />
-</div>
-
-## Inputs and Outputs
-
-The input material, `calcium hydroxide`, can be found in any home improvement store as **`hydrated lime`**. However, for Cyan to be *carbon-negative* the input must either be sourced from a low-carbon supplier or obtained from waste cement.
-
-The output material, `calcium carbonate` can be used in building materials (cement-lime) or as **`agricultural lime`**.
-
-***`Magnesium hydroxide`*** is also an option for use as the input material. Though perhaps *more expensive* depending on the source, it is less alkaline than calcium hydroxide and has performed as well to slightly better than calcium hydroxide in carbon capture effectiveness in our Cyan tests. It can also be used to make tiles or blocks when mixed with cement and optionally biochar. We hope to have a low-carbon supplier later this year.
-
-## Emissions Reduction
-
-At present, a Cyan will remove over the course of `24 hours` the *same amount of CO2* emitted by running a 9-watt LED bulb for 3 hours. That is `2 grams of CO2 for 10 grams of input material` - or a 0.2:1 ratio.  
-
-*It is within theoretical possibility for this unit to remove the emissions of 20 9-watt LED bulbs for 3 hours (a whole house at night), that is 0.382 kg of CO2 that would need to be captured. Adequate surface area needs to be provided within the unit to do this and we are presently working on that*.
-
-## Achieving Negative Emissions
-
-The calcium hydroxide needs to be exposed to high humidity from between `3 to 16 hours` to achieve a good level of carbonation. Keeping the electricity consumption low will ensure Cyan removes more CO2 than it emits through electricity use.
-
-`Cyan uses 1.5 watts of electricity` to power the air pump which bubbles air through water and humidifies the calcium hydroxide, allowing CO2 to be absorbed. However, the air pump *does not* need to be run continuously to maintain adequate humidification. A duty cycle of, say, ***10 minutes on & 50 minutes off*** is possible and suggested for negative emissions (more CO2 removed than consumed by the air pump).
-
-The fan uses `3 watts` but only needs to be run intermittently to refresh the air inside the box. The fan is also useful to speed up dry time but this is *not essential for operation*. If you're going for negative emissions, air drying would really help unless you are using renewable energy to power your unit.
+[![Discord](https://img.shields.io/badge/Discord-7289DA?style=for-the-badge&logo=discord&logoColor=white)](https://discord.gg/kkXYbVykZX)
 
 # Licenses
 
-[![GitHub license](https://img.shields.io/github/license/openair-collective/openair-cyan?style=plastic)](https://github.com/openair-collective/openair-cyan/blob/master/LICENSE)
+[![GitHub license](https://img.shields.io/github/license/RedHawk989/EyeTrackVR?style=plastic)](https://github.com/RedHawk989/EyeTrackVR/blob/main/LICENSE)
 
-***All hardware materials and designs provided here are licensed under the [CERN-OHL-P](https://opensource.org/CERN-OHL-P) hardware license.
-All software is under the GNU General Public License v3.0 (GPL-3.0).
+***All software is under the MIT license.
 All documentation, including the Wiki, is under the Creative Commons CC-BY-SA-4.0 license***.
 
-<div align="center">
-<img src="./assets/images/licenses/licenses.svg" width="300" alt="Open Licenses" />
-</div>
+<!-- <div align="center">
+<img src="./docs/assets/images/licenses/licenses.svg" width="300" alt="Open Licenses" />
+</div> -->
 
-[Top](#summary)
+[Top](#eyetrackvr)
