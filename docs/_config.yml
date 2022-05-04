@@ -40,10 +40,10 @@ ga_tracking_anonymize_ip: true # Use GDPR compliant Google Analytics settings (t
 # comment-read: https://docs.google.com/spreadsheets/d/1szz__qSlPZ5LmDlR9ovNqdSCOgoUAYCWg-gWwkCQlmw/
 # comment-post-fields: [entry.1141065141, entry.484163683, entry.231340692]
 google_forms_comments:
-  google_app_script: https://script.google.com/macros/s/AKfycbx6WUE_lUPBYZ3e9MT2yvrU-zpjkaSti-xjUPwoSs6-A7Mq2kqJYLQrJSnrDHuS5lDRqA/exec
+  google_app_script: https://script.google.com/macros/s/AKfycbyvN6BYATPrSahv5SpWKC44yu7GJmlVYyzl6HZeDlYZI5T6PJ5HuF2IMGvTO7E4cA34ng/exec
   # recaptcha_site_key: 6LcOgsQfAAAAAF1GB4ENB-qwe8vdtsqbHS1duIeV
   chunked_comment_loading: true
   lazy_load_comments: true
   comment_replies_enabled: true
-  
+
 
