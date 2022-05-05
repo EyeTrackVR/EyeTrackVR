@@ -73,7 +73,7 @@ aux_links_new_tab: false # Whether to open aux_links in a new tab
 heading_anchors: true
 gh_edit_link: true # show or hide edit this page link
 gh_edit_link_text: 'Edit this page on GitHub.'
-gh_edit_repository: 'https://github.com/RedHawk989/EyeTrackVR/' # the github URL for your repo
+gh_edit_repository: 'https://github.com/RedHawk989/EyeTrackVR' # the github URL for your repo
 gh_edit_branch: 'docs' # the branch that your docs is served from
 gh_edit_source: docs # the source that your files originate from
 gh_edit_view_mode: 'edit' # "tree" or "edit" if you want the user to jump into the editor immediately
