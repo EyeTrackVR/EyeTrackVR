@@ -58,8 +58,9 @@ Please join our discord for updates and any questions.
 # Licenses
 
 [![GitHub license](https://img.shields.io/github/license/RedHawk989/EyeTrackVR?style=plastic)](https://github.com/RedHawk989/EyeTrackVR/blob/main/LICENSE)
-***All software is under the MIT license.
-All documentation, including the Wiki, is under the Creative Commons CC-BY-SA-4.0 license***.
+
+***All software is under the [MIT License](http://opensource.org/licenses/MIT).
+All documentation, including the [Wiki](https://github.com/RedHawk989/EyeTrackVR/wiki), is under the Creative Commons CC-BY-SA-4.0 license***.
 
 <!-- <div align="center">
 <img src="./docs/assets/images/licenses/licenses.svg" width="300" alt="Open Licenses" />
