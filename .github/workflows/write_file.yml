@@ -36,7 +36,12 @@ jobs:
               description: 'Documentation for EyeTrackVR and related projects'
               author: 'ZanzyTHEbar'
               email: info@h-bat.com
+              baseurl: "" # the subpath of your site, e.g. /blog
               url: "https://redhawk989.github.io"
+
+              # twitter_username:
+              # facebook_username:
+              github_username: ZanzyTHEbar
 
               # Build settings
               remote_theme: just-the-docs/just-the-docs
@@ -78,7 +83,7 @@ jobs:
                 - jekyll-mermaid
                 - jekyll-spaceship
 
-              include: ['_pages']
+              include: ["_pages", "_posts"]
               timezone: "America/New_York"
 
               # Search options
