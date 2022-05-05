@@ -2,11 +2,11 @@
 
 name: Write File
 on:
- # Triggers the workflow on push or pull request events but only for the main branch
+  # Triggers the workflow on push or pull request events but only for the docs branch
   push:
-    branches: [ docs ]
+    branches: [docs]
   pull_request:
-    branches: [ docs ]
+    branches: [docs]
 
   # Allows you to run this workflow manually from the Actions tab
   workflow_dispatch:
@@ -32,7 +32,7 @@ jobs:
                   description: 'Documentation for OpenAir Cyan and related projects'
                   author: 'ZanzyTHEbar'
                   email: info@h-bat.com
-                  url: "https://openair-collective.github.io"
+                  url: 'https://openair-collective.github.io'
 
                   # Build settings
                   remote_theme: just-the-docs/just-the-docs
@@ -43,7 +43,30 @@ jobs:
                   previews: 3
 
                   permalink: pretty
-                  exclude: ["node_modules/", "*.gemspec", "*.gem", "Gemfile", "Gemfile.lock", "package.json", "package-lock.json", "script/", "LICENSE.txt", "lib/", "bin/", "README.md", "Rakefile", "docs/tests/"]
+                  exclude:
+                    [
+                      'node_modules/',
+                      '*.gemspec',
+                      '*.gem',
+                      'gemfiles/',
+                      'Gemfile',
+                      'Gemfile.lock',
+                      'package.json',
+                      'package-lock.json',
+                      'script/',
+                      'LICENSE.txt',
+                      'lib/',
+                      'bin/',
+                      'Rakefile',
+                      'docs/tests/',
+                      '.sass-cache/',
+                      '.jekyll-cache/',
+                      'node_modules/',
+                      'vendor/bundle/',
+                      'vendor/cache/',
+                      'vendor/gems/',
+                      'vendor/ruby/',
+                    ]
 
                   plugins:
                     - jekyll-feed
@@ -52,20 +75,8 @@ jobs:
                     - jekyll-mermaid
                     - jekyll-spaceship
 
-                  exclude:
-                    - .sass-cache/
-                    - .jekyll-cache/
-                    - gemfiles/
-                    - Gemfile
-                    - Gemfile.lock
-                    - node_modules/
-                    - vendor/bundle/
-                    - vendor/cache/
-                    - vendor/gems/
-                    - vendor/ruby/
-
                   include: ['_pages']
-                  timezone: "America/New_York"
+                  timezone: 'America/New_York'
 
                   # Search options
                   preview_words_before: 5
@@ -87,11 +98,11 @@ jobs:
 
                   # Enable Back to Top bottom for all pages
                   back_to_top: true
-                  back_to_top_text: "Top"
+                  back_to_top_text: 'Top'
 
                   # Enable last edit timestamp for all pages
                   last_edit_timestamp: true
-                  last_edit_time_format: "%b %e %Y at %I:%M %p"
+                  last_edit_time_format: '%b %e %Y at %I:%M %p'
 
                   gh_edit_link: true # show or hide edit this page link
                   gh_edit_link_text: 'Edit this page on GitHub.'
@@ -111,6 +122,7 @@ jobs:
                     recaptcha_site_key: 6LfKJsMfAAAAAFLjDTY0PG9RdcpLBuiuoFNyQLsh
                     chunked_comment_loading: true
                     lazy_load_comments: true
-                    comment_replies_enabled: true"
+                    comment_replies_enabled: true
+                  "
           write-mode: overwrite
       - run: echo "✍ File written with status ${{ job.status }}."
