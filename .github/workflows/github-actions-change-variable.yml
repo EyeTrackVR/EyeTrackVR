@@ -1,0 +1,14 @@
+# .github/workflows/github-actions-change-variable.yml
+on: [push]
+name: Variable Substitution
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: microsoft/variable-substitution@v1 
+        with:
+          files: '_config.yaml, _config.yml'
+        env:
+          recaptcha_site_key: "6LfKJsMfAAAAAFLjDTY0PG9RdcpLBuiuoFNyQLsh"
+          ga_tracking: "UA-5555555-55"

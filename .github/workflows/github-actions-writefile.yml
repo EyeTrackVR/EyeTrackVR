@@ -1,0 +1,116 @@
+# This is a basic workflow to help you get started with Actions
+
+name: Write File
+on:
+ # Triggers the workflow on push or pull request events but only for the main branch
+  push:
+    branches: [ docs ]
+  pull_request:
+    branches: [ docs ]
+
+  # Allows you to run this workflow manually from the Actions tab
+  workflow_dispatch:
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "🎉 The job was automatically triggered by a ${{ github.event_name }} event."
+      - run: echo "🐧 This job is now running on a ${{ runner.os }} server hosted by GitHub!"
+      - run: echo "🔎 The name of your branch is ${{ github.ref }} and your repository is ${{ github.repository }}."
+      - run: echo "💡 The ${{ github.repository }} repository has been cloned to the runner."
+      - run: echo "🖥️ The workflow is now ready to test your code on the runner."
+      - name: List files in the repository
+        run: |
+          ls ${{ github.workspace }}
+      - run: echo "🍏 This job's status is ${{ job.status }}."
+      - run: echo "✍ Writing to file."
+      - uses: DamianReeves/write-file-action@v1.0
+        with:
+          path: ${{ github.workspace }}/docs/test.yml"
+          contents: |
+            echo "title: 'Open Air Cyan Documentation'
+                  description: 'Documentation for OpenAir Cyan and related projects'
+                  author: 'ZanzyTHEbar'
+                  email: info@h-bat.com
+                  url: "https://openair-collective.github.io"
+
+                  # Build settings
+                  remote_theme: just-the-docs/just-the-docs
+                  color_scheme: 'light'
+                  search_enabled: true
+                  logo: './assets/images/openair-logo.png'
+                  heading_level: 6
+                  previews: 3
+
+                  permalink: pretty
+                  exclude: ["node_modules/", "*.gemspec", "*.gem", "Gemfile", "Gemfile.lock", "package.json", "package-lock.json", "script/", "LICENSE.txt", "lib/", "bin/", "README.md", "Rakefile", "docs/tests/"]
+
+                  plugins:
+                    - jekyll-feed
+                    - jekyll-seo-tag
+                    - jekyll-sitemap
+                    - jekyll-mermaid
+                    - jekyll-spaceship
+
+                  exclude:
+                    - .sass-cache/
+                    - .jekyll-cache/
+                    - gemfiles/
+                    - Gemfile
+                    - Gemfile.lock
+                    - node_modules/
+                    - vendor/bundle/
+                    - vendor/cache/
+                    - vendor/gems/
+                    - vendor/ruby/
+
+                  include: ['_pages']
+                  timezone: "America/New_York"
+
+                  # Search options
+                  preview_words_before: 5
+                  preview_words_after: 10
+                  tokenizer_separator: /[\s/]+/
+                  rel_url: true
+                  button: true
+
+                  # Links at the top of the page
+                  aux_links:
+                    'Documentation':
+                      - '//github.com/openair-collective/openair-cyan/tree/main/docs/Reference_Docs'
+                    'Code':
+                      - '//github.com/openair-collective/openair-cyan/tree/dev/Code'
+
+                  # Sitemap options
+                  aux_links_new_tab: false
+                  heading_anchors: true
+
+                  # Enable Back to Top bottom for all pages
+                  back_to_top: true
+                  back_to_top_text: "Top"
+
+                  # Enable last edit timestamp for all pages
+                  last_edit_timestamp: true
+                  last_edit_time_format: "%b %e %Y at %I:%M %p"
+
+                  gh_edit_link: true # show or hide edit this page link
+                  gh_edit_link_text: 'Edit this page on GitHub.'
+                  gh_edit_repository: 'https://github.com/openair-collective/openair-cyan' # the github URL for your repo
+                  gh_edit_branch: 'docs' # the branch that your docs is served from
+                  gh_edit_source: docs # the source that your files originate from
+                  gh_edit_view_mode: 'edit' # "tree" or "edit" if you want the user to jump into the editor immediately
+                  ga_tracking: UA-5555555-55 # Google Analytics tracking code - Dahl Winters please update this to your own code
+                  ga_tracking_anonymize_ip: true # Use GDPR compliant Google Analytics settings (true by default)
+
+                  # Google Forms configuration
+                  # comment-post: https://docs.google.com/forms/d/e/1FAIpQLScuqqkKDIUbPJpGfyLQJQe3mBNvQh45-eryzMWbqm7k7ALjGA
+                  # comment-read: https://docs.google.com/spreadsheets/d/1szz__qSlPZ5LmDlR9ovNqdSCOgoUAYCWg-gWwkCQlmw/
+                  # comment-post-fields: [entry.1141065141, entry.484163683, entry.231340692]
+                  google_forms_comments:
+                    google_app_script: https://script.google.com/macros/s/AKfycbwnErJEKIMcwQ5tlNS9rZ1KxHkhkJGkR9BNvKfkaz4X7MrZzc42VKN4ehzQ9AhfGChJ/exec
+                    recaptcha_site_key: 6LfKJsMfAAAAAFLjDTY0PG9RdcpLBuiuoFNyQLsh
+                    chunked_comment_loading: true
+                    lazy_load_comments: true
+                    comment_replies_enabled: true"
+          write-mode: overwrite
+      - run: echo "✍ File written with status ${{ job.status }}."
