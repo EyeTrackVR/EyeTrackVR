@@ -9,7 +9,6 @@ permalink: index.html
 [![GitHub issues](https://img.shields.io/github/issues/RedHawk989/EyeTrackVR?style=plastic)](https://github.com/RedHawk989/EyeTrackVR/issues) [![GitHub forks](https://img.shields.io/github/forks/RedHawk989/EyeTrackVR?style=plastic)](https://github.com/RedHawk989/EyeTrackVR/network) [![GitHub stars](https://img.shields.io/github/stars/RedHawk989/EyeTrackVR?style=plastic)](https://github.com/RedHawk989/EyeTrackVR/stargazers)
 
 # EyeTrackVR
-
 {: .no_toc }
 
 ## Table of contents
@@ -23,6 +22,7 @@ permalink: index.html
 Open source and *affordable* VR eye tracker platform for [VRChat](https://hello.vrchat.com/) via `OSC` and `UDP` protocol.
 
 #### This project is in development and is not fully finished
+{: .no_toc }
 
 ## Hardware
 
@@ -57,13 +57,13 @@ There has been work for a different firmware by a community member but that ***h
 Initial support will be Quest 2 (pcvr)
 Support for other headsets from the community.
 
-#### Contact
+### Contact
 
 Please join our discord for updates and any questions.
 
 [![Discord](https://img.shields.io/badge/Discord-7289DA?style=for-the-badge&logo=discord&logoColor=white)](https://discord.gg/kkXYbVykZX)
 
-# Licenses
+### Licenses
 
 [![GitHub license](https://img.shields.io/github/license/RedHawk989/EyeTrackVR?style=plastic)](https://github.com/RedHawk989/EyeTrackVR/blob/main/LICENSE)
 
