@@ -1,3 +1,3 @@
 "use strict";
 
-jtd.setTheme("openair");
+jtd.setTheme("eyetrackervr");
