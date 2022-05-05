@@ -5,7 +5,7 @@ email: info@h-bat.com
 url: "https://redhawk989.github.io"
 
 # Build settings
-theme: just-the-docs
+remote_theme: just-the-docs/just-the-docs
 color_scheme: light
 search_enabled: true
 heading_level: 6
@@ -101,5 +101,3 @@ google_forms_comments:
   chunked_comment_loading: true
   lazy_load_comments: true
   comment_replies_enabled: true
-
-
