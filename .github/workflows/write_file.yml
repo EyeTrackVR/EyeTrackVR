@@ -1,5 +1,3 @@
-# This is a basic workflow to help you get started with Actions
-
 name: Write File
 on:
   # Triggers the workflow on push or pull request events but only for the docs branch
