@@ -16,7 +16,7 @@ jobs:
     steps:
       - uses: microsoft/variable-substitution@v1 
         with:
-          files: ${{ github.workspace }}/_config.yml
+          files: ${{ github.workspace }}/docs/_config.yml
         env:
           recaptcha_site_key: "6LfKJsMfAAAAAFLjDTY0PG9RdcpLBuiuoFNyQLsh"
           ga_tracking: "UA-5555555-55"
