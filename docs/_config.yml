@@ -12,7 +12,33 @@ heading_level: 6
 previews: 3
 
 permalink: pretty
-exclude: ["node_modules/", "*.gemspec", "*.gem", "Gemfile", "Gemfile.lock", "package.json", "package-lock.json", "script/", "LICENSE.txt", "lib/", "bin/", "README.md", "Rakefile", "docs/tests/"]
+exclude:
+  [
+    'node_modules/',
+    '*.gemspec',
+    '*.gem',
+    'Gemfile',
+    'Gemfile.lock',
+    'package.json',
+    'package-lock.json',
+    'script/',
+    'LICENSE.txt',
+    'lib/',
+    'bin/',
+    'README.md',
+    'Rakefile',
+    'docs/tests/',
+    .sass-cache/,
+    .jekyll-cache/,
+    gemfiles/,
+    Gemfile,
+    Gemfile.lock,
+    node_modules/,
+    vendor/bundle/,
+    vendor/cache/,
+    vendor/gems/,
+    vendor/ruby/,
+  ]
 
 plugins:
   - jekyll-feed
@@ -20,18 +46,6 @@ plugins:
   - jekyll-sitemap
   - jekyll-mermaid
   - jekyll-spaceship
- 
-exclude:
-  - .sass-cache/
-  - .jekyll-cache/
-  - gemfiles/
-  - Gemfile
-  - Gemfile.lock
-  - node_modules/
-  - vendor/bundle/
-  - vendor/cache/
-  - vendor/gems/
-  - vendor/ruby/
 
 include: ['_pages']
 timezone: "America/New_York"
