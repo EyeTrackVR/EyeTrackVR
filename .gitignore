@@ -3,3 +3,6 @@
 /docs/.bundle
 /docs/vendor
 /docs/assets/js/zzzz-search-data.json
+.sass-cache
+.jekyll-metadata
+gemfile.lock
