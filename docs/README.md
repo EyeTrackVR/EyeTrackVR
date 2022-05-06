@@ -42,6 +42,7 @@ This includes visually checking with an IR camera that the brightness is correct
 #### Make sure you are using **NON-focused** emitters and at around ***5ma total power***.
 {: .no_toc }
 
+<p style="page-break-after:always;"></p>
 
 [Effect of infrared radiation on the lens](/EyeTrackVR/Reference_Docs/saftey/effect_of_ir_on_the_lens.pdf)
 
