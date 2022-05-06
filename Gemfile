@@ -16,6 +16,18 @@ gem "just-the-docs"
 # If you have any plugins, put them here!
 group :jekyll_plugins do
   gem "jekyll-feed", "~> 0.12"
+  # Jekyll SEO plugin
+  gem "jekyll-seo-tag", "~> 2.1"
+  # Jekyll Spaceship plugin
+  gem "jekyll-spaceship"
+  # Jekyll Sitemap plugin
+  gem "jekyll-sitemap"
+  # Jekyll Mermaid plugin
+  gem "jekyll-mermaid"
+  # Jekyll Remote Theme plugin
+  gem "jekyll-remote-theme"
+  
+  gem "kramdown-parser-gfm"
 end
 
 # Windows and JRuby does not include zoneinfo files, so bundle the tzinfo-data gem
@@ -29,16 +41,4 @@ end
 gem "wdm", "~> 0.1.1", :platforms => [:mingw, :x64_mingw, :mswin]
 
 # GitHub page
-gem "github-pages", "~> 221", group: :jekyll_plugins
-
-# Jekyll Spaceship plugin
-gem "jekyll-spaceship"
-
-# Jekyll SEO plugin
-gem "jekyll-seo-tag"
-
-# Jekyll Sitemap plugin
-gem "jekyll-sitemap"
-
-# Jekyll Mermaid plugin
-gem "jekyll-mermaid"
+#gem "github-pages", "~> 221", group: :jekyll_plugins

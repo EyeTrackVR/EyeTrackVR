@@ -1,8 +1,7 @@
 /.vscode
 _site
 .bundle
-vendor
-zzzz-search-data.json
+/vendor
 .sass-cache
 .jekyll-metadata
 gemfile.lock

@@ -2,8 +2,7 @@ name: Build and Deploy to Github Pages
 
 on:
   push:
-    branches:
-      - docs  # Here source code branch is `master`, it could be other branch
+    branches: [docs]
 
 jobs:
   build_and_deploy:
@@ -24,12 +23,4 @@ jobs:
         with:
           provider: 'github'
           token: ${{ secrets.GITHUB_TOKEN }} # It's your Personal Access Token(PAT)
-          repository: ''             # Default is current repository
-          branch: 'docs'         # Default is gh-pages for github provider
           jekyll_src: './docs'           # Default is root directory
-          jekyll_cfg: '_config.yml'  # Default is _config.yml
-          jekyll_baseurl: ''         # Default is according to _config.yml
-          bundler_ver: '>=0'         # Default is latest bundler version
-          cname: ''                  # Default is to not use a cname
-          actor: ''                  # Default is the GITHUB_ACTOR
-          pre_build_commands: ''     # Installing additional dependencies (Arch Linux)

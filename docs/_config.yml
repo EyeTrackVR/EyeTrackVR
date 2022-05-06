@@ -16,6 +16,10 @@ search_enabled: true
 heading_level: 6
 previews: 3
 
+baseurl: '/EyeTrackVR/'
+
+favicon: "/assets/images/favicon.png" # the favicon for your site
+
 permalink: pretty
 exclude:
   [
@@ -48,8 +52,9 @@ plugins:
   - jekyll-sitemap
   - jekyll-mermaid
   - jekyll-spaceship
+  - jekyll-remote-theme
 
-include: ["_pages", "_posts"]
+include: ['_pages', '_posts', '_sass', '_layouts', '_includes', assets]
 timezone: "America/New_York"
 
 # Search options
@@ -94,6 +99,7 @@ gh_edit_branch: 'docs' # the branch that your docs is served from
 gh_edit_source: docs # the source that your files originate from
 gh_edit_view_mode: 'edit' # "tree" or "edit" if you want the user to jump into the editor immediately
 ga_tracking: UA-5555555-55 # Google Analytics tracking code - Dahl Winters please update this to your own code
+enableDNT: "false" # Enable Do-Not-Track
 ga_tracking_anonymize_ip: true # Use GDPR compliant Google Analytics settings (true by default)
 
 # Google Forms configuration

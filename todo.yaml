@@ -40,10 +40,6 @@ STATE: ['TO_DO' = [], 'IN_PROGRESS' = [-],'DONE' = [x]]
 
     - [] Document the code - Document
 
-  Drone Emotions: This is a list of emotions that the drone can express.
-    Emotions: ['Happy', 'Sad', 'Angry', 'Surprised', 'No', 'Yes', 'Neutral', 'Follow me', 'Stop', 'Go', 'Back', 'Left', 'Right, 'Up', 'Down', 'Forward']
-  Blade Runner 2049 Drone Hand Gestures: This is a list of gestures that the drone can perform.
-    Gestures: ['Fist', ]
   TO_DO_ITEMS:
     Done: false
     Due: Null
