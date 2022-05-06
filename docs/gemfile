@@ -30,3 +30,18 @@ gem "wdm", "~> 0.1.1", :platforms => [:mingw, :x64_mingw, :mswin]
 
 # GitHub page
 gem "github-pages", "~> 221", group: :jekyll_plugins
+
+# Jekyll Spaceship plugin
+gem "jekyll-spaceship"
+
+# Jekyll Feed plugin
+gem "jekyll-feed"
+
+# Jekyll SEO plugin
+gem "jekyll-seo-tag"
+
+# Jekyll Sitemap plugin
+gem "jekyll-sitemap"
+
+# Jekyll Mermaid plugin
+gem "jekyll-mermaid"
