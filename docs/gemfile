@@ -34,9 +34,6 @@ gem "github-pages", "~> 221", group: :jekyll_plugins
 # Jekyll Spaceship plugin
 gem "jekyll-spaceship"
 
-# Jekyll Feed plugin
-gem "jekyll-feed"
-
 # Jekyll SEO plugin
 gem "jekyll-seo-tag"
 
