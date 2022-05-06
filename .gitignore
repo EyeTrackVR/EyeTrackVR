@@ -1,8 +1,8 @@
 /.vscode
-/docs/_site
-/docs/.bundle
-/docs/vendor
-/docs/assets/js/zzzz-search-data.json
+_site
+.bundle
+vendor
+zzzz-search-data.json
 .sass-cache
 .jekyll-metadata
 gemfile.lock
