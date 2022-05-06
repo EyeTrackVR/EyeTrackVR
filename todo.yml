@@ -28,7 +28,7 @@ STATE: ['TO_DO' = [], 'IN_PROGRESS' = [-],'DONE' = [x]]
 
   -------- Baseline Tasks --------
 
-    - [] Add everything to Github Pages
+    - [] Add everything to Github Pages - Add
     
     - [] Optimize the code - Optimize
 
@@ -59,8 +59,8 @@ STATE: ['TO_DO' = [], 'IN_PROGRESS' = [-],'DONE' = [x]]
     Notes:
       Links: []
     Creator:
-       Name: DaOfficialWizard
-       Website: https://h-bat.com
+       Name: ZanzyTHEbar
+       Website: https://github.com/ZanzyTHEbar
        Company: Prometheon Technologies Bv
-       Position: CTO
+       Position: Software Engineer
        Notes: Awesome dev wizard
