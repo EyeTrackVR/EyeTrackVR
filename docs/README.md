@@ -62,7 +62,7 @@ Support for other headsets from the community.
 
 ### Contact
 
-Please join our discord for updates and any questions.
+Please join our Discord for updates and any questions.
 
 [![Discord](https://img.shields.io/badge/Discord-7289DA?style=for-the-badge&logo=discord&logoColor=white)](https://discord.gg/kkXYbVykZX)
 
