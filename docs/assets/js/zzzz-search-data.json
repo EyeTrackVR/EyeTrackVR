@@ -70,3 +70,4 @@ permalink: /assets/js/search-data.json
   {%- endfor -%}
 {%- endfor %}
 }
+
