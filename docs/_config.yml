@@ -54,7 +54,7 @@ plugins:
   - jekyll-spaceship
   - jekyll-remote-theme
 
-include: ['_pages', '_posts', '_sass', '_layouts', '_includes', assets]
+include: ['_pages', '_posts']
 timezone: "America/New_York"
 
 # Search options
