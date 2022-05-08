@@ -14,7 +14,8 @@ The privacy of my visitors is extremely important. This Privacy Policy outlines 
 
 The persons responsible for data processing on this website are:
 
-<p>RedHawk989 & ZanzyTHEbar<br />
+RedHawk989 & ZanzyTHEbar
+{: .fs-5 .fw-300 }
 
 The responsible body(s) decides alone or jointly with others on the purposes and means of processing personal data (e.g. names, contact details, etc.).
 
@@ -22,12 +23,12 @@ The responsible body(s) decides alone or jointly with others on the purposes and
 
 Like many other websites, this site uses log files to help learn about when, from where, and how often traffic flows to this site. The information in these log files include:
 
-* Internet Protocol addresses (IP)
-* Types of browser
-* Internet Service Provider (ISP)
-* Date and time stamp
-* Referring and exit pages
-* Number of clicks
+- Internet Protocol addresses (IP)
+- Types of browser
+- Internet Service Provider (ISP)
+- Date and time stamp
+- Referring and exit pages
+- Number of clicks
 
 All of this information is not linked to anything that is personally identifiable.
 
@@ -35,12 +36,12 @@ All of this information is not linked to anything that is personally identifiabl
 
 I use cookies on this site to store limited information about how you interact with the site. In line with [EU legislation](https://gdpr.eu/cookies/), I have identified several different types of cookies:
 
-* **Strictly necessary cookies**.
-  * I set a cookie to store your acceptance of my cookie policy. This expires after 31 days.
-* **Preferences cookies** to remember your preferences. These are not used on this website.
-* **Statistics cookies** that allow me to see how my audience uses the website. I use:
-  * Google Analytics
-* **Marketing cookies** to help advertisers deliver relevant content are not used on this website.
+- **Strictly necessary cookies**.
+  - I set a cookie to store your acceptance of my cookie policy. This expires after 31 days.
+- **Preferences cookies** to remember your preferences. These are not used on this website.
+- **Statistics cookies** that allow me to see how my audience uses the website. I use:
+  - Google Analytics
+- **Marketing cookies** to help advertisers deliver relevant content are not used on this website.
 
 ## Google Analytics
 
