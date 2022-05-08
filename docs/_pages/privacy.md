@@ -1,6 +1,7 @@
 ---
-permalink: /privacy/
+layout: page
 title: "Privacy Policy"
+permalink: /privacy/
 modified: 2022-03-05
 nav_exclude: true
 ---
