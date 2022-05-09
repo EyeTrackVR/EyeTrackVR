@@ -1,18 +1,20 @@
 [![GitHub issues](https://img.shields.io/github/issues/RedHawk989/EyeTrackVR?style=plastic)](https://github.com/RedHawk989/EyeTrackVR/issues) [![GitHub forks](https://img.shields.io/github/forks/RedHawk989/EyeTrackVR?style=plastic)](https://github.com/RedHawk989/EyeTrackVR/network) [![GitHub stars](https://img.shields.io/github/stars/RedHawk989/EyeTrackVR?style=plastic)](https://github.com/RedHawk989/EyeTrackVR/stargazers) [![Build Github Pages Source Code](https://github.com/redhawk989/EyeTrackVR/actions/workflows/build-jekyll.yml/badge.svg?branch=docs)](https://github.com/redhawk989/EyeTrackVR/actions/workflows/build-jekyll.yml) [![Deploy to Github Pages](https://github.com/redhawk989/EyeTrackVR/actions/workflows/pages/pages-build-deployment/badge.svg?branch=docs)](https://github.com/redhawk989/EyeTrackVR/actions/workflows/pages/pages-build-deployment) ![Website](https://img.shields.io/website?down_color=red&down_message=Git%20Pages%20is%20Down%21&style=plastic&up_color=blue&up_message=Git%20Pages%20is%20Up%21&url=https%3A%2F%2Fredhawk989.github.io%2FEyeTrackVR%2F)
 
-## Table of contents
-{: .no_toc .text-delta }
-
-* TOC
-{:toc}
+- [EyeTrackVR](#eyetrackvr)
+      - [This project is in development and is not fully finished](#this-project-is-in-development-and-is-not-fully-finished)
+  - [Hardware](#hardware)
+  - [About IR Emitter Safety](#about-ir-emitter-safety)
+        - [Make sure you are using **NON-focused** emitters and at around ***5ma total power***](#make-sure-you-are-using-non-focused-emitters-and-at-around-5ma-total-power)
+  - [Firmware](#firmware)
+  - [Headset support](#headset-support)
+      - [Contact](#contact)
+- [Licenses](#licenses)
 
 # EyeTrackVR
-{: .no_toc }
 
 Open source and *affordable* VR eye tracker platform for [VRChat](https://hello.vrchat.com/) via `OSC` and `UDP` protocol.
 
-This project is in development and is not fully finished
-{: .fs-5 .fw-300 }
+#### This project is in development and is not fully finished
 
 ## Hardware
 
@@ -29,8 +31,7 @@ When files and resources are released <ins>**DO NOT BYPASS (OR NOT DO) ANY SAFET
 The safety measures were put in place to REDUCE the potential failure risk. All further safety responsibilities is on the user.
 This includes visually checking with an IR camera that the brightness is correct.
 
->**Important:** Make sure you are using NON-focused emitters and at around 5ma total power.
-{: .fs-5 .fw-300 }
+##### Make sure you are using **NON-focused** emitters and at around ***5ma total power***
 
 [Effect of infrared radiation on the lens](./docs/Reference_Docs/saftey/effect_of_ir_on_the_lens.pdf)
 
@@ -50,7 +51,9 @@ Support for other headsets from the community.
 
 #### Contact
 
-[contact](mailto:pyr0ndet0s97@gmail.com)
+Please join our discord for updates and any questions.
+
+[![Discord](https://img.shields.io/badge/Discord-7289DA?style=for-the-badge&logo=discord&logoColor=white)](https://discord.gg/kkXYbVykZX)
 
 # Licenses
 
@@ -62,3 +65,5 @@ All documentation, including the [Wiki](https://github.com/RedHawk989/EyeTrackVR
 <!-- <div align="center">
 <img src="./docs/assets/images/licenses/licenses.svg" width="300" alt="Open Licenses" />
 </div> -->
+
+[Top](#eyetrackvr)

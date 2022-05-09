@@ -8,21 +8,21 @@ permalink: index.html
 
 [![GitHub issues](https://img.shields.io/github/issues/RedHawk989/EyeTrackVR?style=plastic)](https://github.com/RedHawk989/EyeTrackVR/issues) [![GitHub forks](https://img.shields.io/github/forks/RedHawk989/EyeTrackVR?style=plastic)](https://github.com/RedHawk989/EyeTrackVR/network) [![GitHub stars](https://img.shields.io/github/stars/RedHawk989/EyeTrackVR?style=plastic)](https://github.com/RedHawk989/EyeTrackVR/stargazers)
 
-# EyeTrackVR
-{: .no_toc }
-
 ## Table of contents
 {: .no_toc .text-delta }
 
-1. TOC
+* TOC
 {:toc}
+
+# EyeTrackVR
+{: .no_toc }
 
 ---
 
 Open source and *affordable* VR eye tracker platform for [VRChat](https://hello.vrchat.com/) via `OSC` and `UDP` protocol.
 
-#### This project is in development and is not fully finished
-{: .no_toc }
+This project is in development and is not fully finished
+{: .fs-5 .fw-300 }
 
 ## Hardware
 
@@ -39,8 +39,8 @@ When files and resources are released <ins>**DO NOT BYPASS (OR NOT DO) ANY SAFET
 The safety measures were put in place to REDUCE the potential failure risk. All further safety responsibilities is on the user.
 This includes visually checking with an IR camera that the brightness is correct.
 
-#### Make sure you are using **NON-focused** emitters and at around ***5ma total power***.
-{: .no_toc }
+>**Important:** Make sure you are using **NON-focused** emitters and at around ***5ma total power***.
+{: .fs-5 .fw-300 }
 
 <p style="page-break-after:always;"></p>
 
