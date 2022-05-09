@@ -1,7 +1,8 @@
 ---
 layout: default
 title: Comments and Suggestions
-nav_order: 4
+nav_order: 1
+parent: Suggestions
 has_children: false
 ---
 

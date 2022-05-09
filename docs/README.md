@@ -64,7 +64,9 @@ Support for other headsets from the community.
 
 Please join our Discord for updates and any questions.
 
-[![Discord](https://img.shields.io/badge/Discord-7289DA?style=for-the-badge&logo=discord&logoColor=white)](https://discord.gg/kkXYbVykZX)
+[![Discord](https://discord.com/api/guilds/946212245187199026/widget.png)](https://discord.gg/kkXYbVykZX)
+
+<!-- [![Discord](https://img.shields.io/badge/Discord-7289DA?style=for-the-badge&logo=discord&logoColor=white)]() -->
 
 ### Licenses
 

@@ -1,9 +1,8 @@
 ---
 layout: default
 title: Suggestions
-nav_order: 1
-nav_exclude: true
-has_children: false
+nav_order: 6
+has_children: true
 permalink: suggestions.html
 ---
 
