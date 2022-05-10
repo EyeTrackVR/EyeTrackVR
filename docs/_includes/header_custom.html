@@ -2,24 +2,3 @@
     <a href="javascript:toggleDetect()" title="Switching Schemes" class="btn btn-mode fs-2 mb-1 mb-md-0 mr-0"
         id="switch-mode">Dark Mode</a>
 </ul>
-<script type="text/javascript">
-    var isClicked = false;
-    async function toggleDetect() {
-        if (isClicked == false) {
-            isClicked = true;
-        }
-        else {
-            isClicked = false;
-        }
-        await switchScheme(isClicked);
-    };
-
-    async function switchScheme(isClicked) {
-        if (isClicked == true) {
-            jtd.setTheme("eyetrackvr");
-        }
-        else {
-            jtd.setTheme("light");
-        }
-    }
-</script>
