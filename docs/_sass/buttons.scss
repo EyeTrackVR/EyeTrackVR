@@ -105,6 +105,15 @@
   @include btn-color($white, $btn-primary-color);
 }
 
+.btn-mode {
+  @include btn-color($white, $btn-primary-color);
+	text-transform: uppercase;
+  border-radius: 8px;
+	margin-bottom: 11px;
+  margin-top: 17px;
+	box-shadow: 2px 2px 12px 1px rgba(8, 8, 8, 0.5);
+}
+
 .btn-purple {
   @include btn-color($white, $purple-100);
 }

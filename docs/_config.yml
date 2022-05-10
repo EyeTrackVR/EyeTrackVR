@@ -11,10 +11,14 @@ github_username: RedHawk989
 
 # Build settings
 remote_theme: just-the-docs/just-the-docs
-color_scheme: light
+color_scheme: 'eyetrackvr'
 search_enabled: true
 heading_level: 6
 previews: 3
+
+
+sass:
+  style: compressed
 
 baseurl: '/EyeTrackVR/'
 
@@ -66,16 +70,12 @@ button: true
 
 # Links at the top of the page
 aux_links:
-  'Documentation':
-    - '//github.com/RedHawk989/EyeTrackVR/tree/main/docs/Reference_Docs'
   'Scripts':
     - '//github.com/RedHawk989/EyeTrackVR/tree/main/scripts'
   'InceptionNet':
     - '//github.com/RedHawk989/EyeTrackVR/tree/main/InceptionNet'
   'RANSAC':
     - '//github.com/RedHawk989/EyeTrackVR/tree/main/RANSAC'
-  'Issues':
-    - '//github.com/RedHawk989/EyeTrackVR/issues'
   'GitHub':
     - '//github.com/RedHawk989/EyeTrackVR'
   'Wiki':
