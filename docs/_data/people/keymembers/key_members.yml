@@ -1,0 +1,23 @@
+---
+# Use this YAML file to create a list of Key Members
+
+- name: Prohurtz
+  github: RedHawk989
+  linkedin:
+  twitter:
+  description: 'Initiator / Moderator / Lead Developer'
+
+- name: Summer
+  github: SummerSigh
+  linkedin:
+  twitter:
+  description: 'Machine Learning Engineer / Data Scientist / Developer'
+
+- name:
+  github:
+  linkedin:
+  twitter:
+  description:
+
+---
+

@@ -5,27 +5,30 @@ permalink: /about/
 nav_order: 5
 ---
 
-# About Us
-
-## People
-
-<p style="page-break-after:always;"></p>
-
 EyeTrackVR developers are a group of people who are passionate about the field of augmented and virtual reality.
 {: .fs-5 .fw-300 }
 
-This is not an exhaustive list; it is just an example contributed built.
+## Key Members
+
+Meet the Team!
 {: .fs-4 .fw-300 }
+<!-- To  include people in this list please edit the appropriate yaml file in the _data directory-->
+{% include people/key_members/keymembers.html %}
 
-## Teams
+<p style="page-break-after:always;"></p>
 
-## Individuals
+## Contributors
 
-{% include individuals.html %}
+Individuals
+{: .fs-6 .fw-300 }
+<!-- To  include people in this list please edit the appropriate yaml file in the _data directory-->
+{% include people/contributors/individuals.html %}
+
+<p style="page-break-after:always;"></p>
 
 ## Philosophy
 
-The [Resources](/openair-cyan/resources) section of this website includes some of our teams own notes (not all of them are polished) that we disclose for other people to use.
+The [Resources](/EyeTrackVR/resources/) section of this website includes some of our teams own notes (not all of them are polished) that we disclose for other people to use.
 There, we hope you may find something useful to you.
 
 We advocate the [Open Source model](https://en.wikipedia.org/wiki/Open-source_model).
