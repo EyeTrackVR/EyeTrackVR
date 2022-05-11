@@ -77,7 +77,20 @@
         position: absolute;
         margin-left: -1.4em;
         color: $grey-dk-000;
-        content: "•";
+        content: '•';
+      }
+    }
+  }
+
+  .comments-form ul {
+    list-style: none;
+
+    > li {
+      &::before {
+        position: absolute;
+        margin-left: -1.4em;
+        color: $grey-dk-000;
+        content: '' !important;
       }
     }
   }
@@ -91,7 +104,7 @@
     align-items: center;
 
     &::before {
-      content: "";
+      content: '';
     }
   }
 
@@ -122,7 +135,7 @@
     font-weight: 500;
     text-align: right;
     &::after {
-      content: ":";
+      content: ':';
     }
   }
 
