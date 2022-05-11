@@ -798,7 +798,7 @@
 .comment-button {
 	border: 0;
 	border-radius: 8px;
-	background: #148ee2;
+	background: #6f55d5;
 	color: #fff;
 	font-family: "Source Sans Pro", sans-serif;
 	font-weight: bold;
@@ -807,14 +807,22 @@
 	margin-bottom: 20px;
 	outline-style: none;
 	padding: 10px 20px;
-	box-shadow: 2px 2px 12px 1px rgba(8, 8, 8, 0.5);
+	/* box-shadow: 2px 2px 4px 1px rgba(8, 8, 8, 0.5); */
+	box-shadow: rgba(50, 50, 93, 0.25) 0px 50px 100px -20px, rgba(0, 0, 0, 0.3) 0px 30px 60px -30px, rgba(10, 37, 64, 0.35) 0px -2px 6px 0px inset;
 	width: auto;
 	min-width: 25%;
 	transition-duration: 0.4s;
 }
 
 .comment-button:hover {
-	background-color: #127cc3;
+	background-color: #6f55d5;
+	background-image: linear-gradient(#6f55d5, #5739ce);
+}
+
+.comment-button:active {
+	background-color: #5739ce;
+	background-image: linear-gradient(#5739ce, #6f55d5);
+	box-shadow: rgba(50, 50, 93, 0.25) 0px 30px 60px -12px inset, rgba(0, 0, 0, 0.3) 0px 18px 36px -18px inset;
 }
 
 #comment-submit {
