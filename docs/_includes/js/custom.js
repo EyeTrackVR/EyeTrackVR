@@ -1,17 +1,9 @@
-var isClicked = false;
-async function toggleDetect() {
-  if (isClicked == false) {
-    isClicked = true;
-  } else {
-    isClicked = false;
-  }
-  await switchScheme(isClicked);
-}
-
 async function switchScheme(isClicked) {
   if (isClicked == true) {
     jtd.setTheme("eyetrackvr");
+    switch_scheme.textContent = "Light Mode";
   } else {
     jtd.setTheme("light");
+    switch_scheme.textContent = "Dark Mode";
   }
 }
