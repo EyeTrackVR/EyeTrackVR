@@ -17,8 +17,6 @@ permalink: index.html
 # EyeTrackVR
 {: .no_toc }
 
----
-
 Open source and *affordable* VR eye tracker platform for [VRChat](https://hello.vrchat.com/) via `OSC` and `UDP` protocol.
 
 This project is in development and is not fully finished
@@ -57,16 +55,9 @@ There has been work for a different firmware by a community member but that ***h
 
 ## Headset support
 
-Initial support will be Quest 2 (pcvr)
-Support for other headsets from the community.
+Initial support will be Quest 2 (pcvr).
 
-### Contact
-
-Please join our Discord for updates and any questions.
-
-<!-- [![Discord](https://discord.com/api/guilds/946212245187199026/widget.png)](https://discord.gg/kkXYbVykZX) -->
-
-[![Discord](https://img.shields.io/badge/Discord-7289DA?style=for-the-badge&logo=discord&logoColor=white)]()
+Support for other headsets, comes from the community.
 
 ### Licenses
 

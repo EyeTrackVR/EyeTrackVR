@@ -1,0 +1,191 @@
+@import url('https://fonts.googleapis.com/css?family=Montserrat:400,700');
+//vars
+$blue: hsl(190, 50%, 50%);
+$green: hsl(150, 50%, 50%);
+$dark-blue: hsl(190, 50%, 45%);
+$white: #fff;
+$black: #111;
+$off-black: #222;
+$soft-corners: 0.3rem;
+$underline: linear-gradient(to bottom, transparent 95%, $black 95%);
+$underline-light: linear-gradient(to bottom, transparent 95%, $white 95%);
+
+//mixins
+@mixin bs($d: 5px, $a: 0.3) {
+  box-shadow: 0 $d $d rgba(0, 0, 0, $a);
+}
+
+@mixin bg-gradient($col1, $col2) {
+  background: linear-gradient(to top, $col1 0%, $col2 * 1.5 100%);
+}
+
+* {
+  box-sizing: border-box;
+}
+html,
+body {
+  height: 100%;
+  width: 100%;
+  margin: 0;
+  background: $black;
+  font-family: 'Montserrat', sans-serif;
+}
+
+.wrap {
+  height: 100%;
+  width: 100%;
+  display: flex;
+  flex-flow: column;
+
+  color: $white;
+}
+.name--header {
+  height: 10%;
+  width: 100%;
+  background: $dark-blue;
+  font-size: 200%;
+  text-shadow: 0px 0px 5px rgba(0, 0, 0, 0.4);
+  color: $white;
+  display: flex;
+  align-items: center;
+  padding: 2rem 1rem;
+  border-bottom: 0.3rem solid $white;
+  @include bs();
+  justify-content: space-between;
+
+  & .name {
+    font-weight: 500;
+  }
+  & .discord {
+    font-size: 50%;
+    & a {
+      color: white;
+      text-decoration: none;
+      outline: none;
+    }
+  }
+}
+.channels {
+  margin: 1rem;
+  @include bs();
+  display: block;
+  &--header {
+    font-size: 150%;
+    font-weight: 500;
+    color: $white;
+    padding: 1rem;
+    @include bg-gradient($blue, $blue);
+    border-top-left-radius: $soft-corners;
+    border-top-right-radius: $soft-corners;
+  }
+  &--body {
+    background: $off-black;
+    margin: 0;
+    padding: 1rem;
+    border-bottom-left-radius: $soft-corners;
+    border-bottom-right-radius: $soft-corners;
+  }
+}
+.channel--name {
+  margin: 0.3rem 0;
+  padding: 0.2rem 0;
+  background: $underline-light;
+}
+.users {
+  margin: 1rem;
+  @include bs();
+  display: block;
+  flex-direction: column;
+
+  &--header {
+    font-size: 150%;
+    font-weight: 500;
+    @include bg-gradient($green, $green);
+    color: $white;
+    padding: 1rem;
+    border-top-left-radius: $soft-corners;
+    border-top-right-radius: $soft-corners;
+  }
+  &--body {
+    background: $off-black;
+    margin: 0;
+    padding: 1rem;
+    display: flex;
+    flex-flow: column;
+    border-bottom-left-radius: $soft-corners;
+    border-bottom-right-radius: $soft-corners;
+  }
+}
+.user {
+  display: flex;
+  flex-flow: row wrap;
+  align-items: center;
+  font-size: 110%;
+  margin: 0.5rem 0;
+  background: $underline;
+  padding: 0.3rem;
+  position: relative;
+  width: 100%;
+  &--image {
+    width: 100%;
+    border-radius: 100%;
+    user-select: none;
+  }
+  & .username {
+    margin: 0 0.5rem;
+    position: relative;
+  }
+  & .bot--tag {
+    order: 4;
+    font-size: 50%;
+    background: #7289da;
+    padding: 0.2rem;
+    border-radius: 0.1rem;
+    user-select: none;
+    cursor: default;
+  }
+}
+
+.user--status {
+  $size: 0.8rem;
+  height: $size;
+  width: $size;
+  border-radius: 100%;
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  border: 1px solid #ddd;
+}
+.status--online {
+  background: #43b581;
+}
+.status--idle {
+  background: #faa61a;
+}
+.status--dnd {
+  background: #f04747;
+}
+.image--wrap {
+  $size: 2.5rem;
+  background: pink;
+  position: relative;
+  border-radius: 100%;
+  height: $size;
+  width: $size;
+}
+.user--game {
+  order: 5;
+  flex-grow: 1;
+  display: flex;
+  justify-content: flex-end;
+  align-items: flex-end;
+  position: relative;
+  font-size: 75%;
+  color: rgba(255, 255, 255, 0.5);
+}
+ul,
+li {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
