@@ -10,8 +10,8 @@ parent: Suggestions
 
 Please join our discord for updates and any questions.
 
-[![Discord](https://discord.com/api/guilds/946212245187199026/widget.png?style=banner3)](https://discord.gg/kkXYbVykZX){:target="_blank" :alt="Discord"}
+<div>
+    <iframe id="discord-widget" src="https://discord.com/widget?id=946212245187199026&theme=light" width="350" height="500" allowtransparency="true" frameborder="0" sandbox="allow-popups allow-popups-to-escape-sandbox allow-same-origin allow-scripts" target="_blank"></iframe>
+</div>
 
-<!-- {% include discord/discord_banner.html %} -->
-
-{% include contactform.html %}
+<!-- [![Discord](https://discord.com/api/guilds/946212245187199026/widget.png?style=banner3)](https://discord.gg/kkXYbVykZX){:target="_blank" :alt="Discord"} -->
