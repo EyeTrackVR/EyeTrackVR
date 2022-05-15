@@ -1,13 +1,43 @@
 .side-bar {
-  background: #202025;
+  background: #c9c7c5;
+}
+
+.header-container {
+  border-radius: 0;
+  display: inline-block;
+  margin: 0px;
+  width: 270px;
+}
+
+.header-buttons ul li {
+  display: inline-block;
+  /* vertical-align: center; */
+  width: 90%;
+}
+
+.header-buttons ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+
+  > li {
+    height: fit-content;
+    width: fit-content;
+    &::before {
+      position: absolute;
+      margin-left: -1.4em;
+      color: $grey-dk-000;
+      content: '' !important;
+    }
+  }
 }
 
 .nav-list-item a {
-  color: #fff;
+  color: #000;
 }
 
 .nav-list .nav-list-item .nav-list-expander {
-  color: #fff;
+  color: #000;
 }
 
 .nav-list .nav-list-item .nav-list-expander:hover,
@@ -36,7 +66,7 @@
 
 .site-header a,
 .site-button > .icon {
-  color: #fff;
+  color: #000;
 }
 
 .side-bar a:hover {
@@ -44,7 +74,7 @@
   text-decoration: underline;
 }
 
-  h1 {
+h1 {
   font-weight: 400;
 }
 
@@ -59,6 +89,10 @@ h3 {
 h4 {
   font-weight: 400;
   text-transform: none;
+}
+
+hr {
+  border-top: 1px solid rgb(220, 220, 220);
 }
 
 .video-container {
@@ -115,7 +149,7 @@ blockquote p {
   position: absolute;
   top: 12px;
   margin-left: 10px;
-  border-top: 5px solid #000;
+  border-top: 5px solid #007575;
   border-bottom: none;
 }
 
@@ -128,7 +162,7 @@ blockquote p {
   position: absolute;
   top: 12px;
   margin-left: 10px;
-  border-bottom: 5px solid #000;
+  border-bottom: 5px solid #007575;
   border-top: none;
 }
 
@@ -155,7 +189,7 @@ blockquote p {
 }
 
 .nav-list-item.active {
-  color: #fff;
+  color: #000;
 }
 
 .nav-list-item.active:has() {
@@ -164,11 +198,11 @@ blockquote p {
 .nav-list-item.active .nav-list-expander,
 .nav-list .nav-list-item > .nav-list .nav-list-item .nav-list-link,
 .nav-list-item.active a {
-  color: #fff;
+  color: #000;
   position: relative;
 }
 
-  .nav-list .nav-list-item > .nav-list .nav-list-item .nav-list-link::before {
+.nav-list .nav-list-item > .nav-list .nav-list-item .nav-list-link::before {
   content: '';
   display: block;
   position: absolute;
@@ -176,10 +210,10 @@ blockquote p {
   height: 100%;
   width: 20px;
   top: 0;
-  border-left: 1px solid #505050;
+  border-left: 1px solid #00d1d1;
   padding: 10px 0;
   box-sizing: border-box;
-  border-bottom: 1px solid #2a2a2a;
+  border-bottom: 1px solid #00d1d1;
 }
 
 .nav-list .nav-list-item .nav-list-expander {
@@ -242,5 +276,3 @@ blockquote p {
     font-size: 18px !important;
   }
 }
-
-

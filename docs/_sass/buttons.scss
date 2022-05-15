@@ -120,6 +120,53 @@
   box-shadow: rgba(50, 50, 93, 0.25) 0px 30px 60px -12px inset, rgba(0, 0, 0, 0.3) 0px 18px 36px -18px inset;
 }
 
+.btn-github {
+  @include btn-color($grey-dk-300, $white);
+	text-transform: uppercase;
+  border-radius: 8px;
+	margin-bottom: 11px;
+  margin-top: 17px;
+	box-shadow: rgba(50, 50, 93, 0.25) 0px 50px 100px -20px, rgba(0, 0, 0, 0.3) 0px 30px 60px -30px, rgba(10, 37, 64, 0.35) 0px -2px 6px 0px inset;
+}
+
+.btn-github:active {
+	background-color: $white;
+	background-image: linear-gradient($white, rgb(193, 185, 185));
+  box-shadow: rgba(50, 50, 93, 0.25) 0px 30px 60px -12px inset, rgba(0, 0, 0, 0.3) 0px 18px 36px -18px inset;
+}
+
+.btn-arduino {
+  @include btn-color($white, #2f9fa4);
+	text-transform: uppercase;
+  border-radius: 8px;
+	margin-bottom: 11px;
+  margin-top: 17px;
+	box-shadow: rgba(50, 50, 93, 0.25) 0px 50px 100px -20px, rgba(0, 0, 0, 0.3) 0px 30px 60px -30px, rgba(10, 37, 64, 0.35) 0px -2px 6px 0px inset;
+}
+
+.btn-arduino:active {
+	background-color: $white;
+	background-image: linear-gradient(#2f9fa4, #206d71);
+  box-shadow: rgba(50, 50, 93, 0.25) 0px 30px 60px -12px inset, rgba(0, 0, 0, 0.3) 0px 18px 36px -18px inset;
+}
+
+.btn-discord {
+  @include btn-color($white, #7289da);
+	text-transform: uppercase;
+  background-color: $white;
+	background-image: linear-gradient(#7289da, #7289da);
+  border-radius: 8px;
+	margin-bottom: 11px;
+  margin-top: 17px;
+	box-shadow: rgba(50, 50, 93, 0.25) 0px 50px 100px -20px, rgba(0, 0, 0, 0.3) 0px 30px 60px -30px, rgba(10, 37, 64, 0.35) 0px -2px 6px 0px inset;
+}
+
+.btn-discord:active {
+	background-color: $white;
+	background-image: linear-gradient(#7289da, #7289da);
+  box-shadow: rgba(50, 50, 93, 0.25) 0px 30px 60px -12px inset, rgba(0, 0, 0, 0.3) 0px 18px 36px -18px inset;
+}
+
 .btn-purple {
   @include btn-color($white, $purple-100);
 }
