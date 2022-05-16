@@ -24,32 +24,42 @@ $feedback-color: darken($sidebar-color, 7%);
 } */
 
 .aux-nav-list a {
-    color: $blue-000;
+  color: $blue-000;
 }
 
 #markdown-toc a {
-    color: $blue-000;
+  color: $blue-000;
 }
 
 p > a {
-    color: $blue-000;
+  color: $blue-000;
 }
 p > strong > em > a {
-    color: $blue-000;
+  color: $blue-000;
 }
 
 .breadcrumb-nav-list a {
-    color: $blue-000;
+  color: $blue-000;
 }
 
 ul > li > a {
-    color: $blue-000;
+  color: $blue-000;
 }
 
 #main-content blockquote {
-    background-color: #202225;
+  background-color: #202225;
 }
 
 #main-content a {
-    color: $blue-000;
+  color: $blue-000;
+}
+
+.site-footer a {
+  color: #00ffff;
+  text-decoration: none;
+  background-image: none;
+}
+
+.site-footer {
+  color: #00ffff;
 }
