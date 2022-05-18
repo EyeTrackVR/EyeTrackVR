@@ -1,0 +1,21 @@
+# .github/workflows/github-actions-change-variable.yml
+name: Variable Substitution
+on:
+ # Triggers the workflow on push or pull request events but only for the main branch
+  push:
+    branches: [ docs ]
+
+  # Allows you to run this workflow manually from the Actions tab
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - uses: microsoft/variable-substitution@v1 
+        with:
+          files: 'docs/_config.yml'
+        env:
+          recaptcha_site_key: "6LfKJsMfAAAAAFLjDTY0PG9RdcpLBuiuoFNyQLsh"
+          ga_tracking: "UA-5555555-55"

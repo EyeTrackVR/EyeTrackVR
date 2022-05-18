@@ -1,0 +1,11 @@
+blank_issues_enabled: false
+contact_links:
+  - name: EyeTrackVR Docs
+    url: https://redhawk989.github.io/EyeTrackVR/
+    about: All the information related to EyeTrackVR.
+  - name: EyeTrackVR Discussions and Support
+    url: https://github.com/RedHawk989/EyeTrackVR/discussions
+    about: EyeTrackVR usage Questions, Feature Requests and Projects.
+  - name: EyeTrackVR Users Chat
+    url: https://redhawk989.github.io/EyeTrackVR/contact/
+    about: Chat for feedback, questions and troubleshooting.

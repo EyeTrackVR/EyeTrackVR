@@ -1,0 +1,155 @@
+name: Write File
+on:
+  # Triggers the workflow on push or pull request events but only for the docs branch
+  push:
+    branches: [docs]
+
+  # Allows you to run this workflow manually from the Actions tab
+  workflow_dispatch:
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Git checkout
+        uses: actions/checkout@v2
+        with:
+          fetch-depth: '0'
+      - name: Declare status of job
+        run: |
+          echo "🎉 The job was automatically triggered by a ${{ github.event_name }} event." 
+          echo "🐧 This job is now running on a ${{ runner.os }} server hosted by GitHub!"
+          echo "🔎 The name of your branch is ${{ github.ref }} and your repository is ${{ github.repository }}."
+          echo "💡 The ${{ github.repository }} repository has been cloned to the runner."
+          echo "🖥️ The workflow is now ready to test your code on the runner."
+      - name: List files in the repository
+        run: |
+          ls ${{ github.workspace }}
+      - run: echo "🍏 This job's status is ${{ job.status }}."
+      - run: echo "✍ Writing to file."
+      - uses: DamianReeves/write-file-action@master
+        with:
+          path: ${{ github.workspace }}/docs/_config.yml
+          contents: |
+              title: 'EyeTrackVR Documentation'
+              description: 'Documentation for EyeTrackVR and related projects'
+              author: 'ZanzyTHEbar'
+              email: info@h-bat.com
+              # baseurl: "" # the subpath of your site, e.g. /blog
+              url: "https://redhawk989.github.io"
+
+              # twitter_username:
+              # facebook_username:
+              github_username: RedHawk989
+
+              # Build settings
+              remote_theme: just-the-docs/just-the-docs
+              color_scheme: light
+              search_enabled: true
+              heading_level: 6
+              previews: 3
+
+              permalink: pretty
+              exclude:
+                [
+                  'node_modules/',
+                  '*.gemspec',
+                  '*.gem',
+                  'gemfiles/',
+                  'Gemfile',
+                  'Gemfile.lock',
+                  'package.json',
+                  'package-lock.json',
+                  'script/',
+                  'LICENSE.txt',
+                  'lib/',
+                  'bin/',
+                  'Rakefile',
+                  'docs/tests/',
+                  '.sass-cache/',
+                  '.jekyll-cache/',
+                  'node_modules/',
+                  'vendor/bundle/',
+                  'vendor/cache/',
+                  'vendor/gems/',
+                  'vendor/ruby/',
+                ]
+
+              plugins:
+                - jekyll-feed
+                - jekyll-seo-tag
+                - jekyll-sitemap
+                - jekyll-mermaid
+                - jekyll-spaceship
+
+              include: ["_pages", "_posts"]
+              timezone: "America/New_York"
+
+              # Search options
+              preview_words_before: 5
+              preview_words_after: 10
+              tokenizer_separator: /[\s/]+/
+              rel_url: true
+              button: true
+
+              # Links at the top of the page
+              aux_links:
+                'Documentation':
+                  - '//github.com/RedHawk989/EyeTrackVR/tree/main/docs/Reference_Docs'
+                'Scripts':
+                  - '//github.com/RedHawk989/EyeTrackVR/tree/main/scripts'
+                'InceptionNet':
+                  - '//github.com/RedHawk989/EyeTrackVR/tree/main/InceptionNet'
+                'RANSAC':
+                  - '//github.com/RedHawk989/EyeTrackVR/tree/main/RANSAC'
+                'Issues':
+                  - '//github.com/RedHawk989/EyeTrackVR/issues'
+                'GitHub':
+                  - '//github.com/RedHawk989/EyeTrackVR'
+                'Wiki':
+                  - '//github.com/RedHawk989/EyeTrackVR/wiki'
+
+              # Enable Back to Top bottom for all pages
+              back_to_top: true
+              back_to_top_text: "Top"
+
+              # Enable last edit timestamp for all pages
+              last_edit_timestamp: true
+              last_edit_time_format: "%b %e %Y at %I:%M %p"
+
+              # Sitemap options
+              aux_links_new_tab: false # Whether to open aux_links in a new tab
+              heading_anchors: true
+              gh_edit_link: true # show or hide edit this page link
+              gh_edit_link_text: 'Edit this page on GitHub.'
+              gh_edit_repository: 'https://github.com/RedHawk989/EyeTrackVR' # the github URL for your repo
+              gh_edit_branch: 'docs' # the branch that your docs is served from
+              gh_edit_source: docs # the source that your files originate from
+              gh_edit_view_mode: 'edit' # "tree" or "edit" if you want the user to jump into the editor immediately
+              ga_tracking: UA-5555555-55 # Google Analytics tracking code - Dahl Winters please update this to your own code
+              ga_tracking_anonymize_ip: true # Use GDPR compliant Google Analytics settings (true by default)
+
+              # Google Forms configuration
+              # comment-post: https://docs.google.com/forms/d/e/1FAIpQLScuqqkKDIUbPJpGfyLQJQe3mBNvQh45-eryzMWbqm7k7ALjGA
+              # comment-read: https://docs.google.com/spreadsheets/d/1szz__qSlPZ5LmDlR9ovNqdSCOgoUAYCWg-gWwkCQlmw/
+              # comment-post-fields: [entry.1141065141, entry.484163683, entry.231340692]
+              google_forms_comments:
+                google_app_script: https://script.google.com/macros/s/AKfycbyvN6BYATPrSahv5SpWKC44yu7GJmlVYyzl6HZeDlYZI5T6PJ5HuF2IMGvTO7E4cA34ng/exec
+                recaptcha_site_key: 6LcOgsQfAAAAAF1GB4ENB-qwe8vdtsqbHS1duIeV
+                chunked_comment_loading: true
+                lazy_load_comments: true
+                comment_replies_enabled: true
+          write-mode: overwrite
+      - name: git
+        run: |
+          # setup the username and email, use 'GitHub Actions Bot' with no email by default
+          git --version
+          git config user.name "GitHub Actions Bot"
+          git config user.email "<>"
+          git status
+          git tag
+          git add docs/_config.yml
+          git commit -m "file updated"
+          git push https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git HEAD
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - run: echo "✍ File written with status ${{ job.status }}."

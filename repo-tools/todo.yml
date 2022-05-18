@@ -1,0 +1,66 @@
+---
+TO_DO:
+STATE: ['TO_DO' = [], 'IN_PROGRESS' = [-],'DONE' = [x]]
+  Description: This is a list of things that need to be done.
+  Tasks:
+
+  --------- HIGH PRIORITY ---------
+
+    - [] hardware guide (parts list and wiring diagram)
+
+    - [] avatar set up guide
+
+    - [] flashing firmware guide
+
+    - [] camera placement guide with correct and incorrect examples etc
+
+    - [] project aspirations and limits
+
+    - [] expanded FAQ.
+
+    - [] expanded project description
+
+    - [] Re-vamp the wiki
+
+  -------- LOW PRIORITY --------
+
+    - [] any working 3d printed mounts or solutions for other headsets
+
+  -------- Baseline Tasks --------
+
+    - [] Add everything to Github Pages - Add
+    
+    - [] Optimize the code - Optimize
+
+    - [] Fix the bugs - Fix
+
+    - [] Add new features - Add
+
+    - [] Test the code - Test
+
+    - [] Document the code - Document
+
+  TO_DO_ITEMS:
+    Done: false
+    Due: Null
+    Priority:
+    Tags:
+      - In_Progress
+      - Optimize
+      - Formatting
+      - Efficiency
+      - Scanning
+      - Hashing
+      - Reboot
+      - Connecting
+      - Done
+    Contexts:
+    Projects:
+    Notes:
+      Links: []
+    Creator:
+       Name: ZanzyTHEbar
+       Website: https://github.com/ZanzyTHEbar
+       Company: Prometheon Technologies Bv
+       Position: Documentation Manager
+       Notes: Awesome dev wizard
