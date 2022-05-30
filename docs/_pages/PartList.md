@@ -13,6 +13,7 @@ parent: How to build
 
 It is recommended to source parts from AliExpress as it is much cheaper
 
+
 ## Wireless setup:
 
 2x ESP-CAM-32 modules [AliExpress here](https://a.aliexpress.com/_mKjL9Cq)
@@ -30,9 +31,18 @@ All three of the above can be found in a kit from [AliExpress here](https://a.al
 [28 gauge wire from AliExpress here](https://a.aliexpress.com/_mK72cy6)
 
 
+
 ## Wired setup
 
 2x Wired Ov5640 160 deg cameras [AliExpress here](https://www.aliexpress.com/item/2255799933896897.html)
+
+**Please note: if the wired option is used, you will need to dissasemble the camera to remove the ir filters.**
+**I would reccomend getting extra cameras, either the full thing above or just the camerea [from AliExpress here](https://www.aliexpress.com/item/3256803544318475.html)**
+
+1x USB type-A male port to power both IR emmitters
+[AliExpress here](https://a.aliexpress.com/_mOCRTcq)
+
+
 
 ## IR Emitters
 
@@ -47,6 +57,8 @@ Recommend ones [from Digikey here](https://www.digikey.com/en/products/detail/in
 
 1x Wire to power IR emitters
 [32 gauge wire from AliExpress here](https://a.aliexpress.com/_mK72cy6)
+
+
 
 ## Other parts
 
