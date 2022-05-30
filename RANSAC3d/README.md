@@ -33,3 +33,11 @@ Find the highest you can go with the best quality and close the program.
 
 #
 ### The main tracking part is adapted from https://github.com/SummerSigh/TheVrMLEyeToolbox/tree/main/Pupil3dDetector
+
+*I DO NOT OWN THE LICENSE TO THE PUPIL LABS PART OF THE CODE. Distributed under the terms of the GNU Lesser General Public License (LGPL v3.0). See COPYING and COPYING. LESSER for license details.*
+
+Copyright (C) 2018 Pupil Labs
+
+All Rights Reserved.
+
+This is the Pye3d system by Pupil Labs
