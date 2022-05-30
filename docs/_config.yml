@@ -70,6 +70,8 @@ button: true
 
 # Links at the top of the page
 aux_links:
+ 'RANSAC3d':
+    - '//github.com/RedHawk989/EyeTrackVR/tree/main/RANSAC3d'
   'Scripts':
     - '//github.com/RedHawk989/EyeTrackVR/tree/main/scripts'
   'InceptionNet':
