@@ -1,9 +1,9 @@
 ---
 layout: page
 title: Part List
-permalink: /partslist
+permalink: /partslist/
 nav_order: 2
-parent: How to Build
+parent: How to build
 ---
 
 # test 2
