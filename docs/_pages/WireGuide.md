@@ -1,7 +1,7 @@
 ---
 layout: page
 title: Wiring Guide
-permalink: /contact/
+permalink: /wireguide
 nav_order: 1
 parent: How to build
 ---
