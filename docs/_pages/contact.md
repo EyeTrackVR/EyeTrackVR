@@ -8,7 +8,7 @@ parent: Suggestions
 
 # Contact Us
 
-Please join our discord for updates and any questions.
+Please join our Discord for updates and any questions.
 
 <div>
     <iframe id="discord-widget" src="https://discord.com/widget?id=946212245187199026&theme=light" width="350" height="500" allowtransparency="true" frameborder="0" sandbox="allow-popups allow-popups-to-escape-sandbox allow-same-origin allow-scripts" target="_blank"></iframe>
