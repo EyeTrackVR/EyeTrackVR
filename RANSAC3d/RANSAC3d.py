@@ -5,6 +5,11 @@ from pye3dcustom.detector_3d import CameraModel, Detector3D, DetectorMode
 from pythonosc import udp_client
 import time
 import os
+from scipy import ndimage
+import pyttsx3
+import PIL
+engine = pyttsx3.init()
+
 
 OSCip="127.0.0.1" 
 OSCport=9000 #VR Chat OSC port
@@ -19,14 +24,18 @@ def vc():
 
     vc.xoff = 1
     vc.yoff = 1
-    vc.eyeoffset = 1
+    vc.eyeoffset = 300 ################################################################################################################## INCREASEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEE
     vc.eyeoffx = 1
-
+    vc.setoff = 0
     vc.x = 1
     vc.y = 1
     vc.w = 1
     vc.h = 1
 
+    vc.xmax = 69420
+    vc.xmin = -69420
+    vc.ymax = 69420
+    vc.ymin = -69420
 
 vc()
 
@@ -53,15 +62,23 @@ except:
         cam.write(str(camaddr))
     
 try:
-    with open("thresh.cfg", 'r') as camr:
+    with open("settings.cfg", 'r') as camr:
         lines = camr.readlines()
         thrsh = int(lines[0].strip())
+        rv = int(lines[1].strip())
 
 except:
-    print('[ERROR] No Threshold Set Run ThreshGUI.')
+    print('[ERROR] No Threshold or Rotation Set, Run GUI.')
     thrsh = input('Threshold:> ')
-    with open('thresh.cfg', 'w+') as rf:
+    rv = 0
+    with open('settings.cfg', 'w+') as rf:
         rf.write(str(thrsh))
+        rf.write('\n')
+        rf.write(str(0))
+
+
+
+
 
 
 
@@ -77,15 +94,16 @@ try:
         roicnfg.close()
 except:
     print('[ERROR] No ROI Set.')
-    cap = cv2.VideoCapture(camaddr)
+    cap = cv2.VideoCapture(camaddrport)
     ret, img = cap.read()
+    img = ndimage.rotate(img, int(rv), reshape=True)
     roibb = cv2.selectROI("image", img, fromCenter=False, showCrosshair=True)
     cv2.destroyAllWindows()
     print('X', roibb[0])
     print('Y', roibb[1])
     print('Width', roibb[2])
     print('Height', roibb[3])
-    time.sleep(2) ###################################### > REMOVE < #################
+   
     with open('roi.cfg', 'w+') as rf:
         rf.write(str(roibb[0]))
         rf.write('\n')
@@ -101,8 +119,31 @@ except:
         vc.w = float(lines[2].strip())
         vc.h = float(lines[3].strip())
         roicnfg.close()
-    
 
+    try:
+        cam = cv2.VideoCapture(camaddrport)
+        print('[INFO] Press ESC when rotation is set.')
+        while True:
+            #time.sleep(0.1)############################################################## < REMOVE ####################################################
+            ret_val, img = cam.read()
+            with open("settings.cfg", 'r') as camr:
+                lines = camr.readlines()
+                thrsh = int(lines[0].strip())
+                rv = int(lines[1].strip())
+            img = img[int(vc.y): int(vc.y+vc.h), int(vc.x): int(float(vc.x+vc.w))]
+            rows, cols, _ = img.shape
+            img_center = (cols / 2, rows / 2)
+            M = cv2.getRotationMatrix2D(img_center, rv, 1)
+            img = cv2.warpAffine(img, M, (cols, rows),
+                            borderMode=cv2.BORDER_CONSTANT,
+                            borderValue=(255,255,255))
+            #img = ndimage.rotate(img, int(rv), reshape=True)
+            cv2.imshow('cam', img)
+            if cv2.waitKey(1) == 27: 
+                break  # esc to quit
+        cv2.destroyAllWindows()
+    except:
+        print('[INFO] Rotation sucsessfully set')
 
 
 
@@ -123,7 +164,11 @@ try:
         offr.close()
 except:
     print('[WARN] No eye offset has been detected.')
-    vc.eyeoffset = 0
+    engine.say("No eye offset has been detected please move your eye around and wait for audio prompt.")
+        
+    engine.runAndWait()
+    vc.eyeoffset = 300
+    vc.setoff = 1
 
 
 
@@ -242,24 +287,42 @@ if cap.isOpened() == False:
 while cap.isOpened():
 
 
-    
-    with open("thresh.cfg", 'r') as camr:
-        lines = camr.readlines()
-        thrsh = int(lines[0].strip())
-            
+
+    try:
+        rvo = rv
+        with open("settings.cfg", 'r') as camr:
+            lines = camr.readlines()
+            thrsh = int(lines[0].strip())
+            rv = int(lines[1].strip())
+        if rv != rvo:
+            print("[WARN] Rotation Detected. Center Calibration will start in a few seconds.")
+            vc.eyeoffset = 300
+    except:
+        print('[WARN] Config Over-read Detected.')
     #try:
     try:
         ret, img = cap.read()
-
         img = img[int(vc.y): int(vc.y+vc.h), int(vc.x): int(float(vc.x+vc.w))]
+
+        
     except:
         img = imgo[int(vc.y): int(vc.y+vc.h), int(vc.x): int(float(vc.x+vc.w))]
         print('[SEVERE WARN] Frame Issue Detected.')
 #print(cv2.selectROI("image", img, fromCenter=False, showCrosshair=True))
+    
+
+
+
 
     frame_number = cap.get(cv2.CAP_PROP_POS_FRAMES)
     fps = cap.get(cv2.CAP_PROP_FPS)
     if ret == True:
+        rows, cols, _ = img.shape
+        img_center = (cols / 2, rows / 2)
+        M = cv2.getRotationMatrix2D(img_center, rv, 1)
+        img = cv2.warpAffine(img, M, (cols, rows),
+                           borderMode=cv2.BORDER_CONSTANT,
+                           borderValue=(255,255,255))
         newImage2 = img.copy()
         kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (3, 3))
         image_gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
@@ -328,42 +391,121 @@ while cap.isOpened():
                 (0, 255, 0),  # color (BGR): red
             )
 
+            exm = ellipse_3d["center"][0]
+            eym = ellipse_3d["center"][1]
 
-            #print the x distance between center of eyeball and center of pupil as a float between -1 and 1 (0 is center)
-        #  print((cx - projected_sphere["center"][0]) / projected_sphere["axes"][0])
-            #print the y distance between center of eyeball and center of pupil as a float between -1 and 1 (0 is center)
-            #print((cy - projected_sphere["center"][1]) / projected_sphere["axes"][1]) 
             xrl = (cx - projected_sphere["center"][0]) / projected_sphere["axes"][0]
             
             eyey = (cy - projected_sphere["center"][1]) / projected_sphere["axes"][1]
 
-            if vc.eyeoffset == 0:
-                vc.eyeoffx = (cx - projected_sphere["center"][0]) / projected_sphere["axes"][0]
-                
-                print(vc.eyeoffx)
-                vc.eyeoffset = 1
+            if vc.eyeoffset == 1 and vc.setoff == 1:
+                engine.say("Eye offset not found look straight forward")
+                engine.runAndWait()
+                time.sleep(3)
 
-            if xrl >= 0:
-                client.send_message("/avatar/parameters/RightEyeX", -abs(xrl))
-                client.send_message("/avatar/parameters/LeftEyeX", -abs(xrl))
-            if xrl <= 0:
-                client.send_message("/avatar/parameters/RightEyeX", -abs(xrl))
-                client.send_message("/avatar/parameters/LeftEyeX", -abs(xrl))
+
+
+            if vc.eyeoffset == 0:
+                vc.eyeoffset = vc.eyeoffset - 1
+                vc.xoff = ellipse_3d["center"][0]
+                vc.yoff = ellipse_3d["center"][1]
+
+
+                with open('center_offset.cfg', 'w+') as rf:
+                    rf.write(str(vc.xoff))
+                    rf.write('\n')
+                    rf.write(str(vc.yoff))
+                engine.say("Eye offset has been set.")
+                engine.runAndWait()
+                
+            else:
+                if vc.eyeoffset > 0:
+
+
+                    if exm > vc.xmax:
+                        vc.xmax = exm
+                    if exm < vc.xmin:
+                        vc.xmin = exm
+
+                    if eym > vc.ymax:
+                        vc.ymax = eym
+                    if eym < vc.xmin:
+                        vc.ymin = eym
+                    
+           
+                    vc.eyeoffset = vc.eyeoffset - 1
+                
+
+
+
+            xr = float((((cx - vc.xoff) * 100) / (vc.xmax - vc.xoff)) / 100) 
+
+            xl = float((((cx - vc.xoff) * 100) / (vc.xmin - vc.xoff)) / 100) 
+
+
+            yu = float((((cy - vc.yoff) * 100) / (vc.ymin - vc.yoff)) / 100)
+
+            yd = float((((cy - vc.yoff) * 100) / (vc.ymax - vc.yoff)) / 100)
+
+
+
+            if xr > 0:
+                if xr > 1:
+                    xr = 1.0
+                client.send_message("/avatar/parameters/RightEyeX", xr)
+                client.send_message("/avatar/parameters/LeftEyeX", xr)
+
+                print('XR', xr)
+            if xl > 0:
+                if xl > 1:
+                    xl = 1.0
+                client.send_message("/avatar/parameters/RightEyeX", -abs(xl))
+                client.send_message("/avatar/parameters/LeftEyeX", -abs(xl))
+                print('XL', xl)
+
+            if yd > 0:
+                if yd > 1:
+                    yd = 1.0
+                client.send_message("/avatar/parameters/EyesY", -abs(yd))
+               # print('YD', yd)
+
+            if yu > 0:
+                if yu > 1:
+                    yu = 1.0
+            
+                client.send_message("/avatar/parameters/EyesY", yu)
+
+
+
+
+
+
+           # if xrl >= 0:
+           #     client.send_message("/avatar/parameters/RightEyeX", -abs(xrl))
+           #     client.send_message("/avatar/parameters/LeftEyeX", -abs(xrl))
+          #  if xrl <= 0:
+           #     client.send_message("/avatar/parameters/RightEyeX", abs(xrl))
+           #     client.send_message("/avatar/parameters/LeftEyeX", abs(xrl))
             # client.send_message("/avatar/parameters/RightEyeX", abs(xrl - vc.eyeoffx))
                 #client.send_message("/avatar/parameters/LeftEyeX", abs(xrl - vc.eyeoffx))
 
-            if eyey >= 0:
-                client.send_message("/avatar/parameters/EyesY", -abs(eyey * 1.3))
-                client.send_message("/avatar/parameters/EyesY", -abs(eyey * 1.3))
-            if eyey <= 0:
-                client.send_message("/avatar/parameters/EyesY", abs(eyey))
-                client.send_message("/avatar/parameters/EyesY", abs(eyey))
-            client.send_message("/avatar/parameters/LeftEyeLid", float(1))
-            client.send_message("/avatar/parameters/RightEyeLid", float(1))
+         #   if eyey >= 0:
+          #      client.send_message("/avatar/parameters/EyesY", -abs(eyey))
+          #      client.send_message("/avatar/parameters/EyesY", -abs(eyey))
 
-            
+         #   if eyey <= 0:
+        #        client.send_message("/avatar/parameters/EyesY", abs(eyey))
+         #       client.send_message("/avatar/parameters/EyesY", abs(eyey))
 
-    
+         #   client.send_message("/avatar/parameters/LeftEyeLid", float(1))
+         #   client.send_message("/avatar/parameters/RightEyeLid", float(1))
+
+       #     ellipse_3d["center"][0] x mid?
+        #    ellipse_3d["center"][1] y mid
+
+
+
+
         except:
             try:
                 contours, _ = cv2.findContours(backupthresh, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
@@ -374,7 +516,7 @@ while cap.isOpened():
                     (x, y, w, h) = cv2.boundingRect(cnt)
                     xt = x + int(w/2) 
                     yt = y + int(h/2)
-                    if h > 8 and w > 8 and h < 20 and w < 20:
+                    if h > 8 and w > 8 and h < 30 and w < 30:
                         
 
                         xrlb = (xt - projected_sphere["center"][0]) / projected_sphere["axes"][0]
