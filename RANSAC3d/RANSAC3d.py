@@ -438,9 +438,9 @@ while cap.isOpened():
 
 
 
-            xr = float((((cx - vc.xoff) * 100) / (vc.xmax - vc.xoff)) / 100) 
+            xl = float((((cx - vc.xoff) * 100) / (vc.xmax - vc.xoff)) / 100) 
 
-            xl = float((((cx - vc.xoff) * 100) / (vc.xmin - vc.xoff)) / 100) 
+            xr = float((((cx - vc.xoff) * 100) / (vc.xmin - vc.xoff)) / 100) 
 
 
             yu = float((((cy - vc.yoff) * 100) / (vc.ymin - vc.yoff)) / 100)
