@@ -10,12 +10,25 @@ import pyttsx3
 import PIL
 engine = pyttsx3.init()
 
+##################
+
+## User Configuration variables
+## (Things prohurtz may tell you to change)
+
+# Change to a larger number (i.e. 60) to increase search area 
+focal_length = 30 
+# Arrived at this value by experimentation, may need tweaking depending on avatar eye model.
+eye_position_scalar = 3000 
+
+##################
+
+## OSC Configuration
 
 OSCip="127.0.0.1" 
 OSCport=9000 #VR Chat OSC port
 client = udp_client.SimpleUDPClient(OSCip, OSCport)
 
-
+##################
 
 def vc():
     vc.height = 1
@@ -278,7 +291,7 @@ height = cap.get(cv2.CAP_PROP_FRAME_HEIGHT)
 vc.width = vc.w
 vc.height = vc.h
 
-camera = CameraModel(focal_length=30, resolution=[vc.width,vc.height])
+camera = CameraModel(focal_length=focal_length, resolution=[vc.width,vc.height])
 
 detector_3d = Detector3D(camera=camera, long_term_mode=DetectorMode.blocking)
 
@@ -438,14 +451,14 @@ while cap.isOpened():
 
 
 
-            xl = float((((cx - vc.xoff) * 100) / (vc.xmax - vc.xoff)) / 100) 
+            xl = float(((cx - vc.xoff) * eye_position_scalar) / (vc.xmax - vc.xoff)) 
 
-            xr = float((((cx - vc.xoff) * 100) / (vc.xmin - vc.xoff)) / 100) 
+            xr = float(((cx - vc.xoff) * eye_position_scalar) / (vc.xmin - vc.xoff)) 
 
 
-            yu = float((((cy - vc.yoff) * 100) / (vc.ymin - vc.yoff)) / 100)
+            yu = float(((cy - vc.yoff) * eye_position_scalar) / (vc.ymin - vc.yoff))
 
-            yd = float((((cy - vc.yoff) * 100) / (vc.ymax - vc.yoff)) / 100)
+            yd = float(((cy - vc.yoff) * eye_position_scalar) / (vc.ymax - vc.yoff))
 
 
 
