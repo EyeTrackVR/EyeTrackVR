@@ -16,12 +16,17 @@ Open source and *affordable* VR eye tracker platform for [VRChat](https://hello.
 
 > **Important:** This project is in development and is not fully finished
 
+
+# Check out our documentation [here](https://redhawk989.github.io/EyeTrackVR/)
+
+
+
 ## Hardware
 
 3d files for mounting brackets will be found [here](https://github.com/RedHawk989/EyeTrackVR-Hardware)
 IR emitter files are also located there.
 
-Hardware will likely be a `ESP32-Cam` with a `160fov ir camera`. ***This is not fully confirmed and could change***.
+
 
 ## About IR Emitter Safety
 
