@@ -37,7 +37,7 @@ def vc():
 
     vc.xoff = 1
     vc.yoff = 1
-    vc.eyeoffset = 300 ################################################################################################################## INCREASEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEE
+    vc.eyeoffset = 300 
     vc.eyeoffx = 1
     vc.setoff = 0
     vc.x = 1
