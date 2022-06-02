@@ -25,13 +25,13 @@ Q: *How expensive will this be?*
 A: My goal is to keep it as cheap as possible with around $75 as the absolute max, with current projections being around $25-40.
 
 Q: *Will IR damage my eyes?*
-A: This project has safety in mind. If you do all of the safety measure we put in place and visually test the amount of IR light you will be fine. Please note we have not finished development of all safety stuff so be careful https://dammedia.osram.info/media/bin/osram-dam-2496608/AN002_Details%20on%20photobiological%20safety%20of%20LED%20light%20sources.pdf 
+A: This project has safety in mind. If you do all of the safety measure we put in place and visually test the amount of IR light you will be fine. Please note we have not finished development of all safety stuff so be careful [here is a pdf with safety information](https://dammedia.osram.info/media/bin/osram-dam-2496608/AN002_Details%20on%20photobiological%20safety%20of%20LED%20light%20sources.pdf) 
 
 Q: *What hardware does this use?/How do I build?* 
 A: Testing is still being done to validate our current hardware choice, no hardware has been fully confirmed therefore I cannot recommend you buy parts and assemble one yourself unless you are good with losing money and are going to be actively contributing to the project. This stands true still as of 5/3
 
 Q: *Where's the docs?*
-A: All of our documentation is located here https://redhawk989.github.io/EyeTrackVR/ all future documentation will be found there as well.
+A: All of our documentation is located [here](https://redhawk989.github.io/EyeTrackVR/) all future documentation will be found there as well.
 
 Q: *How do I set up my avatar?*
-A: Check out the VR Chat face tracking wiki. https://github.com/benaclejames/VRCFaceTracking/wiki keep in mind that we currently only support float paramaters.
+A: Check out the VR Chat face tracking wiki [on github here.](https://github.com/benaclejames/VRCFaceTracking/wiki) keep in mind that we currently only support float paramaters.
