@@ -1,3 +1,5 @@
 python-osc
 opencv-python
 numpy
+pillow
+kivy
