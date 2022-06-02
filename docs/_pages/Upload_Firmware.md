@@ -57,7 +57,7 @@ Once you have successfully connected your trackers to your WiFi, you can use OTA
   ;upload_flags =
   ;  --auth=SlimeVR-OTA
   ```
-1. Change the value of upload_port to the IP address retrieved during the first step (if retrieved for your SlimeVR server you should only copy the set of 4 numbers between the second and third `/`, in the example image above this would be 192.168.1.109).
+1. Change the value of upload_port to the IP address retrieved during the first step.
 1. Turn the tracker you wish to flash off and then on again.
 1. Wait around 5 seconds.
 1. Press the upload button to upload the firmware.<br>  
