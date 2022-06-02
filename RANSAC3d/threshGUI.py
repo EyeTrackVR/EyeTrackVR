@@ -45,6 +45,14 @@ class WidgetContainer(GridLayout):
 
 
 
+        self.rota = Slider(min = 0, max = 360,
+        value_track = True,
+        value_track_color =[1, 1, 1, 1])
+        self.add_widget(Label(text ='Rotation'))
+        self.add_widget(self.rota)
+        self.rotav= Label(text ='Select')
+        self.add_widget(self.rotav)
+        self.rota.bind(value = self.on_value1)
 
 
 
@@ -52,6 +60,14 @@ class WidgetContainer(GridLayout):
         self.xValue.text = "% d"% brightness
         confg.fx = self.xValue.text
         configsave()
+        time.sleep(0.1)
+
+
+    def on_value1(self, instance, brightness):
+        self.rotav.text = "% d"% brightness
+        confg.rv = self.rotav.text
+        configsave()
+        time.sleep(0.1)
 
 
 
@@ -67,13 +83,16 @@ class EyetrackGUI(App):
 def confg():
 
     confg.fx = 128
-
+    confg.rv = 0
 
 
 
 def configsave():
-    with open('thresh.cfg', 'w+') as rf:
+    with open('settings.cfg', 'w+') as rf:
         rf.write(str(confg.fx))
+        rf.write('\n')
+        rf.write(str(confg.rv))
+            
 
 
 confg()
