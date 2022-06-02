@@ -10,8 +10,8 @@ WINDOW_NAME = "RANSACApp"
 
 def main():
   # Get Configuration
-  config = RansacConfig()
-  config.load()
+  config: RansacConfig = RansacConfig.load()
+  config.save()
 
   # Set up basic cv2 window with our GUI
   def update_threshold(val: "int"):
@@ -36,8 +36,8 @@ def main():
 #  t2s_thread.start()
 #  t2s_queue.put("App Starting")
 
-  ransac_queue = queue.Queue()
-  image_queue = queue.Queue()
+  ransac_queue: queue.Queue[None] = queue.Queue()
+  image_queue: queue.Queue = queue.Queue()
   ransac = Ransac(config, ransac_queue, image_queue)
   ransac_thread = threading.Thread(target=ransac.run)
   ransac_thread.start()

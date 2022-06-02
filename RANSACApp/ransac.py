@@ -2,6 +2,7 @@ import sys
 sys.path.append("../RANSAC3d")
 from config import RansacConfig
 from pye3dcustom.detector_3d import CameraModel, Detector3D, DetectorMode
+from typing import Union
 import queue
 import numpy as np
 import cv2
@@ -115,21 +116,49 @@ class Ransac:
     self.ymax = 69420
     self.ymin = -69420
 
-    
-  def run(self):
-    cap = cv2.VideoCapture(2)  # change this to the video you want to test
-    # Get an initial image to get our settings for this run
-    ret, img = cap.read()
-    frame_number = cap.get(cv2.CAP_PROP_POS_FRAMES)
-    fps = cap.get(cv2.CAP_PROP_FPS)
-    width = cap.get(cv2.CAP_PROP_FRAME_WIDTH)
-    height = cap.get(cv2.CAP_PROP_FRAME_HEIGHT)
-    #print(cv2.selectROI("image", img, fromCenter=False, showCrosshair=True))
+    self.capture_source: "Union[cv2.VideoCapture, None]" = None
+    self.previous_image = None
+    self.current_image = None
+    self.threshold_image = None
 
-    # TODO Read focal length from config
-    camera = CameraModel(focal_length=60, resolution=[self.w, self.h])
-    detector_3d = Detector3D(camera=camera, long_term_mode=DetectorMode.blocking)
-    while cap.isOpened():
+    self.previous_rotation = self.config.rotation_angle
+    self.current_rotation = self.config.rotation_angle
+
+  def capture_crop_rotate_image(self):
+    capture_succeeded = False
+    # Get our current frame
+    try:
+      # Get frame from capture source, crop to ROI
+      capture_succeeded, self.current_image = self.capture_source.read()
+      self.current_image = self.current_image[int(self.y): int(self.y+self.h), int(self.x): int(float(self.x+self.w))]  
+    except:
+      # Failure to process frame, reuse previous frame.
+      self.current_image = self.previous_image
+      print('[ERROR] Frame capture issue detected.')
+    if not capture_succeeded:
+      print("Error fetching frame, retrying")
+      return False
+    # Apply rotation to cropped area. For any rotation area outside of the bounds of the image,
+    # fill with white.
+    rows, cols, _ = self.current_image.shape
+    img_center = (cols / 2, rows / 2)
+    rotation_matrix = cv2.getRotationMatrix2D(img_center, self.current_rotation, 1)
+    self.current_image = cv2.warpAffine(self.current_image, rotation_matrix, (cols, rows),
+                                        borderMode=cv2.BORDER_CONSTANT,
+                                        borderValue=(255,255,255))
+    return True
+
+  def draw_output(self):
+    pass
+
+  def run(self):
+    self.capture_source = cv2.VideoCapture(self.config.capture_source)
+    camera_model = CameraModel(focal_length=self.config.focal_length, resolution=[self.w, self.h])
+    detector_3d = Detector3D(camera=camera_model, long_term_mode=DetectorMode.blocking)
+
+    while self.capture_source.isOpened():
+      print(f"{self.config.threshhold} {self.config.rotation_angle}")
+      # Check to make sure we haven't been requested to close
       try: 
         self.msg_queue.get(block=False)
         print("Exiting RANSAC thread")
@@ -137,25 +166,146 @@ class Ransac:
       except queue.Empty:
         pass
 
+      if not self.capture_crop_rotate_image():
+        continue
+
+      # Convert the image to grayscale, and set up thresholding. Thresholds here are basically a
+      # low-pass filter that will set any pixel < the threshold value to 0. Thresholding is user
+      # configurable in this utility as we're dealing with variable lighting amounts/placement, as
+      # well as camera positioning and lensing. Therefore everyone's cutoff may be different.
+      #
+      # The goal of thresholding settings is to make sure we can ONLY see the pupil. This is why we
+      # crop the image earlier; it gives us less possible dark area to get confused about in the
+      # next step.
+      image_gray = cv2.cvtColor(self.current_image, cv2.COLOR_BGR2GRAY)
+      _, thresh = cv2.threshold(
+          image_gray, int(self.config.threshhold), 255, cv2.THRESH_BINARY
+      )  
+
+      # Set up morphological transforms, for smoothing and clearing the image we get out of the
+      # thresholding operation. After this, we'd really like to just have a black blob in the middle
+      # of a bunch of white area.
+      kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (3, 3))
+      opening = cv2.morphologyEx(thresh, cv2.MORPH_OPEN, kernel)
+      closing = cv2.morphologyEx(opening, cv2.MORPH_CLOSE, kernel)
+      image = 255 - closing
+
+      # Now that the image is relatively clean, run contour finding in order to get us our pupil
+      # boundaries in the 2D context. Ideally, we just get one border.
+      contours, _ = cv2.findContours(
+          image, cv2.RETR_TREE, cv2.CHAIN_APPROX_NONE
+      )
+
+      # Find the convex shape based on each contour, and sort the list of them from smallest to
+      # largest area.
+      convex_hulls = []
+      for i in range(len(contours)):
+          convex_hulls.append(cv2.convexHull(contours[i], False))
+      
+      # If we have no convex maidens, we have no pupil, and can't progress from here. Dump back to
+      # using blob tracking.
+      #
+      # TODO Reimplement Prohurtz's blob tracking fallback
+      if len(convex_hulls) == 0:
+        print("No contours found, eye not detected, continuing")
+        # Draw our image and stack it for visual output
+        cv2.drawContours(image_gray, contours, -1, (255, 0, 0), 1)
+
+        image_stack = np.concatenate((self.current_image, cv2.cvtColor(image_gray, cv2.COLOR_GRAY2BGR), cv2.cvtColor(thresh, cv2.COLOR_GRAY2BGR)), axis=1)
+        self.img_queue.put(image_stack)
+        self.previous_image = self.current_image
+        continue
+
+      # Find our largest hull, which we expect will probably be the ellipse that represents the 2d
+      # area for the pupil, which we can use as the search area for the eye in general.
+      largest_hull = sorted(convex_hulls, key=cv2.contourArea)[-1]
+
+      # However eyes are annoyingly three dimensional, so we need to take this ellipse and turn it
+      # into a curve patch on the surface of a sphere (the eye itself). If it's not a sphere, see your
+      # ophthalmologist about possible issues with astigmatism.
+      try:
+        cx, cy, w, h, theta = fit_rotated_ellipse_ransac(largest_hull.reshape(-1, 2))
+      except:
+        # If we don't find anything, fall back to blob tracking.
+        print("No ellipse found, eye not detected, continuing")
+        # Draw our image and stack it for visual output
+        cv2.drawContours(image_gray, contours, -1, (255, 0, 0), 1)
+
+        image_stack = np.concatenate((self.current_image, cv2.cvtColor(image_gray, cv2.COLOR_GRAY2BGR), cv2.cvtColor(thresh, cv2.COLOR_GRAY2BGR)), axis=1)
+        self.img_queue.put(image_stack)
+        self.previous_image = self.current_image
+        continue
+
+      # Get axis and angle of the ellipse, using pupil labs 2d algos. The next bit of code ranges
+      # from somewhat to completely magic, as most of it happens in native libraries (hence passing
+      # via dicts).
       result_2d = {}
       result_2d_final = {}
+      frame_number = self.capture_source.get(cv2.CAP_PROP_POS_FRAMES)
+      fps = self.capture_source.get(cv2.CAP_PROP_FPS)
 
-      # Get our current frame
+      result_2d["center"] = (cx, cy)
+      result_2d["axes"] = (w, h) 
+      result_2d["angle"] = theta * 180.0 / np.pi 
+      result_2d_final["ellipse"] = result_2d
+      result_2d_final["diameter"] = w 
+      result_2d_final["location"] = (cx, cy)
+      result_2d_final["confidence"] = 0.99
+      result_2d_final["timestamp"] = frame_number / fps
+      # Black magic happens here, but after this we have our reprojected pupil/eye, and all we had
+      # to do was sell our soul to satan and/or C++.
+      result_3d = detector_3d.update_and_detect(result_2d_final, image_gray)
+
+      # Now we have our pupil
+      ellipse_3d = result_3d["ellipse"]
+      # And our eyeball that the pupil is on the surface of
+      projected_sphere = result_3d["projected_sphere"]
+
+      # Record our pupil center
+      exm = ellipse_3d["center"][0]
+      eym = ellipse_3d["center"][1]
+
+      # So now we get the offset of the center of the eyeball
+      xrl = (cx - projected_sphere["center"][0]) / projected_sphere["axes"][0]            
+      eyey = (cy - projected_sphere["center"][1]) / projected_sphere["axes"][1]
+
+      # TODO Reimplement Prohurtz's Center Calibration and Calculations
+
+      # Pack our base info to send to VRChat
+      output_tuple = (-abs(xrl) if xrl >= 0 else abs(xrl), 
+                      -abs(eyey) if eyey >= 0 else abs(eyey), 
+                      0)
+
+      print(output_tuple)
+
+      # Draw our image and stack it for visual output
+      cv2.drawContours(image_gray, contours, -1, (255, 0, 0), 1)
+
+      # draw pupil
       try:
-        ret, img = cap.read()
-        img = img[int(self.y): int(self.y+self.h), int(self.x): int(float(self.x+self.w))]  
-      except:
-        img = imgo[int(self.y): int(self.y+self.h), int(self.x): int(float(self.x+self.w))]
-        print('[SEVERE WARN] Frame Issue Detected.')
-    
-      frame_number = cap.get(cv2.CAP_PROP_POS_FRAMES)
-      fps = cap.get(cv2.CAP_PROP_FPS)
+        cv2.ellipse(
+            image_gray,
+            tuple(int(v) for v in ellipse_3d["center"]),
+            tuple(int(v) for v in ellipse_3d["axes"]),
+            ellipse_3d["angle"],
+            0,
+            360,  # start/end angle for drawing
+            (0, 255, 0),  # color (BGR): red
+        )
+      except Exception:
+        # Sometimes we get bogus axes and trying to draw this throws. Ideally we should check for
+        # validity beforehand, but for now just pass. It usually fixes itself on the next frame.
+        pass
+      # draw line from center of eyeball to center of pupil
+      cv2.line(
+          image_gray,
+          tuple(int(v) for v in projected_sphere["center"]),
+          tuple(int(v) for v in ellipse_3d["center"]),
+          (0, 255, 0),  # color (BGR): red
+      )
 
-      if not ret:
-        print("Error fetching frame, bailing")
-        return
-      # image_stack = np.concatenate((img, cv2.cvtColor(image_gray, cv2.COLOR_GRAY2BGR), cv2.cvtColor(thresh, cv2.COLOR_GRAY2BGR), cv2.cvtColor(backupthresh, cv2.COLOR_GRAY2BGR)), axis=1)
-      image_stack = img
+      # Shove a concatenated image out to the main GUI thread for rendering
+      image_stack = np.concatenate((self.current_image, cv2.cvtColor(image_gray, cv2.COLOR_GRAY2BGR), cv2.cvtColor(thresh, cv2.COLOR_GRAY2BGR)), axis=1)
       self.img_queue.put(image_stack)
-      # Initial image will be huge, resize by half.
+      self.previous_image = self.current_image
       
