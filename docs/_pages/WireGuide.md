@@ -20,10 +20,10 @@ parent: How to build
 
 
 
+<img src="https://imgur.com/BViCBrn.png" alt="drawing" width="200"/>
 
-<img src="https://imgur.com/r9lRHH9.png" alt="drawing" width="200"/>
-
-###  The 2 350ohm resistors should connect the 5V in, to the resistor out.
+###  The 2 350ohm resistors should connect the each side of the resistor pad and NOTHING ELSE. Its important that it does not touch any other pad.
+### Alternatively you can wire it like the 1 resistor one, but add a secondary one in the 5v in wire.
  
 
 
