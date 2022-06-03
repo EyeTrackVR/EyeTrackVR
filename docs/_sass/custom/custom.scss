@@ -329,3 +329,143 @@ h2 code {
 .icon-span-warning {
   color: $color-accent-fg-warning;
 }
+
+.bs-example {
+  margin: 20px;
+}
+
+.bs-callout {
+  padding: 20px;
+  margin: 20px 0;
+  border: 1px solid #eee;
+  border-left-width: 5px;
+  border-radius: 3px;
+}
+
+.bs-callout h4 {
+  margin-top: 0;
+  margin-bottom: 5px;
+}
+
+.bs-callout p:last-child {
+  margin-bottom: 0;
+}
+
+.bs-callout code {
+  border-radius: 3px;
+}
+
+.bs-callout+.bs-callout {
+  margin-top: -5px;
+}
+
+.bs-callout-default {
+  border-left-color: #777;
+}
+
+.bs-callout-default h4 {
+  color: #777;
+}
+
+.bs-callout-primary {
+  border-left-color: #428bca;
+}
+
+.bs-callout-primary h4 {
+  color: #428bca;
+}
+
+.bs-callout-success {
+  border-left-color: #5cb85c;
+}
+
+.bs-callout-success h4 {
+  color: #5cb85c;
+}
+
+.bs-callout-danger {
+  border-left-color: #d9534f;
+}
+
+.bs-callout-danger h4 {
+  color: #d9534f;
+}
+
+.bs-callout-warning {
+  border-left-color: #f0ad4e;
+}
+
+.bs-callout-warning h4 {
+  color: #f0ad4e;
+}
+
+.bs-callout-info {
+  border-left-color: #5bc0de;
+}
+
+.bs-callout-info h4 {
+  color: #5bc0de;
+}
+
+/* FAQ page */
+#accordion .panel-heading {
+  font-size: 12px;
+}
+
+a.accordion-toggle,
+a.accordion-collapsed {
+  font-size: 14px;
+  text-decoration: none;
+}
+
+/*
+ * Let's target IE to respect aspect ratios and sizes for img tags containing SVG files
+ *
+ * [1] IE9
+ * [2] IE10+
+ */
+/* 1 */
+.ie9 img[src$=".svg"] {
+  width: 100%;
+}
+
+/* 2 */
+@media screen and (-ms-high-contrast: active),
+(-ms-high-contrast: none) {
+  img[src$=".svg"] {
+    width: 100%;
+  }
+}
+
+@media only screen and (min-width: 900px),
+only screen and (min-device-width: 900px) {
+  .col-md-9 img {
+    max-width: 700px;
+    max-height: 700px;
+  }
+}
+
+/* Font Awesome */
+
+a.fa.fa-envelope-o.mailto {
+  font-weight: 600;
+}
+
+/* this part adds an icon after external links, using FontAwesome*/
+/* a[href^="http://"]:after,
+a[href^="https://"]:after {
+  content: "\f08e";
+  font-family: FontAwesome;
+  font-weight: normal;
+  font-style: normal;
+  display: inline-block;
+  text-decoration: none;
+  padding-left: 3px;
+} */
+
+/* Strip the outbound icon when this class is present */
+/* a[href].noCrossRef::after,
+a.no_icon:after {
+  content: "" !important;
+  padding-left: 0;
+} */
