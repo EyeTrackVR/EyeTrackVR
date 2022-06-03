@@ -6,4 +6,4 @@ parent: Suggestions
 has_children: false
 ---
 
-{% include comments.html url=page.url %}
+{% include custom/misc/comments.html url=page.url %}

@@ -7,4 +7,4 @@ permalink: suggestions.html
 has_toc: false
 ---
 
-{% include googleform.html %}
+{% include custom/misc/googleform.html %}
