@@ -40,8 +40,6 @@ This includes visually checking with an IR camera that the brightness is correct
 > {% include custom/alerts/Warning.html content="Make sure you are using <b>NON-focused</b> emitters and at around <i><b>5ma total power</b></i>." %}
 {: .fs-5 .fw-300 }
 
-<p style="page-break-after:always;"></p>
-
 [Effect of infrared radiation on the lens](/EyeTrackVR/Reference_Docs/saftey/effect_of_ir_on_the_lens.pdf)
 
 [Training-library Nir Stds](/EyeTrackVR/Reference_Docs/saftey/training-library_nir_stds_20021011.pdf)
