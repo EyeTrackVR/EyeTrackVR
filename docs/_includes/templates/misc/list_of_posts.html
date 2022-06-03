@@ -1,0 +1,38 @@
+<!-- 
+    This is a list of posts. 
+    Note that the post variable only exists inside the for loop above. 
+    If you wish to access the currently-rendering page/posts’s variables 
+    (the variables of the post/page that has the for loop in it), use the page variable instead.
+
+    Here is the official documentation:
+    
+        http://jekyllrb.com/docs/posts/
+        
+ -->
+<ul>
+    {% for post in site.posts %}
+    <li>
+        <a href="{{ post.url }}">{{ post.title }}</a>
+    </li>
+    {% endfor %}
+</ul>
+
+<!-- <ul>
+Here's an example of outputting a list of blog posts with an excerpt:
+
+{% for post in site.posts %}
+<li>
+    <a href="{{ post.url }}">{{ post.title }}</a>
+    {{ post.excerpt }}
+</li>
+{% endfor %}
+</ul> -->
+
+<!-- {% for tag in site.tags %}
+<h3>{{ tag[0] }}</h3>
+<ul>
+    {% for post in tag[1] %}
+    <li><a href="{{ post.url }}">{{ post.title }}</a></li>
+    {% endfor %}
+</ul>
+{% endfor %} -->

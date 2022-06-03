@@ -1,0 +1,70 @@
+<!-- <figure class="image">
+  <img src="{{ include.url }}" alt="{{ include.description }}">
+  <figcaption>{{ include.description }}</figcaption>
+</figure> -->
+<style>
+  .image-{{ include.image }} {
+    display: flex;
+    flex-direction: column;
+    /* align-items: center; */
+    justify-content: space-between;
+    /* justify-content: center; */
+    overflow: hidden;
+  }
+
+  .image-{{ include.image }} img {
+    flex-shrink: 0;
+    width: {{ include.width }}px;
+    height: {{ include.height }}px;
+    object-fit: cover;
+    border-radius: 20px;
+  }
+
+  .image-{{ include.image }} figcaption {
+    text-align: center;
+  }
+
+  .image-card-grid-{{ include.image }} {
+    max-width: {{ include.width }}px;
+    margin: 0 auto;
+    display: grid;
+    grid-gap: 2rem;
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  }
+
+  .image-card-{{ include.image }} {
+    flex-shrink: 0;
+    width: {{ include.width }}px;
+    height: {{ include.height }}px;
+    object-fit: cover;
+    background-color: white;
+    box-shadow: 2px 2px 12px 1px rgba(8, 8, 8, 0.5);
+    border-radius: 20px;
+  }
+
+  .image-content-form-{{ include.image }} {
+    padding: 5%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: space-between;
+    /* justify-content: center; */
+    overflow: hidden;
+  }
+  .p-image-{{ include.image }}{
+    align-self: center;
+  }
+</style>
+<p class="p-image-{{ include.image }}" align="center">
+<div class="image-content-form-{{ include.image }}">
+  <div class="image-card-grid-{{ include.image }}">
+    <div class="image-card-{{ include.image }}">
+      <figure class="image-{{ include.image }}">
+        <img draggable="false" class="image-{{ include.image }}" src="{{ include.src }}" alt="{{ include.tags }}">
+        <div style="padding-top: 10px"></div>
+        <figcaption><i>{{ include.description }}</i></figcaption>
+      </figure>
+    </div>
+  </div>
+</div>
+</p>
