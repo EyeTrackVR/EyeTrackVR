@@ -61,12 +61,7 @@ Support for other headsets, comes from the community.
 
 [![GitHub license](https://img.shields.io/github/license/RedHawk989/EyeTrackVR?style=plastic)](https://github.com/RedHawk989/EyeTrackVR/blob/main/LICENSE)
 
-***All software is under the MIT license.
-All documentation, including the Wiki, is under the Creative Commons CC-BY-SA-4.0 license***.
-
-***All hardware materials and designs provided here are licensed under the [CERN-OHL-P](https://opensource.org/CERN-OHL-P){:target="_blank"} hardware license.
-All software is under the [MIT License](https://opensource.org/licenses/MIT).
-All documentation, including the Wiki, is under the Creative Commons [CC-BY-SA-4.0 license](https://creativecommons.org/licenses/by-sa/4.0/)***.
+***All software is under the MIT license. All hardware materials and designs provided here are licensed under the [CERN-OHL-P](https://opensource.org/CERN-OHL-P){:target="_blank"} hardware license. All software is under the [MIT License](https://opensource.org/licenses/MIT). All documentation, including the Wiki, is under the Creative Commons [CC-BY-SA-4.0 license](https://creativecommons.org/licenses/by-sa/4.0/).***
 
 <div align="center">
     <img src="./assets/images/licenses/licenses.svg" width="300" alt="Open Licenses" />
