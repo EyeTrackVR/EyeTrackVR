@@ -15,3 +15,29 @@ hr_faded: '<hr class="faded"/>'
 hr_shaded: '<hr class="shaded"/>'
 
 # A work in progress
+
+# To use these, add the following to a file:
+#
+#   {{site.data.alerts_alternative.note}}
+#   {{site.data.alerts_alternative.tip}}
+#   {{site.data.alerts_alternative.important}}
+#   {{site.data.alerts_alternative.warning}}
+#   {{site.data.alerts_alternative.callout_danger}}
+#   {{site.data.alerts_alternative.callout_default}}
+#   {{site.data.alerts_alternative.callout_primary}}
+#   {{site.data.alerts_alternative.callout_success}}
+#   {{site.data.alerts_alternative.callout_info}}
+#   {{site.data.alerts_alternative.callout_warning}}
+#   {{site.data.alerts_alternative.hr_faded}}
+#   {{site.data.alerts_alternative.hr_shaded}}
+#
+# Example of a note with code:
+#
+#   {{site.data.alerts_alternative.note}}
+#   <p>This is a note with code:</p>
+#   <pre>
+#   def foo(x): <br>
+#   &nbsp;&nbsp;&nbsp;&nbsp;return x+1
+#   </pre>
+#   {{site.data.alerts.end}}
+#
