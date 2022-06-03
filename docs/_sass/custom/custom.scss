@@ -30,9 +30,10 @@
   margin: 0;
   padding: 0;
 
-  > li {
+  >li {
     height: fit-content;
     width: fit-content;
+
     &::before {
       position: absolute;
       margin-left: -1.4em;
@@ -61,7 +62,7 @@
 }
 
 .nav-list-item.active .nav-list-expander,
-.nav-list .nav-list-item > .nav-list .nav-list-item .nav-list-link,
+.nav-list .nav-list-item>.nav-list .nav-list-item .nav-list-link,
 .nav-list-item.active a {
   color: #888;
 }
@@ -75,7 +76,7 @@
 }
 
 .site-header a,
-.site-button > .icon {
+.site-button>.icon {
   color: #000;
 }
 
@@ -202,17 +203,16 @@ blockquote p {
   color: #000;
 }
 
-.nav-list-item.active:has() {
-}
+.nav-list-item.active:has() {}
 
 .nav-list-item.active .nav-list-expander,
-.nav-list .nav-list-item > .nav-list .nav-list-item .nav-list-link,
+.nav-list .nav-list-item>.nav-list .nav-list-item .nav-list-link,
 .nav-list-item.active a {
   color: #000;
   position: relative;
 }
 
-.nav-list .nav-list-item > .nav-list .nav-list-item .nav-list-link::before {
+.nav-list .nav-list-item>.nav-list .nav-list-item .nav-list-link::before {
   content: '';
   display: block;
   position: absolute;
@@ -230,7 +230,7 @@ blockquote p {
   display: none;
 }
 
-.nav-list .nav-list-item > .nav-list {
+.nav-list .nav-list-item>.nav-list {
   display: block;
 }
 
@@ -238,12 +238,15 @@ blockquote p {
   .site-nav {
     padding-top: 1rem;
   }
+
   .site-header a {
     font-size: 20px !important;
   }
+
   .rotation {
     width: calc(100% / 4);
   }
+
   .rotation {
     display: inline-block;
   }
@@ -253,22 +256,28 @@ blockquote p {
   .site-header a {
     font-size: 24px !important;
   }
+
   .main-content dl {
     grid-template: auto / 10em 1fr;
   }
+
   .rotation:nth-child(1) {
     width: 100px;
   }
+
   .rotation:nth-child(2) {
     width: 140px;
   }
+
   .rotation:nth-child(3) {
     width: 90px;
   }
+
   .rotation:nth-child(4) {
     width: 100px;
   }
-  .nav-list .nav-list-item > .nav-list .nav-list-item .nav-list-link::before {
+
+  .nav-list .nav-list-item>.nav-list .nav-list-item .nav-list-link::before {
     left: 20px;
   }
 }
@@ -287,6 +296,22 @@ blockquote p {
   }
 }
 
+/* Alert Styles */
+
+.alert-warning {
+  color: #444;
+}
+
+div.alert code,
+h2 code {
+  background-color: transparent !important;
+}
+
+/* without this, the links in these notes aren't visible.*/
+.alert a {
+  text-decoration: underline;
+}
+
 .octicon-info {
   fill: $color-accent-fg-info-light;
   vertical-align: middle;
@@ -303,4 +328,148 @@ blockquote p {
 
 .icon-span-warning {
   color: $color-accent-fg-warning;
+}
+
+.bs-example {
+  margin: 20px;
+}
+
+.bs-callout {
+  padding: 20px;
+  margin: 20px 0;
+  border: 1px solid #eee;
+  border-left-width: 5px;
+  border-radius: 3px;
+}
+
+.bs-callout h4 {
+  margin-top: 0;
+  margin-bottom: 5px;
+}
+
+.bs-callout p:last-child {
+  margin-bottom: 0;
+}
+
+.bs-callout code {
+  border-radius: 3px;
+}
+
+.bs-callout+.bs-callout {
+  margin-top: -5px;
+}
+
+.bs-callout-default {
+  border-left-color: #777;
+}
+
+.bs-callout-default h4 {
+  color: #777;
+}
+
+.bs-callout-primary {
+  border-left-color: #428bca;
+}
+
+.bs-callout-primary h4 {
+  color: #428bca;
+}
+
+.bs-callout-success {
+  border-left-color: #5cb85c;
+}
+
+.bs-callout-success h4 {
+  color: #5cb85c;
+}
+
+.bs-callout-danger {
+  border-left-color: #d9534f;
+}
+
+.bs-callout-danger h4 {
+  color: #d9534f;
+}
+
+.bs-callout-warning {
+  border-left-color: #f0ad4e;
+}
+
+.bs-callout-warning h4 {
+  color: #f0ad4e;
+}
+
+.bs-callout-info {
+  border-left-color: #5bc0de;
+}
+
+.bs-callout-info h4 {
+  color: #5bc0de;
+}
+
+/* FAQ page */
+#accordion .panel-heading {
+  font-size: 12px;
+}
+
+a.accordion-toggle,
+a.accordion-collapsed {
+  font-size: 14px;
+  text-decoration: none;
+}
+
+/*
+ * Let's target IE to respect aspect ratios and sizes for img tags containing SVG files
+ *
+ * [1] IE9
+ * [2] IE10+
+ */
+/* 1 */
+.ie9 img[src$=".svg"] {
+  width: 100%;
+}
+
+/* 2 */
+@media screen and (-ms-high-contrast: active),
+(-ms-high-contrast: none) {
+  img[src$=".svg"] {
+    width: 100%;
+  }
+}
+
+@media only screen and (min-width: 900px),
+only screen and (min-device-width: 900px) {
+  .col-md-9 img {
+    max-width: 700px;
+    max-height: 700px;
+  }
+}
+
+/* Font Awesome */
+
+a.fa.fa-envelope-o.mailto {
+  font-weight: 600;
+}
+
+/* this part adds an icon after external links, using FontAwesome*/
+a[href^="http://"]:after,
+a[href^="https://"]:after {
+  content: "\f08e";
+  font-family: FontAwesome;
+  font-weight: normal;
+  font-style: normal;
+  display: inline-block;
+  text-decoration: none;
+  padding-left: 3px;
+}
+
+/* Strip the outbound icon when this class is present */
+a[href].noCrossRef::after,
+a.no_icon:after {
+  content: "" !important;
+  padding-left: 0;
+}
+
+.btn-default {
+  margin-bottom: 10px;
 }
