@@ -4,6 +4,7 @@ from config import RansacConfig
 from pye3dcustom.detector_3d import CameraModel, Detector3D, DetectorMode
 from typing import Union
 import queue
+import threading
 import numpy as np
 import cv2
 
@@ -94,10 +95,11 @@ def fit_rotated_ellipse(data):
     return (cx, cy, w, h, theta)
 
 class Ransac:
-  def __init__(self, config: "RansacConfig", msg_queue: "queue.Queue[None]", img_queue):
+  def __init__(self, config: "RansacConfig", cancellation_event: "threading.Event", capture_queue_incoming: "queue.Queue", image_queue_outgoing: "queue.Queue"):
     self.config = config
-    self.img_queue = img_queue
-    self.msg_queue = msg_queue
+    self.capture_queue_incoming = capture_queue_incoming
+    self.image_queue_outgoing = image_queue_outgoing
+    self.cancellation_event = cancellation_event
 
     self.roicheck = 1
 
@@ -116,28 +118,25 @@ class Ransac:
     self.ymax = 69420
     self.ymin = -69420
 
-    self.capture_source: "Union[cv2.VideoCapture, None]" = None
     self.previous_image = None
     self.current_image = None
+    self.current_frame_number = None
+    self.current_fps = None
     self.threshold_image = None
 
     self.previous_rotation = self.config.rotation_angle
     self.current_rotation = self.config.rotation_angle
 
   def capture_crop_rotate_image(self):
-    capture_succeeded = False
     # Get our current frame
     try:
       # Get frame from capture source, crop to ROI
-      capture_succeeded, self.current_image = self.capture_source.read()
       self.current_image = self.current_image[int(self.y): int(self.y+self.h), int(self.x): int(float(self.x+self.w))]  
     except:
       # Failure to process frame, reuse previous frame.
       self.current_image = self.previous_image
       print('[ERROR] Frame capture issue detected.')
-    if not capture_succeeded:
-      print("Error fetching frame, retrying")
-      return False
+
     # Apply rotation to cropped area. For any rotation area outside of the bounds of the image,
     # fill with white.
     rows, cols, _ = self.current_image.shape
@@ -152,19 +151,21 @@ class Ransac:
     pass
 
   def run(self):
-    self.capture_source = cv2.VideoCapture(self.config.capture_source)
     camera_model = CameraModel(focal_length=self.config.focal_length, resolution=[self.w, self.h])
     detector_3d = Detector3D(camera=camera_model, long_term_mode=DetectorMode.blocking)
 
-    while self.capture_source.isOpened():
-      print(f"{self.config.threshhold} {self.config.rotation_angle}")
+    while True:
       # Check to make sure we haven't been requested to close
-      try: 
-        self.msg_queue.get(block=False)
+      if self.cancellation_event.is_set():
         print("Exiting RANSAC thread")
         return
+
+      try: 
+        # Wait a bit for images here. If we don't get one, just try again.
+        (self.current_image, self.current_frame, self.current_fps) = self.capture_queue_incoming.get(block=True, timeout=0.1)
       except queue.Empty:
-        pass
+        print("No image available")
+        continue
 
       if not self.capture_crop_rotate_image():
         continue
@@ -179,7 +180,7 @@ class Ransac:
       # next step.
       image_gray = cv2.cvtColor(self.current_image, cv2.COLOR_BGR2GRAY)
       _, thresh = cv2.threshold(
-          image_gray, int(self.config.threshhold), 255, cv2.THRESH_BINARY
+          image_gray, int(self.config.threshold), 255, cv2.THRESH_BINARY
       )  
 
       # Set up morphological transforms, for smoothing and clearing the image we get out of the
@@ -207,12 +208,12 @@ class Ransac:
       #
       # TODO Reimplement Prohurtz's blob tracking fallback
       if len(convex_hulls) == 0:
-        print("No contours found, eye not detected, continuing")
+        # print("No contours found, eye not detected, continuing")
         # Draw our image and stack it for visual output
         cv2.drawContours(image_gray, contours, -1, (255, 0, 0), 1)
 
         image_stack = np.concatenate((self.current_image, cv2.cvtColor(image_gray, cv2.COLOR_GRAY2BGR), cv2.cvtColor(thresh, cv2.COLOR_GRAY2BGR)), axis=1)
-        self.img_queue.put(image_stack)
+        self.image_queue_outgoing.put(image_stack)
         self.previous_image = self.current_image
         continue
 
@@ -227,12 +228,12 @@ class Ransac:
         cx, cy, w, h, theta = fit_rotated_ellipse_ransac(largest_hull.reshape(-1, 2))
       except:
         # If we don't find anything, fall back to blob tracking.
-        print("No ellipse found, eye not detected, continuing")
+        # print("No ellipse found, eye not detected, continuing")
         # Draw our image and stack it for visual output
         cv2.drawContours(image_gray, contours, -1, (255, 0, 0), 1)
 
         image_stack = np.concatenate((self.current_image, cv2.cvtColor(image_gray, cv2.COLOR_GRAY2BGR), cv2.cvtColor(thresh, cv2.COLOR_GRAY2BGR)), axis=1)
-        self.img_queue.put(image_stack)
+        self.image_queue_outgoing.put(image_stack)
         self.previous_image = self.current_image
         continue
 
@@ -251,7 +252,7 @@ class Ransac:
       result_2d_final["diameter"] = w 
       result_2d_final["location"] = (cx, cy)
       result_2d_final["confidence"] = 0.99
-      result_2d_final["timestamp"] = frame_number / fps
+      result_2d_final["timestamp"] = self.current_frame_number / self.current_fps
       # Black magic happens here, but after this we have our reprojected pupil/eye, and all we had
       # to do was sell our soul to satan and/or C++.
       result_3d = detector_3d.update_and_detect(result_2d_final, image_gray)
@@ -276,7 +277,7 @@ class Ransac:
                       -abs(eyey) if eyey >= 0 else abs(eyey), 
                       0)
 
-      print(output_tuple)
+      # print(output_tuple)
 
       # Draw our image and stack it for visual output
       cv2.drawContours(image_gray, contours, -1, (255, 0, 0), 1)
@@ -306,6 +307,6 @@ class Ransac:
 
       # Shove a concatenated image out to the main GUI thread for rendering
       image_stack = np.concatenate((self.current_image, cv2.cvtColor(image_gray, cv2.COLOR_GRAY2BGR), cv2.cvtColor(thresh, cv2.COLOR_GRAY2BGR)), axis=1)
-      self.img_queue.put(image_stack)
+      self.image_queue_outgoing.put(image_stack)
       self.previous_image = self.current_image
       

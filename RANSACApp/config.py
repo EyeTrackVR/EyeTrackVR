@@ -6,7 +6,7 @@ import json
 
 @dataclass
 class RansacConfig:
-  threshhold: "int" = 0
+  threshold: "int" = 0
   rotation_angle: "int" = 0
   roi_window_x: "int" = 0
   roi_window_y: "int" = 0

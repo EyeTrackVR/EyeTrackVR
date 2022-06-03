@@ -5,9 +5,11 @@ from ransac import Ransac
 import queue
 import threading
 import cv2
+import camera
 import PySimpleGUI as sg
 
 WINDOW_NAME = "RANSACApp"
+CAMERA_ADDR_NAME = "CAMERAADDR"
 THRESHOLD_SLIDER_NAME = "THREADHOLDSLIDER"
 ROTATION_SLIDER_NAME = "ROTATIONSLIDER"
 
@@ -17,18 +19,25 @@ def main():
   config.save()
 
   # Define the window's contents
-  layout = [[sg.Text("Threshold"), sg.Slider(range=(0, 100), orientation = 'h', key=THRESHOLD_SLIDER_NAME)],
-            [sg.Text("Rotation"), sg.Slider(range=(0, 360), orientation = 'h', key=ROTATION_SLIDER_NAME)],
+  layout = [[sg.Text("Camera Address"), sg.InputText(config.capture_source, key=CAMERA_ADDR_NAME)],
+            [sg.Text("Threshold"), sg.Slider(range=(0, 100), default_value=config.threshold, orientation = 'h', key=THRESHOLD_SLIDER_NAME)],
+            [sg.Text("Rotation"), sg.Slider(range=(0, 360), default_value=config.rotation_angle, orientation = 'h', key=ROTATION_SLIDER_NAME)],
             [sg.Image(filename="", key="-IMAGE-")],
             ]
 
   # Create the window
   window = sg.Window('Window Title', layout)
 
+  cancellation_event = threading.Event()
+
+  # Check to see if we can connect to our video source first. If not, bring up camera finding
+  # dialog.
+
+  # Check to see if we have an ROI. If not, bring up ROI finder GUI.
 
   # Spawn worker threads
-  osc_queue: "queue.Queue[tuple[bool, int, int] | None]" = queue.Queue()
-  osc = VRChatOSC(osc_queue)
+  osc_queue: "queue.Queue[tuple[bool, int, int]]" = queue.Queue()
+  osc = VRChatOSC(cancellation_event, osc_queue)
   osc_thread = threading.Thread(target=osc.run)
   osc_thread.start()
 
@@ -38,11 +47,18 @@ def main():
 #  t2s_thread.start()
 #  t2s_queue.put("App Starting")
 
-  ransac_queue: queue.Queue[None] = queue.Queue()
+  capture_queue = queue.Queue()
+
   image_queue: queue.Queue = queue.Queue()
-  ransac = Ransac(config, ransac_queue, image_queue)
+  ransac = Ransac(config, cancellation_event, capture_queue, image_queue)
   ransac_thread = threading.Thread(target=ransac.run)
   ransac_thread.start()
+
+  # Only start our camera AFTER we've brought up the RANSAC thread, otherwise we'll have no consumer
+  camera_status_queue = queue.Queue()
+  camera_0 = camera.Camera(config, 0, cancellation_event, camera_status_queue, capture_queue)
+  camera_0_thread = threading.Thread(target=camera_0.run)
+  camera_0_thread.start()
 
   # GUI Render loop
 
@@ -53,9 +69,8 @@ def main():
     # If we're in either mode and someone hits q, quit immediately
     if event == "Exit" or event == sg.WIN_CLOSED:
       # cv2.destroyAllWindows()
-      osc_queue.put(None)
+      cancellation_event.set()
       osc_thread.join()
-      ransac_queue.put(None)
       ransac_thread.join()
 #      t2s_engine.force_stop()
 #      t2s_queue.put(None)
@@ -63,8 +78,21 @@ def main():
       print("Exiting RANSAC App")
       return
 
-    config.threshhold = values[THRESHOLD_SLIDER_NAME]
-    config.rotation_angle = values[ROTATION_SLIDER_NAME]
+    if values[CAMERA_ADDR_NAME] != config.capture_source:
+      try:
+        # Try storing ints as ints, for those using wired cameras.
+        config.capture_source = int(values[CAMERA_ADDR_NAME])
+      except:
+        config.capture_source = values[CAMERA_ADDR_NAME]
+      config.save()
+
+    if config.threshold != values[THRESHOLD_SLIDER_NAME]:
+      config.threshold = values[THRESHOLD_SLIDER_NAME]
+      config.save()
+
+    if config.rotation_angle != values[ROTATION_SLIDER_NAME]:
+      config.rotation_angle = values[ROTATION_SLIDER_NAME]
+      config.save()
 
     # If we're in tracking mode, bring up the tracking thread, let it do all of its work, then
     # update ourselves whenever it pushes out an image into its buffer.
