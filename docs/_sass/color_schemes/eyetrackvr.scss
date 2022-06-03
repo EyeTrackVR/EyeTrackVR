@@ -63,3 +63,20 @@ ul > li > a {
 .site-footer {
   color: #00ffff;
 }
+
+#main-content .octicon-info {
+  fill: $color-accent-fg-info-dark;
+  vertical-align: middle;
+}
+
+#main-content .icon-span-info {
+  color: $color-accent-fg-info-dark;
+}
+
+#main-content .octicon-info>path {
+  fill: $color-accent-fg-info-dark;
+}
+
+#main-content .octicon-alert>path {
+  fill: $color-accent-fg-warning;
+}

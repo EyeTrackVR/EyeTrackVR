@@ -286,3 +286,21 @@ blockquote p {
     font-size: 18px !important;
   }
 }
+
+.octicon-info {
+  fill: $color-accent-fg-info-light;
+  vertical-align: middle;
+}
+
+.icon-span-info {
+  color: $color-accent-fg-info-light;
+}
+
+.octicon-alert {
+  fill: $color-accent-fg-warning;
+  vertical-align: middle;
+}
+
+.icon-span-warning {
+  color: $color-accent-fg-warning;
+}
