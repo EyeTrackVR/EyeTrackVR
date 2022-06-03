@@ -37,7 +37,8 @@ When files and resources are released <ins>**DO NOT BYPASS (OR NOT DO) ANY SAFET
 The safety measures were put in place to REDUCE the potential failure risk. All further safety responsibilities is on the user.
 This includes visually checking with an IR camera that the brightness is correct.
 
-{% include custom/alerts/Warning.html content="Make sure you are using <b>NON-focused</b> emitters and at around <i><b>5ma total power</b></i>." %}
+> {% include custom/alerts/Warning.html content="Make sure you are using <b>NON-focused</b> emitters and at around <i><b>5ma total power</b></i>." %}
+{: .fs-5 .fw-300 }
 
 <p style="page-break-after:always;"></p>
 
