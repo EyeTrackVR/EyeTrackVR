@@ -3,7 +3,6 @@
     .accordion {
         width: 800px;
         margin: 1px auto;
-
         padding: 5px 5px;
     }
 
@@ -13,7 +12,6 @@
     }
 
     /* Positions the labels relative to the .container. Adds padding to the top and bottom and increases font size. Also makes its cursor a pointer */
-
     .accordion .question {
         position: relative;
         padding: 5px 0;
@@ -23,7 +21,6 @@
     }
 
     /* Positions the plus sign 5px from the right. Centers it using the transform property. */
-
     .accordion .question::before {
         content: '\2304';
 
@@ -35,7 +32,6 @@
     }
 
     /* Hides the content (height: 0), decreases font size, justifies text and adds transition */
-
     .accordion .answer {
         position: relative;
         height: 0;
@@ -47,7 +43,6 @@
     }
 
     /* Adds a horizontal line between the contents */
-
     .accordion hr {
         width: 100;
         margin-left: 0;
@@ -55,13 +50,11 @@
     }
 
     /* Unhides the content part when active. Sets the height */
-
     .accordion .container.active .answer {
         height: 150px;
     }
 
     /* Changes from plus sign to negative sign once active */
-
     .accordion .container.active .question::before {
         content: '';
         font-size: 30px;
@@ -87,7 +80,6 @@
 {% endfor %}
 <script type="text/javascript">
     const accordion = document.getElementsByClassName('container');
-
     for (i = 0; i < accordion.length; i++) {
         accordion[i].addEventListener('click', function () {
             this.classList.toggle('active')
