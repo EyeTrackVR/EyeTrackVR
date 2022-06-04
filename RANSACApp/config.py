@@ -1,8 +1,10 @@
 from dataclasses import dataclass
 from typing import Union
-from dacite import from_dict, Optional
+from dacite import from_dict
 import os.path
 import json
+
+# TODO Who even needs synchronization? (We do.)
 
 @dataclass
 class RansacConfig:
@@ -20,7 +22,11 @@ class RansacConfig:
       print("No settings file, using base settings")
       return RansacConfig()
     with open("ransac_settings.json", 'r') as settings_file:
-      return from_dict(data_class = RansacConfig, data = json.load(settings_file))
+      try:
+        return from_dict(data_class = RansacConfig, data = json.load(settings_file))
+      except:
+        print("Configuration invalid, creating new config")
+        return RansacConfig()
 
   def save(self):
     with open("ransac_settings.json", 'w+') as settings_file:
