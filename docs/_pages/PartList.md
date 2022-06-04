@@ -82,6 +82,9 @@ IR Emitter Mount : N/A
 
 ESP mount : N/A 
 
+{% include custom/3d_printed_parts/Parts.html %}
+
+
 
 ### Other Headsets
 
