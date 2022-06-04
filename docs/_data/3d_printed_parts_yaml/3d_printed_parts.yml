@@ -2,13 +2,13 @@
 # Use this YAML file to create a list supported hmds and 3d parts for them.
 
 - hmd: "Quest 2"
-  parts: "Camera and IR emitter mount by Prohurtz(https://www.thingiverse.com/thing:5400548)
-  ESP Mount : N/A"
+  parts: "Camera and IR emitter mount by Prohurtz https://www.thingiverse.com/thing:5400548 \n
+  ESP Mount : N/A \n"
 
 - hmd: "Valve Index"
-  parts: "[Camera mount by Razgriz](https://github.com/rrazgriz/IndexEyeTrackVR/tree/main/hardware)
-  IR Emitter Mount : N/A
-  ESP mount : N/A "
+  parts: "Camera mount by Razgriz https://github.com/rrazgriz/IndexEyeTrackVR/tree/main/hardware \n
+  IR Emitter Mount : N/A \n
+  ESP mount : N/A \n"
 
 ---
 
