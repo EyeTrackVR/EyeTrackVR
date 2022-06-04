@@ -169,7 +169,6 @@ def main():
     else:
       try:
         (maybe_image, eye_info) = image_queue.get(block = False)
-        print(eye_info)
         imgbytes = cv2.imencode(".ppm", maybe_image)[1].tobytes()
         window[TRACKING_IMAGE_NAME].update(data=imgbytes)
         graph = window[OUTPUT_GRAPH_NAME]

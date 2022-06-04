@@ -46,10 +46,11 @@ class Camera:
         frame_number = self.capture_source.get(cv2.CAP_PROP_POS_FRAMES)
         fps = self.capture_source.get(cv2.CAP_PROP_FPS)
         if self.camera_output_outgoing.qsize() > 1:
-          print("CAPTURE QUEUE BACKPRESSURE. CHECK FOR TIMING ISSUES IN ALGORITHM.")
-          while self.camera_output_outgoing.qsize() > 0:
-            time.sleep(10)
-          print("BACKPRESSURE CLEAR, CONTINUING")
+          print("CAPTURE QUEUE BACKPRESSURE. CHECK FOR CRASH OR TIMING ISSUES IN ALGORITHM.")
+          return
+          # while self.camera_output_outgoing.qsize() > 0:
+          #   time.sleep(10)
+          # print("BACKPRESSURE CLEAR, CONTINUING")
         self.camera_output_outgoing.put((image, frame_number, fps))
       except:
         print("Capture source problem, assuming camera disconnected, waiting for reconnect.")

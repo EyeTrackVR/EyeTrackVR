@@ -2,7 +2,6 @@ import sys
 sys.path.append(".")
 from config import RansacConfig
 from pye3dcustom.detector_3d import CameraModel, Detector3D, DetectorMode
-from typing import Union
 import queue
 import threading
 import numpy as np
@@ -120,9 +119,8 @@ class Ransac:
     # Calibration Values
     self.xoff = 1
     self.yoff = 1
-    self.eyeoffset = 300 # Keep large in order to recenter correctly
+    self.calibration_frame_counter = 300 # Keep large in order to recenter correctly
     self.eyeoffx = 1
-    self.setoff = 1
 
     self.xmax = 69420
     self.xmin = -69420
@@ -198,6 +196,8 @@ class Ransac:
       cv2.line(self.current_image_gray, (0, y + int(h/2)), (cols, y + int(h/2)), (255, 0, 0), 1)
       cv2.drawContours(self.current_image_gray, [cnt], -1, (255, 0, 0), 3)
       cv2.rectangle(self.current_image_gray, (x, y), (x + w, y + h), (255, 0, 0), 2)
+
+      # TODO These calculations were wrong in RANSAC3d, need to be fixed anyways.
       if xrlb >= 0:
         pass
           # client.send_message("/avatar/parameters/RightEyeX", -abs(xrl))
@@ -325,17 +325,54 @@ class Ransac:
       exm = ellipse_3d["center"][0]
       eym = ellipse_3d["center"][1]
 
-      # So now we get the offset of the center of the eyeball
-      xrl = (cx - self.lkg_projected_sphere["center"][0]) / self.lkg_projected_sphere["axes"][0]            
-      eyey = (cy - self.lkg_projected_sphere["center"][1]) / self.lkg_projected_sphere["axes"][1]
 
-      # TODO Reimplement Prohurtz's Center Calibration and Calculations
+      if self.calibration_frame_counter == 0:
+        print("FINISHING")
+        self.calibration_frame_counter = None
+        self.xoff = ellipse_3d["center"][0]
+        self.yoff = ellipse_3d["center"][1]          
+      elif self.calibration_frame_counter != None:
+        print("CALIBRATING")
+        if exm > self.xmax:
+          self.xmax = exm
+        if exm < self.xmin:
+          self.xmin = exm
+        if eym > self.ymax:
+          self.ymax = eym
+        if eym < self.xmin:
+          self.ymin = eym
+        self.calibration_frame_counter -= 1
+      eye_position_scalar = 1000
+      xl = float(((cx - self.xoff) * eye_position_scalar) / (self.xmax - self.xoff)) 
+      xr = float(((cx - self.xoff) * eye_position_scalar) / (self.xmin - self.xoff)) 
+      yu = float(((cy - self.yoff) * eye_position_scalar) / (self.ymin - self.yoff))
+      yd = float(((cy - self.yoff) * eye_position_scalar) / (self.ymax - self.yoff))
+      # print(f"{exm} {eym} {xl} {xr} {yu} {yd}")
 
-      # Pack our base info to send to VRChat
-      output_tuple = (True,
-                      -abs(xrl) if xrl >= 0 else abs(xrl), 
-                      -abs(eyey) if eyey >= 0 else abs(eyey), 
-                      False)
+      out_x = 0
+      out_y = 0
+      if xr > 0:
+        out_x = max(0.0, min(1.0, xr))
+      if xl > 0:
+        out_x = -abs(max(0.0, min(1.0, xl)))
+      if yd > 0:
+        out_y = -abs(max(0.0, min(1.0, yd)))
+      if yu > 0:
+        out_y = max(0.0, min(1.0, yu))
+
+      output_tuple = (True, out_x, out_y, False)
+
+#      # So now we get the offset of the center of the eyeball
+#      xrl = (cx - self.lkg_projected_sphere["center"][0]) / self.lkg_projected_sphere["axes"][0]            
+#      eyey = (cy - self.lkg_projected_sphere["center"][1]) / self.lkg_projected_sphere["axes"][1]
+#
+#      # TODO Reimplement Prohurtz's Center Calibration and Calculations
+#
+#      # Pack our base info to send to VRChat
+#      output_tuple = (True,
+#                      -abs(xrl) if xrl >= 0 else abs(xrl), 
+#                      -abs(eyey) if eyey >= 0 else abs(eyey), 
+#                      False)
 
       # print(output_tuple)
 
