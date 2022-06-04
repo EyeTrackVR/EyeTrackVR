@@ -130,9 +130,9 @@ class Ransac:
     self.ymin = -69420
     self.previous_rotation = self.config.rotation_angle
 
-  def output_images_and_update(self, threshold_image):
+  def output_images_and_update(self, threshold_image, output_tuple):
     image_stack = np.concatenate((self.current_image, cv2.cvtColor(self.current_image_gray, cv2.COLOR_GRAY2BGR), cv2.cvtColor(threshold_image, cv2.COLOR_GRAY2BGR)), axis=1)
-    self.image_queue_outgoing.put(image_stack)
+    self.image_queue_outgoing.put((image_stack, output_tuple))
     self.previous_image = self.current_image
     self.previous_rotation = self.config.rotation_angle
 
@@ -167,7 +167,7 @@ class Ransac:
     # means we need to have had at least one successful runthrough of the Pupil Labs algorithm in
     # order to have a projected sphere.
     if self.lkg_projected_sphere == None:
-      self.output_images_and_update(larger_threshold)
+      self.output_images_and_update(larger_threshold, None)
       return
 
     try:
@@ -178,7 +178,7 @@ class Ransac:
       if len(contours) == 0:
         raise RuntimeError("No contours found for image")
     except:
-      self.output_images_and_update(larger_threshold)
+      self.output_images_and_update(larger_threshold, None)
       return
 
     rows, cols = larger_threshold.shape
@@ -199,7 +199,6 @@ class Ransac:
       cv2.drawContours(self.current_image_gray, [cnt], -1, (255, 0, 0), 3)
       cv2.rectangle(self.current_image_gray, (x, y), (x + w, y + h), (255, 0, 0), 2)
       if xrlb >= 0:
-        
         pass
           # client.send_message("/avatar/parameters/RightEyeX", -abs(xrl))
           # client.send_message("/avatar/parameters/LeftEyeX", -abs(xrl))
@@ -207,13 +206,13 @@ class Ransac:
         pass
           # client.send_message("/avatar/parameters/RightEyeX", -abs(xrl))
           # client.send_message("/avatar/parameters/LeftEyeX", -abs(xrl))
-      self.output_images_and_update(larger_threshold)
+      self.output_images_and_update(larger_threshold, (True, -abs(xrlb) if xrlb >= 0 else abs(xrlb), -abs(xrlb) if eyeyb <= 0 else abs(xrlb), False))
       # If we've sent something, just return.
       return
     # If we haven't returned yet, consider this blinking
     # client.send_message("/avatar/parameters/LeftEyeLid", float(0))
     # client.send_message("/avatar/parameters/RightEyeLid", float(0))
-    self.output_images_and_update(larger_threshold)
+    self.output_images_and_update(larger_threshold, (True, 0, 0, True))
     print('[INFO] BLINK Detected.')
 
   def run(self):
@@ -333,9 +332,10 @@ class Ransac:
       # TODO Reimplement Prohurtz's Center Calibration and Calculations
 
       # Pack our base info to send to VRChat
-      output_tuple = (-abs(xrl) if xrl >= 0 else abs(xrl), 
+      output_tuple = (True,
+                      -abs(xrl) if xrl >= 0 else abs(xrl), 
                       -abs(eyey) if eyey >= 0 else abs(eyey), 
-                      0)
+                      False)
 
       # print(output_tuple)
 
@@ -366,5 +366,5 @@ class Ransac:
       )
 
       # Shove a concatenated image out to the main GUI thread for rendering
-      self.output_images_and_update(thresh)
+      self.output_images_and_update(thresh, output_tuple)
       

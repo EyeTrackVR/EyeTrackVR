@@ -18,6 +18,7 @@ ROI_SELECTION_NAME = "-GRAPH-"
 TRACKING_BUTTON_NAME = "-TRACKINGMODE-"
 TRACKING_LAYOUT_NAME = "-TRACKINGLAYOUT-"
 TRACKING_IMAGE_NAME = "-IMAGE-"
+OUTPUT_GRAPH_NAME = "-OUTPUTGRAPH-"
 
 def main():
   in_roi_mode = False
@@ -35,6 +36,7 @@ def main():
                      [sg.Text("Threshold"), sg.Slider(range=(0, 100), default_value=config.threshold, orientation = 'h', key=THRESHOLD_SLIDER_NAME)],
                      [sg.Text("Rotation"), sg.Slider(range=(0, 360), default_value=config.rotation_angle, orientation = 'h', key=ROTATION_SLIDER_NAME)],
                      [sg.Image(filename="", key=TRACKING_IMAGE_NAME)],
+                     [sg.Graph((200,200), (-100, 100), (100, -100), key=OUTPUT_GRAPH_NAME,drag_submits=True, enable_events=True)]
                      ]
 
   layout = [[sg.Text("Camera Address"), sg.InputText(config.capture_source, key=CAMERA_ADDR_NAME)],
@@ -166,9 +168,15 @@ def main():
         pass
     else:
       try:
-        maybe_image = image_queue.get(block = False)
+        (maybe_image, eye_info) = image_queue.get(block = False)
+        print(eye_info)
         imgbytes = cv2.imencode(".ppm", maybe_image)[1].tobytes()
         window[TRACKING_IMAGE_NAME].update(data=imgbytes)
+        graph = window[OUTPUT_GRAPH_NAME]
+        graph.erase()
+        if eye_info[0] and not eye_info[3]:
+          graph.draw_circle((eye_info[1] * -100, eye_info[2] * -100), 25, fill_color='black',line_color='white')
+          
       except queue.Empty:
         pass
 
