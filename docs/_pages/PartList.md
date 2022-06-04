@@ -66,4 +66,23 @@ Recommend ones [from Digikey here](https://www.digikey.com/en/products/detail/in
 
 1x Soldering iron and solder (lead free solder highly recommended)
 
-3d printed mounts or some form of glue (not recommended but theoretically doable)
+## 3d Printed Parts
+
+### Quest 2
+
+[Camera and IR emitter mount by Prohurtz](https://www.thingiverse.com/thing:5400548)
+
+ESP Mount : N/A
+
+### Valve Index
+
+[Camera mount by Razgriz](https://github.com/rrazgriz/IndexEyeTrackVR/tree/main/hardware)
+
+IR Emitter Mount : N/A
+
+ESP mount : N/A 
+
+
+### Other Headsets
+
+If you own another headset not listed above, that means there are no mounts designed for them yet. If you have basic skills in modeling or think up a solution to mount cams and emitters, please try to make a mount and then let us in the discord know so it can be added here. Any headset that can fit the camera is potentially compatible. If you are willing, give it a shot to design a mount for the rest of the community.
