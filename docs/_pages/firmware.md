@@ -31,5 +31,5 @@ Once Visual Studio Code is installed, open it and install [PlatformIO IDE for VS
 
 
 
-*Credit goes to the SlimeVR team [adapted from herre](https://docs.slimevr.dev/firmware/setup-and-install.html)*
+*Credit goes to the SlimeVR team [adapted from here](https://docs.slimevr.dev/firmware/setup-and-install.html)*
 
