@@ -97,12 +97,20 @@ def fit_rotated_ellipse(data):
 class Ransac:
   def __init__(self, config: "RansacConfig", cancellation_event: "threading.Event", capture_queue_incoming: "queue.Queue", image_queue_outgoing: "queue.Queue"):
     self.config = config
+
+    # Cross-thread communication management
     self.capture_queue_incoming = capture_queue_incoming
     self.image_queue_outgoing = image_queue_outgoing
     self.cancellation_event = cancellation_event
 
-    self.roicheck = 1
+    # Image state
+    self.previous_image = None
+    self.current_image = None
+    self.current_frame_number = None
+    self.current_fps = None
+    self.threshold_image = None
 
+    # Calibration Values
     self.xoff = 1
     self.yoff = 1
     self.eyeoffset = 300 # Keep large in order to recenter correctly
@@ -113,15 +121,13 @@ class Ransac:
     self.xmin = -69420
     self.ymax = 69420
     self.ymin = -69420
-
-    self.previous_image = None
-    self.current_image = None
-    self.current_frame_number = None
-    self.current_fps = None
-    self.threshold_image = None
-
     self.previous_rotation = self.config.rotation_angle
-    self.current_rotation = self.config.rotation_angle
+
+  def output_images_and_update(self, grayscale_image, threshold_image):
+    image_stack = np.concatenate((self.current_image, grayscale_image, threshold_image), axis=1)
+    self.image_queue_outgoing.put(image_stack)
+    self.previous_image = self.current_image
+    self.previous_rotation = self.config.rotation_angle
 
   def capture_crop_rotate_image(self):
     # Get our current frame
@@ -137,7 +143,7 @@ class Ransac:
     # fill with white.
     rows, cols, _ = self.current_image.shape
     img_center = (cols / 2, rows / 2)
-    rotation_matrix = cv2.getRotationMatrix2D(img_center, self.current_rotation, 1)
+    rotation_matrix = cv2.getRotationMatrix2D(img_center, self.config.rotation_angle, 1)
     self.current_image = cv2.warpAffine(self.current_image, rotation_matrix, (cols, rows),
                                         borderMode=cv2.BORDER_CONSTANT,
                                         borderValue=(255,255,255))
@@ -209,10 +215,7 @@ class Ransac:
         # print("No contours found, eye not detected, continuing")
         # Draw our image and stack it for visual output
         cv2.drawContours(image_gray, contours, -1, (255, 0, 0), 1)
-
-        image_stack = np.concatenate((self.current_image, cv2.cvtColor(image_gray, cv2.COLOR_GRAY2BGR), cv2.cvtColor(thresh, cv2.COLOR_GRAY2BGR)), axis=1)
-        self.image_queue_outgoing.put(image_stack)
-        self.previous_image = self.current_image
+        self.output_images_and_update(cv2.cvtColor(image_gray, cv2.COLOR_GRAY2BGR), cv2.cvtColor(thresh, cv2.COLOR_GRAY2BGR))
         continue
 
       # Find our largest hull, which we expect will probably be the ellipse that represents the 2d
@@ -229,11 +232,7 @@ class Ransac:
         # print("No ellipse found, eye not detected, continuing")
         # Draw our image and stack it for visual output
         cv2.drawContours(image_gray, contours, -1, (255, 0, 0), 1)
-
-        image_stack = np.concatenate((self.current_image, cv2.cvtColor(image_gray, cv2.COLOR_GRAY2BGR), cv2.cvtColor(thresh, cv2.COLOR_GRAY2BGR)), axis=1)
-        print(f"After: {self.current_image.shape}")
-        self.image_queue_outgoing.put(image_stack)
-        self.previous_image = self.current_image
+        self.output_images_and_update(cv2.cvtColor(image_gray, cv2.COLOR_GRAY2BGR), cv2.cvtColor(thresh, cv2.COLOR_GRAY2BGR))
         continue
 
       # Get axis and angle of the ellipse, using pupil labs 2d algos. The next bit of code ranges
@@ -305,7 +304,5 @@ class Ransac:
       )
 
       # Shove a concatenated image out to the main GUI thread for rendering
-      image_stack = np.concatenate((self.current_image, cv2.cvtColor(image_gray, cv2.COLOR_GRAY2BGR), cv2.cvtColor(thresh, cv2.COLOR_GRAY2BGR)), axis=1)
-      self.image_queue_outgoing.put(image_stack)
-      self.previous_image = self.current_image
+      self.output_images_and_update(cv2.cvtColor(image_gray, cv2.COLOR_GRAY2BGR), cv2.cvtColor(thresh, cv2.COLOR_GRAY2BGR))
       

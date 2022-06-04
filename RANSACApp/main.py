@@ -99,6 +99,7 @@ def main():
       print("Exiting RANSAC App")
       return
 
+    changed = False
     # If anything has changed in our configuration settings, change/update those.
     if values[CAMERA_ADDR_NAME] != config.capture_source:
       try:
@@ -106,14 +107,17 @@ def main():
         config.capture_source = int(values[CAMERA_ADDR_NAME])
       except:
         config.capture_source = values[CAMERA_ADDR_NAME]
-      config.save()
+      changed = True
 
     if config.threshold != values[THRESHOLD_SLIDER_NAME]:
       config.threshold = values[THRESHOLD_SLIDER_NAME]
-      config.save()
+      changed = True
 
     if config.rotation_angle != values[ROTATION_SLIDER_NAME]:
       config.rotation_angle = values[ROTATION_SLIDER_NAME]
+      changed = True
+
+    if changed:
       config.save()
 
     if event == TRACKING_BUTTON_NAME:
