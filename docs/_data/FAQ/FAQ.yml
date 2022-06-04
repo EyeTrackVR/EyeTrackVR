@@ -10,7 +10,7 @@
   answer: "Currently, a camera is mounted inside the headset for each eye. The camera streams through wifi to a PC client which processes and sends eye tracking data to VR Chat."
 
 - question: "What features will be supported?"
-  answer: "The goal is eye tracking with eye openness, and some form of pupil dilation.  A far away aspiration of this project is some form of weak foveated rendering because it's cool and any small performance increase in VR is welcome."
+  answer: "The goal is eye tracking with eye openness, and some form of pupil dilation. A far away aspiration of this project is some form of weak foveated rendering because it's cool and any small performance increase in VR is welcome."
 
 - question: "When will this be completed?"
   answer: "When it's done 😉 I have a semi busy life so development may slow and speed up inconsistently. I have a goal to be done with all base features in June."

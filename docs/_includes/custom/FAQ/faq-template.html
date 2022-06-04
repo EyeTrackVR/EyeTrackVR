@@ -73,15 +73,14 @@
     <hr>
     <div class="container">
         <div class="question fw-400">
-            <h1 class="fs-5 fw-500">{% if faq.question != null and faq.question != "" %} {{
-                faq.question }} {% endif %}</h1>
+            <h1 class="fs-5 fw-500">
+                {{ faq.question }}
+            </h1>
         </div>
         <div class="answer">
-            {% if faq.answer != null and faq.answer != "" %}
             <blockquote>
                 {{ faq.answer }}
             </blockquote>
-            {% endif %}
         </div>
     </div>
 </div>
