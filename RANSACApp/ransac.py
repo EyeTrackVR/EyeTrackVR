@@ -1,5 +1,5 @@
 import sys
-sys.path.append("../RANSAC3d")
+sys.path.append(".")
 from config import RansacConfig
 from pye3dcustom.detector_3d import CameraModel, Detector3D, DetectorMode
 from typing import Union
@@ -108,10 +108,6 @@ class Ransac:
     self.eyeoffset = 300 # Keep large in order to recenter correctly
     self.eyeoffx = 1
     self.setoff = 1
-    self.x = config.roi_window_x
-    self.y = config.roi_window_y
-    self.w = config.roi_window_w
-    self.h = config.roi_window_h
 
     self.xmax = 69420
     self.xmin = -69420
@@ -131,7 +127,7 @@ class Ransac:
     # Get our current frame
     try:
       # Get frame from capture source, crop to ROI
-      self.current_image = self.current_image[int(self.y): int(self.y+self.h), int(self.x): int(float(self.x+self.w))]  
+      self.current_image = self.current_image[int(self.config.roi_window_y): int(self.config.roi_window_y+self.config.roi_window_h), int(self.config.roi_window_x): int(self.config.roi_window_x+self.config.roi_window_w)] 
     except:
       # Failure to process frame, reuse previous frame.
       self.current_image = self.previous_image
@@ -147,11 +143,8 @@ class Ransac:
                                         borderValue=(255,255,255))
     return True
 
-  def draw_output(self):
-    pass
-
   def run(self):
-    camera_model = CameraModel(focal_length=self.config.focal_length, resolution=[self.w, self.h])
+    camera_model = CameraModel(focal_length=self.config.focal_length, resolution=[self.config.roi_window_w, self.config.roi_window_h])
     detector_3d = Detector3D(camera=camera_model, long_term_mode=DetectorMode.blocking)
 
     while True:
@@ -160,11 +153,16 @@ class Ransac:
         print("Exiting RANSAC thread")
         return
 
+      # If our ROI configuration has changed, reset our model and detector
+      if camera_model.resolution != [self.config.roi_window_w, self.config.roi_window_h]:
+        camera_model = CameraModel(focal_length=self.config.focal_length, resolution=[self.config.roi_window_w, self.config.roi_window_h])
+        detector_3d = Detector3D(camera=camera_model, long_term_mode=DetectorMode.blocking)
+
       try: 
         # Wait a bit for images here. If we don't get one, just try again.
         (self.current_image, self.current_frame, self.current_fps) = self.capture_queue_incoming.get(block=True, timeout=0.1)
       except queue.Empty:
-        print("No image available")
+        # print("No image available")
         continue
 
       if not self.capture_crop_rotate_image():
@@ -233,6 +231,7 @@ class Ransac:
         cv2.drawContours(image_gray, contours, -1, (255, 0, 0), 1)
 
         image_stack = np.concatenate((self.current_image, cv2.cvtColor(image_gray, cv2.COLOR_GRAY2BGR), cv2.cvtColor(thresh, cv2.COLOR_GRAY2BGR)), axis=1)
+        print(f"After: {self.current_image.shape}")
         self.image_queue_outgoing.put(image_stack)
         self.previous_image = self.current_image
         continue

@@ -21,7 +21,8 @@ class Camera:
     self.current_capture_source = config.capture_source
     self.capture_source: "cv2.VideoCapture" = cv2.VideoCapture(config.capture_source)
 
-
+  def set_output_queue(self, camera_output_outgoing: "queue.Queue"):
+    self.camera_output_outgoing = camera_output_outgoing
 
   def run(self):
     while True:

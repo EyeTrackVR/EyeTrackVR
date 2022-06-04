@@ -1,6 +1,6 @@
 from dataclasses import dataclass
 from typing import Union
-from dacite import from_dict
+from dacite import from_dict, Optional
 import os.path
 import json
 
