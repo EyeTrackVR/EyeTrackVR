@@ -45,6 +45,8 @@ class Camera:
           raise RuntimeError("Problem while getting frame")
         frame_number = self.capture_source.get(cv2.CAP_PROP_POS_FRAMES)
         fps = self.capture_source.get(cv2.CAP_PROP_FPS)
+        if self.camera_output_outgoing.qsize() > 0:
+          print("CAPTURE QUEUE BACKPRESSURE. CHECK FOR TIMING ISSUES IN ALGORITHM.")
         self.camera_output_outgoing.put((image, frame_number, fps))
       except:
         print("Capture source problem, assuming camera disconnected, waiting for reconnect.")

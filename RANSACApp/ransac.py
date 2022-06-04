@@ -9,12 +9,17 @@ import numpy as np
 import cv2
 
 def fit_rotated_ellipse_ransac(
-    data, iter=80, sample_num=10, offset=80    # 80.0, 10, 80
+    data, iter=5, sample_num=10, offset=80    # 80.0, 10, 80
 ):  # before changing these values, please read up on the ransac algorithm
     # However if you want to change any value just know that higher iterations will make processing frames slower
     count_max = 0
     effective_sample = None
 
+    # TODO This iteration is extremely slow. 
+    # 
+    # Either we need to keep the iteration number low, or we need to keep a worker pool specifically
+    # for handling this calculation. It's parallelizable, so just throwing something like joblib at
+    # it would be fine.
     for i in range(iter):
         sample = np.random.choice(len(data), sample_num, replace=False)
 
@@ -51,7 +56,6 @@ def fit_rotated_ellipse_ransac(
 
 
 def fit_rotated_ellipse(data):
-
     xs = data[:, 0].reshape(-1, 1)
     ys = data[:, 1].reshape(-1, 1)
 
@@ -91,7 +95,6 @@ def fit_rotated_ellipse(data):
     ellipse_model = lambda x, y: a * x**2 + b * x * y + c * y**2 + d * x + e * y + f
 
     error_sum = np.sum([ellipse_model(x, y) for x, y in data])
-
     return (cx, cy, w, h, theta)
 
 class Ransac:
@@ -103,9 +106,13 @@ class Ransac:
     self.image_queue_outgoing = image_queue_outgoing
     self.cancellation_event = cancellation_event
 
+    # Cross algo state
+    self.lkg_projected_sphere = None
+
     # Image state
     self.previous_image = None
     self.current_image = None
+    self.current_image_gray = None
     self.current_frame_number = None
     self.current_fps = None
     self.threshold_image = None
@@ -123,8 +130,8 @@ class Ransac:
     self.ymin = -69420
     self.previous_rotation = self.config.rotation_angle
 
-  def output_images_and_update(self, grayscale_image, threshold_image):
-    image_stack = np.concatenate((self.current_image, grayscale_image, threshold_image), axis=1)
+  def output_images_and_update(self, threshold_image):
+    image_stack = np.concatenate((self.current_image, cv2.cvtColor(self.current_image_gray, cv2.COLOR_GRAY2BGR), cv2.cvtColor(threshold_image, cv2.COLOR_GRAY2BGR)), axis=1)
     self.image_queue_outgoing.put(image_stack)
     self.previous_image = self.current_image
     self.previous_rotation = self.config.rotation_angle
@@ -149,6 +156,66 @@ class Ransac:
                                         borderValue=(255,255,255))
     return True
 
+  def blob_tracking_fallback(self):
+    # Increase our threshold value slightly, in order to have a better possibility of getting back
+    # something to do blob tracking on.
+    _, larger_threshold = cv2.threshold(
+        self.current_image_gray, int(self.config.threshold + 5), 255, cv2.THRESH_BINARY
+    )
+
+    # Blob tracking requires that we have a vague idea of where the eye may be at the moment. This
+    # means we need to have had at least one successful runthrough of the Pupil Labs algorithm in
+    # order to have a projected sphere.
+    if self.lkg_projected_sphere == None:
+      self.output_images_and_update(larger_threshold)
+      return
+
+    try:
+      # Try rebuilding our contours
+      contours, _ = cv2.findContours(larger_threshold, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
+      contours = sorted(contours, key=lambda x: cv2.contourArea(x), reverse=True)
+      # If we have no contours, we have nothing to blob track. Fail here.
+      if len(contours) == 0:
+        raise RuntimeError("No contours found for image")
+    except:
+      self.output_images_and_update(larger_threshold)
+      return
+
+    rows, cols = larger_threshold.shape
+    for cnt in contours:
+      (x, y, w, h) = cv2.boundingRect(cnt)
+
+      # if our blob width/height are within suitable (yet arbitrary) boundaries, call that good.
+      #
+      # TODO This should be scaled based on camera resolution.
+      if not 8 <= h <= 30 or not 8 <= w <= 30:
+        continue
+      xt = x + int(w/2) 
+      yt = y + int(h/2)       
+      xrlb = (xt - self.lkg_projected_sphere["center"][0]) / self.lkg_projected_sphere["axes"][0]
+      eyeyb = (yt - self.lkg_projected_sphere["center"][1]) / self.lkg_projected_sphere["axes"][1]
+      cv2.line(self.current_image_gray, (x + int(w/2), 0), (x + int(w/2), rows), (255, 0, 0), 1) #visualizes eyetracking on thresh
+      cv2.line(self.current_image_gray, (0, y + int(h/2)), (cols, y + int(h/2)), (255, 0, 0), 1)
+      cv2.drawContours(self.current_image_gray, [cnt], -1, (255, 0, 0), 3)
+      cv2.rectangle(self.current_image_gray, (x, y), (x + w, y + h), (255, 0, 0), 2)
+      if xrlb >= 0:
+        
+        pass
+          # client.send_message("/avatar/parameters/RightEyeX", -abs(xrl))
+          # client.send_message("/avatar/parameters/LeftEyeX", -abs(xrl))
+      if eyeyb <= 0:
+        pass
+          # client.send_message("/avatar/parameters/RightEyeX", -abs(xrl))
+          # client.send_message("/avatar/parameters/LeftEyeX", -abs(xrl))
+      self.output_images_and_update(larger_threshold)
+      # If we've sent something, just return.
+      return
+    # If we haven't returned yet, consider this blinking
+    # client.send_message("/avatar/parameters/LeftEyeLid", float(0))
+    # client.send_message("/avatar/parameters/RightEyeLid", float(0))
+    self.output_images_and_update(larger_threshold)
+    print('[INFO] BLINK Detected.')
+
   def run(self):
     camera_model = CameraModel(focal_length=self.config.focal_length, resolution=[self.config.roi_window_w, self.config.roi_window_h])
     detector_3d = Detector3D(camera=camera_model, long_term_mode=DetectorMode.blocking)
@@ -166,7 +233,7 @@ class Ransac:
 
       try: 
         # Wait a bit for images here. If we don't get one, just try again.
-        (self.current_image, self.current_frame, self.current_fps) = self.capture_queue_incoming.get(block=True, timeout=0.1)
+        (self.current_image, self.current_frame_number, self.current_fps) = self.capture_queue_incoming.get(block=True, timeout=0.1)
       except queue.Empty:
         # print("No image available")
         continue
@@ -182,11 +249,10 @@ class Ransac:
       # The goal of thresholding settings is to make sure we can ONLY see the pupil. This is why we
       # crop the image earlier; it gives us less possible dark area to get confused about in the
       # next step.
-      image_gray = cv2.cvtColor(self.current_image, cv2.COLOR_BGR2GRAY)
+      self.current_image_gray = cv2.cvtColor(self.current_image, cv2.COLOR_BGR2GRAY)
       _, thresh = cv2.threshold(
-          image_gray, int(self.config.threshold), 255, cv2.THRESH_BINARY
+          self.current_image_gray, int(self.config.threshold), 255, cv2.THRESH_BINARY
       )  
-
       # Set up morphological transforms, for smoothing and clearing the image we get out of the
       # thresholding operation. After this, we'd really like to just have a black blob in the middle
       # of a bunch of white area.
@@ -214,8 +280,8 @@ class Ransac:
       if len(convex_hulls) == 0:
         # print("No contours found, eye not detected, continuing")
         # Draw our image and stack it for visual output
-        cv2.drawContours(image_gray, contours, -1, (255, 0, 0), 1)
-        self.output_images_and_update(cv2.cvtColor(image_gray, cv2.COLOR_GRAY2BGR), cv2.cvtColor(thresh, cv2.COLOR_GRAY2BGR))
+        self.blob_tracking_fallback()
+        # self.output_images_and_update(thresh)
         continue
 
       # Find our largest hull, which we expect will probably be the ellipse that represents the 2d
@@ -228,11 +294,9 @@ class Ransac:
       try:
         cx, cy, w, h, theta = fit_rotated_ellipse_ransac(largest_hull.reshape(-1, 2))
       except:
-        # If we don't find anything, fall back to blob tracking.
-        # print("No ellipse found, eye not detected, continuing")
-        # Draw our image and stack it for visual output
-        cv2.drawContours(image_gray, contours, -1, (255, 0, 0), 1)
-        self.output_images_and_update(cv2.cvtColor(image_gray, cv2.COLOR_GRAY2BGR), cv2.cvtColor(thresh, cv2.COLOR_GRAY2BGR))
+        # If we don't find anything, and we don't have a sphere to calculate off of. Give up.
+        # self.output_images_and_update(thresh)
+        self.blob_tracking_fallback()
         continue
 
       # Get axis and angle of the ellipse, using pupil labs 2d algos. The next bit of code ranges
@@ -240,8 +304,6 @@ class Ransac:
       # via dicts).
       result_2d = {}
       result_2d_final = {}
-      frame_number = self.capture_source.get(cv2.CAP_PROP_POS_FRAMES)
-      fps = self.capture_source.get(cv2.CAP_PROP_FPS)
 
       result_2d["center"] = (cx, cy)
       result_2d["axes"] = (w, h) 
@@ -253,20 +315,20 @@ class Ransac:
       result_2d_final["timestamp"] = self.current_frame_number / self.current_fps
       # Black magic happens here, but after this we have our reprojected pupil/eye, and all we had
       # to do was sell our soul to satan and/or C++.
-      result_3d = detector_3d.update_and_detect(result_2d_final, image_gray)
+      result_3d = detector_3d.update_and_detect(result_2d_final, self.current_image_gray)
 
       # Now we have our pupil
       ellipse_3d = result_3d["ellipse"]
       # And our eyeball that the pupil is on the surface of
-      projected_sphere = result_3d["projected_sphere"]
+      self.lkg_projected_sphere = result_3d["projected_sphere"]
 
       # Record our pupil center
       exm = ellipse_3d["center"][0]
       eym = ellipse_3d["center"][1]
 
       # So now we get the offset of the center of the eyeball
-      xrl = (cx - projected_sphere["center"][0]) / projected_sphere["axes"][0]            
-      eyey = (cy - projected_sphere["center"][1]) / projected_sphere["axes"][1]
+      xrl = (cx - self.lkg_projected_sphere["center"][0]) / self.lkg_projected_sphere["axes"][0]            
+      eyey = (cy - self.lkg_projected_sphere["center"][1]) / self.lkg_projected_sphere["axes"][1]
 
       # TODO Reimplement Prohurtz's Center Calibration and Calculations
 
@@ -278,12 +340,12 @@ class Ransac:
       # print(output_tuple)
 
       # Draw our image and stack it for visual output
-      cv2.drawContours(image_gray, contours, -1, (255, 0, 0), 1)
+      cv2.drawContours(self.current_image_gray, contours, -1, (255, 0, 0), 1)
 
       # draw pupil
       try:
         cv2.ellipse(
-            image_gray,
+            self.current_image_gray,
             tuple(int(v) for v in ellipse_3d["center"]),
             tuple(int(v) for v in ellipse_3d["axes"]),
             ellipse_3d["angle"],
@@ -297,12 +359,12 @@ class Ransac:
         pass
       # draw line from center of eyeball to center of pupil
       cv2.line(
-          image_gray,
-          tuple(int(v) for v in projected_sphere["center"]),
+          self.current_image_gray,
+          tuple(int(v) for v in self.lkg_projected_sphere["center"]),
           tuple(int(v) for v in ellipse_3d["center"]),
           (0, 255, 0),  # color (BGR): red
       )
 
       # Shove a concatenated image out to the main GUI thread for rendering
-      self.output_images_and_update(cv2.cvtColor(image_gray, cv2.COLOR_GRAY2BGR), cv2.cvtColor(thresh, cv2.COLOR_GRAY2BGR))
+      self.output_images_and_update(thresh)
       

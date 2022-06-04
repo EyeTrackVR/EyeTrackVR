@@ -110,11 +110,11 @@ def main():
       changed = True
 
     if config.threshold != values[THRESHOLD_SLIDER_NAME]:
-      config.threshold = values[THRESHOLD_SLIDER_NAME]
+      config.threshold = int(values[THRESHOLD_SLIDER_NAME])
       changed = True
 
     if config.rotation_angle != values[ROTATION_SLIDER_NAME]:
-      config.rotation_angle = values[ROTATION_SLIDER_NAME]
+      config.rotation_angle = int(values[ROTATION_SLIDER_NAME])
       changed = True
 
     if changed:
