@@ -18,7 +18,7 @@
 
     <script>
         /* If `prefers-color-scheme` is not supported, fall back to default mode */
-        
+
         if (window.matchMedia('(prefers-color-scheme: dark)').media === 'not all') {
             /* document.documentElement.style.display = 'none'; */
             document.head.insertAdjacentHTML(
@@ -28,6 +28,7 @@
         }
     </script>
 
+    <!-- Browser Detection of preferred color scheme -->
     <link rel="stylesheet" href="{{ '/assets/css/just-the-docs-eyetrackvr.css' | relative_url }}"
         media="(prefers-color-scheme: dark)" />
     <link rel="stylesheet" href="{{ '/assets/css/just-the-docs-light.css' | relative_url }}"

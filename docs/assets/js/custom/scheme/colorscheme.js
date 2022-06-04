@@ -1,7 +1,7 @@
-const switch_scheme = document.getElementById("switch-mode");
-var isClicked = false;
 
 /* Legacy function */
+const switch_scheme = document.getElementById("switch-mode");
+var isClicked = false;
 async function toggleDetect() {
   if (isClicked == false) {
     isClicked = true;
@@ -14,6 +14,7 @@ async function toggleDetect() {
   }
 }
 
+/* Browser detection of color scheme to change the discord widget */
 var url = window.location.pathname;
 
 if (
