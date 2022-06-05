@@ -45,8 +45,8 @@
 
 - question: "How do I set up my avatar?"
   answer: "Check out the VR Chat face tracking wiki on our github. Keep in mind that we currently only support float parameters. aaaa "
-  hyper_link: "https://google.com"
-  link_description: "Google"
+  hyper_link:
+  link_description:
   faq_link_pid: 8
 
 - question: "What hardware does this use?/How do I build?"
