@@ -68,23 +68,7 @@ Recommend ones [from Digikey here](https://www.digikey.com/en/products/detail/in
 
 ## 3d Printed Parts
 
-### Quest 2
-
-[Camera and IR emitter mount by Prohurtz](https://www.thingiverse.com/thing:5400548)
-
-ESP Mount : N/A
-
-### Valve Index
-
-[Camera mount by Razgriz](https://github.com/rrazgriz/IndexEyeTrackVR/tree/main/hardware)
-
-IR Emitter Mount : N/A
-
-ESP mount : N/A 
-
 {% include custom/3d_printed_parts/Parts.html %}
-
-
 
 ### Other Headsets
 
