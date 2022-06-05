@@ -12,7 +12,9 @@ Uploading your firmware must initially be done over cable. Once you have the tra
 
 ## 1. Connect your tracker to your PC
 
-Connect a programmer board to your esp and then connect the programmer to your pc.
+First, connect your esp32cam to your programmer. In case of the esp32-cam-mb board, it's as simple as sticking it into the socket the way it came in the package and then connecting it your PC with an micro-usb cable.
+
+In case of an FTDI programmer, the steps aren't as easy, so grab [this guide](https://randomnerdtutorials.com/program-upload-code-esp32-cam/) for how to set it up.
 
 ## 2. Build your firmware
 
@@ -22,22 +24,26 @@ Connect a programmer board to your esp and then connect the programmer to your p
 
 ## 3. Upload your firmware
 
-* If you are using the OTA method, first make sure the tracker you wish to flash is turned on.
+- If you are using the OTA method, first make sure the tracker you wish to flash is turned on.
 
-* Once the firmware has been built, press the upload button to upload the firmware.
+- Once the firmware has been built, press the upload button to upload the firmware.
+
+**NOTE** The MB board does the resetting for you, so if you're suing the FTDI programmer, follow the guide linked above (the one from randomnerdtutorials)  
 
   ![img](https://i.imgur.com/lI3PFVC.png)
 
-* If the upload is successful, you should get an output that looks like this:
+- If the upload is successful, you should get an output that looks like this:
 
   ![img](https://i.imgur.com/SDQcCr1.png)
 
 Congratulations! You have now successfully uploaded the firmware to your EyeTrackVR Tracker!
 
 If you have trouble with uploading your firmware over cable check the following:
+
 1. Make sure your USB cable from the tracker is plugged firmly into your PC.
-1. Make sure that your USB cable is a data and charging cable (it is suggested you try other cables or devices with the cable).
-1. Make sure that your drivers are up to date. 
+2. Make sure that your USB cable is a data and charging cable (it is suggested you try other cables or devices with the cable).
+3. Make sure that your drivers are up-to-date.
+4. Some ports might not work, try other ones.
 
 Additionally, this can be caused by software hogging COM ports (**VSCode and Cura can be the cause of this**).
 
@@ -45,18 +51,19 @@ Additionally, this can be caused by software hogging COM ports (**VSCode and Cur
 
 Once you have successfully connected your trackers to your WiFi, you can use OTA to handle all future firmware updates.
 
-1. Retrieve the IP of the tracker you wish to flash. The IP can be found through network monitoring applications, or by veiwing tracker output in a serial monitor.
+1. Retrieve the IP of the tracker you wish to flash. The IP can be found through network monitoring applications, or by viewing tracker output in a serial monitor.
 2. In `platformio.ini` file uncomment the following lines in Visual Studio Code by removing the `;`:
-  ```ini
-  ;upload_protocol = espota
-  ;upload_port = 192.168.1.49
 
-  ```
+```ini
+;upload_protocol = espota
+;upload_port = 192.168.1.49
+
+```
 1. Change the value of upload_port to the IP address retrieved during the first step.
 1. Turn the tracker you wish to flash off and then on again.
 1. Wait around 5 seconds.
 1. Press the upload button to upload the firmware.<br>  
-  ![img](https://i.imgur.com/lI3PFVC.png)
+   ![img](https://i.imgur.com/lI3PFVC.png)
 1. Repeat for as many trackers as you need.
 
 ## Troubleshooting

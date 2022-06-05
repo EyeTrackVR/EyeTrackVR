@@ -1,35 +1,39 @@
 ---
 layout: default
-title: Setting Up Firmware
+title: Firmware Guide
 nav_order: 8
 has_children: true
-permalink: /setting-up-firmware-enviroment/
+permalink: /setting-up-firmware/
 ---
 
-# Setting up the environment
+# What is this?
 
-This procedure will show how to prepare your system for uploading the firmware to your tracker.
+Firmware is the second part of the equation to get your trackers going. It lives on the ESP32 chip, and is responsible for streanuthing video data from the tracker.
 
-## 1. Install Visual Studio Code
+# What should I download and where?
 
-Download the [latest Visual Studio Code](https://code.visualstudio.com/download) and install it.
+Current testing has been with `loucass003's` firmware [found here](https://github.com/Futurabeast/futura-face-cam).
+It's tried and working although it's a bit complicated to setup. Download and install this one, for now.
 
-### Download
+We're also working on our own solution called OpenIris, [found here](https://github.com/lorow/OpenIris). So far we have:
 
-![img](https://i.imgur.com/jXPXIFz.gif)
+### Working right now
 
-### Install
+- [x] Basic stream in 60FPS at 248x248px in MJPEG in greyscale
+- [x] A basic HTTP server with API, which allows for better control of the stream and the camera settings
+- [x] Health checks - we know when something goes wrong and we can react to it
+- [x] OTA updates - we can update the firmware on the fly
+- [x] ROI selection for eye area - this feature hasn't been tested all that much yet.
+- [x] MDNS - so that the server itself will detect and communicate with the tracker without you doing anything. No need to configure IPs and stuff, it's automagic
 
-![img](https://i.imgur.com/hAm3Zu0.gif)
+### In development are:
 
-## 2. Install PlatformIO IDE
+- [ ] Persistent storage for storing your settings on the device itself, this will also allow for saving multiple wifi networks!
+- [ ] LED status patterns - so that you know what's going on without plugging the tracker in to the PC
+- [ ] FEC encoding with packet injection for even faster streams!
+- [ ] Better OTA so that updates can be downloaded from github and pushed by the server to the tracker
+- [ ] CI/CD with github actions - so we can more seamlessly update the trackers
 
-Once Visual Studio Code is installed, open it and install [PlatformIO IDE for VSCode](https://marketplace.visualstudio.com/items?itemName=platformio.platformio-ide), an extension that will allow you to connect to the tracker, build and upload the firmware.
+# How do download this?
 
-![img](https://i.imgur.com/ebV0IgT.gif)
-
-
-
-
-*Credit goes to the SlimeVR team [adapted from here](https://docs.slimevr.dev/firmware/setup-and-install.html)*
-
+[Follow the steps described here](https://docs.github.com/en/repositories/creating-and-managing-repositories/cloning-a-repository)
