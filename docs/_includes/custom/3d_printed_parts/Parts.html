@@ -71,8 +71,17 @@
             </div>
             <div class="parts">
                 <blockquote>
-                    <span class="parts-span">
-                        {{ faq.parts }}
+                    <span class="answerspan{{ faq.faq_link_id }}">
+                        {%- capture hyper_link -%}
+                        <a href="{{ faq.hyper_link }}" target="_blank">{{ faq.link_description }}</a>
+                        {%- endcapture -%}
+                        <ul>
+                            {{ hyper_link }}
+                            {% for part in faq.parts %}
+                            <li>{{ part }}</li>
+                            {% endfor %}
+                            {{ parts }}
+                        </ul>
                     </span>
                 </blockquote>
             </div>
@@ -82,27 +91,10 @@
 </div>
 <script type="text/javascript">
     const accordion = document.getElementsByClassName('container');
-    window.addEventListener('load', function () {
-        createElement();
-    });
 
     for (i = 0; i < accordion.length; i++) {
         accordion[i].addEventListener('click', function () {
             this.classList.toggle('active');
         })
-    }
-
-    function replaceLink(str) {
-        const link = document.querySelectorAll('.parts-span');
-        const all_link = link.forEach(function (link) {
-            const hyper_link = link.innerHTML;
-            link.innerHTML = hyper_link.replace(/aaaa./g, str);
-        });
-    }
-
-    function createElement() {
-        for (let x in accordion) {
-            replaceLink('<a href="https://dammedia.osram.info/media/bin/osram-dam-2496608/AN002_Details%20on%20photobiological%20safety%20of%20LED%20light%20sources.pdf" target="_blank">here is a pdf with safety information</a>');
-        }
     }
 </script>
