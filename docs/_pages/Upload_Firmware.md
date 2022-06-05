@@ -3,7 +3,7 @@ layout: page
 title: Building and uploading the firmware
 permalink: /building-and-flashing-firmware/
 nav_order: 2
-parent: Setting Up Firmware
+parent: Firmware Guide
 ---
 
 # Building and uploading the firmware
