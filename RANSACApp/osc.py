@@ -23,14 +23,14 @@ class VRChatOSC:
         print("Exiting OSC Queue")
         return
       try:
-        item = self.msg_queue.get(block=True, timeout=0.1)
+        eye_info = self.msg_queue.get(block=True, timeout=0.1)
       except queue.Empty:
         continue
       # If we're not blinking, set position
-      if not item[0]:
-        self.client.send_message("/avatar/parameters/RightEyeX", item[1])
-        self.client.send_message("/avatar/parameters/LeftEyeX", item[1])
-        self.client.send_message("/avatar/parameters/EyesY", item[2])
+      if not eye_info.blink:
+        self.client.send_message("/avatar/parameters/RightEyeX", eye_info.x)
+        self.client.send_message("/avatar/parameters/LeftEyeX", eye_info.x)
+        self.client.send_message("/avatar/parameters/EyesY", eye_info.y)
         if was_blinking: 
           self.client.send_message("/avatar/parameters/LeftEyeLid", float(1))
           self.client.send_message("/avatar/parameters/RightEyeLid", float(1))

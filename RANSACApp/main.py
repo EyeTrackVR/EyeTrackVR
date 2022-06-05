@@ -1,7 +1,7 @@
 from osc import VRChatOSC
 from config import RansacConfig
 from speech_engine import SpeechEngine
-from ransac import Ransac
+from ransac import Ransac, InformationOrigin
 import queue
 import threading
 import cv2
@@ -19,6 +19,9 @@ TRACKING_BUTTON_NAME = "-TRACKINGMODE-"
 TRACKING_LAYOUT_NAME = "-TRACKINGLAYOUT-"
 TRACKING_IMAGE_NAME = "-IMAGE-"
 OUTPUT_GRAPH_NAME = "-OUTPUTGRAPH-"
+RESTART_CALIBRATION_NAME = "-RESTARTCALIBRATION-"
+RECENTER_EYE_NAME = "-RECENTEREYE-"
+MODE_READOUT_NAME = "-APPMODE-"
 
 def main():
   in_roi_mode = False
@@ -35,8 +38,10 @@ def main():
   tracking_layout = [
                      [sg.Text("Threshold"), sg.Slider(range=(0, 100), default_value=config.threshold, orientation = 'h', key=THRESHOLD_SLIDER_NAME)],
                      [sg.Text("Rotation"), sg.Slider(range=(0, 360), default_value=config.rotation_angle, orientation = 'h', key=ROTATION_SLIDER_NAME)],
+                     [sg.Button("Restart Calibration", key=RESTART_CALIBRATION_NAME), sg.Button("Recenter Eye", key=RECENTER_EYE_NAME)],
+                     [sg.Text("Mode:"), sg.Text("Calibrating", key=MODE_READOUT_NAME)],
                      [sg.Image(filename="", key=TRACKING_IMAGE_NAME)],
-                     [sg.Graph((200,200), (-100, 100), (100, -100), key=OUTPUT_GRAPH_NAME,drag_submits=True, enable_events=True)]
+                     [sg.Graph((200,200), (-100, 100), (100, -100), background_color='white', key=OUTPUT_GRAPH_NAME,drag_submits=True, enable_events=True)]
                      ]
 
   layout = [[sg.Text("Camera Address"), sg.InputText(config.capture_source, key=CAMERA_ADDR_NAME)],
@@ -149,6 +154,15 @@ def main():
         is_mouse_up = False
         x0, y0 = values['-GRAPH-']
       x1, y1 = values['-GRAPH-']
+    elif event == RESTART_CALIBRATION_NAME:
+      ransac.calibration_frame_counter = 300
+    elif event == RECENTER_EYE_NAME:
+      ransac.recenter_eye = True
+
+    if ransac.calibration_frame_counter != None:
+      window[MODE_READOUT_NAME].update("Calibration")
+    else:
+      window[MODE_READOUT_NAME].update("Tracking")
 
     if in_roi_mode:
       try:
@@ -173,9 +187,14 @@ def main():
         window[TRACKING_IMAGE_NAME].update(data=imgbytes)
         graph = window[OUTPUT_GRAPH_NAME]
         graph.erase()
-        if eye_info[0] and not eye_info[3]:
-          graph.draw_circle((eye_info[1] * -100, eye_info[2] * -100), 25, fill_color='black',line_color='white')
-          
+        if eye_info.info_type != InformationOrigin.FAILURE and not eye_info.blink:
+          graph.background_color = 'white'
+          graph.draw_circle((eye_info.x * -100, eye_info.y * -100), 25, fill_color='black',line_color='white')
+          osc_queue.put(eye_info)
+        elif eye_info.blink:
+          graph.background_color = 'blue'
+        elif eye_info.info_type == InformationOrigin.FAILURE:
+          graph.background_color = 'red'
       except queue.Empty:
         pass
 
