@@ -12,6 +12,7 @@ WINDOW_NAME = "RANSACApp"
 CAMERA_ADDR_NAME = "-CAMERAADDR-"
 THRESHOLD_SLIDER_NAME = "-THREADHOLDSLIDER-"
 ROTATION_SLIDER_NAME = "-ROTATIONSLIDER-"
+SCALAR_SLIDER_NAME = "-EYESCALARSLIDER-"
 ROI_BUTTON_NAME = "-ROIMODE-"
 ROI_LAYOUT_NAME = "-ROILAYOUT-"
 ROI_SELECTION_NAME = "-GRAPH-"
@@ -38,6 +39,7 @@ def main():
   tracking_layout = [
                      [sg.Text("Threshold"), sg.Slider(range=(0, 100), default_value=config.threshold, orientation = 'h', key=THRESHOLD_SLIDER_NAME)],
                      [sg.Text("Rotation"), sg.Slider(range=(0, 360), default_value=config.rotation_angle, orientation = 'h', key=ROTATION_SLIDER_NAME)],
+                     [sg.Text("Eye Position Scalar"), sg.Slider(range=(0, 5000), default_value=config.vrc_eye_position_scalar, orientation = 'h', key=SCALAR_SLIDER_NAME)],
                      [sg.Button("Restart Calibration", key=RESTART_CALIBRATION_NAME), sg.Button("Recenter Eye", key=RECENTER_EYE_NAME)],
                      [sg.Text("Mode:"), sg.Text("Calibrating", key=MODE_READOUT_NAME)],
                      [sg.Image(filename="", key=TRACKING_IMAGE_NAME)],
@@ -123,6 +125,10 @@ def main():
     if config.rotation_angle != values[ROTATION_SLIDER_NAME]:
       config.rotation_angle = int(values[ROTATION_SLIDER_NAME])
       changed = True
+
+    if config.vrc_eye_position_scalar != values[SCALAR_SLIDER_NAME]:
+      config.vrc_eye_position_scalar = int(values[SCALAR_SLIDER_NAME])
+      changed = True      
 
     if changed:
       config.save()

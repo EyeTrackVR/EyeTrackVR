@@ -212,7 +212,7 @@ class Ransac:
       cv2.drawContours(self.current_image_gray, [cnt], -1, (255, 0, 0), 3)
       cv2.rectangle(self.current_image_gray, (x, y), (x + w, y + h), (255, 0, 0), 2)
 
-      eye_position_scalar = 3000
+      eye_position_scalar = self.config.vrc_eye_position_scalar
       # TODO These calculations were wrong in RANSAC3d, need to be fixed anyways.
       xl = float(((xt - self.xoff) * eye_position_scalar) / (self.xmax - self.xoff)) 
       xr = float(((xt - self.xoff) * eye_position_scalar) / (self.xmin - self.xoff)) 
@@ -357,7 +357,7 @@ class Ransac:
         if eym < self.xmin:
           self.ymin = eym
         self.calibration_frame_counter -= 1
-      eye_position_scalar = 3000
+      eye_position_scalar = self.config.vrc_eye_position_scalar
       xl = float(((cx - self.xoff) * eye_position_scalar) / (self.xmax - self.xoff)) 
       xr = float(((cx - self.xoff) * eye_position_scalar) / (self.xmin - self.xoff)) 
       yu = float(((cy - self.yoff) * eye_position_scalar) / (self.ymin - self.yoff))

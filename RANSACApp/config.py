@@ -16,6 +16,7 @@ class RansacConfig:
   roi_window_h: "int" = 480
   focal_length: "int" = 30
   capture_source: "Union[int, str, None]" = 2
+  vrc_eye_position_scalar: "int" = 3000
 
   def load():
     if not os.path.exists("ransac_settings.json"):
