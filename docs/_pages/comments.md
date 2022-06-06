@@ -1,8 +1,8 @@
 ---
 layout: default
-title: Comments and Suggestions
+title: Web-Forum
 nav_order: 1
-parent: Suggestions
+parent: Community Outreach
 has_children: false
 ---
 

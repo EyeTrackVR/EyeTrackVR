@@ -1,9 +1,9 @@
 ---
 layout: page
-title: Contact Us
+title: Socials
 permalink: /contact/
 nav_order: 2
-parent: Suggestions
+parent: Community Outreach
 ---
 
 # Contact Us

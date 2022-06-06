@@ -1,3 +1,22 @@
 <!-- google iframe begin  - place google form embed link here-->
+<style>
+    .googleform {
+        width: 100%;
+        height: 100%;
+        resize: width;
+        overflow: auto; /* something other than visible */
+        border-radius: 8px;
+    }
+</style>
+<div class="googleform">
+    <script type="text/javascript">var submitted = false;</script>
+    <iframe name="hidden_iframe" id="hidden_iframe" style="display:none;"
+        onload="if(submitted) {window.location='suggestions.html';}"></iframe>
+    <form
+        action="https://docs.google.com/forms/d/e/1FAIpQLScQG7vXRrBQU1N82K-hQWLFx-0UZ6exRcwgcaEa6ao86RLUdw/viewform?embedded=true"
+        method="post" target="hidden_iframe" onsubmit="submitted=true;">
+        {% include custom/misc/form.html %}
 
+    </form>
+</div>
 <!-- google iframe end -->
