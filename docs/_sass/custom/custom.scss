@@ -312,13 +312,9 @@ h2 code {
   text-decoration: underline;
 }
 
-.octicon-info {
-  fill: $color-accent-fg-info-light;
+.octicon-note {
+  fill: $color-accent-fg-note-light;
   vertical-align: middle;
-}
-
-.icon-span-info {
-  color: $color-accent-fg-info-light;
 }
 
 .octicon-alert {
@@ -326,9 +322,41 @@ h2 code {
   vertical-align: middle;
 }
 
+.octicon-danger {
+  fill: $color-accent-fg-danger;
+  vertical-align: middle;
+}
+
+.octicon-success {
+  fill: $color-accent-fg-success;
+  vertical-align: middle;
+}
+
+.octicon-tip {
+  fill: $color-accent-fg-tip;
+  vertical-align: middle;
+}
+
+.icon-span-note {
+  color: $color-accent-fg-note-light;
+}
+
 .icon-span-warning {
   color: $color-accent-fg-warning;
 }
+
+.icon-span-success {
+  color: $color-accent-fg-success;
+}
+
+.icon-span-tip {
+  color: $color-accent-fg-tip;
+}
+
+.icon-span-danger {
+  color: $color-accent-fg-tip;
+}
+
 
 .bs-example {
   margin: 20px;

@@ -1,4 +1,4 @@
-$blue-000: $color-accent-fg-info-dark;
+$blue-000: $color-accent-fg-note-dark;
 $dark-mode-bg: #202225;
 
 $body-background-color: $dark-mode-bg;
@@ -71,17 +71,17 @@ ul > li > a {
   color: #00ffff;
 }
 
-#main-content .octicon-info {
-  fill: $color-accent-fg-info-dark;
+#main-content .octicon-note {
+  fill: $color-accent-fg-note-dark;
   vertical-align: middle;
 }
 
-#main-content .icon-span-info {
-  color: $color-accent-fg-info-dark;
+#main-content .icon-span-note {
+  color: $color-accent-fg-note-dark;
 }
 
-#main-content .octicon-info>path {
-  fill: $color-accent-fg-info-dark;
+#main-content .octicon-note>path {
+  fill: $color-accent-fg-note-dark;
 }
 
 #main-content .octicon-alert>path {
