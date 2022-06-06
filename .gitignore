@@ -3,3 +3,6 @@
 **/*.pyc
 *.cfg
 RANSACApp/*.json
+RANSACApp/dist
+RANSACApp/build
+RANSACApp/pye3d*
