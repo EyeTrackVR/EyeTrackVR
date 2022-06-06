@@ -1,6 +1,6 @@
 ---
 layout: page
-title: Setup Visual Studio Code ennvironment
+title: Setup Visual Studio Code environment
 nav_order: 1
 permalink: /setting-up-firmware-enviroment/
 parent: Firmware Guide
