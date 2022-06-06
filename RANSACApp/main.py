@@ -17,6 +17,7 @@ ROI_BUTTON_NAME = "-ROIMODE-"
 ROI_LAYOUT_NAME = "-ROILAYOUT-"
 ROI_SELECTION_NAME = "-GRAPH-"
 TRACKING_BUTTON_NAME = "-TRACKINGMODE-"
+SAVE_TRACKING_BUTTON_NAME = "-SAVETRACKINGBUTTON-"
 TRACKING_LAYOUT_NAME = "-TRACKINGLAYOUT-"
 TRACKING_IMAGE_NAME = "-IMAGE-"
 OUTPUT_GRAPH_NAME = "-OUTPUTGRAPH-"
@@ -46,7 +47,7 @@ def main():
                      [sg.Graph((200,200), (-100, 100), (100, -100), background_color='white', key=OUTPUT_GRAPH_NAME,drag_submits=True, enable_events=True)]
                      ]
 
-  layout = [[sg.Text("Camera Address"), sg.InputText(config.capture_source, key=CAMERA_ADDR_NAME)],
+  layout = [[[sg.Text("Camera Address"), sg.InputText(config.capture_source, key=CAMERA_ADDR_NAME), sg.Button("Save and Restart Tracking", key=SAVE_TRACKING_BUTTON_NAME)]],
             [sg.Button("Tracking Mode", key=TRACKING_BUTTON_NAME), sg.Button("ROI Mode", key=ROI_BUTTON_NAME)],
             [sg.Column(tracking_layout, key=TRACKING_LAYOUT_NAME), sg.Column(roi_layout, key=ROI_LAYOUT_NAME, visible=False)]]
 
@@ -110,7 +111,7 @@ def main():
 
     changed = False
     # If anything has changed in our configuration settings, change/update those.
-    if values[CAMERA_ADDR_NAME] != config.capture_source:
+    if event == SAVE_TRACKING_BUTTON_NAME and values[CAMERA_ADDR_NAME] != config.capture_source:
       try:
         # Try storing ints as ints, for those using wired cameras.
         config.capture_source = int(values[CAMERA_ADDR_NAME])
