@@ -15,7 +15,7 @@ class RansacConfig:
   roi_window_w: "int" = 640
   roi_window_h: "int" = 480
   focal_length: "int" = 30
-  capture_source: "Union[int, str, None]" = 2
+  capture_source: "Union[int, str, None]" = None
   vrc_eye_position_scalar: "int" = 3000
   show_color_image: "bool" = False
 
