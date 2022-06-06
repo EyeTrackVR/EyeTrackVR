@@ -28,7 +28,7 @@ Individuals
 
 ## Philosophy
 
-The [Resources](/EyeTrackVR/resources/) section of this website includes some of our teams own notes (not all of them are polished) that we disclose for other people to use.
+The [How to Build](/EyeTrackVR/how_to_build/) section of this website includes some of our teams own notes (not all of them are polished) that we disclose for other people to use.
 There, we hope you may find something useful to you.
 
 We advocate the [Open Source model](https://en.wikipedia.org/wiki/Open-source_model).
