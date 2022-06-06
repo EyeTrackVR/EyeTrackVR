@@ -6,28 +6,16 @@ nav_order: 1
 parent: How to build
 ---
 
-
-
-## Basic Full Wiring Diagram With IR PCBs
-
-
-
-<img src="https://imgur.com/2E8vY4W.png" alt="drawing" width="500"/>
-
-
-
-## IR PCB Emitter Back Side Wiring for 2 Resistors (recomended)
-
-
-
-<img src="https://imgur.com/BViCBrn.png" alt="drawing" width="200"/>
+{% include custom/images/image_2.html url="https://imgur.com/2E8vY4W.png" max-width="500" caption="Basic Full Wiring Diagram With IR PCBs" alt="drawing" %}
+<br>
+{% include custom/images/image_2.html url="https://imgur.com/BViCBrn.png" max-width="200" caption="IR PCB Emitter Back Side Wiring for 2 Resistors (recommended)" alt="drawing" %}
+<br>
 
 {% include custom/alerts/Warning.html content="The 2 350ohm resistors should connect the each side of the resistor pad and <b>NOTHING ELSE</b>. Its important that it does not touch any other pad." %}
-### Alternatively you can wire it like the 1 resistor one, but add a secondary one in the 5v in wire.
- 
+<br>
 
+{% include custom/alerts/Note.html content="Alternatively you can wire it like the 1 resistor one, but add a secondary one in the 5v in wire." %}
+<br>
 
-## IR PCB Emitter Back Side Wiring for 1 700-710 ohm Resistor (not recomended)
-
-
-<img src="https://imgur.com/va3tZOh.png" alt="drawing" width="200"/>
+{% include custom/images/image_2.html url="https://imgur.com/va3tZOh.png" max-width="200" caption="IR PCB Emitter Back Side Wiring for 1 700-710 ohm Resistor (not recommended)" alt="drawing" %}
+<br>
