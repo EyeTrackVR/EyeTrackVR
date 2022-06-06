@@ -74,17 +74,18 @@ def main():
 #  t2s_thread.start()
 #  t2s_queue.put("App Starting")
 
+  capture_event = threading.Event()
   capture_queue = queue.Queue()
   roi_queue = queue.Queue()
 
   image_queue: queue.Queue = queue.Queue()
-  ransac = Ransac(config, cancellation_event, capture_queue, image_queue)
+  ransac = Ransac(config, cancellation_event, capture_event, capture_queue, image_queue)
   ransac_thread = threading.Thread(target=ransac.run)
   ransac_thread.start()
 
   # Only start our camera AFTER we've brought up the RANSAC thread, otherwise we'll have no consumer
   camera_status_queue = queue.Queue()
-  camera_0 = camera.Camera(config, 0, cancellation_event, camera_status_queue, capture_queue)
+  camera_0 = camera.Camera(config, 0, cancellation_event, capture_event, camera_status_queue, capture_queue)
   camera_0_thread = threading.Thread(target=camera_0.run)
   camera_0_thread.start()
 
@@ -178,6 +179,8 @@ def main():
 
     if in_roi_mode:
       try:
+        if roi_queue.empty():
+          capture_event.set()
         maybe_image = roi_queue.get(block = False)
         imgbytes = cv2.imencode(".ppm", maybe_image[0])[1].tobytes()
         graph = window[ROI_SELECTION_NAME]

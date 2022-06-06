@@ -111,13 +111,14 @@ def fit_rotated_ellipse(data):
     return (cx, cy, w, h, theta)
 
 class Ransac:
-  def __init__(self, config: "RansacConfig", cancellation_event: "threading.Event", capture_queue_incoming: "queue.Queue", image_queue_outgoing: "queue.Queue"):
+  def __init__(self, config: "RansacConfig", cancellation_event: "threading.Event", capture_event: "threading.Event", capture_queue_incoming: "queue.Queue", image_queue_outgoing: "queue.Queue"):
     self.config = config
 
     # Cross-thread communication management
     self.capture_queue_incoming = capture_queue_incoming
     self.image_queue_outgoing = image_queue_outgoing
     self.cancellation_event = cancellation_event
+    self.capture_event = capture_event
 
     # Cross algo state
     self.lkg_projected_sphere = None
@@ -254,9 +255,11 @@ class Ransac:
         camera_model = CameraModel(focal_length=self.config.focal_length, resolution=[self.config.roi_window_w, self.config.roi_window_h])
         detector_3d = Detector3D(camera=camera_model, long_term_mode=DetectorMode.blocking)
 
-      try: 
+      try:
+        if self.capture_queue_incoming.empty():
+          self.capture_event.set()
         # Wait a bit for images here. If we don't get one, just try again.
-        (self.current_image, self.current_frame_number, self.current_fps) = self.capture_queue_incoming.get(block=True, timeout=0.1)
+        (self.current_image, self.current_frame_number, self.current_fps) = self.capture_queue_incoming.get(block=True, timeout=0.2)
       except queue.Empty:
         # print("No image available")
         continue
