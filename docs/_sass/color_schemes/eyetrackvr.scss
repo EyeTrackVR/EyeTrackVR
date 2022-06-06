@@ -34,10 +34,11 @@ $feedback-color: darken($sidebar-color, 7%);
   color: $blue-000;
 }
 
-p > a {
+p>a {
   color: $blue-000;
 }
-p > strong > em > a {
+
+p>strong>em>a {
   color: $blue-000;
 }
 
@@ -45,7 +46,7 @@ p > strong > em > a {
   color: $blue-000;
 }
 
-ul > li > a {
+ul>li>a {
   color: $blue-000;
 }
 
@@ -86,4 +87,45 @@ ul > li > a {
 
 #main-content .octicon-alert>path {
   fill: $color-accent-fg-warning;
+}
+
+/* Custom Checkboxes */
+input[type=checkbox] {
+  
+  cursor: pointer;
+  width: 10px;
+  height: 10px;
+  margin: 10px;
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  -o-appearance: none;
+  appearance: none;
+  outline: 1px solid lightblue;
+  box-shadow: rgba(0, 0, 0, 0.25) 0px 54px 55px, rgba(0, 0, 0, 0.12) 0px -12px 30px, rgba(0, 0, 0, 0.12) 0px 4px 6px, rgba(0, 0, 0, 0.17) 0px 12px 13px, rgba(0, 0, 0, 0.09) 0px -3px 5px;
+  background-clip: content-box;
+  padding: 3px;
+}
+
+input,
+input:focus {
+  border: none;
+  border-radius: 2pt;
+  box-shadow: 0 0 0 1pt grey;
+  outline: none;
+  transition: .1s;
+}
+
+input[type="checkbox"]:checked {
+  background-color: #3899ff;
+  
+}
+
+input[type="checkbox"]:focus {
+  box-shadow: 0 0 3pt 2pt cornflowerblue;
+}
+
+#main-content .task-list-item-checkbox {}
+
+body {
+  cursor: default
 }

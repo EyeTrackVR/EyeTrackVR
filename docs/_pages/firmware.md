@@ -24,9 +24,9 @@ We're working on our own solution called OpenIris, [found here](https://github.c
 - [x] Health checks - we know when something goes wrong and we can react to it
 - [x] OTA updates - we can update the firmware on the fly
 - [x] ROI selection for eye area - this feature hasn't been tested all that much yet.
-- [x] MDNS - so that the server itself will detect and communicate with the tracker without you doing anything. No need to configure IPs and stuff, it's automagic
+- [x] MDNS - so that the server itself will detect and communicate with the tracker without you doing anything.
 
-### In development are:
+### In development are
 
 - [ ] Persistent storage for storing your settings on the device itself, this will also allow for saving multiple wifi networks!
 - [ ] LED status patterns - so that you know what's going on without plugging the tracker in to the PC
