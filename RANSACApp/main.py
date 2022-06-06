@@ -24,6 +24,7 @@ OUTPUT_GRAPH_NAME = "-OUTPUTGRAPH-"
 RESTART_CALIBRATION_NAME = "-RESTARTCALIBRATION-"
 RECENTER_EYE_NAME = "-RECENTEREYE-"
 MODE_READOUT_NAME = "-APPMODE-"
+SHOW_COLOR_IMAGE_NAME = "-SHOWCOLORIMAGE-"
 
 def main():
   in_roi_mode = False
@@ -41,7 +42,7 @@ def main():
                      [sg.Text("Threshold"), sg.Slider(range=(0, 100), default_value=config.threshold, orientation = 'h', key=THRESHOLD_SLIDER_NAME)],
                      [sg.Text("Rotation"), sg.Slider(range=(0, 360), default_value=config.rotation_angle, orientation = 'h', key=ROTATION_SLIDER_NAME)],
                      [sg.Text("Eye Position Scalar"), sg.Slider(range=(0, 5000), default_value=config.vrc_eye_position_scalar, orientation = 'h', key=SCALAR_SLIDER_NAME)],
-                     [sg.Button("Restart Calibration", key=RESTART_CALIBRATION_NAME), sg.Button("Recenter Eye", key=RECENTER_EYE_NAME)],
+                     [sg.Button("Restart Calibration", key=RESTART_CALIBRATION_NAME), sg.Button("Recenter Eye", key=RECENTER_EYE_NAME), sg.Checkbox('Show Color Image:', default=config.show_color_image, key=SHOW_COLOR_IMAGE_NAME)],
                      [sg.Text("Mode:"), sg.Text("Calibrating", key=MODE_READOUT_NAME)],
                      [sg.Image(filename="", key=TRACKING_IMAGE_NAME)],
                      [sg.Graph((200,200), (-100, 100), (100, -100), background_color='white', key=OUTPUT_GRAPH_NAME,drag_submits=True, enable_events=True)]
@@ -129,7 +130,11 @@ def main():
 
     if config.vrc_eye_position_scalar != values[SCALAR_SLIDER_NAME]:
       config.vrc_eye_position_scalar = int(values[SCALAR_SLIDER_NAME])
-      changed = True      
+      changed = True
+
+    if config.show_color_image != values[SHOW_COLOR_IMAGE_NAME]:
+      config.show_color_image = values[SHOW_COLOR_IMAGE_NAME]
+      changed = True
 
     if changed:
       config.save()

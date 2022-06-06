@@ -144,7 +144,10 @@ class Ransac:
     self.recenter_eye = False
 
   def output_images_and_update(self, threshold_image, output_information: EyeInformation):
-    image_stack = np.concatenate((self.current_image, cv2.cvtColor(self.current_image_gray, cv2.COLOR_GRAY2BGR), cv2.cvtColor(threshold_image, cv2.COLOR_GRAY2BGR)), axis=1)
+    if self.config.show_color_image:
+      image_stack = np.concatenate((self.current_image, cv2.cvtColor(self.current_image_gray, cv2.COLOR_GRAY2BGR), cv2.cvtColor(threshold_image, cv2.COLOR_GRAY2BGR)), axis=1)
+    else:
+      image_stack = np.concatenate((cv2.cvtColor(self.current_image_gray, cv2.COLOR_GRAY2BGR), cv2.cvtColor(threshold_image, cv2.COLOR_GRAY2BGR)), axis=1)
     self.image_queue_outgoing.put((image_stack, output_information))
     self.previous_image = self.current_image
     self.previous_rotation = self.config.rotation_angle

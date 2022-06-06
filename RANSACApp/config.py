@@ -17,6 +17,7 @@ class RansacConfig:
   focal_length: "int" = 30
   capture_source: "Union[int, str, None]" = 2
   vrc_eye_position_scalar: "int" = 3000
+  show_color_image: "bool" = False
 
   def load():
     if not os.path.exists("ransac_settings.json"):
