@@ -28,9 +28,9 @@ In case of an FTDI programmer, the steps aren't as easy, so grab [this guide](ht
 
 - Once the firmware has been built, press the upload button to upload the firmware.
 
-**NOTE** The MB board does the resetting for you, so if you're suing the FTDI programmer, follow the guide linked above (the one from randomnerdtutorials)  
-
   ![img](https://i.imgur.com/lI3PFVC.png)
+
+{% include custom/alerts/Note.html content="The MB board does the resetting for you, so if you're using the FTDI programmer, follow the guide linked above (the one from randomnerdtutorials)"  %}  
 
 - If the upload is successful, you should get an output that looks like this:
 
@@ -57,8 +57,8 @@ Once you have successfully connected your trackers to your WiFi, you can use OTA
 ```ini
 ;upload_protocol = espota
 ;upload_port = 192.168.1.49
-
 ```
+
 1. Change the value of upload_port to the IP address retrieved during the first step.
 1. Turn the tracker you wish to flash off and then on again.
 1. Wait around 5 seconds.

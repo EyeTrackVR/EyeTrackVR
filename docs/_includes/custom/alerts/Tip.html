@@ -6,6 +6,9 @@
                 data-icon="fa:check-square-o"></span><b>Tip:</b>
             <p class="fs-5 fw-300">
                 {{ include.content }}
+                {% if include.hyper_link != null && include.hyper_link != "" %}
+                <a href="{{ include.hyper_link }}" target="_blank">{{ include.description }}</a>
+                {% endif %}
             </p>
         </span>
     </p>
