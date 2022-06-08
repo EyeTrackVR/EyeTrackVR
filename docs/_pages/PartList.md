@@ -33,7 +33,7 @@ All three of the above can be found in a kit from [AliExpress here](https://a.al
 - 2x Wired Ov5640 160 deg cameras [AliExpress here](https://www.aliexpress.com/item/2255799933896897.html)
 
 {% include custom/alerts/Note.html content="if the wired option is used, you will need to disassemble the camera to remove the ir filters.
-I would recombed getting extra cameras, either the full thing above or just the camera" hyper_link="https://www.aliexpress.com/item/3256803544318475.html" description="from AliExpress here" %}
+I would recommend getting extra cameras, either the full thing above or just the camera" hyper_link="https://www.aliexpress.com/item/3256803544318475.html" description="from AliExpress here" %}
 
 - 1x USB type-A male port to power both IR emitters
 [AliExpress here](https://a.aliexpress.com/_mOCRTcq)
