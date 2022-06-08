@@ -10,7 +10,7 @@ permalink: how_to_build
 So, you want eyetracking in vr, but don't want to _buy it_😷?
 {: .fs-5 .fw-300}
 
-<i>Well, you've come to the right place then:bangbang:<i>
+<i>Well, you've come to the right place then‼<i>
 {: .fs-6 .fw-400}
 
 The following section of documentation will walk you through exactly how to build your very own eyetracking rig.
