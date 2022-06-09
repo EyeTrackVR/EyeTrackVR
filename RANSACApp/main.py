@@ -204,14 +204,15 @@ def main():
         # Update the GUI
         graph = window[OUTPUT_GRAPH_NAME]
         graph.erase()
+
         if eye_info.info_type != InformationOrigin.FAILURE and not eye_info.blink:
-          graph.background_color = 'white'
+          graph.update(background_color = 'white')
           graph.draw_circle((eye_info.x * -100, eye_info.y * -100), 25, fill_color='black',line_color='white')
         elif eye_info.blink:
-          graph.background_color = 'blue'
+          graph.update(background_color = 'blue')
         elif eye_info.info_type == InformationOrigin.FAILURE:
-          graph.background_color = 'red'
-
+          graph.update(background_color = 'red')
+        
         # Relay information to OSC
         if eye_info.info_type != InformationOrigin.FAILURE:
           osc_queue.put(eye_info)
