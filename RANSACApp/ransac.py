@@ -217,7 +217,7 @@ class Ransac:
       cv2.rectangle(self.current_image_gray, (x, y), (x + w, y + h), (255, 0, 0), 2)
 
       eye_position_scalar = self.config.vrc_eye_position_scalar
-      # TODO These calculations were wrong in RANSAC3d, need to be fixed anyways.
+
       xl = float(((xt - self.xoff) * eye_position_scalar) / (self.xmax - self.xoff)) 
       xr = float(((xt - self.xoff) * eye_position_scalar) / (self.xmin - self.xoff)) 
       yu = float(((yt - self.yoff) * eye_position_scalar) / (self.ymin - self.yoff))
@@ -302,7 +302,6 @@ class Ransac:
       # If we have no convex maidens, we have no pupil, and can't progress from here. Dump back to
       # using blob tracking.
       #
-      # TODO Reimplement Prohurtz's blob tracking fallback
       if len(convex_hulls) == 0:
         self.blob_tracking_fallback()
         continue
@@ -383,19 +382,6 @@ class Ransac:
 
       output_info = EyeInformation(InformationOrigin.RANSAC, out_x, out_y, False)
 
-#      # So now we get the offset of the center of the eyeball
-#      xrl = (cx - self.lkg_projected_sphere["center"][0]) / self.lkg_projected_sphere["axes"][0]            
-#      eyey = (cy - self.lkg_projected_sphere["center"][1]) / self.lkg_projected_sphere["axes"][1]
-#
-#      # TODO Reimplement Prohurtz's Center Calibration and Calculations
-#
-#      # Pack our base info to send to VRChat
-#      output_tuple = (True,
-#                      -abs(xrl) if xrl >= 0 else abs(xrl), 
-#                      -abs(eyey) if eyey >= 0 else abs(eyey), 
-#                      False)
-
-      # print(output_tuple)
 
       # Draw our image and stack it for visual output
       cv2.drawContours(self.current_image_gray, contours, -1, (255, 0, 0), 1)
