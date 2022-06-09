@@ -200,16 +200,21 @@ def main():
         (maybe_image, eye_info) = image_queue.get(block = False)
         imgbytes = cv2.imencode(".ppm", maybe_image)[1].tobytes()
         window[TRACKING_IMAGE_NAME].update(data=imgbytes)
+
+        # Update the GUI
         graph = window[OUTPUT_GRAPH_NAME]
         graph.erase()
         if eye_info.info_type != InformationOrigin.FAILURE and not eye_info.blink:
           graph.background_color = 'white'
           graph.draw_circle((eye_info.x * -100, eye_info.y * -100), 25, fill_color='black',line_color='white')
-          osc_queue.put(eye_info)
         elif eye_info.blink:
           graph.background_color = 'blue'
         elif eye_info.info_type == InformationOrigin.FAILURE:
           graph.background_color = 'red'
+
+        # Relay information to OSC
+        if eye_info.info_type != InformationOrigin.FAILURE:
+          osc_queue.put(eye_info)
       except queue.Empty:
         pass
 
