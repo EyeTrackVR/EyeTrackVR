@@ -235,8 +235,8 @@ class Ransac:
       if yu > 0:
         out_y = max(0.0, min(1.0, yu))
 
-      output_tuple = (True, out_x, out_y, False)
       self.output_images_and_update(larger_threshold, EyeInformation(InformationOrigin.BLOB, out_x, out_y, False))
+      return
     self.output_images_and_update(larger_threshold, EyeInformation(InformationOrigin.BLOB, 0, 0, True))
     print('[INFO] BLINK Detected.')
 
