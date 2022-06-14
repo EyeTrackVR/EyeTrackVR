@@ -28,7 +28,7 @@ class Camera:
         self.capture_event = capture_event
         self.cancellation_event = cancellation_event
         self.current_capture_source = config.capture_source
-        self.wired_camera: "cv2.VideoCapture" = cv2.VideoCapture(config.capture_source, cv2.CAP_FFMPEG)
+        self.wired_camera: "cv2.VideoCapture" = cv2.VideoCapture(config.capture_source)
         self.stream = None
         self.stream_frame_number = 0
         self.stream_bytes = bytes()
@@ -58,7 +58,7 @@ class Camera:
                     print(self.error_message.format(self.config.capture_source))
                     sleep(0.5)
                     self.current_capture_source = self.config.capture_source
-                    self.wired_camera = cv2.VideoCapture(self.current_capture_source, cv2.CAP_FFMPEG)
+                    self.wired_camera = cv2.VideoCapture(self.current_capture_source)
                     continue
 
             # Assuming we can access our capture source, wait for another thread to request a capture.
