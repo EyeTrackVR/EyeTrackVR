@@ -41,6 +41,7 @@ class Camera:
         while True:
             if self.cancellation_event.is_set():
                 print("Exiting capture thread")
+                self.cleanup_stream()
                 return
 
             # If things aren't open, retry until they are. Don't let read requests come in any earlier
