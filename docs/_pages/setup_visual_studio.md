@@ -53,7 +53,5 @@ Make sure you close any current projects you have open or open a new window befo
 
 1. Click **Yes, I trust the authors**.
 
-   ![img](https://i.imgur.com/C0uCdOD.png)
-
 
 _Credit goes to the SlimeVR team [adapted from here](https://docs.slimevr.dev/firmware/setup-and-install.html)_
