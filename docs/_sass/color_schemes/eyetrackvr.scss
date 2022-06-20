@@ -54,6 +54,10 @@ ul>li>a {
   background-color: $dark-mode-bg;
 }
 
+#main-content blockquote > p > span > small {
+  color: $grey-lt-300;
+}
+
 #main-content a {
   color: $blue-000;
 }
@@ -91,7 +95,6 @@ ul>li>a {
 
 /* Custom Checkboxes */
 input[type=checkbox] {
-
   cursor: pointer;
   width: 10px;
   height: 10px;
@@ -115,12 +118,12 @@ input:focus {
   transition: .1s;
 }
 
-input[type="checkbox"]:checked {
+input[type=checkbox]:checked {
   background-color: #3899ff;
 
 }
 
-input[type="checkbox"]:focus {
+input[type=checkbox]:focus {
   box-shadow: 0 0 3pt 2pt cornflowerblue;
 }
 
