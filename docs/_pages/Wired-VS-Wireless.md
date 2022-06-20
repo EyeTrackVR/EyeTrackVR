@@ -17,7 +17,7 @@ parent: How to build
 - Plug and play, no firmware or wifi router needed
 
 - Lowest latency
-{% include custom/alerts/Note.html content="Our latency with wireless setups is pretty low, (30-60ms) you will not be able to see a difference in socail VR applications. This would only become a noticable change if we ever get DFR working." %}
+{% include custom/alerts/Note.html content="Our latency with wireless setups is pretty low, (30-60ms) you will not be able to see a difference in social VR applications. This would only become a noticable change if we ever get DFR working." %}
 
 - Higher resolution
 {% include custom/alerts/Note.html content="Higher resolution does not result in a measurable tracking quality change although it can help." %}
@@ -50,5 +50,5 @@ parent: How to build
 - Flashing firmware is needed
 
 - Higer latency
-{% include custom/alerts/Note.html content="Our latency with wireless setups is pretty low, (30-60ms) you will not be able to see a difference in socail VR applications. This would only become a noticable change if we ever get DFR working." %}
+{% include custom/alerts/Note.html content="Our latency with wireless setups is pretty low, (30-60ms) you will not be able to see a difference in social VR applications. This would only become a noticable change if we ever get DFR working." %}
 
