@@ -41,7 +41,7 @@ _Note: you will most likely have to click "Click here to download manually". If 
 
 Make sure you close any current projects you have open or open a new window before moving forward with these steps.
 
-1. Click the **Source Control** button, click on **Clone Repository** and enter: `[https://github.com/lorow/OpenIris.git]`. 
+1. Click the **Source Control** button, click on **Clone Repository** and enter: `https://github.com/lorow/OpenIris.git`. 
    
    If you installed git while Visual Studio Code was open you may have to close it and re-open it first.
    
@@ -54,4 +54,5 @@ Make sure you close any current projects you have open or open a new window befo
 1. Click **Yes, I trust the authors**.
 
 
-_Credit goes to the SlimeVR team [adapted from here](https://docs.slimevr.dev/firmware/setup-and-install.html)_
+
+_This is a direct adaptation from SlimeVR Credit goes to the SlimeVR team [adapted from here](https://docs.slimevr.dev/firmware/setup-and-install.html)_
