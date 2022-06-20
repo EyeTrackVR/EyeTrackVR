@@ -6,7 +6,7 @@ nav_order: 2
 parent: How to build
 ---
 
-{% include custom/images/image_2.html url="https://imgur.com/2E8vY4W.png" max-width="500" caption="Basic Full Wiring Diagram With IR PCBs" alt="drawing" %}
+{% include custom/images/image_2.html url="https://imgur.com/2E8vY4W.png" max-width="500" caption="Basic Full Wiring Diagram With IR PCBs V2" alt="drawing" %}
 <br>
 {% include custom/images/image_2.html url="https://imgur.com/BViCBrn.png" max-width="200" caption="IR PCB Emitter Back Side Wiring for 2 Resistors (recommended)" alt="drawing" %}
 <br>
@@ -19,3 +19,5 @@ parent: How to build
 
 {% include custom/images/image_2.html url="https://imgur.com/va3tZOh.png" max-width="200" caption="IR PCB Emitter Back Side Wiring for 1 700-710 ohm Resistor (not recommended)" alt="drawing" %}
 <br>
+
+Soldering demostration of soldering a IR LED [https://www.youtube.com/watch?v=8vWMr4L9WK](https://www.youtube.com/watch?v=8vWMr4L9WK8)
