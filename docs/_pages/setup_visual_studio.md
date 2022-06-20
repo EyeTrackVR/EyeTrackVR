@@ -55,4 +55,4 @@ Make sure you close any current projects you have open or open a new window befo
 
 
 
-_This is a direct adaptation from SlimeVR Credit goes to the SlimeVR team [adapted from here](https://docs.slimevr.dev/firmware/setup-and-install.html)_
+_This is a direct adaptation from SlimeVR. Credit goes to the SlimeVR team [adapted from here](https://docs.slimevr.dev/firmware/setup-and-install.html)_
