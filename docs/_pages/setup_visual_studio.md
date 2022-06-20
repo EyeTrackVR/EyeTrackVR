@@ -29,7 +29,7 @@ Once Visual Studio Code is installed, open it and install [PlatformIO IDE for VS
 ![img](https://i.imgur.com/ebV0IgT.gif)
 
 
-## 4. Install git client
+## 3. Install git client
 
 For Windows, you can download and install [Git for Windows](https://git-scm.com/download/win). If you have other OS, visit [https://git-scm.com/downloads](https://git-scm.com/downloads).
 
@@ -37,7 +37,7 @@ _Note: you will most likely have to click "Click here to download manually". If 
 
 ![img](https://i.imgur.com/wam3ea1.gif)
 
-## 5. Clone the firmware project
+## 4. Clone the firmware project
 
 Make sure you close any current projects you have open or open a new window before moving forward with these steps.
 
