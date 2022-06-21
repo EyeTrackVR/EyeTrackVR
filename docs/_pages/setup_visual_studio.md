@@ -45,7 +45,6 @@ Make sure you close any current projects you have open or open a new window befo
    
    If you installed git while Visual Studio Code was open you may have to close it and re-open it first.
    
-   ![img](https://i.imgur.com/dBwJylD.gif)
 
 1. Once you have chosen a download location click the **Open button** that may appear at the bottom right.
    
