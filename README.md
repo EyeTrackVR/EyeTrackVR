@@ -11,9 +11,8 @@
 - [Licenses](#licenses)
 
 <div align="center">
-      <img src="./docs/assets/images/banner.svg" alt="banner" />
+      <img src="./docs/assets/images/banner-eyetrack.svg" alt="banner" />
 </div>
-
 
 # EyeTrackVR
 
