@@ -23,8 +23,10 @@ parent: About
 - [ ] Dual eye support
 - [ ] Variable eye openess tracking
 - [ ] Different camera testing
+- [ ] Release of V1 to the masses
 
 ## Planned
 
+- [ ] Support for implimentation with VRCFT (binary paramaters etc.)
 - [ ] Setup WiFi creds for ESPs through non-firmware means
 - [ ] Dynamic foveated rendering via OpenXR (not a gaurentee)
