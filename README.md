@@ -10,6 +10,10 @@
       - [Contact](#contact)
 - [Licenses](#licenses)
 
+<div align="center">
+      <img src="./docs/assets/images/banner.svg" alt="banner" />
+</div>
+
 # EyeTrackVR
 
 Open source and *affordable* VR eye tracker platform for [VRChat](https://hello.vrchat.com/) via `OSC` and `UDP` protocol.
