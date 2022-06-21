@@ -26,5 +26,5 @@ parent: About
 
 ## Planned
 
-- [ ] Setup WiFi creds for ESPs through non firmware means
+- [ ] Setup WiFi creds for ESPs through non-firmware means
 - [ ] Dynamic foveated rendering via OpenXR (not a gaurentee)
