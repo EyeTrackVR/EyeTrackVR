@@ -9,7 +9,7 @@ permalink: index.html
 [![GitHub issues](https://img.shields.io/github/issues/RedHawk989/EyeTrackVR?style=plastic)](https://github.com/RedHawk989/EyeTrackVR/issues) [![GitHub forks](https://img.shields.io/github/forks/RedHawk989/EyeTrackVR?style=plastic)](https://github.com/RedHawk989/EyeTrackVR/network) [![GitHub stars](https://img.shields.io/github/stars/RedHawk989/EyeTrackVR?style=plastic)](https://github.com/RedHawk989/EyeTrackVR/stargazers)
 
 <div align="center">
-    <img src="./docs/assets/images/banner-eyetrack.svg" height="400" alt="banner" />
+    <img src="./docs/assets/images/banner-eyetrack.svg" height="200" alt="banner" />
 </div>
 
 ## Table of contents
