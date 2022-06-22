@@ -1,7 +1,7 @@
 ---
 layout: default
 title: VR Chat Avatar Setup
-nav_order: 9
+nav_order: 10
 has_children: false
 permalink: /vrc-avatar-setup/
 ---
