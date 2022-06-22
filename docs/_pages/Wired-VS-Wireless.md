@@ -30,6 +30,7 @@ parent: How to build
 
 - Camera disassembly is required to remove the IR filter
 
+{% include custom/alerts/Warning.html content="Due to USB issues, only 1 camera per headset is supported unless you have 2 seperate USB ports to plug in to. USB hubs WILL NOT WORK." %}
 
 ## Wireless
 
