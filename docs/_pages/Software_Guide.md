@@ -2,7 +2,7 @@
 layout: default
 title: Software Guide
 nav_order: 10
-has_children: true
+has_children: false
 permalink: /software-guide/
 ---
 
