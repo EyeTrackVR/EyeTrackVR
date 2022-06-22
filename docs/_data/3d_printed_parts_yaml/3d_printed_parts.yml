@@ -6,12 +6,17 @@
   hyper_link: "https://www.thingiverse.com/thing:5400548"
   link_description: "Camera and IR emitter mount by Prohurtz"
   faq_link_id: 1
+  
+  hyper_link: "https://github.com/RedHawk989/EyeTrackVR-Hardware/blob/main/3d_Printed_Mounts/Quest_2/EyeTrack_Quest_2_Mount_v10_By_Arkfall.stl"
+  link_description: "Camera and IR emitter mount by Arkfall"
+  faq_link_id: 2
+
 
 - hmd: "Valve Index"
   parts: ["IR Emitter Mount : N/A", "ESP mount : N/A"]
   hyper_link: "https://github.com/rrazgriz/IndexEyeTrackVR/tree/main/hardware"
   link_description: "Camera mount by Razgriz"
-  faq_link_id: 2
+  faq_link_id: 3
 
 ---
 
