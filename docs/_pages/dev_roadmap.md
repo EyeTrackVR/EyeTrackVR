@@ -25,6 +25,8 @@ parent: About
 - [ ] Different camera testing
 - [ ] Release of V1 to the masses
 - [ ] Better documentation over things (setup, wiring etc.)
+- [ ] Auto ROI cropping
+- [ ] Auto thresholding
 
 ## Planned
 
