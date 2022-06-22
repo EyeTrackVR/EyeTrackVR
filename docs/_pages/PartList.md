@@ -30,6 +30,8 @@ All three of the above can be found in a kit from [AliExpress here](https://a.al
 
 ## Wired setup
 
+{% include custom/alerts/Warning.html content="Due to USB issues, only 1 camera per headset is supported unless you have 2 seperate USB ports to plug in to. USB hubs WILL NOT WORK." %}
+
 - 2x Wired Ov5640 160 deg cameras [AliExpress here](https://www.aliexpress.com/item/2255799933896897.html)
 
 {% include custom/alerts/Note.html content="if the wired option is used, you will need to disassemble the camera to remove the ir filters.
