@@ -2,7 +2,7 @@
 layout: page
 title: Part List
 permalink: /partslist/
-nav_order: 3
+nav_order: 2
 parent: How to build
 ---
 
@@ -29,6 +29,8 @@ All three of the above can be found in a kit from [AliExpress here](https://a.al
 [28 gauge wire from AliExpress here](https://a.aliexpress.com/_mK72cy6)
 
 ## Wired setup
+
+{% include custom/alerts/Warning.html content="Due to USB issues, only 1 camera per headset is supported unless you have 2 seperate USB ports to plug in to. USB hubs WILL NOT WORK." %}
 
 - 2x Wired Ov5640 160 deg cameras [AliExpress here](https://www.aliexpress.com/item/2255799933896897.html)
 

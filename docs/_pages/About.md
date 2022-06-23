@@ -2,8 +2,11 @@
 layout: about
 title: About
 permalink: /about/
+has_children: true
 nav_order: 5
 ---
+
+
 
 EyeTrackVR developers are a group of people who are passionate about the field of augmented and virtual reality.
 {: .fs-5 .fw-300 }
