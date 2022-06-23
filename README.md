@@ -16,7 +16,7 @@
 
 Open source and *affordable* VR eye tracker platform for [VRChat](https://hello.vrchat.com/) via `OSC` and `UDP` protocol.
 
-> **Note:** This project is in development and is not fully finished
+> **Note**: This project is in development and is not fully finished
 
 # Check out our documentation [here](https://redhawk989.github.io/EyeTrackVR/)
 
@@ -33,7 +33,7 @@ Please *exercise extreme caution* when messing around with IR emitters.
 The safety measures were put in place to REDUCE the potential failure risk. All further safety responsibilities is on the user.
 This includes visually checking with an IR camera that the brightness is correct and making sure you do not feel warmth.
 
-> **Warning:** Make sure you are using **NON-focused** emitters and at around ***5ma total power***.
+> **Warning**: Make sure you are using **NON-focused** emitters and at around ***5ma total power***.
 
 [Effect of infrared radiation on the lens](./docs/Reference_Docs/saftey/effect_of_ir_on_the_lens.pdf)
 
