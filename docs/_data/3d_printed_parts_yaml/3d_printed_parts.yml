@@ -7,7 +7,7 @@
   hyper_links:
     - url: "https://www.thingiverse.com/thing:5400548"
       desc: "Camera and IR emitter mount by Prohurtz"
-    - url: "https://www.thingiverse.com/thing:5400548"
+    - url: "https://github.com/rrazgriz/IndexEyeTrackVR/tree/main/hardware"
       desc: "Camera mount by Razgriz"
   threed_link_id: 1
 
