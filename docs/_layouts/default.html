@@ -226,9 +226,10 @@ layout: table_wrappers
         {% endif %}
     </div>
 
-
-    <script src='{{ "/assets/js/custom/cookies/cookies.js" | absolute_url }}'></script>
-    {% include cookie_consent.html %}
-    <script src='{{ "/assets/js/custom/scheme/colorscheme.js" | absolute_url }}'></script>
+    <div>
+        <script src='{{ "/assets/js/custom/cookies/cookies.js" | absolute_url }}'></script>
+        {% include cookie_consent.html %}
+        <script src='{{ "/assets/js/custom/scheme/colorscheme.js" | absolute_url }}'></script>
+    </div>
 </body>
 </html>
