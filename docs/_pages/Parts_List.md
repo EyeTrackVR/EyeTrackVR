@@ -41,6 +41,7 @@ I would recommend getting extra cameras, either the full thing above or just the
 [AliExpress here](https://a.aliexpress.com/_mOCRTcq)
 
 ## IR Emitters
+#### Needed for both wireless and wired options.
 
 - 4x Unfocused SMD IR emitters
 Recommend ones [from Digikey here](https://www.digikey.com/en/products/detail/inolux/IN-P32ZTIR/10384796) (DO NOT BUY FOCUSED ONES! If they look like something you would find in a TV remote do not use them, if you aren't sure exactly what you are doing, buy them from the Digikey link)
@@ -57,6 +58,8 @@ or
 
 - 1x Wire to power IR emitters
 [32 gauge wire from AliExpress here](https://a.aliexpress.com/_mK72cy6)
+
+I have a kit with resistors, IR LEDs, and PCBs on [Tindie here.](https://www.tindie.com/products/eyetrackvr/eyetrackvr-ir-emitter-kit-pack-of-5/)
 
 ## Other parts
 
