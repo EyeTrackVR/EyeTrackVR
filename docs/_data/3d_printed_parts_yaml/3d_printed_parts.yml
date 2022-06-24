@@ -7,8 +7,12 @@
   hyper_links:
     - url: "https://www.thingiverse.com/thing:5400548"
       desc: "Camera and IR emitter mount by Prohurtz"
+      
     - url: "https://github.com/RedHawk989/EyeTrackVR-Hardware/blob/main/3d_Printed_Mounts/Quest_2/EyeTrack_Quest_2_Mount_v10_By_Arkfall.stl"
       desc: "Camera and IR emitter mount by Arkfall"
+      
+    - url: "https://github.com/RedHawk989/EyeTrackVR-Hardware/blob/main/3d_Printed_Mounts/Quest_2/Quest_2_ESP_Mount_v2_By_Arkfall.stl"
+      desc: "ESP mount by Arkfall"
   threed_link_id: 1
 
 - hmd: "Valve Index"
