@@ -1,5 +1,5 @@
 
-# This is the best and most complete method to date.
+# use the app insted
 
 ## Installation & Setup
 #
