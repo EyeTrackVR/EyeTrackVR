@@ -22,6 +22,8 @@ parent: How to build
 
 All three of the above can be found in a kit from [AliExpress here](https://a.aliexpress.com/_mNSRfUe) make sure to get 2 of the 75mm-160- 850nm version.
 
+Here is an amazon link for 3 esps and programmers without the proper cameras [here](https://www.amazon.com/ESP32-CAM-ESP32-CAM-MB-Development-Compatible-Raspberry/dp/B097H2KLCH?crid=1A1UYKT1Z3MZ6&keywords=espcam32&qid=1656094793&sprefix=espca,aps,114&sr=8-3&linkCode=sl1&tag=alexanderbead-20&linkId=fa7595a5963c6260fd05d3dca6d8d9f7&language=en_US&ref_=as_li_ss_tl)
+
 - 1x USB type-A male port to power both ESPs
 [AliExpress here](https://a.aliexpress.com/_mOCRTcq)
 
