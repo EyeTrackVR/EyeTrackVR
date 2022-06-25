@@ -21,3 +21,5 @@ parent: How to build
 <br>
 
 Soldering demostration of soldering a IR LED [https://www.youtube.com/watch?v=8vWMr4L9WK](https://www.youtube.com/watch?v=8vWMr4L9WK8)
+{% include custom/alerts/Warning.html content="Do not solder the LEDs at temperatures exceeding 245°C as they will burn and become unusable." %}
+<br>
