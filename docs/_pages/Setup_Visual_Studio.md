@@ -29,28 +29,14 @@ Once Visual Studio Code is installed, open it and install [PlatformIO IDE for VS
 ![img](https://i.imgur.com/ebV0IgT.gif)
 
 
-## 3. Install git client
-
-For Windows, you can download and install [Git for Windows](https://git-scm.com/download/win). If you have other OS, visit [https://git-scm.com/downloads](https://git-scm.com/downloads).
-
-_Note: you will most likely have to click "Click here to download manually". If that doesn't work, you can try [here](https://gitforwindows.org/)._
-
-![img](https://i.imgur.com/wam3ea1.gif)
-
-## 4. Clone the firmware project
+## 3. Clone the firmware project
 
 Make sure you close any current projects you have open or open a new window before moving forward with these steps.
 
-1. Click the **Source Control** button, click on **Clone Repository** and enter: `https://github.com/lorow/OpenIris.git`. 
-   
-   If you installed git while Visual Studio Code was open you may have to close it and re-open it first.
-   
+1. Go to [https://github.com/lorow/OpenIris](https://github.com/lorow/OpenIris) and download the code.
 
-1. Once you have chosen a download location click the **Open button** that may appear at the bottom right.
+3. Open the firmware in VS Code by going to PlatformIO, selecting open, then navigating to OpenIris ESP folder and opening it.
    
-   ![img](https://i.imgur.com/59zXAJQ.png)
-
-1. Click **Yes, I trust the authors**.
 
 
 
