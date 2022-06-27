@@ -46,11 +46,11 @@ I would recommend getting extra cameras, either the full thing above or just the
 #### Needed for both wireless and wired options.
 
 - 4x Unfocused SMD IR emitters
-Recomended ones [from LCSC here](https://www.lcsc.com/product-detail/Infrared-IR-LEDs_XINGLIGHT-XL-3216HIRC-850_C965891.html) or
-bigger ones [from Digikey here](https://www.digikey.com/en/products/detail/inolux/IN-P32ZTIR/10384796). The difference between them is the ones from LCSC are rated for lowerr power, this means in the event of a short or misshap they should be safer. 
+Recomended ones [from LCSC here](https://www.lcsc.com/product-detail/Infrared-IR-LEDs_XINGLIGHT-XL-3216HIRC-850_C965891.html).
+Alternative ones [from Digikey here](https://www.digikey.com/en/products/detail/inolux/IN-P32ZTIR/10384796). The difference between them is the ones from LCSC are rated for lowerr power, this means in the event of a short or misshap they should be safer, hence why they are recomended. 
 {% include custom/alerts/Note.html content="The smaller ones can not be soldered at temps above 245C or they will burn. Low temp solder is recomended" %}
 
-{% include custom/alerts/Warning.html content="(DO NOT BUY FOCUSED ONES! If they look like something you would find in a TV remote do not use them, if you aren't sure exactly what you are doing, buy them from the LCSC or Digikey link)" %}
+{% include custom/alerts/Warning.html content="(DO NOT BUY FOCUSED ONES! If they look like something you would find in a TV remote do not use them, if you aren't exactly sure what you are doing, buy them from the LCSC or Digikey link)" %}
 
 
 - 4x IR emitter PCB's (highly recommended) 
