@@ -31,7 +31,7 @@ Soldering demostration of soldering a IR LED to V2 PCB [https://www.youtube.com/
 
 ## V3 Setup
 
-{% include custom/images/image_2.html url="https://i.imgur.com/u1UeAZT.png" max-width="500" caption="Basic Full Wiring Diagram With IR PCBs V3" alt="drawing" %}
+{% include custom/images/image_2.html url="https://i.imgur.com/u1UeAZT.png" max-width="400" caption="Basic Full Wiring Diagram With IR PCBs V3" alt="drawing" %}
 <br>
 
 {% include custom/alerts/Tip.html content="Tinning your wires before connecting them is a good idea" %}
