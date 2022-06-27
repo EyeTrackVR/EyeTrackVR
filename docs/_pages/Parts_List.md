@@ -46,9 +46,14 @@ I would recommend getting extra cameras, either the full thing above or just the
 #### Needed for both wireless and wired options.
 
 - 4x Unfocused SMD IR emitters
-Recommend ones [from Digikey here](https://www.digikey.com/en/products/detail/inolux/IN-P32ZTIR/10384796) (DO NOT BUY FOCUSED ONES! If they look like something you would find in a TV remote do not use them, if you aren't sure exactly what you are doing, buy them from the Digikey link)
+Recomended ones [from LCSC here](https://www.lcsc.com/product-detail/Infrared-IR-LEDs_XINGLIGHT-XL-3216HIRC-850_C965891.html) or
+bigger ones [from Digikey here](https://www.digikey.com/en/products/detail/inolux/IN-P32ZTIR/10384796). The difference between them is the ones from LCSC are rated for lowerr power, this means in the event of a short or misshap they should be safer. 
+{% include custom/alerts/Note.html content="The smaller ones can not be soldered at temps above 245C or they will burn. Low temp solder is recomended" %}
 
-- 4x IR emitter PCB's (highly recommended)
+{% include custom/alerts/Warning.html content="(DO NOT BUY FOCUSED ONES! If they look like something you would find in a TV remote do not use them, if you aren't sure exactly what you are doing, buy them from the LCSC or Digikey link)" %}
+
+
+- 4x IR emitter PCB's (highly recommended) 
 
 - 2x 698-710ohm resistors or the more recommend way, 4x 350ohm 1206 SMD resistors for IR emitters (If you are not using PCB's for the emitters then buying regular  through-hole resistors is acceptable)
   
