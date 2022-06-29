@@ -8,7 +8,7 @@ permalink: /vrc-avatar-setup/
 
 # How to set up your avatar for eye tracking:
 
-Currently, the best resource is the VRC Face Tracking GitHub and Discord [https://github.com/benaclejames/VRCFaceTracking/wiki/Eye-Tracking-Setup](https://github.com/benaclejames/VRCFaceTracking/wiki/Eye-Tracking-Setup) and [https://discord.gg/Fh4FNehzKn](https://discord.gg/Fh4FNehzKn) respectfully.
+Currently, the best resource is the [VRC Face Tracking GitHub](https://github.com/benaclejames/VRCFaceTracking/wiki/Eye-Tracking-Setup) and [Discord](https://discord.gg/Fh4FNehzKn).
 
 I hope to have a good video available from a community member that shows and explains the process eventually.
 

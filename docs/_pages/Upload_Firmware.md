@@ -72,5 +72,4 @@ If you encountered an issue while following these steps check the [FAQ.](https:/
 
 If you don't find an answer to your question there ask in **#questions** channel in [the discord](https://discord.gg/kkXYbVykZX), we will be happy to help.
 
-
 *Adapted from the SlimeVR docs, Credit goes to the SlimeVR team [here](https://docs.slimevr.dev/firmware/setup-and-install.html)*
