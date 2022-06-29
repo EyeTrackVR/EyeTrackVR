@@ -8,7 +8,8 @@ const lineHistory = [];
 async function connectSerial() {
   try {
     port = await navigator.serial.requestPort();
-    await port.open({ baudRate: document.getElementById("baud").value });
+    await port.open({ baudRate: document.getElementById("baud").value  });
+    await port.setSignals({ dataTerminalReady: true, requestToSend: true });
     listenToPort();
 
     textEncoder = new TextEncoderStream();
