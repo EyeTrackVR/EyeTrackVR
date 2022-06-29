@@ -1,12 +1,12 @@
 ---
 layout: page
-title: Building and uploading the firmware
-permalink: /building-and-flashing-firmware/
+title: Building and uploading the firmware manually
+permalink: /building-and-flashing-firmware-manually/
 nav_order: 3
 parent: Firmware Guide
 ---
 
-# Building and uploading the firmware
+# Building and uploading the firmware manually
 
 Uploading your firmware must initially be done over cable. Once you have the tracker connected to your WiFi after your first firmware update, you can opt to use OTA in the future.
 

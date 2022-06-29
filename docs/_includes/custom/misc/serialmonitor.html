@@ -1,0 +1,65 @@
+<style>
+    #serialResults {
+        font-family: monospace;
+        white-space: pre;
+        height: calc(100% - 120px);
+        width: calc(100% - 20px);
+        border-style: solid;
+        overflow: scroll;
+        background-color: rgb(88, 92, 92);
+        padding: 10px;
+        margin: 0px;
+    }
+
+    .serial-monitor-inputs {
+        color: rgb(179, 255, 179);
+        background-color: rgb(102, 86, 86);
+        border: 1px solid;
+        border-color: #696 #363 #363 #696;
+    }
+</style>
+<div>
+    <button class="btn btn-mode fs-2 mb-1 mb-md-0 mr-0" onclick="connectSerial()">Connect</button>
+    Baud:
+    <input class="serial-monitor-inputs" type="text" id="baud" list="baudList" style="width: 10ch;"
+        onclick="this.value = ''" onchange="localStorage.baud = this.value">
+    <datalist id="baudList">
+        <option value="110">110</option>
+        <option value="300">300</option>
+        <option value="600">600</option>
+        <option value="1200">1200</option>
+        <option value="2400">2400</option>
+        <option value="4800">4800</option>
+        <option value="9600">9600</option>
+        <option value="14400">14400</option>
+        <option value="19200">19200</option>
+        <option value="38400">38400</option>
+        <option value="57600">57600</option>
+        <option value="115200">115200</option>
+        <option value="128000">128000</option>
+        <option value="256000">256000</option>
+    </datalist>
+    <button class="btn btn-mode fs-2 mb-1 mb-md-0 mr-0" onclick="serialResultsDiv.innerHTML = '';">Clear</button>
+
+    <br>
+    <input class="serial-monitor-inputs" type="text" id="lineToSend" style="width:calc(100% - 165px)">
+    <button class="btn btn-mode fs-2 mb-1 mb-md-0 mr-0" onclick="sendSerialLine()" style="width:45px">Send</button>
+    <button class="btn btn-mode fs-2 mb-1 mb-md-0 mr-0" onclick="sendCharacterNumber()" style="width:100px">Send
+        Char</button>
+    <br>
+
+    <input type="checkbox" id="carriageReturn" onclick="localStorage.carriageReturn = this.checked;" checked>
+    <label for="carriageReturn">send with /r</label>
+
+    <input type="checkbox" id="addLine" onclick="localStorage.addLine = this.checked;" checked>
+    <label for="addLine">send with /n</label>
+
+    <input type="checkbox" id="echoOn" onclick="localStorage.echoOn = this.checked;" checked>
+    <label for="echoOn">echo</label>
+
+
+    <br>
+    <div id="serialResults">
+    </div>
+</div>
+<script src="{{ 'assets/js/custom/serialmonitor/serialmonitor.js' | relative_url }}" type="text/javascript"></script>
