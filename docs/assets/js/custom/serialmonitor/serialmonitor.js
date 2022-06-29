@@ -9,7 +9,7 @@ async function connectSerial() {
   try {
     port = await navigator.serial.requestPort();
     await port.open({ baudRate: document.getElementById("baud").value  });
-    await port.setSignals({ dataTerminalReady: true, requestToSend: true });
+    await port.setSignals({ dataTerminalReady: false, requestToSend: false });
     listenToPort();
 
     textEncoder = new TextEncoderStream();
