@@ -17,9 +17,15 @@ class CameraState(Enum):
 
 
 class Camera:
-    def __init__(self, config: RansacConfig, camera_index: int, cancellation_event: "threading.Event",
-                 capture_event: "threading.Event", camera_status_outgoing: "queue.Queue[CameraState]",
-                 camera_output_outgoing: "queue.Queue"):
+    def __init__(
+        self,
+        config: RansacConfig,
+        camera_index: int,
+        cancellation_event: "threading.Event",
+        capture_event: "threading.Event",
+        camera_status_outgoing: "queue.Queue[CameraState]",
+        camera_output_outgoing: "queue.Queue",
+    ):
         self.config = config
         self.camera_index = camera_index
         self.camera_address = config.capture_source
@@ -32,6 +38,7 @@ class Camera:
         self.stream = None
         self.stream_frame_number = 0
         self.stream_bytes = bytes()
+        self.previous_frame = None
         self.error_message = "Capture source {} not found, retrying in 500ms"
 
     def set_output_queue(self, camera_output_outgoing: "queue.Queue"):
@@ -46,16 +53,23 @@ class Camera:
 
             # If things aren't open, retry until they are. Don't let read requests come in any earlier
             # than this, otherwise we can deadlock ourselves.
-            if type(self.config.capture_source) == str and "http" in self.config.capture_source:
+            if (
+                type(self.config.capture_source) == str
+                and "http" in self.config.capture_source
+            ):
                 try:
                     self.stream = requests.get(self.config.capture_source, stream=True)
                 except requests.exceptions.RequestException:
                     print(self.error_message.format(self.config.capture_source))
+
             else:
                 # so, they might have switched to a wired camera for some reason, no need to keep the stream running
                 self.cleanup_stream()
 
-                if not self.wired_camera.isOpened() or self.config.capture_source != self.current_capture_source:
+                if (
+                    not self.wired_camera.isOpened()
+                    or self.config.capture_source != self.current_capture_source
+                ):
                     print(self.error_message.format(self.config.capture_source))
                     sleep(0.5)
                     self.current_capture_source = self.config.capture_source
@@ -69,7 +83,11 @@ class Camera:
                 continue
 
             if self.stream:
-                self.get_stream_picture()
+                try:
+                    self.get_stream_picture()
+                except requests.exceptions.ChunkedEncodingError:
+                    self.cleanup_stream()
+                    print("[CRITICAL] Wireless tracker failed. Please, restart the unit.")
             else:
                 self.get_wired_camera_picture()
 
@@ -77,16 +95,35 @@ class Camera:
         for chunk in self.stream.iter_content(chunk_size=1024):
             self.stream_bytes += chunk
             # mjpeg streams are encoded into frames starting and ending with those bytes
-            starting_section = self.stream_bytes.find(b'\xff\xd8')
-            closing_section = self.stream_bytes.find(b'\xff\xd9')
+            starting_section = self.stream_bytes.find(b"\xff\xd8")
+            closing_section = self.stream_bytes.find(b"\xff\xd9")
 
             if starting_section != -1 and closing_section != -1:
                 # we extract the encoded image first, and then prepare the buffer for another frame
-                jpg_data = self.stream_bytes[starting_section:closing_section+2]
+                jpg_data = self.stream_bytes[starting_section: closing_section + 2]
                 self.stream_frame_number += 1
-                self.stream_bytes = self.stream_bytes[closing_section+2:]
-                image = cv2.imdecode(numpy.fromstring(jpg_data, dtype=numpy.uint8), cv2.IMREAD_COLOR)
-                self.push_image_to_queue(image, self.stream_frame_number, 60)
+                self.stream_bytes = self.stream_bytes[closing_section + 2:]
+
+                image_data = numpy.fromstring(jpg_data, dtype=numpy.uint8)
+                image = self.decode_image(image_data)
+
+                if self.check_is_image_valid(image):
+                    self.previous_frame = image
+                    self.push_image_to_queue(image, self.stream_frame_number, 60)
+                else:
+                    print("----------------------------------")
+                    print(f"frame number: {self.stream_frame_number}")
+                    print(jpg_data)
+                    print("----------------------------------")
+
+                    if self.check_is_image_valid(self.previous_frame):
+                        self.push_image_to_queue(
+                            self.previous_frame, self.stream_frame_number, 60
+                        )
+                    else:
+                        # TODO this might also happen due to timing, we could send only a few black frames first
+                        # and only crash when something goes horribly wrong
+                        raise Exception("[CRITICAL] stream completely failed")
 
     def get_wired_camera_picture(self):
         try:
@@ -105,13 +142,30 @@ class Camera:
         if self.stream:
             self.stream.close()
             self.stream_bytes = None
+            self.previous_frame = None
             self.stream_frame_number = 0
+
+    @staticmethod
+    def check_is_image_valid(image):
+        try:
+            return bool(len(image))
+        except TypeError:
+            return False
+
+    @staticmethod
+    def decode_image(data):
+        try:
+            return cv2.imdecode(data, cv2.IMREAD_COLOR)
+        except:
+            return None
 
     def push_image_to_queue(self, image, frame_number, fps):
         # If there's backpressure, just yell. We really shouldn't have this unless we start getting
         # some sort of capture event conflict though.
         qsize = self.camera_output_outgoing.qsize()
         if qsize > 1:
-            print(f"CAPTURE QUEUE BACKPRESSURE OF {qsize}. CHECK FOR CRASH OR TIMING ISSUES IN ALGORITHM.")
+            print(
+                f"CAPTURE QUEUE BACKPRESSURE OF {qsize}. CHECK FOR CRASH OR TIMING ISSUES IN ALGORITHM."
+            )
         self.camera_output_outgoing.put((image, frame_number, fps))
         self.capture_event.clear()
