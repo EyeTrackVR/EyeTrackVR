@@ -35,7 +35,7 @@ async function sendSerialLine() {
   if (document.getElementById("addLine").checked == true)
     dataToSend = dataToSend + "\n";
   if (document.getElementById("echoOn").checked == true)
-    appendToTerminal("> " + dataToSend);
+    appendToTerminal("dev@EyeTrackVR:~$ " + dataToSend);
   await writer.write(dataToSend);
   document.getElementById("lineToSend").value = "";
   //await writer.releaseLock();

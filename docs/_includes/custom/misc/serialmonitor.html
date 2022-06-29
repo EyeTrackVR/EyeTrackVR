@@ -1,21 +1,235 @@
 <style>
-    #serialResults {
-        font-family: monospace;
-        white-space: pre;
-        height: calc(100% - 120px);
-        width: calc(100% - 20px);
-        border-style: solid;
-        overflow: scroll;
-        background-color: rgb(88, 92, 92);
-        padding: 10px;
-        margin: 0px;
-    }
-
     .serial-monitor-inputs {
         color: rgb(179, 255, 179);
         background-color: rgb(102, 86, 86);
         border: 1px solid;
         border-color: #696 #363 #363 #696;
+    }
+
+    [type="checkbox"] {
+        vertical-align: middle;
+    }
+
+    .terminalButtons {
+        height: 10px;
+        width: 10px;
+        border-radius: 50%;
+        border: 1px solid #000;
+        position: relative;
+        top: 6px;
+        left: 6px;
+        background-color: #ff3b47;
+        border-color: #9d252b;
+        display: inline-block;
+    }
+
+    .terminalMinimize {
+        left: 11px;
+        background-color: #ffc100;
+        border-color: #9d802c;
+    }
+
+    .terminalZoom {
+        left: 16px;
+        background-color: #00d742;
+        border-color: #049931;
+    }
+
+    .terminalMenu {
+        width: calc(100% - 20px);
+        box-sizing: border-box;
+        height: 25px;
+        background-color: #bbb;
+        margin: 0 auto;
+        border-top-right-radius: 5px;
+        border-top-left-radius: 5px;
+    }
+
+    .terminalScreen {
+        background-color: rgb(88, 92, 92);
+        box-sizing: border-box;
+        width: calc(100% - 20px);
+        height: calc(100% - 120px);
+        margin: 0 auto;
+        padding: 20px;
+        font-family: monospace;
+        white-space: pre;
+        overflow: scroll;
+        border-style: solid;
+        border-bottom-left-radius: 5px;
+        border-bottom-right-radius: 5px;
+    }
+
+    .line1 {
+        color: #9CD9F0;
+        -webkit-animation: type .5s 1s steps(20, end) forwards;
+        -moz-animation: type .5s 1s steps(20, end) forwards;
+        -o-animation: type .5s 1s steps(20, end) forwards;
+        animation: type .5s 1s steps(20, end) forwards;
+    }
+
+    .cursor1 {
+        -webkit-animation: blink 1s 2s 2 forwards;
+        -moz-animation: blink 1s 2s 2 forwards;
+        -o-animation: blink 1s 2s 2 forwards;
+        animation: blink 1s 2s 2 forwards;
+    }
+
+    .line2 {
+        color: #CDEE69;
+        -webkit-animation: type .5s 4.25s steps(20, end) forwards;
+        -moz-animation: type .5s 4.25s steps(20, end) forwards;
+        -o-animation: type .5s 4.25s steps(20, end) forwards;
+        animation: type .5s 4.25s steps(20, end) forwards;
+    }
+
+    .cursor2 {
+        -webkit-animation: blink 1s 5.25s 2 forwards;
+        -moz-animation: blink 1s 5.25s 2 forwards;
+        -o-animation: blink 1s 5.25s 2 forwards;
+        animation: blink 1s 5.25s 2 forwards;
+    }
+
+    .line3 {
+        color: #E09690;
+        -webkit-animation: type .5s 7.5s steps(20, end) forwards;
+        -moz-animation: type .5s 7.5s steps(20, end) forwards;
+        -o-animation: type .5s 7.5s steps(20, end) forwards;
+        animation: type .5s 7.5s steps(20, end) forwards;
+    }
+
+    .cursor3 {
+        -webkit-animation: blink 1s 8.5s 2 forwards;
+        -moz-animation: blink 1s 8.5s 2 forwards;
+        -o-animation: blink 1s 8.5s 2 forwards;
+        animation: blink 1s 8.5s 2 forwards;
+    }
+
+    .line4 {
+        color: #fff;
+        -webkit-animation: type .5s 10.75s steps(20, end) forwards;
+        -moz-animation: type .5s 10.75s steps(20, end) forwards;
+        -o-animation: type .5s 10.75s steps(20, end) forwards;
+        animation: type .5s 10.75s steps(20, end) forwards;
+    }
+
+    .cursor4 {
+        -webkit-animation: blink 1s 11.5s infinite;
+        -moz-animation: blink 1s 8.5s infinite;
+        -o-animation: blink 1s 8.5s infinite;
+        animation: blink 1s 8.5s infinite;
+    }
+
+    @-webkit-keyframes blink {
+        0% {
+            opacity: 0;
+        }
+
+        40% {
+            opacity: 0;
+        }
+
+        50% {
+            opacity: 1;
+        }
+
+        90% {
+            opacity: 1;
+        }
+
+        100% {
+            opacity: 0;
+        }
+    }
+
+    @-moz-keyframes blink {
+        0% {
+            opacity: 0;
+        }
+
+        40% {
+            opacity: 0;
+        }
+
+        50% {
+            opacity: 1;
+        }
+
+        90% {
+            opacity: 1;
+        }
+
+        100% {
+            opacity: 0;
+        }
+    }
+
+    @-o-keyframes blink {
+        0% {
+            opacity: 0;
+        }
+
+        40% {
+            opacity: 0;
+        }
+
+        50% {
+            opacity: 1;
+        }
+
+        90% {
+            opacity: 1;
+        }
+
+        100% {
+            opacity: 0;
+        }
+    }
+
+    @keyframes blink {
+        0% {
+            opacity: 0;
+        }
+
+        40% {
+            opacity: 0;
+        }
+
+        50% {
+            opacity: 1;
+        }
+
+        90% {
+            opacity: 1;
+        }
+
+        100% {
+            opacity: 0;
+        }
+    }
+
+    @-webkit-keyframes type {
+        to {
+            width: 17em;
+        }
+    }
+
+    @-moz-keyframes type {
+        to {
+            width: 17em;
+        }
+    }
+
+    @-o-keyframes type {
+        to {
+            width: 17em;
+        }
+    }
+
+    @keyframes type {
+        to {
+            width: 17em;
+        }
     }
 </style>
 <div>
@@ -39,30 +253,41 @@
         <option value="128000">128000</option>
         <option value="256000">256000</option>
     </datalist>
-    <button class="btn btn-mode fs-2 mb-1 mb-md-0 mr-0" onclick="serialResultsDiv.innerHTML = '';">Clear</button>
+    <button class="btn btn-mode fs-2 mb-1 mb-md-1 mr-0" onclick="serialResultsDiv.innerHTML = '';"
+        style="width:60px">Clear</button>
 
     <br>
+    <br>
+
+    <label for="carriageReturn">
+        <input type="checkbox" id="carriageReturn" onclick="localStorage.carriageReturn = this.checked;"
+            checked>Carriage Return
+    </label>
+
+    <label for="addLine">
+        <input type="checkbox" id="addLine" onclick="localStorage.addLine = this.checked;" checked>New Line
+    </label>
+
+    <label for="echoOn">
+        <input type="checkbox" id="echoOn" onclick="localStorage.echoOn = this.checked;" checked>Echo Enabled
+    </label>
+
+    <br>
+    <br>
+
+    <div class=terminalMenu>
+        <div class="terminalButtons terminalClose"></div>
+        <div class="terminalButtons terminalMinimize"></div>
+        <div class="terminalButtons terminalZoom"></div>
+    </div>
+    <div class="terminalScreen">
+        <p class="line4"><span id="serialResults"></span><span class="cursor4">_</span></p>
+    </div>
 
     <input class="serial-monitor-inputs" type="text" id="lineToSend" style="width:calc(100% - 165px)">
-    <button class="btn btn-mode fs-2 mb-1 mb-md-0 mr-0" onclick="sendSerialLine()" style="width:60px">Send</button>
-    <button class="btn btn-mode fs-2 mb-1 mb-md-0 mr-0" onclick="sendCharacterNumber()" style="width:100px">Send
+    <button class="btn btn-mode fs-2 mb-1 mb-md-1 mr-0" onclick="sendSerialLine()" style="width:60px">Send</button>
+    <button class="btn btn-mode fs-2 mb-1 mb-md-1 mr-0" onclick="sendCharacterNumber()" style="width:100px">Send
         Char</button>
     <br>
-
-    <input type="checkbox" id="carriageReturn" onclick="localStorage.carriageReturn = this.checked;" checked>
-    <label for="carriageReturn">send with /r</label>
-
-    <input type="checkbox" id="addLine" onclick="localStorage.addLine = this.checked;" checked>
-    <label for="addLine">send with /n</label>
-
-    <input type="checkbox" id="echoOn" onclick="localStorage.echoOn = this.checked;" checked>
-    <label for="echoOn">echo</label>
-
-
-    <br>
-    <br>
-
-    <div id="serialResults">
-    </div>
 </div>
 <script src="{{ 'assets/js/custom/serialmonitor/serialmonitor.js' | relative_url }}" type="text/javascript"></script>
