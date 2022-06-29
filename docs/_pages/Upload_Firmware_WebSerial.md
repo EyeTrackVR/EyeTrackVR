@@ -32,3 +32,4 @@ You can also use this to test your devices.
 {% include custom/misc/serialmonitor.html %}
 
 </details>
+
