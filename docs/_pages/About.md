@@ -36,3 +36,7 @@ There, we hope you may find something useful to you.
 
 We advocate the [Open Source model](https://en.wikipedia.org/wiki/Open-source_model).
 This is why we strive to make our work open to other people for consultation, replication and reuse.
+
+Credits
+{: .fs-6 .fw-300 }
+{% include people/credits/credits.html %}
