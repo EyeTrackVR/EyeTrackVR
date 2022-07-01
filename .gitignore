@@ -5,3 +5,8 @@ _site
 .sass-cache
 .jekyll-metadata
 gemfile.lock
+node_modules
+.tmp
+.DS_Store
+.idea
+.vscode

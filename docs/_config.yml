@@ -2,7 +2,6 @@ title: 'EyeTrackVR Documentation'
 description: 'Documentation for EyeTrackVR, an Opensource and affordable VR eye tracker for VR Chat.'
 author: 'ZanzyTHEbar'
 email: info@h-bat.com
-# baseurl: "" # the subpath of your site, e.g. /blog
 url: "https://redhawk989.github.io"
 
 # twitter_username:
@@ -12,9 +11,9 @@ github_username: RedHawk989
 # Build settings
 remote_theme: just-the-docs/just-the-docs
 color_scheme: 'light'
+
 heading_level: 6
 previews: 3
-
 
 sass:
   style: compressed
