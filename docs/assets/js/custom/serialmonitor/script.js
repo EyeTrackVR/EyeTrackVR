@@ -85,12 +85,10 @@ async function sendSerialLine() {
 }
 
 async function printNeofetch() {
-  load(
-    "https://redhawk989.github.io/EyeTrackVR/EyeTrackVR/assets/images/neofetch.txt"
-  );
+  load("/EyeTrackVR/assets/images/neofetch.txt");
   setTimeout(() => {
     terminal.writeln(`\x1B[1;3;34m${neofetch_data}\x1B[0m`);
-  }, 2000);
+  }, 300);
 }
 
 async function listenToPort() {
@@ -150,8 +148,9 @@ document
 
 const load = async (url) => {
   try {
-    const response = await fetch(url);
-    neofetch_data = await response.text();
+    fetch(url)
+      .then((response) => response.text())
+      .then((text) => (neofetch_data = text));
   } catch (err) {
     console.error(err);
   }
