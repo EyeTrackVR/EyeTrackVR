@@ -1,1 +1,1 @@
-0.0.6
+https://github.com/RedHawk989/EyeTrackVR/releases/download/RANSACApp-0.0.6/RANSACApp-0.0.6-win-amd64.zip
