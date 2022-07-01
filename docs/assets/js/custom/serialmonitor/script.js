@@ -5,6 +5,8 @@ var port,
   historyIndex = -1;
 const lineHistory = [];
 
+var neofetch_data = "";
+
 const terminal = new Terminal({
   theme: {
     background: "#141517",
@@ -70,9 +72,25 @@ async function sendSerialLine() {
     dataToSend === "clear\n"
   )
     advancedTerminalClear();
-  await writer.write(dataToSend);
+  if (
+    dataToSend === "neofetch" ||
+    dataToSend === "neofetch\r\n" ||
+    dataToSend === "neofetch\r" ||
+    dataToSend === "neofetch\n"
+  )
+    await printNeofetch();
+  //await writer.write(dataToSend);
   document.getElementById("lineToSend").value = "";
   //await writer.releaseLock();
+}
+
+async function printNeofetch() {
+  load(
+    "https://redhawk989.github.io/EyeTrackVR/EyeTrackVR/assets/images/neofetch.txt"
+  );
+  setTimeout(() => {
+    terminal.writeln(`\x1B[1;3;34m${neofetch_data}\x1B[0m`);
+  }, 2000);
 }
 
 async function listenToPort() {
@@ -89,12 +107,9 @@ async function listenToPort() {
       break;
     }
     // value is a string.
-    //appendToTerminal(value);
     appendToAdvancedTerminal(value);
   }
 }
-
-const serialResultsDiv = document.getElementById("serialResults");
 
 async function appendToAdvancedTerminal(newStuff) {
   terminal.write(
@@ -104,17 +119,6 @@ async function appendToAdvancedTerminal(newStuff) {
 
 async function advancedTerminalClear() {
   terminal.clear();
-}
-
-async function appendToTerminal(newStuff) {
-  serialResultsDiv.innerHTML += newStuff;
-  if (serialResultsDiv.innerHTML.length > 3000)
-    serialResultsDiv.innerHTML = serialResultsDiv.innerHTML.slice(
-      serialResultsDiv.innerHTML.length - 3000
-    );
-
-  //scroll down to bottom of div
-  serialResultsDiv.scrollTop = serialResultsDiv.scrollHeight;
 }
 
 function scrollHistory(direction) {
@@ -143,6 +147,15 @@ document
       scrollHistory(-1);
     }
   });
+
+const load = async (url) => {
+  try {
+    const response = await fetch(url);
+    neofetch_data = await response.text();
+  } catch (err) {
+    console.error(err);
+  }
+};
 
 document.getElementById("baud").value =
   localStorage.baud == undefined ? 9600 : localStorage.baud;
