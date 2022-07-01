@@ -86,7 +86,7 @@ async function sendSerialLine() {
 
 async function printNeofetch() {
   load(
-    "https://redhawk989.github.io/EyeTrackVR/EyeTrackVR/assets/images/neofetch.txt"
+    "https://redhawk989.github.io/EyeTrackVR/assets/images/neofetch.txt"
   );
   setTimeout(() => {
     terminal.writeln(`\x1B[1;3;34m${neofetch_data}\x1B[0m`);
