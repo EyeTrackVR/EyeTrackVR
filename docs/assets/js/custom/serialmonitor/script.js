@@ -5,7 +5,7 @@ var port,
   historyIndex = -1;
 const lineHistory = [];
 
-var neofetch_data = "";
+var neofetch_data = `\r\n                  @@@@@@                    dev@EyeTrackVR\r\n              @@@@@@@@@@@            @@@    -------------- \r\n            @@@@@@@@@@@@      @@@@@@@@@@@   OS Arch Linux x86_64\r\n          @@@@@@@@@@@@@   @@@@@@@@@@@@@@    Host Your PC\r\n        @@@@@@@#         ,@@@@@@@@@@@@@     Kernel 5.5.13-arch1-1\r\n          ,@@@@@@@@@@@@@@@  @@@@@@@@        Uptime 69 days, 42 hours, 21 mins\r\n      @@@@@@@@@@@@@@@@@@@@@@@@ @@@@@        Shell bash 5.0.16\r\n  @@@@@@@@                @@@@@             CPU AMD Ryzen Threadripper PRO\r\n@@@                        @@@@@            Memory 3869MiB \/ 5229MiB\r\n              @@@@@@        @@@@            \r\n    @@@     @@@@@@@@@\/      @@@@@           \r\n    ,@@@.     @@@@@@((@     @@@@(           \r\n    \/\/@@@        *\/  @@@@  @@@@@            \r\n    @@@(                @@@@@@@             \r\n    @@@  @          @@@@@@@@@               \r\n        @@@@@@@@@@@@@@@@@                   \r\n        @@@@@@@@@@@@@&`;
 
 const terminal = new Terminal({
   theme: {
@@ -78,17 +78,14 @@ async function sendSerialLine() {
     dataToSend === "neofetch\r" ||
     dataToSend === "neofetch\n"
   )
-    await printNeofetch();
+    printNeofetch();
   //await writer.write(dataToSend);
   document.getElementById("lineToSend").value = "";
   //await writer.releaseLock();
 }
 
-async function printNeofetch() {
-  load("/EyeTrackVR/assets/images/neofetch.txt");
-  setTimeout(() => {
-    terminal.writeln(`\x1B[1;3;34m${neofetch_data}\x1B[0m`);
-  }, 300);
+function printNeofetch() {
+  terminal.writeln(`\x1B[1;3;34m${neofetch_data}\x1B[0m`);
 }
 
 async function listenToPort() {
@@ -145,16 +142,6 @@ document
       scrollHistory(-1);
     }
   });
-
-const load = async (url) => {
-  try {
-    fetch(url)
-      .then((response) => response.text())
-      .then((text) => (neofetch_data = text));
-  } catch (err) {
-    console.error(err);
-  }
-};
 
 document.getElementById("baud").value =
   localStorage.baud == undefined ? 9600 : localStorage.baud;
