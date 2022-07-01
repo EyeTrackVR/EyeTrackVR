@@ -7,7 +7,7 @@ const lineHistory = [];
 
 const terminal = new Terminal({
   theme: {
-    background: "#202225",
+    background: "#141517",
     cursor: "#ffffff",
     selection: "#ffffff",
   },
@@ -97,7 +97,9 @@ async function listenToPort() {
 const serialResultsDiv = document.getElementById("serialResults");
 
 async function appendToAdvancedTerminal(newStuff) {
-  terminal.write("\x1B[1;3;34mdev@EyeTrackVR:~$\x1B[0m " + newStuff);
+  terminal.write(
+    "\x1B[1;3;32mdev@EyeTrackVR\x1B[0m\x1B[1;3;34m:~$\x1B[0m " + newStuff
+  );
 }
 
 async function advancedTerminalClear() {
