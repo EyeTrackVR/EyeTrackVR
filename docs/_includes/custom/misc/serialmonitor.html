@@ -31,7 +31,21 @@
         <option value="128000">128000</option>
         <option value="256000">256000</option>
     </datalist>
+    <esp-web-install-button manifest="{{'assets/js/custom/serialmonitor/manifest.json' | relative_url }}">
+        <button class="btn btn-mode fs-2 mb-1 mb-md-2 mr-1" id="firmware-write-button" style="width:125px" slot="activate">
+            Upload Code
+        </button>
+        <span slot="unsupported">
+            Your current browser is not supported. Please use Chrome for the best
+            experience.
+        </span>
+        <span slot="not-allowed">
+            HTTPS is required for this feature. Please use a browser that supports
+            HTTPS.
+        </span>
+    </esp-web-install-button>
     <button class="btn btn-mode fs-2 mb-1 mb-md-1 mr-0" onclick="advancedTerminalClear()">Clear</button>
+    <a class="btn btn-mode fs-2 mb-1 mb-md-1 mr-0" id="firmware-update-button" href="">Download firmware</a>
 
     <br>
     <label for="carriageReturn">

@@ -96,6 +96,13 @@ async function sendSerialLine() {
     dataToSend === "contributors\n"
   )
     printContributors();
+  if (
+    dataToSend === "begin" ||
+    dataToSend === "begin\r\n" ||
+    dataToSend === "begin\r" ||
+    dataToSend === "begin\n"
+  )
+    writeFirmware();
   //await writer.write(dataToSend);
   document.getElementById("lineToSend").value = "";
   //await writer.releaseLock();
@@ -112,16 +119,29 @@ function printToConsole(data, color, array) {
 }
 
 function printContributors() {
-  printToConsole(
-    "The Team:",
-    "34",
-    false
-  );
+  printToConsole("The Team:", "34", false);
   printToConsole(contributors[0], "34", false);
   printToConsole(contributors[1], "33", false);
   printToConsole(contributors[2], "32", false);
   printToConsole(contributors[3], "31", false);
   printToConsole(contributors[4], "37", false);
+}
+
+function writeFirmware() {
+  var pagebutton = document.getElementById("firmware-write-button");
+  pagebutton.click();
+}
+
+function checkFirmwareUpdate() {
+  jQuery(document).ready(function () {
+    jQuery
+      .getJSON(
+        "https://api.github.com/repos/RedHawk989/EyeTrackVR/releases/latest"
+      )
+      .done(function (data) {
+        console.log(data.zipball_url);
+      });
+  });
 }
 
 async function listenToPort() {

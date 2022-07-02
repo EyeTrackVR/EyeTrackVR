@@ -31,4 +31,28 @@ You can also use this to test your devices.
 
 {% include custom/misc/serialmonitor.html %}
 
+<details>
+<summary>
+<b>Dedicated Serial Monitor Docs</b>
+</summary>
+Listed here are most 😉 of the commands you can send to the terminal.
+
+<h2>Serial Monitor Commands</h2>
+
+<ul>
+    <li><b style="color:green;">clear</b> - This will clear the terminal</li>
+    <li><b style="color:green;">connect</b> - This will attempt a connect to your ESP device</li>
+    <li><b style="color:green;">begin</b> - This will attempt to write firmware to your board</li>
+    <li><b style="color:green;">set</b> <b style="color:yellow;">&lt;param&gt; &lt;value&gt;</b> - This will set a config key with the desired value </li>
+        Possible config keys:
+        <ul>
+            <li><b style="color:green;">ssid</b> - This is the ssid for your wifi</li>
+            <li><b style="color:green;">password</b> - This is the password for your wifi</li>
+            <li><b style="color:green;">ota_password</b> - This is the password for Over the Air Updates to occur</li>
+        </ul>
+        {% include custom/alerts/Note.html content="Your Wifi credentials never leave your machine and are directly written to the device. We do not, and never will, store these values." %}
+</ul>
+
+</details>
+
 </details>

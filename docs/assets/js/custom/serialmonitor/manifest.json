@@ -1,0 +1,28 @@
+{
+    "name": "EyeTrackVR",
+    "new_install_prompt_erase":true,
+    "builds": [
+        {
+            "chipFamily": "ESP32",
+            "improv": false,
+            "parts": [
+                {
+                    "path": "bootloader.bin",
+                    "offset": 4096
+                },
+                {
+                    "path": "partitions.bin",
+                    "offset": 32768
+                },
+                {
+                    "path": "ota.bin",
+                    "offset": 57344
+                },
+                {
+                    "path": "firmware.bin",
+                    "offset": 65536
+                }
+            ]
+        }
+    ]
+}
