@@ -6,21 +6,21 @@ STATE: ['TO_DO' = [], 'IN_PROGRESS' = [-],'DONE' = [x]]
 
   --------- HIGH PRIORITY ---------
 
-    - [] hardware guide (parts list and wiring diagram)
+    - [x] hardware guide (parts list and wiring diagram)
 
-    - [] avatar set up guide
+    - [x] avatar set up guide
 
-    - [] flashing firmware guide
+    - [x] flashing firmware guide
 
     - [] camera placement guide with correct and incorrect examples etc
 
     - [] project aspirations and limits
 
-    - [] expanded FAQ.
+    - [x] expanded FAQ.
 
-    - [] expanded project description
+    - [x] expanded project description
 
-    - [] Re-vamp the wiki
+    - [x] Re-vamp the wiki
 
   -------- LOW PRIORITY --------
 
@@ -28,7 +28,7 @@ STATE: ['TO_DO' = [], 'IN_PROGRESS' = [-],'DONE' = [x]]
 
   -------- Baseline Tasks --------
 
-    - [] Add everything to Github Pages - Add
+    - [x] Add everything to Github Pages - Add
     
     - [] Optimize the code - Optimize
 
@@ -38,7 +38,7 @@ STATE: ['TO_DO' = [], 'IN_PROGRESS' = [-],'DONE' = [x]]
 
     - [] Test the code - Test
 
-    - [] Document the code - Document
+    - [x] Document the code - Document
 
   TO_DO_ITEMS:
     Done: false
