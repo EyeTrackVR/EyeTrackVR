@@ -5,7 +5,7 @@
     "funding_url": "",
     "builds": [
         {
-            "chipFamily": "ESP32-S2",
+            "chipFamily": "ESP32",
             "improv": false,
             "parts": [
                 {
