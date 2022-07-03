@@ -17,7 +17,6 @@
 
 - hmd: "Valve Index"
   parts:
-    - "IR Emitter Mount : N/A"
     - "ESP mount : N/A"
   hyper_links:
     - url: "https://github.com/RedHawk989/EyeTrackVR-Hardware/tree/main/3d_Printed_Mounts/Valve_Index/qdot"
