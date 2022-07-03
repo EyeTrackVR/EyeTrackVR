@@ -20,8 +20,8 @@
     - "IR Emitter Mount : N/A"
     - "ESP mount : N/A"
   hyper_links:
-#    - url: "https://www.thingiverse.com/thing:5400548"
-#      desc: "Camera and IR emitter mount by Prohurtz"
+    - url: "https://github.com/RedHawk989/EyeTrackVR-Hardware/tree/main/3d_Printed_Mounts/Valve_Index/qdot"
+      desc: "Camera and IR emitter mount by Qdot"
     - url: "https://github.com/rrazgriz/IndexEyeTrackVR/tree/main/hardware"
       desc: "Camera mount by Razgriz"
   threed_link_id: 2
