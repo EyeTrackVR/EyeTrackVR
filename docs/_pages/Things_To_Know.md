@@ -18,7 +18,7 @@ There is bound to be function breaking errors and bugs that have not been figure
 Our firmware has not been 100% completed and tested widely, expect issues.
 
 ### IR emiters are dangerous.
-If handeled wrong or percautions are ignored you can and will cause damage to your eyes.
+If handeled wrong or percautions are ignored you can and will cause damage to your eyes. Please make sure to only buy linked ones or ones with specs that match exactly. We will not be responsipble for damaged caused if you go your own route.
 
 ### Documentation is not complete.
 Do not expect a clear build guide.
