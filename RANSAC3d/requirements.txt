@@ -1,8 +1,0 @@
-cmake
-python-osc
-opencv-python
-numpy
-pillow
-kivy
-scipy
-pyttsx3
