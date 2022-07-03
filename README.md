@@ -21,7 +21,7 @@ Open source and *affordable* VR eye tracker platform for [VRChat](https://hello.
 
 > **Note**: This project is in development and is not fully finished
 
-# Check out our documentation [here](https://redhawk989.github.io/EyeTrackVR/)
+# Please eCheck out our documentation site [here.](https://redhawk989.github.io/EyeTrackVR/)
 
 ## Hardware
 
