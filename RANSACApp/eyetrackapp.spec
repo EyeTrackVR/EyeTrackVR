@@ -4,7 +4,7 @@
 block_cipher = None
 
 
-a = Analysis(['eyetrackapp.py'],
+a = Analysis(['main.py'],
              pathex=[],
              binaries=[("pye3d.libs/*", "pye3d.libs"), ("pye3d.libs/.*", "pye3d.libs")],
              datas=[("pye3dcustom/refraction_models/*", "pye3dcustom/refraction_models")],
