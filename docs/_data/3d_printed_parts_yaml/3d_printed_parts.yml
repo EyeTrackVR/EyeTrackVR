@@ -3,7 +3,7 @@
 
 - hmd: "Quest 2"
   parts:
-    - "ESP Mount : N/A"
+
   hyper_links:
     - url: "https://www.thingiverse.com/thing:5400548"
       desc: "Camera and IR emitter mount by Prohurtz"
