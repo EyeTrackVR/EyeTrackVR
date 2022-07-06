@@ -23,7 +23,7 @@ This will contain a list of features that are in progress, completed, and planne
 
 - [ ] Dual eye support
 - [ ] Variable eye openness tracking
-- [ ] Different camera testing
+- [ ] Firmware
 - [ ] Release of V1 to the masses
 - [ ] Better documentation over things (setup, wiring etc.)
 - [ ] Auto ROI cropping
