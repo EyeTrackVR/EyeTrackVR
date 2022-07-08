@@ -47,22 +47,23 @@
     }
 
     /* Unhides the content part when active. Sets the height */
-    .accordion .container.active .answer {
+    .accordion .accordion-container.active .answer {
         height: 180px;
     }
 
     /* Changes from plus sign to negative sign once active */
-    .accordion .container.active .question::before {
+    .accordion .accordion-container.active .question::before {
         content: '';
         font-size: 30px;
     }
 </style>
 <h1 class="fs-6 fw-500" align="center">Frequently Asked Questions <br> Welcome to our FAQ!</h1>
-<div class="accordiobody">
+<div class="accordion-body">
     {% for faq in site.data.faq_yaml.frequently_asked_questions %}
+    {% if faq.question != null and faq.question != "" %}
     <div class="accordion">
         <hr>
-        <div class="container">
+        <div class="accordion-container">
             <div class="question fw-400">
                 <h1 class="fs-5 fw-500">
                     {{ faq.question }}
@@ -84,10 +85,11 @@
             </div>
         </div>
     </div>
+    {% endif %}
     {% endfor %}
 </div>
 <script type="text/javascript">
-    const accordion = document.getElementsByClassName('container');
+    const accordion = document.getElementsByClassName('accordion-container');
 
     for (i = 0; i < accordion.length; i++) {
         accordion[i].addEventListener('click', function () {
