@@ -15,6 +15,7 @@ class CameraState(Enum):
     CONNECTED = 1
     DISCONNECTED = 2
 
+WAIT_TIME = 0.1
 
 class Camera:
     def __init__(
@@ -48,83 +49,42 @@ class Camera:
         while True:
             if self.cancellation_event.is_set():
                 print("Exiting capture thread")
-                self.cleanup_stream()
                 return
-
+            should_push = True
             # If things aren't open, retry until they are. Don't let read requests come in any earlier
             # than this, otherwise we can deadlock ourselves.
             if (
-                type(self.config.capture_source) == str
-                and "http" in self.config.capture_source
+                self.config.capture_source != None and self.config.capture_source != ""
             ):
-                try:
-                    self.stream = requests.get(self.config.capture_source, stream=True)
-                except requests.exceptions.RequestException:
-                    print(self.error_message.format(self.config.capture_source))
-
-            else:
-                # so, they might have switched to a wired camera for some reason, no need to keep the stream running
-                self.cleanup_stream()
-
                 if (
-                    not self.wired_camera.isOpened()
+                    self.wired_camera is None
+                    or not self.wired_camera.isOpened()
+                    
                     or self.config.capture_source != self.current_capture_source
                 ):
                     print(self.error_message.format(self.config.capture_source))
-                    sleep(0.5)
+                    # This requires a wait, otherwise we can error and possible screw up the camera
+                    # firmware. Fickle things.
+                    if self.cancellation_event.wait(WAIT_TIME):
+                        return
                     self.current_capture_source = self.config.capture_source
                     self.wired_camera = cv2.VideoCapture(self.current_capture_source)
-                    continue
-
+      
+                # We don't have a capture source to try yet, wait for one to show up in the GUI.
+    
             # Assuming we can access our capture source, wait for another thread to request a capture.
             # Cycle every so often to see if our cancellation token has fired. This basically uses a
             # python event as a contextless, resettable one-shot channel.
-            if not self.capture_event.wait(timeout=0.02):
+            if should_push and not self.capture_event.wait(timeout=0.02):
                 continue
 
-            if self.stream:
-                try:
-                    self.get_stream_picture()
-                except requests.exceptions.ChunkedEncodingError:
-                    self.cleanup_stream()
-                    print("[CRITICAL] Wireless tracker failed. Please, restart the unit.")
-            else:
-                self.get_wired_camera_picture()
+            self.get_wired_camera_picture()
+            #if not should_push:
+                # if we get all the way down here, consider ourselves connected
+                
+           
 
-    def get_stream_picture(self):
-        for chunk in self.stream.iter_content(chunk_size=1024):
-            self.stream_bytes += chunk
-            # mjpeg streams are encoded into frames starting and ending with those bytes
-            starting_section = self.stream_bytes.find(b"\xff\xd8")
-            closing_section = self.stream_bytes.find(b"\xff\xd9")
-
-            if starting_section != -1 and closing_section != -1:
-                # we extract the encoded image first, and then prepare the buffer for another frame
-                jpg_data = self.stream_bytes[starting_section: closing_section + 2]
-                self.stream_frame_number += 1
-                self.stream_bytes = self.stream_bytes[closing_section + 2:]
-
-                image_data = numpy.fromstring(jpg_data, dtype=numpy.uint8)
-                image = self.decode_image(image_data)
-
-                if self.check_is_image_valid(image):
-                    self.previous_frame = image
-                    self.push_image_to_queue(image, self.stream_frame_number, 60)
-                else:
-                    print("----------------------------------")
-                    print(f"frame number: {self.stream_frame_number}")
-                    print(jpg_data)
-                    print("----------------------------------")
-
-                    if self.check_is_image_valid(self.previous_frame):
-                        self.push_image_to_queue(
-                            self.previous_frame, self.stream_frame_number, 60
-                        )
-                    else:
-                        # TODO this might also happen due to timing, we could send only a few black frames first
-                        # and only crash when something goes horribly wrong
-                        raise Exception("[CRITICAL] stream completely failed")
-
+    
     def get_wired_camera_picture(self):
         try:
             ret, image = self.wired_camera.read()
