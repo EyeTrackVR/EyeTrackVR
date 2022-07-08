@@ -1,17 +1,17 @@
 <style>
-    .accordion {
+    .accordion-{{ include.type }} {
         width: 100%;
         margin: 1px auto;
         padding: 5px 5px;
     }
 
-    .accordion .container {
+    .accordion-{{ include.type }} .accordion-container {
         position: relative;
         margin: 5px 5px;
     }
 
     /* Positions the labels relative to the .container. Adds padding to the top and bottom and increases font size. Also makes its cursor a pointer */
-    .accordion .question {
+    .accordion-{{ include.type }} .question-{{ include.type }} {
         position: relative;
         padding: 5px 0;
         font-size: 30px;
@@ -19,7 +19,7 @@
     }
 
     /* Positions the plus sign 5px from the right. Centers it using the transform property. */
-    .accordion .question::before {
+    .accordion-{{ include.type }} .question-{{ include.type }}::before {
         content: '\2304';
         position: absolute;
         top: 50%;
@@ -29,7 +29,7 @@
     }
 
     /* Hides the content (height: 0), decreases font size, justifies text and adds transition */
-    .accordion .answer {
+    .accordion-{{ include.type }} .answer-{{ include.type }} {
         position: relative;
         height: 0;
         font-size: 20px;
@@ -40,41 +40,41 @@
     }
 
     /* Adds a horizontal line between the contents */
-    .accordion hr {
+    .accordion-{{ include.type }} hr {
         width: 100%;
         margin-left: 0;
         border: 1px solid grey;
     }
 
     /* Unhides the content part when active. Sets the height */
-    .accordion .accordion-container.active .answer {
+    .accordion-{{ include.type }} .accordion-container.active .answer-{{ include.type }} {
         height: 180px;
     }
 
     /* Changes from plus sign to negative sign once active */
-    .accordion .accordion-container.active .question::before {
+    .accordion-{{ include.type }} .accordion-container.active .question{{ include.type }}::before {
         content: '';
         font-size: 30px;
     }
 </style>
-<h1 class="fs-6 fw-500" align="center">Frequently Asked Questions <br> Welcome to our FAQ!</h1>
-<div class="accordion-body">
+<div class="accordion-body-{{ include.type }}">
     {% for faq in site.data.faq_yaml.frequently_asked_questions %}
+    {% if faq.type == include.type %}
     {% if faq.question != null and faq.question != "" %}
-    <div class="accordion">
+    <div class="accordion-{{ include.type }}">
         <hr>
-        <div class="accordion-container">
-            <div class="question fw-400">
+        <div class="accordion-container" onclick=" this.classList.toggle('active');">
+            <div class="question-{{ include.type }} fw-400">
                 <h1 class="fs-5 fw-500">
                     {{ faq.question }}
                 </h1>
             </div>
-            <div class="answer">
+            <div class="answer-{{ include.type }}">
                 <blockquote>
                     <span class="answerspan{{ faq.faq_link_id }}">
-                        {%- capture editable_part -%}
+                        {% capture editable_part %}
                         <a href="{{ faq.hyper_link }}" target="_blank">{{ faq.link_description }}</a>
-                        {%- endcapture -%}
+                        {% endcapture %}
                         {% if faq.answer contains 'aaaa ' %}
                         {{ faq.answer | replace: 'aaaa ', editable_part }}
                         {% else %}
@@ -86,14 +86,6 @@
         </div>
     </div>
     {% endif %}
+    {% endif %}
     {% endfor %}
 </div>
-<script type="text/javascript">
-    const accordion = document.getElementsByClassName('accordion-container');
-
-    for (i = 0; i < accordion.length; i++) {
-        accordion[i].addEventListener('click', function () {
-            this.classList.toggle('active');
-        })
-    }
-</script>

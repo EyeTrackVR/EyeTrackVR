@@ -1,19 +1,3 @@
-
-/* Legacy function */
-const switch_scheme = document.getElementById("switch-mode");
-var isClicked = false;
-async function toggleDetect() {
-  if (isClicked == false) {
-    isClicked = true;
-    createCookie("isClicked", true, 365);
-    switch_scheme.textContent = "Light Mode";
-  } else {
-    isClicked = false;
-    createCookie("isClicked", false, 365);
-    switch_scheme.textContent = "Dark Mode";
-  }
-}
-
 /* Browser detection of color scheme to change the discord widget */
 var url = window.location.pathname;
 

@@ -6,4 +6,4 @@ has_children: false
 permalink: /faq/
 ---
 
-{% include custom/FAQ/faq_template.html %}
+{% include custom/FAQ/faq_template.html type="general" %}

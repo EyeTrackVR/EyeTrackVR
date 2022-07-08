@@ -1,5 +1,20 @@
-<!-- Legacy Button -->
-<!-- <ul>
+<ul>
     <a href="javascript:toggleDetect()" title="Switching Schemes" class="btn btn-mode fs-2 mb-1 mb-md-0 mr-0"
         id="switch-mode">Dark Mode</a>
-</ul> -->
+</ul>
+<script type="text/javascript">
+    const switch_scheme = document.getElementById("switch-mode");
+    var isClicked = false;
+    async function toggleDetect() {
+        if (isClicked == false) {
+            isClicked = true;
+            switch_scheme.textContent = "Dark Mode";
+            localStorage.setItem("theme", "light");
+        } else {
+            isClicked = false;
+            switch_scheme.textContent = "Light Mode";
+            localStorage.setItem("theme", "dark");
+        }
+        await switchScheme();
+    }
+</script>
