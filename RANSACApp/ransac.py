@@ -8,6 +8,8 @@ import threading
 import numpy as np
 import cv2
 from enum import Enum
+from one_euro_filter import OneEuroFilter
+import time
 
 class InformationOrigin(Enum):
   RANSAC = 1
@@ -144,6 +146,12 @@ class Ransac:
     self.previous_rotation = self.config.rotation_angle
     self.recenter_eye = False
 
+    self.min_cutoff = 0.004 #one Euro filter config
+    self.beta = 0.7
+    self.filterinit = 0
+    self.filterinitblob = 0
+
+
   def output_images_and_update(self, threshold_image, output_information: EyeInformation):
     if self.config.show_color_image:
       image_stack = np.concatenate((self.current_image, cv2.cvtColor(self.current_image_gray, cv2.COLOR_GRAY2BGR), cv2.cvtColor(threshold_image, cv2.COLOR_GRAY2BGR)), axis=1)
@@ -174,6 +182,8 @@ class Ransac:
     return True
 
   def blob_tracking_fallback(self):
+
+    st = time.time()
     # Increase our threshold value slightly, in order to have a better possibility of getting back
     # something to do blob tracking on.
     _, larger_threshold = cv2.threshold(
@@ -218,11 +228,16 @@ class Ransac:
 
       eye_position_scalar = self.config.vrc_eye_position_scalar
 
+
+
+
+
+
       xl = float(((xt - self.xoff) * eye_position_scalar) / (self.xmax - self.xoff)) 
       xr = float(((xt - self.xoff) * eye_position_scalar) / (self.xmin - self.xoff)) 
-      yu = float(((yt - self.yoff) * eye_position_scalar) / (self.ymin - self.yoff))
-      yd = float(((yt - self.yoff) * eye_position_scalar) / (self.ymax - self.yoff))
-      # print(f"{exm} {eym} {xl} {xr} {yu} {yd}")
+      yu = float(((yt - self.yoff) * eye_position_scalar) / (self.ymax - self.yoff))
+      yd = float(((yt - self.yoff) * eye_position_scalar) / (self.ymin - self.yoff))
+      #print(f"{xl} {xr} {yu} {yd}")
 
       out_x = 0
       out_y = 0
@@ -230,7 +245,7 @@ class Ransac:
         out_x = max(0.0, min(1.0, xr))
       if xl > 0:
         out_x = -abs(max(0.0, min(1.0, xl)))
-      if yd > 0:
+      if yd < 0:
         out_y = -abs(max(0.0, min(1.0, yd)))
       if yu > 0:
         out_y = max(0.0, min(1.0, yu))
@@ -244,7 +259,10 @@ class Ransac:
     camera_model = CameraModel(focal_length=self.config.focal_length, resolution=[self.config.roi_window_w, self.config.roi_window_h])
     detector_3d = Detector3D(camera=camera_model, long_term_mode=DetectorMode.blocking)
 
+
+
     while True:
+      st = time.time()
       # Check to make sure we haven't been requested to close
       if self.cancellation_event.is_set():
         print("Exiting RANSAC thread")
@@ -363,10 +381,31 @@ class Ransac:
           self.ymin = eym
         self.calibration_frame_counter -= 1
       eye_position_scalar = self.config.vrc_eye_position_scalar
+
+
+
+      if self.filterinit == 1:
+        cy = one_euro_filterx(st, cy) #1st is time between inputs, 2nd is data
+        cx = one_euro_filtery(st, cx)
+
+
+      if self.filterinit == 0: ## initialize filter and define function
+          one_euro_filterx = OneEuroFilter(
+              0, cx,
+              min_cutoff=self.min_cutoff,
+              beta=self.beta)
+
+          one_euro_filtery = OneEuroFilter(
+              0, cy,
+              min_cutoff=self.min_cutoff,
+              beta=self.beta)    
+          self.filterinit = 1
+
+
       xl = float(((cx - self.xoff) * eye_position_scalar) / (self.xmax - self.xoff)) 
       xr = float(((cx - self.xoff) * eye_position_scalar) / (self.xmin - self.xoff)) 
-      yu = float(((cy - self.yoff) * eye_position_scalar) / (self.ymin - self.yoff))
-      yd = float(((cy - self.yoff) * eye_position_scalar) / (self.ymax - self.yoff))
+      yu = float(((cy - self.yoff) * eye_position_scalar) / (self.ymax - self.yoff))
+      yd = float(((cy - self.yoff) * eye_position_scalar) / (self.ymin - self.yoff))
       # print(f"{exm} {eym} {xl} {xr} {yu} {yd}")
 
       out_x = 0
