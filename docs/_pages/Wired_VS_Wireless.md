@@ -17,7 +17,7 @@ parent: How to build
 - Plug and play, no firmware or wifi router needed
 
 - Lowest latency
-{% include custom/alerts/Note.html content="Our latency with wireless setups is pretty low, (30-60ms) you will not be able to see a difference in social VR applications. This would only become a noticable change if we ever get DFR working." %}
+{% include custom/alerts/Note.html content="Our latency with wireless setups is pretty low, (20-35ms) you will not be able to see a difference in social VR applications. This would only become a noticable change if we ever get DFR working." %}
 
 - Higher resolution
 {% include custom/alerts/Note.html content="Higher resolution does not result in a measurable tracking quality change although it can help." %}
@@ -29,6 +29,8 @@ parent: How to build
 - Requires 2 usb ports and usb bandwith, wireless uses 1 port for only power.
 
 - Camera disassembly is required to remove the IR filter
+
+- USB bus issues
 
 {% include custom/alerts/Warning.html content="Due to USB issues, only 1 camera per headset is supported unless you have 2 seperate USB ports to plug in to. USB hubs WILL NOT WORK." %}
 
