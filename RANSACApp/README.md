@@ -31,10 +31,12 @@ Now we can run the executable:
     ./eyetrackapp
     
     
-***DISCLAIMER: I DO NOT OWN THE LINCENCE TO THIS CODE. Distributed under the terms of the GNU Lesser General Public License (LGPL v3.0). See COPYING and COPYING.LESSER for license details.***
+***DISCLAIMER: I DO NOT OWN THE LINCENCE TO ALL OF THIS CODE. Part of it is from Pupil labs, distributed under the terms of the GNU Lesser General Public License (LGPL v3.0). See COPYING and COPYING.LESSER for license details.***
 
 Copyright (C) 2018 Pupil Labs
 
 All Rights Reserved.
 
 This is Pye3d by Pupil Labs
+
+The one Euro filter base comes from [https://github.com/jaantollander/OneEuroFilter](https://github.com/jaantollander/OneEuroFilter)
