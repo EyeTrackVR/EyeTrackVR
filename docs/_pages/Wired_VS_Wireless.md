@@ -51,5 +51,5 @@ parent: How to build
 - Flashing firmware is needed
 
 - Higer latency
-{% include custom/alerts/Note.html content="Our latency with wireless setups is pretty low, (30-60ms) you will not be able to see a difference in social VR applications. This would only become a noticable change if we ever get DFR working." %}
+{% include custom/alerts/Note.html content="Our latency with wireless setups is pretty low, (20-35ms) you will not be able to see a difference in social VR applications. This would only become a noticable change if we ever get DFR working." %}
 
