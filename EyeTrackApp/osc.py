@@ -42,11 +42,11 @@ class VRChatOSC:
             if not eye_info.blink:
                 if eye_id in [EyeId.RIGHT, EyeId.BOTH]:
                     self.client.send_message(
-                        "/avatar/parameters/RightEyeX", eye_info.x
+                        "/avatar/parameters/RightEye", eye_info.x
                     )
                 if eye_id in [EyeId.LEFT, EyeId.BOTH]:
                     self.client.send_message(
-                        "/avatar/parameters/LeftEyeX", eye_info.x
+                        "/avatar/parameters/LeftEye", eye_info.x
                     )
                 self.client.send_message("/avatar/parameters/EyesY", eye_info.y)
                 if was_blinking:
