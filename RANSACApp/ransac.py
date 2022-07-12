@@ -8,8 +8,6 @@ import threading
 import numpy as np
 import cv2
 from enum import Enum
-from one_euro_filter import OneEuroFilter
-import time
 
 class InformationOrigin(Enum):
   RANSAC = 1
@@ -146,11 +144,6 @@ class Ransac:
     self.previous_rotation = self.config.rotation_angle
     self.recenter_eye = False
 
-    self.min_cutoff = 0.004 #one Euro filter config
-    self.beta = 0.7
-    self.filterinit = 0
-    self.filterinitblob = 0
-
 
   def output_images_and_update(self, threshold_image, output_information: EyeInformation):
     if self.config.show_color_image:
@@ -183,7 +176,6 @@ class Ransac:
 
   def blob_tracking_fallback(self):
 
-    st = time.time()
     # Increase our threshold value slightly, in order to have a better possibility of getting back
     # something to do blob tracking on.
     _, larger_threshold = cv2.threshold(
@@ -231,8 +223,6 @@ class Ransac:
 
 
 
-
-
       xl = float(((xt - self.xoff) * eye_position_scalar) / (self.xmax - self.xoff)) 
       xr = float(((xt - self.xoff) * eye_position_scalar) / (self.xmin - self.xoff)) 
       yu = float(((yt - self.yoff) * eye_position_scalar) / (self.ymax - self.yoff))
@@ -260,9 +250,9 @@ class Ransac:
     detector_3d = Detector3D(camera=camera_model, long_term_mode=DetectorMode.blocking)
 
 
-
+    yf = []
+    xf = []
     while True:
-      st = time.time()
       # Check to make sure we haven't been requested to close
       if self.cancellation_event.is_set():
         print("Exiting RANSAC thread")
@@ -383,25 +373,6 @@ class Ransac:
       eye_position_scalar = self.config.vrc_eye_position_scalar
 
 
-
-      if self.filterinit == 1:
-        cy = one_euro_filterx(st, cy) #1st is time between inputs, 2nd is data
-        cx = one_euro_filtery(st, cx)
-
-
-      if self.filterinit == 0: ## initialize filter and define function
-          one_euro_filterx = OneEuroFilter(
-              0, cx,
-              min_cutoff=self.min_cutoff,
-              beta=self.beta)
-
-          one_euro_filtery = OneEuroFilter(
-              0, cy,
-              min_cutoff=self.min_cutoff,
-              beta=self.beta)    
-          self.filterinit = 1
-
-
       xl = float(((cx - self.xoff) * eye_position_scalar) / (self.xmax - self.xoff)) 
       xr = float(((cx - self.xoff) * eye_position_scalar) / (self.xmin - self.xoff)) 
       yu = float(((cy - self.yoff) * eye_position_scalar) / (self.ymax - self.yoff))
@@ -418,6 +389,46 @@ class Ransac:
         out_y = -abs(max(0.0, min(1.0, yd)))
       if yu > 0:
         out_y = max(0.0, min(1.0, yu))
+
+      if len(xf) != 4:
+          xf.append(out_x)
+
+      if len(yf) != 4:
+          yf.append(out_y)
+
+      if len(xf) == 4:
+          xf.insert(0, out_x)
+          xf.pop()
+          vx = abs(xf[0] - xf[1])
+
+          if vx <= 0.4 and vx > 0.3:
+              out_x = (xf[0] + xf[1]) / 2
+          elif vx <= 0.3 and vx > 0.2:
+              out_x = (xf[0] + xf[1] + xf[2]) / 3
+          elif vx <= 0.2 and vx > 0.1:
+              out_x = (xf[0] + xf[1] + xf[2] + xf[3]) / 4
+          elif vx <= 0.1 and vx >= 0.0:
+              out_x = (xf[0] + xf[1] + xf[2] + xf[3]) / 4
+          else:
+              out_x = out_x
+
+      if len(yf) == 4:
+          yf.insert(0, out_y)
+          yf.pop()
+          vy = abs(yf[0] - yf[1])
+
+          if vy <= 0.4 and vy > 0.3:
+              out_y = (yf[0] + yf[1]) / 2
+          elif vy <= 0.3 and vy > 0.2:
+              out_y = (yf[0] + yf[1] + yf[2]) / 3
+          elif vy <= 0.2 and vy > 0.15:
+              out_y = (yf[0] + yf[1] + yf[2] + yf[3]) / 4
+          elif vy <= 0.15 and vy >= 0.0:
+              out_y = (yf[0] + yf[1] + yf[2] + yf[3]) / 4
+          else:
+              out_y = out_y
+
+
 
       output_info = EyeInformation(InformationOrigin.RANSAC, out_x, out_y, False)
 
