@@ -20,7 +20,7 @@ class VRChatOSC:
     def __init__(
         self,
         cancellation_event: "threading.Event",
-        msg_queue: "queue.Queue[tuple[bool, int, int]]",
+        msg_queue: "queue.Queue[tuple[bool, int, int, int]]",
     ):
         self.client = udp_client.SimpleUDPClient(VRChatOSC.OSC_IP, VRChatOSC.OSC_PORT)
         self.cancellation_event = cancellation_event
@@ -44,28 +44,36 @@ class VRChatOSC:
                     self.client.send_message(
                         "/avatar/parameters/RightEye", eye_info.x
                     )
+                    self.client.send_message(
+                        "/avatar/parameters/EyesDilation", eye_info.pupil_dialation
+                    )
                 if eye_id in [EyeId.LEFT, EyeId.BOTH]:
                     self.client.send_message(
                         "/avatar/parameters/LeftEye", eye_info.x
                     )
+                    self.client.send_message(
+                        "/avatar/parameters/EyesDilation", eye_info.pupil_dialation
+                    )
+                    
+                    
                 self.client.send_message("/avatar/parameters/EyesY", eye_info.y)
                 if was_blinking:
                     if eye_id in [EyeId.LEFT, EyeId.BOTH]:
                         self.client.send_message(
-                            "/avatar/parameters/LeftEyeLid", float(0)
+                            "/avatar/parameters/LeftEyeLid", float(1)
                         )
                     if eye_id in [EyeId.RIGHT, EyeId.BOTH]:
                         self.client.send_message(
-                            "/avatar/parameters/RightEyeLid", float(0)
+                            "/avatar/parameters/RightEyeLid", float(1)
                         )
                     was_blinking = False
             else:
                 if eye_id in [EyeId.LEFT, EyeId.BOTH]:
                     self.client.send_message(
-                        "/avatar/parameters/LeftEyeLid", float(1)
+                        "/avatar/parameters/LeftEyeLid", float(0)
                     )
                 if eye_id in [EyeId.RIGHT, EyeId.BOTH]:
                     self.client.send_message(
-                        "/avatar/parameters/RightEyeLid", float(1)
+                        "/avatar/parameters/RightEyeLid", float(0)
                     )
                 was_blinking = True

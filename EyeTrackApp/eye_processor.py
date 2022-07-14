@@ -9,9 +9,10 @@ import threading
 import numpy as np
 import cv2
 from enum import Enum
-from one_euro_filter import OneEuroFilter
 import time
-
+import statistics
+from one_euro_filter import OneEuroFilter
+from sympy import symbols, Eq, solve
 class InformationOrigin(Enum):
     RANSAC = 1
     BLOB = 2
@@ -23,6 +24,7 @@ class EyeInformation:
     info_type: InformationOrigin
     x: float
     y: float
+    pupil_dialation: int
     blink: bool
 
 
@@ -33,72 +35,6 @@ def run_once(f):
             return f(*args, **kwargs)
     wrapper.has_run = False
     return wrapper
-
-
-       # if filterinit == 1:
-         #   print('raw', cx, cy)
-        #    cy = one_euro_filterx(st, cy) #1st is time of inputs, 2nd is data
-          #  cx = one_euro_filtery(st, cx)
-           # print('filtered', cx, cy)
-
-       # if filterinit == 0: ## initialize filter and define function
-        #    one_euro_filterx = OneEuroFilter(
-         #       0, cx,
-          #      min_cutoff=0.004,
-           #     beta=0.7)
-
-            #one_euro_filtery = OneEuroFilter(
-             #   0, cy,
-              #  min_cutoff=0.004,
-               # beta=0.7)    
-            #filterinit = 1
-
-
-
-
-@run_once
-def initfilter(cx, cy):
-    print('######################## ONECE')
-    initfilter.one_euro_filterx = OneEuroFilter(
-        0, cx,
-        min_cutoff=0.0000004,
-        beta=0.1)
-
-    #initfilter.one_euro_filtery = OneEuroFilter(
-     #   0, cy,
-     #   min_cutoff=0.0000004,
-      #  beta=0.1) 
-
-
-def filter_smooth(cx, cy, st):
-   
-
-        
-        print('raw', cx, cy)
-
-        OneEuroFilter(
-        st, cy,
-        min_cutoff=0.0000004,
-        beta=0.1)
-        print(st)
-        #cy = initfilter.one_euro_filterx(st, cy) #1st is time of inputs, 2nd is data
-       # cx = initfilter.one_euro_filtery(st, cx)
-        print('filtered', cx, cy)
-
-    
-        return cx, cy
-
-
-
-
-
-
-
-
-
-
-
-
 
 
 
@@ -235,8 +171,6 @@ class EyeProcessor:
         self.ymin = -69420
         self.previous_rotation = self.config.rotation_angle
         self.recenter_eye = False
-
-        self.filterinit = 0
         self.calibration_frame_counter
 
 
@@ -329,7 +263,7 @@ class EyeProcessor:
         # order to have a projected sphere.
         if self.lkg_projected_sphere == None:
             self.output_images_and_update(
-                larger_threshold, EyeInformation(InformationOrigin.FAILURE, 0, 0, False)
+                larger_threshold, EyeInformation(InformationOrigin.FAILURE, 0, 0, 0, False)
             )
             return
 
@@ -416,13 +350,16 @@ class EyeProcessor:
                 out_y = max(0.0, min(1.0, yu))
 
 
+
+
+
             self.output_images_and_update(
                 larger_threshold,
-                EyeInformation(InformationOrigin.BLOB, out_x, out_y, False),
+                EyeInformation(InformationOrigin.BLOB, out_x, out_y, w, False),
             )
             return
         self.output_images_and_update(
-            larger_threshold, EyeInformation(InformationOrigin.BLOB, 0, 0, True)
+            larger_threshold, EyeInformation(InformationOrigin.BLOB, 0, 0, 0, True)
         )
         print("[INFO] BLINK Detected.")
 
@@ -431,8 +368,20 @@ class EyeProcessor:
         detector_3d = None
         xf = []
         yf = []
+        pd = []
+        out_pupil_dialation = 1
+        min_cutoff = 0.0004
+        beta = 0.7
+        noisy_point = np.array([1, 1])
+        
+        one_euro_filter = OneEuroFilter(
+            noisy_point,
+            min_cutoff=min_cutoff,
+            beta=beta
+            ) 
         while True:
-            st = time.time()
+           # oef = init_filter()
+           
             # Check to make sure we haven't been requested to close
             if self.cancellation_event.is_set():
                 print("Exiting RANSAC thread")
@@ -567,8 +516,8 @@ class EyeProcessor:
             #d = ellipse_3d['diameter']
             #print(w)
 
-
-
+            d = result_3d["diameter_3d"]
+            
 
 
             if self.calibration_frame_counter == 0 or self.recenter_eye:
@@ -588,15 +537,13 @@ class EyeProcessor:
                 self.calibration_frame_counter -= 1
             eye_position_scalar = self.config.vrc_eye_position_scalar
 
-            end = time.time()
-            pt = end - st
-            #fd = filter_smooth(cx, cy, pt)
-            #cx = fd[0]
-            #cy = fd[1]
+          
+          
 
-           # print('tracked', cx, cy)
-
-
+            noisy_point = np.array([cx, cy]) #fliter our values with a One Euro Filter
+            point_hat = one_euro_filter(noisy_point)
+            cx = point_hat[0]
+            cy = point_hat[1]
 
 
             xl = float(
@@ -606,15 +553,13 @@ class EyeProcessor:
                 ((cx - self.xoff) * eye_position_scalar) / (self.xmin - self.xoff)
             )
             yu = float(
-                ((cy - self.yoff) * eye_position_scalar) / (self.ymin - self.yoff)
-            )
-            yd = float(
                 ((cy - self.yoff) * eye_position_scalar) / (self.ymax - self.yoff)
             )
-            # print(f"{exm} {eym} {xl} {xr} {yu} {yd}")
+            yd = float(
+                ((cy - self.yoff) * eye_position_scalar) / (self.ymin - self.yoff)
+            )
 
 
-            
 
 
             out_x = 0
@@ -629,44 +574,11 @@ class EyeProcessor:
                 out_y = max(0.0, min(1.0, yu))
 
 
-            if len(xf) != 4:
-                xf.append(out_x)
-
-            if len(yf) != 4:
-                yf.append(out_y)
-
-            if len(xf) == 4:
-                xf.insert(0, out_x)
-                xf.pop()
-                vx = abs(xf[0] - xf[1])
-
-                if vx <= 0.4 and vx > 0.3:
-                    out_x = (xf[0] + xf[1]) / 2
-                elif vx <= 0.3 and vx > 0.2:
-                    out_x = (xf[0] + xf[1] + xf[2]) / 3
-                elif vx <= 0.2 and vx >= 0.0:
-                    out_x = (xf[0] + xf[1] + xf[2] + xf[3]) / 4
-                else:
-                    out_x = out_x
-
-            if len(yf) == 4:
-                yf.insert(0, out_y)
-                yf.pop()
-                vy = abs(yf[0] - yf[1])
-
-                if vy <= 0.4 and vy > 0.3:
-                    out_y = (yf[0] + yf[1]) / 2
-                elif vy <= 0.3 and vy > 0.2:
-                    out_y = (yf[0] + yf[1] + yf[2]) / 3
-                elif vy <= 0.2 and vy >= 0.0:
-                    out_y = (yf[0] + yf[1] + yf[2] + yf[3]) / 4
-                else:
-                    out_y = out_y
-
-    
+           
 
 
-            output_info = EyeInformation(InformationOrigin.RANSAC, out_x, out_y, False)
+
+            output_info = EyeInformation(InformationOrigin.RANSAC, out_x, out_y, out_pupil_dialation, False)
 
             # Draw our image and stack it for visual output
             cv2.drawContours(self.current_image_gray, contours, -1, (255, 0, 0), 1)

@@ -8,6 +8,7 @@ import threading
 import numpy as np
 import cv2
 from enum import Enum
+from one_euro_filter import OneEuroFilter
 
 class InformationOrigin(Enum):
   RANSAC = 1
@@ -235,9 +236,9 @@ class Ransac:
         out_x = max(0.0, min(1.0, xr))
       if xl > 0:
         out_x = -abs(max(0.0, min(1.0, xl)))
-      if yd < 0:
+      if yd > 0:
         out_y = -abs(max(0.0, min(1.0, yd)))
-      if yu > 0:
+      if yu < 0:
         out_y = max(0.0, min(1.0, yu))
 
       self.output_images_and_update(larger_threshold, EyeInformation(InformationOrigin.BLOB, out_x, out_y, False))
@@ -250,8 +251,15 @@ class Ransac:
     detector_3d = Detector3D(camera=camera_model, long_term_mode=DetectorMode.blocking)
 
 
-    yf = []
-    xf = []
+    min_cutoff = 0.0004
+    beta = 0.7
+    noisy_point = np.array([1, 1])
+        
+    one_euro_filter = OneEuroFilter(
+        noisy_point,
+        min_cutoff=min_cutoff,
+        beta=beta
+        ) 
     while True:
       # Check to make sure we haven't been requested to close
       if self.cancellation_event.is_set():
@@ -372,12 +380,15 @@ class Ransac:
         self.calibration_frame_counter -= 1
       eye_position_scalar = self.config.vrc_eye_position_scalar
 
+      noisy_point = np.array([cx, cy])   #fliter our values with a One Euro Filter
+      point_hat = one_euro_filter(noisy_point)
+      cx = point_hat[0]
+      cy = point_hat[1]
 
       xl = float(((cx - self.xoff) * eye_position_scalar) / (self.xmax - self.xoff)) 
       xr = float(((cx - self.xoff) * eye_position_scalar) / (self.xmin - self.xoff)) 
       yu = float(((cy - self.yoff) * eye_position_scalar) / (self.ymax - self.yoff))
       yd = float(((cy - self.yoff) * eye_position_scalar) / (self.ymin - self.yoff))
-      # print(f"{exm} {eym} {xl} {xr} {yu} {yd}")
 
       out_x = 0
       out_y = 0
@@ -390,45 +401,7 @@ class Ransac:
       if yu > 0:
         out_y = max(0.0, min(1.0, yu))
 
-      if len(xf) != 4:
-          xf.append(out_x)
-
-      if len(yf) != 4:
-          yf.append(out_y)
-
-      if len(xf) == 4:
-          xf.insert(0, out_x)
-          xf.pop()
-          vx = abs(xf[0] - xf[1])
-
-          if vx <= 0.4 and vx > 0.3:
-              out_x = (xf[0] + xf[1]) / 2
-          elif vx <= 0.3 and vx > 0.2:
-              out_x = (xf[0] + xf[1] + xf[2]) / 3
-          elif vx <= 0.2 and vx > 0.1:
-              out_x = (xf[0] + xf[1] + xf[2] + xf[3]) / 4
-          elif vx <= 0.1 and vx >= 0.0:
-              out_x = (xf[0] + xf[1] + xf[2] + xf[3]) / 4
-          else:
-              out_x = out_x
-
-      if len(yf) == 4:
-          yf.insert(0, out_y)
-          yf.pop()
-          vy = abs(yf[0] - yf[1])
-
-          if vy <= 0.4 and vy > 0.3:
-              out_y = (yf[0] + yf[1]) / 2
-          elif vy <= 0.3 and vy > 0.2:
-              out_y = (yf[0] + yf[1] + yf[2]) / 3
-          elif vy <= 0.2 and vy > 0.15:
-              out_y = (yf[0] + yf[1] + yf[2] + yf[3]) / 4
-          elif vy <= 0.15 and vy >= 0.0:
-              out_y = (yf[0] + yf[1] + yf[2] + yf[3]) / 4
-          else:
-              out_y = out_y
-
-
+      
 
       output_info = EyeInformation(InformationOrigin.RANSAC, out_x, out_y, False)
 
