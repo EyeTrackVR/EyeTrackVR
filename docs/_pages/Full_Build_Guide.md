@@ -56,24 +56,53 @@ Once the camera has been slid in, press the gray part of the connector back down
 Note the ammount of black coming out of the connector.
 {% include custom/images/image_2.html url="https://i.imgur.com/VnFi5XS.jpg" max-width="400" caption="" alt="img" %}
 
-## Step 7: Connect ESP to programmer to flash.
-Why flash before you have it assembled? It's simple, to make sure they actually work before you spend time soldering to it.
+## Step 7: Connect ESP to a programmer to flash.
+Why flash before you have it assembled? It's simple, to make sure they work before you spend time soldering them.
 
-Slide your ESP into the programmer, note the USB port goes away from the ESP's camera.
+Slide your ESP into the programmer, and note the USB port goes away from the ESP's camera.
 {% include custom/images/image_2.html url="https://i.imgur.com/LsLPAcd.jpg" max-width="400" caption="" alt="img" %}
 
 ## Step 8: Configure Visual Studio Code and prepare to flash the firmware.
-Check out out guide on [Setting up VS Code](https://redhawk989.github.io/EyeTrackVR/setting-up-firmware-enviroment/)
+Check out our guide on [Setting up VS Code](https://redhawk989.github.io/EyeTrackVR/setting-up-firmware-enviroment/)
 
-Once VS Code is setup, move onto the next step.
+Once VS Code is set up, move on to the next step.
 
-## Step 9: Plug in your ESP and flash firmware.
+## Step 9: Plug in your ESP and flash the firmware.
 Our guide, [Building and uploading the firmware manually](https://redhawk989.github.io/EyeTrackVR/building-and-flashing-firmware-manually/) has steps on how to do this.
-After it has flashed, make sure you get a video stream in your browser, then flash your next ESP.
+After it has flashed, make sure you get a video stream in your browser, then power it down and flash your next ESP.
 
-## Step 10: Connect your power wires to a USB Type A board.
-Get two pairs of wire, perferably two different colors, Cut them to length (56mm in my case) and twist together two for ground and two for 5V.
-Here I used speaker wire where the copper denotes positive and silver negitive.
+## Step 10: Connect your power wires to a USB Type-A board.
+Get two pairs of wire, preferably two different colors, Cut them to length (56mm in my case) and twist together two for ground and two for 5V.
+Here I used speaker wire where the copper denotes positive and silver negative.
+Then, strip the wires to about 3mm of exposed wire.
 {% include custom/images/image_2.html url="https://i.imgur.com/Cdu9lSN.jpg" max-width="400" caption="" alt="img" %}
 
-## Step 11: 
+## Step 11: Cut wires for IR LEDs. 
+To find the optimal length, take a piece of wire and a marker and mock up your wire route, and mark the wire, cut it, then make another at the same size for the other eye.
+You will need 3 different cuts of wire. 2 short ones for connecting the 2 PCBs per eye together, 2 Longer ones for power, or ground and 2 slightly longer ones for power or ground for the LED near the camera at the bottom.
+
+Once cut, strip them to around 4mm of exposed wire.
+
+## Step 12: Twist the positive USB wire and positive IR LED wires together and tin them.
+Once twisted together add solder to keep them together. This makes the connection much easier.
+{% include custom/images/image_2.html url="https://i.imgur.com/QlRrWNn.jpg" max-width="400" caption="" alt="img" %} 
+
+## Step 13: Solder the positive wire to ESP.
+Lay the wire on the outside of the 5V pin and apply solder.
+{% include custom/images/image_2.html url="https://i.imgur.com/DhnmLBG.jpg" max-width="400" caption="" alt="img" %} 
+
+## Step 14: Solder the negative wire to ESP
+Repeat [step 12](https://redhawk989.github.io/EyeTrackVR/full-build-guide/#step-12-twist-the-positive-usb-wire-and-positive-ir-led-wires-together-and-tin-them) but with the negative wires.
+
+Now the hard part, attaching it without shorting it with nearby pins.
+In the below example I put it on the top of the pin, It will be a week-ish joint but that's where glue comes in handy.
+{% include custom/images/image_2.html url="https://i.imgur.com/PWA0gtq.jpg" max-width="400" caption="" alt="img" %} 
+
+## Step 15: Wire up the 2nd ESP.
+Repeat steps 12-14 with the 2nd ESP.
+
+## Step 16: Solder IR LEDs
+Get your magnifying glass out, it's time to solder very small things.
+
+Gather 4 PCBs, 4 IR LEDs and either 4 ~350ohm, or 2 ~700ohm resistors.
+
