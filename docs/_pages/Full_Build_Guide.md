@@ -101,7 +101,7 @@ In the below example I put it on the top of the pin, It will be a week-ish joint
 ## Step 15: Wire up the 2nd ESP.
 Repeat steps [12](https://redhawk989.github.io/EyeTrackVR/full-build-guide/#step-12-twist-the-positive-usb-wire-and-positive-ir-led-wires-together-and-tin-them)-[14](https://redhawk989.github.io/EyeTrackVR/full-build-guide/#step-14-solder-the-negative-wire-to-esp) with the 2nd ESP.
 
-## Step 16: Solder IR LEDs
+## Step 16: Prepare to solder IR LED PCBs.
 Get your magnifying glass out, it's time to solder very smol things.
 
 Gather 4 PCBs, 4 IR LEDs, and either 4 ~350ohm, or 2 ~700ohm resistors.
@@ -112,11 +112,20 @@ Gather 4 PCBs, 4 IR LEDs, and either 4 ~350ohm, or 2 ~700ohm resistors.
 698ohm resistors and V2 PCBs
 {% include custom/images/image_2.html url="https://i.imgur.com/WyoVdcR.jpg" max-width="400" caption="" alt="img" %} 
 
-Here are the PCB pin-out labels.
+Here are the PCB pin-out labels:
 
-{% include custom/images/image_2.html url="https://i.imgur.com/WZRRKNh.png" max-width="400" caption="" alt="img" %} 
+V2
+{% include custom/images/image_2.html url="https://i.imgur.com/sNB6ju2.png" max-width="400" caption="" alt="img" %} 
 
+V3
 {% include custom/images/image_2.html url="https://i.imgur.com/n1noWKq.png" max-width="400" caption="" alt="img" %} 
+
+LED labels:
+
+{% include custom/images/image_2.html url="https://i.imgur.com/Ap8OAWY.png" max-width="400" caption="" alt="img" %} 
+The green markings and notched corners mark the positive sides of the LEDs pictured above.
+
+If you have different LEDs, please consult their datasheet.
 
 Some terminology related to them:
 
@@ -132,10 +141,58 @@ Negative: This marks the negative side of the LED.
 
 Positive: This marks the positive side of the LED.
 
+## Solder resistors on PCB V3.
 
-{% include custom/images/image_2.html url="https://i.imgur.com/Ap8OAWY.png" max-width="400" caption="" alt="img" %} 
+Tin the resistor pads. Note: in this example, I use too much solder, it should only be enough to lightly cover the pad.
+{% include custom/images/image_2.html url="https://i.imgur.com/gb4etdB.jpg" max-width="400" caption="" alt="img" %} 
 
-The green markings and notched corners mark the positive sides of the LEDs pictured above.
 
-If you have different LEDs, please consult their datasheet.
+Next, grab a resistor and hold it on the pads.
+{% include custom/images/image_2.html url="https://i.imgur.com/ev5QFch.jpg" max-width="400" caption="" alt="img" %} 
+
+While holding the resistor add solder to your soldering iron and apply it to the resistor.
+
+I like to do this by having a piece of my solder stick up in the air and then put it on my iron that way.
+{% include custom/images/image_2.html url="https://i.imgur.com/8jCQOHw.jpg" max-width="400" caption="" alt="img" %} 
+
+Flip the PCB and solder the other end.
+{% include custom/images/image_2.html url="https://i.imgur.com/CHUb7Iv.jpg" max-width="400" caption="" alt="img" %} 
+
+Now repeat for the other one. 
+{% include custom/images/image_2.html url="https://i.imgur.com/jZYAm5O.jpg" max-width="400" caption="" alt="img" %} 
+
+
+## Solder LEDs on PCB V3.
+Tin the LED pads.
+{% include custom/images/image_2.html url="https://i.imgur.com/pjvLHJL.jpg" max-width="400" caption="" alt="img" %} 
+
+Orientate the LED and hold in place.
+{% include custom/images/image_2.html url="https://i.imgur.com/RbHZQhl.jpg" max-width="400" caption="" alt="img" %} 
+
+Solder one end.
+{% include custom/images/image_2.html url="https://i.imgur.com/VyClWvp.jpg" max-width="400" caption="" alt="img" %} 
+
+Flip areound and solder the other end.
+{% include custom/images/image_2.html url="https://i.imgur.com/tFCQTqE.jpg" max-width="400" caption="" alt="img" %} 
+
+
+## Solder resistors on PCB V2.
+
+{% include custom/images/image_2.html url="https://i.imgur.com/ayQ5vkf.jpg" max-width="400" caption="" alt="img" %} 
+
+Tin the resistor pads.
+{% include custom/images/image_2.html url="https://i.imgur.com/DpFwecO.jpg" max-width="400" caption="" alt="img" %} 
+
+Hold the resistor in place.
+{% include custom/images/image_2.html url="https://i.imgur.com/50ydMrl.jpg" max-width="400" caption="" alt="img" %} 
+
+Solder one end.
+{% include custom/images/image_2.html url="https://i.imgur.com/Qq3cvxi.jpg" max-width="400" caption="" alt="img" %} 
+
+Flip to the ther side of the resistor and solder it.
+{% include custom/images/image_2.html url="https://i.imgur.com/yWGaKaC.jpg" max-width="400" caption="" alt="img" %} 
+
+
+## Solder LEDs on PCB V2.
+aaaand Imgur stopped letting me upload pictures. will add at a later date
 
