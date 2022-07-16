@@ -56,8 +56,8 @@ Once the camera has been slid in, press the gray part of the connector back down
 Note the ammount of black coming out of the connector.
 {% include custom/images/image_2.html url="https://i.imgur.com/VnFi5XS.jpg" max-width="400" caption="" alt="img" %}
 
-## Step 7: Connect ESP to a programmer to flash.
-Why flash before you have it assembled? It's simple, to make sure they work before you spend time soldering them.
+## Step 7: Connect ESP to the programmer to flash.
+Why flash before you have it assembled? It's simple, to make sure they actually work before you spend time soldering to them.
 
 Slide your ESP into the programmer, and note the USB port goes away from the ESP's camera.
 {% include custom/images/image_2.html url="https://i.imgur.com/LsLPAcd.jpg" max-width="400" caption="" alt="img" %}
@@ -99,10 +99,43 @@ In the below example I put it on the top of the pin, It will be a week-ish joint
 {% include custom/images/image_2.html url="https://i.imgur.com/PWA0gtq.jpg" max-width="400" caption="" alt="img" %} 
 
 ## Step 15: Wire up the 2nd ESP.
-Repeat steps 12-14 with the 2nd ESP.
+Repeat steps [12](https://redhawk989.github.io/EyeTrackVR/full-build-guide/#step-12-twist-the-positive-usb-wire-and-positive-ir-led-wires-together-and-tin-them)-[14](https://redhawk989.github.io/EyeTrackVR/full-build-guide/#step-14-solder-the-negative-wire-to-esp) with the 2nd ESP.
 
 ## Step 16: Solder IR LEDs
-Get your magnifying glass out, it's time to solder very small things.
+Get your magnifying glass out, it's time to solder very smol things.
 
-Gather 4 PCBs, 4 IR LEDs and either 4 ~350ohm, or 2 ~700ohm resistors.
+Gather 4 PCBs, 4 IR LEDs, and either 4 ~350ohm, or 2 ~700ohm resistors.
+
+357ohm resistors and V3 PCBs
+{% include custom/images/image_2.html url="https://i.imgur.com/0zXY79j.jpg" max-width="400" caption="" alt="img" %} 
+
+698ohm resistors and V2 PCBs
+{% include custom/images/image_2.html url="https://i.imgur.com/WyoVdcR.jpg" max-width="400" caption="" alt="img" %} 
+
+Here are the PCB pin-out labels.
+
+{% include custom/images/image_2.html url="https://i.imgur.com/WZRRKNh.png" max-width="400" caption="" alt="img" %} 
+
+{% include custom/images/image_2.html url="https://i.imgur.com/n1noWKq.png" max-width="400" caption="" alt="img" %} 
+
+Some terminology related to them:
+
+5V: 5-volt power in.
+
+GND: Ground or power out.
+
+AR: After-Resistor this is to be used as the power in on the 2nd PCB in series as resistors are not needed on the 2nd PCB since they are on the 1st one.
+
+SNG: Single resistor, use this as 5V in if you are using only 1 ~700ohm resistor on V3 boards (not recommended).
+
+Negative: This marks the negative side of the LED.
+
+Positive: This marks the positive side of the LED.
+
+
+{% include custom/images/image_2.html url="https://i.imgur.com/Ap8OAWY.png" max-width="400" caption="" alt="img" %} 
+
+The green markings and notched corners mark the positive sides of the LEDs pictured above.
+
+If you have different LEDs, please consult their datasheet.
 
