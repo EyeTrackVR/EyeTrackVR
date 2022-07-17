@@ -29,8 +29,8 @@ class VRChatOSC:
                 continue
             # If we're not blinking, set position
             if not eye_info.blink:
-                self.client.send_message("/avatar/parameters/RightEyeX", eye_info.x)
-                self.client.send_message("/avatar/parameters/LeftEyeX", eye_info.x)
+                self.client.send_message("/avatar/parameters/RightEye", eye_info.x)
+                self.client.send_message("/avatar/parameters/LeftEye", eye_info.x)
                 self.client.send_message("/avatar/parameters/EyesY", eye_info.y)
                 if was_blinking:
                     self.client.send_message("/avatar/parameters/LeftEyeLid", float(1))
