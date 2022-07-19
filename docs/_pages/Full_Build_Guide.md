@@ -143,6 +143,8 @@ Positive: This marks the positive side of the LED.
 
 ## Solder resistors on PCB V3.
 
+You only need 1 PCB to have resistors per eye.
+
 Tin the resistor pads. Note: in this example, I use too much solder, it should only be enough to lightly cover the pad.
 {% include custom/images/image_2.html url="https://i.imgur.com/gb4etdB.jpg" max-width="400" caption="" alt="img" %} 
 
@@ -178,6 +180,8 @@ Flip areound and solder the other end.
 
 ## Solder resistors on PCB V2.
 
+You only need 1 PCB to have a resistor per eye.
+
 {% include custom/images/image_2.html url="https://i.imgur.com/ayQ5vkf.jpg" max-width="400" caption="" alt="img" %} 
 
 Tin the resistor pads.
@@ -194,5 +198,28 @@ Flip to the ther side of the resistor and solder it.
 
 
 ## Solder LEDs on PCB V2.
-aaaand Imgur stopped letting me upload pictures. will add at a later date
 
+{% include custom/images/image_2.html url="https://i.imgur.com/Ql4zYCq.jpg" max-width="400" caption="" alt="img" %} 
+
+
+Tin the pads
+{% include custom/images/image_2.html url="https://i.imgur.com/Xrczoyv.jpg" max-width="400" caption="" alt="img" %} 
+
+Place the resistor on the pads in the correct orientation.
+{% include custom/images/image_2.html url="https://i.imgur.com/KKgP8qs.jpg" max-width="400" caption="" alt="img" %} 
+
+Solder each side of the resistor. Be careful not to solder at too high of a temp, recommended soldering temp is 230C with a max of 245C.
+{% include custom/images/image_2.html url="https://i.imgur.com/SvbHAuY.jpg" max-width="400" caption="" alt="img" %} 
+
+## Wire up the PCBs V2.
+
+Basic full wiring diagram of IR PCBs V2
+{% include custom/images/image_2.html url="https://i.imgur.com/gopjVG3.png" max-width="500" caption="" alt="drawing" %}
+
+The PCB that receives the 5V power is the one with the resistor. The second one, which gets its power from the ground pin of the first, does not have a resistor on it and its power input pin is the AR pin (After-Resistor). The 2nd PCBs ground pin goes to the ground of the system, in the diagram it is the ESPs ground pin.
+
+## Wire up the PCBs V3.
+
+{% include custom/images/image_2.html url="https://i.imgur.com/AxgHiAU.png" max-width="500" caption="" alt="drawing" %}
+
+The PCB that receives the 5V power is the one with the resistor. The second one, which gets its power from the ground pin of the first, does not have a resistor on it and its power input pin is the AR pin (After-Resistor). The 2nd PCBs ground pin goes to the ground of the system, in the diagram it is the ESPs ground pin.
