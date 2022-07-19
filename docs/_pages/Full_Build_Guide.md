@@ -141,41 +141,6 @@ Negative: This marks the negative side of the LED.
 
 Positive: This marks the positive side of the LED.
 
-## Solder resistors on PCB V3.
-
-You only need 1 PCB to have resistors per eye.
-
-Tin the resistor pads. Note: in this example, I use too much solder, it should only be enough to lightly cover the pad.
-{% include custom/images/image_2.html url="https://i.imgur.com/gb4etdB.jpg" max-width="400" caption="" alt="img" %} 
-
-
-Next, grab a resistor and hold it on the pads.
-{% include custom/images/image_2.html url="https://i.imgur.com/ev5QFch.jpg" max-width="400" caption="" alt="img" %} 
-
-While holding the resistor add solder to your soldering iron and apply it to the resistor.
-
-I like to do this by having a piece of my solder stick up in the air and then put it on my iron that way.
-{% include custom/images/image_2.html url="https://i.imgur.com/8jCQOHw.jpg" max-width="400" caption="" alt="img" %} 
-
-Flip the PCB and solder the other end.
-{% include custom/images/image_2.html url="https://i.imgur.com/CHUb7Iv.jpg" max-width="400" caption="" alt="img" %} 
-
-Now repeat for the other one. 
-{% include custom/images/image_2.html url="https://i.imgur.com/jZYAm5O.jpg" max-width="400" caption="" alt="img" %} 
-
-
-## Solder LEDs on PCB V3.
-Tin the LED pads.
-{% include custom/images/image_2.html url="https://i.imgur.com/pjvLHJL.jpg" max-width="400" caption="" alt="img" %} 
-
-Orientate the LED and hold in place.
-{% include custom/images/image_2.html url="https://i.imgur.com/RbHZQhl.jpg" max-width="400" caption="" alt="img" %} 
-
-Solder one end.
-{% include custom/images/image_2.html url="https://i.imgur.com/VyClWvp.jpg" max-width="400" caption="" alt="img" %} 
-
-Flip areound and solder the other end.
-{% include custom/images/image_2.html url="https://i.imgur.com/tFCQTqE.jpg" max-width="400" caption="" alt="img" %} 
 
 
 ## Solder resistors on PCB V2.
@@ -217,6 +182,45 @@ Basic full wiring diagram of IR PCBs V2
 {% include custom/images/image_2.html url="https://i.imgur.com/gopjVG3.png" max-width="500" caption="" alt="drawing" %}
 
 The PCB that receives the 5V power is the one with the resistor. The second one, which gets its power from the ground pin of the first, does not have a resistor on it and its power input pin is the AR pin (After-Resistor). The 2nd PCBs ground pin goes to the ground of the system, in the diagram it is the ESPs ground pin.
+
+## Solder resistors on PCB V3.
+
+You only need 1 PCB to have resistors per eye.
+
+Tin the resistor pads. Note: in this example, I use too much solder, it should only be enough to lightly cover the pad.
+{% include custom/images/image_2.html url="https://i.imgur.com/gb4etdB.jpg" max-width="400" caption="" alt="img" %} 
+
+
+Next, grab a resistor and hold it on the pads.
+{% include custom/images/image_2.html url="https://i.imgur.com/ev5QFch.jpg" max-width="400" caption="" alt="img" %} 
+
+While holding the resistor add solder to your soldering iron and apply it to the resistor.
+
+I like to do this by having a piece of my solder stick up in the air and then put it on my iron that way.
+{% include custom/images/image_2.html url="https://i.imgur.com/8jCQOHw.jpg" max-width="400" caption="" alt="img" %} 
+
+Flip the PCB and solder the other end.
+{% include custom/images/image_2.html url="https://i.imgur.com/CHUb7Iv.jpg" max-width="400" caption="" alt="img" %} 
+
+Now repeat for the other one. 
+{% include custom/images/image_2.html url="https://i.imgur.com/jZYAm5O.jpg" max-width="400" caption="" alt="img" %} 
+
+
+## Solder LEDs on PCB V3.
+Tin the LED pads.
+{% include custom/images/image_2.html url="https://i.imgur.com/pjvLHJL.jpg" max-width="400" caption="" alt="img" %} 
+
+Orientate the LED and hold in place.
+{% include custom/images/image_2.html url="https://i.imgur.com/RbHZQhl.jpg" max-width="400" caption="" alt="img" %} 
+
+Solder one end.
+{% include custom/images/image_2.html url="https://i.imgur.com/VyClWvp.jpg" max-width="400" caption="" alt="img" %} 
+
+Flip areound and solder the other end.
+{% include custom/images/image_2.html url="https://i.imgur.com/tFCQTqE.jpg" max-width="400" caption="" alt="img" %} 
+
+
+
 
 ## Wire up the PCBs V3.
 
