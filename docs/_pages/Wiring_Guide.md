@@ -26,6 +26,9 @@ parent: How to build
 <br>
 
 Soldering demostration of soldering a IR LED to V2 PCB [https://www.youtube.com/watch?v=8vWMr4L9WK](https://www.youtube.com/watch?v=8vWMr4L9WK8)
+
+<iframe width="2034" height="814" src="https://www.youtube.com/embed/8vWMr4L9WK8" title="Soldering of an IR emitter for eyetrackVR" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
+
 {% include custom/alerts/Warning.html content="Do not solder the 1206 sized LEDs at temperatures exceeding 245°C as they will burn and become unusable. Buying low temp solder is highly recommended." %}
 <br>
 
