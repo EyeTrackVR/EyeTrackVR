@@ -20,7 +20,7 @@ This will contain a list of features that are in progress, completed, and planne
 - [X] PCB Design for IR emitters
 - [X] Dual eye support
 - [X] Firmware
-- 
+
 ## In Progress
 
 
