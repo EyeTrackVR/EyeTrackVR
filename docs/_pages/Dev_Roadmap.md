@@ -18,12 +18,13 @@ This will contain a list of features that are in progress, completed, and planne
 - [x] Calibration
 - [x] GUI
 - [X] PCB Design for IR emitters
-
+- [X] Dual eye support
+- [X] Firmware
+- 
 ## In Progress
 
-- [ ] Dual eye support
+
 - [ ] Variable eye openness tracking
-- [ ] Firmware
 - [ ] Release of V1 to the masses
 - [ ] Better documentation over things (setup, wiring etc.)
 - [ ] Auto ROI cropping
@@ -33,5 +34,5 @@ This will contain a list of features that are in progress, completed, and planne
 
 - [ ] Support for implementation with VRCFT (binary parameters etc.)
 - [ ] Setup WiFi credentials for ESPs through non-firmware means
-- [ ] Setup flashing of ESPs through WebSerial
+- [ ] Setup flashing of ESPs through anything other than VSC
 - [ ] Dynamic foveated rendering via OpenXR (not a guarantee)
