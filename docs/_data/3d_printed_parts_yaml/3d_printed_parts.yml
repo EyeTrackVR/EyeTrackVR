@@ -30,6 +30,7 @@
  
  - hmd: "Samsung Odyssey+"
   parts:
+  
   hyper_links:
     - url: "https://github.com/RedHawk989/EyeTrackVR-Hardware/blob/main/3d_Printed_Mounts/Samsung_Odyssey%2B/Breakdown/Samsung%20Odyssey%2B%20Left%20by%20Breakdown.stl"
       desc: "Camera and IR emitter mount by Breakdown"
