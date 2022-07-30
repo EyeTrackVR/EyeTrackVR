@@ -27,11 +27,14 @@
       desc: "Camera mount by Razgriz"
   threed_link_id: 2
    
- - hmd: "Samsung Odyssey+"
-   parts:
+- hmd: "test"
+  parts:
     - "ESP mount : N/A"
-   hyper_links:
+  hyper_links:
     - url: "https://github.com/RedHawk989/EyeTrackVR-Hardware/blob/main/3d_Printed_Mounts/Samsung_Odyssey%2B/Breakdown/Samsung%20Odyssey%2B%20Left%20by%20Breakdown.stl"
-      desc: "Camera and IR emitter mount by Breakdown"
-  threed_link_id: 3 
+      desc: "Camera and IR emitter mount test"
+      
+    - url: "https://github.com/rrazgriz/IndexEyeTrackVR/tree/main/hardware"
+      desc: "Camera mount by test2"
+  threed_link_id: 3
 ---
