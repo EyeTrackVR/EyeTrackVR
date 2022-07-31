@@ -73,7 +73,7 @@ After it has flashed, make sure you get a video stream in your browser, then pow
 
 ## Step 10: Connect your power wires to a USB Type-A board.
 
-{% include custom/alerts/Warning.html content="Powering off of the programmer board will not work correctly. It delivers lower power which results in dim LEDs and image artifacts which can mess up tracking." %}
+{% include custom/alerts/Warning.html content="Powering from the programmer board will not work correctly. It delivers a lower voltage which results in dim LEDs and video artifacts which can both mess up tracking." %}
 
 Get two pairs of wire, preferably two different colors, Cut them to length (56mm in my case) and twist together two for ground and two for 5V.
 Here I used speaker wire where the copper denotes positive and silver negative.
