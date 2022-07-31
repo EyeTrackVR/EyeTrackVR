@@ -72,6 +72,9 @@ Our guide, [Building and uploading the firmware manually](https://redhawk989.git
 After it has flashed, make sure you get a video stream in your browser, then power it down and flash your next ESP.
 
 ## Step 10: Connect your power wires to a USB Type-A board.
+
+{% include custom/alerts/Warning.html content="Powering off of the programmer board will not work correctly. It delivers lower power which results in dim LEDs and image artifacts which can mess up tracking." %}
+
 Get two pairs of wire, preferably two different colors, Cut them to length (56mm in my case) and twist together two for ground and two for 5V.
 Here I used speaker wire where the copper denotes positive and silver negative.
 Then, strip the wires to about 3mm of exposed wire.
