@@ -8,6 +8,43 @@ parent: How to build
 
 ## This page will contain a step-by-step assembly guide.
 
+### Table of contents:
+[Step 1 Read the Things to know before you start guide](https://redhawk989.github.io/EyeTrackVR/full-build-guide/#step-1-read-the-things-to-know-before-you-start-guide)
+
+[Step 2: Please read the Differences between wired and wireless setups guide](https://redhawk989.github.io/EyeTrackVR/full-build-guide/#step-2-please-read-the-differences-between-wired-and-wireless-setups-guide)
+
+[Step 3: Order all the parts listed on our Parts list](https://redhawk989.github.io/EyeTrackVR/full-build-guide/#step-3-order-all-the-parts-listed-on-our-parts-list)
+
+[Step 4: Wait for things to arrive.](https://redhawk989.github.io/EyeTrackVR/full-build-guide/#step-3-order-all-the-parts-listed-on-our-parts-list)
+
+[Step 5: Gather up all of your hardware.](https://redhawk989.github.io/EyeTrackVR/full-build-guide/#step-5-gather-up-all-of-your-hardware)
+
+[Step 6: Attach cameras to ESPs.](https://redhawk989.github.io/EyeTrackVR/full-build-guide/#step-6-attach-cameras-to-esps)
+
+[Step 7: Connect ESP to the programmer to flash.](https://redhawk989.github.io/EyeTrackVR/full-build-guide/#step-7-connect-esp-to-the-programmer-to-flash)
+
+[Step 8: Configure Visual Studio Code and prepare to flash the firmware.](https://redhawk989.github.io/EyeTrackVR/full-build-guide/#step-8-configure-visual-studio-code-and-prepare-to-flash-the-firmware)
+
+[Step 9: Plug in your ESP and flash the firmware.](https://redhawk989.github.io/EyeTrackVR/full-build-guide/#step-9-plug-in-your-esp-and-flash-the-firmware)
+
+[Step 10: Connect your power wires to a USB Type-A board.](https://redhawk989.github.io/EyeTrackVR/full-build-guide/#step-10-connect-your-power-wires-to-a-usb-type-a-board)
+
+[Step 11: Cut wires for IR LEDs.](https://redhawk989.github.io/EyeTrackVR/full-build-guide/#step-11-cut-wires-for-ir-leds)
+
+[Step 12: Twist the positive USB wire and positive IR LED wires together and tin them.](https://redhawk989.github.io/EyeTrackVR/full-build-guide/#step-12-twist-the-positive-usb-wire-and-positive-ir-led-wires-together-and-tin-them)
+
+[Step 13: Solder the positive wire to ESP.](https://redhawk989.github.io/EyeTrackVR/full-build-guide/#step-13-solder-the-positive-wire-to-esp)
+
+[Step 14: Solder the negative wire to ESP](https://redhawk989.github.io/EyeTrackVR/full-build-guide/#step-14-solder-the-negative-wire-to-esp)
+
+[Step 15: Wire up the 2nd ESP.](https://redhawk989.github.io/EyeTrackVR/full-build-guide/#step-15-wire-up-the-2nd-esp)
+
+[Step 16: Prepare to solder IR LED PCBs](https://redhawk989.github.io/EyeTrackVR/full-build-guide/#step-16-prepare-to-solder-ir-led-pcbs)
+
+[Step 17 Solder resistors on PCB V2.](https://redhawk989.github.io/EyeTrackVR/full-build-guide/#step-17-solder-resistors-on-pcb-v2.)
+
+[Step 17 Solder resistors on PCB V3.](https://redhawk989.github.io/EyeTrackVR/full-build-guide/#step-17-solder-resistors-on-pcb-v3.)
+
 ## Step 1: Read the [Things to know before you start](https://redhawk989.github.io/EyeTrackVR/things-to-know) guide.
 This will give you a basic overview of the project's status and what to expect currently.
 
@@ -146,7 +183,7 @@ Positive: This marks the positive side of the LED.
 
 
 
-## Solder resistors on PCB V2.
+## Step 17 Solder resistors on PCB V2.
 
 You only need 1 PCB to have a resistor per eye.
 
@@ -186,7 +223,7 @@ Basic full wiring diagram of IR PCBs V2
 
 The PCB that receives the 5V power is the one with the resistor. The second one, which gets its power from the ground pin of the first, does not have a resistor on it and its power input pin is the AR pin (After-Resistor). The 2nd PCBs ground pin goes to the ground of the system, in the diagram it is the ESPs ground pin.
 
-## Solder resistors on PCB V3.
+## Step 17 Solder resistors on PCB V3.
 
 You only need 1 PCB to have resistors per eye.
 
