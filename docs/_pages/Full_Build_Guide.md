@@ -41,9 +41,15 @@ parent: How to build
 
 [Step 16: Prepare to solder IR LED PCBs](https://redhawk989.github.io/EyeTrackVR/full-build-guide/#step-16-prepare-to-solder-ir-led-pcbs)
 
-[Step 17 Solder resistors on PCB V2.](https://redhawk989.github.io/EyeTrackVR/full-build-guide/#step-17-solder-resistors-on-pcb-v2.)
+[Step 17 Solder resistors on PCB V2.](https://redhawk989.github.io/EyeTrackVR/full-build-guide/#step-17-solder-resistors-on-pcb-v2)
 
-[Step 17 Solder resistors on PCB V3.](https://redhawk989.github.io/EyeTrackVR/full-build-guide/#step-17-solder-resistors-on-pcb-v3.)
+[Step 18 Wire up PCBs V2](https://redhawk989.github.io/EyeTrackVR/full-build-guide/#wire-up-the-pcbs-v2)
+
+[Step 17 Solder resistors on PCB V3.](https://redhawk989.github.io/EyeTrackVR/full-build-guide/#step-17-solder-resistors-on-pcb-v3)
+
+[Step 18 Wire up PCBs V3](https://redhawk989.github.io/EyeTrackVR/full-build-guide/#wire-up-the-pcbs-v3)
+
+[Step 19 3D print mounts.](https://redhawk989.github.io/EyeTrackVR/full-build-guide/#step-19-3d-print-mounts)
 
 ## Step 1: Read the [Things to know before you start](https://redhawk989.github.io/EyeTrackVR/things-to-know) guide.
 This will give you a basic overview of the project's status and what to expect currently.
@@ -269,12 +275,12 @@ Flip areound and solder the other end.
 The PCB that receives the 5V power is the one with the resistor. The second one, which gets its power from the ground pin of the first, does not have a resistor on it and its power input pin is the AR pin (After-Resistor). The 2nd PCBs ground pin goes to the ground of the system, in the diagram it is the ESPs ground pin.
 
 
-## 3D print mounts.
+## Step 19 3D print mounts.
 Head to the 3D printed parts section of the parts list [here.](https://redhawk989.github.io/EyeTrackVR/partslist/#3d-printed-parts)
 
 Find which parts are for your headset and print them.
-Some may work better or worse, it is recommended to test all of them, print one of each.
-If none work, try making an edit yourself if you have the skills, make sure to ping me, `Prohurtz#0001`, so I can add them to the list.
+Some may work better or worse, it is recommended to test all of them if there are multiple, print one of each kind.
+If none work, try making an edit yourself if you have the skills. If you have made a mount make sure to ping me, `Prohurtz#0001`, so I can add them to the list.
 
 There are 2 different types of mounts, how to secure the camera to each type will be documented below.
 
@@ -310,6 +316,6 @@ In some cases, there are designated spots for the LEDs to go.
 {% include custom/images/image_2.html url="https://i.imgur.com/tYD1KKe.png" max-width="500" caption="" alt="drawing" %}
 
 In others there are no specified spots, you will have to mess around to find what works best.
-This image shows the optimal/near-optimal position for the LEDs
+This image shows the optimal/near-optimal position for the LEDs. Hot glue is your friend with this.
 {% include custom/images/image_2.html url="https://i.imgur.com/3rCRU5A.jpg" max-width="500" caption="" alt="drawing" %}
 
