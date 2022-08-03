@@ -267,3 +267,49 @@ Flip areound and solder the other end.
 {% include custom/images/image_2.html url="https://i.imgur.com/AxgHiAU.png" max-width="500" caption="" alt="drawing" %}
 
 The PCB that receives the 5V power is the one with the resistor. The second one, which gets its power from the ground pin of the first, does not have a resistor on it and its power input pin is the AR pin (After-Resistor). The 2nd PCBs ground pin goes to the ground of the system, in the diagram it is the ESPs ground pin.
+
+
+## 3D print mounts.
+Head to the 3D printed parts section of the parts list [here.](https://redhawk989.github.io/EyeTrackVR/partslist/#3d-printed-parts)
+
+Find which parts are for your headset and print them.
+Some may work better or worse, it is recommended to test all of them, print one of each.
+If none work, try making an edit yourself if you have the skills, make sure to ping me, `Prohurtz#0001`, so I can add them to the list.
+
+There are 2 different types of mounts, how to secure the camera to each type will be documented below.
+
+
+### Type 1
+{% include custom/images/image_2.html url="https://i.imgur.com/a6ERUFx.png" max-width="500" caption="" alt="drawing" %}
+This uses a method of sliding in the camera. Generally, this is the recommended mounting method as it generally requires no glue.
+
+
+Place the camera into the mount
+{% include custom/images/image_2.html url="https://i.imgur.com/Wy89UWy.jpg" max-width="500" caption="" alt="drawing" %}
+
+Slowly apply pressure inwards until the camera snaps into place.
+{% include custom/images/image_2.html url="https://i.imgur.com/LtKOLWo.jpg" max-width="500" caption="" alt="drawing" %}
+
+{% include custom/alerts/Note.html content="There is a good chance on breaking the mount when putting in the camera. If this happens you may be able to save the mount depending on where the break was. A small dab of hot glue around the camera is likely all that is needed." %}
+
+### Type 2
+{% include custom/images/image_2.html url="https://i.imgur.com/9mty1bv.png" max-width="500" caption="" alt="drawing" %}
+This uses the method of gluing the camera.
+
+Apply a bit of glue to the bottom of the camera mount
+{% include custom/images/image_2.html url="https://i.imgur.com/ArLO1ls.jpg" max-width="500" caption="" alt="drawing" %}
+
+Place the camera on the mount.
+{% include custom/images/image_2.html url="https://i.imgur.com/ZIecsMM.jpg" max-width="500" caption="" alt="drawing" %}
+
+
+## IR LED mounting.
+This again differs from mount to mount.
+
+In some cases, there are designated spots for the LEDs to go.
+{% include custom/images/image_2.html url="https://i.imgur.com/tYD1KKe.png" max-width="500" caption="" alt="drawing" %}
+
+In others there are no specified spots, you will have to mess around to find what works best.
+This image shows the optimal/near-optimal position for the LEDs
+{% include custom/images/image_2.html url="https://i.imgur.com/3rCRU5A.jpg" max-width="500" caption="" alt="drawing" %}
+
