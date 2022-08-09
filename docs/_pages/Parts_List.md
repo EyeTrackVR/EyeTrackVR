@@ -30,7 +30,7 @@ Here is an amazon link for 3 esps and programmers without the proper cameras [he
 
 ## Wired setup
 
-{% include custom/alerts/Warning.html content="Due to USB issues, only 1 camera per headset is supported unless you have 2 seperate USB ports to plug in to. USB hubs WILL NOT WORK." %}
+{% include custom/alerts/Warning.html content="Due to USB issues, only 1 camera per headset is supported unless you have 2 seperate USB ports to plug in to. USB hubs WILL NOT WORK. This option is NOT recomended." %}
 
 - 2x Wired Ov5640 160 deg cameras [AliExpress here](https://www.aliexpress.com/item/2255799933896897.html)
 
@@ -61,10 +61,13 @@ or
 
 - [698 ohm from LCSC here](https://lcsc.com/product-detail/Chip-Resistor-Surface-Mount_FOJAN-FRC1206F6980TS_C2933749.html)
 
+I have a kit with resistors, IR LEDs, and PCBs on [Tindie here.](https://www.tindie.com/products/eyetrackvr/eyetrackvr-ir-emitter-kit-pack-of-5/) 
+This ensures you get the correct parts.
+
 - 1x Wire to power IR emitters
 [32 gauge wire from AliExpress here](https://a.aliexpress.com/_mK72cy6)
 
-I have a kit with resistors, IR LEDs, and PCBs on [Tindie here.](https://www.tindie.com/products/eyetrackvr/eyetrackvr-ir-emitter-kit-pack-of-5/)
+
 
 ## Other parts
 
