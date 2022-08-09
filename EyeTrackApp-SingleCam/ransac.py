@@ -145,6 +145,16 @@ class Ransac:
     self.previous_rotation = self.config.rotation_angle
     self.recenter_eye = False
 
+    min_cutoff = 0.0004
+    beta = 0.7
+    noisy_point = np.array([1, 1])
+    self.one_euro_filter = OneEuroFilter(
+        noisy_point,
+        min_cutoff=min_cutoff,
+        beta=beta
+        ) 
+
+
 
   def output_images_and_update(self, threshold_image, output_information: EyeInformation):
     if self.config.show_color_image:
@@ -190,6 +200,37 @@ class Ransac:
       self.output_images_and_update(larger_threshold, EyeInformation(InformationOrigin.FAILURE, 0, 0, False))
       return
 
+           
+# define circle for "cropping"
+    try:
+        ht, wd = self.current_image_gray.shape
+
+        radius = int(float(self.lkg_projected_sphere["axes"][0]))
+        
+        xc = int(self.lkg_projected_sphere["center"][0])
+        yc = int(self.lkg_projected_sphere["center"][1])
+
+        # draw filled circle in white on black background as mask
+        mask = np.zeros((ht,wd), dtype=np.uint8)
+        mask = cv2.circle(mask, (xc,yc), radius, 255, -1)
+
+        # create white colored background
+        color = np.full_like(self.current_image_gray, (255))
+
+        # apply mask to image
+        masked_img = cv2.bitwise_and(self.current_image_gray, self.current_image_gray, mask=mask)
+
+        # apply inverse mask to colored image
+        masked_color = cv2.bitwise_and(color, color, mask=255-mask)
+
+        # combine the two masked images
+        self.current_image_gray = cv2.add(masked_img, masked_color)
+
+    except:
+        pass
+
+
+
     try:
       # Try rebuilding our contours
       contours, _ = cv2.findContours(larger_threshold, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
@@ -219,11 +260,21 @@ class Ransac:
       cv2.drawContours(self.current_image_gray, [cnt], -1, (255, 0, 0), 3)
       cv2.rectangle(self.current_image_gray, (x, y), (x + w, y + h), (255, 0, 0), 2)
 
+
+
+      try:
+          noisy_point = np.array([cx, cy]) #fliter our values with a One Euro Filter
+          point_hat = self.one_euro_filter(noisy_point)
+          cx = point_hat[0]
+          cy = point_hat[1]
+      except:
+          pass
+
       eye_position_scalar = self.config.vrc_eye_position_scalar
 
 
 
-
+      
       xl = float(((xt - self.xoff) * eye_position_scalar) / (self.xmax - self.xoff)) 
       xr = float(((xt - self.xoff) * eye_position_scalar) / (self.xmin - self.xoff)) 
       yu = float(((yt - self.yoff) * eye_position_scalar) / (self.ymax - self.yoff))
@@ -240,7 +291,7 @@ class Ransac:
         out_y = -abs(max(0.0, min(1.0, yd)))
       if yu < 0:
         out_y = max(0.0, min(1.0, yu))
-
+      #print(xt, yt, out_x, out_y, 'BLOB')
       self.output_images_and_update(larger_threshold, EyeInformation(InformationOrigin.BLOB, out_x, out_y, False))
       return
     self.output_images_and_update(larger_threshold, EyeInformation(InformationOrigin.BLOB, 0, 0, True))
@@ -251,15 +302,7 @@ class Ransac:
     detector_3d = Detector3D(camera=camera_model, long_term_mode=DetectorMode.blocking)
 
 
-    min_cutoff = 0.0004
-    beta = 0.7
-    noisy_point = np.array([1, 1])
-        
-    one_euro_filter = OneEuroFilter(
-        noisy_point,
-        min_cutoff=min_cutoff,
-        beta=beta
-        ) 
+
     while True:
       # Check to make sure we haven't been requested to close
       if self.cancellation_event.is_set():
@@ -295,6 +338,41 @@ class Ransac:
       _, thresh = cv2.threshold(
           self.current_image_gray, int(self.config.threshold), 255, cv2.THRESH_BINARY
       )  
+
+
+           
+# define circle for "cropping"
+
+      try:
+          ht, wd = self.current_image_gray.shape
+
+          radius = int(float(self.lkg_projected_sphere["axes"][0]))
+          
+          xc = int(self.lkg_projected_sphere["center"][0])
+          yc = int(self.lkg_projected_sphere["center"][1])
+
+          # draw filled circle in white on black background as mask
+          mask = np.zeros((ht,wd), dtype=np.uint8)
+          mask = cv2.circle(mask, (xc,yc), radius, 255, -1)
+
+          # create white colored background
+          color = np.full_like(self.current_image_gray, (255))
+
+          # apply mask to image
+          masked_img = cv2.bitwise_and(self.current_image_gray, self.current_image_gray, mask=mask)
+
+          # apply inverse mask to colored image
+          masked_color = cv2.bitwise_and(color, color, mask=255-mask)
+
+          # combine the two masked images
+          self.current_image_gray = cv2.add(masked_img, masked_color)
+
+      except:
+          pass
+
+
+
+
       # Set up morphological transforms, for smoothing and clearing the image we get out of the
       # thresholding operation. After this, we'd really like to just have a black blob in the middle
       # of a bunch of white area.
@@ -381,7 +459,7 @@ class Ransac:
       eye_position_scalar = self.config.vrc_eye_position_scalar
 
       noisy_point = np.array([cx, cy])   #fliter our values with a One Euro Filter
-      point_hat = one_euro_filter(noisy_point)
+      point_hat = self.one_euro_filter(noisy_point)
       cx = point_hat[0]
       cy = point_hat[1]
 
@@ -389,7 +467,7 @@ class Ransac:
       xr = float(((cx - self.xoff) * eye_position_scalar) / (self.xmin - self.xoff)) 
       yu = float(((cy - self.yoff) * eye_position_scalar) / (self.ymax - self.yoff))
       yd = float(((cy - self.yoff) * eye_position_scalar) / (self.ymin - self.yoff))
-
+      
       out_x = 0
       out_y = 0
       if xr > 0:
@@ -401,7 +479,7 @@ class Ransac:
       if yu > 0:
         out_y = max(0.0, min(1.0, yu))
 
-      
+      #print(cx, cy, out_x, out_y, 'RANSAC 3D')
 
       output_info = EyeInformation(InformationOrigin.RANSAC, out_x, out_y, False)
 

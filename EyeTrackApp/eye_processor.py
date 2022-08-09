@@ -174,9 +174,14 @@ class EyeProcessor:
         self.calibration_frame_counter
 
 
-
-
-
+        min_cutoff = 0.0004
+        beta = 0.7
+        noisy_point = np.array([1, 1])
+        self.one_euro_filter = OneEuroFilter(
+            noisy_point,
+            min_cutoff=min_cutoff,
+            beta=beta
+            ) 
 
 
 
@@ -248,12 +253,12 @@ class EyeProcessor:
         return True
 
     def blob_tracking_fallback(self):
-        st = time.time()
+        
         # Increase our threshold value slightly, in order to have a better possibility of getting back
         # something to do blob tracking on.
         _, larger_threshold = cv2.threshold(
             self.current_image_gray,
-            int(self.config.threshold + 5),
+            int(self.config.threshold + 25),
             255,
             cv2.THRESH_BINARY,
         )
@@ -266,6 +271,33 @@ class EyeProcessor:
                 larger_threshold, EyeInformation(InformationOrigin.FAILURE, 0, 0, 0, False)
             )
             return
+
+
+         
+# define circle
+        try:
+            ht, wd = self.current_image_gray.shape[:2]
+            radius = int(float(self.lkg_projected_sphere["axes"][0]))
+            xc = yc = radius
+
+            # draw filled circle in white on black background as mask
+            mask = np.zeros((ht,wd), dtype=np.uint8)
+            mask = cv2.circle(mask, (xc,yc), radius, 255, -1)
+
+            # create white colored background
+            color = np.full_like(self.current_image_gray, (255))
+
+            # apply mask to image
+            masked_img = cv2.bitwise_and(self.current_image_gray, self.current_image_gray, mask=mask)
+
+            # apply inverse mask to colored image
+            masked_color = cv2.bitwise_and(color, color, mask=255-mask)
+
+            # combine the two masked images
+            self.current_image_gray = cv2.add(masked_img, masked_color)
+        except:
+            pass
+
 
         try:
             # Try rebuilding our contours
@@ -319,10 +351,15 @@ class EyeProcessor:
             )
 
             eye_position_scalar = self.config.vrc_eye_position_scalar
-           # initfilter(cx, cy)
-           # fd = filter_smooth(cx, cy, st)
-            #cx = fd[0]
-           # cy = fd[1]
+
+
+            try:
+                noisy_point = np.array([cx, cy]) #fliter our values with a One Euro Filter
+                point_hat = self.one_euro_filter(noisy_point)
+                cx = point_hat[0]
+                cy = point_hat[1]
+            except:
+                pass
 
             xl = float(
                 ((cx - self.xoff) * eye_position_scalar) / (self.xmax - self.xoff)
@@ -369,16 +406,11 @@ class EyeProcessor:
         xf = []
         yf = []
         pd = []
+    
         out_pupil_dialation = 1
-        min_cutoff = 0.0004
-        beta = 0.7
-        noisy_point = np.array([1, 1])
         
-        one_euro_filter = OneEuroFilter(
-            noisy_point,
-            min_cutoff=min_cutoff,
-            beta=beta
-            ) 
+        
+
         while True:
            # oef = init_filter()
            
@@ -445,6 +477,43 @@ class EyeProcessor:
                 255,
                 cv2.THRESH_BINARY,
             )
+
+
+
+
+            
+# define circle for "cropping"
+
+            try:
+                ht, wd = self.current_image_gray.shape
+
+                radius = int(float(self.lkg_projected_sphere["axes"][0]))
+                
+                xc = int(self.lkg_projected_sphere["center"][0])
+                yc = int(self.lkg_projected_sphere["center"][1])
+
+                # draw filled circle in white on black background as mask
+                mask = np.zeros((ht,wd), dtype=np.uint8)
+                mask = cv2.circle(mask, (xc,yc), radius, 255, -1)
+
+                # create white colored background
+                color = np.full_like(self.current_image_gray, (255))
+
+                # apply mask to image
+                masked_img = cv2.bitwise_and(self.current_image_gray, self.current_image_gray, mask=mask)
+
+                # apply inverse mask to colored image
+                masked_color = cv2.bitwise_and(color, color, mask=255-mask)
+
+                # combine the two masked images
+                self.current_image_gray = cv2.add(masked_img, masked_color)
+
+            except:
+                pass
+
+
+
+
             # Set up morphological transforms, for smoothing and clearing the image we get out of the
             # thresholding operation. After this, we'd really like to just have a black blob in the middle
             # of a bunch of white area.
@@ -517,7 +586,9 @@ class EyeProcessor:
             #print(w)
 
             d = result_3d["diameter_3d"]
-            
+      
+
+
 
 
             if self.calibration_frame_counter == 0 or self.recenter_eye:
@@ -541,7 +612,7 @@ class EyeProcessor:
           
 
             noisy_point = np.array([cx, cy]) #fliter our values with a One Euro Filter
-            point_hat = one_euro_filter(noisy_point)
+            point_hat = self.one_euro_filter(noisy_point)
             cx = point_hat[0]
             cy = point_hat[1]
 
@@ -553,10 +624,10 @@ class EyeProcessor:
                 ((cx - self.xoff) * eye_position_scalar) / (self.xmin - self.xoff)
             )
             yu = float(
-                ((cy - self.yoff) * eye_position_scalar) / (self.ymax - self.yoff)
+                ((cy - self.yoff) * eye_position_scalar) / (self.ymin - self.yoff)
             )
             yd = float(
-                ((cy - self.yoff) * eye_position_scalar) / (self.ymin - self.yoff)
+                ((cy - self.yoff) * eye_position_scalar) / (self.ymax - self.yoff)
             )
 
 
@@ -581,9 +652,15 @@ class EyeProcessor:
             output_info = EyeInformation(InformationOrigin.RANSAC, out_x, out_y, out_pupil_dialation, False)
 
             # Draw our image and stack it for visual output
-            cv2.drawContours(self.current_image_gray, contours, -1, (255, 0, 0), 1)
+            try: 
+                cv2.drawContours(self.current_image_gray, contours, -1, (255, 0, 0), 1)
+                cv2.circle(self.current_image_gray, (int(cx), int(cy)), 2, (0, 0, 255), -1)
+                # draw pupil
+            except:
+                pass
 
-            # draw pupil
+
+
             try:
                 cv2.ellipse(
                     self.current_image_gray,
@@ -598,6 +675,25 @@ class EyeProcessor:
                 # Sometimes we get bogus axes and trying to draw this throws. Ideally we should check for
                 # validity beforehand, but for now just pass. It usually fixes itself on the next frame.
                 pass
+
+
+            try:
+               # print(self.lkg_projected_sphere["angle"], self.lkg_projected_sphere["axes"], self.lkg_projected_sphere["center"])
+                cv2.ellipse(
+                    self.current_image_gray,
+                    tuple(int(v) for v in self.lkg_projected_sphere["center"]),
+                    tuple(int(v) for v in self.lkg_projected_sphere["axes"]),
+                    self.lkg_projected_sphere["angle"],
+                    0,
+                    360,  # start/end angle for drawing
+                    (0, 255, 0),  # color (BGR): red
+                )
+            except:
+                pass
+
+
+
+
             # draw line from center of eyeball to center of pupil
             cv2.line(
                 self.current_image_gray,

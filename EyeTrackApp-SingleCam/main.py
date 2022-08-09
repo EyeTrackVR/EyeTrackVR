@@ -62,7 +62,7 @@ def main():
                sg.Column(roi_layout, key=ROI_LAYOUT_NAME, visible=False)]]
 
     # Create the window
-    window = sg.Window('Eye Tracking', layout)
+    window = sg.Window('EyeTrackVR v0.0.10', layout)
 
     cancellation_event = threading.Event()
 
