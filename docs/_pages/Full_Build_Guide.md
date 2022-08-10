@@ -319,3 +319,4 @@ In others there are no specified spots, you will have to mess around to find wha
 This image shows the optimal/near-optimal position for the LEDs. Hot glue is your friend with this.
 {% include custom/images/image_2.html url="https://i.imgur.com/3rCRU5A.jpg" max-width="500" caption="" alt="drawing" %}
 
+Tip: Use rubbing alcohol to easily remove hot glue.
