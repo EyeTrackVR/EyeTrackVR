@@ -57,11 +57,9 @@ This changes the GUI to the tracking mode where it outputs values.
 
 ### `ROI Mode`: 
 ROI or Region of Intrest is where you will crop out your eye. 
-We will go more in-depth on how to do this later.
 
 ### `Threshold`: 
 This is used to cut out things that aren't dark like your pupil.
-We will go more into depth on how to properly adjust this later.
 
 ### `Rotation`: 
 For our method to work best, you want your eye to be level. 
@@ -89,7 +87,7 @@ Enter that IP address into the app's `Camera Address` field and press the `Save 
 
 Don't see your camera feed? That's because we haven't set an ROI.
 
-{% include custom/images/image_2.html url="https://i.imgur.com/PKkjw9s.png" max-width="500" caption="See the Awating ROI SettingS text?" alt="" %}
+{% include custom/images/image_2.html url="https://i.imgur.com/PKkjw9s.png" max-width="500" caption="See the Awating ROI Settings text?" alt="" %}
 
 Now press the `ROI Mode` button.
 You should see a feed of your camera.
@@ -102,7 +100,7 @@ You should see something like this:
 Now, Draw a rectangle that selects your eye.
 
 A good example of an ROI
-{% include custom/images/image_2.html url="https://i.imgur.com/iw7o0VT.png" max-width="500" caption=":O It's my eye!" alt="" %}
+{% include custom/images/image_2.html url="https://i.imgur.com/iw7o0VT.png" max-width="500" caption="" alt="" %}
 
 Head back over to the `Tracking mode`.
 
@@ -120,10 +118,32 @@ Continuing with your headset on, move the slider all the way up.
 start slowly backing it off until mainly only your pupil is being visualized in the threshold viewer.
 
 Example of a threshold being too low:
-{% include custom/images/image_2.html url="https://i.imgur.com/30fFadH.png" max-width="500" caption="Where is my entire pupil?" alt="" %}
+{% include custom/images/image_2.html url="https://i.imgur.com/30fFadH.png" max-width="500" caption="" alt="" %}
 
 Example of too high of a threshold:
-{% include custom/images/image_2.html url="https://i.imgur.com/ZjpKfCV.png" max-width="500" caption="Woah what's all that junk? notice how my cornea is also being picked up, that's not good." alt="" %}
+{% include custom/images/image_2.html url="https://i.imgur.com/ZjpKfCV.png" max-width="500" caption="" alt="" %}
 
-Example of a good or correct threshold:
+Example of a good threshold:
 {% include custom/images/image_2.html url="https://i.imgur.com/KPUn8S1.png" max-width="500" caption="" alt="" %}
+
+Repeat everything in this step for your left eye.
+
+## Step 5: Calibrating your eyes.
+
+Once your eye is trackable by the software we need to calibrate it.
+
+Press the `Restart Calibration` button and look around.
+The important part is that you look to all extremes, all the way up, left, etc.
+Once you have done so, wait for the `Mode` to say `Tracking`
+
+The next step is to center your eye.
+
+Look straight forward and press the `Recenter Eye` button.
+
+Your eye is now fully calibrated.
+
+Repeat for your other eye.
+{% include custom/alerts/Note.html content=" To best center both eyes, look at one spot and hit the 'Recenter Eye' button for each eye without moving your eyes." %}
+
+
+## See anything outdated on this guide? Let me know! `Prohurtz#0001`
