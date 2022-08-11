@@ -1,7 +1,7 @@
 ---
 layout: default
 title: How to build
-nav_order: 7
+nav_order: 8
 has_children: true
 has_toc: true
 permalink: how_to_build
