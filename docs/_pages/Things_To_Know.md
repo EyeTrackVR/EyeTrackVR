@@ -3,7 +3,7 @@ layout: page
 title: Things to know before you start
 permalink: /things-to-know
 nav_order: 1
-parent: How to build
+parent: Getting Started
 ---
 
 ## This page will be an overview of things to know and understand before you start this project.
