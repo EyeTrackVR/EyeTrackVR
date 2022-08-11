@@ -3,7 +3,7 @@ layout: page
 title: Part List
 permalink: /partslist/
 nav_order: 3
-parent: How to build
+parent: Getting Started
 ---
 
 ## This page will include a basic part list for building an EyeTrackVR setup
