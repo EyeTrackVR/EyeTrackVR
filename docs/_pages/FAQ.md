@@ -1,7 +1,7 @@
 ---
 layout: default
 title: FAQ
-nav_order: 11
+nav_order: 13
 has_children: false
 permalink: /faq/
 ---
