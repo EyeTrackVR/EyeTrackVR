@@ -3,7 +3,7 @@ layout: page
 title: Differences Between Wired and Wireless setups
 permalink: /Wired-VS-Wireless-Setups/
 nav_order: 2
-parent: How to build
+parent: Getting Started
 ---
 
 ## This page will compare the differences between a wireless setup verses a wired one.
