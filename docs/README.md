@@ -47,8 +47,8 @@ This includes visually checking with an IR camera that the brightness is correct
 
 ## Firmware
 
-Current testing has been with `loucass003's` firmware found [here](https://github.com/Futurabeast/futura-face-cam).
-There has been work for a different firmware by a community member but that ***has not been tested by me*** [here](https://github.com/lorow/OpenIris).
+Current testing has been with `lorow's` firmware found [here](https://github.com/lorow/OpenIris).
+
 
 ## Headset support
 
