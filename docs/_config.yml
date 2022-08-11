@@ -69,12 +69,8 @@ button: true
 
 # Links at the top of the page
 aux_links:
-  'Scripts':
-    - '//github.com/RedHawk989/EyeTrackVR/tree/main/scripts'
-  'InceptionNet':
-    - '//github.com/RedHawk989/EyeTrackVR/tree/main/InceptionNet'
-  'RANSAC':
-    - '//github.com/RedHawk989/EyeTrackVR/tree/main/RANSAC'
+  'Discord':
+    - '//discord.gg/kkXYbVykZX'
   'GitHub':
     - '//github.com/RedHawk989/EyeTrackVR'
   'Wiki':
