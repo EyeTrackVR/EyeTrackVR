@@ -9,7 +9,7 @@ parent: How to build
 ## This page will contain a step-by-step assembly guide.
 
 ### Table of contents:
-[Step 1 Read the Things to know before you start guide](https://redhawk989.github.io/EyeTrackVR/full-build-guide/#step-1-read-the-things-to-know-before-you-start-guide)
+[Step 1 Make sure you have read the Things to know before you start guide](https://redhawk989.github.io/EyeTrackVR/full-build-guide/#step-1-read-the-things-to-know-before-you-start-guide)
 
 [Step 2: Order all the parts listed on our Parts list](https://redhawk989.github.io/EyeTrackVR/full-build-guide/#step-3-order-all-the-parts-listed-on-our-parts-list)
 
@@ -49,7 +49,7 @@ parent: How to build
 
 [Step 19: 3D print mounts.](https://redhawk989.github.io/EyeTrackVR/full-build-guide/#step-19-3d-print-mounts)
 
-## Step 1: Read the [Things to know before you start](https://redhawk989.github.io/EyeTrackVR/things-to-know) guide.
+## Step 1: Make sure your have read the [Things to know before you start](https://redhawk989.github.io/EyeTrackVR/things-to-know) guide.
 This will give you a basic overview of the project's status and what to expect currently.
 
 ## Step 2: Order all the parts listed on our [Parts list](https://redhawk989.github.io/EyeTrackVR/parts-list/)
