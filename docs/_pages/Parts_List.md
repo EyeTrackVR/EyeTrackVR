@@ -3,7 +3,7 @@ layout: page
 title: Part List
 permalink: /partslist/
 nav_order: 3
-parent: Getting Started
+parent: How to build
 ---
 
 ## This page will include a basic part list for building an EyeTrackVR setup
@@ -12,7 +12,7 @@ parent: Getting Started
 
 {% include custom/alerts/Note.html content="It is recommended to source parts from AliExpress as it is much cheaper" %}
 
-## Wireless setup
+## Camera setup
 
 - 2x ESP-CAM-32 modules [AliExpress here](https://a.aliexpress.com/_mKjL9Cq)
 
@@ -28,20 +28,9 @@ Here is an amazon link for 3 esps and programmers without the proper cameras [he
 - 1x Lower gauge wire to power ESPs
 [28 gauge wire from AliExpress here](https://a.aliexpress.com/_mK72cy6)
 
-## Wired setup
 
-{% include custom/alerts/Warning.html content="Due to USB issues, only 1 camera per headset is supported unless you have 2 seperate USB ports to plug in to. USB hubs WILL NOT WORK. This option is NOT recomended." %}
-
-- 2x Wired Ov5640 160 deg cameras [AliExpress here](https://www.aliexpress.com/item/2255799933896897.html)
-
-{% include custom/alerts/Note.html content="if the wired option is used, you will need to disassemble the camera to remove the ir filters.
-I would recommend getting extra cameras, either the full thing above or just the camera" hyper_link="https://www.aliexpress.com/item/3256803544318475.html" description="from AliExpress here" %}
-
-- 1x USB type-A male port to power both IR emitters
-[AliExpress here](https://a.aliexpress.com/_mOCRTcq)
 
 ## IR Emitters
-#### Needed for both wireless and wired options.
 
 - 4x Unfocused SMD IR emitters
 Recomended ones [from LCSC here](https://www.lcsc.com/product-detail/Infrared-IR-LEDs_XINGLIGHT-XL-3216HIRC-850_C965891.html).
@@ -61,8 +50,8 @@ or
 
 - [698 ohm from LCSC here](https://lcsc.com/product-detail/Chip-Resistor-Surface-Mount_FOJAN-FRC1206F6980TS_C2933749.html)
 
-I have a kit with resistors, IR LEDs, and PCBs on [Tindie here.](https://www.tindie.com/products/eyetrackvr/eyetrackvr-ir-emitter-kit-pack-of-5/) 
-This ensures you get the correct parts.
+I have a kit with the resistors, IR LEDs, and PCBs on [Tindie here.](https://www.tindie.com/products/eyetrackvr/eyetrackvr-ir-emitter-kit-pack-of-5/) 
+This ensures you get the correct IR emitter parts.
 
 - 1x Wire to power IR emitters
 [32 gauge wire from AliExpress here](https://a.aliexpress.com/_mK72cy6)
