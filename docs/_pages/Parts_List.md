@@ -20,13 +20,18 @@ parent: How to build
 
 - 1x ESP-CAM programmer/ MB [AliExpress here](https://a.aliexpress.com/_mPaPgPu)
 
-Here is an amazon link for 3 esps and programmers without the proper cameras [here](https://www.amazon.com/ESP32-CAM-ESP32-CAM-MB-Development-Compatible-Raspberry/dp/B097H2KLCH?crid=1A1UYKT1Z3MZ6&keywords=espcam32&qid=1656094793&sprefix=espca,aps,114&sr=8-3&linkCode=sl1&tag=alexanderbead-20&linkId=fa7595a5963c6260fd05d3dca6d8d9f7&language=en_US&ref_=as_li_ss_tl)
+Here is an amazon link for 3 ESP32-Cams and programmers without the proper cameras [here](https://www.amazon.com/ESP32-CAM-ESP32-CAM-MB-Development-Compatible-Raspberry/dp/B097H2KLCH?crid=1A1UYKT1Z3MZ6&keywords=espcam32&qid=1656094793&sprefix=espca,aps,114&sr=8-3&linkCode=sl1&tag=alexanderbead-20&linkId=fa7595a5963c6260fd05d3dca6d8d9f7&language=en_US&ref_=as_li_ss_tl)
 
 - 1x USB type-A male port to power both ESPs
 
 [Bare breakout on AliExpress here](https://www.aliexpress.com/item/2255801092919590.html?spm=a2g0o.productlist.0.0.33fa704cNwXXlG&algo_pvid=6e43e022-3366-4beb-865b-2efb26b09c31&algo_exp_id=6e43e022-3366-4beb-865b-2efb26b09c31-2&pdp_ext_f=%7B%22sku_id%22%3A%2210000015583716962%22%7D&pdp_npi=2%40dis%21USD%210.63%210.57%21%21%21%21%21%40210318cb16603411009925346e6d32%2110000015583716962%21sea&curPageLogUid=1jn4Kch58pW5)
 
 [Or one with a cover on AliExpress here](https://www.aliexpress.com/item/2251832820552545.html?spm=a2g0o.productlist.0.0.24906d82STgtT2&algo_pvid=215ca169-e724-4aef-8cd4-597ceeb899f2&algo_exp_id=215ca169-e724-4aef-8cd4-597ceeb899f2-0&pdp_ext_f=%7B%22sku_id%22%3A%2267040749896%22%7D&pdp_npi=2%40dis%21USD%211.14%211.13%21%21%21%21%21%402101d64d16603413470056035e536c%2167040749896%21sea&curPageLogUid=ziYPxg6un38w)
+
+[Or this one for more plug and play power](https://es.aliexpress.com/item/3256802826910871.html?spm=a2g0o.productlist.0.0.592c2d4fAXThal&algo_pvid=41a349ba-5582-4aff-9eed-70745cad6f1a&algo_exp_id=41a349ba-5582-4aff-9eed-70745cad6f1a-0&pdp_ext_f=%7B%22sku_id%22%3A%2212000023231721054%22%7D&pdp_npi=2%40dis%21USD%211.92%211.8%21%21%21%21%21%40210318d116603418291097152e829e%2112000023231721054%21sea&curPageLogUid=V05SfF2D6xcN)
+
+{% include custom/alerts/Note.html content=" Note that with the above cable if you use the connectors included you will need 1 USB per ESP and another for the IR emitters. I would recommend not using the connectors because you would be using more USB ports than necessary. Also, note that data is not used so I would not get the variant with data cables. " %}
+
 
 - 1x Lower gauge wire to power ESPs
 [28 gauge wire from AliExpress here](https://a.aliexpress.com/_mK72cy6)
