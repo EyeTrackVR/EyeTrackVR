@@ -24,7 +24,7 @@ Here is an amazon link for 3 esps and programmers without the proper cameras [he
 
 - 1x USB type-A male port to power both ESPs
 
-[Bare breakout on AliExpress here](https://www.aliexpress.com/item/2255801092919590.html?spm=a2g0o.productlist.0.0.33fa704cNwXXlG&algo_pvid=6e43e022-3366-4beb-865b-2efb26b09c31&algo_exp_id=6e43e022-3366-4beb-865b-2efb26b09c31-2&pdp_ext_f=%7B%22sku_id%22%3A%2210000015583716962%22%7D&pdp_npi=2%40dis%21USD%210.63%210.57%21%21%21%21%21%40210318cb16603411009925346e6d32%2110000015583716962%21sea&curPageLogUid=1jn4Kch58pW5))
+[Bare breakout on AliExpress here](https://www.aliexpress.com/item/2255801092919590.html?spm=a2g0o.productlist.0.0.33fa704cNwXXlG&algo_pvid=6e43e022-3366-4beb-865b-2efb26b09c31&algo_exp_id=6e43e022-3366-4beb-865b-2efb26b09c31-2&pdp_ext_f=%7B%22sku_id%22%3A%2210000015583716962%22%7D&pdp_npi=2%40dis%21USD%210.63%210.57%21%21%21%21%21%40210318cb16603411009925346e6d32%2110000015583716962%21sea&curPageLogUid=1jn4Kch58pW5)
 
 [Or one with a cover on AliExpress here](https://www.aliexpress.com/item/2251832820552545.html?spm=a2g0o.productlist.0.0.24906d82STgtT2&algo_pvid=215ca169-e724-4aef-8cd4-597ceeb899f2&algo_exp_id=215ca169-e724-4aef-8cd4-597ceeb899f2-0&pdp_ext_f=%7B%22sku_id%22%3A%2267040749896%22%7D&pdp_npi=2%40dis%21USD%211.14%211.13%21%21%21%21%21%402101d64d16603413470056035e536c%2167040749896%21sea&curPageLogUid=ziYPxg6un38w)
 
