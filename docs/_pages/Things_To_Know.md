@@ -25,4 +25,4 @@ Important steps may be missing.
 ### You will need to set up your avatar to use this.
 This will require some basic Unity knowledge and owning your own avatar.
 
-### Once you have acknowledged the items above, move on to the [full build guide](https://redhawk989.github.io/EyeTrackVR/full-build-guide/)
+### Once you have acknowledged the items above, move on to the [Full Build Guide](https://redhawk989.github.io/EyeTrackVR/full-build-guide/)
