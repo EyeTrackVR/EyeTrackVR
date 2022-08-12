@@ -2,7 +2,7 @@
 layout: page
 title: Full Build Guide
 permalink: /full-build-guide/
-nav_order: 5
+nav_order: 1
 parent: How to build
 ---
 
