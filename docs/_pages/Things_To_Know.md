@@ -13,7 +13,7 @@ parent: Getting Started
 Bugs can and will occur which may hinder the experience or useability at times.
 Do not expect 100% reliable and perfect function.
 
-### Firmware may have user dificulties.
+### Firmware may have user difficulties.
 Our firmware has not been tested widely so issues may creep up.
 
 ### IR emitters are dangerous.
@@ -25,3 +25,4 @@ Important steps may be missing.
 ### You will need to set up your avatar to use this.
 This will require some basic Unity knowledge and owning your own avatar.
 
+### Once you have acknowledged the items above, move on to the [full build guide](https://redhawk989.github.io/EyeTrackVR/full-build-guide/)
