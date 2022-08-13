@@ -12,7 +12,7 @@ import json
 @dataclass
 class EyeTrackCameraConfig:
     threshold: "int" = 0
-    rotation_angle: "int" = 0
+    rotation_angle: "int" = 50
     roi_window_x: "int" = 0
     roi_window_y: "int" = 0
     roi_window_w: "int" = 0
@@ -20,7 +20,7 @@ class EyeTrackCameraConfig:
     focal_length: "int" = 30
     capture_source: "Union[int, str, None]" = None
     vrc_eye_position_scalar: "int" = 3000
-    show_color_image: "bool" = False
+    #show_color_image: "bool" = False
 
 
 CONFIG_FILE_NAME = "eyetrack_settings.json"

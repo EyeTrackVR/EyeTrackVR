@@ -33,10 +33,10 @@ class VRChatOSC:
                 self.client.send_message("/avatar/parameters/LeftEye", eye_info.x)
                 self.client.send_message("/avatar/parameters/EyesY", eye_info.y)
                 if was_blinking:
-                    self.client.send_message("/avatar/parameters/LeftEyeLid", float(1))
-                    self.client.send_message("/avatar/parameters/RightEyeLid", float(1))
+                    self.client.send_message("/avatar/parameters/LeftEyeLid", float(0))
+                    self.client.send_message("/avatar/parameters/RightEyeLid", float(0))
                     was_blinking = False
             else:
-                self.client.send_message("/avatar/parameters/LeftEyeLid", float(0))
-                self.client.send_message("/avatar/parameters/RightEyeLid", float(0))
+                self.client.send_message("/avatar/parameters/LeftEyeLid", float(1))
+                self.client.send_message("/avatar/parameters/RightEyeLid", float(1))
                 was_blinking = True

@@ -26,7 +26,7 @@ class CameraWidget:
         self.gui_restart_calibration = f"-RESTARTCALIBRATION{widget_id}-"
         self.gui_recenter_eye = f"-RECENTEREYE{widget_id}-"
         self.gui_mode_readout = f"-APPMODE{widget_id}-"
-        self.gui_show_color_image = f"-SHOWCOLORIMAGE{widget_id}-"
+       # self.gui_show_color_image = f"-SHOWCOLORIMAGE{widget_id}-"
         self.gui_roi_message = f"-ROIMESSAGE{widget_id}-"
 
         self.osc_queue = osc_queue
@@ -57,7 +57,7 @@ class CameraWidget:
             [
                 sg.Text("Threshold"),
                 sg.Slider(
-                    range=(0, 100),
+                    range=(0, 110),
                     default_value=self.config.threshold,
                     orientation="h",
                     key=self.gui_threshold_slider,
@@ -84,11 +84,11 @@ class CameraWidget:
             [
                 sg.Button("Restart Calibration", key=self.gui_restart_calibration),
                 sg.Button("Recenter Eye", key=self.gui_recenter_eye),
-                sg.Checkbox(
-                    "Show Color Image:",
-                    default=self.config.show_color_image,
-                    key=self.gui_show_color_image,
-                ),
+                #sg.Checkbox(
+                #    "Show Color Image:",
+                #    default=self.config.show_color_image,
+               #     key=self.gui_show_color_image,
+                #),
             ],
             [sg.Text("Mode:"), sg.Text("Calibrating", key=self.gui_mode_readout)],
             [sg.Image(filename="", key=self.gui_tracking_image)],
@@ -210,9 +210,9 @@ class CameraWidget:
             self.config.vrc_eye_position_scalar = int(values[self.gui_scalar_slider])
             changed = True
 
-        if self.config.show_color_image != values[self.gui_show_color_image]:
-            self.config.show_color_image = values[self.gui_show_color_image]
-            changed = True
+       # if self.config.show_color_image != values[self.gui_show_color_image]:
+        #    self.config.show_color_image = values[self.gui_show_color_image]
+         #   changed = True
 
         if changed:
             self.main_config.save()

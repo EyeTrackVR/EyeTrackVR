@@ -1,4 +1,4 @@
-# -*- mode: python ; coding: utf-8 -*-
+# -*- mode: py -3.6 ; coding: utf-8 -*-
 
 
 block_cipher = None

@@ -25,11 +25,11 @@ class VRChatOSC:
         self.client = udp_client.SimpleUDPClient(VRChatOSC.OSC_IP, VRChatOSC.OSC_PORT)
         self.cancellation_event = cancellation_event
         self.msg_queue = msg_queue
+        yl = 0
+        yr = 0
 
     def run(self):
-        # Set blinking status to true when we start, just so we make sure we get to an eyelid open state
-        # no matter what.
-        was_blinking = True
+
         while True:
             if self.cancellation_event.is_set():
                 print("Exiting OSC Queue")
@@ -39,41 +39,55 @@ class VRChatOSC:
             except queue.Empty:
                 continue
             # If we're not blinking, set position
+            print(eye_info.blink)
             if not eye_info.blink:
                 if eye_id in [EyeId.RIGHT, EyeId.BOTH]:
                     self.client.send_message(
-                        "/avatar/parameters/RightEye", eye_info.x
+                        "/avatar/parameters/RightEyeX", eye_info.x
                     )
-                    self.client.send_message(
-                        "/avatar/parameters/EyesDilation", eye_info.pupil_dialation
-                    )
+                   # self.client.send_message(
+                   #     "/avatar/parameters/EyesDilation", eye_info.pupil_dialation
+                    #)
                 if eye_id in [EyeId.LEFT, EyeId.BOTH]:
                     self.client.send_message(
-                        "/avatar/parameters/LeftEye", eye_info.x
+                        "/avatar/parameters/LeftEyeX", eye_info.x
                     )
-                    self.client.send_message(
-                        "/avatar/parameters/EyesDilation", eye_info.pupil_dialation
-                    )
+
                     
-                    
-                self.client.send_message("/avatar/parameters/EyesY", eye_info.y)
-                if was_blinking:
-                    if eye_id in [EyeId.LEFT, EyeId.BOTH]:
-                        self.client.send_message(
-                            "/avatar/parameters/LeftEyeLid", float(1)
-                        )
-                    if eye_id in [EyeId.RIGHT, EyeId.BOTH]:
-                        self.client.send_message(
-                            "/avatar/parameters/RightEyeLid", float(1)
-                        )
-                    was_blinking = False
-            else:
                 if eye_id in [EyeId.LEFT, EyeId.BOTH]:
+                    yl = eye_info.y
+                    print('left y', yl)
+
+                if eye_id in [EyeId.RIGHT, EyeId.BOTH]:
+                    yr = eye_info.y
+                    print('right y', yr)
+
+                try:
+                    y = abs((yl + yr) / 2)
+                    self.client.send_message("/avatar/parameters/EyesY", y)
+                except:
+                    print('Y ERROR')
+
+                if eye_id in [EyeId.LEFT, EyeId.BOTH]:
+                    
                     self.client.send_message(
                         "/avatar/parameters/LeftEyeLid", float(0)
                     )
                 if eye_id in [EyeId.RIGHT, EyeId.BOTH]:
+                    
                     self.client.send_message(
                         "/avatar/parameters/RightEyeLid", float(0)
                     )
-                was_blinking = True
+
+            else:
+                if eye_id in [EyeId.LEFT, EyeId.BOTH]:
+                    
+                    self.client.send_message(
+                        "/avatar/parameters/LeftEyeLid", float(1)
+                    )
+                if eye_id in [EyeId.RIGHT, EyeId.BOTH]:
+                    
+                    self.client.send_message(
+                        "/avatar/parameters/RightEyeLid", float(1)
+                    )
+

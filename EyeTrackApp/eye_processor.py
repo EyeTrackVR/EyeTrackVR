@@ -198,23 +198,23 @@ class EyeProcessor:
     def output_images_and_update(
         self, threshold_image, output_information: EyeInformation
     ):
-        if self.config.show_color_image:
-            image_stack = np.concatenate(
-                (
-                    self.current_image,
-                    cv2.cvtColor(self.current_image_gray, cv2.COLOR_GRAY2BGR),
-                    cv2.cvtColor(threshold_image, cv2.COLOR_GRAY2BGR),
-                ),
-                axis=1,
-            )
-        else:
-            image_stack = np.concatenate(
-                (
-                    cv2.cvtColor(self.current_image_gray, cv2.COLOR_GRAY2BGR),
-                    cv2.cvtColor(threshold_image, cv2.COLOR_GRAY2BGR),
-                ),
-                axis=1,
-            )
+       # if self.config.show_color_image:
+         #   image_stack = np.concatenate(
+        #        (
+        #            self.current_image,
+          #          cv2.cvtColor(self.current_image_gray, cv2.COLOR_GRAY2BGR),
+         #           cv2.cvtColor(threshold_image, cv2.COLOR_GRAY2BGR),
+         #       ),
+          #      axis=1,
+          #  )
+       # else:
+        image_stack = np.concatenate(
+            (
+                cv2.cvtColor(self.current_image_gray, cv2.COLOR_GRAY2BGR),
+                cv2.cvtColor(threshold_image, cv2.COLOR_GRAY2BGR),
+            ),
+            axis=1,
+        )
         self.image_queue_outgoing.put((image_stack, output_information))
         self.previous_image = self.current_image
         self.previous_rotation = self.config.rotation_angle
@@ -258,7 +258,7 @@ class EyeProcessor:
         # something to do blob tracking on.
         _, larger_threshold = cv2.threshold(
             self.current_image_gray,
-            int(self.config.threshold + 25),
+            int(self.config.threshold + 15),
             255,
             cv2.THRESH_BINARY,
         )
@@ -273,7 +273,7 @@ class EyeProcessor:
             return
 
 
-         
+
 # define circle
         try:
             ht, wd = self.current_image_gray.shape[:2]
@@ -310,7 +310,7 @@ class EyeProcessor:
                 raise RuntimeError("No contours found for image")
         except:
             self.output_images_and_update(
-                larger_threshold, EyeInformation(InformationOrigin.FAILURE, 0, 0, False)
+                larger_threshold, EyeInformation(InformationOrigin.FAILURE, 0, 0, 0, False)
             )
             return
 
@@ -392,7 +392,7 @@ class EyeProcessor:
 
             self.output_images_and_update(
                 larger_threshold,
-                EyeInformation(InformationOrigin.BLOB, out_x, out_y, w, False),
+                EyeInformation(InformationOrigin.BLOB, out_x, out_y, 0, False),
             )
             return
         self.output_images_and_update(
