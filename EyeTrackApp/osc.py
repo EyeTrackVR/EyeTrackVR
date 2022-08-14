@@ -28,6 +28,11 @@ class VRChatOSC:
         yl = 0
         yr = 0
 
+        sx = 0 
+        se = 0
+
+
+
     def run(self):
 
         while True:
@@ -38,10 +43,12 @@ class VRChatOSC:
                 (eye_id, eye_info) = self.msg_queue.get(block=True, timeout=0.1)
             except queue.Empty:
                 continue
-            # If we're not blinking, set position
+  
+                    
             print(eye_info.blink)
             if not eye_info.blink:
                 if eye_id in [EyeId.RIGHT, EyeId.BOTH]:
+                    sx = eye_info.x
                     self.client.send_message(
                         "/avatar/parameters/RightEyeX", eye_info.x
                     )
@@ -49,11 +56,11 @@ class VRChatOSC:
                    #     "/avatar/parameters/EyesDilation", eye_info.pupil_dialation
                     #)
                 if eye_id in [EyeId.LEFT, EyeId.BOTH]:
+                    sx = eye_info.x
                     self.client.send_message(
                         "/avatar/parameters/LeftEyeX", eye_info.x
                     )
-
-                    
+ 
                 if eye_id in [EyeId.LEFT, EyeId.BOTH]:
                     yl = eye_info.y
                     print('left y', yl)
@@ -65,9 +72,15 @@ class VRChatOSC:
                 try:
                     y = abs((yl + yr) / 2)
                     self.client.send_message("/avatar/parameters/EyesY", y)
+                    se = 0
                 except:
-                    print('Y ERROR')
-
+                    se = 1
+                    self.client.send_message("/avatar/parameters/LeftEyeX", sx)  # only one eye is detected or there is an error. Send mirrored data to both eyes.
+                    self.client.send_message("/avatar/parameters/RightEyeX", sx)
+                    self.client.send_message("/avatar/parameters/RightEyeLid", float(0))
+                    self.client.send_message("/avatar/parameters/LeftEyeLid", float(0))
+                    
+                    
                 if eye_id in [EyeId.LEFT, EyeId.BOTH]:
                     
                     self.client.send_message(
@@ -78,6 +91,8 @@ class VRChatOSC:
                     self.client.send_message(
                         "/avatar/parameters/RightEyeLid", float(0)
                     )
+
+
 
             else:
                 if eye_id in [EyeId.LEFT, EyeId.BOTH]:
@@ -90,4 +105,8 @@ class VRChatOSC:
                     self.client.send_message(
                         "/avatar/parameters/RightEyeLid", float(1)
                     )
+                if se == 1:
+                    self.client.send_message("/avatar/parameters/RightEyeLid", float(1))
+                    self.client.send_message("/avatar/parameters/LeftEyeLid", float(1))
 
+    
