@@ -106,7 +106,7 @@ class CameraWidget:
                     drag_submits=True,
                     enable_events=True,
                 ),
-                sg.Text("Please set an Eye Cropping.", key=self.gui_roi_message, visible=False),
+                sg.Text("Please set an Eye Cropping.", key=self.gui_roi_message, background_color='#424042', visible=False),
             ],
         ]
 
