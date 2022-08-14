@@ -47,24 +47,27 @@ def main():
         CameraWidget(EyeId.RIGHT, config, osc_queue),
         CameraWidget(EyeId.LEFT, config, osc_queue),
     ]
-
+   
     layout = [
         [
             sg.Radio(
                 "Right Eye",
-                "EYESELECTRADIO",
+                "EYESELECTRADIO", 
+                background_color='#292929',
                 default=(config.eye_display_id == EyeId.RIGHT),
                 key=RIGHT_EYE_RADIO_NAME,
             ),
             sg.Radio(
                 "Left Eye",
-                "EYESELECTRADIO",
+                "EYESELECTRADIO", 
+                background_color='#292929',
                 default=(config.eye_display_id == EyeId.LEFT),
                 key=LEFT_EYE_RADIO_NAME,
             ),
             sg.Radio(
                 "Both Eyes",
-                "EYESELECTRADIO",
+                "EYESELECTRADIO", 
+                background_color='#292929',
                 default=(config.eye_display_id == EyeId.BOTH),
                 key=BOTH_EYE_RADIO_NAME,
             ),
@@ -75,12 +78,14 @@ def main():
                 vertical_alignment="top",
                 key=RIGHT_EYE_NAME,
                 visible=(config.eye_display_id in [EyeId.RIGHT, EyeId.BOTH]),
+                background_color='#424042',
             ),
             sg.Column(
                 eyes[1].widget_layout,
                 vertical_alignment="top",
                 key=LEFT_EYE_NAME,
                 visible=(config.eye_display_id in [EyeId.LEFT, EyeId.BOTH]),
+                background_color='#424042',
             ),
         ],
     ]
@@ -91,7 +96,7 @@ def main():
         eyes[1].start()
 
     # Create the window
-    window = sg.Window("EyeTrackVR v0.0.10", layout)
+    window = sg.Window("EyeTrackVR v0.1.1", layout, icon='logo.ico', background_color='#292929')
 
     # GUI Render loop
     while True:

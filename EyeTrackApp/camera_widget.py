@@ -48,6 +48,7 @@ class CameraWidget:
                     key=self.gui_roi_selection,
                     drag_submits=True,
                     enable_events=True,
+                    background_color='#424042', 
                 )
             ]
         ]
@@ -55,42 +56,45 @@ class CameraWidget:
         # Define the window's contents
         self.tracking_layout = [
             [
-                sg.Text("Threshold"),
+                sg.Text("Threshold", background_color='#424042'),
                 sg.Slider(
                     range=(0, 110),
                     default_value=self.config.threshold,
                     orientation="h",
                     key=self.gui_threshold_slider,
+                    background_color='#424042'
                 ),
             ],
             [
-                sg.Text("Rotation"),
+                sg.Text("Rotation", background_color='#424042'),
                 sg.Slider(
                     range=(0, 360),
                     default_value=self.config.rotation_angle,
                     orientation="h",
                     key=self.gui_rotation_slider,
+                    background_color='#424042'
                 ),
             ],
             [
-                sg.Text("Eye Position Scalar"),
+                sg.Text("Eye Position Scalar", background_color='#424042'),
                 sg.Slider(
                     range=(0, 5000),
                     default_value=self.config.vrc_eye_position_scalar,
                     orientation="h",
                     key=self.gui_scalar_slider,
+                    background_color='#424042'
                 ),
             ],
             [
-                sg.Button("Restart Calibration", key=self.gui_restart_calibration),
-                sg.Button("Recenter Eye", key=self.gui_recenter_eye),
+                sg.Button("Restart Calibration", key=self.gui_restart_calibration, button_color = '#6f4ca1'),
+                sg.Button("Recenter Eye", key=self.gui_recenter_eye, button_color = '#6f4ca1'),
                 #sg.Checkbox(
                 #    "Show Color Image:",
                 #    default=self.config.show_color_image,
                #     key=self.gui_show_color_image,
                 #),
             ],
-            [sg.Text("Mode:"), sg.Text("Calibrating", key=self.gui_mode_readout)],
+            [sg.Text("Mode:", background_color='#424042'), sg.Text("Calibrating", key=self.gui_mode_readout, background_color='#424042')],
             [sg.Image(filename="", key=self.gui_tracking_image)],
             [
                 sg.Graph(
@@ -102,27 +106,27 @@ class CameraWidget:
                     drag_submits=True,
                     enable_events=True,
                 ),
-                sg.Text("Please set ROI.", key=self.gui_roi_message, visible=False),
+                sg.Text("Please set an Eye Cropping.", key=self.gui_roi_message, visible=False),
             ],
         ]
 
         self.widget_layout = [
             [
-                sg.Text("Camera Address"),
+                sg.Text("Camera Address", background_color='#424042'),
                 sg.InputText(self.config.capture_source, key=self.gui_camera_addr),
             ],
             [
                 sg.Button(
-                    "Save and Restart Tracking", key=self.gui_save_tracking_button
+                    "Save and Restart Tracking", key=self.gui_save_tracking_button, button_color = '#6f4ca1'
                 ),
             ],
             [
-                sg.Button("Tracking Mode", key=self.gui_tracking_button),
-                sg.Button("ROI Mode", key=self.gui_roi_button),
+                sg.Button("Tracking Mode", key=self.gui_tracking_button, button_color = '#6f4ca1'),
+                sg.Button("Cropping Mode", key=self.gui_roi_button, button_color = '#6f4ca1'),
             ],
             [
-                sg.Column(self.tracking_layout, key=self.gui_tracking_layout),
-                sg.Column(self.roi_layout, key=self.gui_roi_layout, visible=False),
+                sg.Column(self.tracking_layout, key=self.gui_tracking_layout, background_color='#424042' ),
+                sg.Column(self.roi_layout, key=self.gui_roi_layout, background_color='#424042', visible=False),
             ],
         ]
 
@@ -224,7 +228,7 @@ class CameraWidget:
             window[self.gui_roi_layout].update(visible=False)
             window[self.gui_tracking_layout].update(visible=True)
         elif event == self.gui_roi_button:
-            print("move to roi mode")
+            print("Move to roi mode")
             self.in_roi_mode = True
             self.camera.set_output_queue(self.roi_queue)
             window[self.gui_roi_layout].update(visible=True)
@@ -260,7 +264,7 @@ class CameraWidget:
         elif self.camera.camera_status == CameraState.DISCONNECTED:
             window[self.gui_mode_readout].update("CAMERA DISCONNECTED")
         elif needs_roi_set:
-            window[self.gui_mode_readout].update("Awaiting ROI Setting")
+            window[self.gui_mode_readout].update("Awaiting Eye Cropping Setting")
         elif self.ransac.calibration_frame_counter != None:
             window[self.gui_mode_readout].update("Calibration")
         else:
@@ -282,7 +286,7 @@ class CameraWidget:
                 graph.draw_image(data=imgbytes, location=(0, 0))
                 if None not in (self.x0, self.y0, self.x1, self.y1):
                     self.figure = graph.draw_rectangle(
-                        (self.x0, self.y0), (self.x1, self.y1), line_color="blue"
+                        (self.x0, self.y0), (self.x1, self.y1), line_color="#6f4ca1"
                     )
             except Empty:
                 pass
@@ -314,7 +318,7 @@ class CameraWidget:
                         line_color="white",
                     )
                 elif eye_info.blink:
-                    graph.update(background_color="blue")
+                    graph.update(background_color="#6f4ca1")
                 elif eye_info.info_type == InformationOrigin.FAILURE:
                     graph.update(background_color="red")
 
