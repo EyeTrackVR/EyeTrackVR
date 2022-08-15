@@ -275,6 +275,8 @@ Find which parts are for your headset and print them.
 Some may work better or worse, it is recommended to test all of them if there are multiple, print one of each kind.
 If none work, try making an edit yourself if you have the skills. If you have made a mount make sure to ping me, `Prohurtz#0001`, so I can add them to the list.
 
+Having trouble getting them to fit? Try resizing the mounts up, or down a little to ensure a good fit.
+
 There are 2 different types of mounts, how to secure the camera to each type will be documented below.
 
 
