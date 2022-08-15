@@ -16,27 +16,32 @@ Download the [latest Visual Studio Code](https://code.visualstudio.com/download)
 
 ### Download
 
-![img](https://i.imgur.com/jXPXIFz.gif)
+{% include custom/images/image_2.html url="https://i.imgur.com/jXPXIFz.gif" max-width="500" caption="" alt="" %}
 
 ### Install
 
-![img](https://i.imgur.com/hAm3Zu0.gif)
+
+{% include custom/images/image_2.html url="https://i.imgur.com/hAm3Zu0.gif" max-width="500" caption="" alt="" %}
 
 ## 2. Install PlatformIO IDE
 
 Once Visual Studio Code is installed, open it and install [PlatformIO IDE for VSCode](https://marketplace.visualstudio.com/items?itemName=platformio.platformio-ide), an extension that will allow you to connect to the tracker, build and upload the firmware.
 
-![img](https://i.imgur.com/ebV0IgT.gif)
+{% include custom/images/image_2.html url="https://i.imgur.com/ebV0IgT.gif" max-width="500" caption="" alt="" %}
+
 
 
 ## 3. Clone the firmware project
 
 Make sure you close any current projects you have open or open a new window before moving forward with these steps.
 
-1. Go to [https://github.com/lorow/OpenIris](https://github.com/lorow/OpenIris) and download the code.
+1. Go to [https://github.com/lorow/OpenIris](https://github.com/lorow/OpenIris) and download the latest version of the code. 
+
+2. Extract the zip, take note of the path it is in for when we open it in Platform IO. 
 
 3. Open the firmware in VS Code by going to PlatformIO, selecting open, then navigating to OpenIris ESP folder and opening it.
    
+{% include custom/images/image_2.html url="https://i.imgur.com/c61Cpaz.gif" max-width="500" caption="" alt="" %}
 
 
 
