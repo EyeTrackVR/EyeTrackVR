@@ -1,7 +1,7 @@
 ---
 layout: default
 title: Software Guide
-nav_order: 11
+nav_order: 10
 has_children: false
 permalink: /software-guide/
 ---
@@ -31,7 +31,7 @@ If it has been successfully installed it should change to look like this:
 If the `Create Desktop Shortcut` option was checked you should see an icon on your desktop, double click it to run.
 
 You then should be greeted with a GUI that looks like this:
-{% include custom/images/image_2.html url="https://i.imgur.com/oId9CUk.png" max-width="500" caption="" alt="" %}
+{% include custom/images/image_2.html url="https://i.imgur.com/z6V7A71.png" max-width="500" caption="" alt="" %}
 
 ## Step 3: Getting familiar with settings and terminology.
 
@@ -55,8 +55,8 @@ Alternatively, it can be used to put the cam number for wired cameras or pass in
 ### `Tracking Mode`: 
 This changes the GUI to the tracking mode where it outputs values.
 
-### `ROI Mode`: 
-ROI or Region of Intrest is where you will crop out your eye. 
+### `Cropping Mode`: 
+This is where you will crop out your eye. 
 
 ### `Threshold`: 
 This is used to cut out things that aren't dark like your pupil.
@@ -75,8 +75,6 @@ This will start a calibration mode for your eye where you look to all extremes.
 ### `Recenter Eye`: 
 This will recenter your eye to whatever point you are looking at.
 
-### `Show color Image`
-Shows Color feed from camera source. Will be removed in a future version.
 
 ## Step 4: Adding your cameras to the software and configuring them.
 Power your ESPs and find what the IP address is for your right eye. This can be done by opening both Cameras in a browser and then holding your finger over your right eye camera. 
@@ -87,15 +85,15 @@ Enter that IP address into the app's `Camera Address` field and press the `Save 
 
 Don't see your camera feed? That's because we haven't set an ROI.
 
-{% include custom/images/image_2.html url="https://i.imgur.com/PKkjw9s.png" max-width="500" caption="See the Awating ROI Settings text?" alt="" %}
+{% include custom/images/image_2.html url="https://i.imgur.com/MJb2h74.png" max-width="500" caption="See the Awating Eye Cropping Settings text?" alt="" %}
 
-Now press the `ROI Mode` button.
+Now press the `Cropping Mode` button.
 You should see a feed of your camera.
 
 Put your headset on and use an application to see your desktop. (Virtual desktop, SteamVR desktop, etc.)
 
 You should see something like this:
-{% include custom/images/image_2.html url="https://i.imgur.com/1ksGmGU.png" max-width="500" caption=":O It's my eye!" alt="" %}
+{% include custom/images/image_2.html url="https://i.imgur.com/1pNYITS.png" max-width="500" caption=":O It's my eye!" alt="" %}
 
 Now, Draw a rectangle that selects your eye.
 
