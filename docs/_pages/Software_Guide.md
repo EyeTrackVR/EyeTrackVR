@@ -98,7 +98,7 @@ You should see something like this:
 Now, Draw a rectangle that selects your eye.
 
 A good example of an ROI
-{% include custom/images/image_2.html url="https://i.imgur.com/iw7o0VT.png" max-width="500" caption="" alt="" %}
+{% include custom/images/image_2.html url="https://i.imgur.com/HZSvFBv.png" max-width="500" caption="" alt="" %}
 
 Head back over to the `Tracking mode`.
 
