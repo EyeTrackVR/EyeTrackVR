@@ -72,7 +72,6 @@ This ensures you get the correct IR emitter parts.
 
 - 1x Soldering iron and solder (lead free solder highly recommended)
 
-## 3d Printed Parts
 
 {% include custom/3d_printed_parts/Parts.html %}
 
