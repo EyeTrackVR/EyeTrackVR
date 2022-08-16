@@ -21,7 +21,7 @@ This will contain a list of features that are in progress, completed, and planne
 - [X] Dual eye support
 - [X] Firmware
 - [X] Better documentation over things (setup, wiring etc.)
-- 
+
 ## In Progress
 
 
@@ -31,7 +31,8 @@ This will contain a list of features that are in progress, completed, and planne
 - [ ] Auto threshold's
 - [ ] Setup WiFi credentials for ESPs through non-firmware means
 - [ ] Setup flashing of ESPs through anything other than VSC
-- [ ] 
+
+
 ## Planned
 
 - [ ] Support for implementation with VRCFT (binary parameters etc.)
