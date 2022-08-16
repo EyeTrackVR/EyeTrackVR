@@ -9,11 +9,15 @@
       desc: "Camera and IR emitter mount by Arkfall"
       
       
-    - url: "https://www.thingiverse.com/thing:5400548"
+    - url: "https://github.com/RedHawk989/EyeTrackVR-Hardware/blob/main/3d_Printed_Mounts/Quest_2/Prohurtz/EyeTrack_Arkfall_Quest_2_Mount_Edit_By_Prourtz.stl"
       desc: "Camera and IR emitter mount by Prohurtz"
       
     - url: "https://github.com/RedHawk989/EyeTrackVR-Hardware/blob/main/3d_Printed_Mounts/Quest_2/Arkfall/Quest_2_ESP_Mount_v2_By_Arkfall.stl"
       desc: "ESP mount by Arkfall"
+ 
+     - url: "https://github.com/RedHawk989/EyeTrackVR-Hardware/blob/main/3d_Printed_Mounts/Quest_2/Prohurtz/Quest_2_ESP_Mounts_By_Prohurtz.stl"
+      desc: "ESP mount by Prohurtz"
+ 
   threed_link_id: 1
 
 - hmd: "Valve Index"
@@ -33,6 +37,7 @@
   hyper_links:
     - url: "https://github.com/RedHawk989/EyeTrackVR-Hardware/blob/main/3d_Printed_Mounts/Samsung_Odyssey%2B/Breakdown/Samsung%20Odyssey%2B%20Left%20by%20Breakdown.stl"
       desc: "Camera and IR emitter mount by Breakdown"
+      
       
   threed_link_id: 3
 ---
