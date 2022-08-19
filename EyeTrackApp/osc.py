@@ -62,12 +62,10 @@ class VRChatOSC:
                     )
  
                 if eye_id in [EyeId.LEFT, EyeId.BOTH]:
-                    yl = eye_info.y
-                    print('left y', yl)
+                    yl = eye_info.y 
 
                 if eye_id in [EyeId.RIGHT, EyeId.BOTH]:
                     yr = eye_info.y
-                    print('right y', yr)
 
                 try:
                     y = abs((yl + yr) / 2)
