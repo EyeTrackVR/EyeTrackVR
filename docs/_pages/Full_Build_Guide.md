@@ -52,7 +52,7 @@ parent: How to build
 ## Step 1: Make sure your have read the [Things to know before you start](https://redhawk989.github.io/EyeTrackVR/things-to-know) guide.
 This will give you a basic overview of the project's status and what to expect currently.
 
-## Step 2: Order all the parts listed on our [Parts list](https://redhawk989.github.io/EyeTrackVR/parts-list/)
+## Step 2: Order all the parts listed on our [Parts list](https://redhawk989.github.io/EyeTrackVR/partslist/)
 Please take note of the fact that hardware still may change, although with more developments it seems like we are going to stick with current hardware.
 
 ## Step 3: Wait for things to arrive.
