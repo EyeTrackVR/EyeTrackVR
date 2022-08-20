@@ -382,11 +382,9 @@ class EyeProcessor:
             if xl > 0:
                 out_x = -abs(max(0.0, min(1.0, xl)))
             if yd > 0:
-                out_y = -abs(max(0.0, min(1.0, yd)))
+                out_y = max(0.0, min(1.0, yd))
             if yu > 0:
-                out_y = max(0.0, min(1.0, yu))
-
-
+                out_y = -abs(max(0.0, min(1.0, yu)))
 
 
 
@@ -640,12 +638,10 @@ class EyeProcessor:
             if xl > 0:
                 out_x = -abs(max(0.0, min(1.0, xl)))
             if yd > 0:
-                out_y = -abs(max(0.0, min(1.0, yd)))
+                out_y = max(0.0, min(1.0, yd))
             if yu > 0:
-                out_y = max(0.0, min(1.0, yu))
+                out_y = -abs(max(0.0, min(1.0, yu)))
 
-
-           
 
 
 

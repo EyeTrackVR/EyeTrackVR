@@ -45,7 +45,7 @@ class VRChatOSC:
                 continue
   
                     
-            print(eye_info.blink)
+          
             if not eye_info.blink:
                 if eye_id in [EyeId.RIGHT, EyeId.BOTH]:
                     sx = eye_info.x
@@ -68,7 +68,7 @@ class VRChatOSC:
                     yr = eye_info.y
 
                 try:
-                    y = abs((yl + yr) / 2)
+                    y = (yr + yl) / 2
                     self.client.send_message("/avatar/parameters/EyesY", y)
                     se = 0
                 except:
