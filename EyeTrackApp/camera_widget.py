@@ -311,6 +311,12 @@ class CameraWidget:
                     and not eye_info.blink
                 ):
                     graph.update(background_color="white")
+
+                    if eye_info.y < 0: # flip visualzation to be correct
+                        eye_info.y = abs(eye_info.y)
+                    elif eye_info.y >= 0:
+                        eye_info.y = -abs(eye_info.y)
+
                     graph.draw_circle(
                         (eye_info.x * -100, eye_info.y * -100),
                         25,

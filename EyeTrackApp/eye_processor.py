@@ -258,7 +258,7 @@ class EyeProcessor:
         # something to do blob tracking on.
         _, larger_threshold = cv2.threshold(
             self.current_image_gray,
-            int(self.config.threshold + 15),
+            int(self.config.threshold + 20),
             255,
             cv2.THRESH_BINARY,
         )
@@ -321,7 +321,7 @@ class EyeProcessor:
             # if our blob width/height are within suitable (yet arbitrary) boundaries, call that good.
             #
             # TODO This should be scaled based on camera resolution.
-            if not 8 <= h <= 30 or not 8 <= w <= 30:
+            if not 6 <= h <= 25 or not 6 <= w <= 25:
                 continue
             cx = x + int(w / 2)
             cy = y + int(h / 2)
