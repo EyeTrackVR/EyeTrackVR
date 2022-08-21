@@ -165,10 +165,10 @@ class EyeProcessor:
         self.calibration_frame_counter = None
         self.eyeoffx = 1
 
-        self.xmax = 69420
-        self.xmin = -69420
-        self.ymax = 69420
-        self.ymin = -69420
+        self.xmax = -69420
+        self.xmin = 69420
+        self.ymax = -69420
+        self.ymin = 69420
         self.previous_rotation = self.config.rotation_angle
         self.recenter_eye = False
         self.calibration_frame_counter
@@ -595,6 +595,7 @@ class EyeProcessor:
                 self.xoff = exm
                 self.yoff = eym
             elif self.calibration_frame_counter != None:
+                print('CALIBRATING')
                 if exm > self.xmax:
                     self.xmax = exm
                 if exm < self.xmin:
@@ -615,19 +616,19 @@ class EyeProcessor:
             cy = point_hat[1]
 
 
+            print(self.xoff, self.ymax, self.ymin)
             xl = float(
-                ((cx - self.xoff) * eye_position_scalar) / (self.xmax - self.xoff)
+                ((cx - self.xoff)) / (self.xmax - self.xoff)
             )
             xr = float(
-                ((cx - self.xoff) * eye_position_scalar) / (self.xmin - self.xoff)
+                ((cx - self.xoff)) / (self.xmin - self.xoff)
             )
             yu = float(
-                ((cy - self.yoff) * eye_position_scalar) / (self.ymin - self.yoff)
+                ((cy - self.yoff)) / (self.ymin - self.yoff)
             )
             yd = float(
-                ((cy - self.yoff) * eye_position_scalar) / (self.ymax - self.yoff)
+                ((cy - self.yoff)) / (self.ymax - self.yoff)
             )
-
 
 
 
