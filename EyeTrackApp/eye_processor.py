@@ -350,7 +350,24 @@ class EyeProcessor:
                 self.current_image_gray, (x, y), (x + w, y + h), (255, 0, 0), 2
             )
 
-            eye_position_scalar = self.config.vrc_eye_position_scalar
+
+
+            if self.calibration_frame_counter == 0 or self.recenter_eye:
+                self.calibration_frame_counter = None
+                self.recenter_eye = False
+                self.xoff = cx
+                self.yoff = cy
+            elif self.calibration_frame_counter != None:
+                if cx > self.xmax:
+                    self.xmax = cx
+                if cx < self.xmin:
+                    self.xmin = cx
+                if cy> self.ymax:
+                    self.ymax = cy
+                if cy < self.xmin:
+                    self.ymin = cy
+                self.calibration_frame_counter -= 1
+
 
 
             try:
@@ -362,18 +379,18 @@ class EyeProcessor:
                 pass
 
             xl = float(
-                ((cx - self.xoff) * eye_position_scalar) / (self.xmax - self.xoff)
+                ((cx - self.xoff)) / (self.xmax - self.xoff)
             )
             xr = float(
-                ((cx - self.xoff) * eye_position_scalar) / (self.xmin - self.xoff)
+                ((cx - self.xoff)) / (self.xmin - self.xoff)
             )
             yu = float(
-                ((cy - self.yoff) * eye_position_scalar) / (self.ymin - self.yoff)
+                ((cy - self.yoff)) / (self.ymin - self.yoff)
             )
             yd = float(
-                ((cy - self.yoff) * eye_position_scalar) / (self.ymax - self.yoff)
+                ((cy - self.yoff)) / (self.ymax - self.yoff)
             )
-            # print(f"{exm} {eym} {xl} {xr} {yu} {yd}")
+
 
             out_x = 0
             out_y = 0
@@ -580,13 +597,10 @@ class EyeProcessor:
             # Record our pupil center
             exm = ellipse_3d["center"][0]
             eym = ellipse_3d["center"][1]
-            #d = ellipse_3d['diameter']
-            #print(w)
+            
 
             d = result_3d["diameter_3d"]
       
-
-
 
 
             if self.calibration_frame_counter == 0 or self.recenter_eye:
@@ -595,7 +609,6 @@ class EyeProcessor:
                 self.xoff = exm
                 self.yoff = eym
             elif self.calibration_frame_counter != None:
-                print('CALIBRATING')
                 if exm > self.xmax:
                     self.xmax = exm
                 if exm < self.xmin:
@@ -616,7 +629,6 @@ class EyeProcessor:
             cy = point_hat[1]
 
 
-            print(self.xoff, self.ymax, self.ymin)
             xl = float(
                 ((cx - self.xoff)) / (self.xmax - self.xoff)
             )

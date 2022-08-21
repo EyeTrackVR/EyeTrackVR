@@ -14,7 +14,6 @@ class CameraWidget:
         self.gui_camera_addr = f"-CAMERAADDR{widget_id}-"
         self.gui_threshold_slider = f"-THREADHOLDSLIDER{widget_id}-"
         self.gui_rotation_slider = f"-ROTATIONSLIDER{widget_id}-"
-        self.gui_scalar_slider = f"-EYESCALARSLIDER{widget_id}-"
         self.gui_roi_button = f"-ROIMODE{widget_id}-"
         self.gui_roi_layout = f"-ROILAYOUT{widget_id}-"
         self.gui_roi_selection = f"-GRAPH{widget_id}-"
@@ -72,16 +71,6 @@ class CameraWidget:
                     default_value=self.config.rotation_angle,
                     orientation="h",
                     key=self.gui_rotation_slider,
-                    background_color='#424042'
-                ),
-            ],
-            [
-                sg.Text("Eye Position Scalar", background_color='#424042'),
-                sg.Slider(
-                    range=(0, 5000),
-                    default_value=self.config.vrc_eye_position_scalar,
-                    orientation="h",
-                    key=self.gui_scalar_slider,
                     background_color='#424042'
                 ),
             ],
@@ -208,10 +197,6 @@ class CameraWidget:
 
         if self.config.rotation_angle != values[self.gui_rotation_slider]:
             self.config.rotation_angle = int(values[self.gui_rotation_slider])
-            changed = True
-
-        if self.config.vrc_eye_position_scalar != values[self.gui_scalar_slider]:
-            self.config.vrc_eye_position_scalar = int(values[self.gui_scalar_slider])
             changed = True
 
        # if self.config.show_color_image != values[self.gui_show_color_image]:
