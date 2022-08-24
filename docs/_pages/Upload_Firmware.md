@@ -66,6 +66,20 @@ Once you have successfully connected your trackers to your WiFi, you can use OTA
    ![img](https://i.imgur.com/lI3PFVC.png)
 1. Repeat for as many trackers as you need.
 
+## Finding the IP address of your tracker
+
+Connect your tracker to your PC and then open a serial monitor in VSC by pressing the "plug" icon.
+{% include custom/images/image_2.html url="https://i.imgur.com/dSPSpkY.png" max-width="400" caption="" alt="img" %}
+
+Now, press the restart button on the esp itself.
+watch the monitor for output like this:
+
+{% include custom/images/image_2.html url="https://i.imgur.com/PoHP3NC.png" max-width="400" caption="" alt="img" %}
+
+The text, highlighted in geen for demostation, is the stream address of the camera. Take note of this for input into the software.
+
+
+
 ## Troubleshooting
 
 If you encountered an issue while following these steps check the [FAQ.](https://redhawk989.github.io/EyeTrackVR/faq/)
