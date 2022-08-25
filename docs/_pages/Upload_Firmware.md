@@ -12,9 +12,9 @@ Uploading your firmware must initially be done over cable. Once you have the tra
 
 ## 1. Connect your tracker to your PC
 
-First, connect your ESP32-Cam to your programmer. In case of the ESP32-Cam-mb board, it's as simple as sticking it into the socket the way it came in the package and then connecting it your PC with an micro-usb cable. In some cases there is a button labeled IOO on the progrmmer. If that button exists make sure to hold it in while you plug the programmer into your pc, once plugged in you can release the button.
+First, connect your ESP32-Cam to your programmer. In the case of the ESP32-Cam-MB board, it's as simple as sticking it into the socket the way it came in the package and then connecting it to your PC with a micro-USB cable. In some cases, there is a button labeled IOO on the programmer. If that button exists make sure to hold it in while you plug the programmer into your pc, once plugged in you can release the button.
 
-In case of an FTDI programmer, the steps aren't as easy, so grab [this guide](https://randomnerdtutorials.com/program-upload-code-esp32-cam/) for how to set it up.
+In the case of an FTDI programmer, the steps aren't as easy, so grab [this guide](https://randomnerdtutorials.com/program-upload-code-esp32-cam/) for how to set it up.
 
 ## 2. Build your firmware
 
@@ -76,7 +76,7 @@ watch the monitor for output like this:
 
 {% include custom/images/image_2.html url="https://i.imgur.com/PoHP3NC.png" max-width="600" caption="" alt="img" %}
 
-The text, highlighted in geen for demostation, is the stream address of the camera. Take note of this for input into the software.
+The text, highlighted in green for demonstration, is the stream address of the camera. Take note of this for input into the software.
 
 
 
