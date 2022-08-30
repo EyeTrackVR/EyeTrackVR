@@ -1,6 +1,5 @@
 # -*- mode: py -3.6 ; coding: utf-8 -*-
 
-
 block_cipher = None
 
 
@@ -24,7 +23,7 @@ exe = EXE(pyz,
           a.scripts, 
           [],
           exclude_binaries=True,
-          name='EyeTrackApp',
+          name='eyetrackapp',
           debug=False,
           bootloader_ignore_signals=False,
           strip=False,
@@ -41,4 +40,4 @@ coll = COLLECT(exe,
                strip=False,
                upx=True,
                upx_exclude=[],
-               name='eyetrackapp')
+               name='EyeTrackApp')

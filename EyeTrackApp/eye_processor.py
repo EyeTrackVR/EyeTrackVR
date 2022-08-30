@@ -149,6 +149,8 @@ class EyeProcessor:
 
         # Cross algo state
         self.lkg_projected_sphere = None
+        self.xc = None
+        self.yc = None
 
         # Image state
         self.previous_image = None
@@ -175,7 +177,7 @@ class EyeProcessor:
 
 
         min_cutoff = 0.0004
-        beta = 0.7
+        beta = 0.9
         noisy_point = np.array([1, 1])
         self.one_euro_filter = OneEuroFilter(
             noisy_point,
@@ -254,11 +256,37 @@ class EyeProcessor:
 
     def blob_tracking_fallback(self):
         
+
+# define circle
+        try:
+            ht, wd = self.current_image_gray.shape[:2]
+            radius = int(float(self.lkg_projected_sphere["axes"][0]))
+            
+
+            # draw filled circle in white on black background as mask
+            mask = np.zeros((ht,wd), dtype=np.uint8)
+            mask = cv2.circle(mask, (self.xc,self.yc), radius, 255, -1)
+
+            # create white colored background
+            color = np.full_like(self.current_image_gray, (255))
+
+            # apply mask to image
+            masked_img = cv2.bitwise_and(self.current_image_gray, self.current_image_gray, mask=mask)
+
+            # apply inverse mask to colored image
+            masked_color = cv2.bitwise_and(color, color, mask=255-mask)
+
+            # combine the two masked images
+            self.current_image_gray = cv2.add(masked_img, masked_color)
+        except:
+            pass
+
+
         # Increase our threshold value slightly, in order to have a better possibility of getting back
         # something to do blob tracking on.
         _, larger_threshold = cv2.threshold(
             self.current_image_gray,
-            int(self.config.threshold + 20),
+            int(self.config.threshold + 15),
             255,
             cv2.THRESH_BINARY,
         )
@@ -274,29 +302,7 @@ class EyeProcessor:
 
 
 
-# define circle
-        try:
-            ht, wd = self.current_image_gray.shape[:2]
-            radius = int(float(self.lkg_projected_sphere["axes"][0]))
-            xc = yc = radius
 
-            # draw filled circle in white on black background as mask
-            mask = np.zeros((ht,wd), dtype=np.uint8)
-            mask = cv2.circle(mask, (xc,yc), radius, 255, -1)
-
-            # create white colored background
-            color = np.full_like(self.current_image_gray, (255))
-
-            # apply mask to image
-            masked_img = cv2.bitwise_and(self.current_image_gray, self.current_image_gray, mask=mask)
-
-            # apply inverse mask to colored image
-            masked_color = cv2.bitwise_and(color, color, mask=255-mask)
-
-            # combine the two masked images
-            self.current_image_gray = cv2.add(masked_img, masked_color)
-        except:
-            pass
 
 
         try:
@@ -321,10 +327,12 @@ class EyeProcessor:
             # if our blob width/height are within suitable (yet arbitrary) boundaries, call that good.
             #
             # TODO This should be scaled based on camera resolution.
-            if not 6 <= h <= 25 or not 6 <= w <= 25:
+            if not 10 <= h <= 25 or not 10 <= w <= 25:
                 continue
             cx = x + int(w / 2)
+            
             cy = y + int(h / 2)
+            
             xrlb = (
                 cx - self.lkg_projected_sphere["center"][0]
             ) / self.lkg_projected_sphere["axes"][0]
@@ -364,19 +372,12 @@ class EyeProcessor:
                     self.xmin = cx
                 if cy> self.ymax:
                     self.ymax = cy
-                if cy < self.xmin:
+                if cy < self.ymin:
                     self.ymin = cy
                 self.calibration_frame_counter -= 1
 
 
 
-            try:
-                noisy_point = np.array([cx, cy]) #fliter our values with a One Euro Filter
-                point_hat = self.one_euro_filter(noisy_point)
-                cx = point_hat[0]
-                cy = point_hat[1]
-            except:
-                pass
 
             xl = float(
                 ((cx - self.xoff)) / (self.xmax - self.xoff)
@@ -391,7 +392,7 @@ class EyeProcessor:
                 ((cy - self.yoff)) / (self.ymax - self.yoff)
             )
 
-
+           # print(self.)
             out_x = 0
             out_y = 0
             if xr > 0:
@@ -403,7 +404,16 @@ class EyeProcessor:
             if yu > 0:
                 out_y = -abs(max(0.0, min(1.0, yu)))
 
+            try:
+                noisy_point = np.array([out_x, out_y]) #fliter our values with a One Euro Filter
+                point_hat = self.one_euro_filter(noisy_point)
+                out_x = point_hat[0]
+                out_y = point_hat[1]
+            except:
+                pass
 
+                
+           
 
             self.output_images_and_update(
                 larger_threshold,
@@ -504,12 +514,12 @@ class EyeProcessor:
 
                 radius = int(float(self.lkg_projected_sphere["axes"][0]))
                 
-                xc = int(self.lkg_projected_sphere["center"][0])
-                yc = int(self.lkg_projected_sphere["center"][1])
+                self.xc = int(self.lkg_projected_sphere["center"][0])
+                self.yc = int(self.lkg_projected_sphere["center"][1])
 
                 # draw filled circle in white on black background as mask
                 mask = np.zeros((ht,wd), dtype=np.uint8)
-                mask = cv2.circle(mask, (xc,yc), radius, 255, -1)
+                mask = cv2.circle(mask, (self.xc,self.yc), radius, 255, -1)
 
                 # create white colored background
                 color = np.full_like(self.current_image_gray, (255))
@@ -608,25 +618,25 @@ class EyeProcessor:
                 self.recenter_eye = False
                 self.xoff = exm
                 self.yoff = eym
-            elif self.calibration_frame_counter != None:
+            elif self.calibration_frame_counter != None:  # TODO reset calibration values on button press
                 if exm > self.xmax:
                     self.xmax = exm
                 if exm < self.xmin:
                     self.xmin = exm
                 if eym > self.ymax:
                     self.ymax = eym
-                if eym < self.xmin:
+                if eym < self.ymin:
                     self.ymin = eym
+                print(eym, self.ymin, self.ymax)
                 self.calibration_frame_counter -= 1
-            eye_position_scalar = self.config.vrc_eye_position_scalar
 
-          
+            #print(self.yoff)
           
 
-            noisy_point = np.array([cx, cy]) #fliter our values with a One Euro Filter
-            point_hat = self.one_euro_filter(noisy_point)
-            cx = point_hat[0]
-            cy = point_hat[1]
+          #  noisy_point = np.array([cx, cy]) #fliter our values with a One Euro Filter
+          #  point_hat = self.one_euro_filter(noisy_point)
+           # cx = point_hat[0]
+           # cy = point_hat[1]
 
 
             xl = float(
@@ -641,7 +651,7 @@ class EyeProcessor:
             yd = float(
                 ((cy - self.yoff)) / (self.ymax - self.yoff)
             )
-
+            
 
 
             out_x = 0
@@ -657,6 +667,16 @@ class EyeProcessor:
 
 
 
+            try:
+                noisy_point = np.array([out_x, out_y]) #fliter our values with a One Euro Filter
+                point_hat = self.one_euro_filter(noisy_point)
+                out_x = point_hat[0]
+                out_y = point_hat[1]
+            except:
+                pass
+
+          #  print(cy, self.yoff, self.ymin, self.ymax, out_y)
+          #  print(out_y, yu, yd)
 
             output_info = EyeInformation(InformationOrigin.RANSAC, out_x, out_y, out_pupil_dialation, False)
 
