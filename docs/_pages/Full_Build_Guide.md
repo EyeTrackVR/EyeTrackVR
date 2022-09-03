@@ -61,16 +61,16 @@ Please allow from 3 weeks to 2 months for everything to arrive.
 
 ## Step 4: Gather up all of your hardware.
 
-Make sure you have the following:
+Make sure you have at least the following:
 
 - [x] 2 ESP 32 CAM boards
 - [x] 2 160 degree cameras
 - [x] 1 USB board to power your ESPs
-- [x] 1 Programmer board
+- [x] 1 Programmer board (buying an extra is reccomended)
 - [x] IR emitters, resistors, and preferably PCBs
 - [x] Lower gauge wire to power ESPs (I use spare 24 AWG speaker wire)
 - [x] Higher gauge wire to power IR LEDs
-- [x] 3d printer to print mounts.
+- [x] 3d printer to print mounts. (Buying them from some place like JLCPCB is also an option)
 - [x] Glue of some form, hot glue highly recommended.
 
 {% include custom/images/image_2.html url="https://i.imgur.com/j18rRI7.jpg" max-width="400" caption="ESPs, cams, a programmer and a USB connector" alt="img of components" %}
