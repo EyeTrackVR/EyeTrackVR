@@ -10,7 +10,7 @@ parent: Firmware Guide
 
 Uploading your firmware must initially be done over cable. Once you have the tracker connected to your WiFi after your first firmware update, you can opt to use OTA in the future.
 
-## 1. Connect your tracker to your PC
+## 1. Connect your tracker to your PC via the programmer.
 
 First, connect your ESP32-Cam to your programmer. In the case of the ESP32-Cam-MB board, it's as simple as sticking it into the socket the way it came in the package and then connecting it to your PC with a micro-USB cable. In some cases, there is a button labeled IOO on the programmer. If that button exists make sure to hold it in while you plug the programmer into your pc, once plugged in you can release the button.
 
