@@ -301,13 +301,16 @@ class CameraWidget:
                         visy = abs(eye_info.y)
                     elif eye_info.y >= 0:
                         visy = -abs(eye_info.y)
+                    try:
 
-                    graph.draw_circle(
-                        (eye_info.x * -100, visy * -100),
-                        25,
-                        fill_color="black",
-                        line_color="white",
-                    )
+                        graph.draw_circle(
+                            (eye_info.x * -100, visy * -100),
+                            25,
+                            fill_color="black",
+                            line_color="white",
+                        )
+                    except:
+                        pass
                 elif eye_info.blink:
                     graph.update(background_color="#6f4ca1")
                 elif eye_info.info_type == InformationOrigin.FAILURE:
