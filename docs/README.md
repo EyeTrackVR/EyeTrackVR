@@ -22,11 +22,39 @@ Open source and *affordable* VR eye tracker platform for [VRChat](https://hello.
 This project is in development and is not fully finished
 {: .fs-5 .fw-300 }
 
-# This is the documentation branch.
-[Documentation Site](https://redhawk989.github.io/EyeTrackVR/)
+## Hardware
 
-[Go to main branch](https://github.com/RedHawk989/EyeTrackVR)
+3d files for mounting brackets will be found [here](https://github.com/RedHawk989/EyeTrackVR-Hardware)
+IR emitter files will also be located there.
 
+Hardware will hopefully be a `ESP32-Cam` with a `160fov ir camera`. ***This is not confirmed and very likely could change***.
+
+## About IR Emitter Safety
+
+Please *exercise extreme caution* when messing around with IR emitters.
+<ins>Once safety testing has been completed links and files will be provided for the emitters</ins>. Please do not try to make, or use any emitters unless you know exactly what you are doing as it could be very harmful for your eyes if not done correctly.
+When files and resources are released <ins>**DO NOT BYPASS (OR NOT DO) ANY SAFETY FEATURES PUT IN PLACE**</ins>. This can result in irreversible bodily harm.
+The safety measures were put in place to REDUCE the potential failure risk. All further safety responsibilities is on the user.
+This includes visually checking with an IR camera that the brightness is correct.
+
+{% include custom/alerts/Warning.html content="Make sure you are using <b>NON-focused</b> emitters and at around <i><b>5ma total power</b></i>." %}
+
+[Effect of infrared radiation on the lens](/EyeTrackVR/Reference_Docs/saftey/effect_of_ir_on_the_lens.pdf)
+
+[Training-library Nir Stds](/EyeTrackVR/Reference_Docs/saftey/training-library_nir_stds_20021011.pdf)
+
+[AN002_Details on photobiological safety of LED light sources](/EyeTrackVR/Reference_Docs/saftey/AN002_Details_on_photobiological_safety_of_LED_light_sources.pdf)
+
+## Firmware
+
+Current testing has been with `lorow's` firmware found [here](https://github.com/lorow/OpenIris).
+
+
+## Headset support
+
+Initial support will be Quest 2 (pcvr).
+
+Support for other headsets, comes from the community.
 
 ### Licenses
 
