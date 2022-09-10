@@ -133,7 +133,8 @@ Lay the wire on the outside of the 5V pin and apply solder.
 ## Step 13: Solder the negative wire to ESP
 Repeat [Step 11](https://redhawk989.github.io/EyeTrackVR/full-build-guide/#step-12-twist-the-positive-usb-wire-and-positive-ir-led-wires-together-and-tin-them) but with the negative wires.
 
-Now the hard part, attaching it without shorting it with nearby pins.
+{% include custom/alerts/Note.html content="As a user in our discord has learned, you can short the IO12 pin with the ground pin without issues." %}
+
 In the below example I put it on the top of the pin, It will be a week-ish joint but that's where glue comes in handy.
 {% include custom/images/image_2.html url="https://i.imgur.com/PWA0gtq.jpg" max-width="400" caption="" alt="img" %} 
 
