@@ -1,17 +1,9 @@
 ---
 # Use this YAML file to create a list of Key Credits
 
-- name: ESPHome
-  url: https://esphome.io/
-  description: "Thank you to ESPHome for developing the ESP Web Tools library, which we use to flash the ESP in the browser."
-
 - name: SlimeVR
   url: https://docs.slimevr.dev
   description: "Thank you to the SlimeVR Team for their design inspirations as we began building out the documentation."
-
-- name: Autodrop3D
-  url: https://github.com/Autodrop3d
-  description: "Thank you to AutoDrop3D for his amazing SerialTerminal Github repo, which we used as inspiration for our own serial terminal interface."
 
 ---
 
