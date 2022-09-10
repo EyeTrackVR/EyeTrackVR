@@ -1,23 +1,22 @@
 ---
 # Use this YAML file to create a list of Contributors
 
-- name: DaOfficialWizard
-  github: ZanzyTHEbar
-  linkedin:
-  twitter:
-  description: 'Lead Documentation Manager'
-
 - name: qdot
   github: qdot
   linkedin:
-  twitter:
+  twitter: qDot
   description: 'Created the initial version of the GUI App'
+
+- name: dfgHiatus
+  github: dfgHiatus
+  linkedin:
+  twitter:
+  description: 'Created NeosVR mod'
 
 - name:
   github:
   linkedin:
   twitter:
   description:
-
 ---
 

@@ -4,20 +4,26 @@
 - name: Prohurtz
   github: RedHawk989
   linkedin:
-  twitter:
-  description: 'Initiator / Moderator / Lead Developer'
+  twitter: Prohurtz_
+  description: 'Initiator / Moderator / Documentor / Lead Developer'
 
 - name: Summer
   github: SummerSigh
   linkedin:
-  twitter:
+  twitter: TheGoodAI1
   description: 'Machine Learning Engineer / Data Scientist / Developer'
 
 - name: lorow
   github: lorow
   linkedin:
-  twitter:
+  twitter: JustALorow
   description: 'Software Developer / Developer' 
+
+- name: DaOfficialWizard
+  github: ZanzyTHEbar
+  linkedin:
+  twitter:
+  description: 'Firmware Developer / Documentation Manager / Developer' 
 
 ---
 
