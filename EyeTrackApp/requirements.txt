@@ -29,3 +29,4 @@ urllib3==1.26.9
 yarg==0.1.9
 zipp==3.6.0
 python-osc
+sympy
