@@ -25,7 +25,7 @@ class VRChatOSC:
         self.client = udp_client.SimpleUDPClient(VRChatOSC.OSC_IP, VRChatOSC.OSC_PORT)
         self.cancellation_event = cancellation_event
         self.msg_queue = msg_queue
-        
+
         yl = 0
         yr = 0
         sx = 0 
@@ -87,20 +87,13 @@ class VRChatOSC:
                     self.client.send_message("/avatar/parameters/RightEyeX", sx)
                     self.client.send_message("/avatar/parameters/EyesY", sy)
 
-
                 if eye_id in [EyeId.LEFT, EyeId.BOTH]:
                     
                     self.client.send_message("/avatar/parameters/LeftEyeLid", float(0))
 
-                    self.client.send_message("/avatar/parameters/LeftEyeLidExpandedSqueeze", float(0.8))
-
                 if eye_id in [EyeId.RIGHT, EyeId.BOTH]:
                     
                     self.client.send_message("/avatar/parameters/RightEyeLid", float(0)) # old param, will be in the next few releases to not break things
-            
-                    self.client.send_message("/avatar/parameters/RightEyeLidExpandedSqueeze", float(0.8))
-
-
 
             else:
                 
