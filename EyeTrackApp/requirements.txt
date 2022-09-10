@@ -28,5 +28,5 @@ typing_extensions==4.1.1
 urllib3==1.26.9
 yarg==0.1.9
 zipp==3.6.0
-python-osc
-sympy
+python-osc==1.8.0
+sympy==1.2.1
