@@ -14,6 +14,7 @@ parent: Software Guide
 
 - [x] [Python 3.6.8](https://www.python.org/downloads/release/python-368/)
 - [x] [Pyinstaller](https://pyinstaller.org/en/stable/installation.html)
+- [x] Windows PC
 
 ## Install the required Python modules.
 
