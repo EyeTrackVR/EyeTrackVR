@@ -297,15 +297,15 @@ class CameraWidget:
                 ):
                     graph.update(background_color="white")
 
-                    if eye_info.y < 0: # flip visualzation to be correct
-                        visy = abs(eye_info.y)
-                    elif eye_info.y >= 0:
-                        visy = -abs(eye_info.y)
+                   # if eye_info.y < 0: # flip visualzation to be correct
+                   #     visy = abs(eye_info.y)
+                   # elif eye_info.y >= 0:
+                    #    visy = -abs(eye_info.y)
                     try:
 
                         graph.draw_circle(
-                            (eye_info.x * -100, visy * -100),
-                            25,
+                            (eye_info.x * -100, eye_info.y * -100),
+                            23,
                             fill_color="black",
                             line_color="white",
                         )
