@@ -39,4 +39,14 @@
       desc: "Camera and IR emitter mount by Breakdown"
        
   threed_link_id: 3
+  
+- hmd: "Quest 1"
+  parts:
+    - ""
+  hyper_links:
+    - url: "https://github.com/RedHawk989/EyeTrackVR-Hardware/blob/main/3d_Printed_Mounts/Quest_1/G0LDJAY/Quest_1_Cam_mount_v5_By_G0LDJAY.stl"
+      desc: "Camera and IR emitter mount by G0LDJAY"
+      
+      
+  threed_link_id: 1
 ---
