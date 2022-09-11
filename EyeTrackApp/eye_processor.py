@@ -286,7 +286,7 @@ class EyeProcessor:
         # something to do blob tracking on.
         _, larger_threshold = cv2.threshold(
             self.current_image_gray,
-            int(self.config.threshold + 15),
+            int(self.config.threshold + 12),
             255,
             cv2.THRESH_BINARY,
         )
