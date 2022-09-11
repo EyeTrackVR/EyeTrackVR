@@ -214,7 +214,7 @@ Place the resistor on the pads in the correct orientation.
 {% include custom/images/image_2.html url="https://i.imgur.com/KKgP8qs.jpg" max-width="400" caption="" alt="img" %} 
 
 Solder each side of the resistor. Be careful not to solder at too high of a temp, recommended soldering temp is 230C with a max of 245C.
-{% include custom/images/image_2.html url="https://i.imgur.com/SvbHAuY.jpg" max-width="400" caption="" alt="img" %} 
+{% include custom/images/image_2.html url="https://i.imgur.com/SvbHAuY.jpg" max-width="400" caption="The LED is flipped in this Image, the green dot should face AWAY from the PCB." alt="img" %} 
 
 ## Wire up the PCBs V2.
 
