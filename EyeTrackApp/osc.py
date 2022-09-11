@@ -26,16 +26,14 @@ class VRChatOSC:
         self.cancellation_event = cancellation_event
         self.msg_queue = msg_queue
 
-        yl = 0
-        yr = 0
+        
+    def run(self):
+        yl = 621
+        yr = 621
         sx = 0 
         sy = 0
         se = 0
-
-
-
-    def run(self):
-
+        was_blinking = True
         while True:
             if self.cancellation_event.is_set():
                 print("Exiting OSC Queue")
@@ -66,7 +64,9 @@ class VRChatOSC:
 
                 if eye_id in [EyeId.RIGHT, EyeId.BOTH]:
                     sx = eye_info.x
-                    yr, sy = eye_info.y, eye_info.y
+                    yr = eye_info.y
+                    sy = eye_info.y
+                   
 
                     self.client.send_message("/avatar/parameters/RightEyeX", eye_info.x)                    
                    # self.client.send_message(
@@ -74,10 +74,11 @@ class VRChatOSC:
                     #)
                 elif eye_id in [EyeId.LEFT, EyeId.BOTH]:
                     sx = eye_info.x
-                    yl, sy = eye_info.y, eye_info.y
+                    yl = eye_info.y
+                    sy = eye_info.y
                     self.client.send_message("/avatar/parameters/LeftEyeX", eye_info.x)
 
-                if yr != 0 and yl != 0:
+                if yr != 621 and yl != 621:
                     y = (yr + yl) / 2
                     self.client.send_message("/avatar/parameters/EyesY", y)
                     se = 0
