@@ -400,9 +400,9 @@ class EyeProcessor:
             if xl > 0:
                 out_x = -abs(max(0.0, min(1.0, xl)))
             if yd > 0:
-                out_y = max(0.0, min(1.0, yd))
+                out_y = -abs(max(0.0, min(1.0, yd)))
             if yu > 0:
-                out_y = -abs(max(0.0, min(1.0, yu)))
+                out_y = max(0.0, min(1.0, yu))
 
             try:
                 noisy_point = np.array([out_x, out_y]) #fliter our values with a One Euro Filter
@@ -627,7 +627,6 @@ class EyeProcessor:
                     self.ymax = eym
                 if eym < self.ymin:
                     self.ymin = eym
-                print(eym, self.ymin, self.ymax)
                 self.calibration_frame_counter -= 1
 
             #print(self.yoff)
@@ -661,9 +660,9 @@ class EyeProcessor:
             if xl > 0:
                 out_x = -abs(max(0.0, min(1.0, xl)))
             if yd > 0:
-                out_y = max(0.0, min(1.0, yd))
+                out_y = -abs(max(0.0, min(1.0, yd)))
             if yu > 0:
-                out_y = -abs(max(0.0, min(1.0, yu)))
+                out_y = max(0.0, min(1.0, yu))
 
 
 

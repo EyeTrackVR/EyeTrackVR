@@ -28,12 +28,12 @@ class VRChatOSC:
 
         
     def run(self):
+    
         yl = 621
         yr = 621
         sx = 0 
         sy = 0
         se = 0
-        was_blinking = True
         while True:
             if self.cancellation_event.is_set():
                 print("Exiting OSC Queue")
@@ -46,29 +46,15 @@ class VRChatOSC:
 
             if not eye_info.blink:
 
-                if was_blinking == True:
-                    if eye_id in [EyeId.LEFT, EyeId.BOTH]:
-                        self.client.send_message("/avatar/parameters/LeftEyeLid", float(0)) # old param open left
-                        self.client.send_message("/avatar/parameters/LeftEyeLidExpandedSqueeze", float(0.8)) # open left eye
-                    
-                    if eye_id in [EyeId.RIGHT, EyeId.BOTH]:
-                        self.client.send_message("/avatar/parameters/RightEyeLid", float(0)) # old param open right, will be in the next few releases to not break things
-                        self.client.send_message("/avatar/parameters/RightEyeLidExpandedSqueeze", float(0.8)) # open right eye
-
-                    if se == 1:
-                        self.client.send_message("/avatar/parameters/RightEyeLid", float(0))# old param open right
-                        self.client.send_message("/avatar/parameters/LeftEyeLid", float(0))# old param open left
-                        self.client.send_message("/avatar/parameters/RightEyeLidExpandedSqueeze", float(0.8)) # open right eye
-                        self.client.send_message("/avatar/parameters/LeftEyeLidExpandedSqueeze", float(0.8)) # open left eye
-                    was_blinking = False
-
                 if eye_id in [EyeId.RIGHT, EyeId.BOTH]:
                     sx = eye_info.x
                     yr = eye_info.y
                     sy = eye_info.y
-                   
 
-                    self.client.send_message("/avatar/parameters/RightEyeX", eye_info.x)                    
+                    self.client.send_message("/avatar/parameters/RightEyeX", eye_info.x)   
+                    self.client.send_message("/avatar/parameters/RightEyeLid", float(0))# old param open right
+                    self.client.send_message("/avatar/parameters/RightEyeLidExpandedSqueeze", float(0.8)) # open right eye
+                            
                    # self.client.send_message(
                    #     "/avatar/parameters/EyesDilation", eye_info.pupil_dialation
                     #)
@@ -77,6 +63,8 @@ class VRChatOSC:
                     yl = eye_info.y
                     sy = eye_info.y
                     self.client.send_message("/avatar/parameters/LeftEyeX", eye_info.x)
+                    self.client.send_message("/avatar/parameters/LeftEyeLid", float(0))# old param open left
+                    self.client.send_message("/avatar/parameters/LeftEyeLidExpandedSqueeze", float(0.8)) # open left eye
 
                 if yr != 621 and yl != 621:
                     y = (yr + yl) / 2
@@ -89,27 +77,21 @@ class VRChatOSC:
                     self.client.send_message("/avatar/parameters/RightEyeX", sx)
                     self.client.send_message("/avatar/parameters/EyesY", sy)
 
-                if eye_id in [EyeId.LEFT, EyeId.BOTH]:
-                    
-                    self.client.send_message("/avatar/parameters/LeftEyeLid", float(0))
-
-                if eye_id in [EyeId.RIGHT, EyeId.BOTH]:
-                    
-                    self.client.send_message("/avatar/parameters/RightEyeLid", float(0)) # old param, will be in the next few releases to not break things
 
             else:
                 
                 if eye_id in [EyeId.LEFT, EyeId.BOTH]:
                     self.client.send_message("/avatar/parameters/LeftEyeLid", float(1))
+                    self.client.send_message("/avatar/parameters/LeftEyeLidExpandedSqueeze", float(0))
 
                 if eye_id in [EyeId.RIGHT, EyeId.BOTH]:
                     self.client.send_message("/avatar/parameters/RightEyeLid", float(1))
+                    self.client.send_message("/avatar/parameters/RightEyeLidExpandedSqueeze", float(0)) # close eye
 
-                else:
+                if se == 1:
                     self.client.send_message("/avatar/parameters/RightEyeLid", float(1)) #close eye
                     self.client.send_message("/avatar/parameters/LeftEyeLid", float(1))
                     self.client.send_message("/avatar/parameters/RightEyeLidExpandedSqueeze", float(0)) # close eye
                     self.client.send_message("/avatar/parameters/LeftEyeLidExpandedSqueeze", float(0))
-                was_blinking = True
 
     
