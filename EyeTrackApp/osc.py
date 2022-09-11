@@ -72,7 +72,7 @@ class VRChatOSC:
                    # self.client.send_message(
                    #     "/avatar/parameters/EyesDilation", eye_info.pupil_dialation
                     #)
-                elif eye_id in [EyeId.LEFT, EyeId.BOTH]:
+                if eye_id in [EyeId.LEFT, EyeId.BOTH]:
                     sx = eye_info.x
                     yl = eye_info.y
                     sy = eye_info.y
@@ -102,7 +102,7 @@ class VRChatOSC:
                 if eye_id in [EyeId.LEFT, EyeId.BOTH]:
                     self.client.send_message("/avatar/parameters/LeftEyeLid", float(1))
 
-                elif eye_id in [EyeId.RIGHT, EyeId.BOTH]:
+                if eye_id in [EyeId.RIGHT, EyeId.BOTH]:
                     self.client.send_message("/avatar/parameters/RightEyeLid", float(1))
 
                 else:
