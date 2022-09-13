@@ -8,6 +8,7 @@ class EyeId(IntEnum):
     RIGHT = 0
     LEFT = 1
     BOTH = 2
+    SETTINGS = 3
 
 
 class VRChatOSC:
@@ -26,7 +27,6 @@ class VRChatOSC:
         self.cancellation_event = cancellation_event
         self.msg_queue = msg_queue
 
-        
     def run(self):
     
         yl = 621
@@ -34,6 +34,8 @@ class VRChatOSC:
         sx = 0 
         sy = 0
         se = 0
+        lec = 1
+        rec = 1
         while True:
             if self.cancellation_event.is_set():
                 print("Exiting OSC Queue")
@@ -50,11 +52,12 @@ class VRChatOSC:
                     sx = eye_info.x
                     yr = eye_info.y
                     sy = eye_info.y
+                    rec = 1
 
                     self.client.send_message("/avatar/parameters/RightEyeX", eye_info.x)   
                     self.client.send_message("/avatar/parameters/RightEyeLid", float(0))# old param open right
                     self.client.send_message("/avatar/parameters/RightEyeLidExpandedSqueeze", float(0.8)) # open right eye
-                            
+       
                    # self.client.send_message(
                    #     "/avatar/parameters/EyesDilation", eye_info.pupil_dialation
                     #)
@@ -62,6 +65,7 @@ class VRChatOSC:
                     sx = eye_info.x
                     yl = eye_info.y
                     sy = eye_info.y
+                    lec = 1
                     self.client.send_message("/avatar/parameters/LeftEyeX", eye_info.x)
                     self.client.send_message("/avatar/parameters/LeftEyeLid", float(0))# old param open left
                     self.client.send_message("/avatar/parameters/LeftEyeLidExpandedSqueeze", float(0.8)) # open left eye
@@ -71,11 +75,12 @@ class VRChatOSC:
                     self.client.send_message("/avatar/parameters/EyesY", y)
                     se = 0
 
-                else:
+                if rec == 1 and lec == 1:
                     se = 1
                     self.client.send_message("/avatar/parameters/LeftEyeX", sx)  # only one eye is detected or there is an error. Send mirrored data to both eyes.
                     self.client.send_message("/avatar/parameters/RightEyeX", sx)
                     self.client.send_message("/avatar/parameters/EyesY", sy)
+                
 
 
             else:
