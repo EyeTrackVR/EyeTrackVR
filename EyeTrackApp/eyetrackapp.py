@@ -6,6 +6,7 @@ os.environ["OPENCV_VIDEOIO_MSMF_ENABLE_HW_TRANSFORMS"] = "0"
 from osc import VRChatOSC, EyeId
 from config import EyeTrackConfig
 from camera_widget import CameraWidget
+from settings_widget import SettingsWidget
 import queue
 import threading
 import PySimpleGUI as sg
@@ -13,11 +14,12 @@ import PySimpleGUI as sg
 WINDOW_NAME = "EyeTrackApp"
 RIGHT_EYE_NAME = "-RIGHTEYEWIDGET-"
 LEFT_EYE_NAME = "-LEFTEYEWIDGET-"
+SETTINGS_NAME = "-SETTINGSWIDGET-"
 
 LEFT_EYE_RADIO_NAME = "-LEFTEYERADIO-"
 RIGHT_EYE_RADIO_NAME = "-RIGHTEYERADIO-"
 BOTH_EYE_RADIO_NAME = "-BOTHEYERADIO-"
-
+SETTINGS_RADIO_NAME = '-SETTINGSRADIO-'
 
 def main():
     # Get Configuration
@@ -47,6 +49,9 @@ def main():
         CameraWidget(EyeId.RIGHT, config, osc_queue),
         CameraWidget(EyeId.LEFT, config, osc_queue),
     ]
+    Settings = [
+        SettingsWidget(EyeId.SETTINGS, config, osc_queue),
+    ]
    
     layout = [
         [
@@ -71,6 +76,13 @@ def main():
                 default=(config.eye_display_id == EyeId.BOTH),
                 key=BOTH_EYE_RADIO_NAME,
             ),
+            sg.Radio(
+                "Settings",
+                "SETTINGSRADIO", 
+                background_color='#292929',
+                default=(config.eye_display_id == EyeId.SETTINGS),
+                key=SETTINGS_RADIO_NAME,
+            ),
         ],
         [
             sg.Column(
@@ -87,6 +99,13 @@ def main():
                 visible=(config.eye_display_id in [EyeId.LEFT, EyeId.BOTH]),
                 background_color='#424042',
             ),
+            sg.Column(
+                Settings[0].widget_layout,
+                vertical_alignment="top",
+                key=SETTINGS_NAME,
+                visible=(config.eye_display_id in [EyeId.SETTINGS]),
+                background_color='#424042',
+            ),
         ],
     ]
 
@@ -94,9 +113,11 @@ def main():
         eyes[0].start()
     if config.eye_display_id in [EyeId.LEFT, EyeId.BOTH]:
         eyes[1].start()
+    if config.eye_display_id in [EyeId.SETTINGS]:
+        Settings[0].start()
 
     # Create the window
-    window = sg.Window("EyeTrackVR v0.1.3", layout, icon='Images/logo.ico', background_color='#292929')
+    window = sg.Window("EyeTrackVR v0.1.3 nightly", layout, icon='Images/logo.ico', background_color='#292929')
 
     # GUI Render loop
     while True:
@@ -105,6 +126,7 @@ def main():
 
         # If we're in either mode and someone hits q, quit immediately
         if event == "Exit" or event == sg.WIN_CLOSED:
+            Settings[0].stop()
             for eye in eyes:
                 eye.stop()
             cancellation_event.set()
@@ -114,27 +136,46 @@ def main():
             #      t2s_thread.join()
             print("Exiting EyeTrackApp")
             return
-
+        print(config.eye_display_id)
         if values[RIGHT_EYE_RADIO_NAME] and config.eye_display_id != EyeId.RIGHT:
+            Settings[0].stop()
             eyes[0].start()
             eyes[1].stop()
+            Settings[0].stop()
             window[RIGHT_EYE_NAME].update(visible=True)
             window[LEFT_EYE_NAME].update(visible=False)
+            window[SETTINGS_NAME].update(visible=False)
             config.eye_display_id = EyeId.RIGHT
             config.save()
         elif values[LEFT_EYE_RADIO_NAME] and config.eye_display_id != EyeId.LEFT:
+            Settings[0].stop()
             eyes[0].stop()
             eyes[1].start()
             window[RIGHT_EYE_NAME].update(visible=False)
             window[LEFT_EYE_NAME].update(visible=True)
+            window[SETTINGS_NAME].update(visible=False)
             config.eye_display_id = EyeId.LEFT
             config.save()
         elif values[BOTH_EYE_RADIO_NAME] and config.eye_display_id != EyeId.BOTH:
+            Settings[0].stop()
             eyes[0].start()
             eyes[1].start()
             window[RIGHT_EYE_NAME].update(visible=True)
             window[LEFT_EYE_NAME].update(visible=True)
+            window[SETTINGS_NAME].update(visible=False)
             config.eye_display_id = EyeId.BOTH
+            config.save()
+
+        elif values[SETTINGS_RADIO_NAME] and config.eye_display_id != EyeId.SETTINGS:
+            eyes[0].stop()
+            eyes[1].stop()
+            Settings[0].start()
+            window[RIGHT_EYE_NAME].update(visible=False)
+            window[LEFT_EYE_NAME].update(visible=False)
+            window.Element(LEFT_EYE_NAME).Update(value=False)
+            window[SETTINGS_NAME].update(visible=True)
+            
+            config.eye_display_id = EyeId.SETTINGS
             config.save()
 
         # Otherwise, render all of our cameras

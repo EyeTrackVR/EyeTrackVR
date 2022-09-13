@@ -20,7 +20,7 @@ class EyeTrackCameraConfig:
     focal_length: "int" = 30
     capture_source: "Union[int, str, None]" = None
     vrc_eye_position_scalar: "int" = 3000
-    #show_color_image: "bool" = False
+    show_color_image: "bool" = False
 
 
 CONFIG_FILE_NAME = "eyetrack_settings.json"
