@@ -48,8 +48,10 @@ def main():
     eyes = [
         CameraWidget(EyeId.RIGHT, config, osc_queue),
         CameraWidget(EyeId.LEFT, config, osc_queue),
+       # CameraWidget(EyeId.SETTINGS, config, osc_queue),
+
     ]
-    Settings = [
+    settings = [
         SettingsWidget(EyeId.SETTINGS, config, osc_queue),
     ]
    
@@ -78,7 +80,7 @@ def main():
             ),
             sg.Radio(
                 "Settings",
-                "SETTINGSRADIO", 
+                "EYESELECTRADIO", 
                 background_color='#292929',
                 default=(config.eye_display_id == EyeId.SETTINGS),
                 key=SETTINGS_RADIO_NAME,
@@ -100,10 +102,10 @@ def main():
                 background_color='#424042',
             ),
             sg.Column(
-                Settings[0].widget_layout,
+                settings[0].widget_layout,
                 vertical_alignment="top",
                 key=SETTINGS_NAME,
-                visible=(config.eye_display_id in [EyeId.SETTINGS]),
+                visible=(config.eye_display_id in [EyeId.SETTINGS, EyeId.BOTH]),
                 background_color='#424042',
             ),
         ],
@@ -113,11 +115,11 @@ def main():
         eyes[0].start()
     if config.eye_display_id in [EyeId.LEFT, EyeId.BOTH]:
         eyes[1].start()
-    if config.eye_display_id in [EyeId.SETTINGS]:
-        Settings[0].start()
+    if config.eye_display_id in [EyeId.SETTINGS, EyeId.BOTH]:
+        settings[0].start()
 
     # Create the window
-    window = sg.Window("EyeTrackVR v0.1.3 nightly", layout, icon='Images/logo.ico', background_color='#292929')
+    window = sg.Window("EyeTrackVR v0.1.4 nightly", layout, icon='Images/logo.ico', background_color='#292929')
 
     # GUI Render loop
     while True:
@@ -126,7 +128,7 @@ def main():
 
         # If we're in either mode and someone hits q, quit immediately
         if event == "Exit" or event == sg.WIN_CLOSED:
-            Settings[0].stop()
+           # eyes[2].stop()
             for eye in eyes:
                 eye.stop()
             cancellation_event.set()
@@ -136,19 +138,18 @@ def main():
             #      t2s_thread.join()
             print("Exiting EyeTrackApp")
             return
-        print(config.eye_display_id)
+
         if values[RIGHT_EYE_RADIO_NAME] and config.eye_display_id != EyeId.RIGHT:
-            Settings[0].stop()
             eyes[0].start()
             eyes[1].stop()
-            Settings[0].stop()
+            settings[0].stop()
             window[RIGHT_EYE_NAME].update(visible=True)
             window[LEFT_EYE_NAME].update(visible=False)
             window[SETTINGS_NAME].update(visible=False)
             config.eye_display_id = EyeId.RIGHT
             config.save()
         elif values[LEFT_EYE_RADIO_NAME] and config.eye_display_id != EyeId.LEFT:
-            Settings[0].stop()
+            settings[0].stop()
             eyes[0].stop()
             eyes[1].start()
             window[RIGHT_EYE_NAME].update(visible=False)
@@ -157,24 +158,22 @@ def main():
             config.eye_display_id = EyeId.LEFT
             config.save()
         elif values[BOTH_EYE_RADIO_NAME] and config.eye_display_id != EyeId.BOTH:
-            Settings[0].stop()
+            settings[0].stop()
             eyes[0].start()
             eyes[1].start()
             window[RIGHT_EYE_NAME].update(visible=True)
             window[LEFT_EYE_NAME].update(visible=True)
-            window[SETTINGS_NAME].update(visible=False)
+            window[SETTINGS_NAME].update(visible=True)
             config.eye_display_id = EyeId.BOTH
             config.save()
 
         elif values[SETTINGS_RADIO_NAME] and config.eye_display_id != EyeId.SETTINGS:
+            settings[0].start()
             eyes[0].stop()
             eyes[1].stop()
-            Settings[0].start()
             window[RIGHT_EYE_NAME].update(visible=False)
             window[LEFT_EYE_NAME].update(visible=False)
-            window.Element(LEFT_EYE_NAME).Update(value=False)
             window[SETTINGS_NAME].update(visible=True)
-            
             config.eye_display_id = EyeId.SETTINGS
             config.save()
 

@@ -44,7 +44,7 @@ class VRChatOSC:
                 (eye_id, eye_info) = self.msg_queue.get(block=True, timeout=0.1)
             except queue.Empty:
                 continue
-  
+
 
             if not eye_info.blink:
 
@@ -98,5 +98,6 @@ class VRChatOSC:
                     self.client.send_message("/avatar/parameters/LeftEyeLid", float(1))
                     self.client.send_message("/avatar/parameters/RightEyeLidExpandedSqueeze", float(0)) # close eye
                     self.client.send_message("/avatar/parameters/LeftEyeLidExpandedSqueeze", float(0))
+
 
     

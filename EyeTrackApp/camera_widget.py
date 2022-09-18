@@ -35,6 +35,8 @@ class CameraWidget:
             self.config = main_config.right_eye
         elif self.eye_id == EyeId.LEFT:
             self.config = main_config.left_eye
+        elif self.eye_id == EyeId.SETTINGS:
+            self.config = main_config.settings
         else:
             raise RuntimeError("Cannot have a camera widget represent both eyes!")
 
@@ -297,15 +299,15 @@ class CameraWidget:
                 ):
                     graph.update(background_color="white")
 
-                   # if eye_info.y < 0: # flip visualzation to be correct
-                   #     visy = abs(eye_info.y)
-                   # elif eye_info.y >= 0:
-                    #    visy = -abs(eye_info.y)
+                    if eye_info.y < 0: # flip visualzation to be correct
+                        visy = abs(eye_info.y)
+                    elif eye_info.y >= 0:
+                        visy = -abs(eye_info.y)
                     try:
 
                         graph.draw_circle(
-                            (eye_info.x * -100, eye_info.y * -100),
-                            23,
+                            (eye_info.x * -100, visy * -100),
+                            25,
                             fill_color="black",
                             line_color="white",
                         )
@@ -315,9 +317,9 @@ class CameraWidget:
                     graph.update(background_color="#6f4ca1")
                 elif eye_info.info_type == InformationOrigin.FAILURE:
                     graph.update(background_color="red")
-
                 # Relay information to OSC
                 if eye_info.info_type != InformationOrigin.FAILURE:
+                    
                     self.osc_queue.put((self.eye_id, eye_info))
             except Empty:
                 return

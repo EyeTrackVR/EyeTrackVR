@@ -31,6 +31,7 @@ class EyeTrackConfig:
     version: "int" = 1
     right_eye: EyeTrackCameraConfig = EyeTrackCameraConfig()
     left_eye: EyeTrackCameraConfig = EyeTrackCameraConfig()
+    settings: EyeTrackCameraConfig = EyeTrackCameraConfig()
     eye_display_id: "EyeId" = EyeId.RIGHT
 
     @staticmethod
