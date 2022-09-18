@@ -181,6 +181,7 @@ def main():
         for eye in eyes:
             if eye.started():
                 eye.render(window, event, values)
+        settings[0].render(window, event, values)
 
 
 if __name__ == "__main__":

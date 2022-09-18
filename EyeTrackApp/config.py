@@ -19,10 +19,10 @@ class EyeTrackCameraConfig:
     roi_window_h: "int" = 0
     focal_length: "int" = 30
     capture_source: "Union[int, str, None]" = None
-    vrc_eye_position_scalar: "int" = 3000
     show_color_image: "bool" = False
-    gui_flip_x_axis: "bool" = False
-
+    gui_flip_x_axis_left: "bool" = False
+    gui_flip_x_axis_right: "bool" = False
+    gui_flip_y_axis: "bool" = False
 
 CONFIG_FILE_NAME = "eyetrack_settings.json"
 

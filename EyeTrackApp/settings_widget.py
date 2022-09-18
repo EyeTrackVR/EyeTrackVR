@@ -27,8 +27,11 @@ class SettingsWidget:
         self.gui_recenter_eye = f"-RECENTEREYE{widget_id}-"
         self.gui_mode_readout = f"-APPMODE{widget_id}-"
         self.gui_show_color_image = f"-SHOWCOLORIMAGE{widget_id}-"
-        self.gui_flip_x_axis = f"-FLIPXAXIS{widget_id}-"
+
+        self.gui_flip_x_axis_left = f"-FLIPXAXISLEFT{widget_id}-"
+        self.gui_flip_x_axis_right = f"-FLIPXAXISRIGHT{widget_id}-"
         self.gui_flip_y_axis = f"-FLIPYAXIS{widget_id}-"
+
         self.gui_roi_message = f"-ROIMESSAGE{widget_id}-"
         self.gui_save_button = f"-SAVE{widget_id}-"
 
@@ -49,23 +52,31 @@ class SettingsWidget:
           #      sg.Button("Recenter Eye", key=self.gui_recenter_eye, button_color = '#6f4ca1'),
                 
            # ],
-            [sg.Checkbox(
-                    "Flip X axis",
-                    default=False,
-                    key=self.gui_flip_x_axis,
+            [
+                sg.Checkbox(
+                    "Flip Left Eye X Axis",
+                    default=self.config.gui_flip_x_axis_left,
+                    key=self.gui_flip_x_axis_left,
                     background_color='#424042',
                 ),
+                sg.Checkbox(
+                    "Flip Right Eye X Axis",
+                    default=self.config.gui_flip_x_axis_left,
+                    key=self.gui_flip_x_axis_right,
+                    background_color='#424042',
+                ),
+
             ],
             [sg.Checkbox(
-                    "Flip Y axis",
-                    default=False,
+                    "Flip Y Axis",
+                    default=self.config.gui_flip_y_axis,
                     key=self.gui_flip_y_axis,
                     background_color='#424042',
                 ),
             ],
 
             [
-                sg.Text("Tracking algorithim toggles:", background_color='#242224'),
+                sg.Text("Tracking Algorithim Settings:", background_color='#242224'),
               #  sg.InputText(self.config.capture_source, key=self.gui_camera_addr),
             ],
 
@@ -77,7 +88,7 @@ class SettingsWidget:
                 ),
             ],
             [
-                sg.Text("Filter paramaters:", background_color='#242224'),
+                sg.Text("Filter Paramaters:", background_color='#242224'),
                 
               #  sg.InputText(self.config.capture_source, key=self.gui_camera_addr),
             ],
@@ -130,11 +141,11 @@ class SettingsWidget:
                # sg.Column(self.roi_layout, key=self.gui_roi_layout, background_color='#424042', visible=False),
             ],
             
-            [
-                sg.Button(
-                    "Save Settings", key=self.gui_save_button, button_color = '#6f4ca1'
-                ),
-            ],
+           # [
+            #    sg.Button(
+             #       "Save Settings", key=self.gui_save_button, button_color = '#6f4ca1'
+              #  ),
+            #],
         ]
 
         self.cancellation_event = Event()
@@ -211,13 +222,30 @@ class SettingsWidget:
         #if self.config.rotation_angle != values[self.gui_rotation_slider]:
         #    self.config.rotation_angle = int(values[self.gui_rotation_slider])
          #   changed = True
-
-        if self.config.gui_flip_x_axis != values[self.gui_flip_x_axis]:
-            self.config.gui_flip_x_axis = values[self.gui_flip_x_axis]
+      #  print(self.config.gui_flip_x_axis, values[self.gui_flip_x_axis])
+        if self.config.gui_flip_x_axis_right != values[self.gui_flip_x_axis_right]:
+            self.config.gui_flip_x_axis_right = values[self.gui_flip_x_axis_right]
             changed = True
+
+        if self.config.gui_flip_x_axis_left != values[self.gui_flip_x_axis_left]:
+            self.config.gui_flip_x_axis_left = values[self.gui_flip_x_axis_left]
+            changed = True
+
+
+        if self.config.gui_flip_y_axis != values[self.gui_flip_y_axis]:
+            self.config.gui_flip_y_axis = values[self.gui_flip_y_axis]
+            changed = True
+
+
+        #print(self.config.gui_flip_x_axis, values[self.gui_flip_x_axis])
+    #    if values[self.gui_flip_x_axis] != self.config.gui_flip_x_axis:
+     #       values[self.gui_flip_x_axis] = self.config.gui_flip_x_axis
+
+
 
         if changed:
             self.main_config.save()
+            
 
        
       #  elif self.camera.camera_status == CameraState.CONNECTING:
@@ -259,7 +287,7 @@ class SettingsWidget:
            # try:
            #     window[self.gui_roi_message].update(visible=False)
            #     window[self.gui_output_graph].update(visible=True)
-        (maybe_image, eye_info) = self.image_queue.get(block=False)
+        #(maybe_image, eye_info) = self.image_queue.get(block=False)
             #    imgbytes = cv2.imencode(".ppm", maybe_image)[1].tobytes()
              #   window[self.gui_tracking_image].update(data=imgbytes)
 
@@ -269,7 +297,7 @@ class SettingsWidget:
 
                 # Relay information to OSC
        # if eye_info.info_type != InformationOrigin.FAILURE:
-        self.osc_queue.put((self.eye_id, eye_info))
+        self.osc_queue.put((EyeId.SETTINGS))
         #self.osc_queue.put((EyeId.SETTINGS))
            # except Empty:
              #   return
