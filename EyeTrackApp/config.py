@@ -21,6 +21,7 @@ class EyeTrackCameraConfig:
     capture_source: "Union[int, str, None]" = None
     vrc_eye_position_scalar: "int" = 3000
     show_color_image: "bool" = False
+    gui_flip_x_axis: "bool" = False
 
 
 CONFIG_FILE_NAME = "eyetrack_settings.json"

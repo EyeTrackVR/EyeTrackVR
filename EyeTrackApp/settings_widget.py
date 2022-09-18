@@ -38,8 +38,8 @@ class SettingsWidget:
         self.gui_blob_fallback = f"-BLOBFALLBACK{widget_id}-"
         self.gui_speed_coefficient_slider = f"-SPEEDCOEFFICIENTSLIDER{widget_id}-"
         self.gui_min_cutoff_slider = f"-MINCUTOFFSLIDER{widget_id}-"
-       # self.main_config = main_config
-        #self.config = main_config.left_eye
+        self.main_config = main_config
+        self.config = main_config.settings
 
         self.osc_queue = osc_queue
         # Define the window's contents
@@ -65,7 +65,7 @@ class SettingsWidget:
             ],
 
             [
-                sg.Text("Tracking algorithim toggles:", background_color='#424042'),
+                sg.Text("Tracking algorithim toggles:", background_color='#242224'),
               #  sg.InputText(self.config.capture_source, key=self.gui_camera_addr),
             ],
 
@@ -121,7 +121,7 @@ class SettingsWidget:
         
         self.widget_layout = [
             [
-                sg.Text("Settings", background_color='#242224'),
+                sg.Text("General Settings:", background_color='#242224'),
               #  sg.InputText(self.config.capture_source, key=self.gui_camera_addr),
             ],
             [
@@ -212,8 +212,8 @@ class SettingsWidget:
         #    self.config.rotation_angle = int(values[self.gui_rotation_slider])
          #   changed = True
 
-        if self.config.show_color_image != values[self.gui_show_color_image]:
-            self.config.show_color_image = values[self.gui_show_color_image]
+        if self.config.gui_flip_x_axis != values[self.gui_flip_x_axis]:
+            self.config.gui_flip_x_axis = values[self.gui_flip_x_axis]
             changed = True
 
         if changed:
