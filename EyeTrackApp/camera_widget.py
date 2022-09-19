@@ -7,7 +7,7 @@ from queue import Queue, Empty
 from camera import Camera, CameraState
 from osc import EyeId
 import cv2
-
+from playsound import playsound
 
 class CameraWidget:
     def __init__(self, widget_id: EyeId, main_config: EyeTrackConfig, osc_queue: Queue):
@@ -136,6 +136,7 @@ class CameraWidget:
             self.capture_event,
             self.capture_queue,
             self.image_queue,
+            self.eye_id,
         )
 
         self.camera_status_queue = Queue()
@@ -237,6 +238,8 @@ class CameraWidget:
             self.x1, self.y1 = values[self.gui_roi_selection]
         elif event == self.gui_restart_calibration:
             self.ransac.calibration_frame_counter = 300
+            playsound("Audio/start.wav")
+            
         elif event == self.gui_recenter_eye:
             self.ransac.recenter_eye = True
 

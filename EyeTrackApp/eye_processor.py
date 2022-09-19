@@ -13,6 +13,7 @@ import time
 import statistics
 from one_euro_filter import OneEuroFilter
 from sympy import symbols, Eq, solve
+from playsound import playsound
 class InformationOrigin(Enum):
     RANSAC = 1
     BLOB = 2
@@ -138,14 +139,17 @@ class EyeProcessor:
         capture_event: "threading.Event",
         capture_queue_incoming: "queue.Queue",
         image_queue_outgoing: "queue.Queue",
+        eye_id,
     ):
         self.config = config
-
+        
+      
         # Cross-thread communication management
         self.capture_queue_incoming = capture_queue_incoming
         self.image_queue_outgoing = image_queue_outgoing
         self.cancellation_event = cancellation_event
         self.capture_event = capture_event
+        self.eye_id = eye_id
 
         # Cross algo state
         self.lkg_projected_sphere = None
@@ -184,6 +188,7 @@ class EyeProcessor:
             min_cutoff=min_cutoff,
             beta=beta
             ) 
+        
 
 
 
@@ -364,7 +369,8 @@ class EyeProcessor:
                 self.calibration_frame_counter = None
                 self.recenter_eye = False
                 self.xoff = cx
-                self.yoff = cy
+                self.yoff = cy          
+                playsound("Audio/compleated.wav")
             elif self.calibration_frame_counter != None:
                 if cx > self.xmax:
                     self.xmax = cx
@@ -406,7 +412,7 @@ class EyeProcessor:
                 if yu > 0:
                     out_y = max(0.0, min(1.0, yu))
 
-            if self.config.gui_flip_x_axis == True:
+            if self.config.gui_flip_x_axis_right == True:
                 if xr > 0:
                     out_x = -abs(max(0.0, min(1.0, xr)))
                 if xl > 0:
@@ -447,8 +453,12 @@ class EyeProcessor:
     
         out_pupil_dialation = 1
         
-        
-
+        if self.eye_id == "EyeId.RIGHT":
+            flipx = self.config.gui_flip_x_axis_right
+        #elif self.eye_id == "EyeId.LEFT":
+         #   flipx = self.config.gui_flip_x_axis_left
+        else:          
+            flipx = self.config.gui_flip_x_axis_left
         while True:
            # oef = init_filter()
            
@@ -639,6 +649,7 @@ class EyeProcessor:
                 self.recenter_eye = False
                 self.xoff = exm
                 self.yoff = eym
+                playsound("Audio/compleated.wav")
             elif self.calibration_frame_counter != None:  # TODO reset calibration values on button press
                 if exm > self.xmax:
                     self.xmax = exm
@@ -688,7 +699,7 @@ class EyeProcessor:
                 if yu > 0:
                     out_y = max(0.0, min(1.0, yu))
 
-            if self.config.gui_flip_x_axis == True:
+            if flipx == True:
                 if xr > 0:
                     out_x = -abs(max(0.0, min(1.0, xr)))
                 if xl > 0:
