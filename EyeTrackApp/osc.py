@@ -9,21 +9,17 @@ class EyeId(IntEnum):
     LEFT = 1
     BOTH = 2
     SETTINGS = 3
-
+from config import EyeTrackConfig
 
 class VRChatOSC:
-    # VRChat OSC Networking Info. For now, we'll assume it's always local.
-    OSC_IP = "127.0.0.1"
-    OSC_PORT = 9000  # VR Chat OSC port
 
     # Use a tuple of blink (true, blinking, false, not), x, y for now. Probably clearer as a class but
     # we're stuck in python 3.6 so still no dataclasses. God I hate python.
-    def __init__(
-        self,
-        cancellation_event: "threading.Event",
-        msg_queue: "queue.Queue[tuple[bool, int, int, int]]",
-    ):
-        self.client = udp_client.SimpleUDPClient(VRChatOSC.OSC_IP, VRChatOSC.OSC_PORT)
+    def __init__(self, cancellation_event: "threading.Event", msg_queue: "queue.Queue[tuple[bool, int, int, int]]", main_config: EyeTrackConfig,):
+        
+        self.main_config = main_config
+        self.config = main_config.settings
+        self.client = udp_client.SimpleUDPClient(self.config.gui_osc_address, self.config.gui_osc_port) # use OSC port and address that was set in the config
         self.cancellation_event = cancellation_event
         self.msg_queue = msg_queue
 
@@ -42,7 +38,7 @@ class VRChatOSC:
                 return
             try:
                 (eye_id, eye_info) = self.msg_queue.get(block=True, timeout=0.1)
-            except queue.Empty:
+            except:
                 continue
 
 

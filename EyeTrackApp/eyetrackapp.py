@@ -35,7 +35,7 @@ def main():
 
     # Spawn worker threads
     osc_queue: "queue.Queue[tuple[bool, int, int]]" = queue.Queue()
-    osc = VRChatOSC(cancellation_event, osc_queue)
+    osc = VRChatOSC(cancellation_event, osc_queue, config)
     osc_thread = threading.Thread(target=osc.run)
     osc_thread.start()
 
@@ -119,7 +119,7 @@ def main():
         settings[0].start()
 
     # Create the window
-    window = sg.Window("EyeTrackVR v0.1.4 nightly", layout, icon='Images/logo.ico', background_color='#292929')
+    window = sg.Window("EyeTrackVR v0.1.4 dev", layout, icon='Images/logo.ico', background_color='#292929')
 
     # GUI Render loop
     while True:

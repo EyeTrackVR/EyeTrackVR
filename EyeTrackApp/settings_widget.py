@@ -36,12 +36,20 @@ class SettingsWidget:
         self.gui_save_button = f"-SAVE{widget_id}-"
 
         self.gui_general_settings_layout = f"-GENERALSETTINGSLAYOUT{widget_id}-"
+
+        self.gui_osc_address = f"-OSCADDRESS{widget_id}-"
+        self.gui_osc_port = f"-OSCPORT{widget_id}-"
        # self.gui_algo_settings_layout = f"-ALGOSETTINGSLAYOUT{widget_id}-"
         
         self.gui_blob_fallback = f"-BLOBFALLBACK{widget_id}-"
         self.gui_speed_coefficient_slider = f"-SPEEDCOEFFICIENTSLIDER{widget_id}-"
         self.gui_min_cutoff_slider = f"-MINCUTOFFSLIDER{widget_id}-"
         self.main_config = main_config
+
+        self.configr = main_config.right_eye
+        
+        self.configl = main_config.left_eye
+
         self.config = main_config.settings
 
         self.osc_queue = osc_queue
@@ -82,7 +90,7 @@ class SettingsWidget:
 
             [sg.Checkbox(
                     "Blob Fallback",
-                    default=True,
+                    default=self.config.gui_blob_fallback,
                     key=self.gui_blob_fallback,
                     background_color='#424042',
                 ),
@@ -96,7 +104,7 @@ class SettingsWidget:
                 sg.Text("Min Frequency Cutoff", background_color='#424042'),
                 sg.Slider(
                     range=(0, 10),
-                    default_value=4,
+                    default_value=self.config.gui_min_cutoff_slider,
                     orientation="h",
                     key=self.gui_min_cutoff_slider,
                     background_color='#424042'
@@ -111,6 +119,18 @@ class SettingsWidget:
                     key=self.gui_speed_coefficient_slider,
                     background_color='#424042'
                 ),
+            ],
+             [
+                sg.Text("OSC Settings:", background_color='#242224'),
+            ],
+            [
+            sg.Text("OSC Address:", background_color='#424042'),
+            sg.InputText(self.config.gui_osc_address, key=self.gui_osc_address),
+            ],
+            [
+            sg.Text("OSC Port:", background_color='#424042'),
+            #print(self.config.gui_osc_port)
+            sg.InputText(self.config.gui_osc_port, key=self.gui_osc_port),
             ],
 
 
@@ -215,9 +235,18 @@ class SettingsWidget:
               #      self.config.capture_source = values[self.gui_camera_addr]
            # changed = True
 
-        #if self.config.threshold != values[self.gui_threshold_slider]:
-        #    self.config.threshold = int(values[self.gui_threshold_slider])
-        #    changed = True
+        if self.config.gui_min_cutoff_slider != values[self.gui_min_cutoff_slider]:
+            self.config.gui_min_cutoff_slider = int(values[self.gui_min_cutoff_slider])
+            self.configl.gui_min_cutoff_slider = int(values[self.gui_min_cutoff_slider])
+            self.configr.gui_min_cutoff_slider = int(values[self.gui_min_cutoff_slider])
+            changed = True
+            
+        if self.config.gui_speed_coefficient_slider != values[self.gui_speed_coefficient_slider]:
+            self.config.gui_speed_coefficient_slider = int(values[self.gui_speed_coefficient_slider])
+            self.configl.gui_speed_coefficient_slider = int(values[self.gui_speed_coefficient_slider])
+            self.configr.gui_speed_coefficient_slider = int(values[self.gui_speed_coefficient_slider])
+            changed = True
+
 
         #if self.config.rotation_angle != values[self.gui_rotation_slider]:
         #    self.config.rotation_angle = int(values[self.gui_rotation_slider])
@@ -225,15 +254,27 @@ class SettingsWidget:
       #  print(self.config.gui_flip_x_axis, values[self.gui_flip_x_axis])
         if self.config.gui_flip_x_axis_right != values[self.gui_flip_x_axis_right]:
             self.config.gui_flip_x_axis_right = values[self.gui_flip_x_axis_right]
+            self.configl.gui_flip_x_axis_right = values[self.gui_flip_x_axis_right]
+            self.configr.gui_flip_x_axis_right = values[self.gui_flip_x_axis_right]
             changed = True
 
         if self.config.gui_flip_x_axis_left != values[self.gui_flip_x_axis_left]:
             self.config.gui_flip_x_axis_left = values[self.gui_flip_x_axis_left]
+            self.configl.gui_flip_x_axis_left = values[self.gui_flip_x_axis_left]
+            self.configr.gui_flip_x_axis_left = values[self.gui_flip_x_axis_left]
             changed = True
 
 
         if self.config.gui_flip_y_axis != values[self.gui_flip_y_axis]:
             self.config.gui_flip_y_axis = values[self.gui_flip_y_axis]
+            self.configl.gui_flip_y_axis = values[self.gui_flip_y_axis]
+            self.configr.gui_flip_y_axis = values[self.gui_flip_y_axis]
+            changed = True
+
+        if self.config.gui_blob_fallback != values[self.gui_blob_fallback]:
+            self.config.gui_blob_fallback = values[self.gui_blob_fallback]
+            self.configl.gui_blob_fallback = values[self.gui_blob_fallback]
+            self.configr.gui_blob_fallback = values[self.gui_blob_fallback]
             changed = True
 
 

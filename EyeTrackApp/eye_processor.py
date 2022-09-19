@@ -176,8 +176,8 @@ class EyeProcessor:
         self.calibration_frame_counter
 
 
-        min_cutoff = 0.0004
-        beta = 0.9
+        min_cutoff = (self.config.gui_min_cutoff_slider / 10000)  #0.0004
+        beta = (self.config.gui_speed_coefficient_slider / 10)    #0.9
         noisy_point = np.array([1, 1])
         self.one_euro_filter = OneEuroFilter(
             noisy_point,
@@ -395,14 +395,27 @@ class EyeProcessor:
            # print(self.)
             out_x = 0
             out_y = 0
-            if xr > 0:
-                out_x = max(0.0, min(1.0, xr))
-            if xl > 0:
-                out_x = -abs(max(0.0, min(1.0, xl)))
-            if yd > 0:
-                out_y = -abs(max(0.0, min(1.0, yd)))
-            if yu > 0:
-                out_y = max(0.0, min(1.0, yu))
+            if self.config.gui_flip_y_axis == True: #check config on flipped values settings and apply accordingly
+                if yd > 0:
+                    out_y = max(0.0, min(1.0, yd))
+                if yu > 0:
+                    out_y = -abs(max(0.0, min(1.0, yu)))
+            else:
+                if yd > 0:
+                    out_y = -abs(max(0.0, min(1.0, yd)))
+                if yu > 0:
+                    out_y = max(0.0, min(1.0, yu))
+
+            if self.config.gui_flip_x_axis == True:
+                if xr > 0:
+                    out_x = -abs(max(0.0, min(1.0, xr)))
+                if xl > 0:
+                    out_x = max(0.0, min(1.0, xl))
+            else:
+                if xr > 0:
+                    out_x = max(0.0, min(1.0, xr))
+                if xl > 0:
+                    out_x = -abs(max(0.0, min(1.0, xl)))
 
             try:
                 noisy_point = np.array([out_x, out_y]) #fliter our values with a One Euro Filter
@@ -561,7 +574,11 @@ class EyeProcessor:
             # using blob tracking.
             #
             if len(convex_hulls) == 0:
-                self.blob_tracking_fallback()
+                if self.config.gui_blob_fallback == True:
+                    self.blob_tracking_fallback()
+                else:
+                    print("[INFO] Blob fallback disabled. Assuming blink.")
+                    self.output_images_and_update(thresh, EyeInformation(InformationOrigin.RANSAC, 0, 0, 0, False))
                 continue
 
             # Find our largest hull, which we expect will probably be the ellipse that represents the 2d
@@ -576,7 +593,11 @@ class EyeProcessor:
                     largest_hull.reshape(-1, 2)
                 )
             except:
-                self.blob_tracking_fallback()
+                if self.config.gui_blob_fallback == True:
+                    self.blob_tracking_fallback()
+                else:
+                    print("[INFO] Blob fallback disabled. Assuming blink.")
+                    self.output_images_and_update(thresh, EyeInformation(InformationOrigin.RANSAC, 0, 0, 0, False))
                 continue
 
             # Get axis and angle of the ellipse, using pupil labs 2d algos. The next bit of code ranges
@@ -655,15 +676,28 @@ class EyeProcessor:
 
             out_x = 0
             out_y = 0
-            if xr > 0:
-                out_x = max(0.0, min(1.0, xr))
-            if xl > 0:
-                out_x = -abs(max(0.0, min(1.0, xl)))
-            if yd > 0:
-                out_y = -abs(max(0.0, min(1.0, yd)))
-            if yu > 0:
-                out_y = max(0.0, min(1.0, yu))
 
+            if self.config.gui_flip_y_axis == True:
+                if yd > 0:
+                    out_y = max(0.0, min(1.0, yd))
+                if yu > 0:
+                    out_y = -abs(max(0.0, min(1.0, yu)))
+            else:
+                if yd > 0:
+                    out_y = -abs(max(0.0, min(1.0, yd)))
+                if yu > 0:
+                    out_y = max(0.0, min(1.0, yu))
+
+            if self.config.gui_flip_x_axis == True:
+                if xr > 0:
+                    out_x = -abs(max(0.0, min(1.0, xr)))
+                if xl > 0:
+                    out_x = max(0.0, min(1.0, xl))
+            else:
+                if xr > 0:
+                    out_x = max(0.0, min(1.0, xr))
+                if xl > 0:
+                    out_x = -abs(max(0.0, min(1.0, xl)))
 
 
             try:
