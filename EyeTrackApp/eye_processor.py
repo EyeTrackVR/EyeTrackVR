@@ -152,6 +152,7 @@ class EyeProcessor:
         self.eye_id = eye_id
 
         # Cross algo state
+       
         self.lkg_projected_sphere = None
         self.xc = None
         self.yc = None
@@ -265,8 +266,7 @@ class EyeProcessor:
 # define circle
         try:
             ht, wd = self.current_image_gray.shape[:2]
-            radius = int(float(self.lkg_projected_sphere["axes"][0]))
-            
+            radius = int(float(self.lkg_projected_sphere))
 
             # draw filled circle in white on black background as mask
             mask = np.zeros((ht,wd), dtype=np.uint8)
@@ -451,6 +451,35 @@ class EyeProcessor:
         yf = []
         pd = []
     
+
+
+      
+        try:
+            print('done')
+            ht, wd = self.current_image.shape[:2]
+            radius = int(float(self.lkg_projected_sphere["axes"][0]))
+            
+
+            # draw filled circle in white on black background as mask
+            mask = np.zeros((ht,wd), dtype=np.uint8)
+            mask = cv2.circle(mask, (self.xc,self.yc), radius, 255, -1)
+
+            # create white colored background
+            color = np.full_like(self.current_image, (255))
+
+            # apply mask to image
+            masked_img = cv2.bitwise_and(self.current_image, self.current_image, mask=mask)
+
+            # apply inverse mask to colored image
+            masked_color = cv2.bitwise_and(color, color, mask=255-mask)
+
+            # combine the two masked images
+            self.current_image = cv2.add(masked_img, masked_color)
+        except:
+            pass
+
+
+
         out_pupil_dialation = 1
         
         if self.eye_id == "EyeId.RIGHT":
@@ -528,36 +557,6 @@ class EyeProcessor:
 
 
 
-
-            
-# define circle for "cropping"
-
-            try:
-                ht, wd = self.current_image_gray.shape
-
-                radius = int(float(self.lkg_projected_sphere["axes"][0]))
-                
-                self.xc = int(self.lkg_projected_sphere["center"][0])
-                self.yc = int(self.lkg_projected_sphere["center"][1])
-
-                # draw filled circle in white on black background as mask
-                mask = np.zeros((ht,wd), dtype=np.uint8)
-                mask = cv2.circle(mask, (self.xc,self.yc), radius, 255, -1)
-
-                # create white colored background
-                color = np.full_like(self.current_image_gray, (255))
-
-                # apply mask to image
-                masked_img = cv2.bitwise_and(self.current_image_gray, self.current_image_gray, mask=mask)
-
-                # apply inverse mask to colored image
-                masked_color = cv2.bitwise_and(color, color, mask=255-mask)
-
-                # combine the two masked images
-                self.current_image_gray = cv2.add(masked_img, masked_color)
-
-            except:
-                pass
 
 
 

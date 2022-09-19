@@ -30,8 +30,8 @@ class VRChatOSC:
         sx = 0 
         sy = 0
         se = 0
-        lec = 1
-        rec = 1
+        lec = 0
+        rec = 0
         while True:
             if self.cancellation_event.is_set():
                 print("Exiting OSC Queue")
@@ -44,7 +44,7 @@ class VRChatOSC:
 
             if not eye_info.blink:
 
-                if eye_id in [EyeId.RIGHT, EyeId.BOTH]:
+                if eye_id in [EyeId.RIGHT]:
                     sx = eye_info.x
                     yr = eye_info.y
                     sy = eye_info.y
@@ -57,7 +57,7 @@ class VRChatOSC:
                    # self.client.send_message(
                    #     "/avatar/parameters/EyesDilation", eye_info.pupil_dialation
                     #)
-                if eye_id in [EyeId.LEFT, EyeId.BOTH]:
+                if eye_id in [EyeId.LEFT]:
                     sx = eye_info.x
                     yl = eye_info.y
                     sy = eye_info.y
@@ -71,7 +71,7 @@ class VRChatOSC:
                     self.client.send_message("/avatar/parameters/EyesY", y)
                     se = 0
 
-                if rec == 1 and lec == 1:
+                if rec != 1 and lec != 1:
                     se = 1
                     self.client.send_message("/avatar/parameters/LeftEyeX", sx)  # only one eye is detected or there is an error. Send mirrored data to both eyes.
                     self.client.send_message("/avatar/parameters/RightEyeX", sx)
@@ -81,11 +81,11 @@ class VRChatOSC:
 
             else:
                 
-                if eye_id in [EyeId.LEFT, EyeId.BOTH]:
+                if eye_id in [EyeId.LEFT]:
                     self.client.send_message("/avatar/parameters/LeftEyeLid", float(1))
                     self.client.send_message("/avatar/parameters/LeftEyeLidExpandedSqueeze", float(0))
 
-                if eye_id in [EyeId.RIGHT, EyeId.BOTH]:
+                if eye_id in [EyeId.RIGHT]:
                     self.client.send_message("/avatar/parameters/RightEyeLid", float(1))
                     self.client.send_message("/avatar/parameters/RightEyeLidExpandedSqueeze", float(0)) # close eye
 
