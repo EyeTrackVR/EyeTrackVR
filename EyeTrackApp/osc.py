@@ -72,7 +72,6 @@ class VRChatOSC:
                     se = 0
 
                 if rec == 0 or lec == 0:
-                    print("here")
                     se = 1
                     self.client.send_message("/avatar/parameters/LeftEyeX", sx)  # only one eye is detected or there is an error. Send mirrored data to both eyes.
                     self.client.send_message("/avatar/parameters/RightEyeX", sx)
