@@ -12,7 +12,7 @@ parent: Software Guide
 
 ### Step 1: Download the EyeTrackVR Installer and install the EyeTrackVR app.
 
-Go to the latest [GitHub release here](https://github.com/RedHawk989/EyeTrackVR-Installer/releases/tag/EyeTrackVR-Installer-0.2.1) and download the .zip
+Go to the latest [GitHub release here](https://github.com/RedHawk989/EyeTrackVR-Installer/releases/latest) and download the .zip
 
 Extract the zip file and then run the .exe as administrator.
 You will be greeted with a window that looks like this:
