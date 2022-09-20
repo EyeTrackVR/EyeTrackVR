@@ -181,8 +181,8 @@ class EyeProcessor:
         self.calibration_frame_counter
 
         try:
-            min_cutoff = int(self.config.gui_min_cutoff)  #0.0004
-            beta = int(self.config.gui_speed_coefficient)    #0.9
+            min_cutoff = self.config.gui_min_cutoff  #0.0004
+            beta = self.config.gui_speed_coefficient    #0.9
         except:
             print('[WARN] OneEuroFilter values must be a legal number.')
             min_cutoff =  0.0004
