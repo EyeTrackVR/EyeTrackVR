@@ -105,7 +105,7 @@ def main():
                 settings[0].widget_layout,
                 vertical_alignment="top",
                 key=SETTINGS_NAME,
-                visible=(config.eye_display_id in [EyeId.SETTINGS, EyeId.BOTH]),
+                visible=(config.eye_display_id in [EyeId.SETTINGS]),
                 background_color='#424042',
             ),
         ],

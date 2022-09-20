@@ -13,7 +13,7 @@ import time
 import statistics
 from one_euro_filter import OneEuroFilter
 from sympy import symbols, Eq, solve
-from playsound import playsound
+from winsound import PlaySound, SND_FILENAME, SND_ASYNC
 class InformationOrigin(Enum):
     RANSAC = 1
     BLOB = 2
@@ -374,8 +374,8 @@ class EyeProcessor:
                 self.calibration_frame_counter = None
                 self.recenter_eye = False
                 self.xoff = cx
-                self.yoff = cy          
-                playsound("Audio/compleated.wav")
+                self.yoff = cy      
+                PlaySound('Audio/compleated.wav', SND_FILENAME|SND_ASYNC) 
             elif self.calibration_frame_counter != None:
                 if cx > self.xmax:
                     self.xmax = cx
@@ -530,10 +530,7 @@ class EyeProcessor:
                 self.current_image, cv2.COLOR_BGR2GRAY
             )
 
-            try:
-                print(int(float(self.lkg_projected_sphere["axes"][0])), int(float(self.lkg_projected_sphere["axes"][1])))
-            except:
-                print('nah')
+
 
             try:
                 ht, wd = self.current_image_gray.shape[:2]
@@ -663,7 +660,7 @@ class EyeProcessor:
                 self.recenter_eye = False
                 self.xoff = exm
                 self.yoff = eym
-                playsound("Audio/compleated.wav")
+                PlaySound('Audio/compleated.wav', SND_FILENAME|SND_ASYNC) 
             elif self.calibration_frame_counter != None:  # TODO reset calibration values on button press
                 if exm > self.xmax:
                     self.xmax = exm
