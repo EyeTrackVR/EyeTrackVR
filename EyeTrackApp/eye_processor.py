@@ -13,6 +13,7 @@ import time
 import statistics
 from one_euro_filter import OneEuroFilter
 from sympy import symbols, Eq, solve
+from winsound import PlaySound, SND_FILENAME, SND_ASYNC
 class InformationOrigin(Enum):
     RANSAC = 1
     BLOB = 2
@@ -138,16 +139,20 @@ class EyeProcessor:
         capture_event: "threading.Event",
         capture_queue_incoming: "queue.Queue",
         image_queue_outgoing: "queue.Queue",
+        eye_id,
     ):
         self.config = config
-
+        
+      
         # Cross-thread communication management
         self.capture_queue_incoming = capture_queue_incoming
         self.image_queue_outgoing = image_queue_outgoing
         self.cancellation_event = cancellation_event
         self.capture_event = capture_event
+        self.eye_id = eye_id
 
         # Cross algo state
+       
         self.lkg_projected_sphere = None
         self.xc = None
         self.yc = None
@@ -175,15 +180,20 @@ class EyeProcessor:
         self.recenter_eye = False
         self.calibration_frame_counter
 
-
-        min_cutoff = 0.0004
-        beta = 0.9
+        try:
+            min_cutoff = int(self.config.gui_min_cutoff)  #0.0004
+            beta = int(self.config.gui_speed_coefficient)    #0.9
+        except:
+            print('[WARN] OneEuroFilter values must be a legal number.')
+            min_cutoff =  0.0004
+            beta = 0.9
         noisy_point = np.array([1, 1])
         self.one_euro_filter = OneEuroFilter(
             noisy_point,
             min_cutoff=min_cutoff,
             beta=beta
             ) 
+        
 
 
 
@@ -260,9 +270,9 @@ class EyeProcessor:
 # define circle
         try:
             ht, wd = self.current_image_gray.shape[:2]
-            radius = int(float(self.lkg_projected_sphere["axes"][0]))
-            
 
+            radius = int(float(self.lkg_projected_sphere["axes"][0]))
+   
             # draw filled circle in white on black background as mask
             mask = np.zeros((ht,wd), dtype=np.uint8)
             mask = cv2.circle(mask, (self.xc,self.yc), radius, 255, -1)
@@ -279,7 +289,7 @@ class EyeProcessor:
             # combine the two masked images
             self.current_image_gray = cv2.add(masked_img, masked_color)
         except:
-            pass
+           pass
 
 
         # Increase our threshold value slightly, in order to have a better possibility of getting back
@@ -364,7 +374,8 @@ class EyeProcessor:
                 self.calibration_frame_counter = None
                 self.recenter_eye = False
                 self.xoff = cx
-                self.yoff = cy
+                self.yoff = cy      
+                PlaySound('Audio/compleated.wav', SND_FILENAME|SND_ASYNC) 
             elif self.calibration_frame_counter != None:
                 if cx > self.xmax:
                     self.xmax = cx
@@ -395,14 +406,27 @@ class EyeProcessor:
            # print(self.)
             out_x = 0
             out_y = 0
-            if xr > 0:
-                out_x = max(0.0, min(1.0, xr))
-            if xl > 0:
-                out_x = -abs(max(0.0, min(1.0, xl)))
-            if yd > 0:
-                out_y = -abs(max(0.0, min(1.0, yd)))
-            if yu > 0:
-                out_y = max(0.0, min(1.0, yu))
+            if self.config.gui_flip_y_axis == True: #check config on flipped values settings and apply accordingly
+                if yd > 0:
+                    out_y = max(0.0, min(1.0, yd))
+                if yu > 0:
+                    out_y = -abs(max(0.0, min(1.0, yu)))
+            else:
+                if yd > 0:
+                    out_y = -abs(max(0.0, min(1.0, yd)))
+                if yu > 0:
+                    out_y = max(0.0, min(1.0, yu))
+
+            if self.config.gui_flip_x_axis_right == True:
+                if xr > 0:
+                    out_x = -abs(max(0.0, min(1.0, xr)))
+                if xl > 0:
+                    out_x = max(0.0, min(1.0, xl))
+            else:
+                if xr > 0:
+                    out_x = max(0.0, min(1.0, xr))
+                if xl > 0:
+                    out_x = -abs(max(0.0, min(1.0, xl)))
 
             try:
                 noisy_point = np.array([out_x, out_y]) #fliter our values with a One Euro Filter
@@ -432,10 +456,19 @@ class EyeProcessor:
         yf = []
         pd = []
     
+
+
+
+
+
         out_pupil_dialation = 1
         
-        
-
+        if self.eye_id == "EyeId.RIGHT":
+            flipx = self.config.gui_flip_x_axis_right
+        #elif self.eye_id == "EyeId.LEFT":
+         #   flipx = self.config.gui_flip_x_axis_left
+        else:          
+            flipx = self.config.gui_flip_x_axis_left
         while True:
            # oef = init_filter()
            
@@ -496,27 +529,16 @@ class EyeProcessor:
             self.current_image_gray = cv2.cvtColor(
                 self.current_image, cv2.COLOR_BGR2GRAY
             )
-            _, thresh = cv2.threshold(
-                self.current_image_gray,
-                int(self.config.threshold),
-                255,
-                cv2.THRESH_BINARY,
-            )
 
 
-
-
-            
-# define circle for "cropping"
 
             try:
-                ht, wd = self.current_image_gray.shape
+                ht, wd = self.current_image_gray.shape[:2]
 
+ 
                 radius = int(float(self.lkg_projected_sphere["axes"][0]))
-                
-                self.xc = int(self.lkg_projected_sphere["center"][0])
-                self.yc = int(self.lkg_projected_sphere["center"][1])
-
+                self.xc = int(float(self.lkg_projected_sphere["center"][0]))
+                self.yc = int(float(self.lkg_projected_sphere["center"][1]))
                 # draw filled circle in white on black background as mask
                 mask = np.zeros((ht,wd), dtype=np.uint8)
                 mask = cv2.circle(mask, (self.xc,self.yc), radius, 255, -1)
@@ -532,9 +554,21 @@ class EyeProcessor:
 
                 # combine the two masked images
                 self.current_image_gray = cv2.add(masked_img, masked_color)
-
             except:
-                pass
+               pass
+
+
+
+
+            _, thresh = cv2.threshold(
+                self.current_image_gray,
+                int(self.config.threshold),
+                255,
+                cv2.THRESH_BINARY,
+            )
+
+
+
 
 
 
@@ -561,7 +595,11 @@ class EyeProcessor:
             # using blob tracking.
             #
             if len(convex_hulls) == 0:
-                self.blob_tracking_fallback()
+                if self.config.gui_blob_fallback == True:
+                    self.blob_tracking_fallback()
+                else:
+                    print("[INFO] Blob fallback disabled. Assuming blink.")
+                    self.output_images_and_update(thresh, EyeInformation(InformationOrigin.RANSAC, 0, 0, 0, False))
                 continue
 
             # Find our largest hull, which we expect will probably be the ellipse that represents the 2d
@@ -576,7 +614,11 @@ class EyeProcessor:
                     largest_hull.reshape(-1, 2)
                 )
             except:
-                self.blob_tracking_fallback()
+                if self.config.gui_blob_fallback == True:
+                    self.blob_tracking_fallback()
+                else:
+                    print("[INFO] Blob fallback disabled. Assuming blink.")
+                    self.output_images_and_update(thresh, EyeInformation(InformationOrigin.RANSAC, 0, 0, 0, False))
                 continue
 
             # Get axis and angle of the ellipse, using pupil labs 2d algos. The next bit of code ranges
@@ -618,6 +660,7 @@ class EyeProcessor:
                 self.recenter_eye = False
                 self.xoff = exm
                 self.yoff = eym
+                PlaySound('Audio/compleated.wav', SND_FILENAME|SND_ASYNC) 
             elif self.calibration_frame_counter != None:  # TODO reset calibration values on button press
                 if exm > self.xmax:
                     self.xmax = exm
@@ -655,15 +698,28 @@ class EyeProcessor:
 
             out_x = 0
             out_y = 0
-            if xr > 0:
-                out_x = max(0.0, min(1.0, xr))
-            if xl > 0:
-                out_x = -abs(max(0.0, min(1.0, xl)))
-            if yd > 0:
-                out_y = -abs(max(0.0, min(1.0, yd)))
-            if yu > 0:
-                out_y = max(0.0, min(1.0, yu))
 
+            if self.config.gui_flip_y_axis == True:
+                if yd > 0:
+                    out_y = max(0.0, min(1.0, yd))
+                if yu > 0:
+                    out_y = -abs(max(0.0, min(1.0, yu)))
+            else:
+                if yd > 0:
+                    out_y = -abs(max(0.0, min(1.0, yd)))
+                if yu > 0:
+                    out_y = max(0.0, min(1.0, yu))
+
+            if flipx == True:
+                if xr > 0:
+                    out_x = -abs(max(0.0, min(1.0, xr)))
+                if xl > 0:
+                    out_x = max(0.0, min(1.0, xl))
+            else:
+                if xr > 0:
+                    out_x = max(0.0, min(1.0, xr))
+                if xl > 0:
+                    out_x = -abs(max(0.0, min(1.0, xl)))
 
 
             try:

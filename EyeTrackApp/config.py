@@ -19,10 +19,15 @@ class EyeTrackCameraConfig:
     roi_window_h: "int" = 0
     focal_length: "int" = 30
     capture_source: "Union[int, str, None]" = None
-    vrc_eye_position_scalar: "int" = 3000
-    #show_color_image: "bool" = False
-
-
+    gui_flip_x_axis_left: "bool" = False
+    gui_flip_x_axis_right: "bool" = False
+    gui_flip_y_axis: "bool" = False
+    gui_blob_fallback: "bool" = True
+    gui_min_cutoff: "str" = "0.0004"
+    gui_speed_coefficient: "str" = "0.9"
+    gui_osc_address: "str" = "127.0.0.1"
+    gui_osc_port: "str" = "9000"
+    
 CONFIG_FILE_NAME = "eyetrack_settings.json"
 
 
@@ -31,6 +36,7 @@ class EyeTrackConfig:
     version: "int" = 1
     right_eye: EyeTrackCameraConfig = EyeTrackCameraConfig()
     left_eye: EyeTrackCameraConfig = EyeTrackCameraConfig()
+    settings: EyeTrackCameraConfig = EyeTrackCameraConfig()
     eye_display_id: "EyeId" = EyeId.RIGHT
 
     @staticmethod

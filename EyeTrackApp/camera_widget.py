@@ -7,7 +7,7 @@ from queue import Queue, Empty
 from camera import Camera, CameraState
 from osc import EyeId
 import cv2
-
+from winsound import PlaySound, SND_FILENAME, SND_ASYNC
 
 class CameraWidget:
     def __init__(self, widget_id: EyeId, main_config: EyeTrackConfig, osc_queue: Queue):
@@ -35,6 +35,8 @@ class CameraWidget:
             self.config = main_config.right_eye
         elif self.eye_id == EyeId.LEFT:
             self.config = main_config.left_eye
+        elif self.eye_id == EyeId.SETTINGS:
+            self.config = main_config.settings
         else:
             raise RuntimeError("Cannot have a camera widget represent both eyes!")
 
@@ -134,6 +136,7 @@ class CameraWidget:
             self.capture_event,
             self.capture_queue,
             self.image_queue,
+            self.eye_id,
         )
 
         self.camera_status_queue = Queue()
@@ -235,6 +238,8 @@ class CameraWidget:
             self.x1, self.y1 = values[self.gui_roi_selection]
         elif event == self.gui_restart_calibration:
             self.ransac.calibration_frame_counter = 300
+            PlaySound('Audio/start.wav', SND_FILENAME|SND_ASYNC)
+            
         elif event == self.gui_recenter_eye:
             self.ransac.recenter_eye = True
 
@@ -297,15 +302,11 @@ class CameraWidget:
                 ):
                     graph.update(background_color="white")
 
-                   # if eye_info.y < 0: # flip visualzation to be correct
-                   #     visy = abs(eye_info.y)
-                   # elif eye_info.y >= 0:
-                    #    visy = -abs(eye_info.y)
                     try:
 
                         graph.draw_circle(
                             (eye_info.x * -100, eye_info.y * -100),
-                            23,
+                            25,
                             fill_color="black",
                             line_color="white",
                         )
@@ -315,9 +316,9 @@ class CameraWidget:
                     graph.update(background_color="#6f4ca1")
                 elif eye_info.info_type == InformationOrigin.FAILURE:
                     graph.update(background_color="red")
-
                 # Relay information to OSC
                 if eye_info.info_type != InformationOrigin.FAILURE:
+                    
                     self.osc_queue.put((self.eye_id, eye_info))
             except Empty:
                 return
