@@ -42,8 +42,8 @@ class SettingsWidget:
        # self.gui_algo_settings_layout = f"-ALGOSETTINGSLAYOUT{widget_id}-"
         
         self.gui_blob_fallback = f"-BLOBFALLBACK{widget_id}-"
-        self.gui_speed_coefficient_slider = f"-SPEEDCOEFFICIENTSLIDER{widget_id}-"
-        self.gui_min_cutoff_slider = f"-MINCUTOFFSLIDER{widget_id}-"
+        self.gui_speed_coefficient = f"-SPEEDCOEFFICIENT{widget_id}-"
+        self.gui_min_cutoff = f"-MINCUTOFF{widget_id}-"
         self.main_config = main_config
 
         self.configr = main_config.right_eye
@@ -101,24 +101,31 @@ class SettingsWidget:
               #  sg.InputText(self.config.capture_source, key=self.gui_camera_addr),
             ],
             [
+                
                 sg.Text("Min Frequency Cutoff", background_color='#424042'),
-                sg.Slider(
-                    range=(0, 10),
-                    default_value=self.config.gui_min_cutoff_slider,
-                    orientation="h",
-                    key=self.gui_min_cutoff_slider,
-                    background_color='#424042'
-                ),
+                sg.InputText(self.config.gui_min_cutoff, key=self.gui_min_cutoff),
+
+                
+                #sg.Slider(
+                 #   range=(0, 10),
+                #    default_value=self.config.gui_min_cutoff,
+                 #   orientation="h",
+                 #   key=self.gui_min_cutoff,
+                #    background_color='#424042'
+                #),
             ],
             [
                 sg.Text("Speed Coefficient", background_color='#424042'),
-                sg.Slider(
-                    range=(0, 20),
-                    default_value=9,
-                    orientation="h",
-                    key=self.gui_speed_coefficient_slider,
-                    background_color='#424042'
-                ),
+                sg.InputText(self.config.gui_speed_coefficient, key=self.gui_speed_coefficient),
+
+              #  sg.Text("Speed Coefficient", background_color='#424042'),
+                #sg.Slider(
+                 #   range=(0, 20),
+                 #   default_value=9,
+                  #  orientation="h",
+                 #   key=self.gui_speed_coefficient_slider,
+                 #   background_color='#424042'
+               # ),
             ],
              [
                 sg.Text("OSC Settings:", background_color='#242224'),
@@ -129,7 +136,6 @@ class SettingsWidget:
             ],
             [
             sg.Text("OSC Port:", background_color='#424042'),
-            #print(self.config.gui_osc_port)
             sg.InputText(self.config.gui_osc_port, key=self.gui_osc_port),
             ],
 
@@ -151,7 +157,7 @@ class SettingsWidget:
 
         
         self.widget_layout = [
-            [
+            [   
                 sg.Text("General Settings:", background_color='#242224'),
               #  sg.InputText(self.config.capture_source, key=self.gui_camera_addr),
             ],
@@ -235,16 +241,16 @@ class SettingsWidget:
               #      self.config.capture_source = values[self.gui_camera_addr]
            # changed = True
 
-        if self.config.gui_min_cutoff_slider != values[self.gui_min_cutoff_slider]:
-            self.config.gui_min_cutoff_slider = int(values[self.gui_min_cutoff_slider])
-            self.configl.gui_min_cutoff_slider = int(values[self.gui_min_cutoff_slider])
-            self.configr.gui_min_cutoff_slider = int(values[self.gui_min_cutoff_slider])
+        if self.config.gui_min_cutoff != values[self.gui_min_cutoff]:
+            self.config.gui_min_cutoff = values[self.gui_min_cutoff]
+            self.configl.gui_min_cutoff = values[self.gui_min_cutoff]
+            self.configr.gui_min_cutoff = values[self.gui_min_cutoff]
             changed = True
             
-        if self.config.gui_speed_coefficient_slider != values[self.gui_speed_coefficient_slider]:
-            self.config.gui_speed_coefficient_slider = int(values[self.gui_speed_coefficient_slider])
-            self.configl.gui_speed_coefficient_slider = int(values[self.gui_speed_coefficient_slider])
-            self.configr.gui_speed_coefficient_slider = int(values[self.gui_speed_coefficient_slider])
+        if self.config.gui_speed_coefficient != values[self.gui_speed_coefficient]:
+            self.config.gui_speed_coefficient = values[self.gui_speed_coefficient]
+            self.configl.gui_speed_coefficient = values[self.gui_speed_coefficient]
+            self.configr.gui_speed_coefficient = values[self.gui_speed_coefficient]
             changed = True
 
 

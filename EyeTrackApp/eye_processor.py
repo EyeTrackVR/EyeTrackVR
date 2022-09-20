@@ -180,9 +180,13 @@ class EyeProcessor:
         self.recenter_eye = False
         self.calibration_frame_counter
 
-
-        min_cutoff = (self.config.gui_min_cutoff_slider / 10000)  #0.0004
-        beta = (self.config.gui_speed_coefficient_slider / 10)    #0.9
+        try:
+            min_cutoff = int(self.config.gui_min_cutoff)  #0.0004
+            beta = int(self.config.gui_speed_coefficient)    #0.9
+        except:
+            print('[WARN] OneEuroFilter values must be a legal number.')
+            min_cutoff =  0.0004
+            beta = 0.9
         noisy_point = np.array([1, 1])
         self.one_euro_filter = OneEuroFilter(
             noisy_point,
@@ -266,8 +270,9 @@ class EyeProcessor:
 # define circle
         try:
             ht, wd = self.current_image_gray.shape[:2]
-            radius = int(float(self.lkg_projected_sphere))
 
+            radius = int(float(self.lkg_projected_sphere["axes"][0]))
+   
             # draw filled circle in white on black background as mask
             mask = np.zeros((ht,wd), dtype=np.uint8)
             mask = cv2.circle(mask, (self.xc,self.yc), radius, 255, -1)
@@ -284,7 +289,7 @@ class EyeProcessor:
             # combine the two masked images
             self.current_image_gray = cv2.add(masked_img, masked_color)
         except:
-            pass
+           pass
 
 
         # Increase our threshold value slightly, in order to have a better possibility of getting back
@@ -453,30 +458,6 @@ class EyeProcessor:
     
 
 
-      
-        try:
-            print('done')
-            ht, wd = self.current_image.shape[:2]
-            radius = int(float(self.lkg_projected_sphere["axes"][0]))
-            
-
-            # draw filled circle in white on black background as mask
-            mask = np.zeros((ht,wd), dtype=np.uint8)
-            mask = cv2.circle(mask, (self.xc,self.yc), radius, 255, -1)
-
-            # create white colored background
-            color = np.full_like(self.current_image, (255))
-
-            # apply mask to image
-            masked_img = cv2.bitwise_and(self.current_image, self.current_image, mask=mask)
-
-            # apply inverse mask to colored image
-            masked_color = cv2.bitwise_and(color, color, mask=255-mask)
-
-            # combine the two masked images
-            self.current_image = cv2.add(masked_img, masked_color)
-        except:
-            pass
 
 
 
@@ -548,6 +529,40 @@ class EyeProcessor:
             self.current_image_gray = cv2.cvtColor(
                 self.current_image, cv2.COLOR_BGR2GRAY
             )
+
+            try:
+                print(int(float(self.lkg_projected_sphere["axes"][0])), int(float(self.lkg_projected_sphere["axes"][1])))
+            except:
+                print('nah')
+
+            try:
+                ht, wd = self.current_image_gray.shape[:2]
+
+ 
+                radius = int(float(self.lkg_projected_sphere["axes"][0]))
+                self.xc = int(float(self.lkg_projected_sphere["center"][0]))
+                self.yc = int(float(self.lkg_projected_sphere["center"][1]))
+                # draw filled circle in white on black background as mask
+                mask = np.zeros((ht,wd), dtype=np.uint8)
+                mask = cv2.circle(mask, (self.xc,self.yc), radius, 255, -1)
+
+                # create white colored background
+                color = np.full_like(self.current_image_gray, (255))
+
+                # apply mask to image
+                masked_img = cv2.bitwise_and(self.current_image_gray, self.current_image_gray, mask=mask)
+
+                # apply inverse mask to colored image
+                masked_color = cv2.bitwise_and(color, color, mask=255-mask)
+
+                # combine the two masked images
+                self.current_image_gray = cv2.add(masked_img, masked_color)
+            except:
+               pass
+
+
+
+
             _, thresh = cv2.threshold(
                 self.current_image_gray,
                 int(self.config.threshold),

@@ -159,18 +159,18 @@ def main():
             config.save()
         elif values[BOTH_EYE_RADIO_NAME] and config.eye_display_id != EyeId.BOTH:
             settings[0].stop()
-            eyes[0].start()
             eyes[1].start()
+            eyes[0].start()
             window[RIGHT_EYE_NAME].update(visible=True)
             window[LEFT_EYE_NAME].update(visible=True)
-            window[SETTINGS_NAME].update(visible=True)
+            window[SETTINGS_NAME].update(visible=False)
             config.eye_display_id = EyeId.BOTH
             config.save()
 
         elif values[SETTINGS_RADIO_NAME] and config.eye_display_id != EyeId.SETTINGS:
-            settings[0].start()
             eyes[0].stop()
             eyes[1].stop()
+            settings[0].start()
             window[RIGHT_EYE_NAME].update(visible=False)
             window[LEFT_EYE_NAME].update(visible=False)
             window[SETTINGS_NAME].update(visible=True)
