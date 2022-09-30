@@ -42,6 +42,8 @@ class SettingsWidget:
        # self.gui_algo_settings_layout = f"-ALGOSETTINGSLAYOUT{widget_id}-"
         
         self.gui_blob_fallback = f"-BLOBFALLBACK{widget_id}-"
+        self.gui_blob_maxsize = f"-BLOBMAXSIZE{widget_id}-"
+
         self.gui_speed_coefficient = f"-SPEEDCOEFFICIENT{widget_id}-"
         self.gui_min_cutoff = f"-MINCUTOFF{widget_id}-"
         self.main_config = main_config
@@ -95,6 +97,15 @@ class SettingsWidget:
                     background_color='#424042',
                 ),
             ],
+            [sg.Slider(
+                    range=(1, 40),
+                    default_value=self.config.gui_blob_maxsize,
+                    orientation="h",
+                    key=self.gui_min_cutoff,
+                    background_color='#424042'
+                ),
+   
+            ]
             [
                 sg.Text("Filter Paramaters:", background_color='#242224'),
                 
@@ -240,6 +251,15 @@ class SettingsWidget:
             #    else:
               #      self.config.capture_source = values[self.gui_camera_addr]
            # changed = True
+
+
+        if self.config.gui_osc_port != values[self.gui_osc_port]:
+            self.config.gui_osc_port = values[self.gui_osc_port]
+            changed = True
+
+        if self.config.gui_osc_address != values[self.gui_osc_address]:
+            self.config.gui_osc_address = values[self.gui_osc_address]
+            changed = True
 
         if self.config.gui_min_cutoff != values[self.gui_min_cutoff]:
             self.config.gui_min_cutoff = values[self.gui_min_cutoff]
