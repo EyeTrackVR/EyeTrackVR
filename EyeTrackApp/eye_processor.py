@@ -1,8 +1,10 @@
+from operator import truth
 from dataclasses import dataclass
 import sys
-
+import asyncio
 sys.path.append(".")
 from config import EyeTrackCameraConfig
+from config import EyeTrackSettingsConfig
 from pye3dcustom.detector_3d import CameraModel, Detector3D, DetectorMode
 import queue
 import threading
@@ -38,7 +40,10 @@ def run_once(f):
     return wrapper
 
 
-
+async def delayed_setting_change(setting, value):
+    await asyncio.sleep(5)
+    setting = value
+    PlaySound('Audio/compleated.wav', SND_FILENAME|SND_ASYNC) 
 
 def fit_rotated_ellipse_ransac(
     data, iter=5, sample_num=10, offset=80  # 80.0, 10, 80
@@ -135,6 +140,7 @@ class EyeProcessor:
     def __init__(
         self,
         config: "EyeTrackCameraConfig",
+        settings: "EyeTrackSettingsConfig",
         cancellation_event: "threading.Event",
         capture_event: "threading.Event",
         capture_queue_incoming: "queue.Queue",
@@ -142,6 +148,7 @@ class EyeProcessor:
         eye_id,
     ):
         self.config = config
+        self.settings = settings
         
       
         # Cross-thread communication management
@@ -176,13 +183,15 @@ class EyeProcessor:
         self.xmin = 69420
         self.ymax = -69420
         self.ymin = 69420
+        self.cct = 300
+        self.cccs = False
+        self.ts = 10
         self.previous_rotation = self.config.rotation_angle
-        self.recenter_eye = False
         self.calibration_frame_counter
 
         try:
-            min_cutoff = self.config.gui_min_cutoff  #0.0004
-            beta = self.config.gui_speed_coefficient    #0.9
+            min_cutoff = float(self.settings.gui_min_cutoff)  #0.0004
+            beta = float(self.settings.gui_speed_coefficient)    #0.9
         except:
             print('[WARN] OneEuroFilter values must be a legal number.')
             min_cutoff =  0.0004
@@ -268,28 +277,33 @@ class EyeProcessor:
         
 
 # define circle
-        try:
-            ht, wd = self.current_image_gray.shape[:2]
 
-            radius = int(float(self.lkg_projected_sphere["axes"][0]))
-   
-            # draw filled circle in white on black background as mask
-            mask = np.zeros((ht,wd), dtype=np.uint8)
-            mask = cv2.circle(mask, (self.xc,self.yc), radius, 255, -1)
+        if self.config.gui_circular_crop == True:
+            if self.cct == 0:
+                try:
+                    ht, wd = self.current_image_gray.shape[:2]
 
-            # create white colored background
-            color = np.full_like(self.current_image_gray, (255))
+                    radius = int(float(self.lkg_projected_sphere["axes"][0]))
+        
+                    # draw filled circle in white on black background as mask
+                    mask = np.zeros((ht,wd), dtype=np.uint8)
+                    mask = cv2.circle(mask, (self.xc,self.yc), radius, 255, -1)
 
-            # apply mask to image
-            masked_img = cv2.bitwise_and(self.current_image_gray, self.current_image_gray, mask=mask)
+                    # create white colored background
+                    color = np.full_like(self.current_image_gray, (255))
 
-            # apply inverse mask to colored image
-            masked_color = cv2.bitwise_and(color, color, mask=255-mask)
+                    # apply mask to image
+                    masked_img = cv2.bitwise_and(self.current_image_gray, self.current_image_gray, mask=mask)
 
-            # combine the two masked images
-            self.current_image_gray = cv2.add(masked_img, masked_color)
-        except:
-           pass
+                    # apply inverse mask to colored image
+                    masked_color = cv2.bitwise_and(color, color, mask=255-mask)
+
+                    # combine the two masked images
+                    self.current_image_gray = cv2.add(masked_img, masked_color)
+                except:
+                    pass
+            else:
+                self.cct = self.cct - 1
 
 
         # Increase our threshold value slightly, in order to have a better possibility of getting back
@@ -368,15 +382,13 @@ class EyeProcessor:
                 self.current_image_gray, (x, y), (x + w, y + h), (255, 0, 0), 2
             )
 
-
-
-            if self.calibration_frame_counter == 0 or self.recenter_eye:
+            if self.calibration_frame_counter == 0:
                 self.calibration_frame_counter = None
-                self.recenter_eye = False
                 self.xoff = cx
                 self.yoff = cy      
                 PlaySound('Audio/compleated.wav', SND_FILENAME|SND_ASYNC) 
             elif self.calibration_frame_counter != None:
+                self.settings.gui_recenter_eyes = False
                 if cx > self.xmax:
                     self.xmax = cx
                 if cx < self.xmin:
@@ -386,6 +398,17 @@ class EyeProcessor:
                 if cy < self.ymin:
                     self.ymin = cy
                 self.calibration_frame_counter -= 1
+            if self.settings.gui_recenter_eyes == True:
+                self.xoff = cx
+                self.yoff = cy
+                if self.ts == 0:
+                    self.settings.gui_recenter_eyes = False
+                    PlaySound('Audio/compleated.wav', SND_FILENAME|SND_ASYNC) 
+                else:
+                    self.ts = self.ts - 1
+            else:
+                self.ts = 10 
+
 
 
 
@@ -406,7 +429,7 @@ class EyeProcessor:
            # print(self.)
             out_x = 0
             out_y = 0
-            if self.config.gui_flip_y_axis == True: #check config on flipped values settings and apply accordingly
+            if self.settings.gui_flip_y_axis == True: #check config on flipped values settings and apply accordingly
                 if yd > 0:
                     out_y = max(0.0, min(1.0, yd))
                 if yu > 0:
@@ -417,7 +440,7 @@ class EyeProcessor:
                 if yu > 0:
                     out_y = max(0.0, min(1.0, yu))
 
-            if self.config.gui_flip_x_axis_right == True:
+            if self.settings.gui_flip_x_axis_right == True:
                 if xr > 0:
                     out_x = -abs(max(0.0, min(1.0, xr)))
                 if xl > 0:
@@ -452,23 +475,15 @@ class EyeProcessor:
     def run(self):
         camera_model = None
         detector_3d = None
-        xf = []
-        yf = []
-        pd = []
-    
-
-
-
-
 
         out_pupil_dialation = 1
         
         if self.eye_id == "EyeId.RIGHT":
-            flipx = self.config.gui_flip_x_axis_right
+            flipx = self.settings.gui_flip_x_axis_right
         #elif self.eye_id == "EyeId.LEFT":
          #   flipx = self.config.gui_flip_x_axis_left
         else:          
-            flipx = self.config.gui_flip_x_axis_left
+            flipx = self.settings.gui_flip_x_axis_left
         while True:
            # oef = init_filter()
            
@@ -530,33 +545,38 @@ class EyeProcessor:
                 self.current_image, cv2.COLOR_BGR2GRAY
             )
 
+            #print(self.config.gui_circular_crop)
+           # print(self.cct)
+            if self.config.gui_circular_crop == True:
+                if self.cct == 0:
+                    try:
+                        ht, wd = self.current_image_gray.shape[:2]
 
+        
+                        radius = int(float(self.lkg_projected_sphere["axes"][0]))
+                        self.xc = int(float(self.lkg_projected_sphere["center"][0]))
+                        self.yc = int(float(self.lkg_projected_sphere["center"][1]))
+                        # draw filled circle in white on black background as mask
+                        mask = np.zeros((ht,wd), dtype=np.uint8)
+                        mask = cv2.circle(mask, (self.xc,self.yc), radius, 255, -1)
 
-            try:
-                ht, wd = self.current_image_gray.shape[:2]
+                        # create white colored background
+                        color = np.full_like(self.current_image_gray, (255))
 
- 
-                radius = int(float(self.lkg_projected_sphere["axes"][0]))
-                self.xc = int(float(self.lkg_projected_sphere["center"][0]))
-                self.yc = int(float(self.lkg_projected_sphere["center"][1]))
-                # draw filled circle in white on black background as mask
-                mask = np.zeros((ht,wd), dtype=np.uint8)
-                mask = cv2.circle(mask, (self.xc,self.yc), radius, 255, -1)
+                        # apply mask to image
+                        masked_img = cv2.bitwise_and(self.current_image_gray, self.current_image_gray, mask=mask)
 
-                # create white colored background
-                color = np.full_like(self.current_image_gray, (255))
+                        # apply inverse mask to colored image
+                        masked_color = cv2.bitwise_and(color, color, mask=255-mask)
 
-                # apply mask to image
-                masked_img = cv2.bitwise_and(self.current_image_gray, self.current_image_gray, mask=mask)
-
-                # apply inverse mask to colored image
-                masked_color = cv2.bitwise_and(color, color, mask=255-mask)
-
-                # combine the two masked images
-                self.current_image_gray = cv2.add(masked_img, masked_color)
-            except:
-               pass
-
+                        # combine the two masked images
+                        self.current_image_gray = cv2.add(masked_img, masked_color)
+                    except:
+                        pass
+                else:
+                    self.cct = self.cct - 1
+            else:
+                self.cct = 300
 
 
 
@@ -595,7 +615,7 @@ class EyeProcessor:
             # using blob tracking.
             #
             if len(convex_hulls) == 0:
-                if self.config.gui_blob_fallback == True:
+                if self.settings.gui_blob_fallback == True:
                     self.blob_tracking_fallback()
                 else:
                     print("[INFO] Blob fallback disabled. Assuming blink.")
@@ -614,7 +634,7 @@ class EyeProcessor:
                     largest_hull.reshape(-1, 2)
                 )
             except:
-                if self.config.gui_blob_fallback == True:
+                if self.settings.gui_blob_fallback == True:
                     self.blob_tracking_fallback()
                 else:
                     print("[INFO] Blob fallback disabled. Assuming blink.")
@@ -654,12 +674,11 @@ class EyeProcessor:
             d = result_3d["diameter_3d"]
       
 
-
-            if self.calibration_frame_counter == 0 or self.recenter_eye:
+         
+            if self.calibration_frame_counter == 0:
                 self.calibration_frame_counter = None
-                self.recenter_eye = False
-                self.xoff = exm
-                self.yoff = eym
+                self.xoff = cx
+                self.yoff = cy      
                 PlaySound('Audio/compleated.wav', SND_FILENAME|SND_ASYNC) 
             elif self.calibration_frame_counter != None:  # TODO reset calibration values on button press
                 if exm > self.xmax:
@@ -671,7 +690,18 @@ class EyeProcessor:
                 if eym < self.ymin:
                     self.ymin = eym
                 self.calibration_frame_counter -= 1
+            if self.settings.gui_recenter_eyes == True:
+                self.xoff = cx
+                self.yoff = cy
+                if self.ts == 0:
+                    self.settings.gui_recenter_eyes = False
+                    PlaySound('Audio/compleated.wav', SND_FILENAME|SND_ASYNC) 
+                else:
+                    self.ts = self.ts - 1
+            else:
+                self.ts = 20 
 
+            
             #print(self.yoff)
           
 
@@ -699,7 +729,7 @@ class EyeProcessor:
             out_x = 0
             out_y = 0
 
-            if self.config.gui_flip_y_axis == True:
+            if self.settings.gui_flip_y_axis == True:
                 if yd > 0:
                     out_y = max(0.0, min(1.0, yd))
                 if yu > 0:

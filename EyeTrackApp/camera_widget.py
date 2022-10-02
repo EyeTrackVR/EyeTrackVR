@@ -1,5 +1,6 @@
 import PySimpleGUI as sg
 from config import EyeTrackConfig
+from config import EyeTrackSettingsConfig
 from threading import Event, Thread
 from eye_processor import EyeProcessor, InformationOrigin
 from enum import Enum
@@ -23,20 +24,24 @@ class CameraWidget:
         self.gui_tracking_image = f"-IMAGE{widget_id}-"
         self.gui_output_graph = f"-OUTPUTGRAPH{widget_id}-"
         self.gui_restart_calibration = f"-RESTARTCALIBRATION{widget_id}-"
-        self.gui_recenter_eye = f"-RECENTEREYE{widget_id}-"
+        self.gui_recenter_eyes = f"-RECENTEREYES{widget_id}-"
         self.gui_mode_readout = f"-APPMODE{widget_id}-"
+        self.gui_circular_crop = f"-CIRCLECROP{widget_id}-"
        # self.gui_show_color_image = f"-SHOWCOLORIMAGE{widget_id}-"
         self.gui_roi_message = f"-ROIMESSAGE{widget_id}-"
 
         self.osc_queue = osc_queue
         self.main_config = main_config
         self.eye_id = widget_id
+        self.settings_config = main_config.settings
+        self.configl = main_config.left_eye
+        self.configr = main_config.right_eye
+        self.settings = main_config.settings
         if self.eye_id == EyeId.RIGHT:
             self.config = main_config.right_eye
         elif self.eye_id == EyeId.LEFT:
             self.config = main_config.left_eye
-        elif self.eye_id == EyeId.SETTINGS:
-            self.config = main_config.settings
+            
         else:
             raise RuntimeError("Cannot have a camera widget represent both eyes!")
 
@@ -78,14 +83,17 @@ class CameraWidget:
             ],
             [
                 sg.Button("Restart Calibration", key=self.gui_restart_calibration, button_color = '#6f4ca1'),
-                sg.Button("Recenter Eye", key=self.gui_recenter_eye, button_color = '#6f4ca1'),
-                #sg.Checkbox(
-                #    "Show Color Image:",
-                #    default=self.config.show_color_image,
-               #     key=self.gui_show_color_image,
-                #),
+                sg.Button("Recenter Eyes", key=self.gui_recenter_eyes, button_color = '#6f4ca1'),
+                
             ],
-            [sg.Text("Mode:", background_color='#424042'), sg.Text("Calibrating", key=self.gui_mode_readout, background_color='#424042')],
+            [sg.Text("Mode:", background_color='#424042'), sg.Text("Calibrating", key=self.gui_mode_readout, background_color='#424042'),
+                sg.Checkbox(
+                    "Circle crop:",
+                    default=self.config.gui_circular_crop,
+                    key=self.gui_circular_crop,
+                    background_color='#424042',
+                ),
+            ],
             [sg.Image(filename="", key=self.gui_tracking_image)],
             [
                 sg.Graph(
@@ -132,6 +140,7 @@ class CameraWidget:
 
         self.ransac = EyeProcessor(
             self.config,
+            self.settings_config,
             self.cancellation_event,
             self.capture_event,
             self.capture_queue,
@@ -240,8 +249,14 @@ class CameraWidget:
             self.ransac.calibration_frame_counter = 300
             PlaySound('Audio/start.wav', SND_FILENAME|SND_ASYNC)
             
-        elif event == self.gui_recenter_eye:
-            self.ransac.recenter_eye = True
+
+        elif event == self.gui_recenter_eyes:
+            self.settings.gui_recenter_eyes = True
+        if self.config.gui_circular_crop != values[self.gui_circular_crop]:
+            self.config.gui_circular_crop = values[self.gui_circular_crop]
+            changed = True
+
+            #self.ransac.recenter_eye = True
 
         needs_roi_set = self.config.roi_window_h <= 0 or self.config.roi_window_w <= 0
 

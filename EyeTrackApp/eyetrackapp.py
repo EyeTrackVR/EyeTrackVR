@@ -119,7 +119,7 @@ def main():
         settings[0].start()
 
     # Create the window
-    window = sg.Window("EyeTrackVR v0.1.5", layout, icon='Images/logo.ico', background_color='#292929')
+    window = sg.Window("EyeTrackVR v0.1.6", layout, icon='Images/logo.ico', background_color='#292929')
 
     # GUI Render loop
     while True:

@@ -1,5 +1,5 @@
 import PySimpleGUI as sg
-from config import EyeTrackConfig
+from config import EyeTrackSettingsConfig
 from threading import Event, Thread
 from eye_processor import EyeProcessor, InformationOrigin
 from enum import Enum
@@ -9,7 +9,7 @@ import cv2
 from osc import EyeId
 
 class SettingsWidget:
-    def __init__(self, widget_id: EyeId, main_config: EyeTrackConfig, osc_queue: Queue):
+    def __init__(self, widget_id: EyeId, main_config: EyeTrackSettingsConfig, osc_queue: Queue):
 
         self.gui_show_color_image = f"-SETTING1{widget_id}-"
         self.gui_camera_addr = f"-CAMERAADDR{widget_id}-"
@@ -48,9 +48,6 @@ class SettingsWidget:
         self.gui_min_cutoff = f"-MINCUTOFF{widget_id}-"
         self.main_config = main_config
 
-        self.configr = main_config.right_eye
-        
-        self.configl = main_config.left_eye
 
         self.config = main_config.settings
 
@@ -97,15 +94,15 @@ class SettingsWidget:
                     background_color='#424042',
                 ),
             ],
-            [sg.Slider(
-                    range=(1, 40),
-                    default_value=self.config.gui_blob_maxsize,
-                    orientation="h",
-                    key=self.gui_min_cutoff,
-                    background_color='#424042'
-                ),
+           # [sg.Slider(
+            #        range=(1, 40),
+             #       default_value=self.config.gui_blob_maxsize,
+              #      orientation="h",
+                #    key=self.gui_min_cutoff,
+               #     background_color='#424042'
+                #),
    
-            ]
+            #],
             [
                 sg.Text("Filter Paramaters:", background_color='#242224'),
                 
@@ -263,14 +260,11 @@ class SettingsWidget:
 
         if self.config.gui_min_cutoff != values[self.gui_min_cutoff]:
             self.config.gui_min_cutoff = values[self.gui_min_cutoff]
-            self.configl.gui_min_cutoff = values[self.gui_min_cutoff]
-            self.configr.gui_min_cutoff = values[self.gui_min_cutoff]
             changed = True
             
         if self.config.gui_speed_coefficient != values[self.gui_speed_coefficient]:
             self.config.gui_speed_coefficient = values[self.gui_speed_coefficient]
-            self.configl.gui_speed_coefficient = values[self.gui_speed_coefficient]
-            self.configr.gui_speed_coefficient = values[self.gui_speed_coefficient]
+
             changed = True
 
 
@@ -280,27 +274,19 @@ class SettingsWidget:
       #  print(self.config.gui_flip_x_axis, values[self.gui_flip_x_axis])
         if self.config.gui_flip_x_axis_right != values[self.gui_flip_x_axis_right]:
             self.config.gui_flip_x_axis_right = values[self.gui_flip_x_axis_right]
-            self.configl.gui_flip_x_axis_right = values[self.gui_flip_x_axis_right]
-            self.configr.gui_flip_x_axis_right = values[self.gui_flip_x_axis_right]
             changed = True
 
         if self.config.gui_flip_x_axis_left != values[self.gui_flip_x_axis_left]:
             self.config.gui_flip_x_axis_left = values[self.gui_flip_x_axis_left]
-            self.configl.gui_flip_x_axis_left = values[self.gui_flip_x_axis_left]
-            self.configr.gui_flip_x_axis_left = values[self.gui_flip_x_axis_left]
             changed = True
 
 
         if self.config.gui_flip_y_axis != values[self.gui_flip_y_axis]:
             self.config.gui_flip_y_axis = values[self.gui_flip_y_axis]
-            self.configl.gui_flip_y_axis = values[self.gui_flip_y_axis]
-            self.configr.gui_flip_y_axis = values[self.gui_flip_y_axis]
             changed = True
 
         if self.config.gui_blob_fallback != values[self.gui_blob_fallback]:
             self.config.gui_blob_fallback = values[self.gui_blob_fallback]
-            self.configl.gui_blob_fallback = values[self.gui_blob_fallback]
-            self.configr.gui_blob_fallback = values[self.gui_blob_fallback]
             changed = True
 
 

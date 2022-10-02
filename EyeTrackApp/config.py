@@ -8,7 +8,6 @@ import json
 
 # TODO Who even needs synchronization? (We do.)
 
-
 @dataclass
 class EyeTrackCameraConfig:
     threshold: "int" = 0
@@ -19,6 +18,12 @@ class EyeTrackCameraConfig:
     roi_window_h: "int" = 0
     focal_length: "int" = 30
     capture_source: "Union[int, str, None]" = None
+    gui_circular_crop: "bool" = False
+
+    
+
+@dataclass
+class EyeTrackSettingsConfig:
     gui_flip_x_axis_left: "bool" = False
     gui_flip_x_axis_right: "bool" = False
     gui_flip_y_axis: "bool" = False
@@ -27,8 +32,8 @@ class EyeTrackCameraConfig:
     gui_speed_coefficient: "str" = "0.9"
     gui_osc_address: "str" = "127.0.0.1"
     gui_osc_port: "str" = "9000"
-    gui_blob_maxsize: "int" = 15
-    
+    gui_blob_maxsize: "str" = "15.9"
+    gui_recenter_eyes: "bool" = False
 CONFIG_FILE_NAME = "eyetrack_settings.json"
 
 
@@ -37,7 +42,7 @@ class EyeTrackConfig:
     version: "int" = 1
     right_eye: EyeTrackCameraConfig = EyeTrackCameraConfig()
     left_eye: EyeTrackCameraConfig = EyeTrackCameraConfig()
-    settings: EyeTrackCameraConfig = EyeTrackCameraConfig()
+    settings: EyeTrackSettingsConfig = EyeTrackSettingsConfig()
     eye_display_id: "EyeId" = EyeId.RIGHT
 
     @staticmethod
@@ -46,18 +51,18 @@ class EyeTrackConfig:
             print("No settings file, using base settings")
             return EyeTrackConfig()
         with open(CONFIG_FILE_NAME, "r") as settings_file:
-            try:
-                config: EyeTrackConfig = from_dict(
-                    data_class=EyeTrackConfig, data=json.load(settings_file), config=Config(type_hooks={EyeId: EyeId})
+           # try:
+            config: EyeTrackConfig = from_dict(
+                data_class=EyeTrackConfig, data=json.load(settings_file), config=Config(type_hooks={EyeId: EyeId})
+            )
+            if config.version != EyeTrackConfig().version:
+                raise RuntimeError(
+                    "Configuration does not contain version number, consider invalid"
                 )
-                if config.version != EyeTrackConfig().version:
-                    raise RuntimeError(
-                        "Configuration does not contain version number, consider invalid"
-                    )
-                return config
-            except:
-                print("Configuration invalid, creating new config")
-                return EyeTrackConfig()
+            return config
+           # except:
+            #    print("[INFO] Configuration invalid, creating new config")
+             #   return EyeTrackConfig()
 
     def save(self):
         with open(CONFIG_FILE_NAME, "w+") as settings_file:
