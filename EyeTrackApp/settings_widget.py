@@ -43,7 +43,7 @@ class SettingsWidget:
         
         self.gui_blob_fallback = f"-BLOBFALLBACK{widget_id}-"
         self.gui_blob_maxsize = f"-BLOBMAXSIZE{widget_id}-"
-
+        self.gui_blob_minsize = f"-BLOBMINSIZE{widget_id}-"
         self.gui_speed_coefficient = f"-SPEEDCOEFFICIENT{widget_id}-"
         self.gui_min_cutoff = f"-MINCUTOFF{widget_id}-"
         self.main_config = main_config
@@ -94,15 +94,27 @@ class SettingsWidget:
                     background_color='#424042',
                 ),
             ],
-           # [sg.Slider(
-            #        range=(1, 40),
-             #       default_value=self.config.gui_blob_maxsize,
-              #      orientation="h",
-                #    key=self.gui_min_cutoff,
-               #     background_color='#424042'
-                #),
+            [
+                sg.Text("Min blob size:", background_color='#424042'),
+                sg.Slider(
+                    range=(1, 50),
+                    default_value=self.config.gui_blob_minsize,
+                    orientation="h",
+                    key=self.gui_blob_minsize,
+                    background_color='#424042'
+                ),
+                
+                sg.Text("Max blob size:", background_color='#424042'),
+                sg.Slider(
+                    range=(1, 50),
+                    default_value=self.config.gui_blob_maxsize,
+                    orientation="h",
+                    key=self.gui_blob_maxsize,
+                    background_color='#424042'
+                ),
+
    
-            #],
+            ],
             [
                 sg.Text("Filter Paramaters:", background_color='#242224'),
                 
@@ -289,6 +301,9 @@ class SettingsWidget:
             self.config.gui_blob_fallback = values[self.gui_blob_fallback]
             changed = True
 
+        if self.config.gui_blob_maxsize != values[self.gui_blob_maxsize]:
+            self.config.gui_blob_maxsize = values[self.gui_blob_maxsize]
+            changed = True
 
         #print(self.config.gui_flip_x_axis, values[self.gui_flip_x_axis])
     #    if values[self.gui_flip_x_axis] != self.config.gui_flip_x_axis:

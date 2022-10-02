@@ -20,6 +20,7 @@ class EyeTrackCameraConfig:
     capture_source: "Union[int, str, None]" = None
     gui_circular_crop: "bool" = False
 
+
     
 
 @dataclass
@@ -32,7 +33,8 @@ class EyeTrackSettingsConfig:
     gui_speed_coefficient: "str" = "0.9"
     gui_osc_address: "str" = "127.0.0.1"
     gui_osc_port: "str" = "9000"
-    gui_blob_maxsize: "str" = "15.9"
+    gui_blob_maxsize: "float" = 25
+    gui_blob_minsize: "float" = 10
     gui_recenter_eyes: "bool" = False
 CONFIG_FILE_NAME = "eyetrack_settings.json"
 

@@ -351,8 +351,11 @@ class EyeProcessor:
             # if our blob width/height are within suitable (yet arbitrary) boundaries, call that good.
             #
             # TODO This should be scaled based on camera resolution.
-            if not 10 <= h <= 25 or not 10 <= w <= 25:
+            
+            if not self.settings.gui_blob_minsize <= h <= self.settings.gui_blob_maxsize or not self.settings.gui_blob_minsize <= w <= self.settings.gui_blob_maxsize:
+                print("SIZE 222")
                 continue
+
             cx = x + int(w / 2)
             
             cy = y + int(h / 2)
