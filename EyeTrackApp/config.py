@@ -1,3 +1,4 @@
+from pickle import NONE
 from dataclasses import dataclass
 from typing import Union, Dict
 from dacite import from_dict, Config
@@ -36,6 +37,8 @@ class EyeTrackSettingsConfig:
     gui_blob_maxsize: "float" = 25
     gui_blob_minsize: "float" = 10
     gui_recenter_eyes: "bool" = False
+    gui_eye_falloff: "bool" = False
+    tracker_single_eye: "float" = 0
 CONFIG_FILE_NAME = "eyetrack_settings.json"
 
 

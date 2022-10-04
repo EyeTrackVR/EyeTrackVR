@@ -46,6 +46,7 @@ class SettingsWidget:
         self.gui_blob_minsize = f"-BLOBMINSIZE{widget_id}-"
         self.gui_speed_coefficient = f"-SPEEDCOEFFICIENT{widget_id}-"
         self.gui_min_cutoff = f"-MINCUTOFF{widget_id}-"
+        self.gui_eye_falloff = f"-EYEFALLOFF{widget_id}-"
         self.main_config = main_config
 
 
@@ -78,6 +79,13 @@ class SettingsWidget:
                     "Flip Y Axis",
                     default=self.config.gui_flip_y_axis,
                     key=self.gui_flip_y_axis,
+                    background_color='#424042',
+                ),
+            ],
+            [sg.Checkbox(
+                    "Dual Eye Falloff",
+                    default=self.config.gui_eye_falloff,
+                    key=self.gui_eye_falloff,
                     background_color='#424042',
                 ),
             ],
@@ -301,6 +309,11 @@ class SettingsWidget:
             self.config.gui_blob_fallback = values[self.gui_blob_fallback]
             changed = True
 
+        if self.config.gui_eye_falloff != values[self.gui_eye_falloff]:
+            self.config.gui_eye_falloff = values[self.gui_eye_falloff]
+            changed = True
+
+        
         if self.config.gui_blob_maxsize != values[self.gui_blob_maxsize]:
             self.config.gui_blob_maxsize = values[self.gui_blob_maxsize]
             changed = True

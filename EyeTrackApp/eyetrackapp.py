@@ -147,6 +147,7 @@ def main():
             window[LEFT_EYE_NAME].update(visible=False)
             window[SETTINGS_NAME].update(visible=False)
             config.eye_display_id = EyeId.RIGHT
+            config.settings.tracker_single_eye = 2
             config.save()
         elif values[LEFT_EYE_RADIO_NAME] and config.eye_display_id != EyeId.LEFT:
             settings[0].stop()
@@ -156,6 +157,7 @@ def main():
             window[LEFT_EYE_NAME].update(visible=True)
             window[SETTINGS_NAME].update(visible=False)
             config.eye_display_id = EyeId.LEFT
+            config.settings.tracker_single_eye = 1
             config.save()
         elif values[BOTH_EYE_RADIO_NAME] and config.eye_display_id != EyeId.BOTH:
             settings[0].stop()
@@ -165,6 +167,7 @@ def main():
             window[LEFT_EYE_NAME].update(visible=True)
             window[SETTINGS_NAME].update(visible=False)
             config.eye_display_id = EyeId.BOTH
+            config.settings.tracker_single_eye = 0
             config.save()
 
         elif values[SETTINGS_RADIO_NAME] and config.eye_display_id != EyeId.SETTINGS:

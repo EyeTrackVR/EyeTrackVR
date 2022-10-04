@@ -353,7 +353,7 @@ class EyeProcessor:
             # TODO This should be scaled based on camera resolution.
             
             if not self.settings.gui_blob_minsize <= h <= self.settings.gui_blob_maxsize or not self.settings.gui_blob_minsize <= w <= self.settings.gui_blob_maxsize:
-                print("SIZE 222")
+
                 continue
 
             cx = x + int(w / 2)
@@ -622,7 +622,7 @@ class EyeProcessor:
                     self.blob_tracking_fallback()
                 else:
                     print("[INFO] Blob fallback disabled. Assuming blink.")
-                    self.output_images_and_update(thresh, EyeInformation(InformationOrigin.RANSAC, 0, 0, 0, False))
+                    self.output_images_and_update(thresh, EyeInformation(InformationOrigin.RANSAC, 0, 0, 0, True))
                 continue
 
             # Find our largest hull, which we expect will probably be the ellipse that represents the 2d
@@ -641,7 +641,7 @@ class EyeProcessor:
                     self.blob_tracking_fallback()
                 else:
                     print("[INFO] Blob fallback disabled. Assuming blink.")
-                    self.output_images_and_update(thresh, EyeInformation(InformationOrigin.RANSAC, 0, 0, 0, False))
+                    self.output_images_and_update(thresh, EyeInformation(InformationOrigin.RANSAC, 0, 0, 0, True))
                 continue
 
             # Get axis and angle of the ellipse, using pupil labs 2d algos. The next bit of code ranges
