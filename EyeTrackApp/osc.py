@@ -88,9 +88,7 @@ class VRChatOSC:
                         lb = True
                     if eye_id in [EyeId.RIGHT]:
                         rb = True
-                    print(lb, rb)
                     if rb == True or lb == True: # If one eye closed and fall off is enabled, mirror data
-                        print(sx, sy)
                         self.client.send_message("/avatar/parameters/LeftEyeX", sx)  #Send mirrored data to both eyes.
                         self.client.send_message("/avatar/parameters/RightEyeX", sx)
                         self.client.send_message("/avatar/parameters/EyesY", sy)

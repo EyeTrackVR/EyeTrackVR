@@ -88,17 +88,17 @@ def main():
         ],
         [
             sg.Column(
-                eyes[0].widget_layout,
-                vertical_alignment="top",
-                key=RIGHT_EYE_NAME,
-                visible=(config.eye_display_id in [EyeId.RIGHT, EyeId.BOTH]),
-                background_color='#424042',
-            ),
-            sg.Column(
                 eyes[1].widget_layout,
                 vertical_alignment="top",
                 key=LEFT_EYE_NAME,
                 visible=(config.eye_display_id in [EyeId.LEFT, EyeId.BOTH]),
+                background_color='#424042',
+            ),
+            sg.Column(
+                eyes[0].widget_layout,
+                vertical_alignment="top",
+                key=RIGHT_EYE_NAME,
+                visible=(config.eye_display_id in [EyeId.RIGHT, EyeId.BOTH]),
                 background_color='#424042',
             ),
             sg.Column(
@@ -111,15 +111,16 @@ def main():
         ],
     ]
 
-    if config.eye_display_id in [EyeId.RIGHT, EyeId.BOTH]:
-        eyes[0].start()
     if config.eye_display_id in [EyeId.LEFT, EyeId.BOTH]:
         eyes[1].start()
+    if config.eye_display_id in [EyeId.RIGHT, EyeId.BOTH]:
+        eyes[0].start()
+
     if config.eye_display_id in [EyeId.SETTINGS, EyeId.BOTH]:
         settings[0].start()
 
     # Create the window
-    window = sg.Window("EyeTrackVR v0.1.6", layout, icon='Images/logo.ico', background_color='#292929')
+    window = sg.Window("EyeTrackVR v0.1.7", layout, icon='Images/logo.ico', background_color='#292929')
 
     # GUI Render loop
     while True:
@@ -161,10 +162,12 @@ def main():
             config.save()
         elif values[BOTH_EYE_RADIO_NAME] and config.eye_display_id != EyeId.BOTH:
             settings[0].stop()
+            eyes[0].stop()
             eyes[1].start()
             eyes[0].start()
-            window[RIGHT_EYE_NAME].update(visible=True)
+
             window[LEFT_EYE_NAME].update(visible=True)
+            window[RIGHT_EYE_NAME].update(visible=True)
             window[SETTINGS_NAME].update(visible=False)
             config.eye_display_id = EyeId.BOTH
             config.settings.tracker_single_eye = 0
