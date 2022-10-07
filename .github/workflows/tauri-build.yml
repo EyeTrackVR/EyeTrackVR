@@ -23,7 +23,7 @@ jobs:
       - uses: actions/checkout@v2
         with:
           token: ${{ env.GITHUB_TOKEN }}
-      - name: Use Node.js ${{ matrix.node-version }}
+      - name: use Node.js ${{ matrix.node-version }}
         uses: actions/setup-node@v2
         with:
           node-version: ${{ matrix.node-version }}
@@ -37,12 +37,13 @@ jobs:
           sudo apt-get update
           sudo apt-get upgrade
           sudo apt-get install -y libgtk-3-dev webkit2gtk-4.0 libappindicator3-dev libsvg2-dev patchelf
-      - name: Install dependencies && Build
+      - name: install dependencies
         working-directory: /GUI/ETVR
-        uses: tauri-apps/tauri-action@v0
         run: |
           npm install -g typescript
           yarn install
+      - name: Build
+        uses: tauri-apps/tauri-action@v0
         with:
           tagName: app-v__VERSION__
           releaseName: "app v__VERSION__"
