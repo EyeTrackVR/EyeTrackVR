@@ -1,17 +1,21 @@
+from operator import truth
 from dataclasses import dataclass
 import sys
-
+import asyncio
 sys.path.append(".")
 from config import EyeTrackCameraConfig
+from config import EyeTrackSettingsConfig
 from pye3dcustom.detector_3d import CameraModel, Detector3D, DetectorMode
 import queue
 import threading
 import numpy as np
 import cv2
 from enum import Enum
-from one_euro_filter import OneEuroFilter
 import time
-
+import statistics
+from one_euro_filter import OneEuroFilter
+from sympy import symbols, Eq, solve
+from winsound import PlaySound, SND_FILENAME, SND_ASYNC
 class InformationOrigin(Enum):
     RANSAC = 1
     BLOB = 2
@@ -23,6 +27,7 @@ class EyeInformation:
     info_type: InformationOrigin
     x: float
     y: float
+    pupil_dialation: int
     blink: bool
 
 
@@ -35,73 +40,10 @@ def run_once(f):
     return wrapper
 
 
-       # if filterinit == 1:
-         #   print('raw', cx, cy)
-        #    cy = one_euro_filterx(st, cy) #1st is time of inputs, 2nd is data
-          #  cx = one_euro_filtery(st, cx)
-           # print('filtered', cx, cy)
-
-       # if filterinit == 0: ## initialize filter and define function
-        #    one_euro_filterx = OneEuroFilter(
-         #       0, cx,
-          #      min_cutoff=0.004,
-           #     beta=0.7)
-
-            #one_euro_filtery = OneEuroFilter(
-             #   0, cy,
-              #  min_cutoff=0.004,
-               # beta=0.7)    
-            #filterinit = 1
-
-
-
-
-@run_once
-def initfilter(cx, cy):
-    print('######################## ONECE')
-    initfilter.one_euro_filterx = OneEuroFilter(
-        0, cx,
-        min_cutoff=0.0000004,
-        beta=0.1)
-
-    #initfilter.one_euro_filtery = OneEuroFilter(
-     #   0, cy,
-     #   min_cutoff=0.0000004,
-      #  beta=0.1) 
-
-
-def filter_smooth(cx, cy, st):
-   
-
-        
-        print('raw', cx, cy)
-
-        OneEuroFilter(
-        st, cy,
-        min_cutoff=0.0000004,
-        beta=0.1)
-        print(st)
-        #cy = initfilter.one_euro_filterx(st, cy) #1st is time of inputs, 2nd is data
-       # cx = initfilter.one_euro_filtery(st, cx)
-        print('filtered', cx, cy)
-
-    
-        return cx, cy
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+async def delayed_setting_change(setting, value):
+    await asyncio.sleep(5)
+    setting = value
+    PlaySound('Audio/compleated.wav', SND_FILENAME|SND_ASYNC) 
 
 def fit_rotated_ellipse_ransac(
     data, iter=5, sample_num=10, offset=80  # 80.0, 10, 80
@@ -198,21 +140,29 @@ class EyeProcessor:
     def __init__(
         self,
         config: "EyeTrackCameraConfig",
+        settings: "EyeTrackSettingsConfig",
         cancellation_event: "threading.Event",
         capture_event: "threading.Event",
         capture_queue_incoming: "queue.Queue",
         image_queue_outgoing: "queue.Queue",
+        eye_id,
     ):
         self.config = config
-
+        self.settings = settings
+        
+      
         # Cross-thread communication management
         self.capture_queue_incoming = capture_queue_incoming
         self.image_queue_outgoing = image_queue_outgoing
         self.cancellation_event = cancellation_event
         self.capture_event = capture_event
+        self.eye_id = eye_id
 
         # Cross algo state
+       
         self.lkg_projected_sphere = None
+        self.xc = None
+        self.yc = None
 
         # Image state
         self.previous_image = None
@@ -229,20 +179,30 @@ class EyeProcessor:
         self.calibration_frame_counter = None
         self.eyeoffx = 1
 
-        self.xmax = 69420
-        self.xmin = -69420
-        self.ymax = 69420
-        self.ymin = -69420
+        self.xmax = -69420
+        self.xmin = 69420
+        self.ymax = -69420
+        self.ymin = 69420
+        self.cct = 300
+        self.cccs = False
+        self.ts = 10
         self.previous_rotation = self.config.rotation_angle
-        self.recenter_eye = False
-
-        self.filterinit = 0
         self.calibration_frame_counter
 
-
-
-
-
+        try:
+            min_cutoff = float(self.settings.gui_min_cutoff)  #0.0004
+            beta = float(self.settings.gui_speed_coefficient)    #0.9
+        except:
+            print('[WARN] OneEuroFilter values must be a legal number.')
+            min_cutoff =  0.0004
+            beta = 0.9
+        noisy_point = np.array([1, 1])
+        self.one_euro_filter = OneEuroFilter(
+            noisy_point,
+            min_cutoff=min_cutoff,
+            beta=beta
+            ) 
+        
 
 
 
@@ -259,23 +219,23 @@ class EyeProcessor:
     def output_images_and_update(
         self, threshold_image, output_information: EyeInformation
     ):
-        if self.config.show_color_image:
-            image_stack = np.concatenate(
-                (
-                    self.current_image,
-                    cv2.cvtColor(self.current_image_gray, cv2.COLOR_GRAY2BGR),
-                    cv2.cvtColor(threshold_image, cv2.COLOR_GRAY2BGR),
-                ),
-                axis=1,
-            )
-        else:
-            image_stack = np.concatenate(
-                (
-                    cv2.cvtColor(self.current_image_gray, cv2.COLOR_GRAY2BGR),
-                    cv2.cvtColor(threshold_image, cv2.COLOR_GRAY2BGR),
-                ),
-                axis=1,
-            )
+       # if self.config.show_color_image:
+         #   image_stack = np.concatenate(
+        #        (
+        #            self.current_image,
+          #          cv2.cvtColor(self.current_image_gray, cv2.COLOR_GRAY2BGR),
+         #           cv2.cvtColor(threshold_image, cv2.COLOR_GRAY2BGR),
+         #       ),
+          #      axis=1,
+          #  )
+       # else:
+        image_stack = np.concatenate(
+            (
+                cv2.cvtColor(self.current_image_gray, cv2.COLOR_GRAY2BGR),
+                cv2.cvtColor(threshold_image, cv2.COLOR_GRAY2BGR),
+            ),
+            axis=1,
+        )
         self.image_queue_outgoing.put((image_stack, output_information))
         self.previous_image = self.current_image
         self.previous_rotation = self.config.rotation_angle
@@ -314,12 +274,43 @@ class EyeProcessor:
         return True
 
     def blob_tracking_fallback(self):
-        st = time.time()
+        
+
+# define circle
+
+        if self.config.gui_circular_crop == True:
+            if self.cct == 0:
+                try:
+                    ht, wd = self.current_image_gray.shape[:2]
+
+                    radius = int(float(self.lkg_projected_sphere["axes"][0]))
+        
+                    # draw filled circle in white on black background as mask
+                    mask = np.zeros((ht,wd), dtype=np.uint8)
+                    mask = cv2.circle(mask, (self.xc,self.yc), radius, 255, -1)
+
+                    # create white colored background
+                    color = np.full_like(self.current_image_gray, (255))
+
+                    # apply mask to image
+                    masked_img = cv2.bitwise_and(self.current_image_gray, self.current_image_gray, mask=mask)
+
+                    # apply inverse mask to colored image
+                    masked_color = cv2.bitwise_and(color, color, mask=255-mask)
+
+                    # combine the two masked images
+                    self.current_image_gray = cv2.add(masked_img, masked_color)
+                except:
+                    pass
+            else:
+                self.cct = self.cct - 1
+
+
         # Increase our threshold value slightly, in order to have a better possibility of getting back
         # something to do blob tracking on.
         _, larger_threshold = cv2.threshold(
             self.current_image_gray,
-            int(self.config.threshold + 5),
+            int(self.config.threshold + 12),
             255,
             cv2.THRESH_BINARY,
         )
@@ -329,9 +320,14 @@ class EyeProcessor:
         # order to have a projected sphere.
         if self.lkg_projected_sphere == None:
             self.output_images_and_update(
-                larger_threshold, EyeInformation(InformationOrigin.FAILURE, 0, 0, False)
+                larger_threshold, EyeInformation(InformationOrigin.FAILURE, 0, 0, 0, False)
             )
             return
+
+
+
+
+
 
         try:
             # Try rebuilding our contours
@@ -344,7 +340,7 @@ class EyeProcessor:
                 raise RuntimeError("No contours found for image")
         except:
             self.output_images_and_update(
-                larger_threshold, EyeInformation(InformationOrigin.FAILURE, 0, 0, False)
+                larger_threshold, EyeInformation(InformationOrigin.FAILURE, 0, 0, 0, False)
             )
             return
 
@@ -355,10 +351,15 @@ class EyeProcessor:
             # if our blob width/height are within suitable (yet arbitrary) boundaries, call that good.
             #
             # TODO This should be scaled based on camera resolution.
-            if not 8 <= h <= 30 or not 8 <= w <= 30:
+            
+            if not self.settings.gui_blob_minsize <= h <= self.settings.gui_blob_maxsize or not self.settings.gui_blob_minsize <= w <= self.settings.gui_blob_maxsize:
+
                 continue
+
             cx = x + int(w / 2)
+            
             cy = y + int(h / 2)
+            
             xrlb = (
                 cx - self.lkg_projected_sphere["center"][0]
             ) / self.lkg_projected_sphere["axes"][0]
@@ -384,55 +385,111 @@ class EyeProcessor:
                 self.current_image_gray, (x, y), (x + w, y + h), (255, 0, 0), 2
             )
 
-            eye_position_scalar = self.config.vrc_eye_position_scalar
-           # initfilter(cx, cy)
-           # fd = filter_smooth(cx, cy, st)
-            #cx = fd[0]
-           # cy = fd[1]
+            if self.calibration_frame_counter == 0:
+                self.calibration_frame_counter = None
+                self.xoff = cx
+                self.yoff = cy      
+                PlaySound('Audio/compleated.wav', SND_FILENAME|SND_ASYNC) 
+            elif self.calibration_frame_counter != None:
+                self.settings.gui_recenter_eyes = False
+                if cx > self.xmax:
+                    self.xmax = cx
+                if cx < self.xmin:
+                    self.xmin = cx
+                if cy> self.ymax:
+                    self.ymax = cy
+                if cy < self.ymin:
+                    self.ymin = cy
+                self.calibration_frame_counter -= 1
+            if self.settings.gui_recenter_eyes == True:
+                self.xoff = cx
+                self.yoff = cy
+                if self.ts == 0:
+                    self.settings.gui_recenter_eyes = False
+                    PlaySound('Audio/compleated.wav', SND_FILENAME|SND_ASYNC) 
+                else:
+                    self.ts = self.ts - 1
+            else:
+                self.ts = 10 
+
+
+
+
 
             xl = float(
-                ((cx - self.xoff) * eye_position_scalar) / (self.xmax - self.xoff)
+                ((cx - self.xoff)) / (self.xmax - self.xoff)
             )
             xr = float(
-                ((cx - self.xoff) * eye_position_scalar) / (self.xmin - self.xoff)
+                ((cx - self.xoff)) / (self.xmin - self.xoff)
             )
             yu = float(
-                ((cy - self.yoff) * eye_position_scalar) / (self.ymin - self.yoff)
+                ((cy - self.yoff)) / (self.ymin - self.yoff)
             )
             yd = float(
-                ((cy - self.yoff) * eye_position_scalar) / (self.ymax - self.yoff)
+                ((cy - self.yoff)) / (self.ymax - self.yoff)
             )
-            # print(f"{exm} {eym} {xl} {xr} {yu} {yd}")
 
+           # print(self.)
             out_x = 0
             out_y = 0
-            if xr > 0:
-                out_x = max(0.0, min(1.0, xr))
-            if xl > 0:
-                out_x = -abs(max(0.0, min(1.0, xl)))
-            if yd > 0:
-                out_y = -abs(max(0.0, min(1.0, yd)))
-            if yu > 0:
-                out_y = max(0.0, min(1.0, yu))
+            if self.settings.gui_flip_y_axis == True: #check config on flipped values settings and apply accordingly
+                if yd > 0:
+                    out_y = max(0.0, min(1.0, yd))
+                if yu > 0:
+                    out_y = -abs(max(0.0, min(1.0, yu)))
+            else:
+                if yd > 0:
+                    out_y = -abs(max(0.0, min(1.0, yd)))
+                if yu > 0:
+                    out_y = max(0.0, min(1.0, yu))
 
+            if self.settings.gui_flip_x_axis_right == True:
+                if xr > 0:
+                    out_x = -abs(max(0.0, min(1.0, xr)))
+                if xl > 0:
+                    out_x = max(0.0, min(1.0, xl))
+            else:
+                if xr > 0:
+                    out_x = max(0.0, min(1.0, xr))
+                if xl > 0:
+                    out_x = -abs(max(0.0, min(1.0, xl)))
+
+            try:
+                noisy_point = np.array([out_x, out_y]) #fliter our values with a One Euro Filter
+                point_hat = self.one_euro_filter(noisy_point)
+                out_x = point_hat[0]
+                out_y = point_hat[1]
+            except:
+                pass
+
+                
+           
 
             self.output_images_and_update(
                 larger_threshold,
-                EyeInformation(InformationOrigin.BLOB, out_x, out_y, False),
+                EyeInformation(InformationOrigin.BLOB, out_x, out_y, 0, False),
             )
             return
         self.output_images_and_update(
-            larger_threshold, EyeInformation(InformationOrigin.BLOB, 0, 0, True)
+            larger_threshold, EyeInformation(InformationOrigin.BLOB, 0, 0, 0, True)
         )
         print("[INFO] BLINK Detected.")
 
     def run(self):
         camera_model = None
         detector_3d = None
-        xf = []
-        yf = []
+
+        out_pupil_dialation = 1
+        
+        if self.eye_id == "EyeId.RIGHT":
+            flipx = self.settings.gui_flip_x_axis_right
+        #elif self.eye_id == "EyeId.LEFT":
+         #   flipx = self.config.gui_flip_x_axis_left
+        else:          
+            flipx = self.settings.gui_flip_x_axis_left
         while True:
-            st = time.time()
+           # oef = init_filter()
+           
             # Check to make sure we haven't been requested to close
             if self.cancellation_event.is_set():
                 print("Exiting RANSAC thread")
@@ -490,12 +547,55 @@ class EyeProcessor:
             self.current_image_gray = cv2.cvtColor(
                 self.current_image, cv2.COLOR_BGR2GRAY
             )
+
+            #print(self.config.gui_circular_crop)
+           # print(self.cct)
+            if self.config.gui_circular_crop == True:
+                if self.cct == 0:
+                    try:
+                        ht, wd = self.current_image_gray.shape[:2]
+
+        
+                        radius = int(float(self.lkg_projected_sphere["axes"][0]))
+                        self.xc = int(float(self.lkg_projected_sphere["center"][0]))
+                        self.yc = int(float(self.lkg_projected_sphere["center"][1]))
+                        # draw filled circle in white on black background as mask
+                        mask = np.zeros((ht,wd), dtype=np.uint8)
+                        mask = cv2.circle(mask, (self.xc,self.yc), radius, 255, -1)
+
+                        # create white colored background
+                        color = np.full_like(self.current_image_gray, (255))
+
+                        # apply mask to image
+                        masked_img = cv2.bitwise_and(self.current_image_gray, self.current_image_gray, mask=mask)
+
+                        # apply inverse mask to colored image
+                        masked_color = cv2.bitwise_and(color, color, mask=255-mask)
+
+                        # combine the two masked images
+                        self.current_image_gray = cv2.add(masked_img, masked_color)
+                    except:
+                        pass
+                else:
+                    self.cct = self.cct - 1
+            else:
+                self.cct = 300
+
+
+
             _, thresh = cv2.threshold(
                 self.current_image_gray,
                 int(self.config.threshold),
                 255,
                 cv2.THRESH_BINARY,
             )
+
+
+
+
+
+
+
             # Set up morphological transforms, for smoothing and clearing the image we get out of the
             # thresholding operation. After this, we'd really like to just have a black blob in the middle
             # of a bunch of white area.
@@ -518,7 +618,11 @@ class EyeProcessor:
             # using blob tracking.
             #
             if len(convex_hulls) == 0:
-                self.blob_tracking_fallback()
+                if self.settings.gui_blob_fallback == True:
+                    self.blob_tracking_fallback()
+                else:
+                    print("[INFO] Blob fallback disabled. Assuming blink.")
+                    self.output_images_and_update(thresh, EyeInformation(InformationOrigin.RANSAC, 0, 0, 0, True))
                 continue
 
             # Find our largest hull, which we expect will probably be the ellipse that represents the 2d
@@ -533,7 +637,11 @@ class EyeProcessor:
                     largest_hull.reshape(-1, 2)
                 )
             except:
-                self.blob_tracking_fallback()
+                if self.settings.gui_blob_fallback == True:
+                    self.blob_tracking_fallback()
+                else:
+                    print("[INFO] Blob fallback disabled. Assuming blink.")
+                    self.output_images_and_update(thresh, EyeInformation(InformationOrigin.RANSAC, 0, 0, 0, True))
                 continue
 
             # Get axis and angle of the ellipse, using pupil labs 2d algos. The next bit of code ranges
@@ -564,114 +672,112 @@ class EyeProcessor:
             # Record our pupil center
             exm = ellipse_3d["center"][0]
             eym = ellipse_3d["center"][1]
-            #d = ellipse_3d['diameter']
-            #print(w)
+            
 
+            d = result_3d["diameter_3d"]
+      
 
-
-
-
-            if self.calibration_frame_counter == 0 or self.recenter_eye:
+         
+            if self.calibration_frame_counter == 0:
                 self.calibration_frame_counter = None
-                self.recenter_eye = False
-                self.xoff = exm
-                self.yoff = eym
-            elif self.calibration_frame_counter != None:
+                self.xoff = cx
+                self.yoff = cy      
+                PlaySound('Audio/compleated.wav', SND_FILENAME|SND_ASYNC) 
+            elif self.calibration_frame_counter != None:  # TODO reset calibration values on button press
                 if exm > self.xmax:
                     self.xmax = exm
                 if exm < self.xmin:
                     self.xmin = exm
                 if eym > self.ymax:
                     self.ymax = eym
-                if eym < self.xmin:
+                if eym < self.ymin:
                     self.ymin = eym
                 self.calibration_frame_counter -= 1
-            eye_position_scalar = self.config.vrc_eye_position_scalar
+            if self.settings.gui_recenter_eyes == True:
+                self.xoff = cx
+                self.yoff = cy
+                if self.ts == 0:
+                    self.settings.gui_recenter_eyes = False
+                    PlaySound('Audio/compleated.wav', SND_FILENAME|SND_ASYNC) 
+                else:
+                    self.ts = self.ts - 1
+            else:
+                self.ts = 20 
 
-            end = time.time()
-            pt = end - st
-            #fd = filter_smooth(cx, cy, pt)
-            #cx = fd[0]
-            #cy = fd[1]
+            
+            #print(self.yoff)
+          
 
-           # print('tracked', cx, cy)
-
-
+          #  noisy_point = np.array([cx, cy]) #fliter our values with a One Euro Filter
+          #  point_hat = self.one_euro_filter(noisy_point)
+           # cx = point_hat[0]
+           # cy = point_hat[1]
 
 
             xl = float(
-                ((cx - self.xoff) * eye_position_scalar) / (self.xmax - self.xoff)
+                ((cx - self.xoff)) / (self.xmax - self.xoff)
             )
             xr = float(
-                ((cx - self.xoff) * eye_position_scalar) / (self.xmin - self.xoff)
+                ((cx - self.xoff)) / (self.xmin - self.xoff)
             )
             yu = float(
-                ((cy - self.yoff) * eye_position_scalar) / (self.ymin - self.yoff)
+                ((cy - self.yoff)) / (self.ymin - self.yoff)
             )
             yd = float(
-                ((cy - self.yoff) * eye_position_scalar) / (self.ymax - self.yoff)
+                ((cy - self.yoff)) / (self.ymax - self.yoff)
             )
-            # print(f"{exm} {eym} {xl} {xr} {yu} {yd}")
-
-
             
 
 
             out_x = 0
             out_y = 0
-            if xr > 0:
-                out_x = max(0.0, min(1.0, xr))
-            if xl > 0:
-                out_x = -abs(max(0.0, min(1.0, xl)))
-            if yd > 0:
-                out_y = -abs(max(0.0, min(1.0, yd)))
-            if yu > 0:
-                out_y = max(0.0, min(1.0, yu))
+
+            if self.settings.gui_flip_y_axis == True:
+                if yd > 0:
+                    out_y = max(0.0, min(1.0, yd))
+                if yu > 0:
+                    out_y = -abs(max(0.0, min(1.0, yu)))
+            else:
+                if yd > 0:
+                    out_y = -abs(max(0.0, min(1.0, yd)))
+                if yu > 0:
+                    out_y = max(0.0, min(1.0, yu))
+
+            if flipx == True:
+                if xr > 0:
+                    out_x = -abs(max(0.0, min(1.0, xr)))
+                if xl > 0:
+                    out_x = max(0.0, min(1.0, xl))
+            else:
+                if xr > 0:
+                    out_x = max(0.0, min(1.0, xr))
+                if xl > 0:
+                    out_x = -abs(max(0.0, min(1.0, xl)))
 
 
-            if len(xf) != 4:
-                xf.append(out_x)
+            try:
+                noisy_point = np.array([out_x, out_y]) #fliter our values with a One Euro Filter
+                point_hat = self.one_euro_filter(noisy_point)
+                out_x = point_hat[0]
+                out_y = point_hat[1]
+            except:
+                pass
 
-            if len(yf) != 4:
-                yf.append(out_y)
+          #  print(cy, self.yoff, self.ymin, self.ymax, out_y)
+          #  print(out_y, yu, yd)
 
-            if len(xf) == 4:
-                xf.insert(0, out_x)
-                xf.pop()
-                vx = abs(xf[0] - xf[1])
-
-                if vx <= 0.4 and vx > 0.3:
-                    out_x = (xf[0] + xf[1]) / 2
-                elif vx <= 0.3 and vx > 0.2:
-                    out_x = (xf[0] + xf[1] + xf[2]) / 3
-                elif vx <= 0.2 and vx >= 0.0:
-                    out_x = (xf[0] + xf[1] + xf[2] + xf[3]) / 4
-                else:
-                    out_x = out_x
-
-            if len(yf) == 4:
-                yf.insert(0, out_y)
-                yf.pop()
-                vy = abs(yf[0] - yf[1])
-
-                if vy <= 0.4 and vy > 0.3:
-                    out_y = (yf[0] + yf[1]) / 2
-                elif vy <= 0.3 and vy > 0.2:
-                    out_y = (yf[0] + yf[1] + yf[2]) / 3
-                elif vy <= 0.2 and vy >= 0.0:
-                    out_y = (yf[0] + yf[1] + yf[2] + yf[3]) / 4
-                else:
-                    out_y = out_y
-
-    
-
-
-            output_info = EyeInformation(InformationOrigin.RANSAC, out_x, out_y, False)
+            output_info = EyeInformation(InformationOrigin.RANSAC, out_x, out_y, out_pupil_dialation, False)
 
             # Draw our image and stack it for visual output
-            cv2.drawContours(self.current_image_gray, contours, -1, (255, 0, 0), 1)
+            try: 
+                cv2.drawContours(self.current_image_gray, contours, -1, (255, 0, 0), 1)
+                cv2.circle(self.current_image_gray, (int(cx), int(cy)), 2, (0, 0, 255), -1)
+                # draw pupil
+            except:
+                pass
 
-            # draw pupil
+
+
             try:
                 cv2.ellipse(
                     self.current_image_gray,
@@ -686,6 +792,26 @@ class EyeProcessor:
                 # Sometimes we get bogus axes and trying to draw this throws. Ideally we should check for
                 # validity beforehand, but for now just pass. It usually fixes itself on the next frame.
                 pass
+
+
+            try:
+               # print(self.lkg_projected_sphere["angle"], self.lkg_projected_sphere["axes"], self.lkg_projected_sphere["center"])
+                cv2.ellipse(
+                    self.current_image_gray,
+                    tuple(int(v) for v in self.lkg_projected_sphere["center"]),
+                    tuple(int(v) for v in self.lkg_projected_sphere["axes"]),
+                    self.lkg_projected_sphere["angle"],
+                    0,
+                    360,  # start/end angle for drawing
+                    (0, 255, 0),  # color (BGR): red
+                )
+                
+            except:
+                pass
+
+
+
+
             # draw line from center of eyeball to center of pupil
             cv2.line(
                 self.current_image_gray,

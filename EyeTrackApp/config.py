@@ -1,3 +1,4 @@
+from pickle import NONE
 from dataclasses import dataclass
 from typing import Union, Dict
 from dacite import from_dict, Config
@@ -8,21 +9,36 @@ import json
 
 # TODO Who even needs synchronization? (We do.)
 
-
 @dataclass
 class EyeTrackCameraConfig:
     threshold: "int" = 0
-    rotation_angle: "int" = 0
+    rotation_angle: "int" = 50
     roi_window_x: "int" = 0
     roi_window_y: "int" = 0
     roi_window_w: "int" = 0
     roi_window_h: "int" = 0
     focal_length: "int" = 30
     capture_source: "Union[int, str, None]" = None
-    vrc_eye_position_scalar: "int" = 3000
-    show_color_image: "bool" = False
+    gui_circular_crop: "bool" = False
 
 
+    
+
+@dataclass
+class EyeTrackSettingsConfig:
+    gui_flip_x_axis_left: "bool" = False
+    gui_flip_x_axis_right: "bool" = False
+    gui_flip_y_axis: "bool" = False
+    gui_blob_fallback: "bool" = True
+    gui_min_cutoff: "str" = "0.0004"
+    gui_speed_coefficient: "str" = "0.9"
+    gui_osc_address: "str" = "127.0.0.1"
+    gui_osc_port: "str" = "9000"
+    gui_blob_maxsize: "float" = 25
+    gui_blob_minsize: "float" = 10
+    gui_recenter_eyes: "bool" = False
+    gui_eye_falloff: "bool" = False
+    tracker_single_eye: "float" = 0
 CONFIG_FILE_NAME = "eyetrack_settings.json"
 
 
@@ -31,6 +47,7 @@ class EyeTrackConfig:
     version: "int" = 1
     right_eye: EyeTrackCameraConfig = EyeTrackCameraConfig()
     left_eye: EyeTrackCameraConfig = EyeTrackCameraConfig()
+    settings: EyeTrackSettingsConfig = EyeTrackSettingsConfig()
     eye_display_id: "EyeId" = EyeId.RIGHT
 
     @staticmethod
@@ -39,18 +56,18 @@ class EyeTrackConfig:
             print("No settings file, using base settings")
             return EyeTrackConfig()
         with open(CONFIG_FILE_NAME, "r") as settings_file:
-            try:
-                config: EyeTrackConfig = from_dict(
-                    data_class=EyeTrackConfig, data=json.load(settings_file), config=Config(type_hooks={EyeId: EyeId})
+           # try:
+            config: EyeTrackConfig = from_dict(
+                data_class=EyeTrackConfig, data=json.load(settings_file), config=Config(type_hooks={EyeId: EyeId})
+            )
+            if config.version != EyeTrackConfig().version:
+                raise RuntimeError(
+                    "Configuration does not contain version number, consider invalid"
                 )
-                if config.version != EyeTrackConfig().version:
-                    raise RuntimeError(
-                        "Configuration does not contain version number, consider invalid"
-                    )
-                return config
-            except:
-                print("Configuration invalid, creating new config")
-                return EyeTrackConfig()
+            return config
+           # except:
+            #    print("[INFO] Configuration invalid, creating new config")
+             #   return EyeTrackConfig()
 
     def save(self):
         with open(CONFIG_FILE_NAME, "w+") as settings_file:
