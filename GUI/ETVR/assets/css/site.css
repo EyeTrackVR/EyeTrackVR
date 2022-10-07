@@ -11481,6 +11481,7 @@ div.sqs-block-opentable-v2 .squarespace-opentable-new-age-wrapper h1 {
   .TockButton-blue.sqs-button-element--tertiary {
   line-height: normal;
   border-style: solid;
+  border-radius: 8px;
 }
 #siteWrapper.site-wrapper div#Tock_widget_container > div.TockWidgetWrapper .TockButton {
   height: auto;

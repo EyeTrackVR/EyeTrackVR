@@ -2,11 +2,6 @@ import useWindowSize from "@rehooks/window-size";
 import { gsap } from "gsap/all";
 import { useEffect, useRef, useState } from "react";
 
-import.meta.domain_url = {
-  PUBLIC_URL: "ETVR-Website"
-};
-
-var end_point = import.meta.domain_url.PUBLIC_URL;
 export function Section01(props) {
   useEffect(() => {
     let tl = gsap.timeline();
@@ -149,7 +144,7 @@ export function Section01(props) {
                   >
                     <div className="header-title-logo">
                       <a
-                        href={`/${end_point}`}
+                        href="/"
                         data-animation-role="header-element"
                         className="preSlide slideIn"
                         style={{
@@ -171,7 +166,7 @@ export function Section01(props) {
                       <nav className="header-nav-list">
                         <div className="header-nav-item header-nav-item--collection header-nav-item--active">
                           <a
-                            href={`/${end_point}/white-papers`}
+                            href="/white-papers"
                             data-animation-role="header-element"
                             aria-current="page"
                             className="preSlide slideIn"
@@ -186,7 +181,7 @@ export function Section01(props) {
                         </div>
                         <div className="header-nav-item header-nav-item--collection header-nav-item--homepage">
                           <a
-                            href={`/${end_point}`}
+                            href="/"
                             data-animation-role="header-element"
                             className="preSlide slideIn"
                             style={{
@@ -281,7 +276,7 @@ export function Section01(props) {
                   >
                     <div className="header-title-logo">
                       <a
-                        href={`/${end_point}`}
+                        href="/"
                         data-animation-role="header-element"
                         className="preSlide slideIn"
                         style={{
@@ -303,7 +298,7 @@ export function Section01(props) {
                       <nav className="header-nav-list">
                         <div className="header-nav-item header-nav-item--collection header-nav-item--active">
                           <a
-                            href={`/${end_point}/white-papers`}
+                            href="/white-papers"
                             data-animation-role="header-element"
                             aria-current="page"
                             className="preSlide slideIn"
@@ -318,7 +313,7 @@ export function Section01(props) {
                         </div>
                         <div className="header-nav-item header-nav-item--collection header-nav-item--homepage">
                           <a
-                            href={`/${end_point}`}
+                            href="/"
                             data-animation-role="header-element"
                             className="preSlide slideIn"
                             style={{
@@ -408,17 +403,14 @@ export function Section01(props) {
                   {/* Menu Navigation */}
                   <div className="header-menu-nav-folder-content">
                     <div className="container header-menu-nav-item header-menu-nav-item--collection header-menu-nav-item--active">
-                      <a
-                        href={`/${end_point}/white-papers`}
-                        aria-current="page"
-                      >
+                      <a href="/white-papers" aria-current="page">
                         <div className="header-menu-nav-item-content">
                           White Papers
                         </div>
                       </a>
                     </div>
                     <div className="container header-menu-nav-item header-menu-nav-item--collection header-menu-nav-item--homepage">
-                      <a href={`/${end_point}`}>
+                      <a href="/">
                         <div className="header-menu-nav-item-content">Home</div>
                       </a>
                     </div>

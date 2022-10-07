@@ -3,12 +3,6 @@ import { gsap } from "gsap/all";
 import { useEffect, useRef, useState } from "react";
 import { Caresol } from "../caresol";
 
-import.meta.domain_url = {
-  PUBLIC_URL: "ETVR-Website"
-};
-
-var end_point = import.meta.domain_url.PUBLIC_URL;
-
 export function Section01(props) {
   useEffect(() => {
     let tl = gsap.timeline();
@@ -88,7 +82,7 @@ export function Section01(props) {
           id="header"
           className="black-bold header theme-col--primary"
           data-controller="Header"
-          data-current-styles='{ "layout": "navRight", "action": { "href": "/", "buttonText": "CONTACT", "newWindow": false }, "showSocial": false, "sectionTheme": "black-bold", "menuOverlayAnimation": "fade", "cartStyle": "cart", "cartText": "Cart", "showEmptyCartState": true, "cartOptions": { "iconType": "stroke-1", "cartBorderShape": "none", "cartBorderStyle": "outline", "cartBorderThickness": { "unit": "px", "value": 1.0 } }, "showButton": false, "showCart": false, "showAccountLogin": true, "headerStyle": "dynamic", "languagePicker": { "enabled": true, "iconEnabled": true, "iconType": "globe", "flagShape": "shiny", "languageFlags": [ ] }, "mobileOptions": { "layout": "logoLeftNavRight", "menuIcon": "doubleLineHamburger", "menuIconOptions": { "style": "tripleLineHamburger", "thickness": { "unit": "px", "value": 3.0 } } }, "dynamicOptions": { "border": { "enabled": false, "position": "allSides", "thickness": { "unit": "px", "value": 4.0 } } }, "solidOptions": { "headerOpacity": { "unit": "%", "value": 100.0 }, "border": { "enabled": false, "position": "allSides", "thickness": { "unit": "px", "value": 4.0 } }, "dropShadow": { "enabled": false, "blur": { "unit": "px", "value": 30.0 }, "spread": { "unit": "px", "value": 0.0 }, "distance": { "unit": "px", "value": 0.0 } }, "blurBackground": { "enabled": false, "blurRadius": { "unit": "px", "value": 12.0 } } }, "gradientOptions": { "gradientType": "faded", "headerOpacity": { "unit": "%", "value": 90.0 }, "border": { "enabled": false, "position": "allSides", "thickness": { "unit": "px", "value": 4.0 } }, "dropShadow": { "enabled": false, "blur": { "unit": "px", "value": 30.0 }, "spread": { "unit": "px", "value": 0.0 }, "distance": { "unit": "px", "value": 0.0 } }, "blurBackground": { "enabled": false, "blurRadius": { "unit": "px", "value": 12.0 } } }, "showPromotedElement": false }'
+          data-current-styles='{"layout": "navRight", "action": { "href": "/", "buttonText": "CONTACT", "newWindow": false }, "showSocial": false, "sectionTheme": "black-bold", "menuOverlayAnimation": "fade", "cartStyle": "cart", "cartText": "Cart", "showEmptyCartState": true, "cartOptions": { "iconType": "stroke-1", "cartBorderShape": "none", "cartBorderStyle": "outline", "cartBorderThickness": { "unit": "px", "value": 1.0 } }, "showButton": false, "showCart": false, "showAccountLogin": true, "headerStyle": "dynamic", "languagePicker": { "enabled": true, "iconEnabled": true, "iconType": "globe", "flagShape": "shiny", "languageFlags": [ ] }, "mobileOptions": { "layout": "logoLeftNavRight", "menuIcon": "doubleLineHamburger", "menuIconOptions": { "style": "tripleLineHamburger", "thickness": { "unit": "px", "value": 3.0 } } }, "dynamicOptions": { "border": { "enabled": false, "position": "allSides", "thickness": { "unit": "px", "value": 4.0 } } }, "solidOptions": { "headerOpacity": { "unit": "%", "value": 100.0 }, "border": { "enabled": false, "position": "allSides", "thickness": { "unit": "px", "value": 4.0 } }, "dropShadow": { "enabled": false, "blur": { "unit": "px", "value": 30.0 }, "spread": { "unit": "px", "value": 0.0 }, "distance": { "unit": "px", "value": 0.0 } }, "blurBackground": { "enabled": false, "blurRadius": { "unit": "px", "value": 12.0 } } }, "gradientOptions": { "gradientType": "faded", "headerOpacity": { "unit": "%", "value": 90.0 }, "border": { "enabled": false, "position": "allSides", "thickness": { "unit": "px", "value": 4.0 } }, "dropShadow": { "enabled": false, "blur": { "unit": "px", "value": 30.0 }, "spread": { "unit": "px", "value": 0.0 }, "distance": { "unit": "px", "value": 0.0 } }, "blurBackground": { "enabled": false, "blurRadius": { "unit": "px", "value": 12.0 } } }, "showPromotedElement": false }'
           data-section-id="header"
           data-header-theme="black-bold"
           data-menu-overlay-theme
@@ -145,7 +139,7 @@ export function Section01(props) {
                   >
                     <div className="header-title-logo">
                       <a
-                        href={`/${end_point}`}
+                        href="/"
                         data-animation-role="header-element"
                         className="preSlide slideIn"
                         style={{
@@ -167,7 +161,7 @@ export function Section01(props) {
                       <nav className="header-nav-list">
                         <div className="header-nav-item header-nav-item--collection">
                           <a
-                            href={`/${end_point}/white-papers`}
+                            href="/white-papers"
                             data-animation-role="header-element"
                             className="preSlide slideIn"
                             style={{
@@ -181,7 +175,7 @@ export function Section01(props) {
                         </div>
                         <div className="header-nav-item header-nav-item--collection header-nav-item--active header-nav-item--homepage">
                           <a
-                            href={`/${end_point}`}
+                            href="/"
                             data-animation-role="header-element"
                             aria-current="page"
                             className="preSlide slideIn"
@@ -272,7 +266,7 @@ export function Section01(props) {
                   >
                     <div className="header-title-logo">
                       <a
-                        href={`/${end_point}`}
+                        href="/"
                         data-animation-role="header-element"
                         className="preSlide slideIn"
                         style={{
@@ -294,7 +288,7 @@ export function Section01(props) {
                       <nav className="header-nav-list">
                         <div className="header-nav-item header-nav-item--collection">
                           <a
-                            href={`/${end_point}/white-papers`}
+                            href="/white-papers"
                             data-animation-role="header-element"
                             className="preSlide slideIn"
                             style={{
@@ -308,7 +302,7 @@ export function Section01(props) {
                         </div>
                         <div className="header-nav-item header-nav-item--collection header-nav-item--active header-nav-item--homepage">
                           <a
-                            href={`/${end_point}`}
+                            href="/"
                             data-animation-role="header-element"
                             aria-current="page"
                             className="preSlide slideIn"
@@ -399,7 +393,7 @@ export function Section01(props) {
                   {/* Menu Navigation */}
                   <div className="header-menu-nav-folder-content">
                     <div className="container header-menu-nav-item header-menu-nav-item--collection">
-                      <a href={`/${end_point}/white-papers`}>
+                      <a href="/white-papers">
                         <div className="header-menu-nav-item-content">
                           White Papers
                         </div>
@@ -433,7 +427,7 @@ export function Section01(props) {
                       <a
                         className="header-menu-controls-control header-menu-controls-control--active"
                         data-action="back"
-                        href={`/${end_point}`}
+                        href="/"
                         tabIndex={-1}
                       >
                         <span>Back</span>
