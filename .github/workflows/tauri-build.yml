@@ -2,6 +2,11 @@ name: "tauri-build"
 on:
   push:
     branches: [GUI]
+    paths-ignore:
+      - "*.md"
+env:
+  GITHUB_TOKEN: ${{ secrets.PERSONAL_ACCESS_TOKEN }}
+  
 concurrency:
   group: ${{ github.ref }}
   cancel-in-progress: true
@@ -16,14 +21,12 @@ jobs:
     runs-on: ${{ matrix.platform }}
     steps:
       - uses: actions/checkout@v2
+        with:
+          token: ${{ env.GITHUB_TOKEN }}
       - name: Use Node.js ${{ matrix.node-version }}
         uses: actions/setup-node@v2
         with:
           node-version: ${{ matrix.node-version }}
-      - name: Install dependencies
-        run: |
-          npm install -g typescript
-          yarn install
       - name: install Rust stable
         uses: actions-rs/toolchain@v1
         with:
@@ -34,10 +37,12 @@ jobs:
           sudo apt-get update
           sudo apt-get upgrade
           sudo apt-get install -y libgtk-3-dev webkit2gtk-4.0 libappindicator3-dev libsvg2-dev patchelf
-
-      - uses: tauri-apps/tauri-action@v0
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Install dependencies && Build
+        working-directory: /GUI/ETVR
+        uses: tauri-apps/tauri-action@v0
+        run: |
+          npm install -g typescript
+          yarn install
         with:
           tagName: app-v__VERSION__
           releaseName: "app v__VERSION__"
