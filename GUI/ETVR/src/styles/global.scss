@@ -8,7 +8,22 @@
   --color-bg-image: #f0eef7;
   --font-family-heading: "Poppins", sans-serif;
   --font-family-body: "Lato", "Poppins", sans-serif;
+  --font-family-code: "Roboto Mono", monospace;
+  --font-family-ubuntu: "Ubuntu";
   --header-anhor: #1d1d1d;
+  --black: rgba(0, 0, 0, 1);
+  --woodsmoke: rgba(14, 14, 14, 1);
+  --hunter-green: rgba(22, 22, 22, 1);
+  --green: rgba(29, 221, 0, 1);
+  --trendy-pink: rgba(154, 105, 152, 1);
+  --tower-gray: rgba(169, 182, 191, 1);
+  --red: rgba(251, 0, 0, 1);
+  --sea-buckthorn: rgba(249, 170, 51, 1);
+  --white: rgba(255, 255, 255, 1);
+
+  --font-size-s: 7px;
+  --font-size-m: 8px;
+  --font-size-l: 12px;
 }
 
 * {
@@ -32,6 +47,14 @@ html {
   overflow-x: hidden;
   font-family: var(--font-family-body);
   word-wrap: break-word;
+}
+
+.ubuntu-medium-tower-gray-7px{
+  color: var(--tower-gray);
+  font-family: var(--font-family-ubuntu);
+  font-size: var(--font-size-s);
+  font-weight: 500;
+  font-style: normal;
 }
 
 .w-700 {

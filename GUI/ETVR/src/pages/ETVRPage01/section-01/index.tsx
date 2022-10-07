@@ -1,6 +1,7 @@
 import useWindowSize from "@rehooks/window-size";
 import { gsap } from "gsap/all";
 import { useEffect, useRef, useState } from "react";
+import { DiodeStatus } from "../components/Helpers/DiodeStatus";
 
 export function Section01(props) {
   useEffect(() => {
@@ -38,7 +39,7 @@ export function Section01(props) {
 
   return (
     <>
-      
+      <DiodeStatus />
     </>
   );
 }
