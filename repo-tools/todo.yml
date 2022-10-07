@@ -1,8 +1,8 @@
 ---
 TO_DO:
 STATE: ['TO_DO' = [], 'IN_PROGRESS' = [-],'DONE' = [x]]
-  Description: This is a list of things that need to be done.
-  Tasks:
+Description: This is a list of things that need to be done.
+Tasks:
 
   --------- HIGH PRIORITY ---------
 
