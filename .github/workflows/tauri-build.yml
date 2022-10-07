@@ -5,7 +5,7 @@ on:
     paths-ignore:
       - "*.md"
 env:
-  GITHUB_TOKEN: ${{ secrets.PERSONAL_ACCESS_TOKEN }}
+  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
   
 concurrency:
   group: ${{ github.ref }}
