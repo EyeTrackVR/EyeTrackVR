@@ -13,11 +13,14 @@ concurrency:
 
 jobs:
   build:
+    defaults:
+      run:
+        working-directory: GUI\ETVR
     strategy:
       fail-fast: false
       matrix:
         node-version: [16.x]
-        platform: [windows-latest, macos-latest, ubuntu-latest]
+        platform: [windows-latest]
     runs-on: ${{ matrix.platform }}
     steps:
       - uses: actions/checkout@v2
@@ -31,24 +34,8 @@ jobs:
         uses: actions-rs/toolchain@v1
         with:
           toolchain: stable
-      - name: install dependencies (ubuntu only)
-        if: matrix.platform == 'ubuntu-latest'
-        working-directory: GUI/ETVR
-        run: |
-          sudo apt-get update
-          sudo apt-get upgrade
-          sudo apt-get install -y libgtk-3-dev webkit2gtk-4.0 libappindicator3-dev libsvg2-dev patchelf
-          npm install -g typescript
-          yarn install
-      - name: install dependencies (macOS only)
-        if: matrix.platform == 'macos-latest'
-        working-directory: GUI/ETVR
-        run: |
-          npm install -g typescript
-          yarn install
       - name: install dependencies (windows only)
         if: matrix.platform == 'windows-latest'
-        working-directory: GUI\ETVR
         run: |
           npm install -g typescript
           yarn install
