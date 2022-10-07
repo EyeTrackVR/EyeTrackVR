@@ -23,7 +23,10 @@
     "jsx": "react-jsx",
     "paths": {
       "@interfaces/*": [
-        "src/interfaces/*"
+        "src/interfaces/*",
+      ],
+      "@components/*": [
+        "src/components/*",
       ],
       "@redux/*": [
         "src/redux/*"
@@ -43,13 +46,14 @@
       "@assets/*": [
         "./assets/*"
       ]
-    }
+    },
   },
   "include": [
     "src",
     "**/*.ts",
-    "**/*.tsx"
-, "index.js"  ],
+    "**/*.tsx",
+    "index.js",
+  ],
   "references": [
     {
       "path": "./tsconfig.node.json"

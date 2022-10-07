@@ -1,5 +1,6 @@
 import react from '@vitejs/plugin-react'
 import { defineConfig } from 'vite'
+
 const path = require('path')
 
 export default defineConfig({
@@ -19,5 +20,7 @@ export default defineConfig({
   server: {
     host: true
   },
-  plugins: [react()]
+  plugins: [
+    react(),
+  ]
 })
