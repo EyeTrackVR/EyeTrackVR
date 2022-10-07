@@ -1,0 +1,26 @@
+@mixin h-center-content {
+  display: flex;
+  justify-content: center;
+}
+
+@mixin v-center-content {
+  display: flex;
+  align-items: center;
+}
+
+@mixin center-content {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+@mixin flex-column {
+  display: flex;
+  flex-direction: column;
+}
+
+@mixin flex-item($grow: 0, $shrink: 1, $basis: auto) {
+  display: flex;
+  position: relative;
+  flex: $grow $shrink $basis;
+}
