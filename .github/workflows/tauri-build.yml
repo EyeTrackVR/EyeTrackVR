@@ -47,7 +47,7 @@ jobs:
           npm install -g typescript
           yarn install
       - name: install dependencies (windows only)
-        if: matrix.platform == 'macos-latest'
+        if: matrix.platform == 'windows-latest'
         working-directory: GUI\ETVR
         run: |
           npm install -g typescript
