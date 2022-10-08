@@ -3,8 +3,19 @@ import { createRoot } from "react-dom/client";
 import "../index.scss";
 import App from "./App";
 import reportWebVitals from "../assets/js/reportWebVitals";
+import { invoke } from "@tauri-apps/api/tauri";
+
+document.addEventListener("DOMContentLoaded", () => {
+  // This will wait for the window to load, but you could
+  // run this function on whatever trigger you want
+  //sleep for 5 seconds to allow the window to load
+  setTimeout(() => {
+    invoke("close_splashscreen");
+  }, 5000);
+});
 
 const root = createRoot(document.getElementById("root") as HTMLElement);
+
 declare global {
   namespace JSX {
     interface IntrinsicElements {

@@ -1,9 +1,12 @@
 /// <reference types="vite/client" />
 
-interface DOMAIN_URL {
-    PUBLIC_URL: string;
+interface Config {
+    LOG: any
+    LOG_LEVEL: any
+    CONFIG: any
+    SEP: string
 }
 
 interface ImportMeta {
-    domain_url: DOMAIN_URL;
+    config: Config;
 }

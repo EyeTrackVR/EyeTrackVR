@@ -1,5 +1,5 @@
 import { BrowserRouter, Route, Routes } from "react-router-dom";
-import AntxChatDesign01 from "../../pages/ETVRPage01";
+import AntxChatDesign01 from "@pages/ETVRPage01";
 /* import AntxChatDesign02 from "../../pages/ETVRPage02"; */
 
 /* import.meta.domain_url = {

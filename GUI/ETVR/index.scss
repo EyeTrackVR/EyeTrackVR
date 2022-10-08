@@ -8,5 +8,9 @@
 // @import "@styles/scss-utils/u_mixins.scss";
 // @import "@styles/scss-utils/u_responsive.scss";
 // @import "@styles/global.scss";
+body {
+    background-color: #22222d;
+}
 
 @import "@pages/ETVRPage01/index.scss";
+@import "@pages/ETVRPage02/index.scss";

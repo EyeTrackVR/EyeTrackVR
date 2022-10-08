@@ -4,6 +4,12 @@ import { defineConfig } from 'vite'
 const path = require('path')
 
 export default defineConfig({
+  clearScreen: false,
+  // Tauri expects a fixed port, fail if that port is not available
+  // to make use of `TAURI_PLATFORM`, `TAURI_ARCH`, `TAURI_FAMILY`,
+  // `TAURI_PLATFORM_VERSION`, `TAURI_PLATFORM_TYPE` and `TAURI_DEBUG`
+  // env variables
+  envPrefix: ['VITE_', 'TAURI_'],
   // also change alias in tsconfig.json compilerOptions > path
   resolve: {
     alias: {
@@ -14,11 +20,20 @@ export default defineConfig({
       '@redux': path.resolve(__dirname, './src/redux'),
       '@interfaces': path.resolve(__dirname, './src/interfaces'),
       '@assets': path.resolve(__dirname, './assets'),
-
+      '@components': path.resolve(__dirname, 'src/pages/ETVRPage01/components')
     },
   },
   server: {
-    host: true
+    host: true,
+    strictPort: true,
+  },
+  build: {
+    // Tauri supports es2021
+    target: ['es2021', 'chrome100', 'safari13'],
+    // don't minify for debug builds
+    minify: !process.env.TAURI_DEBUG ? 'esbuild' : false,
+    // produce sourcemaps for debug builds
+    sourcemap: !!process.env.TAURI_DEBUG,
   },
   plugins: [
     react(),

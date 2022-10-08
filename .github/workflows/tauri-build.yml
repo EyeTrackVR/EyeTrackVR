@@ -42,8 +42,8 @@ jobs:
       - name: Build
         uses: tauri-apps/tauri-action@v0
         with:
-          tagName: app-v__VERSION__
-          releaseName: "app v__VERSION__"
-          releaseBody: "See the assets to download this version and install."
-          releaseDraft: true
-          prerelease: false
+          tagName: EyeTrackApp-v__VERSION__
+          releaseName: "app v__VERSION__" # name of the release
+          releaseBody: "See the assets to download this version and install." # message to include in the release
+          releaseDraft: true # set to false to publish the release as a finished product
+          prerelease: false # set to true to mark the release as a pre-release

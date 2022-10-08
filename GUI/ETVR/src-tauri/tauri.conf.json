@@ -12,12 +12,43 @@
   },
   "tauri": {
     "allowlist": {
-      "all": true
+      "all": true,
+      "window": {
+        "all": true,
+        "create": true,
+        "center": true,
+        "requestUserAttention": true,
+        "setResizable": true,
+        "setTitle": true,
+        "maximize": true,
+        "unmaximize": true,
+        "minimize": true,
+        "unminimize": true,
+        "show": true,
+        "hide": true,
+        "close": true,
+        "setDecorations": true,
+        "setAlwaysOnTop": true,
+        "setSize": true,
+        "setMinSize": true,
+        "setMaxSize": true,
+        "setPosition": true,
+        "setFullscreen": true,
+        "setFocus": true,
+        "setIcon": true,
+        "setSkipTaskbar": true,
+        "setCursorGrab": true,
+        "setCursorVisible": true,
+        "setCursorIcon": true,
+        "setCursorPosition": true,
+        "startDragging": true,
+        "print": true
+      }
     },
     "bundle": {
       "active": true,
-      "category": "DeveloperTool",
-      "copyright": "",
+      "category": "Entertainment",
+      "copyright": "EyeTrackVR",
       "deb": {
         "depends": []
       },
@@ -30,20 +61,31 @@
       ],
       "identifier": "com.eyetrackvr.dev",
       "longDescription": "",
-      "macOS": {
-        "entitlements": null,
-        "exceptionDomain": "",
-        "frameworks": [],
-        "providerShortName": null,
-        "signingIdentity": null
-      },
       "resources": [],
       "shortDescription": "",
       "targets": "all",
       "windows": {
+        "allowDowngrades": false,
         "certificateThumbprint": null,
         "digestAlgorithm": "sha256",
-        "timestampUrl": ""
+        "timestampUrl": "",
+        "webviewInstallMode": {
+          "type": "downloadBootstrapper"
+        },
+        "wix": {
+          "language": [
+            "en-US",
+            "pt-BR",
+            "fr-FR",
+            "de-DE",
+            "it-IT",
+            "ja-JP",
+            "ko-KR",
+            "zh-CN",
+            "zh-TW",
+            "pt-PT"
+          ]
+        }
       }
     },
     "security": {
@@ -56,10 +98,25 @@
       {
         "fullscreen": false,
         "height": 600,
+        "width": 800,
         "resizable": true,
+        "center": true,
         "title": "EyeTrackVR",
-        "width": 800
+        "visible": false
+      },
+      {
+        "width": 425,
+        "height": 500,
+        "decorations": false,
+        "resizable": false,
+        "center": true,
+        "url": "splashscreen.html",
+        "label": "splashscreen"
       }
-    ]
+    ],
+    "systemTray": {
+      "iconPath": "../public/images/icons/icon-48x48.png",
+      "iconAsTemplate": true
+    }
   }
 }

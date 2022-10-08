@@ -388,6 +388,7 @@ html input[type="button"],
 input[type="reset"],
 input[type="submit"] {
   -webkit-appearance: button;
+  appearance: button;
   cursor: pointer;
 }
 button[disabled],
@@ -401,6 +402,7 @@ input[type="radio"] {
 }
 input[type="search"] {
   -webkit-appearance: textfield;
+  appearance: textfield;
   -moz-box-sizing: content-box;
   -webkit-box-sizing: content-box;
   box-sizing: content-box;
@@ -408,6 +410,7 @@ input[type="search"] {
 input[type="search"]::-webkit-search-cancel-button,
 input[type="search"]::-webkit-search-decoration {
   -webkit-appearance: none;
+  appearance: none;
 }
 button::-moz-focus-inner,
 input::-moz-focus-inner {
