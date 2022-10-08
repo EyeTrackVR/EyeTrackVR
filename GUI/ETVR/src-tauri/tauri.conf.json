@@ -105,8 +105,8 @@
         "visible": false
       },
       {
-        "width": 425,
-        "height": 500,
+        "height": 600,
+        "width": 800,
         "decorations": false,
         "resizable": false,
         "center": true,
