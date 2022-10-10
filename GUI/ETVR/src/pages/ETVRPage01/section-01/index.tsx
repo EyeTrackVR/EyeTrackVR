@@ -1,11 +1,10 @@
 import useWindowSize from "@rehooks/window-size";
 import { gsap } from "gsap/all";
 import { useEffect, useRef, useState } from "react";
-import { DiodeStatus } from "@src/components/DiodeStatus";
 import { MainMenu } from "@src/components/MainMenu";
 
 export function Section01(props) {
-  useEffect(() => {
+  /* useEffect(() => {
     let tl = gsap.timeline();
     tl.from(".text1", { y: 50, duration: 3, opacity: 0, ease: "power3.inOut" });
   }, []);
@@ -36,11 +35,10 @@ export function Section01(props) {
       window.getComputedStyle(bgRef.current);
       setBgHeight(bgRef.current?.offsetHeight);
     }
-  }, [useWindowSize().innerWidth]);
+  }, [useWindowSize().innerWidth]); */
 
   return (
     <>
-      {/* <DiodeStatus /> */}
       <MainMenu />
     </>
   );

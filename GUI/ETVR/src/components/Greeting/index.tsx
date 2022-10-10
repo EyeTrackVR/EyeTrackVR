@@ -1,4 +1,5 @@
 import * as React from "react";
+import styles from "./index.module.scss";
 import username from "../../../src-tauri/config/config.json";
 
 export function Greeting() {
@@ -9,8 +10,8 @@ export function Greeting() {
   }, []);
   return (
     <>
-      <div className="username-div">
-        <p className="username-content">
+      <div className={styles.username_div}>
+        <p className={styles.username_content}>
           {name ? `Welcome ${name}` : "Welcome"}
         </p>
       </div>

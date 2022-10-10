@@ -1,0 +1,30 @@
+.titlebar {
+  height: 30px;
+  background: #329ea3; /* #9a6998- alternative really nice pink*/
+  user-select: none;
+  display: flex;
+  justify-content: flex-end;
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+}
+
+.titlebar-button {
+  display: inline-flex;
+  justify-content: center;
+  align-items: center;
+  width: 30px;
+  height: 30px;
+}
+
+.titlebar-button:hover {
+  background: #5bbec3;
+}
+
+.main-div {
+  background-color: rgba(0, 0, 0, 0.73);
+  border-radius: 8px;
+}
+
+

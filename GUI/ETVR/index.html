@@ -15,7 +15,7 @@
   <meta name="theme-color" content="#22222d">
   <meta name="msapplication-navbutton-color" content="#22222d">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-  
+
   <link rel="icon" href="images/logo.gif">
   <link rel="apple-touch-icon" href="images/logo.gif">
   <link rel="icon" href="images/transparent_logo.gif">
@@ -38,6 +38,7 @@
   <!-- <link rel="preconnect" href="https://images.squarespace-cdn.com"> -->
   <link rel="stylesheet" type="text/css"
     href="https://fonts.googleapis.com/css2?family=Roboto:ital,wght@0,300;0,400;0,500;0,700;1,300;1,400;1,700">
+  <link rel="stylesheet" type="text/css" href="./assets/css/titlebar.css">
   <link rel="stylesheet" type="text/css" href="./assets/css/site.css">
   <link rel="stylesheet" type="text/css" href="./assets/css/index.css">
 
@@ -45,7 +46,20 @@
 </head>
 
 <body>
-  <div id="root"></div>
+  <div class="main-div">
+    <div data-tauri-drag-region class="titlebar" style="position:relative; z-index:10">
+      <div class="titlebar-button" id="titlebar-minimize">
+        <img src="https://api.iconify.design/mdi:window-minimize.svg" alt="minimize" />
+      </div>
+      <div class="titlebar-button" id="titlebar-maximize">
+        <img src="https://api.iconify.design/mdi:window-maximize.svg" alt="maximize" />
+      </div>
+      <div class="titlebar-button" id="titlebar-close">
+        <img src="https://api.iconify.design/mdi:close.svg" alt="close" />
+      </div>
+    </div>
+    <div id="root"></div>
+  </div>
   <script type="module" src="/src/main.tsx"></script>
 
   <script type="text/javascript">

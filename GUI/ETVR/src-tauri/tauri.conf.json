@@ -130,7 +130,9 @@
         "resizable": true,
         "center": true,
         "title": "EyeTrackVR",
-        "visible": false
+        "visible": false,
+        "decorations": false,
+        "transparent": true
       },
       {
         "height": 600,

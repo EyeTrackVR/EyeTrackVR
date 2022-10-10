@@ -1,14 +1,11 @@
-@import "../Logo/index.scss";
-
-
-.main-menu {
+.main_menu {
     align-items: center;
     display: flex;
     min-width: 100%;
     justify-content: space-between;
 }
 
-.overlap-group {
+.navbar_container {
     align-items: center;
     background-color: rgba(14, 14, 14, 1);
     border-radius: 14px;
@@ -23,7 +20,7 @@
     filter: drop-shadow(6px 6px 6px rgba(25, 24, 24, 0.734));
 }
 
-.overlap-group1 {
+.navbar_group {
     align-items: flex-end;
     border-radius: 14px;
     height: 48px;
@@ -31,9 +28,10 @@
     width: 71px;
     top: 6px;
     left: 4px;
+    padding: 0px 4.0px;
 }
 
-.rectangle-2 {
+.rectangle_2 {
     background-color: #252536;
     border: 1px none;
     border-radius: 14px;
@@ -45,25 +43,39 @@
     transform: rotate(0.15deg);
 }
 
-.cameras {
+.rectangle_2_inactive {
+    background-color: #252536;
+    border: 1px none;
+    border-radius: 14px;
+    height: 37px;
+    left: 0;
+    position: absolute;
+    top: 0;
+    width: 71px;
+    transform: rotate(0.15deg);
+    visibility: hidden;
+}
+
+.active {
+    font-family: "Ubuntu";
+    font-size: 12px;
     left: 13px;
     letter-spacing: 0;
     position: absolute;
     top: 11px;
 }
 
-.notifications {
+.inactive {
     color: #5e5e5e;
     font-family: "Ubuntu";
     font-size: 12px;
-    font-weight: 500;
+    left: 13px;
     letter-spacing: 0;
-    margin-top: 2.0px;
-    min-height: 14px;
-    min-width: 71px;
+    position: absolute;
+    top: 11px;
 }
 
-.rectangle-146 {
+.rectangle_146 {
     background-color: #252536;
     border: 1px none;
     border-radius: 15px;
