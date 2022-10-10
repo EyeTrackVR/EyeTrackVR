@@ -1,5 +1,6 @@
 import react from '@vitejs/plugin-react'
 import { defineConfig } from 'vite'
+/* import { ViteToml } from 'vite-plugin-toml' */
 
 const path = require('path')
 
@@ -37,5 +38,6 @@ export default defineConfig({
   },
   plugins: [
     react(),
+    /* ViteToml(), */
   ]
 })

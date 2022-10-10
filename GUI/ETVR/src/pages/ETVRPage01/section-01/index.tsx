@@ -2,7 +2,7 @@ import useWindowSize from "@rehooks/window-size";
 import { gsap } from "gsap/all";
 import { useEffect, useRef, useState } from "react";
 import { DiodeStatus } from "@src/components/DiodeStatus";
-import {Greeting} from "@src/components/Greeting";
+import { MainMenu } from "@src/components/MainMenu";
 
 export function Section01(props) {
   useEffect(() => {
@@ -40,8 +40,8 @@ export function Section01(props) {
 
   return (
     <>
-      <Greeting />
-      <DiodeStatus />
+      {/* <DiodeStatus /> */}
+      <MainMenu />
     </>
   );
 }

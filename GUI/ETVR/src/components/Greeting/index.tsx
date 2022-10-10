@@ -1,18 +1,19 @@
 import * as React from "react";
-import UserInterface from "@interfaces/Helpers/userinterface";
-import { invoke } from "@tauri-apps/api";
-import { listen } from "@tauri-apps/api/event";
+import username from "../../../src-tauri/config.json";
 
 export function Greeting() {
-  const [user, setUser] = React.useState(null);
+  const [name, setName] = React.useState("");
+
+  React.useEffect(() => {
+    setName(username.name);
+  }, []);
   return (
-    <div>
-      <header className="App-header">
-        <p>{user ? `Hello ${user}` : "Hello, stranger"}</p>
-        <pre>
-          <>{user}</>
-        </pre>
-      </header>
-    </div>
+    <>
+      <div className="username-div">
+        <p className="username-content">
+          {name ? `Welcome ${name}` : "Welcome"}
+        </p>
+      </div>
+    </>
   );
 }

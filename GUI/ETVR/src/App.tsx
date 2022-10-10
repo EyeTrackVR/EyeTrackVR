@@ -6,7 +6,6 @@ await appWindow.setDecorations(false); */
 
 function App() {
   return (
-    
     <main className="App">
       <MainWindow />
       {/* <Outlet /> */}

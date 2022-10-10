@@ -608,6 +608,7 @@ version = "0.1.0"
 dependencies = [
  "serde",
  "serde_json",
+ "sprintf",
  "sysinfo",
  "tauri",
  "tauri-build",
@@ -2588,6 +2589,12 @@ dependencies = [
  "libc",
  "system-deps 5.0.0",
 ]
+
+[[package]]
+name = "sprintf"
+version = "0.1.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "dce67a1f173db2f623678dc914d20870090a4bc8d066e9812e59508af0159aef"
 
 [[package]]
 name = "stable_deref_trait"

@@ -9,6 +9,7 @@ document.addEventListener("DOMContentLoaded", () => {
   // This will wait for the window to load, but you could
   // run this function on whatever trigger you want
   //sleep for 5 seconds to allow the window to load
+  invoke("get_user");
   setTimeout(() => {
     invoke("close_splashscreen");
   }, 3000);
@@ -26,6 +27,7 @@ declare global {
     }
   }
 }
+
 root.render(
   <StrictMode>
     <App />

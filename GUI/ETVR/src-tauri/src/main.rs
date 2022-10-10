@@ -11,21 +11,68 @@ use sysinfo::{System, SystemExt};
 use whoami::username;
 use window_shadows::set_shadow;
 
+use serde::{Deserialize, Serialize};
+use serde_json::{Number, Value};
+use sprintf::sprintf;
+
+/* /* TOML */
+use serde::Serialize; // 1.0.91
+use std::{collections::BTreeMap, fs};
+use toml; // 0.5.1
+
+#[derive(Debug, Default, Serialize)]
+struct Config<'a> {
+    config: BTreeMap<&'a str, User<'a>>,
+}
+
+#[derive(Debug, Serialize)]
+struct User<'a> {
+    #[serde(rename = "username")]
+    user_name: &'a str,
+}
+
 #[tauri::command]
-fn get_user() -> String {
+fn write_to_toml() {
+    let mut file = Config::default();
+    let username = get_user();
+    file.config.insert(
+        "User",
+        User {
+            user_name: &username,
+        },
+    );
+    let toml_string = toml::to_string(&file).expect("Could not encode TOML value");
+    eprintln!("{}", toml_string);
+    fs::write("config.toml", toml_string).expect("Could not write to file!");
+} */
+
+#[derive(Debug, Deserialize, Serialize)]
+struct User {
+    name: String,
+}
+
+#[tauri::command]
+fn get_user() {
     let name = username();
-    name.into()
+    let json = sprintf!("{\"name\":\"%s\"}\n", name).unwrap();
+    let user_name: User = serde_json::from_str(&json).unwrap();
+    println!("{:?}", user_name);
+    std::fs::write(
+        "config.json",
+        serde_json::to_string_pretty(&user_name).unwrap(),
+    )
+    .unwrap();
 }
 
 // This command must be async so that it doesn't run on the main thread.
 #[tauri::command]
 async fn close_splashscreen(window: tauri::Window) {
-  // Close splashscreen
-  if let Some(splashscreen) = window.get_window("splashscreen") {
-    splashscreen.close().unwrap();
-  }
-  // Show main window
-  window.get_window("main").unwrap().show().unwrap();
+    // Close splashscreen
+    if let Some(splashscreen) = window.get_window("splashscreen") {
+        splashscreen.close().unwrap();
+    }
+    // Show main window
+    window.get_window("main").unwrap().show().unwrap();
 }
 
 fn main() {
@@ -106,5 +153,5 @@ fn main() {
             api.prevent_exit();
         }
         _ => {}
-    }); */ 
+    }); */
 }

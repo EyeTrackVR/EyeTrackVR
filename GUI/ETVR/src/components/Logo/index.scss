@@ -1,0 +1,32 @@
+.eyetrackvr-logo-gif-1 {
+    margin-top: 2rem;
+    object-fit: cover;
+    background-color: black;
+    border-radius: 50%;
+    height: 90px;
+    width: 90px;
+    margin-left: 8rem;
+    filter: drop-shadow(10px 10px 6px rgba(25, 24, 24, 0.734));
+}
+
+.eyetrackvr-logo-gif-1-image {
+    position: relative;
+}
+
+.notificationsDiv {
+    width: 2.2rem;
+    height: 2.2rem;
+    border-radius: 50%;
+    background-color: red;
+
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    position: absolute;
+    top: -13px;
+    right: -6px;
+}
+
+.eyetrackvr-logo-gif-1 > img {
+    border-radius: 50%;
+}

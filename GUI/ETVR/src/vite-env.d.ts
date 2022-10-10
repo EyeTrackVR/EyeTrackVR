@@ -1,12 +1,9 @@
 /// <reference types="vite/client" />
 
-interface Config {
-    LOG: any
-    LOG_LEVEL: any
-    CONFIG: any
-    SEP: string
+interface ImportMeta {
 }
 
-interface ImportMeta {
-    config: Config;
+declare module '*.toml' {
+    const value: unknown
+    export default value
 }
