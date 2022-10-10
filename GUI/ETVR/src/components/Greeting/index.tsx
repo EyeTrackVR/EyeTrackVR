@@ -1,5 +1,5 @@
 import * as React from "react";
-import username from "../../../src-tauri/config.json";
+import username from "../../../src-tauri/config/config.json";
 
 export function Greeting() {
   const [name, setName] = React.useState("");

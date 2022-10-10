@@ -56,9 +56,9 @@ fn get_user() {
     let name = username();
     let json = sprintf!("{\"name\":\"%s\"}\n", name).unwrap();
     let user_name: User = serde_json::from_str(&json).unwrap();
-    println!("{:?}", user_name);
+    eprintln!("{:?}", user_name);
     std::fs::write(
-        "config.json",
+        "config/config.json",
         serde_json::to_string_pretty(&user_name).unwrap(),
     )
     .unwrap();
