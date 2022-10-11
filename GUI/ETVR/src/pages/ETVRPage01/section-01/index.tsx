@@ -1,7 +1,9 @@
 import useWindowSize from "@rehooks/window-size";
 import { gsap } from "gsap/all";
-import { useEffect, useRef, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { MainMenu } from "@src/components/MainMenu";
+import { Button } from "@src/components/Buttons";
+import styles from "./index.module.scss";
 
 export function Section01(props) {
   /* useEffect(() => {
@@ -36,10 +38,21 @@ export function Section01(props) {
       setBgHeight(bgRef.current?.offsetHeight);
     }
   }, [useWindowSize().innerWidth]); */
-
   return (
     <>
       <MainMenu />
+      <main>
+        <div className="button" 
+        style={{
+          position: "absolute",
+          top: "50%",
+          left: "50%",
+          transform: "translate(-50%, -50%)",
+          zIndex: 1000,
+        }}>
+          
+        </div>
+      </main>
     </>
   );
 }

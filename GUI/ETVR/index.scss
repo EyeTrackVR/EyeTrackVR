@@ -8,10 +8,6 @@
 // @import "@styles/scss-utils/u_mixins.scss";
 // @import "@styles/scss-utils/u_responsive.scss";
 // @import "@styles/global.scss";
-/* body {
-    background-color: #22222d;
-    font-family: "Ubuntu", sans-serif;
-} */
 
 body {
     /* margin: 0; */
@@ -28,9 +24,9 @@ body {
     color: #fff;
 
     display: flex;
-    flex-direction: row;
-    align-items: center;
-    justify-content: center;
+    flex-direction: column;
+    /* align-items: center;
+    justify-content: center; */
 }
 
 
