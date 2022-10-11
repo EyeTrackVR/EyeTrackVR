@@ -9,6 +9,13 @@
     filter: drop-shadow(10px 10px 6px rgba(25, 24, 24, 0.734));
 }
 
+.eyetrackvr_logo_gif_1:hover {
+    -webkit-transform: scale(0.8);
+    -ms-transform: scale(0.8);
+    transform: scale(1.12);
+    transition: all 1.3s ease;
+}
+
 .eyetrackvr_logo_gif_1_image {
     position: relative;
 }
@@ -27,6 +34,6 @@
     right: -6px;
 }
 
-.eyetrackvr_logo_gif_1 > img {
+.eyetrackvr_logo_gif_1>img {
     border-radius: 50%;
 }
