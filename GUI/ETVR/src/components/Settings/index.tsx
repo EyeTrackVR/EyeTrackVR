@@ -1,18 +1,19 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { Button } from "@src/components/Buttons";
+import styles from "./index.module.scss";
 
 export function Settings() {
-    const centerStyle: any = {
+    /* const centerStyle: any = {
         position: "absolute",
         top: "50%",
         left: "50%",
         transform: "translate(-50%, -50%)",
         zIndex: 1000,
-    };
+    }; */
     
     return (
-        <div>
-            <div style={centerStyle}>
+        <div className={styles.settings_main}>
+            <div /* style={centerStyle} */>
                 <Button
                     text="Log"
                     color="#6f4ca1"
