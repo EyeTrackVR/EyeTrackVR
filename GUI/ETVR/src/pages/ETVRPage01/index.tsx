@@ -1,9 +1,9 @@
-import { Section01 } from "./section-01";
+import { Main } from "./main";
 
 function MainWindow() {
     return (
         <>
-            <Section01 />
+            <Main />
         </>
     );
 }

@@ -7,7 +7,7 @@ import { MainMenu } from "@src/components/MainMenu";
 /* import React, { useEffect, useRef, useState } from "react"; */
 /* import styles from "./index.module.scss"; */
 
-export function Section01(/* props */) {
+export function Main(/* props */) {
     /* useEffect(() => {
     let tl = gsap.timeline();
     tl.from(".text1", { y: 50, duration: 3, opacity: 0, ease: "power3.inOut" });
