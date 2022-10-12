@@ -1,35 +1,8 @@
 import { Greeting } from "@src/components/Greeting";
 import { Logo } from "@src/components/Logo";
-import * as React from "react";
 import styles from "./index.module.scss";
 
-/* function mapping() {
-  const navbarLinks = ["cameras", "settings"];
-  const map = navbarLinks.map((i) => {
-    return (
-      <div className={styles.navbar_links}>
-        <span>{i}</span>
-      </div>
-    );
-  });
-  return map;
-} */
-
-export function MainMenu() {
-    const [state, setState] = React.useState({
-        dashboard: true,
-        settings: false,
-    });
-
-    const handleNavChange = (event) => {
-        setState({
-            ...state,
-            dashboard: !state.dashboard,
-            settings: !state.settings,
-        });
-        console.log(event.currentTarget);
-    };
-
+export function MainMenu({ handleNavChange, state }) {
     return (
         <>
             <div className={styles.main_menu}>
@@ -55,7 +28,6 @@ export function MainMenu() {
                                 }
                             >
                                 <span>dashboard</span>
-                                {/* Dashboard Goes here */}
                             </div>
                         </div>
                     </div>
@@ -79,7 +51,6 @@ export function MainMenu() {
                                 }
                             >
                                 <span>settings</span>
-                                {/* Settings Goes here */}
                             </div>
                         </div>
                     </div>

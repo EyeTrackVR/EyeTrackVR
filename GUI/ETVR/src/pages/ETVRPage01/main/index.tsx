@@ -1,10 +1,12 @@
+/* eslint-disable @typescript-eslint/no-non-null-assertion */
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
 /* import useWindowSize from "@rehooks/window-size";
 import { gsap } from "gsap/all"; */
-import { Button } from "@src/components/Buttons";
+import { DashBoard } from "@src/components/Dashboard";
 import { MainMenu } from "@src/components/MainMenu";
-/* import React, { useEffect, useRef, useState } from "react"; */
+import { Settings } from "@src/components/Settings";
+import * as React from "react";
 /* import styles from "./index.module.scss"; */
 
 export function Main(/* props */) {
@@ -40,26 +42,25 @@ export function Main(/* props */) {
       setBgHeight(bgRef.current?.offsetHeight);
     }
   }, [useWindowSize().innerWidth]); */
-    const centerStyle: any = {
-        position: "absolute",
-        top: "50%",
-        left: "50%",
-        transform: "translate(-50%, -50%)",
-        zIndex: 1000,
+
+    const [navState, setNavState] = React.useState({
+        dashboard: true,
+        settings: false,
+    });
+
+    const handleNavChange = (/* event */) => {
+        setNavState({
+            ...navState,
+            dashboard: !navState.dashboard,
+            settings: !navState.settings,
+        });
+        /* console.log(event.currentTarget); */
     };
+
     return (
         <>
-            <MainMenu />
-            <main>
-                <div style={centerStyle}>
-                    <Button
-                        text="Log"
-                        color="#6f4ca1"
-                        onClick={() => console.log("clicked")}
-                        shadow="0 10px 20px -10px rgba(24, 90, 219, 0.6)"
-                    />
-                </div>
-            </main>
+            <MainMenu handleNavChange={handleNavChange} state={navState}/>
+            <main>{navState.dashboard ? <DashBoard /> : <Settings />}</main>
         </>
     );
 }
