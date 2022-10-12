@@ -1,12 +1,14 @@
-import useWindowSize from "@rehooks/window-size";
-import { gsap } from "gsap/all";
-import React, { useEffect, useRef, useState } from "react";
-import { MainMenu } from "@src/components/MainMenu";
-import { Button } from "@src/components/Buttons";
-import styles from "./index.module.scss";
+/* eslint-disable @typescript-eslint/no-explicit-any */
 
-export function Section01(props) {
-  /* useEffect(() => {
+/* import useWindowSize from "@rehooks/window-size";
+import { gsap } from "gsap/all"; */
+import { Button } from "@src/components/Buttons";
+import { MainMenu } from "@src/components/MainMenu";
+/* import React, { useEffect, useRef, useState } from "react"; */
+/* import styles from "./index.module.scss"; */
+
+export function Section01(/* props */) {
+    /* useEffect(() => {
     let tl = gsap.timeline();
     tl.from(".text1", { y: 50, duration: 3, opacity: 0, ease: "power3.inOut" });
   }, []);
@@ -38,21 +40,26 @@ export function Section01(props) {
       setBgHeight(bgRef.current?.offsetHeight);
     }
   }, [useWindowSize().innerWidth]); */
-  return (
-    <>
-      <MainMenu />
-      <main>
-        <div className="button" 
-        style={{
-          position: "absolute",
-          top: "50%",
-          left: "50%",
-          transform: "translate(-50%, -50%)",
-          zIndex: 1000,
-        }}>
-          
-        </div>
-      </main>
-    </>
-  );
+    const centerStyle: any = {
+        position: "absolute",
+        top: "50%",
+        left: "50%",
+        transform: "translate(-50%, -50%)",
+        zIndex: 1000,
+    };
+    return (
+        <>
+            <MainMenu />
+            <main>
+                <div style={centerStyle}>
+                    <Button
+                        text="Log"
+                        color="#6f4ca1"
+                        onClick={() => console.log("clicked")}
+                        shadow="0 10px 20px -10px rgba(24, 90, 219, 0.6)"
+                    />
+                </div>
+            </main>
+        </>
+    );
 }

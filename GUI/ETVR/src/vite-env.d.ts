@@ -1,9 +1,11 @@
-/// <reference types="vite/client" />
+// / <reference types="vite/client" />
 
-interface ImportMeta {
+/* interface ImportMeta {
+} */
+
+declare module "*.toml" {
+    const value: unknown;
+    export default value;
 }
 
-declare module '*.toml' {
-    const value: unknown
-    export default value
-}
+declare module "*.scss";
