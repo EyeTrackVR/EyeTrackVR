@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-non-null-assertion */
 // @src/components/Modal.jsx
 
 import React from "react";
@@ -5,7 +6,7 @@ import ReactDom from "react-dom";
 import { RiCloseLine } from "react-icons/ri";
 import styles from "./index.module.scss";
 
-const portalDiv = document.getElementById("portal" || "");
+const portalDiv = document.getElementById("#portal")!;
 
 export function Modal(props) {
     if (!props.state) return null;
