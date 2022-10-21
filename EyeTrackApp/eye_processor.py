@@ -16,6 +16,7 @@ import statistics
 from one_euro_filter import OneEuroFilter
 from sympy import symbols, Eq, solve
 from winsound import PlaySound, SND_FILENAME, SND_ASYNC
+import scipy.signal as sp
 class InformationOrigin(Enum):
     RANSAC = 1
     BLOB = 2
@@ -29,7 +30,7 @@ class EyeInformation:
     y: float
     pupil_dialation: int
     blink: bool
-
+lowb = np.array(0)
 
 def run_once(f):
     def wrapper(*args, **kwargs):
@@ -308,13 +309,12 @@ class EyeProcessor:
 
         # Increase our threshold value slightly, in order to have a better possibility of getting back
         # something to do blob tracking on.
-        _, larger_threshold = cv2.threshold(
-            self.current_image_gray,
-            int(self.config.threshold + 12),
-            255,
-            cv2.THRESH_BINARY,
-        )
-
+            hist = cv2.calcHist([self.current_image_gray], [0], None, [256], [0, 256])
+            histr = hist.ravel()
+            peaks, properties  = sp.find_peaks(histr, distance=5)
+            minpeak = np.min(peaks)
+            thresholdoptics = np.array(minpeak + int(self.config.threshold + 12))
+            larger_threshold = cv2.inRange(self.current_image_gray,lowb,thresholdoptics) #faster than cv2.threshold 
         # Blob tracking requires that we have a vague idea of where the eye may be at the moment. This
         # means we need to have had at least one successful runthrough of the Pupil Labs algorithm in
         # order to have a projected sphere.
@@ -582,13 +582,14 @@ class EyeProcessor:
                 self.cct = 300
 
 
-
-            _, thresh = cv2.threshold(
-                self.current_image_gray,
-                int(self.config.threshold),
-                255,
-                cv2.THRESH_BINARY,
-            )
+            #Using Histogram based thresholding. Improves robustness insanely
+            hist = cv2.calcHist([self.current_image_gray], [0], None, [256], [0, 256])
+            histr = hist.ravel()
+            peaks, properties  = sp.find_peaks(histr, distance=5)
+            minpeak = np.min(peaks)
+            thresholdoptics = np.array(minpeak + int(self.config.threshold))
+            thresh = cv2.inRange(self.current_image_gray,lowb,thresholdoptics) #faster than cv2.threshold 
+   
 
 
 
