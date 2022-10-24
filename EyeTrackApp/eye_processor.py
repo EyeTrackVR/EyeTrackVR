@@ -309,12 +309,13 @@ class EyeProcessor:
 
         # Increase our threshold value slightly, in order to have a better possibility of getting back
         # something to do blob tracking on.
-            hist = cv2.calcHist([self.current_image_gray], [0], None, [256], [0, 256])
-            histr = hist.ravel()
-            peaks, properties  = sp.find_peaks(histr, distance=5)
-            minpeak = np.min(peaks)
-            thresholdoptics = np.array(minpeak + int(self.config.threshold + 12))
-            larger_threshold = cv2.inRange(self.current_image_gray,lowb,thresholdoptics) #faster than cv2.threshold 
+        hist = cv2.calcHist([self.current_image_gray], [0], None, [256], [0, 256])
+        histr = hist.ravel()
+        peaks, properties  = sp.find_peaks(histr, distance=5)
+        minpeak = np.min(peaks)
+        thresholdoptics = np.array(minpeak + int(self.config.threshold + 12))
+        larger_threshold = cv2.inRange(self.current_image_gray,lowb,thresholdoptics) #faster than cv2.threshold 
+        larger_threshold = cv2.bitwise_not(larger_threshold)
         # Blob tracking requires that we have a vague idea of where the eye may be at the moment. This
         # means we need to have had at least one successful runthrough of the Pupil Labs algorithm in
         # order to have a projected sphere.
@@ -589,7 +590,7 @@ class EyeProcessor:
             minpeak = np.min(peaks)
             thresholdoptics = np.array(minpeak + int(self.config.threshold))
             thresh = cv2.inRange(self.current_image_gray,lowb,thresholdoptics) #faster than cv2.threshold 
-   
+            thresh = cv2.bitwise_not(thresh)
 
 
 
