@@ -39,6 +39,7 @@ class SettingsWidget:
 
         self.gui_osc_address = f"-OSCADDRESS{widget_id}-"
         self.gui_osc_port = f"-OSCPORT{widget_id}-"
+        self.gui_osc_receiver_port = f"OSCRECEIVERPORTsgf{widget_id}-"
        # self.gui_algo_settings_layout = f"-ALGOSETTINGSLAYOUT{widget_id}-"
         
         self.gui_blob_fallback = f"-BLOBFALLBACK{widget_id}-"
@@ -159,13 +160,17 @@ class SettingsWidget:
                 sg.Text("OSC Settings:", background_color='#242224'),
             ],
             [
-            sg.Text("OSC Address:", background_color='#424042'),
-            sg.InputText(self.config.gui_osc_address, key=self.gui_osc_address),
+                sg.Text("OSC Address:", background_color='#424042'),
+                sg.InputText(self.config.gui_osc_address, key=self.gui_osc_address),
             ],
             [
-            sg.Text("OSC Port:", background_color='#424042'),
-            sg.InputText(self.config.gui_osc_port, key=self.gui_osc_port),
+                sg.Text("OSC Port:", background_color='#424042'),
+                sg.InputText(self.config.gui_osc_port, key=self.gui_osc_port),
             ],
+            [
+                sg.Text("OSC Receiver Port:", background_color='#424042'),
+                sg.InputText(self.config.gui_osc_receiver_port, key=self.gui_osc_receiver_port),
+            ]
 
 
             #[sg.Image(filename="", key=self.gui_tracking_image)],
@@ -252,26 +257,15 @@ class SettingsWidget:
         #self.camera_thread.join()
 
     def render(self, window, event, values):
-        changed = False
         # If anything has changed in our configuration settings, change/update those.
-       # if (
-        #    event == self.gui_save_tracking_button
-        #    and values[self.gui_camera_addr] != self.config.capture_source
-        #):
-         #   print("New value: {}".format(values[self.gui_camera_addr]))
-          #  try:
-                # Try storing ints as ints, for those using wired cameras.
-          # #     self.config.capture_source = int(values[self.gui_camera_addr])
-          #  except ValueError:
-           #     if values[self.gui_camera_addr] == "":
-             #      self.config.capture_source = None
-            #    else:
-              #      self.config.capture_source = values[self.gui_camera_addr]
-           # changed = True
-
+        changed = False
 
         if self.config.gui_osc_port != values[self.gui_osc_port]:
             self.config.gui_osc_port = values[self.gui_osc_port]
+            changed = True
+
+        if self.config.gui_osc_receiver_port != values[self.gui_osc_receiver_port]:
+            self.config.gui_osc_receiver_port = values[self.gui_osc_receiver_port]
             changed = True
 
         if self.config.gui_osc_address != values[self.gui_osc_address]:
