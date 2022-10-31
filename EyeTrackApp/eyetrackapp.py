@@ -3,7 +3,7 @@
 import os
 
 os.environ["OPENCV_VIDEOIO_MSMF_ENABLE_HW_TRANSFORMS"] = "0"
-from osc import VRChatOSC, EyeId
+from osc import VRChatOSCReceiver, VRChatOSC, EyeId
 from config import EyeTrackConfig
 from camera_widget import CameraWidget
 from settings_widget import SettingsWidget
@@ -37,7 +37,11 @@ def main():
     osc_queue: "queue.Queue[tuple[bool, int, int]]" = queue.Queue()
     osc = VRChatOSC(cancellation_event, osc_queue, config)
     osc_thread = threading.Thread(target=osc.run)
+    osc_receiver = VRChatOSCReceiver(cancellation_event, config)
+    osc_receiver_thread = threading.Thread(target=osc_receiver.run)
+    # start worker threads
     osc_thread.start()
+    osc_receiver_thread.start()
 
     #  t2s_queue: "queue.Queue[str | None]" = queue.Queue()
     #  t2s_engine = SpeechEngine(t2s_queue)
@@ -49,8 +53,8 @@ def main():
         CameraWidget(EyeId.RIGHT, config, osc_queue),
         CameraWidget(EyeId.LEFT, config, osc_queue),
        # CameraWidget(EyeId.SETTINGS, config, osc_queue),
-
     ]
+    
     settings = [
         SettingsWidget(EyeId.SETTINGS, config, osc_queue),
     ]
@@ -133,7 +137,14 @@ def main():
             for eye in eyes:
                 eye.stop()
             cancellation_event.set()
+            # shut down worker threads
             osc_thread.join()
+           # TODO: find a way to have this function run on join maybe??
+           # threading.Event() wont work because pythonosc spawns its own thread.
+           # only way i can see to get around this is an ugly while loop that only checks if a threading event is trigggered
+           # and then call the pythonosc shutdown function
+            osc_receiver.shutdown()
+            osc_receiver_thread.join()
             #      t2s_engine.force_stop()
             #      t2s_queue.put(None)
             #      t2s_thread.join()
