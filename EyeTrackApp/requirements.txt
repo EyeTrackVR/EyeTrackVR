@@ -30,3 +30,4 @@ yarg==0.1.9
 zipp==3.6.0
 python-osc==1.8.0
 sympy==1.2
+scipy==1.5.4
