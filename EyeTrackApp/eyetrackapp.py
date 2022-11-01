@@ -37,11 +37,8 @@ def main():
     osc_queue: "queue.Queue[tuple[bool, int, int]]" = queue.Queue()
     osc = VRChatOSC(cancellation_event, osc_queue, config)
     osc_thread = threading.Thread(target=osc.run)
-    osc_receiver = VRChatOSCReceiver(cancellation_event, config)
-    osc_receiver_thread = threading.Thread(target=osc_receiver.run)
     # start worker threads
     osc_thread.start()
-    osc_receiver_thread.start()
 
     #  t2s_queue: "queue.Queue[str | None]" = queue.Queue()
     #  t2s_engine = SpeechEngine(t2s_queue)
@@ -54,7 +51,7 @@ def main():
         CameraWidget(EyeId.LEFT, config, osc_queue),
        # CameraWidget(EyeId.SETTINGS, config, osc_queue),
     ]
-    
+
     settings = [
         SettingsWidget(EyeId.SETTINGS, config, osc_queue),
     ]
@@ -117,11 +114,17 @@ def main():
 
     if config.eye_display_id in [EyeId.LEFT, EyeId.BOTH]:
         eyes[1].start()
+        eyes[0].ransac.calibration_frame_counter
     if config.eye_display_id in [EyeId.RIGHT, EyeId.BOTH]:
         eyes[0].start()
 
     if config.eye_display_id in [EyeId.SETTINGS, EyeId.BOTH]:
         settings[0].start()
+
+    # the eye's needs to be running before it is passed to the OSC
+    osc_receiver = VRChatOSCReceiver(cancellation_event, config, eyes)
+    osc_receiver_thread = threading.Thread(target=osc_receiver.run)
+    osc_receiver_thread.start()
 
     # Create the window
     window = sg.Window("EyeTrackVR v0.1.7", layout, icon='Images/logo.ico', background_color='#292929')

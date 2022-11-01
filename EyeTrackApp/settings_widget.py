@@ -39,7 +39,9 @@ class SettingsWidget:
 
         self.gui_osc_address = f"-OSCADDRESS{widget_id}-"
         self.gui_osc_port = f"-OSCPORT{widget_id}-"
-        self.gui_osc_receiver_port = f"OSCRECEIVERPORTsgf{widget_id}-"
+        self.gui_osc_receiver_port = f"OSCRECEIVERPORT{widget_id}-"
+        self.gui_osc_recenter_address = f"OSCRECENTERADDRESS{widget_id}-"
+        self.gui_osc_recalibrate_address = f"OSCRECALIBRATEADDRESS{widget_id}-"
        # self.gui_algo_settings_layout = f"-ALGOSETTINGSLAYOUT{widget_id}-"
         
         self.gui_blob_fallback = f"-BLOBFALLBACK{widget_id}-"
@@ -170,6 +172,14 @@ class SettingsWidget:
             [
                 sg.Text("OSC Receiver Port:", background_color='#424042'),
                 sg.InputText(self.config.gui_osc_receiver_port, key=self.gui_osc_receiver_port),
+            ],
+            [
+                sg.Text("OSC Recenter Address:", background_color='#424042'),
+                sg.InputText(self.config.gui_osc_recenter_address, key=self.gui_osc_recenter_address),
+            ],
+            [
+                sg.Text("OSC Recalibrate Address:", background_color='#424042'),
+                sg.InputText(self.config.gui_osc_recalibrate_address, key=self.gui_osc_recalibrate_address),
             ]
 
 
@@ -270,6 +280,14 @@ class SettingsWidget:
 
         if self.config.gui_osc_address != values[self.gui_osc_address]:
             self.config.gui_osc_address = values[self.gui_osc_address]
+            changed = True
+
+        if self.config.gui_osc_recenter_address != values[self.gui_osc_recenter_address]:
+            self.config.gui_osc_recenter_address = values[self.gui_osc_recenter_address]
+            changed = True
+
+        if self.config.gui_osc_recalibrate_address != values[self.gui_osc_recalibrate_address]:
+            self.config.gui_osc_recalibrate_address = values[self.gui_osc_recalibrate_address]
             changed = True
 
         if self.config.gui_min_cutoff != values[self.gui_min_cutoff]:

@@ -1,6 +1,7 @@
 from pythonosc import udp_client
 from pythonosc import osc_server
 from pythonosc import dispatcher
+from winsound import PlaySound, SND_FILENAME, SND_ASYNC
 import queue
 import threading
 from enum import IntEnum
@@ -127,24 +128,32 @@ class VRChatOSC:
                             last_blink = time.time()
 
 class VRChatOSCReceiver:
-    def __init__(self, cancellation_event: "threading.Event", main_config: EyeTrackConfig):
+    def __init__(self, cancellation_event: "threading.Event", main_config: EyeTrackConfig, eyes: []):
         self.config = main_config.settings
         self.cancellation_event = cancellation_event
         self.dispatcher = dispatcher.Dispatcher()
+        self.eyes = eyes # we cant import CameraWidget so any type it is
         self.server = osc_server.OSCUDPServer((self.config.gui_osc_address, int(self.config.gui_osc_receiver_port)), self.dispatcher)
 
     def shutdown(self):
         print("Shutting down OSC receiver")
         self.server.shutdown()
 
-    def testOSC(self, address, value):
-        print(address, value)
+    def recenter_eyes(self, address, value):
+        if value == True:
+            for eye in self.eyes:
+                eye.settings.gui_recenter_eyes
+
+    def recalibrate_eyes(self, address, value):
+        if value == True:
+            for eye in self.eyes:
+                eye.ransac.calibration_frame_counter = 300
+                PlaySound('Audio/start.wav', SND_FILENAME | SND_ASYNC)
 
     def run(self):
         print("VRChatOSCReceiver serving on {}".format(self.server.server_address))
         # bind what function to run when specified OSC message is received
-        self.dispatcher.map("/avatar/parameters/VelocityX", self.testOSC)
-        self.dispatcher.map("/avatar/parameters/VelocityZ", self.testOSC)
-        self.dispatcher.map("/avatar/parameters/VelocityY", self.testOSC)
+        self.dispatcher.map(self.config.gui_osc_recalibrate_address, self.recalibrate_eyes)
+        self.dispatcher.map(self.config.gui_osc_recenter_address, self.recenter_eyes)
         # start the server
         self.server.serve_forever()

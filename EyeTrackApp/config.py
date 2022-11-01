@@ -35,6 +35,8 @@ class EyeTrackSettingsConfig:
     gui_osc_address: "str" = "127.0.0.1"
     gui_osc_port: "str" = "9000"
     gui_osc_receiver_port: "str" = "9001"
+    gui_osc_recenter_address: "str" = "/avatar/parameters/etvr_recenter"
+    gui_osc_recalibrate_address: "str" = "/avatar/parameters/etvr_recalibrate"
     gui_blob_maxsize: "float" = 25
     gui_blob_minsize: "float" = 10
     gui_recenter_eyes: "bool" = False
