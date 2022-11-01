@@ -1,4 +1,7 @@
 from pythonosc import udp_client
+from pythonosc import osc_server
+from pythonosc import dispatcher
+from winsound import PlaySound, SND_FILENAME, SND_ASYNC
 import queue
 import threading
 from enum import IntEnum
@@ -12,11 +15,9 @@ class EyeId(IntEnum):
 from config import EyeTrackConfig
 
 class VRChatOSC:
-
     # Use a tuple of blink (true, blinking, false, not), x, y for now. Probably clearer as a class but
     # we're stuck in python 3.6 so still no dataclasses. God I hate python.
     def __init__(self, cancellation_event: "threading.Event", msg_queue: "queue.Queue[tuple[bool, int, int, int]]", main_config: EyeTrackConfig,):
-        
         self.main_config = main_config
         self.config = main_config.settings
         self.client = udp_client.SimpleUDPClient(self.config.gui_osc_address, int(self.config.gui_osc_port)) # use OSC port and address that was set in the config
@@ -44,7 +45,6 @@ class VRChatOSC:
             except:
                 continue
 
-
             if not eye_info.blink:
                 if self.config.tracker_single_eye == 1 or self.config.tracker_single_eye == 2:
                     self.client.send_message("/avatar/parameters/LeftEyeX", eye_info.x)  # only one eye is detected or there is an error. Send mirrored data to both eyes.
@@ -54,9 +54,7 @@ class VRChatOSC:
                     self.client.send_message("/avatar/parameters/RightEyeLidExpandedSqueeze", float(0.8)) # open r
                     self.client.send_message("/avatar/parameters/LeftEyeLid", float(0))# old param open left
                     self.client.send_message("/avatar/parameters/LeftEyeLidExpandedSqueeze", float(0.8)) # open left eye
-
                 else:
-
                     if eye_id in [EyeId.RIGHT]:
                         yr = eye_info.y
                         sx = eye_info.x
@@ -80,8 +78,6 @@ class VRChatOSC:
                     if (yr != 621 and yl != 621) and (lb == False and rb == False):
                         y = (yr + yl) / 2
                         self.client.send_message("/avatar/parameters/EyesY", y)
-                        
-      
             else:
                 if self.config.gui_eye_falloff == True:
                     if eye_id in [EyeId.LEFT]:
@@ -104,7 +100,6 @@ class VRChatOSC:
                                 self.client.send_message("/avatar/parameters/RightEyeLidExpandedSqueeze", float(0)) # close eye
                                 self.client.send_message("/avatar/parameters/LeftEyeLidExpandedSqueeze", float(0))
                         last_blink = time.time()
-
                 else:
                     if self.config.tracker_single_eye == 1 or self.config.tracker_single_eye == 2:
                 
@@ -132,6 +127,35 @@ class VRChatOSC:
                                     self.client.send_message("/avatar/parameters/RightEyeLidExpandedSqueeze", float(0)) # close eye
                             last_blink = time.time()
 
-                    
+class VRChatOSCReceiver:
+    def __init__(self, cancellation_event: "threading.Event", main_config: EyeTrackConfig, eyes: []):
+        self.config = main_config.settings
+        self.cancellation_event = cancellation_event
+        self.dispatcher = dispatcher.Dispatcher()
+        self.eyes = eyes # we cant import CameraWidget so any type it is
+        self.server = osc_server.OSCUDPServer((self.config.gui_osc_address, int(self.config.gui_osc_receiver_port)), self.dispatcher)
 
+    def shutdown(self):
+        print("Shutting down OSC receiver")
+        self.server.shutdown()
 
+    def recenter_eyes(self, address, osc_value):
+        if type(osc_value) != bool: return # just incase we get anything other than bool
+        if osc_value:
+            for eye in self.eyes:
+                eye.settings.gui_recenter_eyes = True
+
+    def recalibrate_eyes(self, address, osc_value):
+        if type(osc_value) != bool: return # just incase we get anything other than bool
+        if osc_value:
+            for eye in self.eyes:
+                eye.ransac.calibration_frame_counter = 300
+                PlaySound('Audio/start.wav', SND_FILENAME | SND_ASYNC)
+
+    def run(self):
+        print("VRChatOSCReceiver serving on {}".format(self.server.server_address))
+        # bind what function to run when specified OSC message is received
+        self.dispatcher.map(self.config.gui_osc_recalibrate_address, self.recalibrate_eyes)
+        self.dispatcher.map(self.config.gui_osc_recenter_address, self.recenter_eyes)
+        # start the server
+        self.server.serve_forever()
