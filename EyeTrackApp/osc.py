@@ -139,13 +139,15 @@ class VRChatOSCReceiver:
         print("Shutting down OSC receiver")
         self.server.shutdown()
 
-    def recenter_eyes(self, address, value):
-        if value == True:
+    def recenter_eyes(self, address, osc_value):
+        if type(osc_value) != bool: return # just incase we get anything other than bool
+        if osc_value:
             for eye in self.eyes:
-                eye.settings.gui_recenter_eyes
+                eye.settings.gui_recenter_eyes = True
 
-    def recalibrate_eyes(self, address, value):
-        if value == True:
+    def recalibrate_eyes(self, address, osc_value):
+        if type(osc_value) != bool: return # just incase we get anything other than bool
+        if osc_value:
             for eye in self.eyes:
                 eye.ransac.calibration_frame_counter = 300
                 PlaySound('Audio/start.wav', SND_FILENAME | SND_ASYNC)
