@@ -21,6 +21,7 @@ RIGHT_EYE_RADIO_NAME = "-RIGHTEYERADIO-"
 BOTH_EYE_RADIO_NAME = "-BOTHEYERADIO-"
 SETTINGS_RADIO_NAME = '-SETTINGSRADIO-'
 
+
 def main():
     # Get Configuration
     config: EyeTrackConfig = EyeTrackConfig.load()
@@ -40,48 +41,41 @@ def main():
     # start worker threads
     osc_thread.start()
 
-    #  t2s_queue: "queue.Queue[str | None]" = queue.Queue()
-    #  t2s_engine = SpeechEngine(t2s_queue)
-    #  t2s_thread = threading.Thread(target=t2s_engine.run)
-    #  t2s_thread.start()
-    #  t2s_queue.put("App Starting")
-
     eyes = [
         CameraWidget(EyeId.RIGHT, config, osc_queue),
         CameraWidget(EyeId.LEFT, config, osc_queue),
-       # CameraWidget(EyeId.SETTINGS, config, osc_queue),
     ]
 
     settings = [
         SettingsWidget(EyeId.SETTINGS, config, osc_queue),
     ]
-   
+
     layout = [
         [
             sg.Radio(
                 "Right Eye",
-                "EYESELECTRADIO", 
+                "EYESELECTRADIO",
                 background_color='#292929',
                 default=(config.eye_display_id == EyeId.RIGHT),
                 key=RIGHT_EYE_RADIO_NAME,
             ),
             sg.Radio(
                 "Left Eye",
-                "EYESELECTRADIO", 
+                "EYESELECTRADIO",
                 background_color='#292929',
                 default=(config.eye_display_id == EyeId.LEFT),
                 key=LEFT_EYE_RADIO_NAME,
             ),
             sg.Radio(
                 "Both Eyes",
-                "EYESELECTRADIO", 
+                "EYESELECTRADIO",
                 background_color='#292929',
                 default=(config.eye_display_id == EyeId.BOTH),
                 key=BOTH_EYE_RADIO_NAME,
             ),
             sg.Radio(
                 "Settings",
-                "EYESELECTRADIO", 
+                "EYESELECTRADIO",
                 background_color='#292929',
                 default=(config.eye_display_id == EyeId.SETTINGS),
                 key=SETTINGS_RADIO_NAME,
@@ -136,21 +130,18 @@ def main():
 
         # If we're in either mode and someone hits q, quit immediately
         if event == "Exit" or event == sg.WIN_CLOSED:
-           # eyes[2].stop()
+            # eyes[2].stop()
             for eye in eyes:
                 eye.stop()
             cancellation_event.set()
             # shut down worker threads
             osc_thread.join()
-           # TODO: find a way to have this function run on join maybe??
-           # threading.Event() wont work because pythonosc spawns its own thread.
-           # only way i can see to get around this is an ugly while loop that only checks if a threading event is trigggered
-           # and then call the pythonosc shutdown function
+            # TODO: find a way to have this function run on join maybe??
+            # threading.Event() wont work because pythonosc spawns its own thread.
+            # only way i can see to get around this is an ugly while loop that only checks if a threading event is trigggered
+            # and then call the pythonosc shutdown function
             osc_receiver.shutdown()
             osc_receiver_thread.join()
-            #      t2s_engine.force_stop()
-            #      t2s_queue.put(None)
-            #      t2s_thread.join()
             print("Exiting EyeTrackApp")
             return
 
@@ -206,3 +197,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+    
