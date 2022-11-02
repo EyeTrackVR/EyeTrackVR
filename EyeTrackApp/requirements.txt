@@ -10,6 +10,7 @@ idna==3.3
 importlib-metadata==4.8.3
 joblib==1.1.0
 msgpack==1.0.4
+msgpack-python==0.5.6
 numpy==1.19.5
 opencv-python==4.5.3.56
 pefile==2022.5.30
