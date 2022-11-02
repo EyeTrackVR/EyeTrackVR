@@ -55,7 +55,7 @@ async def delayed_setting_change(setting, value):
 
 
 def fit_rotated_ellipse_ransac(
-        data, iter=5, sample_num=10, offset=80  # 80.0, 10, 80
+    data, iter=5, sample_num=10, offset=80  # 80.0, 10, 80
 ):  # before changing these values, please read up on the ransac algorithm
     # However if you want to change any value just know that higher iterations will make processing frames slower
     count_max = 0
@@ -86,7 +86,7 @@ def fit_rotated_ellipse_ransac(
         e = P[3, 0]
         f = P[4, 0]
         ellipse_model = (
-            lambda x, y: a * x ** 2 + b * x * y + c * y ** 2 + d * x + e * y + f
+            lambda x, y: a * x**2 + b * x * y + c * y**2 + d * x + e * y + f
         )
 
         # thresh
@@ -105,8 +105,8 @@ def fit_rotated_ellipse(data):
     xs = data[:, 0].reshape(-1, 1)
     ys = data[:, 1].reshape(-1, 1)
 
-    J = np.mat(np.hstack((xs * ys, ys ** 2, xs, ys, np.ones_like(xs, dtype=np.float))))
-    Y = np.mat(-1 * xs ** 2)
+    J = np.mat(np.hstack((xs * ys, ys**2, xs, ys, np.ones_like(xs, dtype=np.float))))
+    Y = np.mat(-1 * xs**2)
     P = (J.T * J).I * J.T * Y
 
     a = 1.0
@@ -120,25 +120,25 @@ def fit_rotated_ellipse(data):
     cx = (2 * c * d - b * e) / (b ** 2 - 4 * a * c)
     cy = (2 * a * e - b * d) / (b ** 2 - 4 * a * c)
 
-    cu = a * cx ** 2 + b * cx * cy + c * cy ** 2 - f
+    cu = a * cx**2 + b * cx * cy + c * cy**2 - f
     w = np.sqrt(
         cu
         / (
-                a * np.cos(theta) ** 2
-                + b * np.cos(theta) * np.sin(theta)
-                + c * np.sin(theta) ** 2
+            a * np.cos(theta)**2
+            + b * np.cos(theta) * np.sin(theta)
+            + c * np.sin(theta)**2
         )
     )
     h = np.sqrt(
         cu
         / (
-                a * np.sin(theta) ** 2
-                - b * np.cos(theta) * np.sin(theta)
-                + c * np.cos(theta) ** 2
+            a * np.sin(theta)**2
+            - b * np.cos(theta) * np.sin(theta)
+            + c * np.cos(theta)**2
         )
     )
 
-    ellipse_model = lambda x, y: a * x ** 2 + b * x * y + c * y ** 2 + d * x + e * y + f
+    ellipse_model = lambda x, y: a * x**2 + b * x * y + c * y**2 + d * x + e * y + f
 
     error_sum = np.sum([ellipse_model(x, y) for x, y in data])
 
@@ -147,14 +147,14 @@ def fit_rotated_ellipse(data):
 
 class EyeProcessor:
     def __init__(
-            self,
-            config: "EyeTrackCameraConfig",
-            settings: "EyeTrackSettingsConfig",
-            cancellation_event: "threading.Event",
-            capture_event: "threading.Event",
-            capture_queue_incoming: "queue.Queue",
-            image_queue_outgoing: "queue.Queue",
-            eye_id,
+        self,
+        config: "EyeTrackCameraConfig",
+        settings: "EyeTrackSettingsConfig",
+        cancellation_event: "threading.Event",
+        capture_event: "threading.Event",
+        capture_queue_incoming: "queue.Queue",
+        image_queue_outgoing: "queue.Queue",
+        eye_id,
     ):
         self.config = config
         self.settings = settings
@@ -227,13 +227,13 @@ class EyeProcessor:
         try:
             # Get frame from capture source, crop to ROI
             self.current_image = self.current_image[
-                                 int(self.config.roi_window_y): int(
-                                     self.config.roi_window_y + self.config.roi_window_h
-                                 ),
-                                 int(self.config.roi_window_x): int(
-                                     self.config.roi_window_x + self.config.roi_window_w
-                                 ),
-                                 ]
+                int(self.config.roi_window_y): int(
+                    self.config.roi_window_y + self.config.roi_window_h
+                ),
+                int(self.config.roi_window_x): int(
+                    self.config.roi_window_x + self.config.roi_window_w
+                ),
+            ]
         except:
             # Failure to process frame, reuse previous frame.
             self.current_image = self.previous_image
@@ -332,12 +332,8 @@ class EyeProcessor:
 
             cy = y + int(h / 2)
 
-            xrlb = (
-                           cx - self.lkg_projected_sphere["center"][0]
-                   ) / self.lkg_projected_sphere["axes"][0]
-            eyeyb = (
-                            cy - self.lkg_projected_sphere["center"][1]
-                    ) / self.lkg_projected_sphere["axes"][1]
+            xrlb = (cx - self.lkg_projected_sphere["center"][0]) / self.lkg_projected_sphere["axes"][0]
+            eyeyb = (cy - self.lkg_projected_sphere["center"][1]) / self.lkg_projected_sphere["axes"][1]
             cv2.line(
                 self.current_image_gray,
                 (x + int(w / 2), 0),
@@ -463,8 +459,13 @@ class EyeProcessor:
                 continue
 
             # If our ROI configuration has changed, reset our model and detector
-            if (camera_model is None or detector_3d is None or camera_model.resolution != (
-            self.config.roi_window_w, self.config.roi_window_h,)):
+            if (camera_model is None
+                or detector_3d is None
+                or camera_model.resolution != (
+                    self.config.roi_window_w,
+                    self.config.roi_window_h,
+                )
+            ):
                 camera_model = CameraModel(
                     focal_length=self.config.focal_length,
                     resolution=(self.config.roi_window_w, self.config.roi_window_h),
@@ -561,7 +562,7 @@ class EyeProcessor:
             # If we have no convex maidens, we have no pupil, and can't progress from here. Dump back to
             # using blob tracking.
             if len(convex_hulls) == 0:
-                if self.settings.gui_blob_fallback == True:
+                if self.settings.gui_blob_fallback:
                     self.blob_tracking_fallback()
                 else:
                     print("[INFO] Blob fallback disabled. Assuming blink.")
@@ -580,7 +581,7 @@ class EyeProcessor:
                     largest_hull.reshape(-1, 2)
                 )
             except:
-                if self.settings.gui_blob_fallback == True:
+                if self.settings.gui_blob_fallback:
                     self.blob_tracking_fallback()
                 else:
                     print("[INFO] Blob fallback disabled. Assuming blink.")

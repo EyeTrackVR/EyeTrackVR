@@ -312,10 +312,7 @@ class CameraWidget:
                 graph = window[self.gui_output_graph]
                 graph.erase()
 
-                if (
-                        eye_info.info_type != InformationOrigin.FAILURE
-                        and not eye_info.blink
-                ):
+                if eye_info.info_type != InformationOrigin.FAILURE and not eye_info.blink:
                     graph.update(background_color="white")
 
                     try:
