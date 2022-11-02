@@ -40,16 +40,9 @@ def main():
     # start worker threads
     osc_thread.start()
 
-    #  t2s_queue: "queue.Queue[str | None]" = queue.Queue()
-    #  t2s_engine = SpeechEngine(t2s_queue)
-    #  t2s_thread = threading.Thread(target=t2s_engine.run)
-    #  t2s_thread.start()
-    #  t2s_queue.put("App Starting")
-
     eyes = [
         CameraWidget(EyeId.RIGHT, config, osc_queue),
         CameraWidget(EyeId.LEFT, config, osc_queue),
-       # CameraWidget(EyeId.SETTINGS, config, osc_queue),
     ]
 
     settings = [
@@ -148,9 +141,6 @@ def main():
            # and then call the pythonosc shutdown function
             osc_receiver.shutdown()
             osc_receiver_thread.join()
-            #      t2s_engine.force_stop()
-            #      t2s_queue.put(None)
-            #      t2s_thread.join()
             print("Exiting EyeTrackApp")
             return
 

@@ -9,6 +9,8 @@ from camera import Camera, CameraState
 from osc import EyeId
 import cv2
 from winsound import PlaySound, SND_FILENAME, SND_ASYNC
+import traceback
+
 
 class CameraWidget:
     def __init__(self, widget_id: EyeId, main_config: EyeTrackConfig, osc_queue: Queue):
@@ -27,7 +29,6 @@ class CameraWidget:
         self.gui_recenter_eyes = f"-RECENTEREYES{widget_id}-"
         self.gui_mode_readout = f"-APPMODE{widget_id}-"
         self.gui_circular_crop = f"-CIRCLECROP{widget_id}-"
-       # self.gui_show_color_image = f"-SHOWCOLORIMAGE{widget_id}-"
         self.gui_roi_message = f"-ROIMESSAGE{widget_id}-"
 
         self.osc_queue = osc_queue
@@ -41,7 +42,6 @@ class CameraWidget:
             self.config = main_config.right_eye
         elif self.eye_id == EyeId.LEFT:
             self.config = main_config.left_eye
-            
         else:
             raise RuntimeError("Cannot have a camera widget represent both eyes!")
 
@@ -86,7 +86,8 @@ class CameraWidget:
                 sg.Button("Recenter Eyes", key=self.gui_recenter_eyes, button_color = '#6f4ca1'),
                 
             ],
-            [sg.Text("Mode:", background_color='#424042'), sg.Text("Calibrating", key=self.gui_mode_readout, background_color='#424042'),
+            [
+                sg.Text("Mode:", background_color='#424042'), sg.Text("Calibrating", key=self.gui_mode_readout, background_color='#424042'),
                 sg.Checkbox(
                     "Circle crop:",
                     default=self.config.gui_circular_crop,
@@ -211,9 +212,9 @@ class CameraWidget:
             self.config.rotation_angle = int(values[self.gui_rotation_slider])
             changed = True
 
-       # if self.config.show_color_image != values[self.gui_show_color_image]:
-        #    self.config.show_color_image = values[self.gui_show_color_image]
-         #   changed = True
+        if self.config.gui_circular_crop != values[self.gui_circular_crop]:
+            self.config.gui_circular_crop = values[self.gui_circular_crop]
+            changed = True
 
         if changed:
             self.main_config.save()
@@ -224,13 +225,15 @@ class CameraWidget:
             self.camera.set_output_queue(self.capture_queue)
             window[self.gui_roi_layout].update(visible=False)
             window[self.gui_tracking_layout].update(visible=True)
-        elif event == self.gui_roi_button:
+
+        if event == self.gui_roi_button:
             print("Move to roi mode")
             self.in_roi_mode = True
             self.camera.set_output_queue(self.roi_queue)
             window[self.gui_roi_layout].update(visible=True)
             window[self.gui_tracking_layout].update(visible=False)
-        elif event == "{}+UP".format(self.gui_roi_selection):
+
+        if event == "{}+UP".format(self.gui_roi_selection):
             # Event for mouse button up in ROI mode
             self.is_mouse_up = True
             if abs(self.x0 - self.x1) != 0 and abs(self.y0 - self.y1) != 0:
@@ -239,24 +242,20 @@ class CameraWidget:
                 self.config.roi_window_w = abs(self.x0 - self.x1)
                 self.config.roi_window_h = abs(self.y0 - self.y1)
                 self.main_config.save()
-        elif event == self.gui_roi_selection:
+
+        if event == self.gui_roi_selection:
             # Event for mouse button down or mouse drag in ROI mode
             if self.is_mouse_up:
                 self.is_mouse_up = False
                 self.x0, self.y0 = values[self.gui_roi_selection]
             self.x1, self.y1 = values[self.gui_roi_selection]
-        elif event == self.gui_restart_calibration:
+
+        if event == self.gui_restart_calibration:
             self.ransac.calibration_frame_counter = 300
             PlaySound('Audio/start.wav', SND_FILENAME|SND_ASYNC)
-            
 
-        elif event == self.gui_recenter_eyes:
+        if event == self.gui_recenter_eyes:
             self.settings.gui_recenter_eyes = True
-        if self.config.gui_circular_crop != values[self.gui_circular_crop]:
-            self.config.gui_circular_crop = values[self.gui_circular_crop]
-            changed = True
-
-            #self.ransac.recenter_eye = True
 
         needs_roi_set = self.config.roi_window_h <= 0 or self.config.roi_window_w <= 0
 
@@ -299,12 +298,15 @@ class CameraWidget:
             if needs_roi_set:
                 window[self.gui_roi_message].update(visible=True)
                 window[self.gui_output_graph].update(visible=False)
+                # print("fucked")
                 return
+            # print("fucked 2")
             try:
                 window[self.gui_roi_message].update(visible=False)
                 window[self.gui_output_graph].update(visible=True)
                 (maybe_image, eye_info) = self.image_queue.get(block=False)
                 imgbytes = cv2.imencode(".ppm", maybe_image)[1].tobytes()
+                print(imgbytes)
                 window[self.gui_tracking_image].update(data=imgbytes)
 
                 # Update the GUI
@@ -333,7 +335,6 @@ class CameraWidget:
                     graph.update(background_color="red")
                 # Relay information to OSC
                 if eye_info.info_type != InformationOrigin.FAILURE:
-                    
                     self.osc_queue.put((self.eye_id, eye_info))
             except Empty:
-                return
+                pass
