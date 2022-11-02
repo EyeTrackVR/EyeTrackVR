@@ -73,9 +73,9 @@ def fit_rotated_ellipse_ransac(
         ys = data[sample][:, 1].reshape(-1, 1)
 
         J = np.mat(
-            np.hstack((xs * ys, ys ** 2, xs, ys, np.ones_like(xs, dtype=np.float)))
+            np.hstack((xs * ys, ys**2, xs, ys, np.ones_like(xs, dtype=np.float)))
         )
-        Y = np.mat(-1 * xs ** 2)
+        Y = np.mat(-1 * xs**2)
         P = (J.T * J).I * J.T * Y
 
         # fitter a*x**2 + b*x*y + c*y**2 + d*x + e*y + f = 0
@@ -117,8 +117,8 @@ def fit_rotated_ellipse(data):
     f = P[4, 0]
     theta = 0.5 * np.arctan(b / (a - c))
 
-    cx = (2 * c * d - b * e) / (b ** 2 - 4 * a * c)
-    cy = (2 * a * e - b * d) / (b ** 2 - 4 * a * c)
+    cx = (2 * c * d - b * e) / (b**2 - 4 * a * c)
+    cy = (2 * a * e - b * d) / (b**2 - 4 * a * c)
 
     cu = a * cx**2 + b * cx * cy + c * cy**2 - f
     w = np.sqrt(
@@ -381,21 +381,21 @@ class EyeProcessor:
                 self.ts = 10
 
             xl = float(
-                ((cx - self.xoff)) / (self.xmax - self.xoff)
+                (cx - self.xoff) / (self.xmax - self.xoff)
             )
             xr = float(
-                ((cx - self.xoff)) / (self.xmin - self.xoff)
+                (cx - self.xoff) / (self.xmin - self.xoff)
             )
             yu = float(
-                ((cy - self.yoff)) / (self.ymin - self.yoff)
+                (cy - self.yoff) / (self.ymin - self.yoff)
             )
             yd = float(
-                ((cy - self.yoff)) / (self.ymax - self.yoff)
+                (cy - self.yoff) / (self.ymax - self.yoff)
             )
 
             out_x = 0
             out_y = 0
-            if self.settings.gui_flip_y_axis == True:  # check config on flipped values settings and apply accordingly
+            if self.settings.gui_flip_y_axis:  # check config on flipped values settings and apply accordingly
                 if yd > 0:
                     out_y = max(0.0, min(1.0, yd))
                 if yu > 0:
@@ -406,7 +406,7 @@ class EyeProcessor:
                 if yu > 0:
                     out_y = max(0.0, min(1.0, yu))
 
-            if self.settings.gui_flip_x_axis_right == True:
+            if self.settings.gui_flip_x_axis_right:
                 if xr > 0:
                     out_x = -abs(max(0.0, min(1.0, xr)))
                 if xl > 0:
@@ -646,22 +646,22 @@ class EyeProcessor:
                 self.ts = 20
 
             xl = float(
-                ((cx - self.xoff)) / (self.xmax - self.xoff)
+                (cx - self.xoff) / (self.xmax - self.xoff)
             )
             xr = float(
-                ((cx - self.xoff)) / (self.xmin - self.xoff)
+                (cx - self.xoff) / (self.xmin - self.xoff)
             )
             yu = float(
-                ((cy - self.yoff)) / (self.ymin - self.yoff)
+                (cy - self.yoff) / (self.ymin - self.yoff)
             )
             yd = float(
-                ((cy - self.yoff)) / (self.ymax - self.yoff)
+                (cy - self.yoff) / (self.ymax - self.yoff)
             )
 
             out_x = 0
             out_y = 0
 
-            if self.settings.gui_flip_y_axis == True:
+            if self.settings.gui_flip_y_axis:
                 if yd > 0:
                     out_y = max(0.0, min(1.0, yd))
                 if yu > 0:
@@ -672,7 +672,7 @@ class EyeProcessor:
                 if yu > 0:
                     out_y = max(0.0, min(1.0, yu))
 
-            if flipx == True:
+            if flipx:
                 if xr > 0:
                     out_x = -abs(max(0.0, min(1.0, xr)))
                 if xl > 0:

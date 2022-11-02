@@ -107,8 +107,7 @@ class CameraWidget:
                     drag_submits=True,
                     enable_events=True,
                 ),
-                sg.Text("Please set an Eye Cropping.", key=self.gui_roi_message, background_color='#424042',
-                        visible=False),
+                sg.Text("Please set an Eye Cropping.", key=self.gui_roi_message, background_color='#424042', visible=False),
             ],
         ]
 
@@ -118,9 +117,7 @@ class CameraWidget:
                 sg.InputText(self.config.capture_source, key=self.gui_camera_addr),
             ],
             [
-                sg.Button(
-                    "Save and Restart Tracking", key=self.gui_save_tracking_button, button_color='#6f4ca1'
-                ),
+                sg.Button("Save and Restart Tracking", key=self.gui_save_tracking_button, button_color='#6f4ca1'),
             ],
             [
                 sg.Button("Tracking Mode", key=self.gui_tracking_button, button_color='#6f4ca1'),
@@ -192,8 +189,8 @@ class CameraWidget:
         changed = False
         # If anything has changed in our configuration settings, change/update those.
         if (
-                event == self.gui_save_tracking_button
-                and values[self.gui_camera_addr] != self.config.capture_source
+            event == self.gui_save_tracking_button
+            and values[self.gui_camera_addr] != self.config.capture_source
         ):
             print("New value: {}".format(values[self.gui_camera_addr]))
             try:
