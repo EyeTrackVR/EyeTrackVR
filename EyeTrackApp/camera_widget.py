@@ -298,15 +298,12 @@ class CameraWidget:
             if needs_roi_set:
                 window[self.gui_roi_message].update(visible=True)
                 window[self.gui_output_graph].update(visible=False)
-                # print("fucked")
                 return
-            # print("fucked 2")
             try:
                 window[self.gui_roi_message].update(visible=False)
                 window[self.gui_output_graph].update(visible=True)
                 (maybe_image, eye_info) = self.image_queue.get(block=False)
                 imgbytes = cv2.imencode(".ppm", maybe_image)[1].tobytes()
-                print(imgbytes)
                 window[self.gui_tracking_image].update(data=imgbytes)
 
                 # Update the GUI

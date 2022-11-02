@@ -479,11 +479,12 @@ class EyeProcessor:
                     self.current_fps,
                 ) = self.capture_queue_incoming.get(block=True, timeout=0.2)
             except queue.Empty:
-                print("No image available")
+                #print("No image available")
                 continue
 
             if not self.capture_crop_rotate_image():
                 continue
+
 
             # Convert the image to grayscale, and set up thresholding. Thresholds here are basically a
             # low-pass filter that will set any pixel < the threshold value to 0. Thresholding is user
@@ -577,7 +578,6 @@ class EyeProcessor:
                 )
             except:
                 if self.settings.gui_blob_fallback == True:
-                    print("fallback")
                     self.blob_tracking_fallback()
                 else:
                     print("[INFO] Blob fallback disabled. Assuming blink.")
