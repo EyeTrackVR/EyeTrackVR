@@ -9,45 +9,45 @@ parent: How to build
 ## This page will contain a step-by-step assembly guide.
 
 ### Table of contents:
-[Step 1 Make sure you have read the Things to know before you start guide](https://redhawk989.github.io/EyeTrackVR/full-build-guide/#step-1-read-the-things-to-know-before-you-start-guide)
+[Step 1 Make sure you have read the Things to know before you start guide](#step-1-read-the-things-to-know-before-you-start-guide)
 
-[Step 2: Order all the parts listed on our Parts list](https://redhawk989.github.io/EyeTrackVR/full-build-guide/#step-3-order-all-the-parts-listed-on-our-parts-list)
+[Step 2: Order all the parts listed on our Parts list](#step-3-order-all-the-parts-listed-on-our-parts-list)
 
-[Step 3: Wait for things to arrive.](https://redhawk989.github.io/EyeTrackVR/full-build-guide/#step-3-order-all-the-parts-listed-on-our-parts-list)
+[Step 3: Wait for things to arrive.](#step-3-order-all-the-parts-listed-on-our-parts-list)
 
-[Step 4: Gather up all of your hardware.](https://redhawk989.github.io/EyeTrackVR/full-build-guide/#step-5-gather-up-all-of-your-hardware)
+[Step 4: Gather up all of your hardware.](#step-5-gather-up-all-of-your-hardware)
 
-[Step 5: Attach cameras to ESPs.](https://redhawk989.github.io/EyeTrackVR/full-build-guide/#step-6-attach-cameras-to-esps)
+[Step 5: Attach cameras to ESPs.](#step-6-attach-cameras-to-esps)
 
-[Step 6: Connect ESP to the programmer to flash.](https://redhawk989.github.io/EyeTrackVR/full-build-guide/#step-7-connect-esp-to-the-programmer-to-flash)
+[Step 6: Connect ESP to the programmer to flash.](#step-7-connect-esp-to-the-programmer-to-flash)
 
-[Step 7: Configure Visual Studio Code and prepare to flash the firmware.](https://redhawk989.github.io/EyeTrackVR/full-build-guide/#step-8-configure-visual-studio-code-and-prepare-to-flash-the-firmware)
+[Step 7: Configure Visual Studio Code and prepare to flash the firmware.](#step-8-configure-visual-studio-code-and-prepare-to-flash-the-firmware)
 
-[Step 8: Plug in your ESP and flash the firmware.](https://redhawk989.github.io/EyeTrackVR/full-build-guide/#step-9-plug-in-your-esp-and-flash-the-firmware)
+[Step 8: Plug in your ESP and flash the firmware.](#step-9-plug-in-your-esp-and-flash-the-firmware)
 
-[Step 9: Connect your power wires to a USB Type-A board.](https://redhawk989.github.io/EyeTrackVR/full-build-guide/#step-10-connect-your-power-wires-to-a-usb-type-a-board)
+[Step 9: Connect your power wires to a USB Type-A board.](#step-10-connect-your-power-wires-to-a-usb-type-a-board)
 
-[Step 10: Cut wires for IR LEDs.](https://redhawk989.github.io/EyeTrackVR/full-build-guide/#step-11-cut-wires-for-ir-leds)
+[Step 10: Cut wires for IR LEDs.](#step-11-cut-wires-for-ir-leds)
 
-[Step 11: Twist the positive USB wire and positive IR LED wires together and tin them.](https://redhawk989.github.io/EyeTrackVR/full-build-guide/#step-12-twist-the-positive-usb-wire-and-positive-ir-led-wires-together-and-tin-them)
+[Step 11: Twist the positive USB wire and positive IR LED wires together and tin them.](#step-12-twist-the-positive-usb-wire-and-positive-ir-led-wires-together-and-tin-them)
 
-[Step 12: Solder the positive wire to ESP.](https://redhawk989.github.io/EyeTrackVR/full-build-guide/#step-13-solder-the-positive-wire-to-esp)
+[Step 12: Solder the positive wire to ESP.](#step-13-solder-the-positive-wire-to-esp)
 
-[Step 13: Solder the negative wire to ESP](https://redhawk989.github.io/EyeTrackVR/full-build-guide/#step-14-solder-the-negative-wire-to-esp)
+[Step 13: Solder the negative wire to ESP](#step-14-solder-the-negative-wire-to-esp)
 
-[Step 14: Wire up the 2nd ESP.](https://redhawk989.github.io/EyeTrackVR/full-build-guide/#step-15-wire-up-the-2nd-esp)
+[Step 14: Wire up the 2nd ESP.](#step-15-wire-up-the-2nd-esp)
 
-[Step 15: Prepare to solder IR LED PCBs](https://redhawk989.github.io/EyeTrackVR/full-build-guide/#step-16-prepare-to-solder-ir-led-pcbs)
+[Step 15: Prepare to solder IR LED PCBs](#step-16-prepare-to-solder-ir-led-pcbs)
 
-[Step 17: Solder resistors on PCB V2.](https://redhawk989.github.io/EyeTrackVR/full-build-guide/#step-17-solder-resistors-on-pcb-v2)
+[Step 17: Solder resistors on PCB V2.](#step-17-solder-resistors-on-pcb-v2)
 
-[Step 18: Wire up PCBs V2](https://redhawk989.github.io/EyeTrackVR/full-build-guide/#wire-up-the-pcbs-v2)
+[Step 18: Wire up PCBs V2](#wire-up-the-pcbs-v2)
 
-[Step 17: Solder resistors on PCB V3.](https://redhawk989.github.io/EyeTrackVR/full-build-guide/#step-17-solder-resistors-on-pcb-v3)
+[Step 17: Solder resistors on PCB V3.](#step-17-solder-resistors-on-pcb-v3)
 
-[Step 18: Wire up PCBs V3](https://redhawk989.github.io/EyeTrackVR/full-build-guide/#wire-up-the-pcbs-v3)
+[Step 18: Wire up PCBs V3](#wire-up-the-pcbs-v3)
 
-[Step 19: 3D print mounts.](https://redhawk989.github.io/EyeTrackVR/full-build-guide/#step-19-3d-print-mounts)
+[Step 19: 3D print mounts.](#step-19-3d-print-mounts)
 
 ## Step 1: Make sure your have read the [Things to know before you start](https://redhawk989.github.io/EyeTrackVR/things-to-know) guide.
 This will give you a basic overview of the project's status and what to expect currently.
@@ -131,7 +131,7 @@ Lay the wire on the outside of the 5V pin and apply solder.
 {% include custom/images/image_2.html url="https://i.imgur.com/DhnmLBG.jpg" max-width="400" caption="" alt="img" %} 
 
 ## Step 13: Solder the negative wire to ESP
-Repeat [Step 11](https://redhawk989.github.io/EyeTrackVR/full-build-guide/#step-12-twist-the-positive-usb-wire-and-positive-ir-led-wires-together-and-tin-them) but with the negative wires.
+Repeat [Step 11](#step-12-twist-the-positive-usb-wire-and-positive-ir-led-wires-together-and-tin-them) but with the negative wires.
 
 {% include custom/alerts/Note.html content="As a user in our discord has learned, you can short the IO12 pin with the ground pin without issues." %}
 
@@ -139,7 +139,7 @@ In the below example I put it on the top of the pin, It will be a week-ish joint
 {% include custom/images/image_2.html url="https://i.imgur.com/PWA0gtq.jpg" max-width="400" caption="" alt="img" %} 
 
 ## Step 14: Wire up the 2nd ESP.
-Repeat steps [12](https://redhawk989.github.io/EyeTrackVR/full-build-guide/#step-12-twist-the-positive-usb-wire-and-positive-ir-led-wires-together-and-tin-them)-[14](https://redhawk989.github.io/EyeTrackVR/full-build-guide/#step-14-solder-the-negative-wire-to-esp) with the 2nd ESP.
+Repeat steps [12](#step-12-twist-the-positive-usb-wire-and-positive-ir-led-wires-together-and-tin-them)-[14](#step-14-solder-the-negative-wire-to-esp) with the 2nd ESP.
 
 ## Step 15: Prepare to solder IR LED PCBs.
 Get your magnifying glass out, it's time to solder very smol things.

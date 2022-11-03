@@ -46,18 +46,21 @@ Alternative ones [from Digikey here](https://www.digikey.com/en/products/detail/
 {% include custom/alerts/Warning.html content="(DO NOT BUY FOCUSED ONES! If they look like something you would find in a TV remote do not use them, if you aren't exactly sure what you are doing, buy them from the LCSC or Digikey link)" %}
 
 
-- 4x IR emitter PCBs (highly recommended) 
+- 4x IR emitter PCBs (highly recommended) Gerber files and schematics located [here.](https://github.com/RedHawk989/EyeTrackVR-Hardware/tree/main/IR%20Emmitter)
 
 - 2x 698-710ohm resistors or the more recommend way, 4x 350ohm 1206 SMD resistors for IR emitters (If you are not using PCBs for the emitters then buying regular  through-hole resistors is acceptable)
   
-- [357 ohm from Digikey here](https://www.digikey.com/en/products/detail/stackpole-electronics-inc/RMCF1206FT357R/1759919)
+- [357 ohm from Digikey here](https://www.digikey.com/en/products/detail/stackpole-electronics-inc/RMCF1206FT357R/1759919) 
+- [348 ohm from LCSC here](https://lcsc.com/product-detail/Chip-Resistor-Surface-Mount_BOURNS-CR1206-FX-3480ELF_C205328.html)
 
 or
 
 - [698 ohm from LCSC here](https://lcsc.com/product-detail/Chip-Resistor-Surface-Mount_FOJAN-FRC1206F6980TS_C2933749.html)
 
-I have a kit with the resistors, IR LEDs, and PCBs on [Tindie here.](https://www.tindie.com/products/eyetrackvr/eyetrackvr-ir-emitter-kit-pack-of-5/) 
+I have a kit with the resistors, IR LEDs, and PCBs on [Tindie here.](https://www.tindie.com/products/eyetrackvr/eyetrackvr-pcbs-components-kit/) 
+I also have a pre-soldered kit [also on Tindie here](https://www.tindie.com/products/eyetrackvr/assembled-eyetrackvr-ir-led-kit/)
 This ensures you get the correct IR emitter parts.
+If you are a Patreon please check out discount codes available to you, and also check out unit pricing. 
 
 - 1x Wire to power IR emitters
 [32 gauge wire from AliExpress here](https://a.aliexpress.com/_mK72cy6)
