@@ -6,7 +6,8 @@ import asyncio
 sys.path.append(".")
 from config import EyeTrackCameraConfig
 from config import EyeTrackSettingsConfig
-from pye3dcustom.detector_3d import CameraModel, Detector3D, DetectorMode
+from pye3d.camera import CameraModel
+from pye3d.detector_3d import Detector3D, DetectorMode
 import queue
 import threading
 import numpy as np

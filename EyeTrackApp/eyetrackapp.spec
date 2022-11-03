@@ -5,8 +5,8 @@ block_cipher = None
 
 a = Analysis(['eyetrackapp.py'],
              pathex=[],
-             binaries=[("pye3d.libs/*", "pye3d.libs"), ("pye3d.libs/.*", "pye3d.libs")],
-             datas=[("pye3dcustom/refraction_models/*", "pye3dcustom/refraction_models"), ("Audio/*", "Audio"), ("Images/*", "Images/")],
+             binaries=[],
+             datas=[("Audio/*", "Audio"), ("Images/*", "Images/")],
              hiddenimports=['cv2', 'numpy', 'PySimpleGui'],
              hookspath=[],
              hooksconfig={},

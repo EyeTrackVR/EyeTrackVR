@@ -7,34 +7,20 @@ license = "MIT"
 repository = "https://github.com/RedHawk989/EyeTrackVR"
 
 [tool.poetry.dependencies]
-python = "~3.6.2"
-PySimpleGUI = "^4.60.4"
-msgpack = "^1.0.4"
+python = "~3.11.0"
 python-osc = "^1.8.0"
-dacite = "^1.6.0"
-pywin32 = "^304"
-dataclasses = "^0.8"
-numpy= "^1.19.5"
-sortedcontainers = "^2.4.0"
-sympy = "^1.9.0"
-requests = "^2.27.1"
-# for some reason OpenCV / numpy maintainers arent specifying dependencies correctly resulting in poetry throwing errors
-# this isnt a good solution and i shouldnt need to do this because opencv 4.5.3.56 is compatible with python ^3.6.2
-# and numpy 1.19.5 but poetry has forced my hand, and since we are stuck on python 3.6 for now, this is the best solution
-# we cant upgrade / downgrade numpy or opencv to resolve the errors because that breaks pyinstaller and a lot of other things
-# this is really shitty and i fucking hate it because it means we have to specify the exact wheel to use per platform / architecture
-# although this isnt a problem that poses any majour issues it is super annoying
-# https://github.com/python-poetry/poetry/issues/4451#issuecomment-1200467157
-opencv-python = [
-    {platform = "win32", markers="platform_machine=='AMD64'", url="https://files.pythonhosted.org/packages/82/5e/f5df9ce92b7d25f43baf64327ea89f832f1eac7f250c1569a22f8b3fca3e/opencv_python-4.5.3.56-cp36-cp36m-win_amd64.whl"},
-    {platform = "win32", markers="platform_machine=='x86_64'", url="https://files.pythonhosted.org/packages/82/5e/f5df9ce92b7d25f43baf64327ea89f832f1eac7f250c1569a22f8b3fca3e/opencv_python-4.5.3.56-cp36-cp36m-win_amd64.whl"},
-    {platform = "win32", markers="platform_machine=='x86'", url="https://files.pythonhosted.org/packages/0b/35/e1b4bd9003ff55ef176d172374629ac5f78533d473b75def07cb6313e467/opencv_python-4.5.3.56-cp36-cp36m-win32.whl"}
-]
-scipy = "^1.5.4"
+opencv-python = "^4.6.0.66"
+numpy = "^1.23.4"
+pye3d = "^0.3.1.post1"
+requests = "^2.28.1"
+pysimplegui = "^4.60.4"
+scipy = "^1.9.3"
+pydantic = "^1.10.2"
+sympy = "^1.11.1"
 
-[tool.poetry.dev-dependencies]
-black = "^22.8.0"
-pyinstaller = "^4.10.0"
+[tool.poetry.group.dev.dependencies]
+black = "^22.10.0"
+pyinstaller = "^5.6.2"
 flake8 = "^5.0.4"
 
 [build-system]
