@@ -31,10 +31,12 @@ With a command promt open in the EyeTrackApp folder, run the command `pyinstalle
 
 Give it time to build the app. Once done the app should be under `dist/eyetrackapp`
 
+## Additional Steps:
+
+1. Move the `Images` and `Audio` folders from the source folder into the folder with the built .exe in it
+- this will let it have an icon in the app and taskbar and allow sounds to play.
+
 ## Optional steps:
 
-1. Move the `Images` folder from the source folder into the folder with the built .exe in it
-- this will let it have an icon in the app and taskbar.
-
-2. Use a program like [Resource Hacker](http://www.angusj.com/resourcehacker/) to replace the .exe icon with the correct logo.
+1. Use a program like [Resource Hacker](http://www.angusj.com/resourcehacker/) to replace the .exe icon with the correct logo.
 - [Here is a tutorial](https://www.howtogeek.com/75983/stupid-geek-tricks-how-to-modify-the-icon-of-an-.exe-file/)

@@ -58,7 +58,7 @@ Please take note of the fact that hardware still may change, although with more 
 
 ## Step 3: Wait for things to arrive.
 Long shipping times from China are  *f u n*.
-Please allow from 3 weeks to 2 months for everything to arrive.
+Please allow anywhere from 2 weeks to 2 months for everything to arrive.
 
 ## Step 4: Gather up all of your hardware.
 
