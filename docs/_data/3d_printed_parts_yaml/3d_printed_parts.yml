@@ -1,5 +1,5 @@
 ---
-# Use this YAML file to create a list supported hmds and 3d parts for them.
+# Use this YAML file to create a list of supported hmds and 3d parts for them.
 
 - hmd: "Quest 2"
   parts:
@@ -42,11 +42,29 @@
   
 - hmd: "Quest 1"
   parts:
-    - ""
+    - "ESP mount : N/A"
   hyper_links:
     - url: "https://github.com/RedHawk989/EyeTrackVR-Hardware/blob/main/3d_Printed_Mounts/Quest_1/G0LDJAY/Quest_1_Cam_mount_v5_By_G0LDJAY.stl"
       desc: "Camera and IR emitter mount by G0LDJAY"
+
+  threed_link_id: 4
+
+- hmd: "Vive Pro 2"
+  parts:
+    - "ESP mount : N/A"
+  hyper_links:
+    - url: "https://github.com/RedHawk989/EyeTrackVR-Hardware/tree/main/3d_Printed_Mounts/Vive_Pro_2/StormFox"
+      desc: "Camera and IR emitter mount by StormFox"
+
+  threed_link_id: 5
+
+- hmd: "General ESP Mounts"
+  parts:
+    - ""
+  hyper_links:
+    - url: "https://github.com/RedHawk989/EyeTrackVR-Hardware/blob/main/3d_Printed_Mounts/General_ESP32-CAM_Mounts/ESPCAMshellv7_by_G0LDJAY.stl"
+      desc: "ESP mount by G0LDJAY for general HMD use (use if there are no specific HMD mounts available)"
       
       
-  threed_link_id: 1
+  threed_link_id: 6
 ---
