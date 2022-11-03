@@ -14,22 +14,18 @@
 
 Open source and *affordable* VR eye tracker platform for [VRChat](https://hello.vrchat.com/) via `OSC` and `UDP` protocol.
 
-#### This project is in development and is not fully finished
+#### This project is in development and is not fully finished however, it is working for most users.
 
 ## Hardware
 
-3d files for mounting brackets will be found [here](https://github.com/RedHawk989/EyeTrackVR-Hardware)
-IR emitter files will also be located there.
-
-Hardware will hopefully be a `ESP32-Cam` with a `160fov ir camera`. ***This is not confirmed and very likely could change***.
+Please check out our [Parts list](https://redhawk989.github.io/EyeTrackVR/parts-list/) and our [full build guide](https://redhawk989.github.io/EyeTrackVR/full-build-guide/)
 
 ## About IR Emitter Safety
 
 Please *exercise extreme caution* when messing around with IR emitters.
-<ins>Once safety testing has been completed links and files will be provided for the emitters</ins>. Please do not try to make, or use any emitters unless you know exactly what you are doing as it could be very harmful for your eyes if not done correctly.
+<ins>Once safety testing has been completed links and files will be provided for the emitters</ins>. Please do not try to make, or use any emitters unless you know exactly what you are doing as it could be very harmful to your eyes if not done correctly.
 When files and resources are released <ins>**DO NOT BYPASS (OR NOT DO) ANY SAFETY FEATURES PUT IN PLACE**</ins>. This can result in irreversible bodily harm.
-The safety measures were put in place to REDUCE the potential failure risk. All further safety responsibilities is on the user.
-This includes visually checking with an IR camera that the brightness is correct.
+The safety measures were put in place to REDUCE the potential failure risk. All further safety responsibilities are on the user. This includes visually checking with an IR camera that the brightness is correct and that you do not feel warmth or experience short-term effects after being exposed to the IR light (symptoms such as dark spots or dry/warm feeling eyes while actively using). While we strive to make EyeTrackVR as safe as possible, we do not hold any responsibility for damage done.
 
 ##### Make sure you are using **NON-focused** emitters and at around ***5ma total power***
 
@@ -41,13 +37,12 @@ This includes visually checking with an IR camera that the brightness is correct
 
 ## Firmware
 
-Current testing has been with `loucass003's` firmware found [here](https://github.com/Futurabeast/futura-face-cam).
-There has been work for a different firmware by a community member but that ***has not been tested by me*** [here](https://github.com/lorow/OpenIris).
+Our firmware called OpenIris is made by `lorow` found [here](https://github.com/lorow/OpenIris).
 
 ## Headset support
 
-Initial support will be Quest 2 (pcvr)
-Support for other headsets from the community.
+Please take a look at our list of [3d printable mounts](https://redhawk989.github.io/EyeTrackVR/parts-list/#other-parts) and see if your headset is on the list.
+If it is not listed, It is recommended that you try to make a mount, or wait for a skilled community member to create one.
 
 #### Contact
 
