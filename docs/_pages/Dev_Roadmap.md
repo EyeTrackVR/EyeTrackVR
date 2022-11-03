@@ -31,9 +31,12 @@ This will contain a list of features that are in progress, completed, and planne
 - [ ] Auto threshold's
 - [ ] Setup WiFi credentials for ESPs through non-firmware means
 - [ ] Setup flashing of ESPs through anything other than VSC
-
+- [ ] New GUI
+- [ ] Power regulator board
+- [ ] Custom ESP-CAM boards
+- [ ] New IR LED PCB (only for the power reg board)
 
 ## Planned
 
-- [ ] Support for implementation with VRCFT (binary parameters etc.)
+- [ ] Support for binary parameters
 - [ ] Dynamic foveated rendering via OpenXR (not a guarantee)
