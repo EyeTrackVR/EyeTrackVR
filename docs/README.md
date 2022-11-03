@@ -18,7 +18,7 @@ Open source and *affordable* VR eye tracker platform for [VRChat](https://hello.
 
 ## Hardware
 
-Please check out our [Parts list](https://redhawk989.github.io/EyeTrackVR/parts-list/) and our [full build guide](https://redhawk989.github.io/EyeTrackVR/full-build-guide/)
+Please check out our [Parts list](https://redhawk989.github.io/EyeTrackVR/parts-list/) and our [full build guide](https://redhawk989.github.io/EyeTrackVR/full-build-guide/) along with our [hardware repo.](https://github.com/RedHawk989/EyeTrackVR-Hardware)
 
 ## About IR Emitter Safety
 

@@ -9,35 +9,35 @@ parent: How to build
 ## This page will contain a step-by-step assembly guide.
 
 ### Table of contents:
-[Step 1 Make sure you have read the Things to know before you start guide](#step-1-read-the-things-to-know-before-you-start-guide)
+[Step 1 Make sure you have read the Things to know before you start guide](#step-1-make-sure-your-have-read-the-things-to-know-before-you-start-guide)
 
-[Step 2: Order all the parts listed on our Parts list](#step-3-order-all-the-parts-listed-on-our-parts-list)
+[Step 2: Order all the parts listed on our Parts list](#step-2-order-all-the-parts-listed-on-our-parts-list)
 
-[Step 3: Wait for things to arrive.](#step-3-order-all-the-parts-listed-on-our-parts-list)
+[Step 3: Wait for things to arrive.](#step-3-wait-for-things-to-arrive)
 
-[Step 4: Gather up all of your hardware.](#step-5-gather-up-all-of-your-hardware)
+[Step 4: Gather up all of your hardware.](#step-4-gather-up-all-of-your-hardware)
 
-[Step 5: Attach cameras to ESPs.](#step-6-attach-cameras-to-esps)
+[Step 5: Attach cameras to ESPs.](#step-6-connect-esp-to-the-programmer-to-flash)
 
 [Step 6: Connect ESP to the programmer to flash.](#step-7-connect-esp-to-the-programmer-to-flash)
 
-[Step 7: Configure Visual Studio Code and prepare to flash the firmware.](#step-8-configure-visual-studio-code-and-prepare-to-flash-the-firmware)
+[Step 7: Configure Visual Studio Code and prepare to flash the firmware.](#step-7-configure-visual-studio-code-and-prepare-to-flash-the-firmware)
 
-[Step 8: Plug in your ESP and flash the firmware.](#step-9-plug-in-your-esp-and-flash-the-firmware)
+[Step 8: Plug in your ESP and flash the firmware.](#step-8-plug-in-your-esp-and-flash-the-firmware)
 
-[Step 9: Connect your power wires to a USB Type-A board.](#step-10-connect-your-power-wires-to-a-usb-type-a-board)
+[Step 9: Connect your power wires to a USB Type-A board.](#step-9-connect-your-power-wires-to-a-usb-type-a-board)
 
-[Step 10: Cut wires for IR LEDs.](#step-11-cut-wires-for-ir-leds)
+[Step 10: Cut wires for IR LEDs.](#step-10-cut-wires-for-ir-leds)
 
-[Step 11: Twist the positive USB wire and positive IR LED wires together and tin them.](#step-12-twist-the-positive-usb-wire-and-positive-ir-led-wires-together-and-tin-them)
+[Step 11: Twist the positive USB wire and positive IR LED wires together and tin them.](#step-11-twist-the-positive-usb-wire-and-positive-ir-led-wires-together-and-tin-them)
 
-[Step 12: Solder the positive wire to ESP.](#step-13-solder-the-positive-wire-to-esp)
+[Step 12: Solder the positive wire to ESP.](#step-12-solder-the-positive-wire-to-esp)
 
-[Step 13: Solder the negative wire to ESP](#step-14-solder-the-negative-wire-to-esp)
+[Step 13: Solder the negative wire to ESP](#step-13-solder-the-negative-wire-to-esp)
 
-[Step 14: Wire up the 2nd ESP.](#step-15-wire-up-the-2nd-esp)
+[Step 14: Wire up the 2nd ESP.](#step-14-wire-up-the-2nd-esp)
 
-[Step 15: Prepare to solder IR LED PCBs](#step-16-prepare-to-solder-ir-led-pcbs)
+[Step 15: Prepare to solder IR LED PCBs](#step-15-prepare-to-solder-ir-led-pcbs)
 
 [Step 17: Solder resistors on PCB V2.](#step-17-solder-resistors-on-pcb-v2)
 
