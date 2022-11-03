@@ -4,6 +4,7 @@ title: Full Build Guide
 permalink: /full-build-guide/
 nav_order: 1
 parent: How to build
+has_toc: true
 ---
 
 ## This page will contain a step-by-step assembly guide.
