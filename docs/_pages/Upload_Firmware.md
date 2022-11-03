@@ -20,6 +20,8 @@ In the case of an FTDI programmer, the steps aren't as easy, so grab [this guide
 
 1. Press the build button at the bottom of Visual Studio Code.
 
+  This builds the firmware, but does not send it to the ESP yet.
+
    ![img](https://i.imgur.com/EmSkhFp.png)
 
 ## 3. Upload your firmware
@@ -28,6 +30,7 @@ In the case of an FTDI programmer, the steps aren't as easy, so grab [this guide
 
 - Once the firmware has been built, press the upload button to upload the firmware.
 
+  This sends the firmware to the ESP.
   ![img](https://i.imgur.com/lI3PFVC.png)
 
 {% include custom/alerts/Note.html content="The MB board does the resetting for you, so if you're using the FTDI programmer, follow the guide linked above (the one from randomnerdtutorials)"  %}  
