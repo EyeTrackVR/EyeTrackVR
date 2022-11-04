@@ -72,7 +72,7 @@ class SettingsWidget:
                 ),
                 sg.Checkbox(
                     "Flip Right Eye X Axis",
-                    default=self.config.gui_flip_x_axis_left,
+                    default=self.config.gui_flip_x_axis_right,
                     key=self.gui_flip_x_axis_right,
                     background_color='#424042',
                 ),
