@@ -11,39 +11,15 @@ from osc import EyeId
 class SettingsWidget:
     def __init__(self, widget_id: EyeId, main_config: EyeTrackSettingsConfig, osc_queue: Queue):
 
-        self.gui_show_color_image = f"-SETTING1{widget_id}-"
-        self.gui_camera_addr = f"-CAMERAADDR{widget_id}-"
-        self.gui_threshold_slider = f"-THREADHOLDSLIDER{widget_id}-"
-
-        self.gui_roi_button = f"-ROIMODE{widget_id}-"
-        self.gui_roi_layout = f"-ROILAYOUT{widget_id}-"
-        self.gui_roi_selection = f"-GRAPH{widget_id}-"
-        self.gui_tracking_button = f"-TRACKINGMODE{widget_id}-"
-        self.gui_save_tracking_button = f"-SAVETRACKINGBUTTON{widget_id}-"
-        
-        self.gui_tracking_image = f"-IMAGE{widget_id}-"
-        self.gui_output_graph = f"-OUTPUTGRAPH{widget_id}-"
-        self.gui_restart_calibration = f"-RESTARTCALIBRATION{widget_id}-"
-        self.gui_recenter_eye = f"-RECENTEREYE{widget_id}-"
-        self.gui_mode_readout = f"-APPMODE{widget_id}-"
-        self.gui_show_color_image = f"-SHOWCOLORIMAGE{widget_id}-"
-
         self.gui_flip_x_axis_left = f"-FLIPXAXISLEFT{widget_id}-"
         self.gui_flip_x_axis_right = f"-FLIPXAXISRIGHT{widget_id}-"
         self.gui_flip_y_axis = f"-FLIPYAXIS{widget_id}-"
-
-        self.gui_roi_message = f"-ROIMESSAGE{widget_id}-"
-        self.gui_save_button = f"-SAVE{widget_id}-"
-
         self.gui_general_settings_layout = f"-GENERALSETTINGSLAYOUT{widget_id}-"
-
         self.gui_osc_address = f"-OSCADDRESS{widget_id}-"
         self.gui_osc_port = f"-OSCPORT{widget_id}-"
         self.gui_osc_receiver_port = f"OSCRECEIVERPORT{widget_id}-"
         self.gui_osc_recenter_address = f"OSCRECENTERADDRESS{widget_id}-"
         self.gui_osc_recalibrate_address = f"OSCRECALIBRATEADDRESS{widget_id}-"
-       # self.gui_algo_settings_layout = f"-ALGOSETTINGSLAYOUT{widget_id}-"
-        
         self.gui_blob_fallback = f"-BLOBFALLBACK{widget_id}-"
         self.gui_blob_maxsize = f"-BLOBMAXSIZE{widget_id}-"
         self.gui_blob_minsize = f"-BLOBMINSIZE{widget_id}-"
@@ -51,11 +27,9 @@ class SettingsWidget:
         self.gui_min_cutoff = f"-MINCUTOFF{widget_id}-"
         self.gui_eye_falloff = f"-EYEFALLOFF{widget_id}-"
         self.main_config = main_config
-
-
         self.config = main_config.settings
-
         self.osc_queue = osc_queue
+
         # Define the window's contents
         self.general_settings_layout = [
            
