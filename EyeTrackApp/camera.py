@@ -1,15 +1,8 @@
-from time import sleep
-
-import numpy
-
 from config import EyeTrackConfig
-import requests
 from enum import Enum
 import threading
 import queue
-import runpy
 import cv2
-import time
 
 WAIT_TIME = 0.1
 

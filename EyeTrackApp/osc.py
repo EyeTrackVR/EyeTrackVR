@@ -17,7 +17,7 @@ from config import EyeTrackConfig
 class VRChatOSC:
     # Use a tuple of blink (true, blinking, false, not), x, y for now. Probably clearer as a class but
     # we're stuck in python 3.6 so still no dataclasses. God I hate python.
-    def __init__(self, cancellation_event: "threading.Event", msg_queue: "queue.Queue[tuple[bool, int, int, int]]", main_config: EyeTrackConfig,):
+    def __init__(self, cancellation_event: threading.Event, msg_queue: queue.Queue[tuple[bool, int, int]], main_config: EyeTrackConfig,):
         self.main_config = main_config
         self.config = main_config.settings
         self.client = udp_client.SimpleUDPClient(self.config.gui_osc_address, int(self.config.gui_osc_port)) # use OSC port and address that was set in the config
@@ -63,9 +63,7 @@ class VRChatOSC:
                         self.client.send_message("/avatar/parameters/RightEyeX", eye_info.x)   
                         self.client.send_message("/avatar/parameters/RightEyeLid", float(0))# old param open right
                         self.client.send_message("/avatar/parameters/RightEyeLidExpandedSqueeze", float(0.8)) # open right eye
-                    # self.client.send_message(
-                    #     "/avatar/parameters/EyesDilation", eye_info.pupil_dialation
-                        #)
+
                     if eye_id in [EyeId.LEFT]:
                         yl = eye_info.y
                         sx = eye_info.x
@@ -79,7 +77,7 @@ class VRChatOSC:
                         y = (yr + yl) / 2
                         self.client.send_message("/avatar/parameters/EyesY", y)
             else:
-                if self.config.gui_eye_falloff == True:
+                if self.config.gui_eye_falloff:
                     if eye_id in [EyeId.LEFT]:
                         lb = True
                     if eye_id in [EyeId.RIGHT]:
@@ -102,7 +100,6 @@ class VRChatOSC:
                         last_blink = time.time()
                 else:
                     if self.config.tracker_single_eye == 1 or self.config.tracker_single_eye == 2:
-                
                         if last_blink > 0.5:
                             for i in range(4):
                                 self.client.send_message("/avatar/parameters/RightEyeLid", float(1)) #close eye
@@ -127,12 +124,13 @@ class VRChatOSC:
                                     self.client.send_message("/avatar/parameters/RightEyeLidExpandedSqueeze", float(0)) # close eye
                             last_blink = time.time()
 
+
 class VRChatOSCReceiver:
-    def __init__(self, cancellation_event: "threading.Event", main_config: EyeTrackConfig, eyes: []):
+    def __init__(self, cancellation_event: threading.Event, main_config: EyeTrackConfig, eyes: []):
         self.config = main_config.settings
         self.cancellation_event = cancellation_event
         self.dispatcher = dispatcher.Dispatcher()
-        self.eyes = eyes # we cant import CameraWidget so any type it is
+        self.eyes = eyes  # we cant import CameraWidget so any type it is
         self.server = osc_server.OSCUDPServer((self.config.gui_osc_address, int(self.config.gui_osc_receiver_port)), self.dispatcher)
 
     def shutdown(self):
@@ -140,13 +138,13 @@ class VRChatOSCReceiver:
         self.server.shutdown()
 
     def recenter_eyes(self, address, osc_value):
-        if type(osc_value) != bool: return # just incase we get anything other than bool
+        if type(osc_value) != bool: return  # just incase we get anything other than bool
         if osc_value:
             for eye in self.eyes:
                 eye.settings.gui_recenter_eyes = True
 
     def recalibrate_eyes(self, address, osc_value):
-        if type(osc_value) != bool: return # just incase we get anything other than bool
+        if type(osc_value) != bool: return  # just incase we get anything other than bool
         if osc_value:
             for eye in self.eyes:
                 eye.ransac.calibration_frame_counter = 300

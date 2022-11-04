@@ -1,8 +1,4 @@
-# Random environment variable to speed up webcam opening on the MSMF backend.
-# https://github.com/opencv/opencv/issues/17687
 import os
-
-os.environ["OPENCV_VIDEOIO_MSMF_ENABLE_HW_TRANSFORMS"] = "0"
 from osc import VRChatOSCReceiver, VRChatOSC, EyeId
 from config import EyeTrackConfig
 from camera_widget import CameraWidget
@@ -10,6 +6,9 @@ from settings_widget import SettingsWidget
 import queue
 import threading
 import PySimpleGUI as sg
+# Random environment variable to speed up webcam opening on the MSMF backend.
+# https://github.com/opencv/opencv/issues/17687
+os.environ["OPENCV_VIDEOIO_MSMF_ENABLE_HW_TRANSFORMS"] = "0"
 
 WINDOW_NAME = "EyeTrackApp"
 RIGHT_EYE_NAME = "-RIGHTEYEWIDGET-"
@@ -35,7 +34,7 @@ def main():
     # Check to see if we have an ROI. If not, bring up ROI finder GUI.
 
     # Spawn worker threads
-    osc_queue: "queue.Queue[tuple[bool, int, int]]" = queue.Queue()
+    osc_queue: queue.Queue[tuple[bool, int, int]] = queue.Queue()
     osc = VRChatOSC(cancellation_event, osc_queue, config)
     osc_thread = threading.Thread(target=osc.run)
     # start worker threads
@@ -108,7 +107,6 @@ def main():
 
     if config.eye_display_id in [EyeId.LEFT, EyeId.BOTH]:
         eyes[1].start()
-        eyes[0].ransac.calibration_frame_counter
     if config.eye_display_id in [EyeId.RIGHT, EyeId.BOTH]:
         eyes[0].start()
 
@@ -130,7 +128,6 @@ def main():
 
         # If we're in either mode and someone hits q, quit immediately
         if event == "Exit" or event == sg.WIN_CLOSED:
-            # eyes[2].stop()
             for eye in eyes:
                 eye.stop()
             cancellation_event.set()
@@ -138,7 +135,7 @@ def main():
             osc_thread.join()
             # TODO: find a way to have this function run on join maybe??
             # threading.Event() wont work because pythonosc spawns its own thread.
-            # only way i can see to get around this is an ugly while loop that only checks if a threading event is trigggered
+            # only way i can see to get around this is an ugly while loop that only checks if a threading event is triggered
             # and then call the pythonosc shutdown function
             osc_receiver.shutdown()
             osc_receiver_thread.join()
