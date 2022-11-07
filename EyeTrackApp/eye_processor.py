@@ -268,16 +268,12 @@ class EyeProcessor:
                     # draw filled circle in white on black background as mask
                     mask = np.zeros((ht, wd), dtype=np.uint8)
                     mask = cv2.circle(mask, (self.xc, self.yc), radius, 255, -1)
-
                     # create white colored background
                     color = np.full_like(self.current_image_gray, (255))
-
                     # apply mask to image
                     masked_img = cv2.bitwise_and(self.current_image_gray, self.current_image_gray, mask=mask)
-
                     # apply inverse mask to colored image
                     masked_color = cv2.bitwise_and(color, color, mask=255 - mask)
-
                     # combine the two masked images
                     self.current_image_gray = cv2.add(masked_img, masked_color)
                 except:
@@ -285,15 +281,7 @@ class EyeProcessor:
             else:
                 self.cct = self.cct - 1
 
-        # Increase our threshold value slightly, in order to have a better possibility of getting back
-        # something to do blob tracking on.
-        hist = cv2.calcHist([self.current_image_gray], [0], None, [256], [0, 256])
-        histr = hist.ravel()
-        peaks, properties = sp.find_peaks(histr, distance=5)
-        minpeak = np.min(peaks)
-        thresholdoptics = np.array(minpeak + int(self.config.threshold + 12))
-        larger_threshold = cv2.inRange(self.current_image_gray, lowb, thresholdoptics)  # faster than cv2.threshold
-        larger_threshold = cv2.bitwise_not(larger_threshold)
+        _, larger_threshold = cv2.threshold(self.current_image_gray, int(self.config.threshold + 12), 255, cv2.THRESH_BINARY)
         # Blob tracking requires that we have a vague idea of where the eye may be at the moment. This
         # means we need to have had at least one successful runthrough of the Pupil Labs algorithm in
         # order to have a projected sphere.
@@ -507,23 +495,18 @@ class EyeProcessor:
                 if self.cct == 0:
                     try:
                         ht, wd = self.current_image_gray.shape[:2]
-
                         radius = int(float(self.lkg_projected_sphere["axes"][0]))
                         self.xc = int(float(self.lkg_projected_sphere["center"][0]))
                         self.yc = int(float(self.lkg_projected_sphere["center"][1]))
                         # draw filled circle in white on black background as mask
                         mask = np.zeros((ht, wd), dtype=np.uint8)
                         mask = cv2.circle(mask, (self.xc, self.yc), radius, 255, -1)
-
                         # create white colored background
                         color = np.full_like(self.current_image_gray, (255))
-
                         # apply mask to image
                         masked_img = cv2.bitwise_and(self.current_image_gray, self.current_image_gray, mask=mask)
-
                         # apply inverse mask to colored image
                         masked_color = cv2.bitwise_and(color, color, mask=255 - mask)
-
                         # combine the two masked images
                         self.current_image_gray = cv2.add(masked_img, masked_color)
                     except:
@@ -533,14 +516,12 @@ class EyeProcessor:
             else:
                 self.cct = 300
 
-            # Using Histogram based thresholding. Improves robustness insanely
-            hist = cv2.calcHist([self.current_image_gray], [0], None, [256], [0, 256])
-            histr = hist.ravel()
-            peaks, properties = sp.find_peaks(histr, distance=5)
-            minpeak = np.min(peaks)
-            thresholdoptics = np.array(minpeak + int(self.config.threshold))
-            thresh = cv2.inRange(self.current_image_gray, lowb, thresholdoptics)  # faster than cv2.threshold
-            thresh = cv2.bitwise_not(thresh)
+            _, thresh = cv2.threshold(
+                self.current_image_gray,
+                int(self.config.threshold),
+                255,
+                cv2.THRESH_BINARY,
+            )
 
             # Set up morphological transforms, for smoothing and clearing the image we get out of the
             # thresholding operation. After this, we'd really like to just have a black blob in the middle

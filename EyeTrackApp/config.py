@@ -7,8 +7,8 @@ CONFIG_FILE_NAME: str = "eyetrack_settings.json"
 
 
 class EyeTrackCameraConfig(BaseModel):
-    threshold: int = 0
-    rotation_angle: int = 50
+    threshold: int = 50
+    rotation_angle: int = 0
     roi_window_x: int = 0
     roi_window_y: int = 0
     roi_window_w: int = 0
@@ -34,7 +34,8 @@ class EyeTrackSettingsConfig(BaseModel):
     gui_blob_minsize: float = 10
     gui_recenter_eyes: bool = False
     gui_eye_falloff: bool = False
-    tracker_single_eye: float = 0
+    tracker_single_eye: int = 0
+    gui_blink_sync: bool = False
 
 
 class EyeTrackConfig(BaseModel):

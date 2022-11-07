@@ -26,6 +26,7 @@ class SettingsWidget:
         self.gui_speed_coefficient = f"-SPEEDCOEFFICIENT{widget_id}-"
         self.gui_min_cutoff = f"-MINCUTOFF{widget_id}-"
         self.gui_eye_falloff = f"-EYEFALLOFF{widget_id}-"
+        self.gui_blink_sync = f"-BLINKSYNC{widget_id}-"
         self.main_config = main_config
         self.config = main_config.settings
         self.osc_queue = osc_queue
@@ -59,6 +60,13 @@ class SettingsWidget:
                     "Dual Eye Falloff",
                     default=self.config.gui_eye_falloff,
                     key=self.gui_eye_falloff,
+                    background_color='#424042',
+                ),
+            ],
+            [sg.Checkbox(
+                    "Sync Blinks (disables winking)",
+                    default=self.config.gui_blink_sync,
+                    key=self.gui_blink_sync,
                     background_color='#424042',
                 ),
             ],
@@ -220,6 +228,11 @@ class SettingsWidget:
         if self.config.gui_eye_falloff != values[self.gui_eye_falloff]:
             self.config.gui_eye_falloff = values[self.gui_eye_falloff]
             changed = True
+
+        if self.config.gui_blink_sync != values[self.gui_blink_sync]:
+            self.config.gui_blink_sync = values[self.gui_blink_sync]
+            changed = True
+
 
         
         if self.config.gui_blob_maxsize != values[self.gui_blob_maxsize]:

@@ -119,7 +119,7 @@ def main():
     osc_receiver_thread.start()
 
     # Create the window
-    window = sg.Window("EyeTrackVR v0.1.7", layout, icon='Images/logo.ico', background_color='#292929')
+    window = sg.Window("EyeTrackVR v0.1.7.1", layout, icon='Images/logo.ico', background_color='#292929')
 
     # GUI Render loop
     while True:
