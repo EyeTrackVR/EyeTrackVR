@@ -280,7 +280,8 @@ class EyeProcessor:
                     pass
             else:
                 self.cct = self.cct - 1
-
+        blankarray = np.zeros((240,240))
+        self.current_image_gray = cv2.normalize(self.current_image_gray,  blankarray , 65, 255, cv2.NORM_MINMAX)
         _, larger_threshold = cv2.threshold(self.current_image_gray, int(self.config.threshold + 12), 255, cv2.THRESH_BINARY)
         # Blob tracking requires that we have a vague idea of where the eye may be at the moment. This
         # means we need to have had at least one successful runthrough of the Pupil Labs algorithm in
@@ -487,6 +488,8 @@ class EyeProcessor:
             # The goal of thresholding settings is to make sure we can ONLY see the pupil. This is why we
             # crop the image earlier; it gives us less possible dark area to get confused about in the
             # next step.
+            blankarray = np.zeros((240,240))
+            self.current_image_gray = cv2.normalize(self.current_image_gray,  blankarray , 65, 255, cv2.NORM_MINMAX)
             self.current_image_gray = cv2.cvtColor(
                 self.current_image, cv2.COLOR_BGR2GRAY
             )
