@@ -33,3 +33,10 @@ yarn tauri build
 ```
 
 This will create a folder called `target` in the `src-tauri` directory. Inside this folder, you will find the executable for your operating system, as well as an MSI installer for Windows.
+
+## Useful Links
+
+- [Tauri](https://tauri.app/)
+- [Tauri Docs](https://tauri.app/v1/guides/)
+- [TailWindCSS](https://tailwindcss.com/docs/)
+- [TailWindCSS PreProcessor](https://tailwindcss.com/docs/using-with-preprocessors)
