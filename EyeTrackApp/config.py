@@ -26,8 +26,8 @@ class EyeTrackSettingsConfig(BaseModel):
     gui_min_cutoff: str = "0.0004"
     gui_speed_coefficient: str = "0.9"
     gui_osc_address: str = "127.0.0.1"
-    gui_osc_port: str = "9000"
-    gui_osc_receiver_port: str = "9001"
+    gui_osc_port: int = 9000
+    gui_osc_receiver_port: int = 9001
     gui_osc_recenter_address: str = "/avatar/parameters/etvr_recenter"
     gui_osc_recalibrate_address: str = "/avatar/parameters/etvr_recalibrate"
     gui_blob_maxsize: float = 25

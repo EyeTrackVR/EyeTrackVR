@@ -26,7 +26,7 @@ class VRChatOSC:
         
     def run(self):
         start = time.time()
-        last_blink = 0
+        last_blink = time.time()
         yl = 621
         yr = 621
         sx = 0 
@@ -85,7 +85,7 @@ class VRChatOSC:
                         y = (yr + yl) / 2
                         self.client.send_message("/avatar/parameters/EyesY", y)
             else:
-                
+                print(last_blink)
                 if self.config.gui_blink_sync:
                     if eye_id in [EyeId.LEFT]:
                         lb = True
@@ -98,8 +98,9 @@ class VRChatOSC:
                                 self.client.send_message("/avatar/parameters/LeftEyeLid", float(1))
                                 self.client.send_message("/avatar/parameters/RightEyeLidExpandedSqueeze", float(0)) # close eye
                                 self.client.send_message("/avatar/parameters/LeftEyeLidExpandedSqueeze", float(0))
-                        last_blink = time.time()
+                        last_blink = time.time() - last_blink
                 else:
+                    
                     if self.config.tracker_single_eye == 1 or self.config.tracker_single_eye == 2:
                         if last_blink > 0.5:
                             for i in range(4):
@@ -107,24 +108,26 @@ class VRChatOSC:
                                 self.client.send_message("/avatar/parameters/LeftEyeLid", float(1))
                                 self.client.send_message("/avatar/parameters/RightEyeLidExpandedSqueeze", float(0)) # close eye
                                 self.client.send_message("/avatar/parameters/LeftEyeLidExpandedSqueeze", float(0))
-                        last_blink = time.time()
+                        last_blink = time.time() - last_blink
 
                     if not self.config.gui_eye_falloff:
+                        
                         if eye_id in [EyeId.LEFT]:
                             lb = True
-                            if last_blink > 0.5:
-                                for i in range(4):
+                            if last_blink > 0.7:
+                                for i in range(5):
                                     self.client.send_message("/avatar/parameters/LeftEyeLid", float(1))
                                     self.client.send_message("/avatar/parameters/LeftEyeLidExpandedSqueeze", float(0))
-                            last_blink = time.time()
+                            last_blink = time.time() - last_blink
+
 
                         if eye_id in [EyeId.RIGHT]:
                             rb = True
-                            if last_blink > 0.5:
-                                for i in range(4):
+                            if last_blink > 0.7:
+                                for i in range(5):
                                     self.client.send_message("/avatar/parameters/RightEyeLid", float(1))
                                     self.client.send_message("/avatar/parameters/RightEyeLidExpandedSqueeze", float(0)) # close eye
-                            last_blink = time.time()
+                            last_blink = time.time() - last_blink
 
                     else:
                         if eye_id in [EyeId.LEFT]:
@@ -146,7 +149,7 @@ class VRChatOSC:
                                     self.client.send_message("/avatar/parameters/LeftEyeLid", float(1))
                                     self.client.send_message("/avatar/parameters/RightEyeLidExpandedSqueeze", float(0)) # close eye
                                     self.client.send_message("/avatar/parameters/LeftEyeLidExpandedSqueeze", float(0))
-                            last_blink = time.time()
+                            last_blink = time.time() - last_blink
 
 
 class VRChatOSCReceiver:
@@ -155,11 +158,17 @@ class VRChatOSCReceiver:
         self.cancellation_event = cancellation_event
         self.dispatcher = dispatcher.Dispatcher()
         self.eyes = eyes  # we cant import CameraWidget so any type it is
-        self.server = osc_server.OSCUDPServer((self.config.gui_osc_address, int(self.config.gui_osc_receiver_port)), self.dispatcher)
+        try:
+            self.server = osc_server.OSCUDPServer((self.config.gui_osc_address, int(self.config.gui_osc_receiver_port)), self.dispatcher)
+        except:
+            print(f"[ERROR] OSC Recieve port: {self.config.gui_osc_receiver_port} occupied. ")
 
     def shutdown(self):
         print("Shutting down OSC receiver")
-        self.server.shutdown()
+        try:
+            self.server.shutdown()
+        except:
+            pass
 
     def recenter_eyes(self, address, osc_value):
         if type(osc_value) != bool: return  # just incase we get anything other than bool
@@ -185,4 +194,4 @@ class VRChatOSCReceiver:
             self.server.serve_forever()
             
         except:
-            print("[WARN] OSC Receive port taken! Please use another OSC port.")
+            print(f"[ERROR] OSC Recieve port: {self.config.gui_osc_receiver_port} occupied. ")
