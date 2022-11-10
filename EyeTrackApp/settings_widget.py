@@ -247,8 +247,6 @@ class SettingsWidget:
             self.config.gui_blink_sync = values[self.gui_blink_sync]
             changed = True
 
-
-        
         if self.config.gui_blob_maxsize != values[self.gui_blob_maxsize]:
             self.config.gui_blob_maxsize = values[self.gui_blob_maxsize]
             changed = True
