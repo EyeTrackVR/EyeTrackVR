@@ -13,5 +13,6 @@
 
 /* Custom Imports */
 @import "index.css";
+@import "titlebar.css";
 @import "logo.css";
 @import "diode_status.css";
