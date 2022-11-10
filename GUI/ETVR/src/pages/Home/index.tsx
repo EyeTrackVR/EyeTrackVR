@@ -59,7 +59,7 @@ export function Main(/* props */) {
 
     return (
         <>
-            <MainMenu handleNavChange={handleNavChange} state={navState}/>
+            <MainMenu handleNavChange={handleNavChange} state={navState} />
             <main>{navState.dashboard ? <DashBoard /> : <Settings />}</main>
         </>
     );

@@ -96,38 +96,136 @@
         cursor: not-allowed;
     }
 
-    #button-row {
-        max-width: 600px;
-        margin: 0 auto;
-        text-align: right;
-        font-size: 0;
+    .main_menu {
+        align-items: center;
+        display: flex;
+        min-width: 100%;
+        justify-content: space-between;
+        margin-top: 4rem;
     }
 
-    #button-row button {
-        background: #eee;
-        transition: background 150ms;
-        border: 1px solid #999;
-        display: inline-block;
-        font-size: 12pt;
-        line-height: 16pt;
-        margin-left: -1px;
-        color: #555;
+    .navbar_container {
+        align-items: center;
+        background-color: rgba(14, 14, 14, 1);
+        border-radius: 14px;
+        box-shadow: 0px 4px 4px #00000026;
+        display: flex;
+        justify-content: center;
+        gap: 38px;
+        /* height: 48px; */
+        margin-left: 10%;
+        margin-top: 2.4rem;
+        padding: 4.9px 4px;
+        filter: drop-shadow(6px 6px 6px rgba(25, 24, 24, 0.734));
     }
 
-    #button-row button:first-child {
-        border-top-left-radius: 0.3em;
-        border-bottom-left-radius: 0.3em;
+    .navbar_group {
+        align-items: flex-end;
+        border-radius: 14px;
+        height: 48px;
+        position: relative;
+        width: 71px;
+        top: 6px;
+        left: 4px;
+        padding: 0px 4px;
     }
 
-    #button-row button:last-child {
-        border-top-right-radius: 0.3em;
-        border-bottom-right-radius: 0.3em;
+    .dashboard_highlight {
+        background-color: #252536;
+        border: 1px none;
+        border-radius: 14px;
+        height: 37px;
+        left: 0;
+        position: absolute;
+        top: 0;
+        width: 83px;
+        transform: rotate(0.15deg);
+        transition: all 0.3s ease;
+        opacity: 0.75;
     }
 
-    #button-row button:focus,
-    #button-row button:hover {
-        background: #ccc;
-        outline: none;
+    .dashboard_highlight:hover {
+        opacity: 1;
+    }
+
+    .dashboard_highlight:active {
+        -webkit-transform: scale(0.8);
+        -ms-transform: scale(0.8);
+        transform: scale(0.8);
+    }
+
+    .settings_highlight {
+        background-color: #252536;
+        border: 1px none;
+        border-radius: 14px;
+        height: 37px;
+        left: 0;
+        position: absolute;
+        top: 0;
+        width: 70px;
+        transform: rotate(0.15deg);
+        transition: all 1.3s ease;
+        opacity: 0.75;
+    }
+
+    .settings_highlight:hover {
+        opacity: 1;
+    }
+
+    .settings_highlight:active {
+        -webkit-transform: scale(0.8);
+        -ms-transform: scale(0.8);
+        transform: scale(0.8);
+    }
+
+    .highlight_inactive {
+        background-color: #252536;
+        border: 1px none;
+        border-radius: 14px;
+        height: 37px;
+        left: 0;
+        position: absolute;
+        top: 0;
+        width: 71px;
+        transform: rotate(0.15deg);
+        visibility: hidden;
+    }
+
+    .nav_item_active {
+        display: flex;
+        align-items: center;
+        font-family: "Ubuntu";
+        font-size: 12px;
+        left: 13px;
+        letter-spacing: 0;
+        position: absolute;
+        top: 11px;
+    }
+
+    .nav_item_inactive {
+        display: flex;
+        align-items: center;
+        color: #5e5e5e;
+        font-family: "Ubuntu";
+        font-size: 12px;
+        left: 13px;
+        letter-spacing: 0;
+        position: absolute;
+        top: 11px;
+    }
+
+    .rectangle_146 {
+        background-color: #252536;
+        border: 1px none;
+        border-radius: 15px;
+        height: 48px;
+        margin-left: 10%;
+        margin-top: 2.4rem;
+        padding: 4.9px 4px;
+        filter: drop-shadow(6px 6px 6px rgba(25, 24, 24, 0.734));
+        box-shadow: 0px 4px 4px #00000026;
+        margin-right: 2.4rem;
+        width: 248px;
     }
 }
 

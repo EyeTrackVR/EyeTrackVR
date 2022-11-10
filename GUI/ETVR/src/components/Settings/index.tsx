@@ -10,7 +10,7 @@ export function Settings() {
         transform: "translate(-50%, -50%)",
         zIndex: 1000,
     }; */
-    
+
     return (
         <div className={styles.settings_main}>
             <div /* style={centerStyle} */>

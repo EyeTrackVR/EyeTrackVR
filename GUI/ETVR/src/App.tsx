@@ -1,16 +1,11 @@
-// import AppRoutes from "./routes/frontend/Routes";
-// import { Outlet } from "react-router-dom";
-import MainWindow from "@pages/ETVRPage01";
-/* import { appWindow } from "@tauri-apps/api/window";
-await appWindow.setDecorations(false); */
+import { Outlet } from "react-router-dom";
+import AppRoutes from "./routes/app/Routes";
 
-function App() {
+export default function App() {
     return (
         <main className="App">
-            <MainWindow />
-            {/* <Outlet /> */}
+            <AppRoutes />
+            <Outlet />
         </main>
     );
 }
-
-export default App;

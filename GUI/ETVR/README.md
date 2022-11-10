@@ -40,3 +40,4 @@ This will create a folder called `target` in the `src-tauri` directory. Inside t
 - [Tauri Docs](https://tauri.app/v1/guides/)
 - [TailWindCSS](https://tailwindcss.com/docs/)
 - [TailWindCSS PreProcessor](https://tailwindcss.com/docs/using-with-preprocessors)
+- [TailWindCSS Forms](https://github.com/tailwindlabs/tailwindcss-forms#readme)

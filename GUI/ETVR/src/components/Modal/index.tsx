@@ -1,73 +1,54 @@
-/* eslint-disable @typescript-eslint/no-non-null-assertion */
-// @src/components/Modal.jsx
+export default function Modal(props) {
+    if (!props.isVisible) return null;
 
-import React from "react";
-import ReactDom from "react-dom";
-import { RiCloseLine } from "react-icons/ri";
-import styles from "./index.module.scss";
+    // create handleClose function
+    const handleClose = (e) => {
+        if (e.target.id === "wrapper") props.onClose();
+    };
 
-const portalDiv = document.getElementById("#portal")!;
-
-export function Modal(props) {
-    if (!props.state) return null;
-    return ReactDom.createPortal(
-        <>
+    return (
+        <div
+            id="wrapper"
+            onClick={handleClose}
+            className="fixed pt-8 mt-7 inset-0 bg-black bg-opacity-25 backdrop-blur-xl flex justify-center items-center content-center self-center"
+        >
+            {/* 
+            
+            top: "50%",
+            left: "50%",
+            transform: "translate(-50%, -50%)",
+            WebkitTransform: "translate(-50%, -50%)",
+            */}
             <div
-                className={styles.dark_bg}
-                onClick={() => props.setIsOpen(false)}
-            />
-            <div className={styles.centered}>
-                <div className={styles.modal}>
-                    <div className={styles.modal_header}>
-                        <h5 className={styles.heading}>{props.heading}</h5>
-                    </div>
+                className={`md:w-[${props.width}px] h-[100%] xl:mt-[65px] lg:mt-[65px] sm:mt-[55px] xs:mt-[55px] md:mt-[45px] 2xl:mt-[95px] flex flex-col pb-32`}
+            >
+                <div className="px-1 flex items-center justify-center w-[99.50%] h-[25px]">
                     <button
-                        className={styles.close_btn}
-                        onClick={() => props.setIsOpen(false)}
+                        type="button"
+                        className="ml-auto place-self-end text-gray-900 rounded-lg focus:ring-2 focus:ring-gray-400 p-1 hover:bg-gray-200 inline-flex h-6 w-6 dark:bg-gray-300 dark:text-gray-600 dark:hover:bg-gray-400"
+                        aria-label="Close"
+                        onClick={() => props.onClose()}
                     >
-                        <RiCloseLine style={{ marginBottom: "-3px" }} />
+                        <span className="sr-only">Close</span>
+                        <svg
+                            aria-hidden="true"
+                            className="w-4 h-4"
+                            fill="currentColor"
+                            viewBox="0 0 20 20"
+                            xmlns="http://www.w3.org/2000/svg"
+                        >
+                            <path
+                                fillRule="evenodd"
+                                d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z"
+                                clipRule="evenodd"
+                            />
+                        </svg>
                     </button>
-                    <div className={styles.modal_content}>{props.content}</div>
-                    <div className={styles.modal_actions}>
-                        <div className={styles.actions_container}>
-                            <button
-                                className={styles.delete_btn}
-                                onClick={() => props.setIsOpen(false)}
-                            >
-                                Delete
-                            </button>
-                            <button
-                                className={styles.cancel_btn}
-                                onClick={() => props.setIsOpen(false)}
-                            >
-                                Close
-                            </button>
-                        </div>
-                    </div>
+                </div>
+                <div className="bg-none p-2 rounded h-[100%] 2xl:h-[100%] md:h-[110%]">
+                    {props.children}
                 </div>
             </div>
-        </>,
-        portalDiv
+        </div>
     );
 }
-
-/** 
- * Example usage:
- * import { Modal } from "@components/Modal";
- * const [isOpen, setIsOpen] = useState(false);
- * <Button
-      text="Open Modal"
-      color="#185adb"
-      onClick={() => setIsOpen(true)}
-      shadow="0 10px 20px -10px rgba(24, 90, 219, 0.6)"
-    />
-    {isOpen && (
-      <Modal
-        heading="Welcome"
-        content="This is a test"
-        setIsOpen={setIsOpen}
-      />
-    )}
- * 
- * 
-*/

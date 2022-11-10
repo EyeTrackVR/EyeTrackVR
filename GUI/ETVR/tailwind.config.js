@@ -10,6 +10,7 @@ const labelsClasses = [
 ];
 
 module.exports = {
+  darkMode: 'class', // add class="dark" to <html> to enable dark mode - https://tailwindcss.com/docs/dark-mode
   purge: {
     content: ["./src/**/*.{js,jsx,ts,tsx}", "./public/index.html"],
     //Because we made a dynamic class with the label we need to add those classes

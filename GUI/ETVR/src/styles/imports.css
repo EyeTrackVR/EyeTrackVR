@@ -1,15 +1,17 @@
-
 /** Import all project related CSS files here */
 /*! Do not put raw CSS code in this file  */
+
+/* TailWindCSS Files */
 @import "tailwindcss/base";
-@import "./index.css";
-
 @import "tailwindcss/components";
-/* @import "./custom-components.css"; */
-
 @import "tailwindcss/utilities";
-/* @import "./custom-utilities.css"; */
 
+/* Fonts */
 @import url("https://fonts.googleapis.com/css2?family=Poppins:wght@200;300;400;500;600;700;800;900&display=swap");
 @import url("https://fonts.googleapis.com/css2?family=Lato:wght@300;400;700;900&display=swap");
 @import url("https://fonts.googleapis.com/css?family=Ubuntu:500");
+
+/* Custom Imports */
+@import "index.css";
+@import "logo.css";
+@import "diode_status.css";

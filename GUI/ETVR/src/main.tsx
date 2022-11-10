@@ -1,21 +1,21 @@
 import { invoke } from "@tauri-apps/api/tauri";
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
-import "../index.scss";
+import "@src/styles/imports.css";
 import reportWebVitals from "../assets/js/reportWebVitals";
-import username from "../src-tauri/config/config.json";
+import config from "../src-tauri/config/config.json";
 import App from "./App";
 
 /**
  * @description This is the entry point of the application.
- * We check the config file, and if it is empty we grab the username from windows.
+ * We check the config file, and if it is empty we grab the config from windows.
  * If it is not empty we continue.
  *
  */
 document.addEventListener("DOMContentLoaded", () => {
-    if (!username.name) {
-        invoke("get_user").then((username) => {
-            console.log(username);
+    if (!config.name) {
+        invoke("get_user").then((config) => {
+            console.log(config);
         });
     }
 
@@ -49,4 +49,4 @@ root.render(
 // If you want to start measuring performance in your app, pass a function
 // to log results (for example: reportWebVitals(console.log))
 // or send to an analytics endpoint. Learn more: https://bit.ly/CRA-vitals
-reportWebVitals(console.log);
+reportWebVitals(console.table);

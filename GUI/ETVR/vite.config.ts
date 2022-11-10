@@ -1,8 +1,7 @@
 import react from '@vitejs/plugin-react'
 import { defineConfig } from 'vite'
-/* import { ViteToml } from 'vite-plugin-toml' */
-
 const path = require('path')
+
 
 export default defineConfig({
   clearScreen: false,
@@ -15,13 +14,13 @@ export default defineConfig({
   resolve: {
     alias: {
       '@src': path.resolve(__dirname, './src'),
-      '@pages': path.resolve(__dirname, 'src/pages'),
+      '@pages': path.resolve(__dirname, './src/pages'),
       '@config': path.resolve(__dirname, './src/config'),
       '@styles': path.resolve(__dirname, './src/styles'),
       '@redux': path.resolve(__dirname, './src/redux'),
       '@interfaces': path.resolve(__dirname, './src/interfaces'),
       '@assets': path.resolve(__dirname, './assets'),
-      '@components': path.resolve(__dirname, 'src/pages/ETVRPage01/components')
+      '@components': path.resolve(__dirname, 'src/components')
     },
   },
   server: {
@@ -38,6 +37,5 @@ export default defineConfig({
   },
   plugins: [
     react(),
-    /* ViteToml(), */
   ]
 })
