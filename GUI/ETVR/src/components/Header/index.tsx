@@ -25,13 +25,19 @@ export default function Header(props) {
                         </button>
                     </div>
                 </div>
-                <h1 className="ml-4 text-xl text-gray-500 fond-bold">
-                    <span className="text-gray-900">Welcome</span> {props.name}
-                </h1>
                 <h2 className="ml-4 text-xl text-gray-500 font-bold">
                     <span className="text-gray-900">ESP32</span> Data Logger
                 </h2>
-                <img src={logo} alt="logo" className="ml-5 mr-0 w-15 h-12" />
+                <div className="flex h-[55%] flex-row basis-[18%] justify-start content-center mt-[5px]">
+                    <select className="rounded h-[100%] bg-[#0e0e0e] text-[#5f5f5f]">
+                        <option className="">
+                            <h1 className="ml-4 text-xl text-gray-500 fond-bold">
+                                <span className="text-gray-900">Welcome</span>{" "}
+                                {props.name}
+                            </h1>
+                        </option>
+                    </select>
+                </div>
             </header>
             <div className="nav-menu z-10">
                 <Modal
