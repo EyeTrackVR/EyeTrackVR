@@ -7,44 +7,12 @@
 use tauri::Manager;
 use tauri::{CustomMenuItem, SystemTray, SystemTrayEvent, SystemTrayMenu, SystemTrayMenuItem};
 
-use sysinfo::{System, SystemExt};
 use whoami::username;
 use window_shadows::set_shadow;
 
 use serde::{Deserialize, Serialize};
-use serde_json::{Number, Value};
+use serde_json;
 use sprintf::sprintf;
-
-/* /* TOML */
-use serde::Serialize; // 1.0.91
-use std::{collections::BTreeMap, fs};
-use toml; // 0.5.1
-
-#[derive(Debug, Default, Serialize)]
-struct Config<'a> {
-    config: BTreeMap<&'a str, User<'a>>,
-}
-
-#[derive(Debug, Serialize)]
-struct User<'a> {
-    #[serde(rename = "username")]
-    user_name: &'a str,
-}
-
-#[tauri::command]
-fn write_to_toml() {
-    let mut file = Config::default();
-    let username = get_user();
-    file.config.insert(
-        "User",
-        User {
-            user_name: &username,
-        },
-    );
-    let toml_string = toml::to_string(&file).expect("Could not encode TOML value");
-    eprintln!("{}", toml_string);
-    fs::write("config.toml", toml_string).expect("Could not write to file!");
-} */
 
 #[derive(Debug, Deserialize, Serialize)]
 struct User {
