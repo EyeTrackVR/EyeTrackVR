@@ -12,7 +12,7 @@ parent: Software Guide
 
 ## Requirements:
 
-- [x] [Python 3.6.8](https://www.python.org/downloads/release/python-368/)
+- [x] [Python 3.11.0](https://www.python.org/downloads/release/python-3110/)
 - [x] [Pyinstaller](https://pyinstaller.org/en/stable/installation.html)
 - [x] Windows PC
 
@@ -20,7 +20,7 @@ parent: Software Guide
 
 After cloning the project open a command prompt in the eyetrack app folder and run the command: `pip install -r requirements.txt`
 
-If you have multiple python versions installed on your machine, run the command: `py -3.6 -m pip install -r requirements.txt`
+If you have multiple python versions installed on your machine, run the command: `py -3.11 -m pip install -r requirements.txt`
  
 This should install all of the required modules.
 
@@ -31,12 +31,7 @@ With a command promt open in the EyeTrackApp folder, run the command `pyinstalle
 
 Give it time to build the app. Once done the app should be under `dist/eyetrackapp`
 
-## Additional Steps:
-
-1. Move the `Images` and `Audio` folders from the source folder into the folder with the built .exe in it
-- this will let it have an icon in the app and taskbar and allow sounds to play.
-
-## Optional steps:
+## Optional step:
 
 1. Use a program like [Resource Hacker](http://www.angusj.com/resourcehacker/) to replace the .exe icon with the correct logo.
 - [Here is a tutorial](https://www.howtogeek.com/75983/stupid-geek-tricks-how-to-modify-the-icon-of-an-.exe-file/)
