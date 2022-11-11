@@ -1,3 +1,3 @@
-export function Main(props) {
+export function Main() {
     return <></>;
 }
