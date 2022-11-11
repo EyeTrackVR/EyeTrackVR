@@ -25,14 +25,14 @@ export default function Header(props) {
                             src={etvrLogo}
                             alt="eytrackvrlogo"
                             className="bg-gray-800
-                                            hover:bg-gray-900 
-                                            rounded-full
-                                          focus:bg-gray-900 
-                                            transition 
-                                            duration-200 
-                                            ease-in
-                                            focus:shadow-inner 
-                                            w-[90px] shadow-lg"
+                                        hover:bg-gray-900 
+                                        rounded-full
+                                      focus:bg-gray-900 
+                                        transition 
+                                        duration-200 
+                                        ease-in
+                                        focus:shadow-inner 
+                                        w-[90px] shadow-lg"
                         />
                     </div>
                     <div
@@ -72,13 +72,29 @@ export default function Header(props) {
                                            p-[5px]
                                            bg-[#0e0e0e]"
                             >
-                                <div className="ml-[1.25rem] rounded-[8px] pt-[.2rem] pb-[.2rem] pl-[1.25rem] pr-[1.25rem] hover:bg-[#252536]">
+                                <div
+                                    className="ml-[1.25rem] 
+                                                rounded-[8px] 
+                                                pt-[.2rem] 
+                                                pb-[.2rem] 
+                                                pl-[1.25rem] pr-[1.25rem] 
+                                                hover:bg-[#252536]"
+                                >
                                     <FontAwesomeIcon
                                         size="xl"
                                         icon={faCamera}
                                     />
                                 </div>
-                                <div className="ml-[1.25rem] mr-[1.25rem] rounded-[8px] pt-[.2rem] pb-[.2rem] pl-[1.25rem] pr-[1.25rem] hover:bg-[#252536]">
+                                <div
+                                    className="ml-[1.25rem] 
+                                               mr-[1.25rem] 
+                                               rounded-[8px] 
+                                               pt-[.2rem] 
+                                               pb-[.2rem] 
+                                               pl-[1.25rem] 
+                                               pr-[1.25rem] 
+                                               hover:bg-[#252536]"
+                                >
                                     <FontAwesomeIcon size="xl" icon={faGear} />
                                 </div>
                             </div>
