@@ -24,6 +24,8 @@ module.exports = {
   theme: {
     screens: {
       // Phones
+      'xxs': { 'max': '554px' },
+      // => @media (max-width: 640px) { ... }
       'xs': '480px',
       // => @media (min-width: 640px) { ... }
       'sm': '640px',
