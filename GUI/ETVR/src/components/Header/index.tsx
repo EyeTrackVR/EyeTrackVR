@@ -1,17 +1,13 @@
 import etvrLogo from "/images/logo.png";
-import {
-    faCamera,
-    faChevronDown,
-    faGear,
-} from "@fortawesome/free-solid-svg-icons";
+import { faCamera, faGear } from "@fortawesome/free-solid-svg-icons";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
-import Settings from "@pages/Settings";
 import { useState } from "react";
-import Modal from "@components/Modal";
 import { Link } from "react-router-dom";
+import DropDown from "./DropDown";
 
 export default function Header(props) {
     const [showSettings, setShowSettings] = useState(false);
+
     return (
         <>
             <header
@@ -20,9 +16,8 @@ export default function Header(props) {
                 }}
             >
                 <div className="flex justify-around items-center">
-                    <div className="flex-none">
+                    <Link to={"/"} className="flex-none">
                         <img
-                            onClick={() => setShowSettings(!showSettings)}
                             src={etvrLogo}
                             alt="eytrackvrlogo"
                             className="bg-gray-800
@@ -35,7 +30,7 @@ export default function Header(props) {
                                         focus:shadow-inner 
                                         w-[90px] shadow-lg"
                         />
-                    </div>
+                    </Link>
                     <div
                         className="flex
                                    h-[55%]
@@ -103,61 +98,14 @@ export default function Header(props) {
                             </div>
                         </div>
                     </div>
-                    <div
-                        className="flex 
-                                   h-[55%] 
-                                   content-center 
-                                   mt-[5px]"
-                    >
-                        <div
-                            className="flex 
-                                       flex-row 
-                                       justify-start 
-                                       border-none 
-                                       inset 
-                                       shadow-lg 
-                                       content-center 
-                                       leading-5
-                                       pl-[1rem] 
-                                       font-sans 
-                                       font-medium 
-                                       text-[.75rem]
-                                       rounded-[15px] 
-                                       h-[100%] 
-                                       bg-[#0e0e0e] 
-                                       text-[#5f5f5f]"
-                        >
-                            <div
-                                className="flex 
-                                           rounded-[14px] 
-                                           h-[100%] 
-                                           bg-[#0e0e0e] 
-                                           flex-row 
-                                           basis-[100%] 
-                                           justify-center 
-                                           content-stretch 
-                                           pt-[8px] 
-                                           pb-[8px] 
-                                           pr-[8px]"
-                            >
-                                <span className="text-[#5f5f5f]">
-                                    {props.name}
-                                </span>
-                            </div>
-                            <FontAwesomeIcon
-                                className="object-cover 
-                                           mt-[3px] 
-                                           pt-[8px] 
-                                           pl-[2rem] 
-                                           pr-[1rem] 
-                                           text-[#f5f5f5]"
-                                icon={faChevronDown}
-                            />
-                        </div>
-                    </div>
+                    <DropDown
+                        name={props.name}
+                        setShowSettings={() => setShowSettings(!showSettings)}
+                        showSettings={showSettings}
+                    />
                 </div>
             </header>
-            <div className="nav-menu z-10">
+            {/* <div className="nav-menu z-10">
                 <Modal
                     isVisible={showSettings}
                     onClose={() => setShowSettings(false)}
@@ -165,7 +113,7 @@ export default function Header(props) {
                 >
                     <Settings />
                 </Modal>
-            </div>
+            </div> */}
         </>
     );
 }
