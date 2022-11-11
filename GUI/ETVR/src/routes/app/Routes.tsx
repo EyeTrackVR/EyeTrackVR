@@ -13,7 +13,7 @@ export default function AppRoutes() {
     }, []);
     return (
         <BrowserRouter>
-            <Header name={name ? name : "!"} />
+            <Header name={name ? "Welcome " + name : "!"} />
             <Routes>
                 <Route path="/" element={<Main />} />
                 <Route path="/settings" element={<Settings />} />

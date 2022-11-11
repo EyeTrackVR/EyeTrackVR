@@ -1,5 +1,9 @@
-import logo from "/images/logo.png";
-import { faGear } from "@fortawesome/free-solid-svg-icons";
+import etvrLogo from "/images/logo.png";
+import {
+    faCamera,
+    faChevronDown,
+    faGear,
+} from "@fortawesome/free-solid-svg-icons";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import Settings from "@pages/Settings";
 import { useState } from "react";
@@ -10,33 +14,54 @@ export default function Header(props) {
     return (
         <>
             <header
-                className="container px-4 py-2 flex items-center justify-between mx-auto"
                 style={{
                     paddingTop: "20px",
                 }}
             >
-                <div className="navbar">
-                    <div className="menu-bars">
-                        <button
-                            onClick={() => setShowSettings(!showSettings)}
-                            className="settings-button ml-4 p-1 hover:bg-gray-200 border rounded-full py-3 px-4 mr-5 focus:bg-gray-100 transition duration-200 ease-in focus:shadow-inner"
-                        >
-                            <FontAwesomeIcon icon={faGear} />
-                        </button>
+                <div className="flex justify-around items-center">
+                    <div className="flex">
+                        <div className="">
+                            <img
+                                onClick={() => setShowSettings(!showSettings)}
+                                src={etvrLogo}
+                                alt="eytrackvrlogo"
+                                className="bg-gray-800 hover:bg-gray-900 rounded-full focus:bg-gray-900 transition duration-200 ease-in focus:shadow-inner w-[90px] shadow-lg"
+                            />
+                        </div>
                     </div>
-                </div>
-                <h2 className="ml-4 text-xl text-gray-500 font-bold">
-                    <span className="text-gray-900">ESP32</span> Data Logger
-                </h2>
-                <div className="flex h-[55%] flex-row basis-[18%] justify-start content-center mt-[5px]">
-                    <select className="rounded h-[100%] bg-[#0e0e0e] text-[#5f5f5f]">
-                        <option className="">
-                            <h1 className="ml-4 text-xl text-gray-500 fond-bold">
-                                <span className="text-gray-900">Welcome</span>{" "}
-                                {props.name}
-                            </h1>
-                        </option>
-                    </select>
+                    <div className="flex h-[55%] basis-[18%] justify-center content-center items-center mt-[5px]">
+                        <div className="flex flex-row justify-start border-none inset shadow-lg content-center leading-5 font-sans font-medium text-[.75rem] pl-[14px] mr-[-182px] rounded-[15px] h-[100%] bg-[#0e0e0e] text-[#5f5f5f]">
+                            <div className="flex rounded-[14px] h-[100%] bg-[#0e0e0e] flex-row basis-[100%] justify-around content-stretch pt-[8px] pb-[8px] pr-[8px]">
+                                <div className="flex flex-row xl:space-x-24 h-[100%] leading-5 font-sans font-medium text-[.75rem] content-center justify-around basis-[100%]">
+                                    <div className="pr-[6px]">
+                                        <FontAwesomeIcon
+                                            className="ml-8"
+                                            icon={faCamera}
+                                        />
+                                    </div>
+                                    <div className="pl-[6px]">
+                                        <FontAwesomeIcon
+                                            className="mr-8"
+                                            icon={faGear}
+                                        />
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div className="flex h-[55%] basis-[18%] justify-around content-center mt-[5px]">
+                        <div className="flex flex-row justify-start border-none inset shadow-lg content-center leading-5 font-sans font-medium text-[.75rem] pl-[14px] mr-[-182px] rounded-[15px] h-[100%] bg-[#0e0e0e] text-[#5f5f5f]">
+                            <div className="flex rounded-[14px] h-[100%] bg-[#0e0e0e] flex-row basis-[100%] justify-around content-stretch pt-[8px] pb-[8px] pr-[8px]">
+                                <span className="text-[#5f5f5f]">
+                                    {props.name}
+                                </span>
+                            </div>
+                            <FontAwesomeIcon
+                                className="object-cover mt-[3px] pt-[8px] pl-[2rem] pr-[1rem] text-[#f5f5f5]"
+                                icon={faChevronDown}
+                            />
+                        </div>
+                    </div>
                 </div>
             </header>
             <div className="nav-menu z-10">
