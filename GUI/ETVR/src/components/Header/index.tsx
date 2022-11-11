@@ -8,6 +8,7 @@ import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import Settings from "@pages/Settings";
 import { useState } from "react";
 import Modal from "@components/Modal";
+import { Link } from "react-router-dom";
 
 export default function Header(props) {
     const [showSettings, setShowSettings] = useState(false);
@@ -72,7 +73,8 @@ export default function Header(props) {
                                            p-[5px]
                                            bg-[#0e0e0e]"
                             >
-                                <div
+                                <Link
+                                    to={"/cameras"}
                                     className="ml-[1.25rem] 
                                                 rounded-[8px] 
                                                 pt-[.2rem] 
@@ -84,19 +86,20 @@ export default function Header(props) {
                                         size="xl"
                                         icon={faCamera}
                                     />
-                                </div>
-                                <div
+                                </Link>
+                                <Link
+                                    to={"/settings"}
                                     className="ml-[1.25rem] 
                                                mr-[1.25rem] 
                                                rounded-[8px] 
-                                               pt-[.2rem] 
-                                               pb-[.2rem] 
+                                               pt-[.2rem]
+                                               pb-[.2rem]
                                                pl-[1.25rem] 
                                                pr-[1.25rem] 
                                                hover:bg-[#252536]"
                                 >
                                     <FontAwesomeIcon size="xl" icon={faGear} />
-                                </div>
+                                </Link>
                             </div>
                         </div>
                     </div>
