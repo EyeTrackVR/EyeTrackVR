@@ -102,6 +102,9 @@ export default function Header(props) {
                         name={props.name}
                         setShowSettings={() => setShowSettings(!showSettings)}
                         showSettings={showSettings}
+                        onClickOutside={() => {
+                            setShowSettings(false);
+                        }}
                     />
                 </div>
             </header>
