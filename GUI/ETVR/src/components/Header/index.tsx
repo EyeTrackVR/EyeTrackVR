@@ -49,8 +49,8 @@ export default function Header(props) {
                     </div>
                     <DropDown
                         name={props.name}
-                        onClose={() => setShowSettings(!showSettings)}
                         showSettings={showSettings}
+                        onClose={() => setShowSettings(!showSettings)}
                         onClickOutside={() => {
                             setShowSettings(false);
                         }}

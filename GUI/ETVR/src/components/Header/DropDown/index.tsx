@@ -1,4 +1,4 @@
-import Input from "@components/Settings/Inputs";
+/* import Input from "@components/Settings/Inputs"; */
 import Tooltip from "@components/Tooltip";
 import { faChevronDown } from "@fortawesome/free-solid-svg-icons";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
@@ -85,7 +85,3 @@ export default function DropDown(props) {
         </div>
     );
 }
-
-/* 
-
-*/
