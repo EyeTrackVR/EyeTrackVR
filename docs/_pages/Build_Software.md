@@ -13,21 +13,31 @@ parent: Software Guide
 ## Requirements:
 
 - [x] [Python 3.11.0](https://www.python.org/downloads/release/python-3110/)
-- [x] [Pyinstaller](https://pyinstaller.org/en/stable/installation.html)
+- [x] [Poetry](https://python-poetry.org/)
 - [x] Windows PC
+
+## Install Python
+EyetrackVR is currently using python version 3.11.0 before attempting to continue please install it. [Python 3.11.0](https://www.python.org/downloads/release/python-3110/)
+
+## Installing Poetry
+
+Since version 0.1.7 of EyeTrackVR we have been using Poetry to manage app dependencies, to build the app you must first install Poetry so you are able to fetch the required dependecies.
+
+To install Poetry open windows powershell and run the following command `(Invoke-WebRequest -Uri https://install.python-poetry.org -UseBasicParsing).Content | py -`
+
+[Poetry Documentation](https://python-poetry.org/docs/)
+
 
 ## Install the required Python modules.
 
-After cloning the project open a command prompt in the eyetrack app folder and run the command: `pip install -r requirements.txt`
+After cloning the project and installing poetry open a command prompt in the eyetrack app folder and run the command: `poetry install`
 
-If you have multiple python versions installed on your machine, run the command: `py -3.11 -m pip install -r requirements.txt`
- 
 This should install all of the required modules.
 
 ## Build the app.
 
 Now, you should be ready to build the app.
-With a command promt open in the EyeTrackApp folder, run the command `pyinstaller eyetrackapp.spec`
+With a command promt open in the EyeTrackApp folder, run the command `poetry run pyinstaller eyetrackapp.spec`
 
 Give it time to build the app. Once done the app should be under `dist/eyetrackapp`
 
