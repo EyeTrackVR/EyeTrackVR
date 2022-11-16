@@ -16,7 +16,7 @@ export default function Header(props) {
                         <img
                             src={etvrLogo}
                             alt="eytrackvrlogo"
-                            className="bg-gray-800 hover:bg-gray-900 rounded-full focus:bg-gray-900 transition duration-200 ease-in focus:shadow-inner w-[90px] shadow-lg"
+                            className="bg-gray-800 hover:bg-gray-900 rounded-full focus:bg-gray-900 transition duration-200 ease-in focus:shadow-inner w-[90px] mr-[42.13px] shadow-lg"
                         />
                     </Link>
                     <div className="flex h-[55%] content-center items-center mt-[5px]">

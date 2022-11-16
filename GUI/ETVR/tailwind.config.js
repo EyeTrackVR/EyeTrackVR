@@ -54,7 +54,7 @@ module.exports = {
   },
   plugins: [require("@tailwindcss/forms"),
   // eslint-disable-next-line @typescript-eslint/no-var-requires
-  require('@headlessui/tailwindcss')({ prefix: 'ui' }),
+  require('@headlessui/tailwindcss'),
   require('@tailwindcss/typography')],
 }
 

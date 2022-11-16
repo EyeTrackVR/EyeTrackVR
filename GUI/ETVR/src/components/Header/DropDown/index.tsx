@@ -60,9 +60,9 @@ export default function DropDown(props) {
                                     <ul>
                                         {DropDataData.map((item, index) => (
                                             <li key={index}>
-                                                <div className="flex flex-row flex-grow items-center content-center justify-between rounded-[8px] pt-[.2rem] pb-[.2rem] pl-[1rem] pr-[1rem] ml-[4px] hover:bg-[#252536]">
+                                                <div className="flex flex-row flex-grow items-center content-center justify-between rounded-[8px] pt-[.2rem] pb-[.2rem] pl-[1rem] pr-[1rem] ml-[4px] hover:bg-[#2525369d]">
                                                     <Menu.Item>
-                                                        {({ active }) => (
+                                                        {() => (
                                                             <>
                                                                 <Tooltip
                                                                     tooltip={
@@ -86,12 +86,7 @@ export default function DropDown(props) {
                                                                         onChange={
                                                                             setEnabled
                                                                         }
-                                                                        className={`relative inline-flex h-4 w-8 items-center rounded-full
-                                                                        ${
-                                                                            enabled
-                                                                                ? "bg-violet-800 text-white"
-                                                                                : "bg-[#0e0e0e] text-[#5f5f5f]"
-                                                                        }}`}
+                                                                        className="relative inline-flex h-4 w-8 items-center rounded-full ui-checked:bg-violet-800 ui-checked:text-white ui-not-checked:bg-[#2a2929] ui-not-checked:text-[#5f5f5f]"
                                                                     >
                                                                         <span
                                                                             className={`${
@@ -118,48 +113,3 @@ export default function DropDown(props) {
         </div>
     );
 }
-
-/* 
-<div
-    ref={ref}
-    className={
-        props.showSettings
-            ? `flex flex-col flex-grow h-[55%] content-center mt-[5px] z-10 bg-gray-800 rounded-lg shadow-lg`
-            : `hidden`
-    }
->
-    <div className="flex flex-grow content-start rounded-[14px] border-none shadow-lg leading-5 font-sans font-medium text-[.75rem] h-[100%] bg-[#0e0e0e] text-[#5f5f5f]">
-        <div className="rounded-[14px] h-[100%] bg-[#0e0e0e] pt-[.5rem] pb-[.5rem] text-[#5f5f5f]">
-            <ul>
-                {DropDataData.map((item, index) => (
-                    <li
-                        key={index}
-                        className="flex items-center justify-center content-center"
-                    >
-                        <div className="flex flex-grow items-center justify-center content-center rounded-[8px] pt-[.2rem] pb-[.2rem] pl-[1rem] pr-[1rem] ml-[4px] hover:bg-[#252536]">
-                            <span className="">
-                                <label
-                                    htmlFor=""
-                                    className="flex content-center items-center"
-                                >
-                                    <Tooltip tooltip={item.name}>
-                                        <span className="">
-                                            {item.icon}
-                                        </span>
-                                    </Tooltip>
-                                    <input
-                                        className="ml-[100px] align-middle rounded bg-[#0e0e0e] text-[#5f5f5f] text-sm font-sans font-medium text-[.75rem] focus:outline-none focus:ring-0 focus:border-0"
-                                        type="checkbox"
-                                        id={item.id}
-                                    />
-                                </label>
-                            </span>
-                        </div>
-                    </li>
-                ))}
-            </ul>
-        </div>
-    </div>
-</div>
-
-*/
