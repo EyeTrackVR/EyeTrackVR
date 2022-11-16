@@ -1,3 +1,4 @@
+import { Settings } from "@components/Settings/States";
 import Tooltip from "@components/Tooltip";
 import { faChevronDown } from "@fortawesome/free-solid-svg-icons";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
@@ -6,8 +7,6 @@ import { useEffect, useRef, useState, Fragment } from "react";
 import { DropDataData } from "../DropDownData";
 
 export default function DropDown(props) {
-    const [enabled, setEnabled] = useState(false);
-
     const ref = useRef<HTMLDivElement>(null);
     const { onClickOutside } = props;
     useEffect(() => {
@@ -21,6 +20,20 @@ export default function DropDown(props) {
             document.removeEventListener("click", handleClickOutside, true);
         };
     }, [onClickOutside]);
+
+    const settingsData = {
+        blob: false,
+        oneEye: false,
+        dualEye: true,
+    };
+
+    const [enabled, setEnabled] = useState(settingsData);
+
+    const handleChange = (e, id) => {
+        setEnabled({ ...enabled, [id]: e });
+        Settings[0][id] = e;
+    };
+
     return (
         <div
             className={
@@ -29,7 +42,7 @@ export default function DropDown(props) {
                     : `flex-col xxs:invisible xxs:hidden`
             }
         >
-            <Menu as="div" className="h-[55%] content-center">
+            <Menu ref={ref} as="div" className="h-[55%] content-center">
                 <div className="flex flex-row rounded-[14px] justify-start border-none inset shadow-lg content-center leading-5pl-[1rem] font-sans font-medium text-[.75rem]rounded-[15px] h-[100%] bg-[#0e0e0e] text-[#5f5f5f]">
                     <Menu.Button className="inline-flex w-full justify-center rounded-[14px] bg-[#0e0e0e] bg-opacity-20 text-sm font-medium hover:bg-opacity-30 focus:outline-none focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-opacity-75">
                         <div className="flex rounded-[14px] h-[100%] bg-[#0e0e0e] flex-row basis-[100%] justify-center content-stretch pt-[8px] pb-[8px] pr-[8px]">
@@ -59,48 +72,69 @@ export default function DropDown(props) {
                                 <div className="flex-grow rounded-[14px] h-[100%] pr-1 bg-[#0e0e0e] pt-[.5rem] pb-[.5rem] text-[#5f5f5f]">
                                     <ul>
                                         {DropDataData.map((item, index) => (
-                                            <li key={index}>
-                                                <div className="flex flex-row flex-grow items-center content-center justify-between rounded-[8px] pt-[.2rem] pb-[.2rem] pl-[1rem] pr-[1rem] ml-[4px] hover:bg-[#2525369d]">
-                                                    <Menu.Item>
-                                                        {() => (
-                                                            <>
-                                                                <Tooltip
-                                                                    tooltip={
-                                                                        item.name
-                                                                    }
-                                                                >
-                                                                    <span>
-                                                                        {
-                                                                            item.icon
-                                                                        }
-                                                                    </span>
-                                                                </Tooltip>
-                                                                <div className="pl-4 pt-[.2rem]">
-                                                                    <Switch
-                                                                        id={
-                                                                            item.id
-                                                                        }
-                                                                        checked={
-                                                                            enabled
-                                                                        }
-                                                                        onChange={
-                                                                            setEnabled
-                                                                        }
-                                                                        className="relative inline-flex h-4 w-8 items-center rounded-full ui-checked:bg-violet-800 ui-checked:text-white ui-not-checked:bg-[#2a2929] ui-not-checked:text-[#5f5f5f]"
-                                                                    >
-                                                                        <span
-                                                                            className={`${
-                                                                                enabled
-                                                                                    ? "translate-x-5"
-                                                                                    : "translate-x-0"
-                                                                            } inline-block h-4 w-4 transform rounded-full bg-white transition`}
-                                                                        />
-                                                                    </Switch>
-                                                                </div>
-                                                            </>
-                                                        )}
-                                                    </Menu.Item>
-                                                </div>
+                                            <li
+                                                key={index}
+                                                className="flex-grow justify-between items-center content-center"
+                                            >
+                                                <Menu.Item>
+                                                    {() => (
+                                                        <>
+                                                            <Switch.Group>
+                                                                <Switch.Label>
+                                                                    <div className="flex flex-row flex-grow items-center content-center justify-between rounded-[8px] pt-[.2rem] pb-[.2rem] pl-[1rem] pr-[1rem] ml-[4px] hover:bg-[#2525369d]">
+                                                                        <Tooltip
+                                                                            tooltip={
+                                                                                item.name
+                                                                            }
+                                                                        >
+                                                                            <span>
+                                                                                {
+                                                                                    item.icon
+                                                                                }
+                                                                            </span>
+                                                                        </Tooltip>
+                                                                        <div className="pl-4 pt-[.2rem]">
+                                                                            <Switch
+                                                                                key={
+                                                                                    item.id
+                                                                                }
+                                                                                name={
+                                                                                    item.id
+                                                                                }
+                                                                                checked={
+                                                                                    enabled[
+                                                                                        item
+                                                                                            .id
+                                                                                    ]
+                                                                                }
+                                                                                onChange={(
+                                                                                    e
+                                                                                ) =>
+                                                                                    handleChange(
+                                                                                        e,
+                                                                                        item.id
+                                                                                    )
+                                                                                }
+                                                                                className="relative inline-flex h-4 w-8 items-center rounded-full ui-checked:bg-violet-800 ui-checked:text-white ui-not-checked:bg-[#2a2929] ui-not-checked:text-[#5f5f5f]"
+                                                                            >
+                                                                                <span
+                                                                                    className={`${
+                                                                                        enabled[
+                                                                                            item
+                                                                                                .id
+                                                                                        ]
+                                                                                            ? "translate-x-5"
+                                                                                            : "translate-x-0"
+                                                                                    } inline-block h-4 w-4 rounded-full bg-white transform transition ease-in-out duration-200`}
+                                                                                />
+                                                                            </Switch>
+                                                                        </div>
+                                                                    </div>
+                                                                </Switch.Label>
+                                                            </Switch.Group>
+                                                        </>
+                                                    )}
+                                                </Menu.Item>
                                             </li>
                                         ))}
                                     </ul>

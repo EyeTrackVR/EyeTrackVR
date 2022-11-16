@@ -1,11 +1,3 @@
-const DropDownData = [
-    {
-        blob: false,
-        oneEye: false,
-        dualEye: true,
-    },
-];
+const Settings = [{}];
 
-const SettingsData = [{}];
-
-export { SettingsData, DropDownData };
+export { Settings };
