@@ -1,4 +1,4 @@
-function LocalStorageHandler(key: string, value: boolean) {
+function LocalStorageHandler(key: string, value: unknown) {
     // check if local storage is available
     const temp = {
         [key]: value,
@@ -21,8 +21,6 @@ function LocalStorageHandler(key: string, value: boolean) {
                     "settings",
                     JSON.stringify(localSettingsParsed)
                 );
-            } else {
-                return;
             }
         }
     }
