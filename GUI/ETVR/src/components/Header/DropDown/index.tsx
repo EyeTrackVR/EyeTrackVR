@@ -1,3 +1,4 @@
+import LocalStorageHandler from "@components/Helpers/localStorageHandler";
 import { Settings } from "@components/Settings/States";
 import Tooltip from "@components/Tooltip";
 import { faChevronDown } from "@fortawesome/free-solid-svg-icons";
@@ -32,6 +33,7 @@ export default function DropDown(props) {
     const handleChange = (e, id) => {
         setEnabled({ ...enabled, [id]: e });
         Settings[0][id] = e;
+        LocalStorageHandler(id, e);
     };
 
     return (
