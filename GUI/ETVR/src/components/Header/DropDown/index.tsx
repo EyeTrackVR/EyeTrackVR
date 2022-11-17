@@ -3,10 +3,9 @@ import Tooltip from '@components/Tooltip'
 import { faChevronDown } from '@fortawesome/free-solid-svg-icons'
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
 import { Menu, Transition, Switch } from '@headlessui/react'
-import { DropDataData } from '@static/defaultData/index'
-import LocalStorageHandler from '@utils/Helpers/localStorageHandler'
+import { DropDataData } from '@src/static/defaultData'
+import LocalStorageHandler from '@src/utils/Helpers/localStorageHandler'
 import { useEffect, useRef, useState, Fragment } from 'react'
-
 export interface Iprops {
   name: string
   showSettings: boolean
@@ -14,12 +13,9 @@ export interface Iprops {
   onClickOutside: () => void
 }
 
-export default function DropDown({ name, showSettings, onClose, onClickOutside }: Iprops) {
-  const [enabled, setEnabled] = useState({
-    blob: false,
-  })
+export default function DropDown(props: Iprops) {
   const ref = useRef<HTMLDivElement>(null)
-
+  const { onClickOutside } = props
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent): void => {
       if (event.target instanceof HTMLElement && !ref.current?.contains(event.target)) {
@@ -32,6 +28,12 @@ export default function DropDown({ name, showSettings, onClose, onClickOutside }
     }
   }, [onClickOutside])
 
+  const settingsData = {
+    blob: false,
+  }
+
+  const [enabled, setEnabled] = useState(settingsData)
+
   const handleChange = (e: boolean, id: string) => {
     setEnabled({ ...enabled, [id]: e })
     Settings[0][id] = e
@@ -41,16 +43,18 @@ export default function DropDown({ name, showSettings, onClose, onClickOutside }
   return (
     <div
       className={
-        showSettings ? `flex-col xxs:invisible xxs:hidden` : `flex-col xxs:invisible xxs:hidden`
+        props.showSettings
+          ? `flex-col xxs:invisible xxs:hidden`
+          : `flex-col xxs:invisible xxs:hidden`
       }>
       <Menu ref={ref} as="div" className="h-[55%] content-center">
-        <div className="flex flex-row rounded-[14px] justify-start border-none inset shadow-lg content-center leading-5pl-[1rem] font-sans font-medium text-[.75rem]rounded-[15px] h-[100%] bg-[#0e0e0e] text-[#5f5f5f]">
+        <div className="flex flex-row rounded-[14px] justify-start border-none inset shadow-lg content-center leading-5pl-[1rem] font-sans font-medium text-[.75rem]rounded-[15px] h-[100%] bg-[#0e0e0e]">
           <Menu.Button className="inline-flex w-full justify-center rounded-[14px] bg-[#0e0e0e] bg-opacity-20 text-sm font-medium hover:bg-opacity-30 focus:outline-none focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-opacity-75">
             <div className="flex rounded-[14px] h-[100%] bg-[#0e0e0e] flex-row basis-[100%] justify-center content-stretch pt-[8px] pb-[8px] pr-[8px]">
-              <span className="text-[#5f5f5f] pl-[1rem]">{name}</span>
+              <span className="quick-menu-text-gradient pl-[1rem]">{props.name}</span>
             </div>
             <FontAwesomeIcon
-              onClick={onClose}
+              onClick={() => props.onClose()}
               className="text-violet-200 hover:text-violet-400 object-cover mt-[3px] pt-[8px] pl-[2rem] pr-[1rem]"
               icon={faChevronDown}
             />
