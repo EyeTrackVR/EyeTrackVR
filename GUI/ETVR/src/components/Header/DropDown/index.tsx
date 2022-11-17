@@ -24,8 +24,6 @@ export default function DropDown(props) {
 
     const settingsData = {
         blob: false,
-        oneEye: false,
-        dualEye: true,
     };
 
     const [enabled, setEnabled] = useState(settingsData);

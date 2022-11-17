@@ -3,6 +3,8 @@
     windows_subsystem = "windows"
 )]
 
+// TODO: Implement mDNS discovery for the cameras in the Rust backend
+
 //use tauri::*;
 use tauri::Manager;
 use tauri::{CustomMenuItem, SystemTray, SystemTrayEvent, SystemTrayMenu, SystemTrayMenuItem};

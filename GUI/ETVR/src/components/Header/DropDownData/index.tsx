@@ -10,14 +10,4 @@ export const DropDataData = [
         icon: <FontAwesomeIcon icon={faDroplet} />,
         id: "blob",
     },
-    {
-        name: "One Eye",
-        icon: <FontAwesomeIcon icon={faEyeLowVision} />,
-        id: "oneEye",
-    },
-    {
-        name: "Dual Eye",
-        icon: <FontAwesomeIcon icon={faEye} />,
-        id: "dualEye",
-    },
 ];
