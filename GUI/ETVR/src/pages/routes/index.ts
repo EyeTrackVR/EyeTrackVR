@@ -1,4 +1,4 @@
-import { Settings } from '@components/Settings'
+import { SettingsPage } from '@components/Settings'
 import Main from '@pages/Home'
 export interface IRoutes {
   path: string
@@ -7,5 +7,5 @@ export interface IRoutes {
 
 export const routes: IRoutes[] = [
   { path: '/', element: Main },
-  { path: '/settings', element: Settings },
+  { path: '/settings', element: SettingsPage },
 ]
