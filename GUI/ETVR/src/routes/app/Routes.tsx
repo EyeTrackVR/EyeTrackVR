@@ -1,5 +1,5 @@
 import Header from "@components/Header";
-import { Settings } from "@components/Settings";
+import { SettingsPage } from "@components/Settings";
 import { Main } from "@pages/Home";
 import { useEffect, useState } from "react";
 import { BrowserRouter, Route, Routes } from "react-router-dom";
@@ -19,7 +19,7 @@ export default function AppRoutes() {
             <Header name={name ? "Welcome " + name : "!"} />
             <Routes>
                 <Route path="/" element={<Main />} />
-                <Route path="/settings" element={<Settings />} />
+                <Route path="/settings" element={<SettingsPage />} />
             </Routes>
         </BrowserRouter>
     );
