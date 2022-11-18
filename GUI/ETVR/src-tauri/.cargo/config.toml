@@ -1,0 +1,2 @@
+[env]
+RUST_LOG = "info" # Set to "debug" for more verbose output, debug, info, warn, error

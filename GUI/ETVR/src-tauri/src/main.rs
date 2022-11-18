@@ -16,6 +16,10 @@ use serde::{Deserialize, Serialize};
 use serde_json;
 use sprintf::sprintf;
 
+// import rest_client
+mod rest_client;
+
+
 #[derive(Debug, Deserialize, Serialize)]
 struct User {
     name: String,
@@ -64,6 +68,8 @@ fn main() {
         .setup(|app| {
             let window = app.get_window("main").unwrap();
             set_shadow(&window, true).expect("Unsupported platform!");
+            let result = rest_client::main();
+            result.unwrap();
             Ok(window.hide().unwrap())
         })
         .system_tray(tray)
