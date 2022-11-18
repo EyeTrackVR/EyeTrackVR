@@ -87,6 +87,7 @@ body {
 
 .main-div {
     height: 100vh;
+    overflow: auto;
 }
 
 .plus-color {

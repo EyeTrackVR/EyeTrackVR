@@ -33,12 +33,34 @@ const GeneralSettings = [
     },
 ];
 const AlgoSettings = [
-    {
-        name: "",
-        label: "",
-        tooltip: "",
-        type: "",
-    },
+    [
+        {
+            name: "Min Blob Size",
+            id: "min_blob_size",
+            min: 0,
+            max: 100,
+            value: 10,
+            step: 1,
+            tooltip: "sets the minimum size of the blob",
+        },
+        {
+            name: "Max Blob Size",
+            id: "max_blob_size",
+            min: 0,
+            max: 100,
+            value: 10,
+            step: 1,
+            tooltip: "sets the maximum size of the blob",
+        },
+    ],
+    [
+        {
+            name: "",
+            label: "",
+            tooltip: "",
+            type: "",
+        },
+    ],
 ];
 const FilterParams = [
     {
