@@ -28,6 +28,24 @@
         -moz-text-fill-color: transparent;
     }
 
+    .settings_main {
+        display: flex;
+        flex-direction: column;
+        align-items: flex-start;
+        justify-content: center;
+        margin-left: 6rem;
+        margin-top: 2rem;
+        margin-right: 2rem;
+        background-color: #252536ba;
+        border-color: #9a6998;
+        border-style: inset;
+        border-width: 0.1rem;
+        border-radius: 30px;
+        padding: 1rem;
+        box-shadow: rgba(50, 50, 93, 0.25) 0px 30px 60px -12px inset,
+            rgba(0, 0, 0, 0.3) 0px 18px 36px -18px inset;
+    }
+
     @media screen and (min-width: 768px) {
         .nav-text:hover {
             background-color: theme("colors.blue.300");

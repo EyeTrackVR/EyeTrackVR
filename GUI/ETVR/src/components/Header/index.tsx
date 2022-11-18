@@ -20,7 +20,7 @@ export default function Header(props) {
                         />
                     </Link>
                     <div className="flex h-[55%] content-center items-center mt-[5px]">
-                        <div className="flex flex-grow justify-center border-none shadow-lg content-center leading-5 font-sans font-medium text-[.75rem] rounded-[15px] h-[100%] w-[100%] bg-[#0e0e0e] text-[#5f5f5f]">
+                        <div className="border-solid border border-black flex flex-grow justify-center shadow-lg content-center leading-5 font-sans font-medium text-[.75rem] rounded-[15px] h-[100%] w-[100%] bg-[#0e0e0e] text-[#5f5f5f]">
                             <div className="flex flex-grow content-center justify-evenly h-[100%] leading-5 font-sans font-medium rounded-[14px] p-[5px] bg-[#0e0e0e]">
                                 <Tooltip tooltip="Tracker Manager">
                                     <Link

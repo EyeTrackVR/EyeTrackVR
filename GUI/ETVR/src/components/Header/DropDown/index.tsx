@@ -43,7 +43,7 @@ export default function DropDown(props) {
             }
         >
             <Menu ref={ref} as="div" className="h-[55%] content-center">
-                <div className="flex flex-row rounded-[14px] justify-start border-none inset shadow-lg content-center leading-5pl-[1rem] font-sans font-medium text-[.75rem]rounded-[15px] h-[100%] bg-[#0e0e0e]">
+                <div className="border-solid border border-black flex flex-row rounded-[14px] justify-start inset shadow-lg content-center leading-5pl-[1rem] font-sans font-medium text-[.75rem]rounded-[15px] h-[100%] bg-[#0e0e0e]">
                     <Menu.Button className="inline-flex w-full justify-center rounded-[14px] bg-[#0e0e0e] bg-opacity-20 text-sm font-medium hover:bg-opacity-30 focus:outline-none focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-opacity-75">
                         <div className="flex rounded-[14px] h-[100%] bg-[#0e0e0e] flex-row basis-[100%] justify-center content-stretch pt-[8px] pb-[8px] pr-[8px]">
                             <span className="quick-menu-text-gradient pl-[1rem]">
@@ -68,7 +68,7 @@ export default function DropDown(props) {
                 >
                     <Menu.Items className="absolute z-10 w-[182.13px]">
                         <div className="py-1">
-                            <div className="flex flex-grow content-start rounded-[14px] border-none shadow-lg leading-5 font-sans font-medium text-[.75rem] h-[100%] bg-[#0e0e0e] text-[#5f5f5f]">
+                            <div className="border-solid border border-black flex flex-grow content-start rounded-[14px] shadow-lg leading-5 font-sans font-medium text-[.75rem] h-[100%] bg-[#0e0e0e] text-[#5f5f5f]">
                                 <div className="flex-grow rounded-[14px] h-[100%] pr-1 bg-[#0e0e0e] pt-[.5rem] pb-[.5rem] text-[#5f5f5f]">
                                     <ul>
                                         {DropDataData.map((item, index) => (
