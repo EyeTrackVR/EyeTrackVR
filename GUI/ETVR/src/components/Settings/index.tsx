@@ -2,9 +2,9 @@
 import { GeneralSettings, AlgoSettings } from '@components/Settings/States'
 import Slider from '@components/Slider'
 import Tooltip from '@components/Tooltip'
-import LocalStorageHandler from '@src/utils/Helpers/localStorageHandler'
-import { Menu, Transition, Switch } from '@headlessui/react'
-import { useEffect, useRef, useState, Fragment } from 'react'
+import { Menu, Switch } from '@headlessui/react'
+//import LocalStorageHandler from '@src/utils/Helpers/localStorageHandler'
+import { useState } from 'react'
 
 export function SettingsPage() {
   const [enabled, setEnabled] = useState(false)
