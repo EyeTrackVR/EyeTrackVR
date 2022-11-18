@@ -4,7 +4,7 @@
 )]
 
 use reqwest::Client;
-use log::info{debug, info, warn, error};
+use log::{debug, info, warn, error};
 
 pub struct RESTClient {
   http_client: Client,
