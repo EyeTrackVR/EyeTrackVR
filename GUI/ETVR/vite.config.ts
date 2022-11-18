@@ -2,7 +2,6 @@ import react from '@vitejs/plugin-react'
 import { defineConfig } from 'vite'
 const path = require('path')
 
-
 export default defineConfig({
   clearScreen: false,
   // Tauri expects a fixed port, fail if that port is not available
@@ -20,7 +19,10 @@ export default defineConfig({
       '@redux': path.resolve(__dirname, './src/redux'),
       '@interfaces': path.resolve(__dirname, './src/interfaces'),
       '@assets': path.resolve(__dirname, './assets'),
-      '@components': path.resolve(__dirname, 'src/components')
+      '@components': path.resolve(__dirname, 'src/components'),
+      '@tauri': path.resolve(__dirname, './src-tauri'),
+      '@static': path.resolve(__dirname, './src/static'),
+      '@utils': path.resolve(__dirname, './src/utils'),
     },
   },
   server: {
@@ -35,7 +37,5 @@ export default defineConfig({
     // produce sourcemaps for debug builds
     sourcemap: !!process.env.TAURI_DEBUG,
   },
-  plugins: [
-    react(),
-  ]
+  plugins: [react()],
 })
