@@ -66,8 +66,6 @@ fn main() {
         .setup(|app| {
             let window = app.get_window("main").unwrap();
             set_shadow(&window, true).expect("Unsupported platform!");
-            let result = rest_client::main();
-            result.unwrap();
             Ok(window.hide().unwrap())
         })
         .system_tray(tray)
