@@ -174,7 +174,7 @@ sketch
 .vscode/*.code-snippets
 
 # Ignore code-workspaces
-*.code-workspace
+# *.code-workspace
 
 ### Windows ###
 # Windows thumbnail cache files

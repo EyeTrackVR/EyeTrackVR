@@ -1,4 +1,5 @@
 {
+    "files.autoSave": "afterDelay",
     "editor.codeActionsOnSave": {
         "source.fixAll.eslint": true // ESLint auto format on save
     },
@@ -29,7 +30,7 @@
     ],
     "rust-analyzer.files.watcher": "client",
     // set the vscode workspace folder as the src-tauri folder
-    "rust-analyzer.linkedProjects": [
-        "src-tauri"
-    ],
+   /*  "rust-analyzer.linkedProjects": [
+        "/src-tauri"
+    ], */
 }
