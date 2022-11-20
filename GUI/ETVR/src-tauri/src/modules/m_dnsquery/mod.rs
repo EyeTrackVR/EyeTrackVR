@@ -6,7 +6,7 @@
     windows_subsystem = "windows"
 )]
 
-use log::info;
+use log::{error, info};
 use mdns_sd::{ServiceDaemon, ServiceEvent};
 use serde::{Deserialize, Serialize};
 use serde_json;
@@ -92,7 +92,7 @@ pub async fn run_query(
                     instance
                         .base_url
                         .lock()
-                        .unwrap()
+                        .expect("Failed to lock base_url in run_query")
                         .insert(name.to_string(), base_url);
                     instance.name.push(name.to_string());
                 }
@@ -151,7 +151,20 @@ pub fn get_url_map(instance: &mut Mdns) -> &mut MdnsMap {
 /// ```
 pub fn get_urls(instance: &Mdns) -> Vec<String> {
     let mut urls: Vec<String> = Vec::new();
-    for (_, url) in instance.base_url.lock().unwrap().iter() {
+
+    let instance_lock = instance.base_url.lock();
+    let instance_check_result = match instance_lock {
+        Ok(instance_lock) => instance_lock,
+        Err(err) => {
+            error!(
+                "Failed to lock the instance: {:?} with error: {} in get_urls",
+                instance, err
+            );
+            return urls;
+        }
+    };
+
+    for (_, url) in instance_check_result.iter() {
         urls.push(url.to_string());
     }
     urls

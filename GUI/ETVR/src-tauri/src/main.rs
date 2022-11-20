@@ -41,7 +41,7 @@ fn get_user() -> String {
 /// This generates the json for the config file
 /// # Arguments
 /// * `instance` - The instance of the mdnsquery struct
-async fn generate_json(instance: &m_dnsquery::Mdns) {
+async fn generate_json(instance: &m_dnsquery::Mdns) -> Result<(), Box<dyn std::error::Error>> {
     let user_name: String = get_user();
     info!("User name: {}", user_name);
     let data = m_dnsquery::get_urls(instance);
@@ -56,7 +56,15 @@ async fn generate_json(instance: &m_dnsquery::Mdns) {
     }
     let config: Config;
     if let Some(json) = json {
-        config = serde_json::from_value(json).unwrap();
+        let _serde_json = serde_json::from_value(json);
+        let serde_json_result = match _serde_json {
+            Ok(serde_json) => serde_json,
+            Err(err) => {
+                error!("Error configuring JSON config file: {}", err);
+                return Err("Error configuring JSON config file".into());
+            }
+        };
+        config = serde_json_result;
     } else {
         config = Config {
             name: user_name,
@@ -65,8 +73,9 @@ async fn generate_json(instance: &m_dnsquery::Mdns) {
     }
     info!("{:?}", config);
     // write the json object to a file
-    let file = std::fs::File::create("config/config.json").unwrap();
-    serde_json::to_writer_pretty(file, &config).unwrap();
+    let to_string_json = serde_json::to_string_pretty(&config)?;
+    let write_to_file = tokio::fs::write("config/config.json", to_string_json).await?;
+    Ok(write_to_file)
 }
 
 #[tauri::command]
@@ -96,7 +105,8 @@ async fn run_mdns_query(service_type: String, scan_time: u64) {
         .expect("Failed to run MDNS query");
     info!("MDNS query complete");
     info!("MDNS query results: {:#?}", m_dnsquery::get_urls(&ref_mdns)); // get's an array of the base urls found
-    generate_json(&ref_mdns).await; // generates a json file with the base urls found
+    let result = generate_json(&ref_mdns).await.expect("Generate JSON Config failed in run_mdns_query"); // generates a json file with the base urls found
+    debug!("Generate JSON Config result: {:?}", result);
 }
 
 // This command must be async so that it doesn't run on the main thread.
@@ -104,10 +114,10 @@ async fn run_mdns_query(service_type: String, scan_time: u64) {
 async fn close_splashscreen(window: tauri::Window) {
     // Close splashscreen
     if let Some(splashscreen) = window.get_window("splashscreen") {
-        splashscreen.close().unwrap();
+        splashscreen.close().expect("Failed to close splashscreen");
     }
     // Show main window
-    window.get_window("main").unwrap().show().unwrap();
+    window.get_window("main").expect("Failed to get main window").show().unwrap();
 }
 
 fn main() {
@@ -127,7 +137,7 @@ fn main() {
     tauri::Builder::default()
         .invoke_handler(tauri::generate_handler![close_splashscreen, run_mdns_query, wrapper])
         .setup(|app| {
-            let window = app.get_window("main").unwrap();
+            let window = app.get_window("main").expect("failed to get window");
             set_shadow(&window, true).expect("Unsupported platform!");
             Ok(window.hide().unwrap())
         })
@@ -139,7 +149,7 @@ fn main() {
                 ..
             } => {
                 dbg!("system tray received a left click");
-                let window = app.get_window("main").unwrap();
+                let window = app.get_window("main").expect("failed to get window");
                 window.show().unwrap();
                 /* let logical_size = tauri::LogicalSize::<f64> {
                     width: 300.0,
@@ -167,11 +177,11 @@ fn main() {
                     std::process::exit(0);
                 }
                 "hide" => {
-                    let window = app.get_window("main").unwrap();
+                    let window = app.get_window("main").expect("failed to get window");
                     window.hide().unwrap();
                 }
                 "show" => {
-                    let window = app.get_window("main").unwrap();
+                    let window = app.get_window("main").expect("failed to get window");
                     window.show().unwrap();
                 }
                 _ => {}
