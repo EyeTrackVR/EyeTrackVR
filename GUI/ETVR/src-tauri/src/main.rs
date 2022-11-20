@@ -4,7 +4,7 @@
     windows_subsystem = "windows"
 )]
 
-// TODO: Implement mDNS discovery for the cameras in the Rust backend
+// TODO: Implement REST Client for ETVR 
 
 //use tauri::*;
 use tauri::Manager;
@@ -31,6 +31,16 @@ struct Config {
     urls: Vec<String>,
 }
 
+/// This function gets the users windows username and returns it as a string
+fn get_user() -> String {
+    let name = username();
+    let name = name.to_string();
+    name
+}
+
+/// This generates the json for the config file
+/// # Arguments
+/// * `instance` - The instance of the mdnsquery struct
 async fn generate_json(instance: &m_dnsquery::Mdns) {
     let user_name: String = get_user();
     info!("User name: {}", user_name);
@@ -63,7 +73,7 @@ async fn generate_json(instance: &m_dnsquery::Mdns) {
 async fn wrapper() {
     env_logger::init();
     info!("Wrapper function ran");
-    run_mdns_query().await;
+    run_mdns_query(String::from("_openiris._tcp"), 10).await;
 }
 
 /// A function to run a mDNS query and create a new RESTClient instance for each device found
@@ -72,7 +82,7 @@ async fn wrapper() {
 /// - `scan_time` The number of seconds to query for
 /// // This command must be async so that it doesn't run on the main thread.
 #[tauri::command]
-async fn run_mdns_query() {
+async fn run_mdns_query(service_type: String, scan_time: u64) {
     info!("Starting MDNS query to find devices");
     let base_url = Arc::new(Mutex::new(HashMap::new()));
     let thread_arc = base_url.clone();
@@ -81,18 +91,12 @@ async fn run_mdns_query() {
         name: Vec::new(),
     };
     let ref_mdns = &mut mdns;
-    m_dnsquery::run_query(ref_mdns, String::from("_openiris._tcp"), 10)
+    m_dnsquery::run_query(ref_mdns, service_type, scan_time)
         .await
         .expect("Failed to run MDNS query");
     info!("MDNS query complete");
     info!("MDNS query results: {:#?}", m_dnsquery::get_urls(&ref_mdns)); // get's an array of the base urls found
     generate_json(&ref_mdns).await; // generates a json file with the base urls found
-}
-
-fn get_user() -> String {
-    let name = username();
-    let name = name.to_string();
-    name
 }
 
 // This command must be async so that it doesn't run on the main thread.
