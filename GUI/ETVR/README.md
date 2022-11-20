@@ -34,6 +34,26 @@ yarn tauri build
 
 This will create a folder called `target` in the `src-tauri` directory. Inside this folder, you will find the executable for your operating system, as well as an MSI installer for Windows.
 
+## Rust dev environment
+
+If you want to work on the Rust code, you will need to install the Rust toolchain. Starting with RustC.
+
+Then in `vscode` you will need to install the extensions [`rust-analyzer`](https://rust-analyzer.github.io/manual.html#vs-code) and `rustfmt` (rust fmt is optional).
+
+For the `rust-analyzer` extension to work, you will need to add the following to your `.vscode/settings.json` file:
+
+```json
+"rust-analyzer.cargo.loadOutDirsFromCheck": true,
+"rust-analyzer.checkOnSave.enable": true,
+"rust-analyzer.checkOnSave.extraArgs": ["--all-targets"],
+"rust-analyzer.checkOnSave.command": "clippy",
+"rust-analyzer.checkOnSave.allTargets": true,
+"rust-analyzer.files.excludeDirs": ["**/target", "**/node_modules", "**/dist", "**/build", "**/public", "**/assets", "**/src-tauri/target", "**/scripts", "**/src/components", "**/src/interfaces", "**/src/pages", "**/src/static", "**/src/styles", "**/src/utils", ],
+"rust-analyzer.files.watcher": "client",
+// set the vscode workspace folder as the src-tauri folder
+"rust-analyzer.linkedProjects": ["src-tauri"],
+```
+
 ## Useful Links
 
 - [Tauri](https://tauri.app/)
