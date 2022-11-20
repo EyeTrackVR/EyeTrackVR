@@ -38,7 +38,7 @@ This will create a folder called `target` in the `src-tauri` directory. Inside t
 
 If you want to work on the Rust code, you will need to install the Rust toolchain. Starting with RustC.
 
-Then in `vscode` you will need to install the extensions [`rust-analyzer`](https://rust-analyzer.github.io/manual.html#vs-code) and `rustfmt` (rust fmt is optional).
+Then in `vscode` you will need to install the extensions [`rust-analyzer`](https://rust-analyzer.github.io/manual.html#vs-code).
 
 For the `rust-analyzer` extension to work, you will always need to open the workspace from the `GUI/ETVR` folder.
 
