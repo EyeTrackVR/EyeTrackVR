@@ -7,12 +7,12 @@ import '@src/styles/imports.css'
 import App from './App'
 
 document.addEventListener('DOMContentLoaded', () => {
-  if (!config.name) {
-    invoke('get_user').then((config) => {
+  if (!config['name']) {
+    invoke('wrapper').then((config) => {
       console.log(config)
     })
   }
-  setTimeout(() => invoke('close_splashscreen'), 3000)
+  setTimeout(() => invoke('close_splashscreen'), 15000)
 })
 
 const root = createRoot(document.getElementById('root') as HTMLElement)

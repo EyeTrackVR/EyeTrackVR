@@ -23,11 +23,47 @@ use std::sync::{Arc, Mutex};
 
 // use custom modules
 mod modules;
-use modules::{ m_dnsquery};
+use modules::{m_dnsquery};
 
 #[derive(Debug, Deserialize, Serialize)]
-struct User {
+struct Config {
     name: String,
+    urls: Vec<String>,
+}
+
+async fn generate_json(instance: &m_dnsquery::Mdns) {
+    let user_name: String = get_user();
+    info!("User name: {}", user_name);
+    let data = m_dnsquery::get_urls(instance);
+    //let mut json: serde_json::Value = serde_json::from_str("{}").unwrap();
+    let mut json: Option<serde_json::Value> = None;
+    for url in data {
+    // create a json object then add the urls to an array
+        json = Some(serde_json::json!({
+            "name": user_name,
+            "urls": [url],
+        }));
+    }
+    let config: Config;
+    if let Some(json) = json {
+        config = serde_json::from_value(json).unwrap();
+    } else {
+        config = Config {
+            name: user_name,
+            urls: Vec::new(),
+        };
+    }
+    info!("{:?}", config);
+    // write the json object to a file
+    let file = std::fs::File::create("config/config.json").unwrap();
+    serde_json::to_writer_pretty(file, &config).unwrap();
+}
+
+#[tauri::command]
+async fn wrapper() {
+    env_logger::init();
+    info!("Wrapper function ran");
+    run_mdns_query().await;
 }
 
 /// A function to run a mDNS query and create a new RESTClient instance for each device found
@@ -50,22 +86,13 @@ async fn run_mdns_query() {
         .expect("Failed to run MDNS query");
     info!("MDNS query complete");
     info!("MDNS query results: {:#?}", m_dnsquery::get_urls(&ref_mdns)); // get's an array of the base urls found
-    m_dnsquery::generate_json(&ref_mdns).await; // generates a json file with the base urls found
+    generate_json(&ref_mdns).await; // generates a json file with the base urls found
 }
 
-#[tauri::command]
-fn get_user() {
+fn get_user() -> String {
     let name = username();
-    let json = serde_json::json!({
-        "name": name,
-    });
-    let user_name: User = serde_json::from_value(json).unwrap();
-    eprintln!("{:?}", user_name);
-    std::fs::write(
-        "config/config.json",
-        serde_json::to_string_pretty(&user_name).unwrap(),
-    )
-    .unwrap();
+    let name = name.to_string();
+    name
 }
 
 // This command must be async so that it doesn't run on the main thread.
@@ -94,7 +121,7 @@ fn main() {
     let tray = SystemTray::new().with_menu(tray_menu);
 
     tauri::Builder::default()
-        .invoke_handler(tauri::generate_handler![get_user, close_splashscreen, run_mdns_query])
+        .invoke_handler(tauri::generate_handler![close_splashscreen, run_mdns_query, wrapper])
         .setup(|app| {
             let window = app.get_window("main").unwrap();
             set_shadow(&window, true).expect("Unsupported platform!");

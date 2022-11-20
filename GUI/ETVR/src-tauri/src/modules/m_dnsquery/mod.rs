@@ -68,7 +68,7 @@ pub async fn run_query(
     // while let Ok(event) = receiver.recv() {}
     while now.elapsed().as_secs() < scan_time {
         //* let event = receiver.recv().expect("Failed to receive event");
-        if let Ok(event) = receiver.recv() {
+        if let Ok(event) = receiver.recv_async().await {
             match event {
                 ServiceEvent::ServiceResolved(info) => {
                     info!(
@@ -155,23 +155,4 @@ pub fn get_urls(instance: &Mdns) -> Vec<String> {
         urls.push(url.to_string());
     }
     urls
-}
-
-pub async fn generate_json(instance: &Mdns) {
-    let data = get_urls(instance);
-    let mut json: serde_json::Value = serde_json::from_str("{}").unwrap();
-    for url in data {
-        // create an json object then add the urls to an array
-        json = serde_json::json!({
-            "urls": [url],
-        });
-    }
-
-    let mdns_data: Response = serde_json::from_value(json).unwrap();
-    eprintln!("{:?}", mdns_data);
-    std::fs::write(
-        "config/config.json",
-        serde_json::to_string_pretty(&mdns_data).unwrap(),
-    )
-    .unwrap();
 }
