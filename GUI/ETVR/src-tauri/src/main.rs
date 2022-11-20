@@ -4,18 +4,18 @@
     windows_subsystem = "windows"
 )]
 
-// TODO: Implement REST Client for ETVR 
+// TODO: Implement REST Client for ETVR
 
 //use tauri::*;
 use tauri::Manager;
 use tauri::{CustomMenuItem, SystemTray, SystemTrayEvent, SystemTrayMenu, SystemTrayMenuItem};
 
 // use various crates
-use whoami::username;
-use window_shadows::set_shadow;
 use log::{debug, error, info, warn};
 use serde::{Deserialize, Serialize};
 use serde_json;
+use whoami::username;
+use window_shadows::set_shadow;
 
 // use std
 use std::collections::hash_map::HashMap;
@@ -23,7 +23,7 @@ use std::sync::{Arc, Mutex};
 
 // use custom modules
 mod modules;
-use modules::{m_dnsquery};
+use modules::m_dnsquery;
 
 #[derive(Debug, Deserialize, Serialize)]
 struct Config {
@@ -48,7 +48,7 @@ async fn generate_json(instance: &m_dnsquery::Mdns) -> Result<(), Box<dyn std::e
     //let mut json: serde_json::Value = serde_json::from_str("{}").unwrap();
     let mut json: Option<serde_json::Value> = None;
     for url in data {
-    // create a json object then add the urls to an array
+        // create a json object then add the urls to an array
         json = Some(serde_json::json!({
             "name": user_name,
             "urls": [url],
@@ -105,7 +105,9 @@ async fn run_mdns_query(service_type: String, scan_time: u64) {
         .expect("Failed to run MDNS query");
     info!("MDNS query complete");
     info!("MDNS query results: {:#?}", m_dnsquery::get_urls(&ref_mdns)); // get's an array of the base urls found
-    let result = generate_json(&ref_mdns).await.expect("Generate JSON Config failed in run_mdns_query"); // generates a json file with the base urls found
+    let result = generate_json(&ref_mdns)
+        .await
+        .expect("Generate JSON Config failed in run_mdns_query"); // generates a json file with the base urls found
     debug!("Generate JSON Config result: {:?}", result);
 }
 
@@ -117,7 +119,11 @@ async fn close_splashscreen(window: tauri::Window) {
         splashscreen.close().expect("Failed to close splashscreen");
     }
     // Show main window
-    window.get_window("main").expect("Failed to get main window").show().unwrap();
+    window
+        .get_window("main")
+        .expect("Failed to get main window")
+        .show()
+        .unwrap();
 }
 
 fn main() {
@@ -135,7 +141,11 @@ fn main() {
     let tray = SystemTray::new().with_menu(tray_menu);
 
     tauri::Builder::default()
-        .invoke_handler(tauri::generate_handler![close_splashscreen, run_mdns_query, wrapper])
+        .invoke_handler(tauri::generate_handler![
+            close_splashscreen,
+            run_mdns_query,
+            wrapper
+        ])
         .setup(|app| {
             let window = app.get_window("main").expect("failed to get window");
             set_shadow(&window, true).expect("Unsupported platform!");

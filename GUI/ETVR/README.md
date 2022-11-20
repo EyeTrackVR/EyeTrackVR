@@ -40,19 +40,9 @@ If you want to work on the Rust code, you will need to install the Rust toolchai
 
 Then in `vscode` you will need to install the extensions [`rust-analyzer`](https://rust-analyzer.github.io/manual.html#vs-code) and `rustfmt` (rust fmt is optional).
 
-For the `rust-analyzer` extension to work, you will need to add the following to your `.vscode/settings.json` file:
+For the `rust-analyzer` extension to work, you will always need to open the workspace from the `GUI/ETVR` folder.
 
-```json
-"rust-analyzer.cargo.loadOutDirsFromCheck": true,
-"rust-analyzer.checkOnSave.enable": true,
-"rust-analyzer.checkOnSave.extraArgs": ["--all-targets"],
-"rust-analyzer.checkOnSave.command": "clippy",
-"rust-analyzer.checkOnSave.allTargets": true,
-"rust-analyzer.files.excludeDirs": ["**/target", "**/node_modules", "**/dist", "**/build", "**/public", "**/assets", "**/src-tauri/target", "**/scripts", "**/src/components", "**/src/interfaces", "**/src/pages", "**/src/static", "**/src/styles", "**/src/utils", ],
-"rust-analyzer.files.watcher": "client",
-// set the vscode workspace folder as the src-tauri folder
-"rust-analyzer.linkedProjects": ["src-tauri"],
-```
+There is a workspace file in the `GUI/ETVR` folder, which you can open in vscode. This will automatically set the correct rust toolchain and the correct rust-analyzer settings.
 
 ## Useful Links
 

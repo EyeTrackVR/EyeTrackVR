@@ -10,7 +10,7 @@ import { routes } from '.'
 export default function AppRoutes() {
   return (
     <BrowserRouter>
-      <Header name={config["name"] ? `Welcome ${config["name"]}` : 'Welcome!'} />
+      <Header name={config['name'] ? `Welcome ${config['name']}` : 'Welcome!'} />
       <Routes>
         {routes.map(({ index, path, element }) => (
           <Route key={index} path={path} element={element()} />
