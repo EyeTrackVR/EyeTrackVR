@@ -13,7 +13,6 @@ use tauri::{CustomMenuItem, SystemTray, SystemTrayEvent, SystemTrayMenu, SystemT
 // use various crates
 use log::{debug, error, info, warn};
 use serde::{Deserialize, Serialize};
-use serde_json;
 use whoami::username;
 use window_shadows::set_shadow;
 
@@ -31,18 +30,11 @@ struct Config {
     urls: Vec<String>,
 }
 
-/// This function gets the users windows username and returns it as a string
-fn get_user() -> String {
-    let name = username();
-    let name = name.to_string();
-    name
-}
-
 /// This generates the json for the config file
 /// # Arguments
 /// * `instance` - The instance of the mdnsquery struct
 async fn generate_json(instance: &m_dnsquery::Mdns) -> Result<(), Box<dyn std::error::Error>> {
-    let user_name: String = get_user();
+    let user_name: String = username().to_string();
     info!("User name: {}", user_name);
     let data = m_dnsquery::get_urls(instance);
     //let mut json: serde_json::Value = serde_json::from_str("{}").unwrap();
@@ -74,8 +66,8 @@ async fn generate_json(instance: &m_dnsquery::Mdns) -> Result<(), Box<dyn std::e
     info!("{:?}", config);
     // write the json object to a file
     let to_string_json = serde_json::to_string_pretty(&config)?;
-    let write_to_file = tokio::fs::write("config/config.json", to_string_json).await?;
-    Ok(write_to_file)
+    tokio::fs::write("config/config.json", to_string_json).await?;
+    Ok(())
 }
 
 #[tauri::command]
@@ -104,11 +96,10 @@ async fn run_mdns_query(service_type: String, scan_time: u64) {
         .await
         .expect("Failed to run MDNS query");
     info!("MDNS query complete");
-    info!("MDNS query results: {:#?}", m_dnsquery::get_urls(&ref_mdns)); // get's an array of the base urls found
-    let result = generate_json(&ref_mdns)
+    info!("MDNS query results: {:#?}", m_dnsquery::get_urls(&*ref_mdns)); // get's an array of the base urls found
+    generate_json(&*ref_mdns)
         .await
         .expect("Generate JSON Config failed in run_mdns_query"); // generates a json file with the base urls found
-    debug!("Generate JSON Config result: {:?}", result);
 }
 
 // This command must be async so that it doesn't run on the main thread.
@@ -149,7 +140,8 @@ fn main() {
         .setup(|app| {
             let window = app.get_window("main").expect("failed to get window");
             set_shadow(&window, true).expect("Unsupported platform!");
-            Ok(window.hide().unwrap())
+            window.hide().unwrap();
+            Ok(())
         })
         .system_tray(tray)
         .on_system_tray_event(move |app, event| match event {
