@@ -14,7 +14,6 @@ use window_shadows::set_shadow;
 
 use serde::{Deserialize, Serialize};
 use serde_json;
-use sprintf::sprintf;
 
 #[derive(Debug, Deserialize, Serialize)]
 struct User {
@@ -24,8 +23,11 @@ struct User {
 #[tauri::command]
 fn get_user() {
     let name = username();
-    let json = sprintf!("{\"name\":\"%s\"}\n", name).unwrap();
-    let user_name: User = serde_json::from_str(&json).unwrap();
+    let mut json: serde_json::Value = serde_json::from_str("{}").unwrap();
+    json = serde_json::json!({
+        "name": name,
+    });
+    let user_name: User = serde_json::from_value(json).unwrap();
     eprintln!("{:?}", user_name);
     std::fs::write(
         "config/config.json",
