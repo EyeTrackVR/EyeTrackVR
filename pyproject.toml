@@ -8,20 +8,25 @@ repository = "https://github.com/RedHawk989/EyeTrackVR"
 
 [tool.poetry.dependencies]
 python = "~3.11.0"
-python-osc = "^1.8.0"
-opencv-python = "^4.6.0.66"
+# required dependencies
 numpy = "^1.23.4"
+fastapi = "^0.87.0"
+uvicorn = "^0.19.0"
+pydantic = "^1.10.2"
+python-osc = "^1.8.0"
 pye3d = "^0.3.1.post1"
+opencv-python = "^4.6.0.66"
+# can be removed once Backend is done
 requests = "^2.28.1"
 pysimplegui = "^4.60.4"
 scipy = "^1.9.3"
-pydantic = "^1.10.2"
 sympy = "^1.11.1"
 
 [tool.poetry.group.dev.dependencies]
-black = "^22.10.0"
 pyinstaller = "^5.6.2"
+black = "^22.10.0"
 flake8 = "^5.0.4"
+pytest = "^7.2.0"
 
 [build-system]
 requires = ["poetry-core>=1.0.0"]
