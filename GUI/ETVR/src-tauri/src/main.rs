@@ -16,10 +16,6 @@ use serde::{Deserialize, Serialize};
 use serde_json;
 use sprintf::sprintf;
 
-// import rest_client
-mod rest_client;
-
-
 #[derive(Debug, Deserialize, Serialize)]
 struct User {
     name: String,
