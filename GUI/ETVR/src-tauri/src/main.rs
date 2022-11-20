@@ -23,8 +23,7 @@ struct User {
 #[tauri::command]
 fn get_user() {
     let name = username();
-    let mut json: serde_json::Value = serde_json::from_str("{}").unwrap();
-    json = serde_json::json!({
+    let json = serde_json::json!({
         "name": name,
     });
     let user_name: User = serde_json::from_value(json).unwrap();
