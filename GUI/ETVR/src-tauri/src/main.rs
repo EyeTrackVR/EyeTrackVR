@@ -14,7 +14,7 @@ use tauri::{CustomMenuItem, SystemTray, SystemTrayEvent, SystemTrayMenu, SystemT
 use log::{debug, error, info, warn};
 use serde::{Deserialize, Serialize};
 use whoami::username;
-use window_shadows::set_shadow;
+//use window_shadows::set_shadow;
 
 // use std
 use std::collections::hash_map::HashMap;

@@ -644,7 +644,6 @@ dependencies = [
  "tauri-build",
  "tokio",
  "whoami",
- "window-shadows",
 ]
 
 [[package]]
@@ -3937,18 +3936,6 @@ name = "winapi-x86_64-pc-windows-gnu"
 version = "0.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "712e227841d057c1ee1cd2fb22fa7e5a5461ae8e48fa2ca79ec42cfc1931183f"
-
-[[package]]
-name = "window-shadows"
-version = "0.2.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6c69eb48aac2da0199ea148c6f2c2610db8a0572b32a3dc857dec40ca22f1cec"
-dependencies = [
- "cocoa",
- "objc",
- "raw-window-handle",
- "windows-sys 0.36.1",
-]
 
 [[package]]
 name = "windows"
