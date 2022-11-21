@@ -10,7 +10,6 @@ use log::{error, info};
 use mdns_sd::{ServiceDaemon, ServiceEvent};
 use serde::{Deserialize, Serialize};
 use serde_json;
-use sprintf::sprintf;
 use std::collections::hash_map::HashMap;
 use std::sync::{Arc, Mutex};
 
