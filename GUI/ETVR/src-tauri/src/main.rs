@@ -139,7 +139,7 @@ fn main() {
         ])
         .setup(|app| {
             let window = app.get_window("main").expect("failed to get window");
-            set_shadow(&window, true).expect("Unsupported platform!");
+            //set_shadow(&window, true).expect("Unsupported platform!");
             window.hide().unwrap();
             Ok(())
         })
