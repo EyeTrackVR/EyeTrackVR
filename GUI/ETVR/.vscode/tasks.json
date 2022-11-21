@@ -4,7 +4,7 @@
 	"version": "2.0.0",
 	"tasks": [
 		{
-			"label": "ui:dev",
+			"label": "ui: dev",
 			"type": "shell",
 			// `dev` keeps running in the background
 			// ideally you should also configure a `problemMatcher`
@@ -18,7 +18,7 @@
 			]
 		},
 		{
-			"label": "ui:build",
+			"label": "ui: build",
 			"type": "shell",
 			// change this to your `beforeBuildCommand`:
 			"command": "yarn",
