@@ -111,13 +111,15 @@ body {
 /* Track */
 ::-webkit-scrollbar-track {
     box-shadow: inset 0 0 5px grey;
-    border-radius: 10px;
+    margin-top: 0.48rem;
+    margin-bottom: 0.48rem;
+    border-radius: 1rem;
 }
 
 /* Handle */
 ::-webkit-scrollbar-thumb {
     background: #ae6d6d;
-    border-radius: 10px;
+    border-radius: 1rem;
 }
 
 /* Handle on hover */

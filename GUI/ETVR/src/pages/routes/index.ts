@@ -8,5 +8,5 @@ export interface IRoutes {
 
 export const routes: IRoutes[] = [
   { path: '/', element: Main, index: 'main' },
-  { path: '/settings', element: SettingsPage, index: 'settinngs_page' },
+  { path: '/settings', element: SettingsPage, index: 'settings_page' },
 ]

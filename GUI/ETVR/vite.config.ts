@@ -19,7 +19,7 @@ export default defineConfig({
       '@redux': path.resolve(__dirname, './src/redux'),
       '@interfaces': path.resolve(__dirname, './src/interfaces'),
       '@assets': path.resolve(__dirname, './assets'),
-      '@components': path.resolve(__dirname, 'src/components'),
+      '@components': path.resolve(__dirname, './src/components'),
       '@tauri': path.resolve(__dirname, './src-tauri'),
       '@static': path.resolve(__dirname, './src/static'),
       '@utils': path.resolve(__dirname, './src/utils'),
