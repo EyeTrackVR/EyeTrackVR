@@ -29,47 +29,6 @@ struct Config {
     urls: Vec<String>,
 }
 
-/// This generates the json for the config file
-/// # Arguments
-/// * `instance` - The instance of the mdnsquery struct
-async fn generate_json(instance: &m_dnsquery::Mdns) -> Result<(), Box<dyn std::error::Error>> {
-    let user_name: String = username();
-    info!("User name: {}", user_name);
-
-    let data = m_dnsquery::get_urls(instance);
-    //let mut json: serde_json::Value = serde_json::from_str("{}").unwrap();
-    let mut json: Option<serde_json::Value> = None;
-    // create a data iterator
-    for (i, url) in data.iter().enumerate() {
-        json = Some(serde_json::json!({
-            "names": [instance.names[i].to_string()],
-            "urls": [url],
-        }));
-    }
-    let config: Config;
-    if let Some(json) = json {
-        let _serde_json = serde_json::from_value(json);
-        let serde_json_result = match _serde_json {
-            Ok(serde_json) => serde_json,
-            Err(err) => {
-                error!("Error configuring JSON config file: {}", err);
-                return Err("Error configuring JSON config file".into());
-            }
-        };
-        config = serde_json_result;
-    } else {
-        config = Config {
-            urls: Vec::new(),
-            names: Vec::new(),
-        };
-    }
-    info!("{:?}", config);
-    // write the json object to a file
-    let to_string_json = serde_json::to_string_pretty(&config)?;
-    tokio::fs::write("config/config.json", to_string_json).await?;
-    Ok(())
-}
-
 #[tauri::command]
 async fn get_user() -> Result<String, String> {
     let user_name: String = username();
@@ -92,7 +51,7 @@ async fn run_mdns_query(service_type: String, scan_time: u64) -> Result<(), Stri
     };
     let ref_mdns = &mut mdns;
 
-    info!("MDNS Sercice Thread acquired lock");
+    info!("MDNS Service Thread acquired lock");
     m_dnsquery::run_query(ref_mdns, service_type, scan_time)
         .await
         .expect("Error in mDNS query");
@@ -101,7 +60,7 @@ async fn run_mdns_query(service_type: String, scan_time: u64) -> Result<(), Stri
         "MDNS query results: {:#?}",
         m_dnsquery::get_urls(&*ref_mdns)
     ); // get's an array of the base urls found
-    generate_json(&*ref_mdns)
+    m_dnsquery::generate_json(&*ref_mdns)
         .await
         .expect("Failed to generate JSON file"); // generates a json file with the base urls found
     Ok(())
