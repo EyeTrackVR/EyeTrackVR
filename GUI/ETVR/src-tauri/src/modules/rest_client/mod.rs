@@ -18,19 +18,6 @@ use serde::Deserialize;
 use std::collections::hash_map::HashMap;
 use std::sync::{Arc, Mutex};
 
-//use lazy_static::lazy_static;
-
-/* lazy_static! {
-    static ref ;
-} */
-
-/// A struct to hold the REST client response
-/// - `response`: a hashmap of the response
-#[derive(Deserialize, Debug)]
-pub struct Response {
-    pub response: HashMap<String, String>,
-}
-
 /// A struct to hold the REST client
 /// ## Fields
 /// - `client`: a reqwest client
@@ -54,24 +41,58 @@ impl RESTClient {
     }
 }
 
-pub async fn request(rest_client: &RESTClient) -> Result<(), Box<dyn std::error::Error>> {
+pub async fn request(
+    rest_client: &RESTClient,
+) -> Result<HashMap<String, serde_json::Value>, Box<dyn std::error::Error>> {
     info!("Making REST request");
     let response = rest_client
         .http_client
         .get(&rest_client.base_url)
         .send()
         .await?
-        .json::<Response>()
+        .json::<HashMap<String, serde_json::Value>>()
+        //.json::<Response>()
         .await?;
-    info!("Response: {:?}", response.response);
-    Ok(())
+    Ok(response)
 }
 
 /// A function to run a REST Client and create a new RESTClient instance for each device found
 /// ## Arguments
 /// - `service_type` The service type to query for
 /// - `scan_time` The number of seconds to query for
-pub async fn run_rest_client() -> Result<(), Box<dyn std::error::Error>> {
+pub async fn run_rest_client(endpoint: String) -> Result<(), Box<dyn std::error::Error>> {
     info!("Starting REST client");
+    // create a new db instance
+
+    // read the json config file
+    let data = std::fs::read_to_string("config/config.json").expect("Unable to read config file");
+    // parse the json config file
+    let config: serde_json::Value =
+        serde_json::from_str(&data).expect("Unable to parse config file");
+    debug!("Urls: {:?}", config);
+
+    // create iterator for loop
+    for (i, item) in config.as_object().iter().enumerate() {
+        // create a new RESTClient instance for each url
+        let mut url = item["urls"][i].as_str();
+        let full_url_result = match url {
+            Some(url) => url,
+            None => {
+                error!("Unable to get url");
+                url = Some("http://localhost:8080");
+                url.unwrap()
+            }
+        };
+        let full_url = format!("{}{}", full_url_result, endpoint);
+        //info!("Full url: {}", full_url);
+        let rest_client = RESTClient::new(full_url);
+        let request_result = request(&rest_client).await;
+        match request_result {
+            Ok(response) => {
+                info!("Response: {:?}", response);
+            }
+            Err(e) => error!("Request failed: {}", e),
+        }
+    }
     Ok(())
 }

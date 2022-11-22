@@ -20,7 +20,7 @@ pub type MdnsMap = Arc<Mutex<HashMap<String, String>>>; // Arc<Mutex<HashMap<Str
 #[derive(Debug)]
 pub struct Mdns {
     pub base_url: MdnsMap,
-    pub name: Vec<String>,
+    pub names: Vec<String>,
 }
 
 /// A struct to hold the mDNS query results
@@ -28,6 +28,7 @@ pub struct Mdns {
 /// - `response`: a hashmap of the response
 #[derive(Debug, Deserialize, Serialize)]
 struct Response {
+    names: Vec<String>,
     urls: Vec<String>,
 }
 
@@ -93,7 +94,7 @@ pub async fn run_query(
                         .lock()
                         .expect("Failed to lock base_url in run_query")
                         .insert(name.to_string(), base_url);
-                    instance.name.push(name.to_string());
+                    instance.names.push(name.to_string());
                 }
                 other_event => {
                     info!(
@@ -167,4 +168,39 @@ pub fn get_urls(instance: &Mdns) -> Vec<String> {
         urls.push(url.to_string());
     }
     urls
+}
+
+pub async fn generate_json(instance: &Mdns) -> Result<(), Box<dyn std::error::Error>> {
+    let data = get_urls(instance);
+    //let mut json: serde_json::Value = serde_json::from_str("{}").unwrap();
+    let mut json: Option<serde_json::Value> = None;
+    // create a data iterator
+    for (i, url) in data.iter().enumerate() {
+        json = Some(serde_json::json!({
+            "names": [instance.names[i].to_string()],
+            "urls": [url],
+        }));
+    }
+    let config: Response;
+    if let Some(json) = json {
+        let _serde_json = serde_json::from_value(json);
+        let serde_json_result = match _serde_json {
+            Ok(serde_json) => serde_json,
+            Err(err) => {
+                error!("Error configuring JSON config file: {}", err);
+                return Err("Error configuring JSON config file".into());
+            }
+        };
+        config = serde_json_result;
+    } else {
+        config = Response {
+            urls: Vec::new(),
+            names: Vec::new(),
+        };
+    }
+    info!("{:?}", config);
+    // write the json object to a file
+    let to_string_json = serde_json::to_string_pretty(&config)?;
+    tokio::fs::write("config/config.json", to_string_json).await?;
+    Ok(())
 }

@@ -23,10 +23,9 @@ use std::sync::{Arc, Mutex};
 // use custom modules
 mod modules;
 use modules::m_dnsquery;
-
 #[derive(Debug, Deserialize, Serialize)]
 struct Config {
-    name: String,
+    names: Vec<String>,
     urls: Vec<String>,
 }
 
@@ -34,15 +33,16 @@ struct Config {
 /// # Arguments
 /// * `instance` - The instance of the mdnsquery struct
 async fn generate_json(instance: &m_dnsquery::Mdns) -> Result<(), Box<dyn std::error::Error>> {
-    let user_name: String = username().to_string();
+    let user_name: String = username();
     info!("User name: {}", user_name);
+
     let data = m_dnsquery::get_urls(instance);
     //let mut json: serde_json::Value = serde_json::from_str("{}").unwrap();
     let mut json: Option<serde_json::Value> = None;
-    for url in data {
-        // create a json object then add the urls to an array
+    // create a data iterator
+    for (i, url) in data.iter().enumerate() {
         json = Some(serde_json::json!({
-            "name": user_name,
+            "names": [instance.names[i].to_string()],
             "urls": [url],
         }));
     }
@@ -59,8 +59,8 @@ async fn generate_json(instance: &m_dnsquery::Mdns) -> Result<(), Box<dyn std::e
         config = serde_json_result;
     } else {
         config = Config {
-            name: user_name,
             urls: Vec::new(),
+            names: Vec::new(),
         };
     }
     info!("{:?}", config);
@@ -71,35 +71,40 @@ async fn generate_json(instance: &m_dnsquery::Mdns) -> Result<(), Box<dyn std::e
 }
 
 #[tauri::command]
-async fn wrapper() {
-    env_logger::init();
-    info!("Wrapper function ran");
-    run_mdns_query(String::from("_openiris._tcp"), 10).await;
+async fn get_user() -> Result<String, String> {
+    let user_name: String = username();
+    info!("User name: {}", user_name);
+    Ok(user_name)
 }
 
 /// A function to run a mDNS query and create a new RESTClient instance for each device found
 /// ## Arguments
 /// - `service_type` The service type to query for
 /// - `scan_time` The number of seconds to query for
-/// // This command must be async so that it doesn't run on the main thread.
 #[tauri::command]
-async fn run_mdns_query(service_type: String, scan_time: u64) {
+async fn run_mdns_query(service_type: String, scan_time: u64) -> Result<(), String> {
     info!("Starting MDNS query to find devices");
     let base_url = Arc::new(Mutex::new(HashMap::new()));
     let thread_arc = base_url.clone();
     let mut mdns: m_dnsquery::Mdns = m_dnsquery::Mdns {
         base_url: thread_arc,
-        name: Vec::new(),
+        names: Vec::new(),
     };
     let ref_mdns = &mut mdns;
+
+    info!("MDNS Sercice Thread acquired lock");
     m_dnsquery::run_query(ref_mdns, service_type, scan_time)
         .await
-        .expect("Failed to run MDNS query");
+        .expect("Error in mDNS query");
     info!("MDNS query complete");
-    info!("MDNS query results: {:#?}", m_dnsquery::get_urls(&*ref_mdns)); // get's an array of the base urls found
+    info!(
+        "MDNS query results: {:#?}",
+        m_dnsquery::get_urls(&*ref_mdns)
+    ); // get's an array of the base urls found
     generate_json(&*ref_mdns)
         .await
-        .expect("Generate JSON Config failed in run_mdns_query"); // generates a json file with the base urls found
+        .expect("Failed to generate JSON file"); // generates a json file with the base urls found
+    Ok(())
 }
 
 // This command must be async so that it doesn't run on the main thread.
@@ -135,7 +140,7 @@ fn main() {
         .invoke_handler(tauri::generate_handler![
             close_splashscreen,
             run_mdns_query,
-            wrapper
+            get_user
         ])
         .setup(|app| {
             let window = app.get_window("main").expect("failed to get window");

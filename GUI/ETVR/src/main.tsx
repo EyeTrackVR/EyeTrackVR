@@ -1,18 +1,19 @@
 import reportWebVitals from '@assets/js/reportWebVitals'
 import { invoke } from '@tauri-apps/api/tauri'
-import config from '@tauri/config/config.json'
+import userName from '@utils/Helpers/localStorageHandler'
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import '@src/styles/imports.css'
 import App from './App'
 
 document.addEventListener('DOMContentLoaded', () => {
-  if (!config['name']) {
-    invoke('wrapper').then((config) => {
+  invoke('get_user')
+    .then((config) => {
       console.log(config)
+      userName('name', config)
     })
-  }
-  setTimeout(() => invoke('close_splashscreen'), 15000)
+    .catch((e) => console.error(e))
+  setTimeout(() => invoke('close_splashscreen'), 500)
 })
 
 const root = createRoot(document.getElementById('root') as HTMLElement)
