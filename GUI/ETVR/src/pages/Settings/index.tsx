@@ -1,8 +1,10 @@
 //import { Button } from "@src/components/Buttons";
+import { Button } from '@components/Buttons'
 import Slider from '@components/Slider'
 import Tooltip from '@components/Tooltip'
 import { Menu, Switch } from '@headlessui/react'
 import { GeneralSettings, AlgoSettings } from '@src/static/SettingsStates'
+import { invoke } from '@tauri-apps/api/tauri'
 //import LocalStorageHandler from '@src/utils/Helpers/localStorageHandler'
 import { useState } from 'react'
 
@@ -19,6 +21,28 @@ export function SettingsPage() {
             </div>
             <div className="flex-grow flex-col justify-start">
               <ul>
+                <li>
+                  <div className="pl-[1rem]">
+                    <Button
+                      text="Test MDNS Scan"
+                      color="#6f4ca1"
+                      onClick={() => {
+                        invoke('run_mdns_query', {
+                          serviceType: '_openiris._tcp',
+                          scanTime: 10,
+                        })
+                          .then((res) => {
+                            console.log(res)
+                            console.log('MDNS Scan Complete, Check src-tauri/config/config.json for results')
+                          })
+                          .catch((err) => {
+                            console.log(err)
+                          })
+                      }}
+                      shadow="0 10px 20px -10px rgba(24, 90, 219, 0.6)"
+                    />
+                  </div>
+                </li>
                 {GeneralSettings.map((item, index) => (
                   <li key={index}>
                     <div className="pl-[1rem] flex justify-start">

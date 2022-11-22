@@ -36,7 +36,7 @@ async fn get_user() -> Result<String, String> {
     Ok(user_name)
 }
 
-/// A function to run a mDNS query and create a new RESTClient instance for each device found
+/// A function to run a mDNS query and write the results to a config file
 /// ## Arguments
 /// - `service_type` The service type to query for
 /// - `scan_time` The number of seconds to query for
@@ -50,7 +50,6 @@ async fn run_mdns_query(service_type: String, scan_time: u64) -> Result<(), Stri
         names: Vec::new(),
     };
     let ref_mdns = &mut mdns;
-
     info!("MDNS Service Thread acquired lock");
     m_dnsquery::run_query(ref_mdns, service_type, scan_time)
         .await
@@ -66,7 +65,7 @@ async fn run_mdns_query(service_type: String, scan_time: u64) -> Result<(), Stri
     Ok(())
 }
 
-// This command must be async so that it doesn't run on the main thread.
+///! This command must be async so that it doesn't run on the main thread.
 #[tauri::command]
 async fn close_splashscreen(window: tauri::Window) {
     // Close splashscreen
