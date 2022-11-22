@@ -6,12 +6,14 @@ from settings_widget import SettingsWidget
 import queue
 import threading
 import PySimpleGUI as sg
-
+import sys
 from urllib.request import urlopen
 from bs4 import BeautifulSoup
 
 import webbrowser
-from win10toast_click import ToastNotifier  ## REMOVE FOR LINUX COMPATIBILITY
+
+if sys.platform.startswith("win"):
+    from win10toast_click import ToastNotifier
 
 # Random environment variable to speed up webcam opening on the MSMF backend.
 # https://github.com/opencv/opencv/issues/17687
@@ -67,15 +69,16 @@ def main():
         print(f"[INFO] App is up to date! {latestversion}")
     else: 
         print(f"[INFO] You have app version {appversion} installed. Please update to {latestversion} for the newest fixes.")
-        toaster = ToastNotifier() ## REMOVE THIS AND NEXT 8 LINES FOR LINUX COMPATIBILITY
-        toaster.show_toast(  #show windows toast
-            "EyeTrackVR has an update.",
-            "Click to go to the latest version.",
-            icon_path= "Images/logo.ico",
-            duration=5,
-            threaded=True,
-            callback_on_click=open_url
-            )
+        if sys.platform.startswith("win"):
+            toaster = ToastNotifier()
+            toaster.show_toast(  #show windows toast
+                "EyeTrackVR has an update.",
+                "Click to go to the latest version.",
+                icon_path= "Images/logo.ico",
+                duration=5,
+                threaded=True,
+                callback_on_click=open_url
+                )
             
 
     # Check to see if we have an ROI. If not, bring up ROI finder GUI.

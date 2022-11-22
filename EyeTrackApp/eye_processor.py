@@ -17,7 +17,8 @@ import time
 import statistics
 from one_euro_filter import OneEuroFilter
 from sympy import symbols, Eq, solve
-from winsound import PlaySound, SND_FILENAME, SND_ASYNC
+if sys.platform.startswith("win"):
+    from winsound import PlaySound, SND_FILENAME, SND_ASYNC
 import scipy.signal as sp
 
 
@@ -52,7 +53,8 @@ def run_once(f):
 async def delayed_setting_change(setting, value):
     await asyncio.sleep(5)
     setting = value
-    PlaySound('Audio/compleated.wav', SND_FILENAME | SND_ASYNC)
+    if sys.platform.startswith("win"):
+        PlaySound('Audio/compleated.wav', SND_FILENAME | SND_ASYNC)
 
 
 def fit_rotated_ellipse_ransac(
@@ -345,7 +347,8 @@ class EyeProcessor:
                 self.calibration_frame_counter = None
                 self.xoff = cx
                 self.yoff = cy
-                PlaySound('Audio/compleated.wav', SND_FILENAME | SND_ASYNC)
+                if sys.platform.startswith("win"):
+                    PlaySound('Audio/compleated.wav', SND_FILENAME | SND_ASYNC)
             elif self.calibration_frame_counter != None:
                 self.settings.gui_recenter_eyes = False
                 if cx > self.xmax:
@@ -362,7 +365,8 @@ class EyeProcessor:
                 self.yoff = cy
                 if self.ts == 0:
                     self.settings.gui_recenter_eyes = False
-                    PlaySound('Audio/compleated.wav', SND_FILENAME | SND_ASYNC)
+                    if sys.platform.startswith("win"):
+                        PlaySound('Audio/compleated.wav', SND_FILENAME | SND_ASYNC)
                 else:
                     self.ts = self.ts - 1
             else:
@@ -604,7 +608,8 @@ class EyeProcessor:
                 self.calibration_frame_counter = None
                 self.xoff = cx
                 self.yoff = cy
-                PlaySound('Audio/compleated.wav', SND_FILENAME | SND_ASYNC)
+                if sys.platform.startswith("win"):
+                    PlaySound('Audio/compleated.wav', SND_FILENAME | SND_ASYNC)
             elif self.calibration_frame_counter != None:  # TODO reset calibration values on button press
                 if exm > self.xmax:
                     self.xmax = exm
@@ -620,7 +625,8 @@ class EyeProcessor:
                 self.yoff = cy
                 if self.ts == 0:
                     self.settings.gui_recenter_eyes = False
-                    PlaySound('Audio/compleated.wav', SND_FILENAME | SND_ASYNC)
+                    if sys.platform.startswith("win"):
+                        PlaySound('Audio/compleated.wav', SND_FILENAME | SND_ASYNC)
                 else:
                     self.ts = self.ts - 1
             else:
