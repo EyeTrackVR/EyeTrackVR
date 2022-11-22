@@ -1,4 +1,4 @@
-import { Settings } from '@components/Settings/States'
+import { Settings } from '@src/static/SettingsStates'
 import Tooltip from '@components/Tooltip'
 import { faChevronDown } from '@fortawesome/free-solid-svg-icons'
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'

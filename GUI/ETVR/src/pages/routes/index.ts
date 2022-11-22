@@ -1,5 +1,5 @@
-import { SettingsPage } from '@components/Settings'
 import Main from '@pages/Home'
+import { SettingsPage } from '@pages/Settings'
 export interface IRoutes {
   path: string
   index: string
