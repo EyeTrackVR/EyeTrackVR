@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "EyeTrackVR"
-version = "0.1.7"
+version = "0.1.7.2"
 description = "Opensource, affordable VR eye tracker for VRChat"
 authors = ["RedHawk989"]
 license = "MIT"
@@ -17,6 +17,8 @@ pysimplegui = "^4.60.4"
 scipy = "^1.9.3"
 pydantic = "^1.10.2"
 sympy = "^1.11.1"
+win10toast_click = "^0.1.2"
+beautifulsoup4 = "^2.3.2"
 
 [tool.poetry.group.dev.dependencies]
 black = "^22.10.0"
