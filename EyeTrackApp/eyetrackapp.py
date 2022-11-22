@@ -57,7 +57,7 @@ def main():
     # Check to see if we can connect to our video source first. If not, bring up camera finding
     # dialog.
 
-    appversion = "0.1.7.2s"
+    appversion = "0.1.7.2"
     url = "https://raw.githubusercontent.com/RedHawk989/EyeTrackVR-Installer/master/Version-Data/Version_Num.txt"
     html = urlopen(url).read()
     soup = BeautifulSoup(html, features="html.parser")
