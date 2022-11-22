@@ -11,7 +11,8 @@ from urllib.request import urlopen
 from bs4 import BeautifulSoup
 
 import webbrowser
-from win10toast_click import ToastNotifier 
+from win10toast_click import ToastNotifier  ## REMOVE FOR LINUX COMPATIBILITY
+
 # Random environment variable to speed up webcam opening on the MSMF backend.
 # https://github.com/opencv/opencv/issues/17687
 os.environ["OPENCV_VIDEOIO_MSMF_ENABLE_HW_TRANSFORMS"] = "0"
@@ -36,16 +37,6 @@ def open_url():
     except: 
         print('Failed to open URL. Unsupported variable type.')
 
-# initialize 
-
-
-
-
-
-#def wintoast():
- #   n = ToastNotifier()
-  #  n.show_toast("EyeTrackVR Needs an update.", "You got notification", duration = 10,
-   # icon_path ="Images/logo.ico")
 
 def main():
     # Get Configuration
@@ -72,13 +63,12 @@ def main():
     # drop blank lines
     latestversion = '\n'.join(chunk for chunk in chunks if chunk)
 
-    if appversion == latestversion:
+    if appversion == latestversion: # If what we scraped and hardcoded versions are same, assume we are up to date.
         print(f"[INFO] App is up to date! {latestversion}")
-    else:
+    else: 
         print(f"[INFO] You have app version {appversion} installed. Please update to {latestversion} for the newest fixes.")
-        toaster = ToastNotifier()
-
-        toaster.show_toast(
+        toaster = ToastNotifier() ## REMOVE THIS AND NEXT 8 LINES FOR LINUX COMPATIBILITY
+        toaster.show_toast(  #show windows toast
             "EyeTrackVR has an update.",
             "Click to go to the latest version.",
             icon_path= "Images/logo.ico",
