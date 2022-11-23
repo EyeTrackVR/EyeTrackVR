@@ -28,12 +28,36 @@ export function SettingsPage() {
                       color="#6f4ca1"
                       onClick={() => {
                         invoke('run_mdns_query', {
-                          serviceType: '_openiris._tcp',
+                          serviceType: '_waterchamber._tcp',
                           scanTime: 10,
                         })
                           .then((res) => {
                             console.log(res)
-                            console.log('MDNS Scan Complete, Check src-tauri/config/config.json for results')
+                            console.log(
+                              'MDNS Scan Complete, Check src-tauri/config/config.json for results'
+                            )
+                          })
+                          .catch((err) => {
+                            console.log(err)
+                          })
+                      }}
+                      shadow="0 10px 20px -10px rgba(24, 90, 219, 0.6)"
+                    />
+                  </div>
+                  <div className="pl-[1rem]">
+                    <Button
+                      text="Test REST Client"
+                      color="#6f4ca1"
+                      onClick={() => {
+                        invoke('do_rest_request', {
+                          endpoint: '/api/v1/builtin/command/json?type=data',
+                          deviceName: 'waterchamber.local',
+                        })
+                          .then((res) => {
+                            if (typeof res === 'string') {
+                              const response = JSON.parse(res)
+                              console.log(response)
+                            }
                           })
                           .catch((err) => {
                             console.log(err)

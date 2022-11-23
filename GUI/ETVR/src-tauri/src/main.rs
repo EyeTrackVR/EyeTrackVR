@@ -22,7 +22,7 @@ use std::sync::{Arc, Mutex};
 
 // use custom modules
 mod modules;
-use modules::m_dnsquery;
+use modules::{m_dnsquery, rest_client};
 #[derive(Debug, Deserialize, Serialize)]
 struct Config {
     names: Vec<String>,
@@ -65,6 +65,15 @@ async fn run_mdns_query(service_type: String, scan_time: u64) -> Result<(), Stri
     Ok(())
 }
 
+#[tauri::command]
+async fn do_rest_request(endpoint: String, device_name: String) -> Result<String, String> {
+    info!("Starting REST request");
+    let response = rest_client::run_rest_client(endpoint, device_name)
+        .await
+        .expect("Error in REST request");
+    Ok(response)
+}
+
 ///! This command must be async so that it doesn't run on the main thread.
 #[tauri::command]
 async fn close_splashscreen(window: tauri::Window) {
@@ -98,7 +107,8 @@ fn main() {
         .invoke_handler(tauri::generate_handler![
             close_splashscreen,
             run_mdns_query,
-            get_user
+            get_user,
+            do_rest_request
         ])
         .setup(|app| {
             let window = app.get_window("main").expect("failed to get window");

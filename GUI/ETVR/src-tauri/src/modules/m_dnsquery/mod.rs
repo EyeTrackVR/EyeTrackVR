@@ -23,15 +23,6 @@ pub struct Mdns {
     pub names: Vec<String>,
 }
 
-/// A struct to hold the mDNS query results
-/// ## Fields
-/// - `response`: a hashmap of the response
-#[derive(Debug, Deserialize, Serialize)]
-struct Response {
-    names: Vec<String>,
-    urls: Vec<String>,
-}
-
 /// Runs a mDNS query for X seconds
 /// ## Arguments
 /// - `mdns` A mutable reference to the Mdns struct
@@ -178,10 +169,12 @@ pub async fn generate_json(instance: &Mdns) -> Result<(), Box<dyn std::error::Er
     for (i, url) in data.iter().enumerate() {
         json = Some(serde_json::json!({
             "names": [instance.names[i].to_string()],
-            "urls": [url],
+            "urls": {
+                instance.names[i].to_string(): url.to_string()
+            },
         }));
     }
-    let config: Response;
+    let config: serde_json::Value;
     if let Some(json) = json {
         let _serde_json = serde_json::from_value(json);
         let serde_json_result = match _serde_json {
@@ -193,10 +186,7 @@ pub async fn generate_json(instance: &Mdns) -> Result<(), Box<dyn std::error::Er
         };
         config = serde_json_result;
     } else {
-        config = Response {
-            urls: Vec::new(),
-            names: Vec::new(),
-        };
+        config = serde_json::json!({});
     }
     info!("{:?}", config);
     // write the json object to a file
