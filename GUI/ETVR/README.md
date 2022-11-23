@@ -34,6 +34,17 @@ yarn tauri build
 
 This will create a folder called `target` in the `src-tauri` directory. Inside this folder, you will find the executable for your operating system, as well as an MSI installer for Windows.
 
+## Rust dev environment
+
+If you want to work on the Rust code, you will need to install the Rust toolchain. Starting with RustC.
+
+Then in `vscode` you will need to install the extensions [`rust-analyzer`](https://rust-analyzer.github.io/manual.html#vs-code).
+Optionally you can install [`CodeLLDB`](https://marketplace.visualstudio.com/items?itemName=vadimcn.vscode-lldb) for active breakpoint debugging.
+
+For the `rust-analyzer` extension to work, you will always need to open the workspace file from the `GUI/ETVR` folder.
+
+There is a workspace file in the `GUI/ETVR` folder, which you can open in vscode. This will automatically set the correct rust toolchain and the correct rust-analyzer settings.
+
 ## Useful Links
 
 - [Tauri](https://tauri.app/)

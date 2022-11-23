@@ -174,7 +174,7 @@ sketch
 .vscode/*.code-snippets
 
 # Ignore code-workspaces
-*.code-workspace
+# *.code-workspace
 
 ### Windows ###
 # Windows thumbnail cache files
@@ -205,6 +205,4 @@ $RECYCLE.BIN/
 # End of https://www.toptal.com/developers/gitignore/api/windows,visualstudiocode,node,react
 
 # Custom rules (everything added below won't be overriden by 'Generate .gitignore File' if you use 'Update' option)
-
-
 
