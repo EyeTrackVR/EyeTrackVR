@@ -1,0 +1,39 @@
+.eyetrackvr_logo_gif_1 {
+    margin-top: 2rem;
+    object-fit: cover;
+    background-color: black;
+    border-radius: 50%;
+    height: 90px;
+    width: 90px;
+    margin-left: 8rem;
+    filter: drop-shadow(10px 10px 6px rgba(25, 24, 24, 0.734));
+}
+
+.eyetrackvr_logo_gif_1:hover {
+    -webkit-transform: scale(0.8);
+    -ms-transform: scale(0.8);
+    transform: scale(1.12);
+    transition: all 1.3s ease;
+}
+
+.eyetrackvr_logo_gif_1_image {
+    position: relative;
+}
+
+.notifications_div {
+    width: 2.2rem;
+    height: 2.2rem;
+    border-radius: 50%;
+    background-color: red;
+
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    position: absolute;
+    top: -13px;
+    right: -6px;
+}
+
+.eyetrackvr_logo_gif_1>img {
+    border-radius: 50%;
+}

@@ -1,0 +1,3 @@
+const Settings = [{}];
+
+export { Settings };

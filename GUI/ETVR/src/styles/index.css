@@ -1,0 +1,106 @@
+@layer components {
+    .card {
+        background-color: theme("colors.white");
+        border-radius: theme("borderRadius.lg");
+        padding-left: theme("spacing.6");
+        padding-right: theme("spacing.6");
+        padding-bottom: theme("spacing.6");
+        padding-top: theme("spacing.8");
+        /* box-shadow: rgba(0, 0, 0, 0.16) 0px 3px 6px, rgba(0, 0, 0, 0.23) 0px 3px 6px; */
+        box-shadow: rgba(0, 0, 0, 0.19) 0px 10px 20px,
+            rgba(0, 0, 0, 0.23) 0px 6px 6px;
+        margin-top: 2rem;
+    }
+
+    .menu-bars {
+        margin-left: 2rem;
+        background: none;
+    }
+
+    .quick-menu-text-gradient {
+        background-color: #5f5f5f /* #5f5f5f */;
+        background-image: linear-gradient(90deg, #000000c1, #ffffff);
+        background-size: 100%;
+        background-clip: text;
+        -webkit-background-clip: text;
+        -moz-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        -moz-text-fill-color: transparent;
+    }
+
+    @media screen and (min-width: 768px) {
+        .nav-text:hover {
+            background-color: theme("colors.blue.300");
+        }
+    }
+}
+
+#root {
+    text-align: center;
+}
+
+body {
+    margin: 0;
+    font-family: "Ubuntu", sans-serif;
+    cursor: default;
+    color: #0b0c10;
+    width: 100%;
+    height: 100%;
+    /* Clothoid Gradient */
+    background-image: linear-gradient(
+        rgb(24, 24, 43, 0) 0%,
+        rgba(24, 24, 43, 0.019) 50%,
+        rgba(24, 24, 43, 0.037) 65%,
+        rgba(24, 24, 43, 0.075) 75.5%,
+        rgba(24, 24, 43, 0.15) 82.85%,
+        rgba(24, 24, 43, 0.3) 88%,
+        rgba(24, 24, 43, 0.7900000214576721) 100%
+    );
+    background-color: #282830; /*this our primary bg color*/
+    text-align: center;
+    font-size: 14px;
+}
+
+.App {
+    color: #0b0c10;
+    text-align: center;
+    height: 100%;
+}
+
+.main-div {
+    height: 100vh;
+}
+
+.plus-color {
+    filter: invert(42%) sepia(93%) saturate(1352%) hue-rotate(1deg)
+        brightness(119%) contrast(119%);
+}
+
+.plus-color:hover {
+    -webkit-transform: scale(0.8);
+    -ms-transform: scale(0.8);
+    transform: scale(1.12);
+    transition: all 1.3s ease;
+}
+
+/* width */
+::-webkit-scrollbar {
+    width: 6px;
+}
+
+/* Track */
+::-webkit-scrollbar-track {
+    box-shadow: inset 0 0 5px grey;
+    border-radius: 10px;
+}
+
+/* Handle */
+::-webkit-scrollbar-thumb {
+    background: #ae6d6d;
+    border-radius: 10px;
+}
+
+/* Handle on hover */
+::-webkit-scrollbar-thumb:hover {
+    background: #b24646;
+}

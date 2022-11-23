@@ -1,0 +1,49 @@
+name: "tauri-build"
+on:
+  push:
+    branches: [GUI]
+    paths-ignore:
+      - "*.md"
+env:
+  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+  
+concurrency:
+  group: ${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    defaults:
+      run:
+        working-directory: GUI\ETVR
+    strategy:
+      fail-fast: false
+      matrix:
+        node-version: [16.x]
+        platform: [windows-latest]
+    runs-on: ${{ matrix.platform }}
+    steps:
+      - uses: actions/checkout@v2
+        with:
+          token: ${{ env.GITHUB_TOKEN }}
+      - name: use Node.js ${{ matrix.node-version }}
+        uses: actions/setup-node@v2
+        with:
+          node-version: ${{ matrix.node-version }}
+      - name: install Rust stable
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+      - name: install dependencies (windows only)
+        if: matrix.platform == 'windows-latest'
+        run: |
+          npm install -g typescript
+          yarn install
+      - name: Build
+        uses: tauri-apps/tauri-action@v0
+        with:
+          tagName: eyetrackvr-v__VERSION__
+          releaseName: "EyeTrackApp v__VERSION__" # name of the release
+          releaseBody: "See the assets to download this version and install." # message to include in the release
+          releaseDraft: true # set to false to publish the release as a finished product
+          prerelease: false # set to true to mark the release as a pre-release
