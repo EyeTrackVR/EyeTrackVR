@@ -27,31 +27,57 @@ use std::sync::{Arc, Mutex};
 pub struct RESTClient {
     http_client: Client,
     base_url: String,
+    method: String,
 }
 
 /// A function to create a new RESTClient instance
 /// ## Arguments
 /// - `base_url` The base url of the api to query
 impl RESTClient {
-    pub fn new(base_url: String) -> Self {
+    pub fn new(base_url: String, method: String) -> Self {
         Self {
             http_client: Client::new(),
             base_url,
+            method,
         }
     }
 }
 
 pub async fn request(rest_client: &RESTClient) -> Result<String, String> {
     info!("Making REST request");
-    let response = rest_client
-        .http_client
-        .get(&rest_client.base_url)
-        .send()
-        .await
-        .expect("Error sending request")
-        .text()
-        .await
-        .expect("Error parsing response");
+
+    let response: String;
+    let response = match rest_client.method.as_str() {
+        "GET" => {
+            response = rest_client
+                .http_client
+                .get(&rest_client.base_url)
+                .send()
+                .await
+                .expect("Error in sending GET request")
+                .text()
+                .await
+                .expect("Error in parsing GET request response");
+            response
+        }
+        "POST" => {
+            response = rest_client
+                .http_client
+                .post(&rest_client.base_url)
+                .send()
+                .await
+                .expect("Error in Sending POST request")
+                .text()
+                .await
+                .expect("Error in parsing POST request response");
+            response
+        }
+        _ => {
+            error!("Invalid method");
+            return Err("Invalid method".to_string());
+        }
+    };
+
     Ok(response)
 }
 
@@ -59,7 +85,11 @@ pub async fn request(rest_client: &RESTClient) -> Result<String, String> {
 /// ## Arguments
 /// - `endpoint` The endpoint to query for
 /// - `device_name` The name of the device to query
-pub async fn run_rest_client(endpoint: String, device_name: String) -> Result<String, String> {
+pub async fn run_rest_client(
+    endpoint: String,
+    device_name: String,
+    method: String,
+) -> Result<String, String> {
     info!("Starting REST client");
     // read the json config file
     let data = std::fs::read_to_string("config/config.json").expect("Unable to read config file");
@@ -79,7 +109,7 @@ pub async fn run_rest_client(endpoint: String, device_name: String) -> Result<St
     };
     let full_url = format!("{}{}", full_url_result, endpoint);
     //info!("Full url: {}", full_url);
-    let rest_client = RESTClient::new(full_url);
+    let rest_client = RESTClient::new(full_url, method);
     let request_result = request(&rest_client).await;
     match request_result {
         Ok(response) => {

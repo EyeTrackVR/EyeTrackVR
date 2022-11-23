@@ -4,12 +4,20 @@ import Slider from '@components/Slider'
 import Tooltip from '@components/Tooltip'
 import { Menu, Switch } from '@headlessui/react'
 import { GeneralSettings, AlgoSettings } from '@src/static/SettingsStates'
-import { invoke } from '@tauri-apps/api/tauri'
+import { useMDNSScanner } from '@src/utils/hooks/useMDNSScanner'
+import { useRestClient } from '@src/utils/hooks/useRestClient'
+
 //import LocalStorageHandler from '@src/utils/Helpers/localStorageHandler'
 import { useState } from 'react'
 
 export function SettingsPage() {
   const [enabled, setEnabled] = useState(false)
+  const { scan } = useMDNSScanner('_waterchamber._tcp', 10)
+  const { request } = useRestClient(
+    '/api/v1/builtin/command/json?type=data',
+    'waterchamber.local',
+    'GET'
+  )
   return (
     <div className="py-4 px-8">
       <Menu as="div" className="h-[55%] content-center">
@@ -26,21 +34,7 @@ export function SettingsPage() {
                     <Button
                       text="Test MDNS Scan"
                       color="#6f4ca1"
-                      onClick={() => {
-                        invoke('run_mdns_query', {
-                          serviceType: '_waterchamber._tcp',
-                          scanTime: 10,
-                        })
-                          .then((res) => {
-                            console.log(res)
-                            console.log(
-                              'MDNS Scan Complete, Check src-tauri/config/config.json for results'
-                            )
-                          })
-                          .catch((err) => {
-                            console.log(err)
-                          })
-                      }}
+                      onClick={scan}
                       shadow="0 10px 20px -10px rgba(24, 90, 219, 0.6)"
                     />
                   </div>
@@ -48,21 +42,7 @@ export function SettingsPage() {
                     <Button
                       text="Test REST Client"
                       color="#6f4ca1"
-                      onClick={() => {
-                        invoke('do_rest_request', {
-                          endpoint: '/api/v1/builtin/command/json?type=data',
-                          deviceName: 'waterchamber.local',
-                        })
-                          .then((res) => {
-                            if (typeof res === 'string') {
-                              const response = JSON.parse(res)
-                              console.log(response)
-                            }
-                          })
-                          .catch((err) => {
-                            console.log(err)
-                          })
-                      }}
+                      onClick={request}
                       shadow="0 10px 20px -10px rgba(24, 90, 219, 0.6)"
                     />
                   </div>
@@ -103,7 +83,7 @@ export function SettingsPage() {
             </div>
             <div className="flex-grow flex-col justify-start">
               <ul>
-                {AlgoSettings[0].map((item, index) => (
+                {AlgoSettings.map((item, index) => (
                   <li key={index}>
                     <div className="pl-[1rem] flex justify-start">
                       <div className="flex flex-row items-center content-center justify-start rounded-[8px] pt-[.2rem] pb-[.2rem] pl-[1rem] pr-[1rem] ml-[4px] hover:bg-[#2525369d]">
