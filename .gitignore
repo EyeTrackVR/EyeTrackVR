@@ -3,4 +3,6 @@
 **/__pycache__/**
 **/*.pyc
 *.cfg
-
+EyeTrackApp/eyetrack_settings.json
+EyeTrackApp/build
+EyeTrackApp/dist

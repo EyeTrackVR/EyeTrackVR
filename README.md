@@ -58,11 +58,11 @@ This includes visually checking with an IR camera that the brightness is correct
 
 > **Warning**: Make sure you are using **NON-focused** emitters and at around ***5ma-8ma total power per eye***.
 
-[Effect of infrared radiation on the lens](./docs/Reference_Docs/saftey/effect_of_ir_on_the_lens.pdf)
+[Effect of infrared radiation on the lens](https://github.com/RedHawk989/EyeTrackVR/blob/docs/docs/Reference_Docs/saftey/effect_of_ir_on_the_lens.pdf)
 
-[Training-library Nir Stds](./docs/Reference_Docs/saftey/training-library_nir_stds_20021011.pdf)
+[Training-library Nir Stds](https://github.com/RedHawk989/EyeTrackVR/blob/docs/docs/Reference_Docs/saftey/training-library_nir_stds_20021011.pdf)
 
-[AN002_Details on photobiological safety of LED light sources](./docs/Reference_Docs/saftey/AN002_Details_on_photobiological_safety_of_LED_light_sources.pdf)
+[AN002_Details on photobiological safety of LED light sources](https://github.com/RedHawk989/EyeTrackVR/blob/docs/docs/Reference_Docs/saftey/AN002_Details_on_photobiological_safety_of_LED_light_sources.pdf)
 
 
 
