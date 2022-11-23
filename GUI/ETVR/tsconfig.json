@@ -1,65 +1,38 @@
 {
-  "compilerOptions": {
-    "baseUrl": ".",
-    "target": "ESNext",
-    "useDefineForClassFields": true,
-    "noImplicitAny": false,
-    "moduleResolution": "node",
-    "lib": [
-      "DOM",
-      "DOM.Iterable",
-      "ESNext"
-    ],
-    "allowJs": true,
-    "skipLibCheck": false,
-    "esModuleInterop": false,
-    "allowSyntheticDefaultImports": true,
-    "strict": true,
-    "forceConsistentCasingInFileNames": true,
-    "module": "ESNext",
-    "resolveJsonModule": true,
-    "isolatedModules": true,
-    "noEmit": true,
-    "jsx": "react-jsx",
-    "paths": {
-      "@interfaces/*": [
-        "src/interfaces/*",
-      ],
-      "@components/*": [
-        "src/components/*",
-      ],
-      "@redux/*": [
-        "src/redux/*"
-      ],
-      "@pages/*": [
-        "src/pages/*"
-      ],
-      "@styles/*": [
-        "src/styles/*"
-      ],
-      "@config/*": [
-        "src/config/*"
-      ],
-      "@src/*": [
-        "src/*"
-      ],
-      "@assets/*": [
-        "./assets/*"
-      ]
+    "compilerOptions": {
+        "baseUrl": ".",
+        "target": "ESNext",
+        "useDefineForClassFields": true,
+        "noImplicitAny": false,
+        "moduleResolution": "node",
+        "lib": ["DOM", "DOM.Iterable", "ESNext"],
+        "allowJs": true,
+        "skipLibCheck": false,
+        "esModuleInterop": false,
+        "allowSyntheticDefaultImports": true,
+        "strict": true,
+        "forceConsistentCasingInFileNames": true,
+        "module": "ESNext",
+        "resolveJsonModule": true,
+        "isolatedModules": true,
+        "noEmit": true,
+        "jsx": "react-jsx",
+        "paths": {
+            "@interfaces/*": ["src/interfaces/*"],
+            "@components/*": ["src/components/*"],
+            "@redux/*": ["src/redux/*"],
+            "@pages/*": ["src/pages/*"],
+            "@styles/*": ["src/styles/*"],
+            "@config/*": ["src/config/*"],
+            "@src/*": ["src/*"],
+            "@assets/*": ["./assets/*"]
+        }
     },
-  },
-  "include": [
-    "src",
-    "**/*.ts",
-    "**/*.tsx",
-    "index.js",
-  ],
-  "references": [
-    {
-      "path": "./tsconfig.node.json"
-    }
-  ],
-  "exclude": [
-    "node_modules"
-  ],
+    "include": ["src", "**/*.ts", "**/*.tsx", "index.js"],
+    "references": [
+        {
+            "path": "./tsconfig.node.json"
+        }
+    ],
+    "exclude": ["node_modules"]
 }
