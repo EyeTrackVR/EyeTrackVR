@@ -57,8 +57,8 @@ pub async fn request(rest_client: &RESTClient) -> Result<String, String> {
 
 /// A function to run a REST Client and create a new RESTClient instance for each device found
 /// ## Arguments
-/// - `service_type` The service type to query for
-/// - `scan_time` The number of seconds to query for
+/// - `endpoint` The endpoint to query for
+/// - `device_name` The name of the device to query
 pub async fn run_rest_client(endpoint: String, device_name: String) -> Result<String, String> {
     info!("Starting REST client");
     // read the json config file
