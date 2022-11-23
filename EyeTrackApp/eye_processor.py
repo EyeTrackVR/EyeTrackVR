@@ -13,13 +13,9 @@ import threading
 import numpy as np
 import cv2
 from enum import Enum
-import time
-import statistics
 from one_euro_filter import OneEuroFilter
-from sympy import symbols, Eq, solve
 if sys.platform.startswith("win"):
     from winsound import PlaySound, SND_FILENAME, SND_ASYNC
-import scipy.signal as sp
 
 
 class InformationOrigin(Enum):
