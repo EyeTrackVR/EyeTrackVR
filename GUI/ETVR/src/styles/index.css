@@ -76,7 +76,7 @@ body {
 
 .main-div {
     height: 100vh;
-    overflow: auto;
+    overflow: hidden;
     border-radius: 1rem;
     /* Clothoid Gradient */
     background-image: linear-gradient(

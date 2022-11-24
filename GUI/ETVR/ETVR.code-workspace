@@ -28,6 +28,9 @@
 			"**/src/styles",
 			"**/src/utils"
 		],
-		"rust-analyzer.files.watcher": "client"
+		"rust-analyzer.files.watcher": "client",
+		"[toml]": {
+			"editor.defaultFormatter": "tamasfe.even-better-toml"
+		},
 	}
 }

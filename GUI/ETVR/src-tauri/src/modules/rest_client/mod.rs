@@ -54,10 +54,10 @@ pub async fn request(rest_client: &RESTClient) -> Result<String, String> {
                 .get(&rest_client.base_url)
                 .send()
                 .await
-                .expect("Error in sending GET request")
+                .map_err(|e| e.to_string())?
                 .text()
                 .await
-                .expect("Error in parsing GET request response");
+                .map_err(|e| e.to_string())?;
             response
         }
         "POST" => {
@@ -66,10 +66,10 @@ pub async fn request(rest_client: &RESTClient) -> Result<String, String> {
                 .post(&rest_client.base_url)
                 .send()
                 .await
-                .expect("Error in Sending POST request")
+                .map_err(|e| e.to_string())?
                 .text()
                 .await
-                .expect("Error in parsing POST request response");
+                .map_err(|e| e.to_string())?;
             response
         }
         _ => {
@@ -95,7 +95,7 @@ pub async fn run_rest_client(
     let data = std::fs::read_to_string("config/config.json").expect("Unable to read config file");
     // parse the json config file
     let config: serde_json::Value =
-        serde_json::from_str(&data).expect("Unable to parse config file");
+        serde_json::from_str(&data).map_err(|e| e.to_string())?;
     debug!("Current Config: {:?}", config);
     let mut request_response: String = String::new();
     let mut url = config["urls"][device_name].as_str();
@@ -104,7 +104,7 @@ pub async fn run_rest_client(
         None => {
             error!("Unable to get url");
             url = Some("");
-            url.expect("Unable to get url")
+            url.map_err(|e| e.to_string())?
         }
     };
     let full_url = format!("{}{}", full_url_result, endpoint);

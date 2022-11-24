@@ -53,7 +53,7 @@ pub async fn run_query(
     service_type.push_str(".local.");
     let receiver = mdns
         .browse(&service_type)
-        .expect("Failed to browse. Please install Bonjour on your system.");
+        .map_err(|e| e.to_string())?;
     let now = std::time::Instant::now();
     //* listen for event then stop the event loop after 5 seconds.
     // while let Ok(event) = receiver.recv() {}
@@ -83,7 +83,7 @@ pub async fn run_query(
                     instance
                         .base_url
                         .lock()
-                        .expect("Failed to lock base_url in run_query")
+                        .map_err(|e| e.to_string())?
                         .insert(name.to_string(), base_url);
                     instance.names.push(name.to_string());
                 }

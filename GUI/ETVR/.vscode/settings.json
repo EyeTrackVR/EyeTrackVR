@@ -29,8 +29,11 @@
         "**/src/utils",
     ],
     "rust-analyzer.files.watcher": "client",
+    "[toml]": {
+        "editor.defaultFormatter": "tamasfe.even-better-toml"
+    },
     // set the vscode workspace folder as the src-tauri folder
-   /*  "rust-analyzer.linkedProjects": [
+    /*  "rust-analyzer.linkedProjects": [
         "/src-tauri"
     ], */
 }
