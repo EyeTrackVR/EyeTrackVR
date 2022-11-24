@@ -103,7 +103,7 @@ pub async fn run_rest_client(
         None => {
             error!("Unable to get url");
             url = Some("");
-            url.expect("Unable to get url")
+            return Err(format!("Unable to get url: {:?}", url));
         }
     };
     let full_url = format!("{}{}", full_url_result, endpoint);
