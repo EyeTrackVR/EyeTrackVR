@@ -25,7 +25,7 @@ export function SettingsPage() {
         <div className="h-[95%] flex-1 grow rounded-[14px] border-solid border border-black shadow-lg leading-5 font-sans font-medium text-[.75rem]">
           <div className="h-[100%] flex-1 overflow-auto grow rounded-[14px] pr-1 bg-[#0f0f0f] pt-[.5rem] pb-[.5rem] text-[#ffffffc4]">
             <div className="flex flex-col divide-y divide-gray-800">
-              <span className="pb-1">General Settings</span>
+              <span className="pb-1 pr-10">General Settings</span>
               <div className="pt-1 pb-2 ml-32 mr-32 drop-shadow-lg" />
             </div>
             <div className="flex-col justify-start">
@@ -79,7 +79,7 @@ export function SettingsPage() {
               </ul>
             </div>
             <div className="flex flex-col divide-y divide-gray-800">
-              <span className="pb-1">Tracking Algorithm Settings</span>
+              <span className="pb-1 pr-10">Tracking Algorithm Settings</span>
               <div className="pt-1 pb-2 ml-32 mr-32 drop-shadow-lg" />
             </div>
             <div className="flex-grow flex-col justify-start">
