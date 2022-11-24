@@ -3,9 +3,9 @@ import AppRoutes from './pages/routes/Routes'
 
 export default function App() {
   return (
-    <main className="App">
+    <div className="App">
       <AppRoutes />
       <Outlet />
-    </main>
+    </div>
   )
 }

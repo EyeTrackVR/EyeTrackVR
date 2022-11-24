@@ -18,16 +18,17 @@ export function SettingsPage() {
     'waterchamber.local',
     'GET'
   )
+
   return (
-    <div className="py-4 px-8">
-      <Menu as="div" className="h-[85%] content-center">
-        <div className="flex flex-grow content-start rounded-[14px] border-solid border border-black shadow-lg leading-5 font-sans font-medium text-[.75rem] h-[100%]">
-          <div className="overflow-auto flex-grow rounded-[14px] h-[100%] pr-1 bg-[#0f0f0f] pt-[.5rem] pb-[.5rem] text-[#ffffffc4]">
+    <div className="h-[100%] grow flex-col pt-6 py-6 px-8">
+      <Menu as="div" className="h-[100%]">
+        <div className="h-[95%] flex-1 grow rounded-[14px] border-solid border border-black shadow-lg leading-5 font-sans font-medium text-[.75rem]">
+          <div className="h-[100%] flex-1 overflow-auto grow rounded-[14px] pr-1 bg-[#0f0f0f] pt-[.5rem] pb-[.5rem] text-[#ffffffc4]">
             <div className="flex flex-col divide-y divide-gray-800">
               <span className="pb-1">General Settings</span>
               <div className="pt-1 pb-2 ml-32 mr-32 drop-shadow-lg" />
             </div>
-            <div className="flex-grow flex-col justify-start">
+            <div className="flex-col justify-start">
               <ul>
                 <li>
                   <div className="pl-[1rem]">
@@ -52,7 +53,7 @@ export function SettingsPage() {
                     <div className="pl-[1rem] flex justify-start">
                       <Switch.Group>
                         <Switch.Label>
-                          <div className="flex flex-row flex-grow items-center content-center justify-between rounded-[8px] pt-[.2rem] pb-[.2rem] pl-[1rem] pr-[1rem] ml-[4px] hover:bg-[#2525369d]">
+                          <div className="flex flex-row grow items-center content-center justify-between rounded-[8px] pt-[.2rem] pb-[.2rem] pl-[1rem] pr-[1rem] ml-[4px] hover:bg-[#2525369d]">
                             <div className="pr-4 pt-[.2rem]">
                               <Switch
                                 name={item.name}
