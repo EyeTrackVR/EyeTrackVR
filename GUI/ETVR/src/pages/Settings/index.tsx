@@ -23,7 +23,7 @@ interface IGeneralSectionProps {
   enabled: boolean
 }
 
-function Title({ title, children }: ITitleProps): JSX.Element {
+const Title = ({ title, children }: ITitleProps): JSX.Element => {
   return (
     <>
       <div className="flex flex-col divide-y divide-gray-800">
@@ -35,9 +35,15 @@ function Title({ title, children }: ITitleProps): JSX.Element {
   )
 }
 
-function GeneralSection({ scan, request, setEnabled, enabled }: IGeneralSectionProps): JSX.Element {
+const GeneralSection = ({
+  scan,
+  request,
+  setEnabled,
+  enabled,
+}: IGeneralSectionProps): JSX.Element => {
   return (
     <ul>
+      {/* BEGIN DEV DEP */}
       <li>
         <div className="pl-[1rem]">
           <Button
@@ -56,6 +62,7 @@ function GeneralSection({ scan, request, setEnabled, enabled }: IGeneralSectionP
           />
         </div>
       </li>
+      {/* END DEV DEP */}
       {GeneralSettings.map((item, index) => (
         <li key={index}>
           <div className="pl-[1rem] flex justify-start">
@@ -88,7 +95,7 @@ function GeneralSection({ scan, request, setEnabled, enabled }: IGeneralSectionP
   )
 }
 
-function AlgoSection(): JSX.Element {
+const AlgoSection = (): JSX.Element => {
   return (
     <ul>
       {AlgoSettings.map((item, index) => (
@@ -116,7 +123,7 @@ function AlgoSection(): JSX.Element {
   )
 }
 
-export function SettingsPage() {
+const SettingsPage = () => {
   const [enabled, setEnabled] = useState(false)
   const { scan } = useMDNSScanner('_waterchamber._tcp', 10)
   const { request } = useRestClient(
@@ -148,3 +155,5 @@ export function SettingsPage() {
     </div>
   )
 }
+
+export default SettingsPage

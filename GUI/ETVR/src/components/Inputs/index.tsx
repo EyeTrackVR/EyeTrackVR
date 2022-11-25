@@ -7,41 +7,9 @@ interface IInputProps {
   name?: string
   placeholder?: string
   className?: string
-  disabled?: boolean
-  required?: boolean
-  autoComplete?: string
-  autoFocus?: boolean
-  maxLength?: number
-  minLength?: number
-  pattern?: string
-  readOnly?: boolean
-  size?: number
-  spellCheck?: boolean
-  step?: number
-  title?: string
-  min?: number
-  max?: number
-  list?: string
-  multiple?: boolean
-  accept?: string
-  form?: string
-  formAction?: string
-  formEncType?: string
-  formMethod?: string
-  formNoValidate?: boolean
-  formTarget?: string
-  height?: number
-  width?: number
-  inputMode?: string
 }
 
-export default function Input({
-  type,
-  id,
-  placeholder,
-  setValue,
-  value,
-}: IInputProps): JSX.Element {
+const Input = ({ type, id, placeholder, setValue, value }: IInputProps): JSX.Element => {
   return (
     <div>
       <input
@@ -57,3 +25,5 @@ export default function Input({
     </div>
   )
 }
+
+export default Input
