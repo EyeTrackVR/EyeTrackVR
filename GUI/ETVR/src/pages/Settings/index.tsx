@@ -23,7 +23,7 @@ interface IGeneralSectionProps {
   enabled: boolean
 }
 
-const Title = ({ title, children }: ITitleProps): JSX.Element => {
+const Title = ({ title, children }: ITitleProps) => {
   return (
     <>
       <div className="flex flex-col divide-y divide-gray-800">
@@ -95,7 +95,7 @@ const GeneralSection = ({
   )
 }
 
-const AlgoSection = (): JSX.Element => {
+const AlgoSection = () => {
   return (
     <ul>
       {AlgoSettings.map((item, index) => (

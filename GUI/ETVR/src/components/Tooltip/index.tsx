@@ -1,13 +1,12 @@
 import { useRef } from 'react'
-import type { FC } from 'react'
 import type { ReactNode } from 'react'
 
-interface Props {
+interface IProps {
   children: ReactNode
   tooltip?: string
 }
 
-const Tooltip: FC<Props> = ({ children, tooltip }): JSX.Element => {
+const Tooltip = ({ children, tooltip }: IProps) => {
   const tooltipRef = useRef<HTMLSpanElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
 

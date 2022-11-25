@@ -1,4 +1,3 @@
-import type { FC } from 'react'
 import type { ReactNode } from 'react'
 
 interface IModalProps {
@@ -8,12 +7,7 @@ interface IModalProps {
   onClose: () => void
 }
 
-export const Modal: FC<IModalProps> = ({
-  children,
-  isVisible,
-  width,
-  onClose,
-}): JSX.Element | null => {
+export const Modal = ({ children, isVisible, width, onClose }: IModalProps): JSX.Element | null => {
   if (!isVisible) return null
   return (
     <div

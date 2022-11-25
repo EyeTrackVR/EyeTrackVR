@@ -9,7 +9,7 @@ interface IInputProps {
   className?: string
 }
 
-const Input = ({ type, id, placeholder, setValue, value }: IInputProps): JSX.Element => {
+const Input = ({ type, id, placeholder, setValue, value }: IInputProps) => {
   return (
     <div>
       <input
