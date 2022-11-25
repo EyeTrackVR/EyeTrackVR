@@ -10,7 +10,7 @@ export interface Iprops {
   name: string
 }
 
-export default function Header(props: Iprops) {
+export default function Header({ name }: Iprops): JSX.Element {
   const [showSettings, setShowSettings] = useState(false)
   return (
     <>
@@ -44,7 +44,7 @@ export default function Header(props: Iprops) {
             </div>
           </div>
           <DropDown
-            name={props.name}
+            name={name}
             showSettings={showSettings}
             onClose={() => setShowSettings(!showSettings)}
             onClickOutside={() => {
@@ -53,15 +53,6 @@ export default function Header(props: Iprops) {
           />
         </div>
       </header>
-      {/* <div className="nav-menu z-10">
-                <Modal
-                    isVisible={showSettings}
-                    onClose={() => setShowSettings(false)}
-                    width="200"
-                >
-                    <Settings />
-                </Modal>
-            </div> */}
     </>
   )
 }

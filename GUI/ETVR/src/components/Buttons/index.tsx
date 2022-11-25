@@ -7,13 +7,13 @@ export interface Iprops {
   text: string
 }
 
-export function Button(props: Iprops) {
+export function Button({ color, shadow, onClick, text }: Iprops): JSX.Element {
   return (
     <button
       className={styles.primary_btn}
-      style={{ background: props.color, boxShadow: props.shadow }}
-      onClick={props.onClick}>
-      {props.text}
+      style={{ background: color, boxShadow: shadow }}
+      onClick={onClick}>
+      {text}
     </button>
   )
 }
