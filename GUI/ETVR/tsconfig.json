@@ -25,7 +25,11 @@
       "@styles/*": ["src/styles/*"],
       "@config/*": ["src/config/*"],
       "@src/*": ["src/*"],
-      "@assets/*": ["./assets/*"]
+      "@assets/*": ["./assets/*"],
+      "@tauri/*": ["src/tauri/*"],
+      "@hooks/*": ["src/utils/hooks/*"],
+      "@static/*": ["src/static/*"],
+      "@utils/*": ["src/utils/*"]
     }
   },
   "include": ["src", "**/*.ts", "**/*.tsx", "index.js"],

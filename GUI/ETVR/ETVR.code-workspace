@@ -1,36 +1,37 @@
 {
-	"folders": [
-		{
-			"path": "."
-		}
-	],
-	"settings": {
-		"files.autoSave": "afterDelay",
-		"rust-analyzer.checkOnSave.enable": true,
-		"rust-analyzer.checkOnSave.extraArgs": [
-			"--all-targets"
-		],
-		"rust-analyzer.checkOnSave.command": "clippy",
-		"rust-analyzer.checkOnSave.allTargets": true,
-		"rust-analyzer.files.excludeDirs": [
-			"**/target",
-			"**/node_modules",
-			"**/dist",
-			"**/build",
-			"**/public",
-			"**/assets",
-			"**/src-tauri/target",
-			"**/scripts",
-			"**/src/components",
-			"**/src/interfaces",
-			"**/src/pages",
-			"**/src/static",
-			"**/src/styles",
-			"**/src/utils"
-		],
-		"rust-analyzer.files.watcher": "client",
-		"[toml]": {
-			"editor.defaultFormatter": "tamasfe.even-better-toml"
-		},
-	}
+  "folders": [
+    {
+      "path": "."
+    }
+  ],
+  "settings": {
+    "files.autoSave": "afterDelay",
+    "rust-analyzer.checkOnSave.enable": true,
+    "rust-analyzer.checkOnSave.extraArgs": ["--all-targets"],
+    "rust-analyzer.checkOnSave.command": "clippy",
+    "rust-analyzer.checkOnSave.allTargets": true,
+    "rust-analyzer.files.excludeDirs": [
+      "**/target",
+      "**/node_modules",
+      "**/dist",
+      "**/build",
+      "**/public",
+      "**/assets",
+      "**/src-tauri/target",
+      "**/scripts",
+      "**/src/components",
+      "**/src/interfaces",
+      "**/src/pages",
+      "**/src/static",
+      "**/src/styles",
+      "**/src/utils"
+    ],
+    "rust-analyzer.files.watcher": "client",
+    "[toml]": {
+      "editor.defaultFormatter": "tamasfe.even-better-toml"
+    },
+    "[jsonc]": {
+      "editor.defaultFormatter": "esbenp.prettier-vscode"
+    }
+  }
 }

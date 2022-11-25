@@ -32,6 +32,9 @@
     "[toml]": {
         "editor.defaultFormatter": "tamasfe.even-better-toml"
     },
+    "[jsonc]": {
+        "editor.defaultFormatter": "esbenp.prettier-vscode"
+    },
     // set the vscode workspace folder as the src-tauri folder
     /*  "rust-analyzer.linkedProjects": [
         "/src-tauri"
