@@ -11,7 +11,7 @@ interface ICameraProps {
   cameraAddress: string
 }
 
-interface ICameraDetails {
+interface ICameraDetails extends ICameraProps {
   cameraLabel: string
 }
 
@@ -47,7 +47,7 @@ const CameraDetails = (props: ICameraProps & ICameraStatus) => {
   )
 }
 
-const CameraContainer = (props: ICameraProps & ICameraDetails & ICameraStatus) => {
+const CameraContainer = (props: ICameraProps & ICameraStatus) => {
   return (
     <div className="pb-[5rem] h-[100%] xl:pb-[1rem] grow flex-row pt-6 py-6 px-8">
       <Menu as="div" className="h-[100%]">
