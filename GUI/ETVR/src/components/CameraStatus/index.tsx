@@ -1,5 +1,7 @@
+// NOTE: https://fecolormatrix.com/
+
 /* eslint-disable no-multi-str */
-interface ICameraStatus {
+export interface ICameraStatus {
   activeStatus: string
 }
 
@@ -84,4 +86,4 @@ const CameraStatusIndicator = (props: ICameraStatus) => {
   )
 }
 
-export default CameraStatusIndicator
+export { CameraStatusIndicator, ActiveStatus, GenerateMatrixShadow }

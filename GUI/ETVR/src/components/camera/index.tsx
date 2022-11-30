@@ -1,10 +1,10 @@
-/* eslint-disable no-multi-str */
 import vector1 from '@assets/images/vector1.svg'
-import CameraStatusIndicator from '@components/CameraStatus'
+import { CameraStatusIndicator, ActiveStatus } from '@components/CameraStatus'
 import { faGear } from '@fortawesome/free-solid-svg-icons'
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
 import { Menu } from '@headlessui/react'
 import React from 'react'
+import type { ICameraStatus } from '@components/CameraStatus'
 
 interface ICameraProps {
   cameraType: boolean
@@ -13,21 +13,6 @@ interface ICameraProps {
 
 interface ICameraDetails {
   cameraLabel: string
-}
-
-interface ICameraStatus {
-  activeStatus: string
-}
-
-const ActiveStatus = (activeStatus: string) => {
-  switch (activeStatus) {
-    case 'active':
-      return '#1FDD00'
-    case 'loading':
-      return '#F9AA33'
-    default:
-      return '#DD0000'
-  }
 }
 
 const CameraHeader = (props: ICameraDetails & ICameraStatus) => {
