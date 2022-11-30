@@ -110,7 +110,6 @@ const AlgoSection = () => {
                     max={item.max}
                     value={item.value}
                     step={item.step}
-                    className=""
                   />
                 </div>
                 <span> {item.name} </span>
