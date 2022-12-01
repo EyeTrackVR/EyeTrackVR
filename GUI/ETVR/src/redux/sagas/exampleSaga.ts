@@ -4,7 +4,7 @@ import { all, spawn, takeEvery, put, call } from 'typed-redux-saga'
 import { PayloadAction } from '@reduxjs/toolkit'
 
 export function* callExample(status: boolean): Generator {
-  //allows to sed data to store
+  //allows to set data to store
   yield* put(actions.setSagaExample(status))
 }
 
