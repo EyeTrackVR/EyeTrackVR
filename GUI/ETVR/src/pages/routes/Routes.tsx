@@ -11,7 +11,7 @@ import { routes } from '.'
 // TODO: Implement a settings page that allows the user to change the settings of the application
 
 export default function AppRoutes() {
-  const fetchDataExample = customUseSelector(({ ui }: IExample) => ui.example)
+  const fetchDataExample = customUseSelector(({ ui }: IExample) => ui)
 
   const dispatch = useDispatch()
   const getUserName = () => {

@@ -28,13 +28,16 @@ const uiSliceManager = createSlice({
       // simply change  action: PayloadAction<boolean> to  action: PayloadAction<{a,b}:IProps>
       // and then for example action.payload.a
       state.example = action.payload
+      return state
     },
 
     requestSagaExample(state, _: PayloadAction<{ status: boolean }>) {
       // if your're using saga , what you need to do to return only state
+      return state
     },
     setSagaExample(state, action: PayloadAction<boolean>) {
       state.sagaExample = action.payload
+      return state
     },
   },
 })
