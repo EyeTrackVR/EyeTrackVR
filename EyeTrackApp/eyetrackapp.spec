@@ -6,7 +6,7 @@ block_cipher = None
 a = Analysis(['eyetrackapp.py'],
              pathex=[],
              binaries=[],
-             datas=[("Audio/*", "Audio"), ("Images/*", "Images/"), ("pye3dcustom/*", "pye3dcustom/"), ("pye3d/refraction_models/*", "pye3d/refraction_models/")],
+             datas=[("Audio/*", "Audio"), ("Images/*", "Images/"), ("pye3d/refraction_models/*", "pye3d/refraction_models/")],
              hiddenimports=['cv2', 'numpy', 'PySimpleGui'],
              hookspath=[],
              hooksconfig={},
@@ -32,7 +32,8 @@ exe = EXE(pyz,
           disable_windowed_traceback=False,
           target_arch=None,
           codesign_identity=None,
-          entitlements_file=None )
+          entitlements_file=None,
+          icon="Images/logo.ico" )
 coll = COLLECT(exe,
                a.binaries,
                a.zipfiles,
