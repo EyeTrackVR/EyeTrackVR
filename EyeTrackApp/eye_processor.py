@@ -1,3 +1,45 @@
+'''
+------------------------------------------------------------------------------------------------------                                                                                                    
+                                                                                                    
+                                               ,@@@@@@                                              
+                                            @@@@@@@@@@@            @@@                              
+                                          @@@@@@@@@@@@      @@@@@@@@@@@                             
+                                        @@@@@@@@@@@@@   @@@@@@@@@@@@@@                              
+                                      @@@@@@@/         ,@@@@@@@@@@@@@                               
+                                         /@@@@@@@@@@@@@@@  @@@@@@@@                                 
+                                    @@@@@@@@@@@@@@@@@@@@@@@@ @@@@@                                  
+                                @@@@@@@@                @@@@@                                       
+                              ,@@@                        @@@@&                                     
+                                             @@@@@@.       @@@@                                     
+                                   @@@     @@@@@@@@@/      @@@@@                                    
+                                   ,@@@.     @@@@@@((@     @@@@(                                    
+                                   //@@@        ,,  @@@@  @@@@@                                     
+                                   @@@(                @@@@@@@                                      
+                                   @@@  @          @@@@@@@@#                                        
+                                       @@@@@@@@@@@@@@@@@                                            
+                                      @@@@@@@@@@@@@(     
+
+HSR By: Sean.Denka (Optimization Wizard, Contributor), Summer#2406 (Main Algorithm Engineer)  
+RANSAC 3D By: Summer#2406 (Main Algorithm Engineer), Pupil Labs (pye3d)
+BLOB By: Prohurtz#0001 (Main App Developer)
+Algorithm App Implimentations By: Prohurtz#0001, qdot (Inital App Creator)
+
+Additional Contributors: [Assassin], Summer404NotFound, lorow, ZanzyTHEbar
+
+Copyright (c) 2022 EyeTrackVR <3                                
+------------------------------------------------------------------------------------------------------
+'''                                                                         
+
+
+
+
+
+
+
+
+
+
+
 from operator import truth
 from dataclasses import dataclass
 import sys

@@ -118,7 +118,7 @@ class SettingsWidget:
    
             ],
             [
-                sg.Text("Filter Paramaters:", background_color='#242224'),
+                sg.Text("One Euro Filter Paramaters:", background_color='#242224'),
             ],
             [
                 
