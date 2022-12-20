@@ -30,16 +30,6 @@ Copyright (c) 2022 EyeTrackVR <3
 ------------------------------------------------------------------------------------------------------
 '''                                                                         
 
-
-
-
-
-
-
-
-
-
-
 from operator import truth
 from dataclasses import dataclass
 import sys
@@ -910,6 +900,8 @@ class EyeProcessor:
         self.ts = 10
         self.previous_rotation = self.config.rotation_angle
         self.calibration_frame_counter
+        self.camera_model = None
+        self.detector_3d = None
 
         #HSF
         # CV param
@@ -945,6 +937,7 @@ class EyeProcessor:
 
     def capture_crop_rotate_image(self):
         # Get our current frame
+        
         try:
             # Get frame from capture source, crop to ROI
             self.current_image = self.current_image[
@@ -955,6 +948,7 @@ class EyeProcessor:
                     self.config.roi_window_x + self.config.roi_window_w
                 ),
             ]
+    
         except:
             # Failure to process frame, reuse previous frame.
             self.current_image = self.previous_image
@@ -1251,7 +1245,9 @@ class EyeProcessor:
         
         print(center_x, center_y)
         out_x, out_y = cal_osc(self, center_x, center_y)
+        
         cv2.circle(frame, (center_x, center_y), 10, (0, 0, 255), -1)
+
         self.output_images_and_update(frame,EyeInformation(InformationOrigin.HSF, out_x, out_y, 0, False))
             
         if now_mode != cv_mode[0] and now_mode != cv_mode[1]:
@@ -1269,29 +1265,186 @@ class EyeProcessor:
         #self.output_images_and_update(larger_threshold, EyeInformation(InformationOrigin.HSF, 0, 0, 0, True))
 
     def RANSAC3D(self): 
-        camera_model = None
-        detector_3d = None
-        f = 0
-        # If our ROI configuration has changed, reset our model and detector
-        if (camera_model is None
-            or detector_3d is None
-            or camera_model.resolution != (
-                self.config.roi_window_w,
-                self.config.roi_window_h,
-            )
-        ):
-            camera_model = CameraModel(
-                focal_length=self.config.focal_length,
-                resolution=(self.config.roi_window_w, self.config.roi_window_h),
-            )
-            detector_3d = Detector3D(
-                camera=camera_model, long_term_mode=DetectorMode.blocking
+        
+        f = False
+        self.capture_crop_rotate_image()
+        
+        # Convert the image to grayscale, and set up thresholding. Thresholds here are basically a
+        # low-pass filter that will set any pixel < the threshold value to 0. Thresholding is user
+        # configurable in this utility as we're dealing with variable lighting amounts/placement, as
+        # well as camera positioning and lensing. Therefore everyone's cutoff may be different.
+        #
+        # The goal of thresholding settings is to make sure we can ONLY see the pupil. This is why we
+        # crop the image earlier; it gives us less possible dark area to get confused about in the
+        # next step.
+
+        if self.config.gui_circular_crop == True:
+            if self.cct == 0:
+                try:
+                    ht, wd = self.current_image_gray.shape[:2]
+                    radius = int(float(self.lkg_projected_sphere["axes"][0]))
+                    self.xc = int(float(self.lkg_projected_sphere["center"][0]))
+                    self.yc = int(float(self.lkg_projected_sphere["center"][1]))
+                    # draw filled circle in white on black background as mask
+                    mask = np.zeros((ht, wd), dtype=np.uint8)
+                    mask = cv2.circle(mask, (self.xc, self.yc), radius, 255, -1)
+                    # create white colored background
+                    color = np.full_like(self.current_image_gray, (255))
+                    # apply mask to image
+                    masked_img = cv2.bitwise_and(self.current_image_gray, self.current_image_gray, mask=mask)
+                    # apply inverse mask to colored image
+                    masked_color = cv2.bitwise_and(color, color, mask=255 - mask)
+                    # combine the two masked images
+                    self.current_image_gray = cv2.add(masked_img, masked_color)
+                except:
+                    pass
+            else:
+                self.cct = self.cct - 1
+        else:
+            self.cct = 300
+
+        _, thresh = cv2.threshold(
+            self.current_image_gray,
+            int(self.config.threshold),
+            255,
+            cv2.THRESH_BINARY,
+        )
+        
+        # Set up morphological transforms, for smoothing and clearing the image we get out of the
+        # thresholding operation. After this, we'd really like to just have a black blob in the middle
+        # of a bunch of white area.
+        kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (3, 3))
+        opening = cv2.morphologyEx(thresh, cv2.MORPH_OPEN, kernel)
+        closing = cv2.morphologyEx(opening, cv2.MORPH_CLOSE, kernel)
+        image = 255 - closing
+
+        # Now that the image is relatively clean, run contour finding in order to get us our pupil
+        # boundaries in the 2D context. Ideally, we just get one border.
+        contours, _ = cv2.findContours(image, cv2.RETR_TREE, cv2.CHAIN_APPROX_NONE)
+
+        # Find the convex shape based on each contour, and sort the list of them from smallest to
+        # largest area.
+        convex_hulls = []
+        for i in range(len(contours)):
+            convex_hulls.append(cv2.convexHull(contours[i], False))
+
+        # If we have no convex maidens, we have no pupil, and can't progress from here. Dump back to
+        # using blob tracking.
+        if len(convex_hulls) == 0:
+            pass
+        
+        # Find our largest hull, which we expect will probably be the ellipse that represents the 2d
+        # area for the pupil, which we can use as the search area for the eye in general.
+        largest_hull = sorted(convex_hulls, key=cv2.contourArea)[-1]
+        
+        # However eyes are annoyingly three dimensional, so we need to take this ellipse and turn it
+        # into a curve patch on the surface of a sphere (the eye itself). If it's not a sphere, see your
+        # ophthalmologist about possible issues with astigmatism.
+        try:
+            cx, cy, w, h, theta = fit_rotated_ellipse_ransac(
+                largest_hull.reshape(-1, 2)
             )
 
-        # Check to make sure we haven't been requested to close
+        
+            # Get axis and angle of the ellipse, using pupil labs 2d algos. The next bit of code ranges
+            # from somewhat to completely magic, as most of it happens in native libraries (hence passing
+            # via dicts).
+            result_2d = {}
+            result_2d_final = {}
+            
+            result_2d["center"] = (cx, cy)
+            
+            result_2d["axes"] = (w, h)
+            result_2d["angle"] = theta * 180.0 / np.pi
+            result_2d_final["ellipse"] = result_2d
+            result_2d_final["diameter"] = w
+            result_2d_final["location"] = (cx, cy)
+            result_2d_final["confidence"] = 0.99
+            result_2d_final["timestamp"] = self.current_frame_number / self.current_fps
+            # Black magic happens here, but after this we have our reprojected pupil/eye, and all we had
+            # to do was sell our soul to satan and/or C++.
+            
+            result_3d = self.detector_3d.update_and_detect(
+                result_2d_final, self.current_image_gray
+            )
+            
+            # Now we have our pupil
+            ellipse_3d = result_3d["ellipse"]
+            # And our eyeball that the pupil is on the surface of
+            self.lkg_projected_sphere = result_3d["projected_sphere"]
+
+            # Record our pupil center
+            exm = ellipse_3d["center"][0]
+            eym = ellipse_3d["center"][1]
+
+            d = result_3d["diameter_3d"]
+            
+            out_x, out_y = cal_osc(self, cx, cy) #filter and calibrate values
+            self.output_images_and_update(thresh, EyeInformation(InformationOrigin.RANSAC, out_x, out_y, 0, False))
+        except:
+            f = True
+        # Draw our image and stack it for visual output
         try:
+            cv2.drawContours(self.current_image_gray, contours, -1, (255, 0, 0), 1)
+            cv2.circle(self.current_image_gray, (int(cx), int(cy)), 2, (0, 0, 255), -1)
+        except:
+            pass
+
+        try:
+            cv2.ellipse(
+                self.current_image_gray,
+                tuple(int(v) for v in ellipse_3d["center"]),
+                tuple(int(v) for v in ellipse_3d["axes"]),
+                ellipse_3d["angle"],
+                0,
+                360,  # start/end angle for drawing
+                (0, 255, 0),  # color (BGR): red
+            )
+        except Exception:
+            # Sometimes we get bogus axes and trying to draw this throws. Ideally we should check for
+            # validity beforehand, but for now just pass. It usually fixes itself on the next frame.
+            pass
+
+        try:
+            # print(self.lkg_projected_sphere["angle"], self.lkg_projected_sphere["axes"], self.lkg_projected_sphere["center"])
+            cv2.ellipse(
+                self.current_image_gray,
+                tuple(int(v) for v in self.lkg_projected_sphere["center"]),
+                tuple(int(v) for v in self.lkg_projected_sphere["axes"]),
+                self.lkg_projected_sphere["angle"],
+                0,
+                360,  # start/end angle for drawing
+                (0, 255, 0),  # color (BGR): red
+            )
+
+
+            # draw line from center of eyeball to center of pupil
+            cv2.line(
+                self.current_image_gray,
+                tuple(int(v) for v in self.lkg_projected_sphere["center"]),
+                tuple(int(v) for v in ellipse_3d["center"]),
+                (0, 255, 0),  # color (BGR): red
+            )
+        except:
+            pass
+        # Shove a concatenated image out to the main GUI thread for rendering
+        self.output_images_and_update(thresh, EyeInformation(InformationOrigin.FAILURE, 0 ,0, 0, False))
+        #self.output_images_and_update(thresh, output_info)
+        #except:
+        #    f = True
+        return f
+
+
+    def run(self):
+        self.camera_model = None
+        self.detector_3d = None
+        f = False
+
+        while True:
+            f = True
+             # Check to make sure we haven't been requested to close
             if self.cancellation_event.is_set():
-                print("Exiting RANSAC thread")
+                print("Exiting Tracking thread")
                 return
 
             if self.config.roi_window_w <= 0 or self.config.roi_window_h <= 0:
@@ -1299,22 +1452,24 @@ class EyeProcessor:
                 # Sleep a bit while we wait.
                 if self.cancellation_event.wait(0.1):
                     return
-                pass
+                continue
 
+
+            
             # If our ROI configuration has changed, reset our model and detector
-            if (camera_model is None
-                or detector_3d is None
-                or camera_model.resolution != (
+            if (self.camera_model is None
+                or self.detector_3d is None
+                or self.camera_model.resolution != (
                     self.config.roi_window_w,
                     self.config.roi_window_h,
                 )
             ):
-                camera_model = CameraModel(
+                self.camera_model = CameraModel(
                     focal_length=self.config.focal_length,
                     resolution=(self.config.roi_window_w, self.config.roi_window_h),
                 )
-                detector_3d = Detector3D(
-                    camera=camera_model, long_term_mode=DetectorMode.blocking
+                self.detector_3d = Detector3D(
+                    camera=self.camera_model, long_term_mode=DetectorMode.blocking
                 )
 
             try:
@@ -1328,222 +1483,20 @@ class EyeProcessor:
                 ) = self.capture_queue_incoming.get(block=True, timeout=0.2)
             except queue.Empty:
                 # print("No image available")
-                pass
-
+                continue
+            
             if not self.capture_crop_rotate_image():
-                pass
-
-            # Convert the image to grayscale, and set up thresholding. Thresholds here are basically a
-            # low-pass filter that will set any pixel < the threshold value to 0. Thresholding is user
-            # configurable in this utility as we're dealing with variable lighting amounts/placement, as
-            # well as camera positioning and lensing. Therefore everyone's cutoff may be different.
-            #
-            # The goal of thresholding settings is to make sure we can ONLY see the pupil. This is why we
-            # crop the image earlier; it gives us less possible dark area to get confused about in the
-            # next step.
-            self.current_image_gray = cv2.cvtColor(
-                self.current_image, cv2.COLOR_BGR2GRAY
-            )
-
-            if self.config.gui_circular_crop == True:
-                if self.cct == 0:
-                    try:
-                        ht, wd = self.current_image_gray.shape[:2]
-                        radius = int(float(self.lkg_projected_sphere["axes"][0]))
-                        self.xc = int(float(self.lkg_projected_sphere["center"][0]))
-                        self.yc = int(float(self.lkg_projected_sphere["center"][1]))
-                        # draw filled circle in white on black background as mask
-                        mask = np.zeros((ht, wd), dtype=np.uint8)
-                        mask = cv2.circle(mask, (self.xc, self.yc), radius, 255, -1)
-                        # create white colored background
-                        color = np.full_like(self.current_image_gray, (255))
-                        # apply mask to image
-                        masked_img = cv2.bitwise_and(self.current_image_gray, self.current_image_gray, mask=mask)
-                        # apply inverse mask to colored image
-                        masked_color = cv2.bitwise_and(color, color, mask=255 - mask)
-                        # combine the two masked images
-                        self.current_image_gray = cv2.add(masked_img, masked_color)
-                    except:
-                        pass
-                else:
-                    self.cct = self.cct - 1
-            else:
-                self.cct = 300
-
-            _, thresh = cv2.threshold(
-                self.current_image_gray,
-                int(self.config.threshold),
-                255,
-                cv2.THRESH_BINARY,
-            )
-
-            # Set up morphological transforms, for smoothing and clearing the image we get out of the
-            # thresholding operation. After this, we'd really like to just have a black blob in the middle
-            # of a bunch of white area.
-            kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (3, 3))
-            opening = cv2.morphologyEx(thresh, cv2.MORPH_OPEN, kernel)
-            closing = cv2.morphologyEx(opening, cv2.MORPH_CLOSE, kernel)
-            image = 255 - closing
-
-            # Now that the image is relatively clean, run contour finding in order to get us our pupil
-            # boundaries in the 2D context. Ideally, we just get one border.
-            contours, _ = cv2.findContours(image, cv2.RETR_TREE, cv2.CHAIN_APPROX_NONE)
-
-            # Find the convex shape based on each contour, and sort the list of them from smallest to
-            # largest area.
-            convex_hulls = []
-            for i in range(len(contours)):
-                convex_hulls.append(cv2.convexHull(contours[i], False))
-
-            # If we have no convex maidens, we have no pupil, and can't progress from here. Dump back to
-            # using blob tracking.
-            if len(convex_hulls) == 0:
-                if self.settings.gui_BLOB:
-                    self.BLOB()
-                else:
-                    print("[INFO] Blob fallback disabled. Assuming blink.")
-                    self.output_images_and_update(thresh, EyeInformation(InformationOrigin.RANSAC, 0, 0, 0, True))
-                pass
-
-            # Find our largest hull, which we expect will probably be the ellipse that represents the 2d
-            # area for the pupil, which we can use as the search area for the eye in general.
-            largest_hull = sorted(convex_hulls, key=cv2.contourArea)[-1]
-
-            # However eyes are annoyingly three dimensional, so we need to take this ellipse and turn it
-            # into a curve patch on the surface of a sphere (the eye itself). If it's not a sphere, see your
-            # ophthalmologist about possible issues with astigmatism.
-            try:
-                cx, cy, w, h, theta = fit_rotated_ellipse_ransac(
-                    largest_hull.reshape(-1, 2)
-                )
-            except:
-                f = True
-
-            # Get axis and angle of the ellipse, using pupil labs 2d algos. The next bit of code ranges
-            # from somewhat to completely magic, as most of it happens in native libraries (hence passing
-            # via dicts).
-            result_2d = {}
-            result_2d_final = {}
-
-            result_2d["center"] = (cx, cy)
-            result_2d["axes"] = (w, h)
-            result_2d["angle"] = theta * 180.0 / np.pi
-            result_2d_final["ellipse"] = result_2d
-            result_2d_final["diameter"] = w
-            result_2d_final["location"] = (cx, cy)
-            result_2d_final["confidence"] = 0.99
-            result_2d_final["timestamp"] = self.current_frame_number / self.current_fps
-            # Black magic happens here, but after this we have our reprojected pupil/eye, and all we had
-            # to do was sell our soul to satan and/or C++.
-            result_3d = detector_3d.update_and_detect(
-                result_2d_final, self.current_image_gray
-            )
-
-            # Now we have our pupil
-            ellipse_3d = result_3d["ellipse"]
-            # And our eyeball that the pupil is on the surface of
-            self.lkg_projected_sphere = result_3d["projected_sphere"]
-
-            # Record our pupil center
-            exm = ellipse_3d["center"][0]
-            eym = ellipse_3d["center"][1]
-
-            d = result_3d["diameter_3d"]
-
-            out_x, out_y = cal_osc(self, cx, cy) #filter and calibrate values
-            output_info = EyeInformation(InformationOrigin.RANSAC, out_x, out_y, 1, False)
-
-            # Draw our image and stack it for visual output
-            try:
-                cv2.drawContours(self.current_image_gray, contours, -1, (255, 0, 0), 1)
-                cv2.circle(self.current_image_gray, (int(cx), int(cy)), 2, (0, 0, 255), -1)
-            except:
-                pass
-
-            try:
-                cv2.ellipse(
-                    self.current_image_gray,
-                    tuple(int(v) for v in ellipse_3d["center"]),
-                    tuple(int(v) for v in ellipse_3d["axes"]),
-                    ellipse_3d["angle"],
-                    0,
-                    360,  # start/end angle for drawing
-                    (0, 255, 0),  # color (BGR): red
-                )
-            except Exception:
-                # Sometimes we get bogus axes and trying to draw this throws. Ideally we should check for
-                # validity beforehand, but for now just pass. It usually fixes itself on the next frame.
-                pass
-
-            try:
-                # print(self.lkg_projected_sphere["angle"], self.lkg_projected_sphere["axes"], self.lkg_projected_sphere["center"])
-                cv2.ellipse(
-                    self.current_image_gray,
-                    tuple(int(v) for v in self.lkg_projected_sphere["center"]),
-                    tuple(int(v) for v in self.lkg_projected_sphere["axes"]),
-                    self.lkg_projected_sphere["angle"],
-                    0,
-                    360,  # start/end angle for drawing
-                    (0, 255, 0),  # color (BGR): red
-                )
-            except:
-                pass
-
-            # draw line from center of eyeball to center of pupil
-            cv2.line(
-                self.current_image_gray,
-                tuple(int(v) for v in self.lkg_projected_sphere["center"]),
-                tuple(int(v) for v in ellipse_3d["center"]),
-                (0, 255, 0),  # color (BGR): red
-            )
-
-            # Shove a concatenated image out to the main GUI thread for rendering
-            self.output_images_and_update(thresh, output_info)
-        except:
-            f = True
-        return f
-
-
-    def run(self):
-
-        while True:
-            f = False
-             # Check to make sure we haven't been requested to close
-            if self.cancellation_event.is_set():
-                print("Exiting Tracking thread")
-                return
-
-            if self.config.roi_window_w <= 0 or self.config.roi_window_h <= 0:
-                # At this point, we're waiting for the user to set up the ROI window in the GUI.
-                # Sleep a bit while we wait.
-                if self.cancellation_event.wait(0.1):
-                    return
                 continue
-            try:
-                    if self.capture_queue_incoming.empty():
-                        self.capture_event.set()
-                    # Wait a bit for images here. If we don't get one, just try again.
-                    (
-                        self.current_image,
-                        self.current_frame_number,
-                        self.current_fps,
-                    ) = self.capture_queue_incoming.get(block=True, timeout=0.2)
-            except queue.Empty:
-                # print("No image available")
-                continue
+
             self.current_image_gray = cv2.cvtColor(
             self.current_image, cv2.COLOR_BGR2GRAY
             )
-            if not self.capture_crop_rotate_image():
-                continue
-
-
             try:
                 if self.settings.gui_RANSAC3D: #for now ransac goes first
-                    f == self.RANSAC3D()
-                if f and self.settings.gui_HSF: #if a fail has been reported and other algo is enabled, use it.
+                    f == self.RANSAC3D
+                if  f and self.settings.gui_HSF: #if a fail has been reported and other algo is enabled, use it.
                     f == self.HSF()
-                if f and self.settings.gui_blob_fallback:
+                if  f and self.settings.gui_BLOB:
                     f == self.BLOB()
             except:
                 print("[WARN] ALL ALGORITHIMS HAVE FAILED OR ARE DISABLED.")

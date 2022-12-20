@@ -47,7 +47,7 @@ class CameraWidget:
 
         self.roi_layout = [
             [
-                sg.Graph(
+                sg.Graph( 
                     (640, 480),
                     (0, 480),
                     (640, 0),
@@ -241,6 +241,7 @@ class CameraWidget:
                 self.config.roi_window_w = abs(self.x0 - self.x1)
                 self.config.roi_window_h = abs(self.y0 - self.y1)
                 self.main_config.save()
+                
 
         if event == self.gui_roi_selection:
             # Event for mouse button down or mouse drag in ROI mode
