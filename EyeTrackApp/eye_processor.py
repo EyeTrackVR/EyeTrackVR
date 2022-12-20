@@ -934,7 +934,7 @@ class EyeProcessor:
         )
         return True
 
-    def blob_tracking_fallback(self):
+    def BLOB(self):
         # define circle
         if self.config.gui_circular_crop:
             if self.cct == 0:
@@ -1356,8 +1356,8 @@ class EyeProcessor:
             # If we have no convex maidens, we have no pupil, and can't progress from here. Dump back to
             # using blob tracking.
             if len(convex_hulls) == 0:
-                if self.settings.gui_blob_fallback:
-                    self.blob_tracking_fallback()
+                if self.settings.gui_BLOB:
+                    self.BLOB()
                 else:
                     print("[INFO] Blob fallback disabled. Assuming blink.")
                     self.output_images_and_update(thresh, EyeInformation(InformationOrigin.RANSAC, 0, 0, 0, True))
@@ -1375,7 +1375,7 @@ class EyeProcessor:
                     largest_hull.reshape(-1, 2)
                 )
             except:
-                f = 1
+                f = True
 
             # Get axis and angle of the ellipse, using pupil labs 2d algos. The next bit of code ranges
             # from somewhat to completely magic, as most of it happens in native libraries (hence passing
@@ -1458,13 +1458,14 @@ class EyeProcessor:
             # Shove a concatenated image out to the main GUI thread for rendering
             self.output_images_and_update(thresh, output_info)
         except:
-            f = 1
+            f = True
         return f
 
 
     def run(self):
 
         while True:
+            f = False
              # Check to make sure we haven't been requested to close
             if self.cancellation_event.is_set():
                 print("Exiting Tracking thread")
@@ -1496,9 +1497,12 @@ class EyeProcessor:
 
 
             try:
-                f = self.RANSAC3D()
-                if f == 1 and self.settings.gui_blob_fallback: #if a fail has been reported and other algo is enabled, use it.
-                    self.gui_blob_fallback()
+                if self.settings.gui_RANSAC3D: #for now ransac goes first
+                    f == self.RANSAC3D()
+                if f and self.settings.gui_HSF: #if a fail has been reported and other algo is enabled, use it.
+                    f == self.HSF()
+                if f and self.settings.gui_blob_fallback:
+                    f == self.BLOB()
             except:
                 print("[WARN] ALL ALGORITHIMS HAVE FAILED OR ARE DISABLED.")
             

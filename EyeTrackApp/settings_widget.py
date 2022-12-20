@@ -20,7 +20,9 @@ class SettingsWidget:
         self.gui_osc_receiver_port = f"OSCRECEIVERPORT{widget_id}-"
         self.gui_osc_recenter_address = f"OSCRECENTERADDRESS{widget_id}-"
         self.gui_osc_recalibrate_address = f"OSCRECALIBRATEADDRESS{widget_id}-"
-        self.gui_blob_fallback = f"-BLOBFALLBACK{widget_id}-"
+        self.gui_BLOB = f"-BLOBFALLBACK{widget_id}-"
+        self.gui_HSF = f"-HSF{widget_id}-"
+        self.gui_RANSAC3D = f"-RANSAC3D{widget_id}-"
         self.gui_blob_maxsize = f"-BLOBMAXSIZE{widget_id}-"
         self.gui_blob_minsize = f"-BLOBMINSIZE{widget_id}-"
         self.gui_speed_coefficient = f"-SPEEDCOEFFICIENT{widget_id}-"
@@ -76,9 +78,21 @@ class SettingsWidget:
             ],
 
             [sg.Checkbox(
+                    "RANSAC 3D",
+                    default=self.config.gui_RANSAC3D,
+                    key=self.gui_RANSAC3D,
+                    background_color='#424042',
+                ),
+                sg.Checkbox(
+                    "Haar Surround Feature",
+                    default=self.config.gui_HSF,
+                    key=self.gui_HSF,
+                    background_color='#424042',
+                ),
+                sg.Checkbox(
                     "Blob Fallback",
-                    default=self.config.gui_blob_fallback,
-                    key=self.gui_blob_fallback,
+                    default=self.config.gui_BLOB,
+                    key=self.gui_BLOB,
                     background_color='#424042',
                 ),
             ],
