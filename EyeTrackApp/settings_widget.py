@@ -249,8 +249,8 @@ class SettingsWidget:
             self.config.gui_flip_y_axis = values[self.gui_flip_y_axis]
             changed = True
 
-        if self.config.gui_blob_fallback != values[self.gui_blob_fallback]:
-            self.config.gui_blob_fallback = values[self.gui_blob_fallback]
+        if self.config.gui_BLOB != values[self.gui_BLOB]:
+            self.config.gui_BLOB = values[self.gui_BLOB]
             changed = True
 
         if self.config.gui_eye_falloff != values[self.gui_eye_falloff]:
