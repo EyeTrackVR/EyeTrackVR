@@ -314,7 +314,7 @@ class CameraWidget:
                     graph.update(background_color="white")
 
                     #try:
-                    print(eye_info.x, eye_info.y)
+                 #   print(eye_info.x, eye_info.y)
                     if not np.isnan(eye_info.x) and not np.isnan(eye_info.y):
                         
                         graph.draw_circle(

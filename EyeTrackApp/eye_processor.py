@@ -143,34 +143,35 @@ def cal_osc(self, cx, cy):
     out_x = 0
     out_y = 0
     if self.settings.gui_flip_y_axis:  # check config on flipped values settings and apply accordingly
-        if yd > 0:
+        if yd >= 0:
             out_y = max(0.0, min(1.0, yd))
         if yu > 0:
             out_y = -abs(max(0.0, min(1.0, yu)))
     else:
-        if yd > 0:
+        if yd >= 0:
             out_y = -abs(max(0.0, min(1.0, yd)))
         if yu > 0:
             out_y = max(0.0, min(1.0, yu))
 
     if flipx:  #TODO Check for working function
-        if xr > 0:
+        if xr >= 0:
             out_x = -abs(max(0.0, min(1.0, xr)))
         if xl > 0:
             out_x = max(0.0, min(1.0, xl))
     else:
-        if xr > 0:
+        if xr >= 0:
             out_x = max(0.0, min(1.0, xr))
         if xl > 0:
             out_x = -abs(max(0.0, min(1.0, xl)))
-
-    try:
-        noisy_point = np.array([out_x, out_y])  # fliter our values with a One Euro Filter
-        point_hat = self.one_euro_filter(noisy_point)
-        out_x = point_hat[0]
-        out_y = point_hat[1]
-    except:
-        pass
+    print("BEFORE", out_x, out_y, float(cx), float(cy), self.xoff, self.yoff)
+    #try:
+    noisy_point = np.array([float(out_x), float(out_y)])  # fliter our values with a One Euro Filter
+    point_hat = self.one_euro_filter(noisy_point)
+    out_x = point_hat[0]
+    out_y = point_hat[1]
+  #  print("AFTER", out_x, out_y, float(cx), float(cy), self.xoff, self.yoff)
+    #except:
+     #   pass
     return out_x, out_y
 
 
@@ -1065,79 +1066,8 @@ class EyeProcessor:
                 self.current_image_gray, (x, y), (x + w, y + h), (255, 0, 0), 2
             )
 
-            if self.calibration_frame_counter == 0:
-                self.calibration_frame_counter = None
-                self.xoff = cx
-                self.yoff = cy
-                if sys.platform.startswith("win"):
-                    PlaySound('Audio/compleated.wav', SND_FILENAME | SND_ASYNC)
-            elif self.calibration_frame_counter != None:
-                self.settings.gui_recenter_eyes = False
-                if cx > self.xmax:
-                    self.xmax = cx
-                if cx < self.xmin:
-                    self.xmin = cx
-                if cy > self.ymax:
-                    self.ymax = cy
-                if cy < self.ymin:
-                    self.ymin = cy
-                self.calibration_frame_counter -= 1
-            if self.settings.gui_recenter_eyes == True:
-                self.xoff = cx
-                self.yoff = cy
-                if self.ts == 0:
-                    self.settings.gui_recenter_eyes = False
-                    if sys.platform.startswith("win"):
-                        PlaySound('Audio/compleated.wav', SND_FILENAME | SND_ASYNC)
-                else:
-                    self.ts = self.ts - 1
-            else:
-                self.ts = 10
-
-            xl = float(
-                (cx - self.xoff) / (self.xmax - self.xoff)
-            )
-            xr = float(
-                (cx - self.xoff) / (self.xmin - self.xoff)
-            )
-            yu = float(
-                (cy - self.yoff) / (self.ymin - self.yoff)
-            )
-            yd = float(
-                (cy - self.yoff) / (self.ymax - self.yoff)
-            )
-
-            out_x = 0
-            out_y = 0
-            if self.settings.gui_flip_y_axis:  # check config on flipped values settings and apply accordingly
-                if yd > 0:
-                    out_y = max(0.0, min(1.0, yd))
-                if yu > 0:
-                    out_y = -abs(max(0.0, min(1.0, yu)))
-            else:
-                if yd > 0:
-                    out_y = -abs(max(0.0, min(1.0, yd)))
-                if yu > 0:
-                    out_y = max(0.0, min(1.0, yu))
-
-            if self.settings.gui_flip_x_axis_right:
-                if xr > 0:
-                    out_x = -abs(max(0.0, min(1.0, xr)))
-                if xl > 0:
-                    out_x = max(0.0, min(1.0, xl))
-            else:
-                if xr > 0:
-                    out_x = max(0.0, min(1.0, xr))
-                if xl > 0:
-                    out_x = -abs(max(0.0, min(1.0, xl)))
-
-            try:
-                noisy_point = np.array([out_x, out_y])  # fliter our values with a One Euro Filter
-                point_hat = self.one_euro_filter(noisy_point)
-                out_x = point_hat[0]
-                out_y = point_hat[1]
-            except:
-                pass
+            out_x, out_y = cal_osc(self, cx, cy) #filter and calibrate values
+            self.output_images_and_update(larger_threshold, EyeInformation(InformationOrigin.BLOB, out_x, out_y, 0, False))
 
             self.output_images_and_update(
                 larger_threshold,
@@ -1150,11 +1080,6 @@ class EyeProcessor:
         print("[INFO] BLINK Detected.")
 
     
-
-
-
-
-
 
     def HSF(self):
         
@@ -1243,7 +1168,7 @@ class EyeProcessor:
         out_x, out_y = cal_osc(self, center_x, center_y)
         
         cv2.circle(frame, (center_x, center_y), 10, (0, 0, 255), -1)
-
+       # print(center_x, center_y)
         self.output_images_and_update(frame,EyeInformation(InformationOrigin.HSF, out_x, out_y, 0, False))
             
         if self.now_mode != self.cv_mode[0] and self.now_mode != self.cv_mode[1]:
@@ -1376,7 +1301,7 @@ class EyeProcessor:
             d = result_3d["diameter_3d"]
             
             out_x, out_y = cal_osc(self, cx, cy) #filter and calibrate values
-            self.output_images_and_update(thresh, EyeInformation(InformationOrigin.RANSAC, out_x, out_y, 0, False))
+
         except:
             f = True
         # Draw our image and stack it for visual output
@@ -1423,19 +1348,18 @@ class EyeProcessor:
             )
         except:
             pass
+
+        self.output_images_and_update(thresh, EyeInformation(InformationOrigin.RANSAC, out_x, out_y, 0, False))
         # Shove a concatenated image out to the main GUI thread for rendering
         #self.output_images_and_update(thresh, EyeInformation(InformationOrigin.FAILURE, 0 ,0, 0, False))
         #self.output_images_and_update(thresh, output_info)
         #except:
-        #    f = True
         return f
 
 
     def run(self):
         f = None
 
-
-        
         self.radius_range = (self.default_radius - 10, self.default_radius + 10)  # (10,30)
         self.cvparam = CvParameters(self.default_radius, self.default_step)
 
@@ -1500,8 +1424,7 @@ class EyeProcessor:
                     f == self.BLOB()
             except:
                 pass
-            #print("[WARN] ALL ALGORITHIMS HAVE FAILED OR ARE DISABLED.")
-
+                print("[WARN] ALL ALGORITHIMS HAVE FAILED OR ARE DISABLED.")
 
            # f == self.RANSAC3D()'''
            
