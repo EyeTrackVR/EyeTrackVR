@@ -952,7 +952,7 @@ class EyeProcessor:
         
         self.cv_mode = ["first_frame", "radius_adjust", "init", "normal"]
         self.now_mode = self.cv_mode[0]
-        self.default_radius = 20
+        self.default_radius = 15
         self.default_step = (5, 5)  # bigger the steps,lower the processing time! ofc acc also takes an impact
         # default_step==(x,y)
         self.radius_cand_list = []
@@ -1037,6 +1037,7 @@ class EyeProcessor:
             return True
         except:
             pass
+
     def BLOB(self):
         
         # define circle
@@ -1116,7 +1117,7 @@ class EyeProcessor:
 
             out_x, out_y = cal_osc(self, cx, cy) #filter and calibrate values
 
-            
+
 
 
 
@@ -1180,10 +1181,10 @@ class EyeProcessor:
         # Define the center point and radius
         # center_y, center_x = center
         center_x, center_y = center_xy
-        upper_x = center_x + radius
-        lower_x = center_x - radius
-        upper_y = center_y + radius
-        lower_y = center_y - radius
+        upper_x = center_x + 20
+        lower_x = center_x - 20
+        upper_y = center_y + 20
+        lower_y = center_y - 20
         
         # Crop the image using the calculated bounds
         # cropped_image = gray_frame[lower_x:upper_x, lower_y:upper_y]
@@ -1219,34 +1220,129 @@ class EyeProcessor:
         # https://stackoverflow.com/questions/42771110/fastest-way-to-left-cycle-a-numpy-array-like-pop-push-for-a-queue
         
        
-        out_x, out_y = cal_osc(self, center_x, center_y)
-        
-        cv2.circle(frame, (center_x, center_y), 10, (0, 0, 255), -1)
-       # print(center_x, center_y)
-
-        try:
-            if self.settings.gui_BLINK: #tbh this is redundant, the algo already has blink detection built in
-                self.output_images_and_update(frame, EyeInformation(InformationOrigin.HSF, out_x, out_y, 0, self.blinkvalue))
-            else:
-                self.output_images_and_update(frame, EyeInformation(InformationOrigin.HSF, out_x, out_y, 0, False))
-            f = False
-        except:
-            pass
+        hsfandransac = True
+        if not hsfandransac:
+            out_x, out_y = cal_osc(self, center_x, center_y)
             
-        if self.now_mode != self.cv_mode[0] and self.now_mode != self.cv_mode[1]:
-            if cropped_image.size < 400:
+            cv2.circle(frame, (center_x, center_y), 10, (0, 0, 255), -1)
+        # print(center_x, center_y)
+
+            try:
+                if self.settings.gui_BLINK: #tbh this is redundant, the algo already has blink detection built in
+                    self.output_images_and_update(frame, EyeInformation(InformationOrigin.HSF, out_x, out_y, 0, self.blinkvalue))
+                else:
+                    self.output_images_and_update(frame, EyeInformation(InformationOrigin.HSF, out_x, out_y, 0, False))
+                f = False
+            except:
                 pass
-    
-        if self.now_mode == self.cv_mode[0]:
-            self.now_mode = self.cv_mode[1]
+                
+            if self.now_mode != self.cv_mode[0] and self.now_mode != self.cv_mode[1]:
+                if cropped_image.size < 400:
+                    pass
+        
+            if self.now_mode == self.cv_mode[0]:
+                self.now_mode = self.cv_mode[1]
 
-        return f
-            #self.output_images_and_update(thresh, EyeInformation(InformationOrigin.FAILURE, 0, 0, 0, False))
-           # return
+            return f
+                #self.output_images_and_update(thresh, EyeInformation(InformationOrigin.FAILURE, 0, 0, 0, False))
+            # return
 
-        #self.output_images_and_update(larger_threshold,EyeInformation(InformationOrigin.HSF, out_x, out_y, 0, False),)
-       # return
-        #self.output_images_and_update(larger_threshold, EyeInformation(InformationOrigin.HSF, 0, 0, 0, True))
+            #self.output_images_and_update(larger_threshold,EyeInformation(InformationOrigin.HSF, out_x, out_y, 0, False),)
+        # return
+            #self.output_images_and_update(larger_threshold, EyeInformation(InformationOrigin.HSF, 0, 0, 0, True))
+
+        else: #run ransac on the HSF crop\
+            try:
+                kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (3, 3))
+                thresh_add = 10
+                rng = np.random.default_rng()
+                
+                f = False
+
+                newImage2 = cropped_image.copy()
+                # Crop first to reduce the amount of data to process.
+
+            # img = self.current_image_gray[0:len(self.current_image_gray) - 10, :]
+
+                # To reduce the processing data, first convert to 1-channel and then blur.
+                # The processing results were the same when I swapped the order of blurring and 1-channelization.
+            # image_gray = self.current_image_gray
+                image_gray = cv2.GaussianBlur(cropped_image, (5, 5), 0)
+                
+                # this will need to be adjusted everytime hardware is changed (brightness of IR, Camera postion, etc)m
+                min_val, max_val, min_loc, max_loc = cv2.minMaxLoc(image_gray)
+                
+                maxloc0_hf, maxloc1_hf = int(0.5 * max_loc[0]), int(0.5 * max_loc[1])
+                
+                # crop 15% sqare around min_loc
+            # image_gray = image_gray[max_loc[1] - maxloc1_hf:max_loc[1] + maxloc1_hf,
+                #            max_loc[0] - maxloc0_hf:max_loc[0] + maxloc0_hf]
+                
+                threshold_value = min_val + thresh_add
+                th_ret, thresh = cv2.threshold(image_gray, threshold_value, 255, cv2.THRESH_BINARY)
+                try:
+                    opening = cv2.morphologyEx(thresh, cv2.MORPH_OPEN, kernel)
+                    closing = cv2.morphologyEx(opening, cv2.MORPH_CLOSE, kernel)
+                    image = 255 - closing
+                except:
+                    # I want to eliminate try here because try tends to be slow in execution.
+                    image = 255 - image_gray
+                contours, hierarchy = cv2.findContours(image, cv2.RETR_TREE, cv2.CHAIN_APPROX_NONE)
+                hull = []
+                # This way is faster than contours[i]
+                # But maybe this one is faster. hull = [cv2.convexHull(cnt, False) for cnt in contours]
+                for cnt in contours:
+                    hull.append(cv2.convexHull(cnt, False))
+                if not hull:
+                    # If empty, go to next loop
+                    pass
+                try:
+                    self.current_image_gray = cropped_image
+                    cv2.drawContours(self.current_image_gray, contours, -1, (255, 0, 0), 1)
+                    cnt = sorted(hull, key=cv2.contourArea)
+                    maxcnt = cnt[-1]
+                    ellipse = cv2.fitEllipse(maxcnt)
+                    ransac_data = fit_rotated_ellipse_ransac(maxcnt.reshape(-1, 2))
+                    if ransac_data is None:
+                        # ransac_data is None==maxcnt.shape[0]<sample_num
+                        # go to next loop
+                        pass
+                    cx, cy, w, h, theta = ransac_data
+                    
+
+                    ocx = center_x - cx
+                    ocy = center_y - cy
+                    print(ocx, ocy)
+                    out_x, out_y = cal_osc(self, ocx, ocy)
+                    cx, cy, w, h = int(cx), int(cy), int(w), int(h)
+                    cv2.circle(self.current_image_gray, (cx, cy), 2, (0, 0, 255), -1)
+                    # cx1, cy1, w1, h1, theta1 = fit_rotated_ellipse(maxcnt.reshape(-1, 2))
+                    cv2.ellipse(self.current_image_gray, (cx, cy), (w, h), theta * 180.0 / np.pi, 0.0, 360.0, (50, 250, 200), 1, ) 
+                    self.output_images_and_update(thresh, EyeInformation(InformationOrigin.HSF, out_x, out_y, 0, False)) 
+                except:
+                    pass
+                #self.output_images_and_update(thresh, EyeInformation(InformationOrigin.HSF, 0, 0, 0, False))
+            except:
+                try:
+                    if self.settings.gui_BLINK: #tbh this is redundant, the algo already has blink detection built in
+                        self.output_images_and_update(frame, EyeInformation(InformationOrigin.HSF, out_x, out_y, 0, self.blinkvalue))
+                    else:
+                        self.output_images_and_update(frame, EyeInformation(InformationOrigin.HSF, out_x, out_y, 0, False))
+                    f = False
+                except:
+                    pass
+
+
+
+
+
+
+
+
+
+
+
+
 
     def RANSAC3D(self): 
         f = False
@@ -1357,7 +1453,6 @@ class EyeProcessor:
             
             #img = newImage2[y1:y2, x1:x2]
         except:
-            
             pass
     
         
@@ -1471,7 +1566,7 @@ class EyeProcessor:
 
 
 
-    def BLINK(self):
+    def BLINK(self): 
 
         intensity = np.sum(self.current_image_gray)
         self.frames = self.frames + 1
@@ -1567,8 +1662,9 @@ class EyeProcessor:
                 pass
                 
              """   #print("[WARN] ALL ALGORITHIMS HAVE FAILED OR ARE DISABLED.")
-            self.RANSAC3D()
-            self.BLINK()
+            #self.RANSAC3D()
+            #self.BLINK()
+            self.HSF()
            # f == self.RANSAC3D()'''
            
         #FLOW MOCK
