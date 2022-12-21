@@ -20,7 +20,7 @@
                                       @@@@@@@@@@@@@(     
 
 HSR By: Sean.Denka (Optimization Wizard, Contributor), Summer#2406 (Main Algorithm Engineer)  
-RANSAC 3D By: Summer#2406 (Main Algorithm Engineer), Pupil Labs (pye3d)
+RANSAC 3D By: Summer#2406 (Main Algorithm Engineer), Pupil Labs (pye3d), Sean.Denka (Optimization)
 BLOB By: Prohurtz#0001 (Main App Developer)
 Algorithm App Implimentations By: Prohurtz#0001, qdot (Inital App Creator)
 
@@ -54,6 +54,7 @@ import functools
 import math
 import os
 import timeit
+import time
 from collections import namedtuple
 from functools import lru_cache
 import xxhash
@@ -163,19 +164,15 @@ def cal_osc(self, cx, cy):
             out_x = max(0.0, min(1.0, xr))
         if xl > 0:
             out_x = -abs(max(0.0, min(1.0, xl)))
-    print("BEFORE", out_x, out_y, float(cx), float(cy), self.xoff, self.yoff)
-    #try:
-    noisy_point = np.array([float(out_x), float(out_y)])  # fliter our values with a One Euro Filter
-    point_hat = self.one_euro_filter(noisy_point)
-    out_x = point_hat[0]
-    out_y = point_hat[1]
-  #  print("AFTER", out_x, out_y, float(cx), float(cy), self.xoff, self.yoff)
-    #except:
-     #   pass
+
+    try:
+        noisy_point = np.array([float(out_x), float(out_y)])  # fliter our values with a One Euro Filter
+        point_hat = self.one_euro_filter(noisy_point)
+        out_x = point_hat[0]
+        out_y = point_hat[1]
+    except:
+        pass
     return out_x, out_y
-
-
-
 
 
 
@@ -757,98 +754,141 @@ def conv_int(frame_int, kernel, step, padding, xy_step):
     return frame_conv, min_response, center
 
 
+def ellipse_model(data, y, f):
+    """
+    There is no need to make this process a function, since making the process a function will slow it down a little by calling it.
+    The results may be slightly different from the lambda version due to calculation errors derived from float types, but the calculation results are virtually the same.
+    a = 1.0,b = P[0],c = P[1],d = P[2],e = P[3],f = P[4]
+    :param data:
+    :param y: np.c_[d, e, a, c, b]
+    :param f: f == P[4, 0]
+    :return: this_return == np.array([ellipse_model(x, y) for (x, y) in data ])
+    """
+    return data.dot(y) + f
 
 
-
-def fit_rotated_ellipse_ransac(
-    data, iter=5, sample_num=10, offset=80  # 80.0, 10, 80
-):  # before changing these values, please read up on the ransac algorithm
+def fit_rotated_ellipse_ransac(data: np.ndarray, iter=100, sample_num=10, offset=80  # 80.0, 10, 80
+                               ):  # before changing these values, please read up on the ransac algorithm
     # However if you want to change any value just know that higher iterations will make processing frames slower
     count_max = 0
     effective_sample = None
-
-    # TODO This iteration is extremely slow.
-    #
-    # Either we need to keep the iteration number low, or we need to keep a worker pool specifically
-    # for handling this calculation. It's parallelizable, so just throwing something like joblib at
-    # it would be fine.
-    for i in range(iter):
-        sample = np.random.choice(len(data), sample_num, replace=False)
-
-        xs = data[sample][:, 0].reshape(-1, 1)
-        ys = data[sample][:, 1].reshape(-1, 1)
-
-        J = np.mat(
-            np.hstack((xs * ys, ys**2, xs, ys, np.ones_like(xs, dtype=np.float)))
-        )
-        Y = np.mat(-1 * xs**2)
-        P = (J.T * J).I * J.T * Y
-
+    rng = np.random.default_rng()
+    
+    # The array contents do not change during the loop, so only one call is needed.
+    # They say len is faster than shape.
+    # Reference url: https://stackoverflow.com/questions/35547853/what-is-faster-python3s-len-or-numpys-shape
+    len_data = len(data)
+    
+    if len_data < sample_num:
+        return None
+    
+    # Type of calculation result
+    # Although the accuracy may be lower, I feel that float32 is better considering the memory used.
+    # Whether float32 or float64 is faster depends on the execution environment.
+    ret_dtype = np.float64
+    
+    # Declare this number only once, since it is immutable.
+    a = np.array(1.0, dtype=ret_dtype)
+    
+    # Sorts a random number array of size (iter,len_data). After sorting, returns the index of sample_num random numbers before sorting.
+    # If the array size is less than about 100, this is faster than rng.choice.
+    rng_sample = rng.random((iter, len_data)).argsort()[:, :sample_num]
+    # or
+    # I don't see any advantage to doing this.
+    # rng_sample = np.asarray(rng.random((iter, len_data)).argsort()[:, :sample_num], dtype=np.int32)
+    
+    # I don't think it looks beautiful.
+    # x,y,x**2,y**2,x*y,1,-1*x**2
+    datamod = np.concatenate(
+        [data, data ** 2, (data[:, 0] * data[:, 1])[:, np.newaxis], np.ones((len_data, 1), dtype=ret_dtype),
+         (-1 * data[:, 0] ** 2)[:, np.newaxis]], axis=1,
+        dtype=ret_dtype)
+    
+    datamod_slim = np.array(datamod[:, :5], dtype=ret_dtype)
+    
+    datamod_rng = datamod[rng_sample]
+    
+    P5x5 = np.empty((5, 5), dtype=ret_dtype)
+    P5xSmp = np.empty((5, sample_num), dtype=ret_dtype)
+    P = np.empty(5, dtype=ret_dtype)
+    
+    for data_smp in datamod_rng:
+        
+        # np.random.choice is slow
+        # data_smp = datamod[sample]
+        # xs, ys, xs2, ys2, xy, smp_ones = data_smp[:, 0], data_smp[:, 1], data_smp[:, 2], data_smp[:, 3], data_smp[:, 4], data_smp[:, 5]
+        J = data_smp[:, [4, 3, 0, 1, 5]]
+        
+        # Y = -1 * xs2
+        Y = data_smp[:, 6]
+        
+        J_T = J.T
+        # I don't know which is faster, this or np.dot.
+        J_T.dot(J, out=P5x5)
+        np.linalg.inv(P5x5).dot(J_T, out=P5xSmp)
+        P5xSmp.dot(Y, out=P)
+        
         # fitter a*x**2 + b*x*y + c*y**2 + d*x + e*y + f = 0
-        a = 1.0
-        b = P[0, 0]
-        c = P[1, 0]
-        d = P[2, 0]
-        e = P[3, 0]
-        f = P[4, 0]
-        ellipse_model = (
-            lambda x, y: a * x**2 + b * x * y + c * y**2 + d * x + e * y + f
-        )
-
-        # thresh
-        ran_sample = np.array(
-            [[x, y] for (x, y) in data if np.abs(ellipse_model(x, y)) < offset]
-        )
-
-        if len(ran_sample) > count_max:
-            count_max = len(ran_sample)
+        # b,c,d,e,f = P[0],P[1],P[2],P[3],P[4] # It looks like they are making copies of these and I want to remove it.
+        
+        ellipse_y = np.asarray([P[2], P[3], a, P[1], P[0]], dtype=ret_dtype)
+        ellipse_data = np.abs(ellipse_model(datamod_slim, ellipse_y, P[4]))
+        
+        # threshold
+        ran_sample = datamod[ellipse_data < offset]
+        
+        # Reduce one function call by using a variable.
+        len_ran = len(ran_sample)
+        
+        if len_ran > count_max:
+            count_max = len_ran
             effective_sample = ran_sample
-
+    
     return fit_rotated_ellipse(effective_sample)
 
 
 def fit_rotated_ellipse(data):
-    xs = data[:, 0].reshape(-1, 1)
-    ys = data[:, 1].reshape(-1, 1)
-
-    J = np.mat(np.hstack((xs * ys, ys**2, xs, ys, np.ones_like(xs, dtype=np.float))))
-    Y = np.mat(-1 * xs**2)
-    P = (J.T * J).I * J.T * Y
-
+    J = data[:, [4, 3, 0, 1, 5]]
+    
+    # Y = -1 * xs2
+    Y = data[:, 6]
+    J_T = J.T
+    
+    P = np.linalg.inv(J_T.dot(J)).dot(J_T).dot(Y)
+    
     a = 1.0
-    b = P[0, 0]
-    c = P[1, 0]
-    d = P[2, 0]
-    e = P[3, 0]
-    f = P[4, 0]
-    theta = 0.5 * np.arctan(b / (a - c))
-
-    cx = (2 * c * d - b * e) / (b**2 - 4 * a * c)
-    cy = (2 * a * e - b * d) / (b**2 - 4 * a * c)
-
-    cu = a * cx**2 + b * cx * cy + c * cy**2 - f
-    w = np.sqrt(
-        cu
-        / (
-            a * np.cos(theta)**2
-            + b * np.cos(theta) * np.sin(theta)
-            + c * np.sin(theta)**2
-        )
-    )
-    h = np.sqrt(
-        cu
-        / (
-            a * np.sin(theta)**2
-            - b * np.cos(theta) * np.sin(theta)
-            + c * np.cos(theta)**2
-        )
-    )
-
-    ellipse_model = lambda x, y: a * x**2 + b * x * y + c * y**2 + d * x + e * y + f
-
-    error_sum = np.sum([ellipse_model(x, y) for x, y in data])
-
+    b = P[0]
+    c = P[1]
+    d = P[2]
+    e = P[3]
+    f = P[4]
+    
+    theta = 0.5 * np.arctan(b / (a - c), dtype=np.float64)
+    # The cost of trigonometric functions is high.
+    theta_sin = np.sin(theta, dtype=np.float64)
+    theta_cos = np.cos(theta, dtype=np.float64)
+    tc2 = theta_cos ** 2
+    ts2 = theta_sin ** 2
+    b_tcs = b * theta_cos * theta_sin
+    
+    # Do the calculation only once
+    cxy = b ** 2 - 4 * a * c
+    cx = (2 * c * d - b * e) / cxy
+    cy = (2 * a * e - b * d) / cxy
+    
+    # I just want to clear things up around here.
+    cu = a * cx ** 2 + b * cx * cy + c * cy ** 2 - f
+    cu_r = np.array([(a * tc2 + b_tcs + c * ts2), (a * ts2 - b_tcs + c * tc2)])
+    wh = np.sqrt(cu / cu_r)
+    w, h = wh[0], wh[1]
+    
+    ellipse_y = np.asarray([d, e, a, c, b], dtype=np.float64)
+    
+    error_sum = np.sum(ellipse_model(data[:, :5], ellipse_y, f))
+    # print("fitting error = %.3f" % (error_sum))
+    
     return (cx, cy, w, h, theta)
+
 
 
 class EyeProcessor:
@@ -1068,17 +1108,15 @@ class EyeProcessor:
 
             out_x, out_y = cal_osc(self, cx, cy) #filter and calibrate values
             self.output_images_and_update(larger_threshold, EyeInformation(InformationOrigin.BLOB, out_x, out_y, 0, False))
-
-            self.output_images_and_update(
-                larger_threshold,
-                EyeInformation(InformationOrigin.BLOB, out_x, out_y, 0, False),
-            )
-            return
+            f = False
+            return f
+            
         self.output_images_and_update(
             larger_threshold, EyeInformation(InformationOrigin.BLOB, 0, 0, 0, True)
         )
         print("[INFO] BLINK Detected.")
-
+        f = True
+        return f
     
 
     def HSF(self):
@@ -1170,6 +1208,7 @@ class EyeProcessor:
         cv2.circle(frame, (center_x, center_y), 10, (0, 0, 255), -1)
        # print(center_x, center_y)
         self.output_images_and_update(frame,EyeInformation(InformationOrigin.HSF, out_x, out_y, 0, False))
+        f = False
             
         if self.now_mode != self.cv_mode[0] and self.now_mode != self.cv_mode[1]:
             if cropped_image.size < 400:
@@ -1178,6 +1217,7 @@ class EyeProcessor:
         if self.now_mode == self.cv_mode[0]:
             self.now_mode = self.cv_mode[1]
 
+        return f
             #self.output_images_and_update(thresh, EyeInformation(InformationOrigin.FAILURE, 0, 0, 0, False))
            # return
 
@@ -1186,6 +1226,9 @@ class EyeProcessor:
         #self.output_images_and_update(larger_threshold, EyeInformation(InformationOrigin.HSF, 0, 0, 0, True))
 
     def RANSAC3D(self): 
+        kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (3, 3))
+        thresh_add = 10
+        rng = np.random.default_rng()
         
         f = False
         self.capture_crop_rotate_image()
@@ -1224,52 +1267,87 @@ class EyeProcessor:
         else:
             self.cct = 300
 
-        _, thresh = cv2.threshold(
-            self.current_image_gray,
-            int(self.config.threshold),
-            255,
-            cv2.THRESH_BINARY,
-        )
+       
+
+
+        newImage2 = self.current_image_gray.copy()
+        # Crop first to reduce the amount of data to process.
+
+        img = self.current_image_gray[0:len(self.current_image_gray) - 10, :]
+
+        # To reduce the processing data, first convert to 1-channel and then blur.
+        # The processing results were the same when I swapped the order of blurring and 1-channelization.
+       # image_gray = self.current_image_gray
+        image_gray = cv2.GaussianBlur(self.current_image_gray, (5, 5), 0)
         
-        # Set up morphological transforms, for smoothing and clearing the image we get out of the
-        # thresholding operation. After this, we'd really like to just have a black blob in the middle
-        # of a bunch of white area.
-        kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (3, 3))
-        opening = cv2.morphologyEx(thresh, cv2.MORPH_OPEN, kernel)
-        closing = cv2.morphologyEx(opening, cv2.MORPH_CLOSE, kernel)
-        image = 255 - closing
-
-        # Now that the image is relatively clean, run contour finding in order to get us our pupil
-        # boundaries in the 2D context. Ideally, we just get one border.
-        contours, _ = cv2.findContours(image, cv2.RETR_TREE, cv2.CHAIN_APPROX_NONE)
-
-        # Find the convex shape based on each contour, and sort the list of them from smallest to
-        # largest area.
-        convex_hulls = []
-        for i in range(len(contours)):
-            convex_hulls.append(cv2.convexHull(contours[i], False))
-
-        # If we have no convex maidens, we have no pupil, and can't progress from here. Dump back to
-        # using blob tracking.
-        if len(convex_hulls) == 0:
+        # this will need to be adjusted everytime hardware is changed (brightness of IR, Camera postion, etc)m
+        min_val, max_val, min_loc, max_loc = cv2.minMaxLoc(image_gray)
+        
+        maxloc0_hf, maxloc1_hf = int(0.5 * max_loc[0]), int(0.5 * max_loc[1])
+        
+        # crop 15% sqare around min_loc
+       # image_gray = image_gray[max_loc[1] - maxloc1_hf:max_loc[1] + maxloc1_hf,
+         #            max_loc[0] - maxloc0_hf:max_loc[0] + maxloc0_hf]
+        
+        threshold_value = min_val + thresh_add
+        th_ret, thresh = cv2.threshold(image_gray, threshold_value, 255, cv2.THRESH_BINARY)
+        try:
+            opening = cv2.morphologyEx(thresh, cv2.MORPH_OPEN, kernel)
+            closing = cv2.morphologyEx(opening, cv2.MORPH_CLOSE, kernel)
+            image = 255 - closing
+        except:
+            # I want to eliminate try here because try tends to be slow in execution.
+            image = 255 - image_gray
+        contours, hierarchy = cv2.findContours(image, cv2.RETR_TREE, cv2.CHAIN_APPROX_NONE)
+        hull = []
+        # This way is faster than contours[i]
+        # But maybe this one is faster. hull = [cv2.convexHull(cnt, False) for cnt in contours]
+        for cnt in contours:
+            hull.append(cv2.convexHull(cnt, False))
+        if not hull:
+            # If empty, go to next loop
             pass
+        try:
+            cv2.drawContours(newImage2, contours, -1, (255, 0, 0), 1)
+            cnt = sorted(hull, key=cv2.contourArea)
+            maxcnt = cnt[-1]
+            ellipse = cv2.fitEllipse(maxcnt)
+            ransac_data = fit_rotated_ellipse_ransac(maxcnt.reshape(-1, 2))
+            if ransac_data is None:
+                # ransac_data is None==maxcnt.shape[0]<sample_num
+                # go to next loop
+                pass
+            cx, cy, w, h, theta = ransac_data
+            print(cx, cy)
+            cx, cy, w, h = int(cx), int(cy), int(w), int(h)
+            cv2.circle(newImage2, (cx, cy), 2, (0, 0, 255), -1)
+            # cx1, cy1, w1, h1, theta1 = fit_rotated_ellipse(maxcnt.reshape(-1, 2))
+            cv2.ellipse(newImage2, (cx, cy), (w, h), theta * 180.0 / np.pi, 0.0, 360.0, (50, 250, 200), 1, )
+            
+            # once a pupil is found, crop 100x100 around it
+            x1 = cx - 50
+            x2 = cx + 50
+            y1 = cy - 50
+            y2 = cy + 50
+            #img = newImage2[y1:y2, x1:x2]
+        except:
+            pass
+    
         
-        # Find our largest hull, which we expect will probably be the ellipse that represents the 2d
-        # area for the pupil, which we can use as the search area for the eye in general.
-        largest_hull = sorted(convex_hulls, key=cv2.contourArea)[-1]
-        
+        cv2.circle(newImage2, min_loc, 2, (0, 0, 255),
+                   -1)  # the point of the darkest area in the image
+
+        self.output_images_and_update(thresh, EyeInformation(InformationOrigin.RANSAC, 0, 0, 0, False))
+
         # However eyes are annoyingly three dimensional, so we need to take this ellipse and turn it
         # into a curve patch on the surface of a sphere (the eye itself). If it's not a sphere, see your
         # ophthalmologist about possible issues with astigmatism.
         try:
-            cx, cy, w, h, theta = fit_rotated_ellipse_ransac(
-                largest_hull.reshape(-1, 2)
-            )
 
         
-            # Get axis and angle of the ellipse, using pupil labs 2d algos. The next bit of code ranges
-            # from somewhat to completely magic, as most of it happens in native libraries (hence passing
-            # via dicts).
+        # Get axis and angle of the ellipse, using pupil labs 2d algos. The next bit of code ranges
+        # from somewhat to completely magic, as most of it happens in native libraries (hence passing
+        # via dicts).
             result_2d = {}
             result_2d_final = {}
             
@@ -1338,7 +1416,6 @@ class EyeProcessor:
                 (0, 255, 0),  # color (BGR): red
             )
 
-
             # draw line from center of eyeball to center of pupil
             cv2.line(
                 self.current_image_gray,
@@ -1348,8 +1425,11 @@ class EyeProcessor:
             )
         except:
             pass
-
-        self.output_images_and_update(thresh, EyeInformation(InformationOrigin.RANSAC, out_x, out_y, 0, False))
+        try:
+            self.output_images_and_update(thresh, EyeInformation(InformationOrigin.RANSAC, out_x, out_y, 0, False))
+            f = False
+        except:
+            pass
         # Shove a concatenated image out to the main GUI thread for rendering
         #self.output_images_and_update(thresh, EyeInformation(InformationOrigin.FAILURE, 0 ,0, 0, False))
         #self.output_images_and_update(thresh, output_info)
@@ -1358,13 +1438,16 @@ class EyeProcessor:
 
 
     def run(self):
-        f = None
 
         self.radius_range = (self.default_radius - 10, self.default_radius + 10)  # (10,30)
         self.cvparam = CvParameters(self.default_radius, self.default_step)
+        kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (3, 3))
+        thresh_add = 10
+        rng = np.random.default_rng()
 
+        f = True
         while True:
-            f = True
+           # f = True
              # Check to make sure we haven't been requested to close
             if self.cancellation_event.is_set():
                 print("Exiting Tracking thread")
@@ -1415,17 +1498,21 @@ class EyeProcessor:
             self.current_image, cv2.COLOR_BGR2GRAY
             )
            # print(self.settings.gui_RANSAC3D)
-            try: #This is flawed currently, i will come up with a better system soon
+            
+            """try: 
                 if self.settings.gui_RANSAC3D == True: #for now ransac goes first
                     f == self.RANSAC3D()
-                if  self.settings.gui_HSF == True: #if a fail has been reported and other algo is enabled, use it.
+                    
+                if f and self.settings.gui_HSF == True: #if a fail has been reported and other algo is enabled, use it.
                     f == self.HSF()
-                if  self.settings.gui_BLOB == True:
+                if f and self.settings.gui_BLOB == True:
                     f == self.BLOB()
+                
             except:
                 pass
-                print("[WARN] ALL ALGORITHIMS HAVE FAILED OR ARE DISABLED.")
-
+                
+             """   #print("[WARN] ALL ALGORITHIMS HAVE FAILED OR ARE DISABLED.")
+            self.RANSAC3D()
            # f == self.RANSAC3D()'''
            
         #FLOW MOCK

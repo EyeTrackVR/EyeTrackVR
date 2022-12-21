@@ -31,6 +31,7 @@ SETTINGS_RADIO_NAME = '-SETTINGSRADIO-'
 
 
 page_url = 'https://github.com/RedHawk989/EyeTrackVR/releases/latest'
+appversion = "0.1.8.2"
 
 def open_url():
     try: 
@@ -50,7 +51,7 @@ def main():
     # Check to see if we can connect to our video source first. If not, bring up camera finding
     # dialog.
 
-    appversion = "0.1.7.2"
+    
     url = "https://raw.githubusercontent.com/RedHawk989/EyeTrackVR-Installer/master/Version-Data/Version_Num.txt"
     html = urlopen(url).read()
     soup = BeautifulSoup(html, features="html.parser")
