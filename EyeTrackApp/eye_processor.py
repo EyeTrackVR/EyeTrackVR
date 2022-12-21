@@ -989,6 +989,7 @@ class EyeProcessor:
         except:
             pass
     def BLOB(self):
+        
         # define circle
         if self.config.gui_circular_crop:
             if self.cct == 0:
@@ -1013,31 +1014,24 @@ class EyeProcessor:
             else:
                 self.cct = self.cct - 1
         _, larger_threshold = cv2.threshold(self.current_image_gray, int(self.config.threshold + 12), 255, cv2.THRESH_BINARY)
-        # Blob tracking requires that we have a vague idea of where the eye may be at the moment. This
-        # means we need to have had at least one successful runthrough of the Pupil Labs algorithm in
-        # order to have a projected sphere.
-        if self.lkg_projected_sphere == None:
-            self.output_images_and_update(
-                larger_threshold, EyeInformation(InformationOrigin.FAILURE, 0, 0, 0, False)
-            )
-            return
+    
 
-        try:
+        #try:
             # Try rebuilding our contours
-            contours, _ = cv2.findContours(
-                larger_threshold, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE
-            )
-            contours = sorted(contours, key=lambda x: cv2.contourArea(x), reverse=True)
-            # If we have no contours, we have nothing to blob track. Fail here.
-            if len(contours) == 0:
-                raise RuntimeError("No contours found for image")
-        except:
-            self.output_images_and_update(
-                larger_threshold, EyeInformation(InformationOrigin.FAILURE, 0, 0, 0, False)
-            )
-            return
+        contours, _ = cv2.findContours(
+            larger_threshold, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE
+        )
+        contours = sorted(contours, key=lambda x: cv2.contourArea(x), reverse=True)
+        
+        # If we have no contours, we have nothing to blob track. Fail here.
+        if len(contours) == 0:
+            raise RuntimeError("No contours found for image")
+       # except:
+           # self.output_images_and_update(larger_threshold, EyeInformation(InformationOrigin.FAILURE, 0, 0, 0, False))
+          #  return
 
         rows, cols = larger_threshold.shape
+        
         for cnt in contours:
             (x, y, w, h) = cv2.boundingRect(cnt)
 
@@ -1047,13 +1041,11 @@ class EyeProcessor:
 
             if not self.settings.gui_blob_minsize <= h <= self.settings.gui_blob_maxsize or not self.settings.gui_blob_minsize <= w <= self.settings.gui_blob_maxsize:
                 continue
-
+    
             cx = x + int(w / 2)
 
             cy = y + int(h / 2)
 
-            xrlb = (cx - self.lkg_projected_sphere["center"][0]) / self.lkg_projected_sphere["axes"][0]
-            eyeyb = (cy - self.lkg_projected_sphere["center"][1]) / self.lkg_projected_sphere["axes"][1]
             cv2.line(
                 self.current_image_gray,
                 (x + int(w / 2), 0),
@@ -1498,13 +1490,13 @@ class EyeProcessor:
             self.current_image_gray = cv2.cvtColor(
             self.current_image, cv2.COLOR_BGR2GRAY
             )
-            print(self.settings.gui_RANSAC3D)
+           # print(self.settings.gui_RANSAC3D)
             try: #This is flawed currently, i will come up with a better system soon
                 if self.settings.gui_RANSAC3D == True: #for now ransac goes first
                     f == self.RANSAC3D()
-                if  f and self.settings.gui_HSF == True: #if a fail has been reported and other algo is enabled, use it.
+                if  self.settings.gui_HSF == True: #if a fail has been reported and other algo is enabled, use it.
                     f == self.HSF()
-                if  f and self.settings.gui_BLOB == True:
+                if  self.settings.gui_BLOB == True:
                     f == self.BLOB()
             except:
                 pass

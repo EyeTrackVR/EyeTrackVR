@@ -85,7 +85,6 @@ class VRChatOSC:
                         y = (yr + yl) / 2
                         self.client.send_message("/avatar/parameters/EyesY", y)
             else:
-                print(last_blink)
                 if self.config.gui_blink_sync:
                     if eye_id in [EyeId.LEFT]:
                         lb = True

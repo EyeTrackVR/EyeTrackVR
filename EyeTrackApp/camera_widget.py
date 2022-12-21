@@ -10,7 +10,7 @@ from osc import EyeId
 import cv2
 from winsound import PlaySound, SND_FILENAME, SND_ASYNC
 import traceback
-
+import numpy as np
 
 class CameraWidget:
     def __init__(self, widget_id: EyeId, main_config: EyeTrackConfig, osc_queue: Queue):
@@ -314,12 +314,23 @@ class CameraWidget:
                     graph.update(background_color="white")
 
                     #try:
-                    graph.draw_circle(
-                        (eye_info.x * -100, eye_info.y * -100),
-                        25,
-                        fill_color="black",
-                        line_color="white",
-                    )
+                    print(eye_info.x, eye_info.y)
+                    if not np.isnan(eye_info.x) and not np.isnan(eye_info.y):
+                        
+                        graph.draw_circle(
+                            (eye_info.x * -100, eye_info.y * -100),
+                            25,
+                            fill_color="black",
+                            line_color="white",
+                        )
+                    else:
+                        
+                        graph.draw_circle(
+                            (0.0 * -100, 0.0 * -100),
+                            25,
+                            fill_color="black",
+                            line_color="white",
+                        )
                    # except:
                      #   pass
                 elif eye_info.blink:
