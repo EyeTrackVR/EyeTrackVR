@@ -186,7 +186,7 @@ lru_maxsize_s = 512
 lru_maxsize_m = 1024
 lru_maxsize_l = 2048  # For functions with a large number of calls and a small amount of output data
 lru_maxsize_vl = 4096  # 8192 #For functions with a very large number of calls and a small amount of output data
-
+response_list = []
 
 
 @lru_cache(maxsize=lru_maxsize_vs)
@@ -903,11 +903,24 @@ class EyeProcessor:
         self.camera_model = None
         self.detector_3d = None
 
-        #HSF
-        # CV param
+        self.camera_model = None
+        self.detector_3d = None
+        self.response_list = []
+         #HSF
+        
+        
+        self.cv_mode = ["first_frame", "radius_adjust", "init", "normal"]
+        self.now_mode = self.cv_mode[0]
         self.default_radius = 20
         self.default_step = (5, 5)  # bigger the steps,lower the processing time! ofc acc also takes an impact
         # default_step==(x,y)
+        self.radius_cand_list = []
+        self.prev_max_size = 60 * 3  # 60fps*3sec
+        # response_min=0
+        self.response_max = 0
+        
+
+        
 
         try:
             min_cutoff = float(self.settings.gui_min_cutoff)  # 0.0004
@@ -954,22 +967,27 @@ class EyeProcessor:
             self.current_image = self.previous_image
             print("[ERROR] Frame capture issue detected.")
 
-        # Apply rotation to cropped area. For any rotation area outside of the bounds of the image,
-        # fill with white.
-        rows, cols, _ = self.current_image.shape
-        img_center = (cols / 2, rows / 2)
-        rotation_matrix = cv2.getRotationMatrix2D(
-            img_center, self.config.rotation_angle, 1
-        )
-        self.current_image = cv2.warpAffine(
-            self.current_image,
-            rotation_matrix,
-            (cols, rows),
-            borderMode=cv2.BORDER_CONSTANT,
-            borderValue=(255, 255, 255),
-        )
-        return True
-
+        try:
+            # Apply rotation to cropped area. For any rotation area outside of the bounds of the image,
+            # fill with white.
+            try:
+                rows, cols, _ = self.current_image.shape
+            except:
+                rows, cols, _ = self.previous_image.shape
+            img_center = (cols / 2, rows / 2)
+            rotation_matrix = cv2.getRotationMatrix2D(
+                img_center, self.config.rotation_angle, 1
+            )
+            self.current_image = cv2.warpAffine(
+                self.current_image,
+                rotation_matrix,
+                (cols, rows),
+                borderMode=cv2.BORDER_CONSTANT,
+                borderValue=(255, 255, 255),
+            )
+            return True
+        except:
+            pass
     def BLOB(self):
         # define circle
         if self.config.gui_circular_crop:
@@ -1147,64 +1165,50 @@ class EyeProcessor:
 
 
     def HSF(self):
-        rng = np.random.default_rng()
-        cvparam = CvParameters(self.default_radius, self.default_step)
         
-        cv_mode = ["first_frame", "radius_adjust", "init", "normal"]
-        now_mode = cv_mode[0]
-        
-        radius_cand_list = []
-        radius_range = (self.default_radius - 10, self.default_radius + 10)  # (10,30)
-        prev_max_size = 60 * 3  # 60fps*3sec
-        # response_min=0
-        response_max = 0
-        response_list = []
-        
-        if now_mode == cv_mode[1]:
-            prev_res_len = len(response_list)
+        if self.now_mode == self.cv_mode[1]:
+            prev_res_len = len(self.response_list)
             # adjustment of radius
             if prev_res_len == 1:
-                cvparam.radius = radius_range[0]
+                self.cvparam.radius = self.radius_range[0]
             elif prev_res_len == 2:
-                cvparam.radius = radius_range[1]
+                self.cvparam.radius = self.radius_range[1]
             elif prev_res_len == 3:
-                # response_list==[default_radius,radius_range[0],radius_range[1]]
-                sort_res = sorted(response_list, key=lambda x: x[1])[0]
+                # response_list==[default_radius,self.radius_range[0],self.radius_range[1]]
+                sort_res = sorted(self.response_list, key=lambda x: x[1])[0]
                 if sort_res[0] == self.default_radius:
-                    cvparam.radius = self.default_radius
-                    now_mode = cv_mode[2]
+                    self.cvparam.radius = self.default_radius
+                    self.now_mode = self.cv_mode[2]
                     response_list = []
-                elif sort_res[0] == radius_range[0]:
-                    radius_cand_list = [i for i in range(radius_range[0], self.default_radius, self.default_step[0])][1:]
-                    cvparam.radius = radius_cand_list.pop()
+                elif sort_res[0] == self.radius_range[0]:
+                    self.radius_cand_list = [i for i in range(self.radius_range[0], self.default_radius, self.default_step[0])][1:]
+                    self.cvparam.radius = self.radius_cand_list.pop()
                 else:
-                    radius_cand_list = [i for i in range(self.default_radius, radius_range[1], self.default_step[0])][1:]
-                    cvparam.radius = radius_cand_list.pop()
+                    self.radius_cand_list = [i for i in range(self.default_radius, self.radius_range[1], self.default_step[0])][1:]
+                    self.cvparam.radius = self.radius_cand_list.pop()
             else:
                 # Better make it a binary search.
-                if len(radius_cand_list) == 0:
-                    sort_res = sorted(response_list, key=lambda x: x[1])[0]
-                    cvparam.radius = sort_res[0]
-                    now_mode = cv_mode[2]
-                    response_list = []
+                if len(self.radius_cand_list) == 0:
+                    sort_res = sorted(self.response_list, key=lambda x: x[1])[0]
+                    self.cvparam.radius = sort_res[0]
+                    self.now_mode = self.cv_mode[2]
+                    self.response_list = []
                 else:
-                    cvparam.radius = radius_cand_list.pop()
+                    self.cvparam.radius = self.radius_cand_list.pop()
 
-        radius, pad, step, hsf = cvparam.get_rpsh()
+        radius, pad, step, hsf = self.cvparam.get_rpsh()
         
         gray_frame = to_gray(self.current_image_gray) #pretty sure we do no need this step, should already be receiving gray frame
         frame = self.current_image_gray
         # Calculate the integral image of the frame
-        int_start_time = timeit.default_timer()
+
         frame_pad = cv2.copyMakeBorder(gray_frame, pad, pad, pad, pad, cv2.BORDER_CONSTANT)  #cv2.BORDER_REPLICATE
         frame_int = cv2.integral(frame_pad)
         
         # Convolve the feature with the integral image
-        conv_int_start_time = timeit.default_timer()
         xy_step = frameint_get_xy_step(frame_int.shape, step, pad, start_offset=None, end_offset=None)
         frame_conv, response, center_xy = conv_int(frame_int, hsf, step, pad, xy_step)
 
-        crop_start_time = timeit.default_timer()
         # Define the center point and radius
         # center_y, center_x = center
         center_x, center_y = center_xy
@@ -1217,45 +1221,45 @@ class EyeProcessor:
         # cropped_image = gray_frame[lower_x:upper_x, lower_y:upper_y]
         cropped_image = gray_frame[lower_y:upper_y, lower_x:upper_x]
         
-        if now_mode == cv_mode[0] or now_mode == cv_mode[1]:
-            response_list.append((radius, response))  # , center_x, center_y))
-        elif now_mode == cv_mode[2]:
-            if len(response_list) < prev_max_size:
-                response_list.append(cropped_image.mean())
+        if self.now_mode == self.cv_mode[0] or self.now_mode == self.cv_mode[1]:
+            self.response_list.append((radius, response))  # , center_x, center_y))
+        elif self.now_mode == self.cv_mode[2]:
+            if len(self.response_list) < self.prev_max_size:
+                self.response_list.append(cropped_image.mean())
             else:
-                response_list = np.array(response_list)
+                self.response_list = np.array(self.response_list)
                 # 25%,75%
                 # This value may need to be adjusted depending on the environment.
-                quartile_1, quartile_3 = np.percentile(response_list, [25, 75])
+                quartile_1, quartile_3 = np.percentile(self.response_list, [25, 75])
                 iqr = quartile_3 - quartile_1
                 # response_min = quartile_1 - (iqr * 1.5)
-                response_max = quartile_3 + (iqr * 1.5)
-                now_mode = cv_mode[3]
+                self.response_max = quartile_3 + (iqr * 1.5)
+                self.now_mode = self.cv_mode[3]
         else:
             if cropped_image.size < 400:
                 print("Something's wrong.")
             else:
-                if cropped_image.mean() > response_max:  # or cropped_image.mean() < response_min:
+                if cropped_image.mean() > self.response_max:  # or cropped_image.mean() < response_min:
                     # blink
                     print("BLINK")
                     cv2.circle(frame, (center_x, center_y), 20, (0, 0, 255), -1)
                     self.output_images_and_update(frame,EyeInformation(InformationOrigin.HSF, 0, 0, 0, True))
-        # If you want to update response_max. it may be more cost-effective to rewrite response_list in the following way
+        # If you want to update self.response_max. it may be more cost-effective to rewrite response_list in the following way
         # https://stackoverflow.com/questions/42771110/fastest-way-to-left-cycle-a-numpy-array-like-pop-push-for-a-queue
         
-        print(center_x, center_y)
+       
         out_x, out_y = cal_osc(self, center_x, center_y)
         
         cv2.circle(frame, (center_x, center_y), 10, (0, 0, 255), -1)
 
         self.output_images_and_update(frame,EyeInformation(InformationOrigin.HSF, out_x, out_y, 0, False))
             
-        if now_mode != cv_mode[0] and now_mode != cv_mode[1]:
+        if self.now_mode != self.cv_mode[0] and self.now_mode != self.cv_mode[1]:
             if cropped_image.size < 400:
                 pass
     
-        if now_mode == cv_mode[0]:
-            now_mode = cv_mode[1]
+        if self.now_mode == self.cv_mode[0]:
+            self.now_mode = self.cv_mode[1]
 
             #self.output_images_and_update(thresh, EyeInformation(InformationOrigin.FAILURE, 0, 0, 0, False))
            # return
@@ -1428,7 +1432,7 @@ class EyeProcessor:
         except:
             pass
         # Shove a concatenated image out to the main GUI thread for rendering
-        self.output_images_and_update(thresh, EyeInformation(InformationOrigin.FAILURE, 0 ,0, 0, False))
+        #self.output_images_and_update(thresh, EyeInformation(InformationOrigin.FAILURE, 0 ,0, 0, False))
         #self.output_images_and_update(thresh, output_info)
         #except:
         #    f = True
@@ -1436,9 +1440,12 @@ class EyeProcessor:
 
 
     def run(self):
-        self.camera_model = None
-        self.detector_3d = None
-        f = False
+        f = None
+
+
+        
+        self.radius_range = (self.default_radius - 10, self.default_radius + 10)  # (10,30)
+        self.cvparam = CvParameters(self.default_radius, self.default_step)
 
         while True:
             f = True
@@ -1491,17 +1498,21 @@ class EyeProcessor:
             self.current_image_gray = cv2.cvtColor(
             self.current_image, cv2.COLOR_BGR2GRAY
             )
-            try:
-                if self.settings.gui_RANSAC3D: #for now ransac goes first
-                    f == self.RANSAC3D
-                if  f and self.settings.gui_HSF: #if a fail has been reported and other algo is enabled, use it.
+            print(self.settings.gui_RANSAC3D)
+            try: #This is flawed currently, i will come up with a better system soon
+                if self.settings.gui_RANSAC3D == True: #for now ransac goes first
+                    f == self.RANSAC3D()
+                if  f and self.settings.gui_HSF == True: #if a fail has been reported and other algo is enabled, use it.
                     f == self.HSF()
-                if  f and self.settings.gui_BLOB:
+                if  f and self.settings.gui_BLOB == True:
                     f == self.BLOB()
             except:
-                print("[WARN] ALL ALGORITHIMS HAVE FAILED OR ARE DISABLED.")
-            
+                pass
+            #print("[WARN] ALL ALGORITHIMS HAVE FAILED OR ARE DISABLED.")
 
+
+           # f == self.RANSAC3D()'''
+           
         #FLOW MOCK
 
         #if PYE3D

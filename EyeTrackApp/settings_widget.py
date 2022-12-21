@@ -245,6 +245,14 @@ class SettingsWidget:
             changed = True
 
 
+        if self.config.gui_HSF != values[self.gui_HSF]:
+            self.config.gui_HSF = values[self.gui_HSF]
+            changed = True
+        
+        if self.config.gui_RANSAC3D != values[self.gui_RANSAC3D]:
+            self.config.gui_RANSAC3D = values[self.gui_RANSAC3D]
+            changed = True
+        
         if self.config.gui_flip_y_axis != values[self.gui_flip_y_axis]:
             self.config.gui_flip_y_axis = values[self.gui_flip_y_axis]
             changed = True

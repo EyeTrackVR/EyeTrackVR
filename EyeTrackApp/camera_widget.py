@@ -313,15 +313,15 @@ class CameraWidget:
                 if eye_info.info_type != InformationOrigin.FAILURE and not eye_info.blink:
                     graph.update(background_color="white")
 
-                    try:
-                        graph.draw_circle(
-                            (eye_info.x * -100, eye_info.y * -100),
-                            25,
-                            fill_color="black",
-                            line_color="white",
-                        )
-                    except:
-                        pass
+                    #try:
+                    graph.draw_circle(
+                        (eye_info.x * -100, eye_info.y * -100),
+                        25,
+                        fill_color="black",
+                        line_color="white",
+                    )
+                   # except:
+                     #   pass
                 elif eye_info.blink:
                     graph.update(background_color="#6f4ca1")
                 elif eye_info.info_type == InformationOrigin.FAILURE:
