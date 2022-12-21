@@ -24,7 +24,8 @@ class EyeTrackSettingsConfig(BaseModel):
     gui_flip_y_axis: bool = False
     gui_RANSAC3D: bool = True
     gui_HSF: bool = True
-    gui_BLOB: bool = True
+    gui_BLOB: bool = False
+    gui_BLINK: bool = True
     gui_min_cutoff: str = "0.0004"
     gui_speed_coefficient: str = "0.9"
     gui_osc_address: str = "127.0.0.1"

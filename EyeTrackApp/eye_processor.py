@@ -959,6 +959,14 @@ class EyeProcessor:
         self.prev_max_size = 60 * 3  # 60fps*3sec
         # response_min=0
         self.response_max = 0
+
+
+        #blink
+        self.max_ints = []
+        self.max_int = 0
+        self.min_int = 4000000000000
+        self.frames = 0 
+        self.blinkvalue = False
         
 
         
@@ -1107,14 +1115,19 @@ class EyeProcessor:
             )
 
             out_x, out_y = cal_osc(self, cx, cy) #filter and calibrate values
-            self.output_images_and_update(larger_threshold, EyeInformation(InformationOrigin.BLOB, out_x, out_y, 0, False))
+
+            
+
+
+
+            self.output_images_and_update(larger_threshold, EyeInformation(InformationOrigin.BLOB, out_x, out_y, 0, self.blinkvalue))
             f = False
             return f
             
-        self.output_images_and_update(
-            larger_threshold, EyeInformation(InformationOrigin.BLOB, 0, 0, 0, True)
-        )
-        print("[INFO] BLINK Detected.")
+       # self.output_images_and_update(
+       #     larger_threshold, EyeInformation(InformationOrigin.BLOB, 0, 0, 0, True)
+       # )
+       # print("[INFO] BLINK Detected.")
         f = True
         return f
     
@@ -1198,7 +1211,10 @@ class EyeProcessor:
                     # blink
                     print("BLINK")
                     cv2.circle(frame, (center_x, center_y), 20, (0, 0, 255), -1)
-                    self.output_images_and_update(frame,EyeInformation(InformationOrigin.HSF, 0, 0, 0, True))
+                    self.output_images_and_update(frame, EyeInformation(InformationOrigin.HSF, 0, 0, 0, True))
+                    f = False
+
+                    #self.output_images_and_update(frame,EyeInformation(InformationOrigin.HSF, 0, 0, 0, self.blinkvalue))
         # If you want to update self.response_max. it may be more cost-effective to rewrite response_list in the following way
         # https://stackoverflow.com/questions/42771110/fastest-way-to-left-cycle-a-numpy-array-like-pop-push-for-a-queue
         
@@ -1207,8 +1223,15 @@ class EyeProcessor:
         
         cv2.circle(frame, (center_x, center_y), 10, (0, 0, 255), -1)
        # print(center_x, center_y)
-        self.output_images_and_update(frame,EyeInformation(InformationOrigin.HSF, out_x, out_y, 0, False))
-        f = False
+
+        try:
+            if self.settings.gui_BLINK: #tbh this is redundant, the algo already has blink detection built in
+                self.output_images_and_update(frame, EyeInformation(InformationOrigin.HSF, out_x, out_y, 0, self.blinkvalue))
+            else:
+                self.output_images_and_update(frame, EyeInformation(InformationOrigin.HSF, out_x, out_y, 0, False))
+            f = False
+        except:
+            pass
             
         if self.now_mode != self.cv_mode[0] and self.now_mode != self.cv_mode[1]:
             if cropped_image.size < 400:
@@ -1226,6 +1249,7 @@ class EyeProcessor:
         #self.output_images_and_update(larger_threshold, EyeInformation(InformationOrigin.HSF, 0, 0, 0, True))
 
     def RANSAC3D(self): 
+        f = False
         kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (3, 3))
         thresh_add = 10
         rng = np.random.default_rng()
@@ -1308,7 +1332,7 @@ class EyeProcessor:
             # If empty, go to next loop
             pass
         try:
-            cv2.drawContours(newImage2, contours, -1, (255, 0, 0), 1)
+            cv2.drawContours(self.current_image_gray, contours, -1, (255, 0, 0), 1)
             cnt = sorted(hull, key=cv2.contourArea)
             maxcnt = cnt[-1]
             ellipse = cv2.fitEllipse(maxcnt)
@@ -1320,24 +1344,26 @@ class EyeProcessor:
             cx, cy, w, h, theta = ransac_data
             print(cx, cy)
             cx, cy, w, h = int(cx), int(cy), int(w), int(h)
-            cv2.circle(newImage2, (cx, cy), 2, (0, 0, 255), -1)
+            cv2.circle(self.current_image_gray, (cx, cy), 2, (0, 0, 255), -1)
             # cx1, cy1, w1, h1, theta1 = fit_rotated_ellipse(maxcnt.reshape(-1, 2))
-            cv2.ellipse(newImage2, (cx, cy), (w, h), theta * 180.0 / np.pi, 0.0, 360.0, (50, 250, 200), 1, )
+            cv2.ellipse(self.current_image_gray, (cx, cy), (w, h), theta * 180.0 / np.pi, 0.0, 360.0, (50, 250, 200), 1, )
             
             # once a pupil is found, crop 100x100 around it
             x1 = cx - 50
             x2 = cx + 50
             y1 = cy - 50
             y2 = cy + 50
+            out_x, out_y = cal_osc(self, cx, cy)
+            
             #img = newImage2[y1:y2, x1:x2]
         except:
+            
             pass
     
         
-        cv2.circle(newImage2, min_loc, 2, (0, 0, 255),
+        cv2.circle(self.current_image_gray, min_loc, 2, (0, 0, 255),
                    -1)  # the point of the darkest area in the image
-
-        self.output_images_and_update(thresh, EyeInformation(InformationOrigin.RANSAC, 0, 0, 0, False))
+        
 
         # However eyes are annoyingly three dimensional, so we need to take this ellipse and turn it
         # into a curve patch on the surface of a sphere (the eye itself). If it's not a sphere, see your
@@ -1377,8 +1403,6 @@ class EyeProcessor:
             eym = ellipse_3d["center"][1]
 
             d = result_3d["diameter_3d"]
-            
-            out_x, out_y = cal_osc(self, cx, cy) #filter and calibrate values
 
         except:
             f = True
@@ -1389,20 +1413,20 @@ class EyeProcessor:
         except:
             pass
 
-        try:
-            cv2.ellipse(
-                self.current_image_gray,
-                tuple(int(v) for v in ellipse_3d["center"]),
-                tuple(int(v) for v in ellipse_3d["axes"]),
-                ellipse_3d["angle"],
-                0,
-                360,  # start/end angle for drawing
-                (0, 255, 0),  # color (BGR): red
-            )
-        except Exception:
+       # try:  #for some reason the pye3d visualizations are wack, im going to just not visualize it for now..
+         #   cv2.ellipse(
+         #       self.current_image_gray,
+           #     tuple(int(v) for v in ellipse_3d["center"]),
+          #      tuple(int(v) for v in ellipse_3d["axes"]),
+           #     ellipse_3d["angle"],
+          #      0,
+          #      360,  # start/end angle for drawing
+          #      (0, 255, 0),  # color (BGR): red
+          #  )
+       # except Exception:
             # Sometimes we get bogus axes and trying to draw this throws. Ideally we should check for
             # validity beforehand, but for now just pass. It usually fixes itself on the next frame.
-            pass
+        #    pass
 
         try:
             # print(self.lkg_projected_sphere["angle"], self.lkg_projected_sphere["axes"], self.lkg_projected_sphere["center"])
@@ -1417,24 +1441,55 @@ class EyeProcessor:
             )
 
             # draw line from center of eyeball to center of pupil
-            cv2.line(
-                self.current_image_gray,
-                tuple(int(v) for v in self.lkg_projected_sphere["center"]),
-                tuple(int(v) for v in ellipse_3d["center"]),
-                (0, 255, 0),  # color (BGR): red
-            )
+           # cv2.line(
+             #   self.current_image_gray,
+            #    tuple(int(v) for v in self.lkg_projected_sphere["center"]),
+             #   tuple(int(v) for v in ellipse_3d["center"]),
+              #  (0, 255, 0),  # color (BGR): red
+           # )
         except:
             pass
         try:
-            self.output_images_and_update(thresh, EyeInformation(InformationOrigin.RANSAC, out_x, out_y, 0, False))
+            if self.settings.gui_BLINK:
+                self.output_images_and_update(thresh, EyeInformation(InformationOrigin.RANSAC, out_x, out_y, 0, self.blinkvalue))
+            else:
+                self.output_images_and_update(thresh, EyeInformation(InformationOrigin.RANSAC, out_x, out_y, 0, False))
             f = False
         except:
+            if self.settings.gui_BLINK:
+                self.output_images_and_update(thresh, EyeInformation(InformationOrigin.RANSAC, 0, 0, 0, self.blinkvalue))
+            else:
+                self.output_images_and_update(thresh, EyeInformation(InformationOrigin.RANSAC, 0, 0, 0, True))
+            f = True
             pass
         # Shove a concatenated image out to the main GUI thread for rendering
         #self.output_images_and_update(thresh, EyeInformation(InformationOrigin.FAILURE, 0 ,0, 0, False))
         #self.output_images_and_update(thresh, output_info)
         #except:
+       # self.output_images_and_update(thresh, EyeInformation(InformationOrigin.RANSAC, out_x, out_y, 0, self.blinkvalue))
         return f
+
+
+
+    def BLINK(self):
+
+        intensity = np.sum(self.current_image_gray)
+        self.frames = self.frames + 1
+
+        if intensity > self.max_int:
+            self.max_int = intensity 
+            if self.frames > 200: 
+                self.max_ints.append(self.max_int)
+        if intensity < self.min_int:
+            self.min_int = intensity
+
+        if len(self.max_ints) > 1:
+            if intensity > min(self.max_ints):
+                print("Blink")
+                self.blinkvalue = True
+            else:
+                self.blinkvalue = False
+        print(self.blinkvalue)
 
 
     def run(self):
@@ -1513,6 +1568,7 @@ class EyeProcessor:
                 
              """   #print("[WARN] ALL ALGORITHIMS HAVE FAILED OR ARE DISABLED.")
             self.RANSAC3D()
+            self.BLINK()
            # f == self.RANSAC3D()'''
            
         #FLOW MOCK

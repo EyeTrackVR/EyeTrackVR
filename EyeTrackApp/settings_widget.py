@@ -23,6 +23,7 @@ class SettingsWidget:
         self.gui_BLOB = f"-BLOBFALLBACK{widget_id}-"
         self.gui_HSF = f"-HSF{widget_id}-"
         self.gui_RANSAC3D = f"-RANSAC3D{widget_id}-"
+        self.gui_BLINK = f"-BLINK{widget_id}-"
         self.gui_blob_maxsize = f"-BLOBMAXSIZE{widget_id}-"
         self.gui_blob_minsize = f"-BLOBMINSIZE{widget_id}-"
         self.gui_speed_coefficient = f"-SPEEDCOEFFICIENT{widget_id}-"
@@ -95,6 +96,15 @@ class SettingsWidget:
                     key=self.gui_BLOB,
                     background_color='#424042',
                 ),
+                sg.Checkbox(
+                    "Blink Algo",
+                    default=self.config.gui_BLINK,
+                    key=self.gui_BLINK,
+                    background_color='#424042',
+                ),
+
+
+                
             ],
             [
                 sg.Text("Min blob size:", background_color='#424042'),
@@ -252,7 +262,12 @@ class SettingsWidget:
         if self.config.gui_RANSAC3D != values[self.gui_RANSAC3D]:
             self.config.gui_RANSAC3D = values[self.gui_RANSAC3D]
             changed = True
-        
+
+        if self.config.gui_BLINK != values[self.gui_BLINK]:
+            self.config.gui_BLINK = values[self.gui_BLINK]
+            changed = True
+
+
         if self.config.gui_flip_y_axis != values[self.gui_flip_y_axis]:
             self.config.gui_flip_y_axis = values[self.gui_flip_y_axis]
             changed = True
