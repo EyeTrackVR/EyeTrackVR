@@ -7,7 +7,6 @@ CONFIG_FILE_NAME: str = "eyetrack_settings.json"
 
 
 class EyeTrackCameraConfig(BaseModel):
-    threshold: int = 50
     rotation_angle: int = 0
     roi_window_x: int = 0
     roi_window_y: int = 0
@@ -27,6 +26,7 @@ class EyeTrackSettingsConfig(BaseModel):
     gui_BLOB: bool = False
     gui_BLINK: bool = True
     gui_HSRAC: bool = True
+    gui_HSF_radius: int = 15
     gui_min_cutoff: str = "0.0004"
     gui_speed_coefficient: str = "0.9"
     gui_osc_address: str = "127.0.0.1"
@@ -40,7 +40,11 @@ class EyeTrackSettingsConfig(BaseModel):
     gui_eye_falloff: bool = False
     tracker_single_eye: int = 0
     gui_blink_sync: bool = False
-
+    gui_threshold: int = 65
+    gui_HSRACP: int = 1
+    gui_RANSAC3DP: int = 2
+    gui_HSFP: int = 3
+    gui_BLOBP: int = 4
 
 class EyeTrackConfig(BaseModel):
     version: int = 1

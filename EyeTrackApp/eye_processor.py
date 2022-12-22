@@ -63,7 +63,7 @@ class InformationOrigin(Enum):
     FAILURE = 3
     HSF = 4
 
-
+bbb = 0
 @dataclass
 class EyeInformation:
     info_type: InformationOrigin
@@ -74,6 +74,7 @@ class EyeInformation:
 
 
 lowb = np.array(0)
+
 
 
 def run_once(f):
@@ -101,6 +102,9 @@ def cal_osc(self, cx, cy):
         self.calibration_frame_counter = None
         self.xoff = cx
         self.yoff = cy
+        self.now_mode = self.cv_mode[0]
+        self.response_list = []
+        self.response_max = 0
         if sys.platform.startswith("win"):
             PlaySound('Audio/compleated.wav', SND_FILENAME | SND_ASYNC)
     elif self.calibration_frame_counter != None:
@@ -747,19 +751,15 @@ class EyeProcessor:
         self.camera_model = None
         self.detector_3d = None
 
+        self.failed = 0
 
-        self.response_list = []  #TODO we need to unify this?
+
+        self.response_list = []  #This might not be correct. 
          #HSF
-        
         
         self.cv_mode = ["first_frame", "radius_adjust", "init", "normal"]
         self.now_mode = self.cv_mode[0]
         self.cvparam = CvParameters(default_radius, default_step)
-
-
-
-
-        self.default_radius = 15
         self.skip_blink_detect = False
 
         self.default_step = (5, 5)  # bigger the steps,lower the processing time! ofc acc also takes an impact
@@ -769,8 +769,8 @@ class EyeProcessor:
         prev_max_size = 60 * 3  # 60fps*3sec
         # response_min=0
         self.response_max = None
-        self.default_radius = 20
-        self.auto_radius_range = (self.default_radius - 10, self.default_radius + 10) 
+
+        self.auto_radius_range = (self.settings.gui_HSF_radius - 10, self.settings.gui_HSF_radius + 10) 
 
         #blink
         self.max_ints = []
@@ -874,22 +874,23 @@ class EyeProcessor:
                     pass
             else:
                 self.cct = self.cct - 1
-        _, larger_threshold = cv2.threshold(self.current_image_gray, int(self.config.threshold + 12), 255, cv2.THRESH_BINARY)
+        _, larger_threshold = cv2.threshold(self.current_image_gray, int(self.settings.gui_threshold + 12), 255, cv2.THRESH_BINARY)
     
 
-        #try:
+        try:
             # Try rebuilding our contours
-        contours, _ = cv2.findContours(
-            larger_threshold, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE
-        )
-        contours = sorted(contours, key=lambda x: cv2.contourArea(x), reverse=True)
-        
-        # If we have no contours, we have nothing to blob track. Fail here.
-        if len(contours) == 0:
-            raise RuntimeError("No contours found for image")
-       # except:
-           # self.output_images_and_update(larger_threshold, EyeInformation(InformationOrigin.FAILURE, 0, 0, 0, False))
-          #  return
+            contours, _ = cv2.findContours(
+                larger_threshold, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE
+            )
+            contours = sorted(contours, key=lambda x: cv2.contourArea(x), reverse=True)
+            
+            # If we have no contours, we have nothing to blob track. Fail here.
+            if len(contours) == 0:
+                raise RuntimeError("No contours found for image")
+        except:
+            self.output_images_and_update(larger_threshold, EyeInformation(InformationOrigin.FAILURE, 0, 0, 0, False))
+            self.failed = self.failed + 1
+            return
 
         rows, cols = larger_threshold.shape
         
@@ -907,20 +908,20 @@ class EyeProcessor:
 
             cy = y + int(h / 2)
 
-            cv2.line(
-                self.current_image_gray,
-                (x + int(w / 2), 0),
-                (x + int(w / 2), rows),
-                (255, 0, 0),
-                1,
-            )  # visualizes eyetracking on thresh
-            cv2.line(
-                self.current_image_gray,
-                (0, y + int(h / 2)),
-                (cols, y + int(h / 2)),
-                (255, 0, 0),
-                1,
-            )
+          #  cv2.line(
+             #   self.current_image_gray,
+           #     (x + int(w / 2), 0),
+            #    (x + int(w / 2), rows),
+           #     (255, 0, 0),
+          #      1,
+          #  )  # visualizes eyetracking on thresh
+          #  cv2.line(
+         #       self.current_image_gray,
+          #      (0, y + int(h / 2)),
+          #      (cols, y + int(h / 2)),
+         #       (255, 0, 0),
+         #       1,
+          #  )
             cv2.drawContours(self.current_image_gray, [cnt], -1, (255, 0, 0), 3)
             cv2.rectangle(
                 self.current_image_gray, (x, y), (x + w, y + h), (255, 0, 0), 2
@@ -933,16 +934,11 @@ class EyeProcessor:
 
 
             self.output_images_and_update(larger_threshold, EyeInformation(InformationOrigin.BLOB, out_x, out_y, 0, self.blinkvalue))
-            f = False
-            return f
-            
-       # self.output_images_and_update(
-       #     larger_threshold, EyeInformation(InformationOrigin.BLOB, 0, 0, 0, True)
-       # )
-       # print("[INFO] BLINK Detected.")
-        f = True
-        return f
-    
+            self.failed = 0
+            return
+
+        self.output_images_and_update(larger_threshold, EyeInformation(InformationOrigin.BLOB, 0, 0, 0, self.blinkvalue))
+        self.failed = self.failed + 1
 
     def HSF(self):
 
@@ -953,27 +949,174 @@ class EyeProcessor:
             prev_res_len = len(self.response_list)
             # adjustment of radius
             if prev_res_len == 1:
-                # len==1==self.response_list==[self.default_radius]
+                # len==1==self.response_list==[self.settings.gui_HSF_radius]
                 self.cvparam.radius = self.auto_radius_range[0]
             elif prev_res_len == 2:
-                # len==2==self.response_list==[self.default_radius, self.auto_radius_range[0]]
+                # len==2==self.response_list==[self.settings.gui_HSF_radius, self.auto_radius_range[0]]
                 self.cvparam.radius = self.auto_radius_range[1]
             elif prev_res_len == 3:
-                # len==3==self.response_list==[self.default_radius,self.auto_radius_range[0],self.auto_radius_range[1]]
+                # len==3==self.response_list==[self.settings.gui_HSF_radius,self.auto_radius_range[0],self.auto_radius_range[1]]
                 sort_res = sorted(self.response_list, key=lambda x: x[1])[0]
                 # Extract the radius with the lowest response value
-                if sort_res[0] == self.default_radius:
+                if sort_res[0] == self.settings.gui_HSF_radius:
                     # If the default value is best, change self.now_mode to init after setting radius to the default value.
-                    self.cvparam.radius = self.default_radius
+                    self.cvparam.radius = self.settings.gui_HSF_radius
                     self.now_mode = self.cv_mode[2] if not self.skip_blink_detect else self.cv_mode[3]
                     self.response_list = []
                 elif sort_res[0] == self.auto_radius_range[0]:
-                    self.radius_cand_list = [i for i in range(self.auto_radius_range[0], self.default_radius, self.default_step[0])][1:]
+                    self.radius_cand_list = [i for i in range(self.auto_radius_range[0], self.settings.gui_HSF_radius, self.default_step[0])][1:]
                     # self.default_step is defined separately for xy, but radius is shared by xy, so it may be buggy
                     # It should be no problem to set it to anything other than self.default_step
                     self.cvparam.radius = self.radius_cand_list.pop()
                 else:
-                    self.radius_cand_list = [i for i in range(self.default_radius, self.auto_radius_range[1], self.default_step[0])][1:]
+                    self.radius_cand_list = [i for i in range(self.settings.gui_HSF_radius, self.auto_radius_range[1], self.default_step[0])][1:]
+                    # self.default_step is defined separately for xy, but radius is shared by xy, so it may be buggy
+                    # It should be no problem to set it to anything other than self.default_step
+                    self.cvparam.radius = self.radius_cand_list.pop()
+            else:
+                # Try the contents of the self.radius_cand_list in order until the self.radius_cand_list runs out
+                # Better make it a binary search.
+                if len(self.radius_cand_list) == 0:
+                    sort_res = sorted(self.response_list, key=lambda x: x[1])[0]
+                    self.cvparam.radius = sort_res[0]
+                    self.now_mode = self.cv_mode[2] if not self.skip_blink_detect else self.cv_mode[3]
+                    self.response_list = []
+                else:
+                    self.cvparam.radius = self.radius_cand_list.pop()
+        
+        radius, pad, step, hsf = self.cvparam.get_rpsh()
+        
+        # For measuring processing time of image processing
+        cv_start_time = timeit.default_timer()
+        
+        gray_frame = frame
+        
+        # Calculate the integral image of the frame
+        int_start_time = timeit.default_timer()
+        # BORDER_CONSTANT is faster than BORDER_REPLICATE There seems to be almost no negative impact when BORDER_CONSTANT is used.
+        frame_pad = cv2.copyMakeBorder(gray_frame, pad, pad, pad, pad, cv2.BORDER_CONSTANT)
+        frame_int = cv2.integral(frame_pad)
+        
+        # Convolve the feature with the integral image
+        conv_int_start_time = timeit.default_timer()
+        xy_step = frameint_get_xy_step(frame_int.shape, step, pad, start_offset=None, end_offset=None)
+        frame_conv, response, center_xy = conv_int(frame_int, hsf, step, pad, xy_step)
+        
+        crop_start_time = timeit.default_timer()
+        # Define the center point and radius
+        center_x, center_y = center_xy
+        upper_x = center_x + 25 #TODO make this a setting
+        lower_x = center_x - 25
+        upper_y = center_y + 25
+        lower_y = center_y - 25
+        
+        # Crop the image using the calculated bounds
+        cropped_image = gray_frame[lower_y:upper_y, lower_x:upper_x] # y is 50px, x is 45? why?
+        
+        if self.now_mode == self.cv_mode[0] or self.now_mode == self.cv_mode[1]:
+            # If mode is first_frame or radius_adjust, record current radius and response
+            self.response_list.append((radius, response))
+        elif self.now_mode == self.cv_mode[2]:
+            # Statistics for blink detection
+            if len(self.response_list) < self.blink_init_frames:
+                # Record the average value of cropped_image
+                self.response_list.append(cv2.mean(cropped_image)[0])
+            else:
+                # Calculate self.response_max by computing interquartile range, IQR
+                # Change self.cv_mode to normal
+                self.response_list = np.array(self.response_list)
+                # 25%,75%
+                # This value may need to be adjusted depending on the environment.
+                quartile_1, quartile_3 = np.percentile(self.response_list, [25, 75])
+                iqr = quartile_3 - quartile_1
+                # response_min = quartile_1 - (iqr * 1.5)
+                self.response_max = quartile_3 + (iqr * 1.5)
+                self.now_mode = self.cv_mode[3]
+        else:
+            if 0 in cropped_image.shape:
+                # If shape contains 0, it is not detected well.
+                print("[WARN] HSF: Something's wrong.")
+            else:
+                # If the average value of cropped_image is greater than self.response_max
+                # (i.e., if the cropimage is whitish
+                if self.response_max is not None and cv2.mean(cropped_image)[0] > self.response_max:
+                    # blink
+                    
+                    cv2.circle(frame, (center_x, center_y), 10, (0, 0, 255), -1)
+        # If you want to update self.response_max. it may be more cost-effective to rewrite self.response_list in the following way
+        # https://stackoverflow.com/questions/42771110/fastest-way-to-left-cycle-a-numpy-array-like-pop-push-for-a-queue
+        
+        
+
+
+        out_x, out_y = cal_osc(self, center_x, center_y)
+        
+        cv2.circle(frame, (center_x, center_y), 10, (0, 0, 255), -1)
+    # print(center_x, center_y)
+
+        try:
+            if self.settings.gui_BLINK: #tbh this is redundant, the algo already has blink detection built in
+                self.output_images_and_update(frame, EyeInformation(InformationOrigin.HSF, out_x, out_y, 0, self.blinkvalue))
+            else:
+                self.output_images_and_update(frame, EyeInformation(InformationOrigin.HSF, out_x, out_y, 0, False))
+            self.failed = 0
+            
+        except:
+            if self.settings.gui_BLINK: #tbh this is redundant, the algo already has blink detection built in
+                self.output_images_and_update(frame, EyeInformation(InformationOrigin.HSF, 0, 0, 0, self.blinkvalue))
+            else:
+                self.output_images_and_update(frame, EyeInformation(InformationOrigin.HSF, 0, 0, 0, False))
+            self.failed = self.failed + 1
+
+            
+        if self.now_mode != self.cv_mode[0] and self.now_mode != self.cv_mode[1]:
+            if cropped_image.size < 400:
+                pass
+    
+        if self.now_mode == self.cv_mode[0]:
+            self.now_mode = self.cv_mode[1]
+
+        return 
+            #self.output_images_and_update(thresh, EyeInformation(InformationOrigin.FAILURE, 0, 0, 0, False))
+        # return
+
+        #self.output_images_and_update(larger_threshold,EyeInformation(InformationOrigin.HSF, out_x, out_y, 0, False),)
+    # return
+        #self.output_images_and_update(larger_threshold, EyeInformation(InformationOrigin.HSF, 0, 0, 0, True))
+
+
+
+
+
+    def HSRAC(self):
+        frame = self.current_image_gray     
+        if self.now_mode == self.cv_mode[1]:
+
+            
+            prev_res_len = len(self.response_list)
+            # adjustment of radius
+            if prev_res_len == 1:
+                # len==1==self.response_list==[self.settings.gui_HSF_radius]
+                self.cvparam.radius = self.auto_radius_range[0]
+            elif prev_res_len == 2:
+                # len==2==self.response_list==[self.settings.gui_HSF_radius, self.auto_radius_range[0]]
+                self.cvparam.radius = self.auto_radius_range[1]
+            elif prev_res_len == 3:
+                # len==3==self.response_list==[self.settings.gui_HSF_radius,self.auto_radius_range[0],self.auto_radius_range[1]]
+                sort_res = sorted(self.response_list, key=lambda x: x[1])[0]
+                # Extract the radius with the lowest response value
+                if sort_res[0] == self.settings.gui_HSF_radius:
+                    # If the default value is best, change self.now_mode to init after setting radius to the default value.
+                    self.cvparam.radius = self.settings.gui_HSF_radius
+                    self.now_mode = self.cv_mode[2] if not self.skip_blink_detect else self.cv_mode[3]
+                    self.response_list = []
+                elif sort_res[0] == self.auto_radius_range[0]:
+                    self.radius_cand_list = [i for i in range(self.auto_radius_range[0], self.settings.gui_HSF_radius, self.default_step[0])][1:]
+                    # self.default_step is defined separately for xy, but radius is shared by xy, so it may be buggy
+                    # It should be no problem to set it to anything other than self.default_step
+                    self.cvparam.radius = self.radius_cand_list.pop()
+                else:
+                    self.radius_cand_list = [i for i in range(self.settings.gui_HSF_radius, self.auto_radius_range[1], self.default_step[0])][1:]
                     # self.default_step is defined separately for xy, but radius is shared by xy, so it may be buggy
                     # It should be no problem to set it to anything other than self.default_step
                     self.cvparam.radius = self.radius_cand_list.pop()
@@ -1051,154 +1194,121 @@ class EyeProcessor:
         # https://stackoverflow.com/questions/42771110/fastest-way-to-left-cycle-a-numpy-array-like-pop-push-for-a-queue
         
 
-
-        if not self.settings.gui_HSRAC:
-            out_x, out_y = cal_osc(self, center_x, center_y)
+ #run ransac on the HSF crop\
+        try:
+            kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (3, 3))
+            thresh_add = 10
+            rng = np.random.default_rng()
             
-            cv2.circle(frame, (center_x, center_y), 10, (0, 0, 255), -1)
-        # print(center_x, center_y)
-
+            f = False
+            
+            # Convert the image to grayscale, and set up thresholding. Thresholds here are basically a
+            # low-pass filter that will set any pixel < the threshold value to 0. Thresholding is user
+            # configurable in this utility as we're dealing with variable lighting amounts/placement, as
+            # well as camera positioning and lensing. Therefore everyone's cutoff may be different.
+            #
+            # The goal of thresholding settings is to make sure we can ONLY see the pupil. This is why we
+            # crop the image earlier; it gives us less possible dark area to get confused about in the
+            # next step.
+            frame = cropped_image
+            # For measuring processing time of image processing
+            # Crop first to reduce the amount of data to process.
+            frame = frame[0:len(frame) - 5, :]
+            # To reduce the processing data, first convert to 1-channel and then blur.
+            # The processing results were the same when I swapped the order of blurring and 1-channelization.
+            frame_gray = cv2.GaussianBlur(frame, (5, 5), 0)
+        
+        
+            # this will need to be adjusted everytime hardware is changed (brightness of IR, Camera postion, etc)m
+            min_val, max_val, min_loc, max_loc = cv2.minMaxLoc(frame_gray)
+            
+            maxloc0_hf, maxloc1_hf = int(0.5 * max_loc[0]), int(0.5 * max_loc[1])
+            
+            # crop 15% sqare around min_loc
+        # frame_gray = frame_gray[max_loc[1] - maxloc1_hf:max_loc[1] + maxloc1_hf,
+            #               max_loc[0] - maxloc0_hf:max_loc[0] + maxloc0_hf]
+            
+            threshold_value = min_val + thresh_add
+            _, thresh = cv2.threshold(frame_gray, threshold_value, 255, cv2.THRESH_BINARY)
             try:
-                if self.settings.gui_BLINK: #tbh this is redundant, the algo already has blink detection built in
-                    self.output_images_and_update(frame, EyeInformation(InformationOrigin.HSF, out_x, out_y, 0, self.blinkvalue))
+                opening = cv2.morphologyEx(thresh, cv2.MORPH_OPEN, kernel)
+                closing = cv2.morphologyEx(opening, cv2.MORPH_CLOSE, kernel)
+                th_frame = 255 - closing
+            except:
+                # I want to eliminate try here because try tends to be slow in execution.
+                th_frame = 255 - frame_gray
+
+            
+            detect_start_time = timeit.default_timer()
+            contours, _ = cv2.findContours(th_frame, cv2.RETR_TREE, cv2.CHAIN_APPROX_NONE)
+            hull = []
+            # This way is faster than contours[i]
+            # But maybe this one is faster. hull = [cv2.convexHull(cnt, False) for cnt in contours]
+            for cnt in contours:
+                hull.append(cv2.convexHull(cnt, False))
+            if not hull:
+                # If empty, go to next loop
+                pass
+            try:
+                
+                cnt = sorted(hull, key=cv2.contourArea)
+                maxcnt = cnt[-1]
+                # ellipse = cv2.fitEllipse(maxcnt)
+                ransac_data = fit_rotated_ellipse_ransac(maxcnt.reshape(-1, 2), rng)
+                if ransac_data is None:
+                    # ransac_data is None==maxcnt.shape[0]<sample_num
+                    # go to next loop
+                    pass
+                
+                cx, cy, w, h, theta = ransac_data
+
+                csx = frame.shape[0]
+                csy = frame.shape[1]
+
+                cx = center_x - (csx - cx) # we find the difference between the crop size and ransac point, and subtract from the center point from HSF
+                cy = center_y - (csy - cy)
+                out_x, out_y = cal_osc(self, cx, cy)
+
+                cx, cy, w, h = int(cx), int(cy), int(w), int(h)
+
+                cv2.drawContours(frame, contours, -1, (255, 0, 0), 1)
+                cv2.circle(frame, (cx, cy), 2, (0, 0, 255), -1)
+                # cx1, cy1, w1, h1, theta1 = fit_rotated_ellipse(maxcnt.reshape(-1, 2))
+                cv2.ellipse(frame, (cx, cy), (w, h), theta * 180.0 / np.pi, 0.0, 360.0, (50, 250, 200), 1, )
+        
+            #img = newImage2[y1:y2, x1:x2]
+            except:
+                pass
+        
+            self.current_image_gray = frame
+            cv2.circle(self.current_image_gray, min_loc, 2, (0, 0, 255),
+                    -1)  # the point of the darkest area in the image
+            try:
+                if self.settings.gui_BLINK:
+                    self.output_images_and_update(thresh, EyeInformation(InformationOrigin.HSF, out_x, out_y, 0, self.blinkvalue))
                 else:
-                    self.output_images_and_update(frame, EyeInformation(InformationOrigin.HSF, out_x, out_y, 0, False))
+                    self.output_images_and_update(thresh, EyeInformation(InformationOrigin.HSF, out_x, out_y, 0, False))
                 f = False
             except:
                 pass
-                
-            if self.now_mode != self.cv_mode[0] and self.now_mode != self.cv_mode[1]:
-                if cropped_image.size < 400:
-                    pass
-        
-            if self.now_mode == self.cv_mode[0]:
-                self.now_mode = self.cv_mode[1]
 
-            return f
-                #self.output_images_and_update(thresh, EyeInformation(InformationOrigin.FAILURE, 0, 0, 0, False))
-            # return
 
-            #self.output_images_and_update(larger_threshold,EyeInformation(InformationOrigin.HSF, out_x, out_y, 0, False),)
-        # return
-            #self.output_images_and_update(larger_threshold, EyeInformation(InformationOrigin.HSF, 0, 0, 0, True))
-
-        else: #run ransac on the HSF crop\
+        except:
             try:
-                kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (3, 3))
-                thresh_add = 10
-                rng = np.random.default_rng()
-                
-                f = False
-                
-                # Convert the image to grayscale, and set up thresholding. Thresholds here are basically a
-                # low-pass filter that will set any pixel < the threshold value to 0. Thresholding is user
-                # configurable in this utility as we're dealing with variable lighting amounts/placement, as
-                # well as camera positioning and lensing. Therefore everyone's cutoff may be different.
-                #
-                # The goal of thresholding settings is to make sure we can ONLY see the pupil. This is why we
-                # crop the image earlier; it gives us less possible dark area to get confused about in the
-                # next step.
-                frame = cropped_image
-                # For measuring processing time of image processing
-                # Crop first to reduce the amount of data to process.
-                frame = frame[0:len(frame) - 5, :]
-                # To reduce the processing data, first convert to 1-channel and then blur.
-                # The processing results were the same when I swapped the order of blurring and 1-channelization.
-                frame_gray = cv2.GaussianBlur(frame, (5, 5), 0)
-            
-            
-                # this will need to be adjusted everytime hardware is changed (brightness of IR, Camera postion, etc)m
-                min_val, max_val, min_loc, max_loc = cv2.minMaxLoc(frame_gray)
-                
-                maxloc0_hf, maxloc1_hf = int(0.5 * max_loc[0]), int(0.5 * max_loc[1])
-                
-                # crop 15% sqare around min_loc
-            # frame_gray = frame_gray[max_loc[1] - maxloc1_hf:max_loc[1] + maxloc1_hf,
-                #               max_loc[0] - maxloc0_hf:max_loc[0] + maxloc0_hf]
-                
-                threshold_value = min_val + thresh_add
-                _, thresh = cv2.threshold(frame_gray, threshold_value, 255, cv2.THRESH_BINARY)
-                try:
-                    opening = cv2.morphologyEx(thresh, cv2.MORPH_OPEN, kernel)
-                    closing = cv2.morphologyEx(opening, cv2.MORPH_CLOSE, kernel)
-                    th_frame = 255 - closing
-                except:
-                    # I want to eliminate try here because try tends to be slow in execution.
-                    th_frame = 255 - frame_gray
-
-                
-                detect_start_time = timeit.default_timer()
-                contours, _ = cv2.findContours(th_frame, cv2.RETR_TREE, cv2.CHAIN_APPROX_NONE)
-                hull = []
-                # This way is faster than contours[i]
-                # But maybe this one is faster. hull = [cv2.convexHull(cnt, False) for cnt in contours]
-                for cnt in contours:
-                    hull.append(cv2.convexHull(cnt, False))
-                if not hull:
-                    # If empty, go to next loop
-                    pass
-                try:
-                    
-                    cnt = sorted(hull, key=cv2.contourArea)
-                    maxcnt = cnt[-1]
-                    # ellipse = cv2.fitEllipse(maxcnt)
-                    ransac_data = fit_rotated_ellipse_ransac(maxcnt.reshape(-1, 2), rng)
-                    if ransac_data is None:
-                        # ransac_data is None==maxcnt.shape[0]<sample_num
-                        # go to next loop
-                        pass
-                    
-                    crop_start_time = timeit.default_timer()
-                    cx, cy, w, h, theta = ransac_data
-
-                    csx = frame.shape[0]
-                    csy = frame.shape[1]
-
-                    cx = center_x - (csx - cx) # we find the difference between the crop size and ransac point, and subtract from the center point from HSF
-                    cy = center_y - (csy - cy)
-                    out_x, out_y = cal_osc(self, cx, cy)
-                    #print()
-
-
-
-
-                    cx, cy, w, h = int(cx), int(cy), int(w), int(h)
-
-                    
-                    cv2.drawContours(self.current_image_gray, contours, -1, (255, 0, 0), 1)
-                    cv2.circle(self.current_image_gray, (cx, cy), 2, (0, 0, 255), -1)
-                    # cx1, cy1, w1, h1, theta1 = fit_rotated_ellipse(maxcnt.reshape(-1, 2))
-                    cv2.ellipse(self.current_image_gray, (cx, cy), (w, h), theta * 180.0 / np.pi, 0.0, 360.0, (50, 250, 200), 1, )
-            
-                #img = newImage2[y1:y2, x1:x2]
-                except:
-                    pass
-            
-                self.current_image_gray = frame
-                cv2.circle(self.current_image_gray, min_loc, 2, (0, 0, 255),
-                        -1)  # the point of the darkest area in the image
-                try:
-                    if self.settings.gui_BLINK:
-                        self.output_images_and_update(thresh, EyeInformation(InformationOrigin.HSF, out_x, out_y, 0, self.blinkvalue))
-                    else:
-                        self.output_images_and_update(thresh, EyeInformation(InformationOrigin.HSF, out_x, out_y, 0, False))
-                    f = False
-                except:
-                    pass
-
-
-            except:
-                try:
+                if abs(self.settings.gui_HSFP - self.settings.gui_HSRACP) < 2:   #at this point we have successfully tan HSF, if ransac fails and HSF is the next algo, just send HSF values and continue
                     if self.settings.gui_BLINK:
                         self.output_images_and_update(frame, EyeInformation(InformationOrigin.HSF, out_x, out_y, 0, self.blinkvalue))
                     else:
                         self.output_images_and_update(frame, EyeInformation(InformationOrigin.HSF, out_x, out_y, 0, False))
                     f = False
-                except:
-                    pass
-
-
-
+                else: #HSF must not be next algo, so fail and move to the next one.
+                    self.failed = self.failed + 1
+                    #if self.settings.gui_BLINK:
+                    #    self.output_images_and_update(frame, EyeInformation(InformationOrigin.HSF, out_x, out_y, 0, self.blinkvalue))
+                    #else:
+                    #    self.output_images_and_update(frame, EyeInformation(InformationOrigin.HSF, out_x, out_y, 0, False))
+            except: 
+                pass
 
 
 
@@ -1422,13 +1532,13 @@ class EyeProcessor:
                 self.output_images_and_update(thresh, EyeInformation(InformationOrigin.RANSAC, out_x, out_y, 0, self.blinkvalue))
             else:
                 self.output_images_and_update(thresh, EyeInformation(InformationOrigin.RANSAC, out_x, out_y, 0, False))
-            f = False
+            self.failed = 0 # we have succeded, continue with this
         except:
             if self.settings.gui_BLINK:
                 self.output_images_and_update(thresh, EyeInformation(InformationOrigin.RANSAC, 0, 0, 0, self.blinkvalue))
             else:
                 self.output_images_and_update(thresh, EyeInformation(InformationOrigin.RANSAC, 0, 0, 0, True))
-            f = True
+            self.failed = self.failed + 1 #we have failed, move onto next algo
             pass
         # Shove a concatenated image out to the main GUI thread for rendering
         #self.output_images_and_update(thresh, EyeInformation(InformationOrigin.FAILURE, 0 ,0, 0, False))
@@ -1460,12 +1570,79 @@ class EyeProcessor:
         print(self.blinkvalue)
 
 
+    def ALGOSELECT(self): 
+
+        if self.failed == 0 and self.firstalgo != None: 
+            self.firstalgo()
+        else:
+            self.failed = self.failed + 1
+
+        if self.failed == 1 and self.secondalgo != None:
+            self.secondalgo() #send the tracking algos previous fail number, in algo if we pass set to 0, if fail, + 1
+        else:
+            self.failed = self.failed + 1
+
+        if self.failed == 2 and self.thirdalgo != None:
+            self.thirdalgo()
+        else:
+            self.failed = self.failed + 1
+
+        if self.failed == 3 and self.fourthalgo != None:
+            self.fourthalgo()
+        else:
+            self.failed = 0 # we have reached last possible algo and it is disabled, move to first algo
+
+
+
+
     def run(self):
 
-        cvparam = CvParameters(self.default_radius, self.default_step)
-        kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (3, 3))
-        thresh_add = 10
-        rng = np.random.default_rng()
+
+        self.firstalgo = None
+        self.secondalgo = None
+        self.thirdalgo = None
+        self.fourthalgo = None
+        #set algo priorities
+        if self.settings.gui_HSF and self.settings.gui_HSFP == 1: #I feel like this is super innefficient though it only runs at startup and no solution is coming to me atm
+            self.firstalgo = self.HSF
+        elif self.settings.gui_HSF and self.settings.gui_HSFP == 2:
+            self.secondalgo = self.HSF
+        elif self.settings.gui_HSF and self.settings.gui_HSFP == 3:
+            self.thirdalgo = self.HSF
+        elif self.settings.gui_HSF and self.settings.gui_HSFP == 4:
+            self.fourthalgo = self.HSF
+
+        if self.settings.gui_RANSAC3D and self.settings.gui_RANSAC3DP == 1:
+            self.firstalgo = self.RANSAC3D
+        elif self.settings.gui_RANSAC3D and self.settings.gui_RANSAC3DP == 2:
+            self.secondalgo = self.RANSAC3D
+        elif self.settings.gui_RANSAC3D and self.settings.gui_RANSAC3DP == 3:
+            self.thirdalgo = self.RANSAC3D
+        elif self.settings.gui_RANSAC3D and self.settings.gui_RANSAC3DP == 4:
+            self.fourthalgo = self.RANSAC3D
+
+        if self.settings.gui_HSRAC and self.settings.gui_HSRACP == 1:
+            self.firstalgo = self.HSRAC
+        elif self.settings.gui_HSRAC and self.settings.gui_HSRACP == 2:
+            self.secondalgo = self.HSRAC
+        elif self.settings.gui_HSRAC and self.settings.gui_HSRACP == 3:
+            self.thirdalgo = self.HSRAC
+        elif self.settings.gui_HSRAC and self.settings.gui_HSRACP == 4:
+            self.fourthalgo = self.HSRAC
+
+        if self.settings.gui_HSRAC and self.settings.gui_BLOBP == 1:
+            self.firstalgo = self.BLOB
+        elif self.settings.gui_HSRAC and self.settings.gui_BLOBP == 2:
+            self.secondalgo = self.BLOB
+        elif self.settings.gui_HSRAC and self.settings.gui_BLOBP == 3:
+            self.thirdalgo = self.BLOB
+        elif self.settings.gui_HSRAC and self.settings.gui_BLOBP == 4:
+            self.fourthalgo = self.BLOB
+        
+
+       # if self.settings.gui_BLOBP
+     #   if self.settings.gui_HSFP
+      #  if self.settings.gui_RANSAC3DP
 
         f = True
         while True:
@@ -1521,40 +1698,10 @@ class EyeProcessor:
             )
            # print(self.settings.gui_RANSAC3D)
             
-            """try: 
-                if self.settings.gui_RANSAC3D == True: #for now ransac goes first
-                    f == self.RANSAC3D()
-                    
-                if f and self.settings.gui_HSF == True: #if a fail has been reported and other algo is enabled, use it.
-                    f == self.HSF()
-                if f and self.settings.gui_BLOB == True:
-                    f == self.BLOB()
-                
-            except:
-                pass
-                
-             """   #print("[WARN] ALL ALGORITHIMS HAVE FAILED OR ARE DISABLED.")
-           # self.RANSAC3D()
-            #self.BLINK()
-            self.HSF()
-           # f == self.RANSAC3D()'''
-           
-        #FLOW MOCK
-
-        #if PYE3D
-        #RUN PYE
-        #receive values, if fail reported, go to next method
-
-        #IF HSF
-        #RUN HSF
-        #receive values, if fail reported, go to next method
-
-        #IF BLOB
-        #RUN BLOB (ew tbh)
-        #receive values, if fail reported, end here in complete fail.
+            self.ALGOSELECT() #run our algos in priority order set in settings
 
 
-
+        
 
 
         

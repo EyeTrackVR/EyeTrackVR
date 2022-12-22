@@ -15,7 +15,6 @@ import numpy as np
 class CameraWidget:
     def __init__(self, widget_id: EyeId, main_config: EyeTrackConfig, osc_queue: Queue):
         self.gui_camera_addr = f"-CAMERAADDR{widget_id}-"
-        self.gui_threshold_slider = f"-THREADHOLDSLIDER{widget_id}-"
         self.gui_rotation_slider = f"-ROTATIONSLIDER{widget_id}-"
         self.gui_roi_button = f"-ROIMODE{widget_id}-"
         self.gui_roi_layout = f"-ROILAYOUT{widget_id}-"
@@ -62,28 +61,19 @@ class CameraWidget:
         # Define the window's contents
         self.tracking_layout = [
             [
-                sg.Text("Threshold", background_color='#424042'),
-                sg.Slider(
-                    range=(0, 110),
-                    default_value=self.config.threshold,
-                    orientation="h",
-                    key=self.gui_threshold_slider,
-                    background_color='#424042'
-                ),
-            ],
-            [
                 sg.Text("Rotation", background_color='#424042'),
                 sg.Slider(
                     range=(0, 360),
                     default_value=self.config.rotation_angle,
                     orientation="h",
                     key=self.gui_rotation_slider,
-                    background_color='#424042'
+                    background_color='#424042',
+                    tooltip = "Adjust the rotation of your cameras, make them level.",
                 ),
             ],
             [
-                sg.Button("Restart Calibration", key=self.gui_restart_calibration, button_color='#6f4ca1'),
-                sg.Button("Recenter Eyes", key=self.gui_recenter_eyes, button_color='#6f4ca1'),
+                sg.Button("Restart Calibration", key=self.gui_restart_calibration, button_color='#6f4ca1', tooltip = "Start eye calibration. Look all arround to all extreams without blinking until sound is heard.",),
+                sg.Button("Recenter Eyes", key=self.gui_recenter_eyes, button_color='#6f4ca1', tooltip = "Make your eyes center again.",),
 
             ],
             [
@@ -94,6 +84,7 @@ class CameraWidget:
                     default=self.config.gui_circular_crop,
                     key=self.gui_circular_crop,
                     background_color='#424042',
+                    tooltip = "Circle crop only applies to RANSAC3D and Blob.",
                 ),
             ],
             [sg.Image(filename="", key=self.gui_tracking_image)],
@@ -114,14 +105,14 @@ class CameraWidget:
         self.widget_layout = [
             [
                 sg.Text("Camera Address", background_color='#424042'),
-                sg.InputText(self.config.capture_source, key=self.gui_camera_addr),
+                sg.InputText(self.config.capture_source, key=self.gui_camera_addr, tooltip = "Enter the IP address or UVC port of your camera. (Include the 'http://')",),
             ],
             [
                 sg.Button("Save and Restart Tracking", key=self.gui_save_tracking_button, button_color='#6f4ca1'),
             ],
             [
-                sg.Button("Tracking Mode", key=self.gui_tracking_button, button_color='#6f4ca1'),
-                sg.Button("Cropping Mode", key=self.gui_roi_button, button_color='#6f4ca1'),
+                sg.Button("Tracking Mode", key=self.gui_tracking_button, button_color='#6f4ca1', tooltip = "Go here to track your eye.",),
+                sg.Button("Cropping Mode", key=self.gui_roi_button, button_color='#6f4ca1', tooltip = "Go here to crop out your eye.",),
             ],
             [
                 sg.Column(self.tracking_layout, key=self.gui_tracking_layout, background_color='#424042'),
@@ -203,9 +194,7 @@ class CameraWidget:
                     self.config.capture_source = values[self.gui_camera_addr]
             changed = True
 
-        if self.config.threshold != values[self.gui_threshold_slider]:
-            self.config.threshold = int(values[self.gui_threshold_slider])
-            changed = True
+
 
         if self.config.rotation_angle != values[self.gui_rotation_slider]:
             self.config.rotation_angle = int(values[self.gui_rotation_slider])

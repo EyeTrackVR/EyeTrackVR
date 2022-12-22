@@ -25,12 +25,21 @@ class SettingsWidget:
         self.gui_RANSAC3D = f"-RANSAC3D{widget_id}-"
         self.gui_BLINK = f"-BLINK{widget_id}-"
         self.gui_HSRAC = f"-HSRAC{widget_id}-"
+        self.gui_HSF_radius = f"-HSFRADIUS{widget_id}-"
         self.gui_blob_maxsize = f"-BLOBMAXSIZE{widget_id}-"
         self.gui_blob_minsize = f"-BLOBMINSIZE{widget_id}-"
         self.gui_speed_coefficient = f"-SPEEDCOEFFICIENT{widget_id}-"
         self.gui_min_cutoff = f"-MINCUTOFF{widget_id}-"
         self.gui_eye_falloff = f"-EYEFALLOFF{widget_id}-"
         self.gui_blink_sync = f"-BLINKSYNC{widget_id}-"
+
+        self.gui_HSRACP = f"-HSRACP{widget_id}-"
+        self.gui_RANSAC3DP = f"-RANSAC3DP{widget_id}-"
+        self.gui_HSFP = f"-HSFP{widget_id}-"
+        self.gui_BLOBP = f"-BLOBP{widget_id}-"
+
+
+        self.gui_threshold_slider = f"-BLOBTHRESHOLD{widget_id}-"
         self.main_config = main_config
         self.config = main_config.settings
         self.osc_queue = osc_queue
@@ -44,12 +53,14 @@ class SettingsWidget:
                     default=self.config.gui_flip_x_axis_left,
                     key=self.gui_flip_x_axis_left,
                     background_color='#424042',
+                    tooltip = "Flips the left eye's X axis.",
                 ),
                 sg.Checkbox(
                     "Flip Right Eye X Axis",
                     default=self.config.gui_flip_x_axis_right,
                     key=self.gui_flip_x_axis_right,
                     background_color='#424042',
+                    tooltip = "Flips the right eye's X axis.",
                 ),
 
             ],
@@ -58,6 +69,7 @@ class SettingsWidget:
                     default=self.config.gui_flip_y_axis,
                     key=self.gui_flip_y_axis,
                     background_color='#424042',
+                    tooltip = "Flips the eye's Y axis.",
                 ),
             ],
             [sg.Checkbox(
@@ -65,6 +77,7 @@ class SettingsWidget:
                     default=self.config.gui_eye_falloff,
                     key=self.gui_eye_falloff,
                     background_color='#424042',
+                    tooltip = "If one eye stops tracking, we send tracking data from your other eye.",
                 ),
             ],
             [sg.Checkbox(
@@ -72,6 +85,7 @@ class SettingsWidget:
                     default=self.config.gui_blink_sync,
                     key=self.gui_blink_sync,
                     background_color='#424042',
+                    tooltip = "Only send a blink to VRC if both eyes are closed.",
                 ),
             ],
 
@@ -80,56 +94,128 @@ class SettingsWidget:
             ],
 
             [sg.Checkbox(
-                    "HSRAC",
+                    "",
                     default=self.config.gui_HSRAC,
                     key=self.gui_HSRAC,
                     background_color='#424042',
+                    tooltip = "Our newest algoritim, utilizing both HSF and RANSAC for best tracking quality and lighting resistance.",
                 ),
+                sg.Combo(['1','2','3','4'],
+                default_value=self.config.gui_HSRAC,
+                key=self.gui_HSRACP,
+                background_color='#424042',
+                text_color='white',
+                button_arrow_color= "black",
+                button_background_color = "#6f4ca1",
+                tooltip = "Select the priority of eyetracking algorithims.",
+                ),
+                sg.Text("HSRAC", background_color='#424042'),
+            ],
+            [
                 sg.Checkbox(
-                    "RANSAC 3D",
+                    "",
                     default=self.config.gui_RANSAC3D,
                     key=self.gui_RANSAC3D,
                     background_color='#424042',
+                    tooltip = "RANSAC3D provides good tracking quality, however does not do well in bad lighting conditions.",
                 ),
+                sg.Combo(['1','2','3','4'],
+                default_value=self.config.gui_RANSAC3DP,
+                key=self.gui_RANSAC3DP,
+                background_color='#424042',
+                text_color='white',
+                button_arrow_color= "black",
+                button_background_color = "#6f4ca1",
+                tooltip = "Select the priority of eyetracking algorithims.",
+                ),
+                sg.Text("RANSAC 3D", background_color='#424042'),
+            ],
+            [
                 sg.Checkbox(
-                    "Haar Surround Feature",
+                    "",
                     default=self.config.gui_HSF,
                     key=self.gui_HSF,
                     background_color='#424042',
+                    tooltip = "HSF Is a new, lower resolution tracking algorithim that provides excelent resilancy to lighting conditions and great speed.",
                 ),
+                sg.Combo(['1','2','3','4'],
+                default_value=self.config.gui_HSFP,
+                key=self.gui_HSFP,
+                background_color='#424042',
+                text_color='white',
+                button_arrow_color= "black",
+                button_background_color = "#6f4ca1",
+                tooltip = "Select the priority of eyetracking algorithims.",
+                ),
+                sg.Text("Haar Surround Feature", background_color='#424042'),
+            ],
+            [
                 sg.Checkbox(
-                    "Blob Fallback",
+                    "",
                     default=self.config.gui_BLOB,
                     key=self.gui_BLOB,
                     background_color='#424042',
+                    tooltip = "Blob tracking is the oldest and worst tracking algorithm, it provides fast, though sometimes innaccurate tracking.",
                 ),
+                sg.Combo(['1','2','3','4'],
+                default_value=self.config.gui_BLOBP,
+                key=self.gui_BLOBP,
+                background_color='#424042',
+                text_color='white',
+                button_arrow_color= "black",
+                button_background_color = "#6f4ca1",
+                tooltip = "Select the priority of eyetracking algorithims.",
+                ),
+                sg.Text("Blob", background_color='#424042'),
+            ],
+            [
                 sg.Checkbox(
                     "Blink Algo",
                     default=self.config.gui_BLINK,
                     key=self.gui_BLINK,
                     background_color='#424042',
                 ),
-
-
-                
+            ],
+        
+            [sg.Text("HSF Radius:", background_color='#424042'),
+                sg.Slider(
+                    range=(1, 50),
+                    default_value=self.config.gui_HSF_radius,
+                    orientation="h",
+                    key=self.gui_HSF_radius,
+                    background_color='#424042',
+                    tooltip = "Adjusts the radius paramater for HSF. Only adjust if you are having tracking issues.",
+                ),
             ],
             [
-                sg.Text("Min blob size:", background_color='#424042'),
+                sg.Text("Blob Threshold", background_color='#424042'), #TODO make this for right and left eyes? I dont know how vital that is..
+                sg.Slider(
+                    range=(0, 110),
+                    default_value=self.config.gui_threshold,
+                    orientation="h",
+                    key=self.gui_threshold_slider,
+                    background_color='#424042',
+                    tooltip = "Adjusts the threshold for blob tracking.",
+                ),
+            ],
+            [sg.Text("Min Blob Size:", background_color='#424042'),
                 sg.Slider(
                     range=(1, 50),
                     default_value=self.config.gui_blob_minsize,
                     orientation="h",
                     key=self.gui_blob_minsize,
-                    background_color='#424042'
+                    background_color='#424042',
+                    tooltip = "Minimun size a blob has to be for blob tracking.",
                 ),
                 
-                sg.Text("Max blob size:", background_color='#424042'),
+                sg.Text("Max Blob Size:", background_color='#424042'),
                 sg.Slider(
                     range=(1, 50),
                     default_value=self.config.gui_blob_maxsize,
                     orientation="h",
                     key=self.gui_blob_maxsize,
-                    background_color='#424042'
+                    background_color='#424042',
+                    tooltip = "Maximum size a blob can be for blob tracking.",
                 ),
 
    
@@ -140,34 +226,61 @@ class SettingsWidget:
             [
                 
                 sg.Text("Min Frequency Cutoff", background_color='#424042'),
-                sg.InputText(self.config.gui_min_cutoff, key=self.gui_min_cutoff),
+                sg.InputText(
+                    self.config.gui_min_cutoff,
+                    key=self.gui_min_cutoff,
+                ),
             ],
             [
                 sg.Text("Speed Coefficient", background_color='#424042'),
-                sg.InputText(self.config.gui_speed_coefficient, key=self.gui_speed_coefficient),
+                sg.InputText(
+                    self.config.gui_speed_coefficient, 
+                    key=self.gui_speed_coefficient,
+                ),
             ],
              [
                 sg.Text("OSC Settings:", background_color='#242224'),
             ],
             [
                 sg.Text("OSC Address:", background_color='#424042'),
-                sg.InputText(self.config.gui_osc_address, key=self.gui_osc_address),
+                sg.InputText(
+                    self.config.gui_osc_address, 
+                    key=self.gui_osc_address,
+                    tooltip = "IP address we send OSC data to.",
+                ),
+                
             ],
             [
                 sg.Text("OSC Port:", background_color='#424042'),
-                sg.InputText(self.config.gui_osc_port, key=self.gui_osc_port),
+                sg.InputText(
+                    self.config.gui_osc_port, 
+                    key=self.gui_osc_port,
+                    tooltip = "OSC port we send data to.",
+                ),
             ],
             [
                 sg.Text("OSC Receiver Port:", background_color='#424042'),
-                sg.InputText(self.config.gui_osc_receiver_port, key=self.gui_osc_receiver_port),
+                sg.InputText(
+                    self.config.gui_osc_receiver_port, 
+                    key=self.gui_osc_receiver_port,
+                    tooltip = "Port we receive OSC data from (used to recalibrate or recenter app from within VRChat.",
+                ),
             ],
             [
                 sg.Text("OSC Recenter Address:", background_color='#424042'),
-                sg.InputText(self.config.gui_osc_recenter_address, key=self.gui_osc_recenter_address),
+                sg.InputText(
+                    self.config.gui_osc_recenter_address, 
+                    key=self.gui_osc_recenter_address,
+                    tooltip = "OSC Address used for recentering your eye.",
+                    ),
             ],
             [
                 sg.Text("OSC Recalibrate Address:", background_color='#424042'),
-                sg.InputText(self.config.gui_osc_recalibrate_address, key=self.gui_osc_recalibrate_address),
+                sg.InputText(
+                    self.config.gui_osc_recalibrate_address, 
+                    key=self.gui_osc_recalibrate_address,
+                    tooltip = "OSC address we use for recalibrating your eye",
+                    ),
             ]
 
         ]
@@ -261,13 +374,24 @@ class SettingsWidget:
             self.config.gui_flip_x_axis_left = values[self.gui_flip_x_axis_left]
             changed = True
 
+        if self.config.gui_HSFP != values[self.gui_HSFP]:
+            self.config.gui_HSFP = values[self.gui_HSFP]
+            changed = True
 
         if self.config.gui_HSF != values[self.gui_HSF]:
             self.config.gui_HSF = values[self.gui_HSF]
             changed = True
         
+        if self.config.gui_RANSAC3DP != values[self.gui_RANSAC3DP]: #TODO check that priority order is unique/auto fix it.
+            self.config.gui_RANSAC3DP = values[self.gui_RANSAC3DP]
+            changed = True
+
         if self.config.gui_RANSAC3D != values[self.gui_RANSAC3D]:
             self.config.gui_RANSAC3D = values[self.gui_RANSAC3D]
+            changed = True
+
+        if self.config.gui_HSRACP != values[self.gui_HSRACP]:
+            self.config.gui_HSRACP = values[self.gui_HSRACP]
             changed = True
 
         if self.config.gui_HSRAC != values[self.gui_HSRAC]:
@@ -278,6 +402,9 @@ class SettingsWidget:
             self.config.gui_BLINK = values[self.gui_BLINK]
             changed = True
 
+        if self.config.gui_HSF_radius != values[self.gui_HSF_radius]:
+            self.config.gui_HSF_radius = values[self.gui_HSF_radius]
+            changed = True
 
         if self.config.gui_flip_y_axis != values[self.gui_flip_y_axis]:
             self.config.gui_flip_y_axis = values[self.gui_flip_y_axis]
@@ -285,6 +412,14 @@ class SettingsWidget:
 
         if self.config.gui_BLOB != values[self.gui_BLOB]:
             self.config.gui_BLOB = values[self.gui_BLOB]
+            changed = True
+
+        if self.config.gui_BLOBP != values[self.gui_BLOBP]:
+            self.config.gui_BLOBP = values[self.gui_BLOBP]
+            changed = True
+
+        if self.config.gui_threshold != values[self.gui_threshold_slider]:
+            self.config.gui_threshold = int(values[self.gui_threshold_slider])
             changed = True
 
         if self.config.gui_eye_falloff != values[self.gui_eye_falloff]:
