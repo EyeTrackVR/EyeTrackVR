@@ -31,7 +31,7 @@ SETTINGS_RADIO_NAME = '-SETTINGSRADIO-'
 
 
 page_url = 'https://github.com/RedHawk989/EyeTrackVR/releases/latest'
-appversion = "0.1.7.2"
+appversion = "0.1.8.2"
 
 def open_url():
     try: 
@@ -67,9 +67,9 @@ def main():
     latestversion = '\n'.join(chunk for chunk in chunks if chunk)
 
     if appversion == latestversion: # If what we scraped and hardcoded versions are same, assume we are up to date.
-        print(f"\033[92m[INFO] App is up to date! {latestversion}\033[0m")
+        print(f"\033[92m[INFO] App is up to date! [{latestversion}]\033[0m")
     else: 
-        print(f"\033[93m[INFO] You have app version {appversion} installed. Please update to {latestversion} for the newest fixes.\033[0m")
+        print(f"\033[93m[INFO] You have app version [{appversion}] installed. Please update to [{latestversion}] for the newest features.\033[0m")
         if sys.platform.startswith("win"):
             toaster = ToastNotifier()
             toaster.show_toast(  #show windows toast

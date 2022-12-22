@@ -41,7 +41,7 @@ class Camera:
     def run(self):
         while True:
             if self.cancellation_event.is_set():
-                print("\033[94m[INFO] Exiting capture thread\033[0m")
+                print("\033[94m[INFO] Exiting Capture thread\033[0m")
                 return
             should_push = True
             # If things aren't open, retry until they are. Don't let read requests come in any earlier

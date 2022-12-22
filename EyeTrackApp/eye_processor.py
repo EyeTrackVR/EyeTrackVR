@@ -49,15 +49,13 @@ from one_euro_filter import OneEuroFilter
 if sys.platform.startswith("win"):
     from winsound import PlaySound, SND_FILENAME, SND_ASYNC
 
-import _thread
 import functools
 import math
 import os
 import timeit
-import time
 from collections import namedtuple
 from functools import lru_cache
-import xxhash
+
 
 class InformationOrigin(Enum):
     RANSAC = 1
@@ -173,10 +171,6 @@ def cal_osc(self, cx, cy):
     except:
         pass
     return out_x, out_y
-
-
-def HSFV():
-    self.response_list = []
 
 
 
@@ -1015,13 +1009,13 @@ class EyeProcessor:
         crop_start_time = timeit.default_timer()
         # Define the center point and radius
         center_x, center_y = center_xy
-        upper_x = center_x + 20 #TODO make this a setting
-        lower_x = center_x - 20
-        upper_y = center_y + 20
-        lower_y = center_y - 20
+        upper_x = center_x + 25 #TODO make this a setting
+        lower_x = center_x - 25
+        upper_y = center_y + 25
+        lower_y = center_y - 25
         
         # Crop the image using the calculated bounds
-        cropped_image = gray_frame[lower_y:upper_y, lower_x:upper_x]
+        cropped_image = gray_frame[lower_y:upper_y, lower_x:upper_x] # y is 50px, x is 45? why?
         
         if self.now_mode == self.cv_mode[0] or self.now_mode == self.cv_mode[1]:
             # If mode is first_frame or radius_adjust, record current radius and response
@@ -1058,8 +1052,7 @@ class EyeProcessor:
         
 
 
-        hsfandransac = False
-        if not hsfandransac:
+        if not self.settings.gui_HSRAC:
             out_x, out_y = cal_osc(self, center_x, center_y)
             
             cv2.circle(frame, (center_x, center_y), 10, (0, 0, 255), -1)
@@ -1096,36 +1089,46 @@ class EyeProcessor:
                 rng = np.random.default_rng()
                 
                 f = False
-
-                newImage2 = cropped_image.copy()
+                
+                # Convert the image to grayscale, and set up thresholding. Thresholds here are basically a
+                # low-pass filter that will set any pixel < the threshold value to 0. Thresholding is user
+                # configurable in this utility as we're dealing with variable lighting amounts/placement, as
+                # well as camera positioning and lensing. Therefore everyone's cutoff may be different.
+                #
+                # The goal of thresholding settings is to make sure we can ONLY see the pupil. This is why we
+                # crop the image earlier; it gives us less possible dark area to get confused about in the
+                # next step.
+                frame = cropped_image
+                # For measuring processing time of image processing
                 # Crop first to reduce the amount of data to process.
-
-            # img = self.current_image_gray[0:len(self.current_image_gray) - 10, :]
-
+                frame = frame[0:len(frame) - 5, :]
                 # To reduce the processing data, first convert to 1-channel and then blur.
                 # The processing results were the same when I swapped the order of blurring and 1-channelization.
-            # image_gray = self.current_image_gray
-                image_gray = cv2.GaussianBlur(cropped_image, (5, 5), 0)
-                
+                frame_gray = cv2.GaussianBlur(frame, (5, 5), 0)
+            
+            
                 # this will need to be adjusted everytime hardware is changed (brightness of IR, Camera postion, etc)m
-                min_val, max_val, min_loc, max_loc = cv2.minMaxLoc(image_gray)
+                min_val, max_val, min_loc, max_loc = cv2.minMaxLoc(frame_gray)
                 
                 maxloc0_hf, maxloc1_hf = int(0.5 * max_loc[0]), int(0.5 * max_loc[1])
                 
                 # crop 15% sqare around min_loc
-            # image_gray = image_gray[max_loc[1] - maxloc1_hf:max_loc[1] + maxloc1_hf,
-                #            max_loc[0] - maxloc0_hf:max_loc[0] + maxloc0_hf]
+            # frame_gray = frame_gray[max_loc[1] - maxloc1_hf:max_loc[1] + maxloc1_hf,
+                #               max_loc[0] - maxloc0_hf:max_loc[0] + maxloc0_hf]
                 
                 threshold_value = min_val + thresh_add
-                th_ret, thresh = cv2.threshold(image_gray, threshold_value, 255, cv2.THRESH_BINARY)
+                _, thresh = cv2.threshold(frame_gray, threshold_value, 255, cv2.THRESH_BINARY)
                 try:
                     opening = cv2.morphologyEx(thresh, cv2.MORPH_OPEN, kernel)
                     closing = cv2.morphologyEx(opening, cv2.MORPH_CLOSE, kernel)
-                    image = 255 - closing
+                    th_frame = 255 - closing
                 except:
                     # I want to eliminate try here because try tends to be slow in execution.
-                    image = 255 - image_gray
-                contours, hierarchy = cv2.findContours(image, cv2.RETR_TREE, cv2.CHAIN_APPROX_NONE)
+                    th_frame = 255 - frame_gray
+
+                
+                detect_start_time = timeit.default_timer()
+                contours, _ = cv2.findContours(th_frame, cv2.RETR_TREE, cv2.CHAIN_APPROX_NONE)
                 hull = []
                 # This way is faster than contours[i]
                 # But maybe this one is faster. hull = [cv2.convexHull(cnt, False) for cnt in contours]
@@ -1135,34 +1138,58 @@ class EyeProcessor:
                     # If empty, go to next loop
                     pass
                 try:
-                    self.current_image_gray = cropped_image
-                    cv2.drawContours(self.current_image_gray, contours, -1, (255, 0, 0), 1)
+                    
                     cnt = sorted(hull, key=cv2.contourArea)
                     maxcnt = cnt[-1]
-                    ellipse = cv2.fitEllipse(maxcnt)
-                    ransac_data = fit_rotated_ellipse_ransac(maxcnt.reshape(-1, 2))
+                    # ellipse = cv2.fitEllipse(maxcnt)
+                    ransac_data = fit_rotated_ellipse_ransac(maxcnt.reshape(-1, 2), rng)
                     if ransac_data is None:
                         # ransac_data is None==maxcnt.shape[0]<sample_num
                         # go to next loop
                         pass
-                    cx, cy, w, h, theta = ransac_data
                     
+                    crop_start_time = timeit.default_timer()
+                    cx, cy, w, h, theta = ransac_data
 
-                    ocx = center_x - cx
-                    ocy = center_y - cy
-                    print(ocx, ocy)
-                    out_x, out_y = cal_osc(self, ocx, ocy)
+                    csx = frame.shape[0]
+                    csy = frame.shape[1]
+
+                    cx = center_x - (csx - cx) # we find the difference between the crop size and ransac point, and subtract from the center point from HSF
+                    cy = center_y - (csy - cy)
+                    out_x, out_y = cal_osc(self, cx, cy)
+                    #print()
+
+
+
+
                     cx, cy, w, h = int(cx), int(cy), int(w), int(h)
+
+                    
+                    cv2.drawContours(self.current_image_gray, contours, -1, (255, 0, 0), 1)
                     cv2.circle(self.current_image_gray, (cx, cy), 2, (0, 0, 255), -1)
                     # cx1, cy1, w1, h1, theta1 = fit_rotated_ellipse(maxcnt.reshape(-1, 2))
-                    cv2.ellipse(self.current_image_gray, (cx, cy), (w, h), theta * 180.0 / np.pi, 0.0, 360.0, (50, 250, 200), 1, ) 
-                    self.output_images_and_update(thresh, EyeInformation(InformationOrigin.HSF, out_x, out_y, 0, False)) 
+                    cv2.ellipse(self.current_image_gray, (cx, cy), (w, h), theta * 180.0 / np.pi, 0.0, 360.0, (50, 250, 200), 1, )
+            
+                #img = newImage2[y1:y2, x1:x2]
                 except:
                     pass
-                #self.output_images_and_update(thresh, EyeInformation(InformationOrigin.HSF, 0, 0, 0, False))
+            
+                self.current_image_gray = frame
+                cv2.circle(self.current_image_gray, min_loc, 2, (0, 0, 255),
+                        -1)  # the point of the darkest area in the image
+                try:
+                    if self.settings.gui_BLINK:
+                        self.output_images_and_update(thresh, EyeInformation(InformationOrigin.HSF, out_x, out_y, 0, self.blinkvalue))
+                    else:
+                        self.output_images_and_update(thresh, EyeInformation(InformationOrigin.HSF, out_x, out_y, 0, False))
+                    f = False
+                except:
+                    pass
+
+
             except:
                 try:
-                    if self.settings.gui_BLINK: #tbh this is redundant, the algo already has blink detection built in
+                    if self.settings.gui_BLINK:
                         self.output_images_and_update(frame, EyeInformation(InformationOrigin.HSF, out_x, out_y, 0, self.blinkvalue))
                     else:
                         self.output_images_and_update(frame, EyeInformation(InformationOrigin.HSF, out_x, out_y, 0, False))
@@ -1507,9 +1534,9 @@ class EyeProcessor:
                 pass
                 
              """   #print("[WARN] ALL ALGORITHIMS HAVE FAILED OR ARE DISABLED.")
-            self.RANSAC3D()
+           # self.RANSAC3D()
             #self.BLINK()
-           # self.HSF()
+            self.HSF()
            # f == self.RANSAC3D()'''
            
         #FLOW MOCK
