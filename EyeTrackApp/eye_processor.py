@@ -175,347 +175,197 @@ def cal_osc(self, cx, cy):
     return out_x, out_y
 
 
+def HSFV():
+    self.response_list = []
+
+
 
 #HSF \/
+
 # cache param
 lru_maxsize_vvs = 16
 lru_maxsize_vs = 64
-lru_maxsize_s = 512
-lru_maxsize_m = 1024
-lru_maxsize_l = 2048  # For functions with a large number of calls and a small amount of output data
-lru_maxsize_vl = 4096  # 8192 #For functions with a very large number of calls and a small amount of output data
+# CV param
+default_radius = 20
+auto_radius_range = (default_radius - 10, default_radius + 10)  # (10,30)
+blink_init_frames = 60 * 3  # 60fps*3sec,Number of blink statistical frames
+# step==(x,y)
+default_step = (5, 5)  # bigger the steps,lower the processing time! ofc acc also takes an impact
 response_list = []
 
+"""
+Attention.
+If using cv2.filter2D in this code, be careful with the kernel
+https://stackoverflow.com/questions/39457468/convolution-without-any-padding-opencv-python
+"""
 
-@lru_cache(maxsize=lru_maxsize_vs)
-def _step2byte(iterable, itemsize):
+
+def TimeitWrapper(*args, **kwargs):
     """
-    https://github.com/chainer/chainer/blob/a8e15cbe55a90854a3918b8b5a976abbbff9ec94/chainer/functions/array/as_strided.py#L125
-    :param iterable:
-    :param itemsize:
+    This decorator @TimeitWrapper() prints the function name and execution time in seconds.
+    :param args:
+    :param kwargs:
     :return:
     """
-    return tuple([i * itemsize for i in iterable])
-
-
-@lru_cache(maxsize=lru_maxsize_vs)
-def _min_index(shape, strides, storage_offset):
-    """
-    https://github.com/chainer/chainer/blob/a8e15cbe55a90854a3918b8b5a976abbbff9ec94/chainer/functions/array/as_strided.py#L125
-    Returns the leftest index in the array (in the unit-steps)
-    Args:
-        shape (tuple of int): The shape of output.
-        strides (tuple of int):
-            The strides of output, given in the unit of steps.
-        storage_offset (int):
-            The offset between the head of allocated memory and the pointer of
-            first element, given in the unit of steps.
-    Returns:
-        int: The leftest pointer in the array
-    """
-    sh_st_neg = [sh_st for sh_st in zip(shape, strides) if sh_st[1] < 0]
-    if not sh_st_neg:
-        return storage_offset
-    else:
-        return storage_offset + functools.reduce(
-            lambda base, sh_st: base + (sh_st[0] - 1) * sh_st[1], sh_st_neg, 0)
-
-
-@lru_cache(maxsize=lru_maxsize_vs)
-def _max_index(shape, strides, storage_offset):
-    """
-    https://github.com/chainer/chainer/blob/a8e15cbe55a90854a3918b8b5a976abbbff9ec94/chainer/functions/array/as_strided.py#L125
-    Returns the rightest index in the array
-    Args:
-        shape (tuple of int): The shape of output.
-        strides (tuple of int): The strides of output, given in unit-steps.
-        storage_offset (int):
-            The offset between the head of allocated memory and the pointer of
-            first element, given in the unit of steps.
-    Returns:
-        int: The rightest pointer in the array
-    """
-    sh_st_pos = [sh_st for sh_st in zip(shape, strides) if sh_st[1] > 0]
-    if not sh_st_pos:
-        return storage_offset
-    else:
-        return storage_offset + functools.reduce(
-            lambda base, sh_st: base + (sh_st[0] - 1) * sh_st[1], sh_st_pos, 0)
-
-def _get_base_array(array):
-    """
-    https://github.com/chainer/chainer/blob/a8e15cbe55a90854a3918b8b5a976abbbff9ec94/chainer/functions/array/as_strided.py#L125
-    Get the founder of :class:`numpy.ndarray`.
-    Args:
-        array (:class:`numpy.ndarray`):
-            The view of the base array.
-    Returns:
-        :class:`numpy.ndarray`:
-            The base array.
-    """
-    base_array_candidate = array
-    while base_array_candidate.base is not None:
-        base_array_candidate = base_array_candidate.base
-    return base_array_candidate
-
-
-def _stride_array(array, shape, strides, storage_offset):
-    """
-    https://github.com/chainer/chainer/blob/a8e15cbe55a90854a3918b8b5a976abbbff9ec94/chainer/functions/array/as_strided.py#L125
-    Wrapper of :func:`numpy.lib.stride_tricks.as_strided`.
-    .. note:
-        ``strides`` and ``storage_offset`` is given in the unit of steps
-        instead the unit of bytes. This specification differs from that of
-        :func:`numpy.lib.stride_tricks.as_strided`.
-    Args:
-        array (:class:`numpy.ndarray` of :class:`cupy.ndarray`):
-            The base array for the returned view.
-        shape (tuple of int):
-            The shape of the returned view.
-        strides (tuple of int):
-            The strides of the returned view, given in the unit of steps.
-        storage_offset (int):
-            The offset from the leftest pointer of allocated memory to
-            the first element of returned view, given in the unit of steps.
-    Returns:
-        :class:`numpy.ndarray` or :class:`cupy.ndarray`:
-            The new view for the base array.
-    """
     
-    min_index = _min_index(shape, strides, storage_offset)
-    max_index = _max_index(shape, strides, storage_offset)
-    
-    strides = _step2byte(strides, array.itemsize)
-    storage_offset, = _step2byte((storage_offset,), array.itemsize)
-    
-    if min_index < 0:
-        raise ValueError('Out of buffer: too small index was specified')
-    
-    base_array = _get_base_array(array)
-    if (max_index + 1) * base_array.itemsize > base_array.nbytes:
-        raise ValueError('Out of buffer: too large index was specified')
-    
-    return np.ndarray(shape, base_array.dtype, base_array.data,
-                    storage_offset, strides)
-
-
-# From functools
-_CacheInfo2 = namedtuple("CacheInfo", ["hits", "misses", "maxsize", "currsize"])
-
-class _HashedSeq2(list):
-    """ This class guarantees that hash() will be called no more than once
-        per element.  This is important because the lru_cache() will hash
-        the key multiple times on a cache miss.
-
-    """
-    
-    __slots__ = 'hashvalue'
-    
-    def __init__(self, tup, hash=hash):
-        self[:] = tup
-        self.hashvalue = hash(tup)
-    
-    def __hash__(self):
-        return self.hashvalue
-
-
-def _make_key2(args, kwds, typed,
-            kwd_mark=(object(),),
-            fasttypes={int, str},
-            tuple=tuple, type=type, len=len):
-    """Make a cache key from optionally typed positional and keyword arguments
-
-    The key is constructed in a way that is flat as possible rather than
-    as a nested structure that would take more memory.
-
-    If there is only a single argument and its data type is known to cache
-    its hash value, then that argument is returned without a wrapper.  This
-    saves space and improves lookup speed.
-
-    """
-    # All of code below relies on kwds preserving the order input by the user.
-    # Formerly, we sorted() the kwds before looping.  The new way is *much*
-    # faster; however, it means that f(x=1, y=2) will now be treated as a
-    # distinct call from f(y=2, x=1) which will be cached separately.
-    key = args
-    if kwds:
-        key += kwd_mark
-        for item in kwds.items():
-            key += item
-    key = tuple(xxhash.xxh3_128_intdigest(k) if isinstance(k, np.ndarray) else k for k in key)
-    if typed:
-        key += tuple(type(v) for v in args)
-        if kwds:
-            key += tuple(type(v) for v in kwds.values())
-    elif len(key) == 1 and type(key[0]) in fasttypes:
-        return key[0]
-    return _HashedSeq2(key)
-
-
-
-def np_lru_cache(maxsize=128, typed=False):
-    """Least-recently-used cache decorator.
-
-    If *maxsize* is set to None, the LRU features are disabled and the cache
-    can grow without bound.
-
-    If *typed* is True, arguments of different types will be cached separately.
-    For example, f(3.0) and f(3) will be treated as distinct calls with
-    distinct results.
-
-    Arguments to the cached function must be hashable.
-
-    View the cache statistics named tuple (hits, misses, maxsize, currsize)
-    with f.cache_info().  Clear the cache and statistics with f.cache_clear().
-    Access the underlying function with f.__wrapped__.
-
-    See:  https://en.wikipedia.org/wiki/Cache_replacement_policies#Least_recently_used_(LRU)
-
-    """
-    
-    # Users should only access the lru_cache through its public API:
-    #       cache_info, cache_clear, and f.__wrapped__
-    # The internals of the lru_cache are encapsulated for thread safety and
-    # to allow the implementation to change (including a possible C version).
-    
-    if isinstance(maxsize, int):
-        # Negative maxsize is treated as 0
-        if maxsize < 0:
-            maxsize = 0
-    elif callable(maxsize) and isinstance(typed, bool):
-        # The user_function was passed in directly via the maxsize argument
-        user_function, maxsize = maxsize, 128
-        wrapper = _np_lru_cache_wrapper(user_function, maxsize, typed, _CacheInfo2)
-        wrapper.cache_parameters = lambda: {'maxsize': maxsize, 'typed': typed}
-        return functools.update_wrapper(wrapper, user_function)
-    elif maxsize is not None:
-        raise TypeError(
-            'Expected first argument to be an integer, a callable, or None')
-    
-    def decorating_function(user_function):
-        wrapper = _np_lru_cache_wrapper(user_function, maxsize, typed, _CacheInfo2)
-        wrapper.cache_parameters = lambda: {'maxsize': maxsize, 'typed': typed}
-        return functools.update_wrapper(wrapper, user_function)
-    
-    return decorating_function
-
-
-
-def _np_lru_cache_wrapper(user_function, maxsize, typed, _CacheInfo):
-    # Constants shared by all lru cache instances:
-    sentinel = object()  # unique object used to signal cache misses
-    make_key = _make_key2  # build a key from the function arguments
-    PREV, NEXT, KEY, RESULT = 0, 1, 2, 3  # names for the link fields
-    
-    cache = {}
-    hits = misses = 0
-    full = False
-    cache_get = cache.get  # bound method to lookup a key or return None
-    cache_len = cache.__len__  # get cache size without calling len()
-    lock = _thread.RLock()  # because linkedlist updates aren't threadsafe
-    root = []  # root of the circular doubly linked list
-    root[:] = [root, root, None, None]  # initialize by pointing to self
-    
-    if maxsize == 0:
+    def decorator(function):
+        @functools.wraps(function)
+        def wrapper(*args, **kwargs):
+            start = timeit.default_timer()
+            results = function(*args, **kwargs)
+            end = timeit.default_timer()
+            print('{} execution time: {:.10f} s'.format(function.__name__, end - start))
+            return results
         
-        def wrapper(*args, **kwds):
-            # No caching -- just a statistics update
-            nonlocal misses
-            misses += 1
-            result = user_function(*args, **kwds)
-            return result
+        return wrapper
     
-    elif maxsize is None:
-        
-        def wrapper(*args, **kwds):
-            # Simple caching without ordering or size limit
-            nonlocal hits, misses
-            key = make_key(args, kwds, typed)
-            result = cache_get(key, sentinel)
-            if result is not sentinel:
-                hits += 1
-                return result
-            misses += 1
-            result = user_function(*args, **kwds)
-            cache[key] = result
-            return result
+    return decorator
+
+
+class TimeitResult(object):
+    """
+    from https://github.com/ipython/ipython/blob/339c0d510a1f3cb2158dd8c6e7f4ac89aa4c89d8/IPython/core/magics/execution.py#L55
     
+    Object returned by the timeit magic with info about the run.
+    Contains the following attributes :
+    loops: (int) number of loops done per measurement
+    repeat: (int) number of times the measurement has been repeated
+    best: (float) best execution time / number
+    all_runs: (list of float) execution time of each run (in s)
+    """
+    
+    def __init__(self, loops, repeat, best, worst, all_runs, precision):
+        self.loops = loops
+        self.repeat = repeat
+        self.best = best
+        self.worst = worst
+        self.all_runs = all_runs
+        self._precision = precision
+        self.timings = [dt / self.loops for dt in all_runs]
+    
+    @property
+    def average(self):
+        return math.fsum(self.timings) / len(self.timings)
+    
+    @property
+    def stdev(self):
+        mean = self.average
+        return (math.fsum([(x - mean) ** 2 for x in self.timings]) / len(self.timings)) ** 0.5
+    
+    def __str__(self):
+        pm = '+-'
+        if hasattr(sys.stdout, 'encoding') and sys.stdout.encoding:
+            try:
+                u'\xb1'.encode(sys.stdout.encoding)
+                pm = u'\xb1'
+            except:
+                pass
+        return "min:{best} max:{worst} mean:{mean} {pm} {std} per loop (mean {pm} std. dev. of {runs} run{run_plural}, {loops:,} loop{loop_plural} each)".format(
+            pm=pm,
+            runs=self.repeat,
+            loops=self.loops,
+            loop_plural="" if self.loops == 1 else "s",
+            run_plural="" if self.repeat == 1 else "s",
+            mean=format_time(self.average, self._precision),
+            std=format_time(self.stdev, self._precision),
+            best=format_time(self.best, self._precision),
+            worst=format_time(self.worst, self._precision),
+        )
+    
+    def _repr_pretty_(self, p, cycle):
+        unic = self.__str__()
+        p.text(u'<TimeitResult : ' + unic + u'>')
+
+
+class FPSResult(object):
+    """
+    base https://github.com/ipython/ipython/blob/339c0d510a1f3cb2158dd8c6e7f4ac89aa4c89d8/IPython/core/magics/execution.py#L55
+    """
+    
+    def __init__(self, loops, repeat, best, worst, all_runs, precision):
+        self.loops = loops
+        self.repeat = repeat
+        self.best = 1 / best
+        self.worst = 1 / worst
+        self.all_runs = all_runs
+        self._precision = precision
+        self.fps = [1 / dt for dt in all_runs]
+        self.unit = "fps"
+    
+    @property
+    def average(self):
+        return math.fsum(self.fps) / len(self.fps)
+    
+    @property
+    def stdev(self):
+        mean = self.average
+        return (math.fsum([(x - mean) ** 2 for x in self.fps]) / len(self.fps)) ** 0.5
+    
+    def __str__(self):
+        pm = '+-'
+        if hasattr(sys.stdout, 'encoding') and sys.stdout.encoding:
+            try:
+                u'\xb1'.encode(sys.stdout.encoding)
+                pm = u'\xb1'
+            except:
+                pass
+        return "min:{best} max:{worst} mean:{mean} {pm} {std} per loop (mean {pm} std. dev. of {runs} run{run_plural}, {loops:,} loop{loop_plural} each)".format(
+            pm=pm,
+            runs=self.repeat,
+            loops=self.loops,
+            loop_plural="" if self.loops == 1 else "s",
+            run_plural="" if self.repeat == 1 else "s",
+            mean="%.*g%s" % (self._precision, self.average, self.unit),
+            std="%.*g%s" % (self._precision, self.stdev, self.unit),
+            best="%.*g%s" % (self._precision, self.best, self.unit),
+            worst="%.*g%s" % (self._precision, self.worst, self.unit),
+        )
+    
+    def _repr_pretty_(self, p, cycle):
+        unic = self.__str__()
+        p.text(u'<FPSResult : ' + unic + u'>')
+
+
+def format_time(timespan, precision=3):
+    """
+    https://github.com/ipython/ipython/blob/339c0d510a1f3cb2158dd8c6e7f4ac89aa4c89d8/IPython/core/magics/execution.py#L1473
+    Formats the timespan in a human readable form
+    """
+    
+    if timespan >= 60.0:
+        # we have more than a minute, format that in a human readable form
+        # Idea from http://snipplr.com/view/5713/
+        parts = [("d", 60 * 60 * 24), ("h", 60 * 60), ("min", 60), ("s", 1)]
+        time = []
+        leftover = timespan
+        for suffix, length in parts:
+            value = int(leftover / length)
+            if value > 0:
+                leftover = leftover % length
+                time.append(u'%s%s' % (str(value), suffix))
+            if leftover < 1:
+                break
+        return " ".join(time)
+    
+    # Unfortunately the unicode 'micro' symbol can cause problems in
+    # certain terminals.
+    # See bug: https://bugs.launchpad.net/ipython/+bug/348466
+    # Try to prevent crashes by being more secure than it needs to
+    # E.g. eclipse is able to print a µ, but has no sys.stdout.encoding set.
+    units = [u"s", u"ms", u'us', "ns"]  # the save value
+    if hasattr(sys.stdout, 'encoding') and sys.stdout.encoding:
+        try:
+            u'\xb5'.encode(sys.stdout.encoding)
+            units = [u"s", u"ms", u'\xb5s', "ns"]
+        except:
+            pass
+    scaling = [1, 1e3, 1e6, 1e9]
+    
+    if timespan > 0.0:
+        order = min(-int(math.floor(math.log10(timespan)) // 3), 3)
     else:
-        
-        def wrapper(*args, **kwds):
-            # Size limited caching that tracks accesses by recency
-            nonlocal root, hits, misses, full
-            key = make_key(args, kwds, typed)
-            with lock:
-                link = cache_get(key)
-                if link is not None:
-                    # Move the link to the front of the circular queue
-                    link_prev, link_next, _key, result = link
-                    link_prev[NEXT] = link_next
-                    link_next[PREV] = link_prev
-                    last = root[PREV]
-                    last[NEXT] = root[PREV] = link
-                    link[PREV] = last
-                    link[NEXT] = root
-                    hits += 1
-                    return result
-                misses += 1
-            result = user_function(*args, **kwds)
-            with lock:
-                if key in cache:
-                    # Getting here means that this same key was added to the
-                    # cache while the lock was released.  Since the link
-                    # update is already done, we need only return the
-                    # computed result and update the count of misses.
-                    pass
-                elif full:
-                    # Use the old root to store the new key and result.
-                    oldroot = root
-                    oldroot[KEY] = key
-                    oldroot[RESULT] = result
-                    # Empty the oldest link and make it the new root.
-                    # Keep a reference to the old key and old result to
-                    # prevent their ref counts from going to zero during the
-                    # update. That will prevent potentially arbitrary object
-                    # clean-up code (i.e. __del__) from running while we're
-                    # still adjusting the links.
-                    root = oldroot[NEXT]
-                    oldkey = root[KEY]
-                    oldresult = root[RESULT]
-                    root[KEY] = root[RESULT] = None
-                    # Now update the cache dictionary.
-                    del cache[oldkey]
-                    # Save the potentially reentrant cache[key] assignment
-                    # for last, after the root and links have been put in
-                    # a consistent state.
-                    cache[key] = oldroot
-                else:
-                    # Put result in a new link at the front of the queue.
-                    last = root[PREV]
-                    link = [last, root, key, result]
-                    last[NEXT] = root[PREV] = cache[key] = link
-                    # Use the cache_len bound method instead of the len() function
-                    # which could potentially be wrapped in an lru_cache itself.
-                    full = (cache_len() >= maxsize)
-            return result
-    
-    def cache_info():
-        """Report cache statistics"""
-        with lock:
-            return _CacheInfo(hits, misses, maxsize, cache_len())
-    
-    def cache_clear():
-        """Clear the cache and cache statistics"""
-        nonlocal hits, misses, full
-        with lock:
-            cache.clear()
-            root[:] = [root, root, None, None]
-            hits = misses = 0
-            full = False
-    
-    wrapper.cache_info = cache_info
-    wrapper.cache_clear = cache_clear
-    return wrapper
+        order = 3
+    return u"%.*g %s" % (precision, timespan * scaling[order], units[order])
 
 
 class CvParameters:
@@ -527,11 +377,11 @@ class CvParameters:
         # self.prev_step=step
         self._step = step
         self._hsf = HaarSurroundFeature(radius)
-        # self._imagesize = None
     
-    # @lru_cache(maxsize=lru_maxsize_vs)
     def get_rpsh(self):
-        return self.radius, self.pad, self.step, self.hsf
+        return self._radius, self.pad, self._step, self._hsf
+        # Essentially, the following would be preferable, but it would take twice as long to call.
+        # return self.radius, self.pad, self.step, self.hsf
     
     @property
     def radius(self):
@@ -596,35 +446,26 @@ class HaarSurroundFeature:
         kernel[start:end, start:end] = self.val_in
         
         return kernel
-    
+
+
 def to_gray(frame):
-    frame_len = len(frame.shape)
-    if frame_len == 2:
-        return frame
-    if frame_len == 3:
-        frame_s2 = frame.shape[2]
-        if frame_s2 == 3:
-            return cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-        elif frame_s2 == 4:
-            return cv2.cvtColor(frame, cv2.COLOR_BGRA2GRAY)
-    raise ValueError('Unsupported number of channels')
+    # Faster by quitting checking if the input image is already grayscale
+    # Perhaps it would be faster with less overhead to call cv2.cvtColor directly instead of using this function
+    return cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
 
 
 @lru_cache(maxsize=lru_maxsize_vs)
 def frameint_get_xy_step(imageshape, xysteps, pad, start_offset=None, end_offset=None):
     """
 
-    :param imageshape: (height(row),width(col),channel) or (height(row),width(col)). row==y,cal==x
+    :param imageshape: (height(row),width(col)). row==y,cal==x
     :param xysteps: (x,y)
     :param pad: int
     :param start_offset: (x,y) or None
     :param end_offset: (x,y) or None
-    :return: xy_np:tuple(x,y), xy_min:tuple(x,y), xy_rin_pm:tuple(x+rin,y+rin,x-rin,y-rin), xy_rout_pm:tuple(x+rout,y+rout,x-rout,y-rout)
+    :return: xy_np:tuple(x,y)
     """
-    if len(imageshape) == 2:
-        row, col = imageshape
-    else:
-        row, col = imageshape[0], imageshape[1]
+    row, col = imageshape
     row -= 1
     col -= 1
     x_step, y_step = xysteps
@@ -645,26 +486,25 @@ def frameint_get_xy_step(imageshape, xysteps, pad, start_offset=None, end_offset
     
     return xy_np
 
+
 @lru_cache(maxsize=lru_maxsize_vvs)
-def get_emp_p_array(len_sxy, frameint_x, frame_int_dtype, fcshape):
-    len_sx, len_sy = len_sxy
-    inner_sum = np.empty((len_sy, len_sx), dtype=frame_int_dtype)
-    outer_sum = np.empty((len_sy, len_sx), dtype=frame_int_dtype)
-    p_temp = np.empty((len_sy, frameint_x), dtype=frame_int_dtype)
-    p00 = np.empty((len_sy, len_sx), dtype=frame_int_dtype)
-    p11 = np.empty((len_sy, len_sx), dtype=frame_int_dtype)
-    p01 = np.empty((len_sy, len_sx), dtype=frame_int_dtype)
-    p10 = np.empty((len_sy, len_sx), dtype=frame_int_dtype)
-    response_list = np.empty((len_sy, len_sx), dtype=np.float64)
+def get_hsf_empty_array(len_syx, frameint_x, frame_int_dtype, fcshape):
+    # Function to reduce array allocation by providing an empty array first and recycling it with lru
+    inner_sum = np.empty(len_syx, dtype=frame_int_dtype)
+    outer_sum = np.empty(len_syx, dtype=frame_int_dtype)
+    p_temp = np.empty((len_syx[0], frameint_x), dtype=frame_int_dtype)
+    p00 = np.empty(len_syx, dtype=frame_int_dtype)
+    p11 = np.empty(len_syx, dtype=frame_int_dtype)
+    p01 = np.empty(len_syx, dtype=frame_int_dtype)
+    p10 = np.empty(len_syx, dtype=frame_int_dtype)
+    response_list = np.empty(len_syx, dtype=np.float64)
     frame_conv = np.zeros(shape=fcshape[0], dtype=np.uint8)
-    frame_conv_stride = _stride_array(frame_conv, shape=(len_sy, len_sx), strides=(fcshape[1], fcshape[2]),
-                                    storage_offset=0)
-    return (inner_sum, outer_sum), p_temp, (
-        p00, p11, p01, p10), response_list, (frame_conv, frame_conv_stride)
+    frame_conv_stride = frame_conv[::fcshape[1], ::fcshape[2]]
+    return (inner_sum, outer_sum), p_temp, (p00, p11, p01, p10), response_list, (frame_conv, frame_conv_stride)
 
 
 # @profile
-def conv_int(frame_int, kernel, step, padding, xy_step):
+def conv_int(frame_int, kernel, xy_step, padding, xy_steps_list):
     """
 
     :param frame_int:
@@ -673,65 +513,58 @@ def conv_int(frame_int, kernel, step, padding, xy_step):
     :param padding: int
     :return:
     """
-    # Init
-    row_b, col_b = frame_int.shape
-    row, col = row_b, col_b
+    row, col = frame_int.shape
     row -= 1
     col -= 1
-    x_step, y_step = step
-    padding2 = 2 * padding
-    f_shape = row - padding2, col - padding2
+    x_step, y_step = xy_step
+    # padding2 = 2 * padding
+    f_shape = row - 2 * padding, col - 2 * padding
     r_in = kernel.r_in
-    r_in3 = r_in * 3
     
-    len_sx, len_sy = len(xy_step[0]), len(xy_step[1])
-    col_rin = col_b * kernel.r_in
-    col_padrin = col_b * (padding + r_in)
-    col_ystep = col_b * y_step
-    
-    inout_sum, p_temp, p_list, response_list, frameconvlist = get_emp_p_array((len_sx, len_sy), col_b,
-                                                                            frame_int.dtype, (f_shape, f_shape[1] * y_step, x_step))
+    len_sx, len_sy = len(xy_steps_list[0]), len(xy_steps_list[1])
+    inout_sum, p_temp, p_list, response_list, frameconvlist = get_hsf_empty_array((len_sy, len_sx), col + 1,
+                                                                                  frame_int.dtype, (f_shape, y_step, x_step))
     inner_sum, outer_sum = inout_sum
     p00, p11, p01, p10 = p_list
     frame_conv, frame_conv_stride = frameconvlist
     
-    inarr_mm = _stride_array(frame_int, shape=(len_sy, len_sx), strides=(col_ystep, x_step), storage_offset=col_rin + r_in)
-    inarr_mp = _stride_array(frame_int, shape=(len_sy, len_sx), strides=(col_ystep, x_step), storage_offset=col_rin + r_in3)
-    inarr_pm = _stride_array(frame_int, shape=(len_sy, len_sx), strides=(col_ystep, x_step), storage_offset=(col_padrin + r_in))
-    inarr_pp = _stride_array(frame_int, shape=(len_sy, len_sx), strides=(col_ystep, x_step), storage_offset=(col_padrin + r_in3))
+    y_rin_m = xy_steps_list[1] - r_in
+    x_rin_m = xy_steps_list[0] - r_in
+    y_rin_p = xy_steps_list[1] + r_in
+    x_rin_p = xy_steps_list[0] + r_in
+    # xx==(y,x),m==MINUS,p==PLUS, ex: mm==(y-,x-)
+    inarr_mm = frame_int[y_rin_m[0]:y_rin_m[-1] + 1:y_step, x_rin_m[0]:x_rin_m[-1] + 1:x_step]
+    inarr_mp = frame_int[y_rin_m[0]:y_rin_m[-1] + 1:y_step, x_rin_p[0]:x_rin_p[-1] + 1:x_step]
+    inarr_pm = frame_int[y_rin_p[0]:y_rin_p[-1] + 1:y_step, x_rin_m[0]:x_rin_m[-1] + 1:x_step]
+    inarr_pp = frame_int[y_rin_p[0]:y_rin_p[-1] + 1:y_step, x_rin_p[0]:x_rin_p[-1] + 1:x_step]
     
-    # inner_sum[:, :] = inarr_mm + inarr_pp - inarr_mp - inarr_pm
+    # == inarr_mm + inarr_pp - inarr_mp - inarr_pm
     inner_sum[:, :] = inarr_mm
     inner_sum += inarr_pp
     inner_sum -= inarr_mp
     inner_sum -= inarr_pm
     
-    y_ro_m = xy_step[1] - kernel.r_out
-    x_ro_m = xy_step[0] - kernel.r_out
-    y_ro_p = xy_step[1] + kernel.r_out
-    x_ro_p = xy_step[0] + kernel.r_out
-    
-    # y,x
+    # Bottleneck here, I want to make it smarter. Someone do it.
+    # (y,x)
     # p00=max(y_ro_m,0),max(x_ro_m,0)
     # p11=min(y_ro_p,ylim),min(x_ro_p,xlim)
     # p01=max(y_ro_m,0),min(x_ro_p,xlim)
     # p10=min(y_ro_p,ylim),max(x_ro_m,0)
-    
-    # Bottleneck here, I want to make it smarter. Someone do it.
+    y_ro_m = xy_steps_list[1] - kernel.r_out
+    x_ro_m = xy_steps_list[0] - kernel.r_out
+    y_ro_p = xy_steps_list[1] + kernel.r_out
+    x_ro_p = xy_steps_list[0] + kernel.r_out
     # p00 calc
     np.take(frame_int, y_ro_m, axis=0, mode="clip", out=p_temp)
     np.take(p_temp, x_ro_m, axis=1, mode="clip", out=p00)
-    
     # p01 calc
     np.take(p_temp, x_ro_p, axis=1, mode="clip", out=p01)
-    
     # p11 calc
     np.take(frame_int, y_ro_p, axis=0, mode="clip", out=p_temp)
     np.take(p_temp, x_ro_p, axis=1, mode="clip", out=p11)
-    
-    # p10 calk
+    # p10 calc
     np.take(p_temp, x_ro_m, axis=1, mode="clip", out=p10)
-    
+    # the point is this
     # p00=np.take(np.take(frame_int, y_ro_m, axis=0, mode="clip"), x_ro_m, axis=1, mode="clip")
     # p11=np.take(np.take(frame_int, y_ro_p, axis=0, mode="clip"), x_ro_p, axis=1, mode="clip")
     # p01=np.take(np.take(frame_int, y_ro_m, axis=0, mode="clip"), x_ro_p, axis=1, mode="clip")
@@ -742,16 +575,28 @@ def conv_int(frame_int, kernel, step, padding, xy_step):
     np.multiply(kernel.val_in, inner_sum, dtype=np.float64, out=response_list)
     response_list += kernel.val_out * outer_sum
     
-    # min_response, max_val, min_loc, max_loc = cv2.minMaxLoc(response_list)
+    # min_response, max_val, min_loc, max_loc = cv2.minMaxLoc(self.response_list)
     min_response, _, min_loc, _ = cv2.minMaxLoc(response_list)
     
-    center = ((xy_step[0][min_loc[0]] - padding), (xy_step[1][min_loc[1]] - padding))
+    center = ((xy_steps_list[0][min_loc[0]] - padding), (xy_steps_list[1][min_loc[1]] - padding))
     
     frame_conv_stride[:, :] = response_list
     # or
-    # frame_conv_stride[:, :] = response_list.astype(np.uint8)
+    # frame_conv_stride[:, :] = self.response_list.astype(np.uint8)
     
     return frame_conv, min_response, center
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 def ellipse_model(data, y, f):
@@ -946,20 +791,31 @@ class EyeProcessor:
 
         self.camera_model = None
         self.detector_3d = None
-        self.response_list = []
+
+
+        self.response_list = []  #TODO we need to unify this?
          #HSF
         
         
         self.cv_mode = ["first_frame", "radius_adjust", "init", "normal"]
         self.now_mode = self.cv_mode[0]
-        self.default_radius = 15
-        self.default_step = (5, 5)  # bigger the steps,lower the processing time! ofc acc also takes an impact
-        # default_step==(x,y)
-        self.radius_cand_list = []
-        self.prev_max_size = 60 * 3  # 60fps*3sec
-        # response_min=0
-        self.response_max = 0
+        self.cvparam = CvParameters(default_radius, default_step)
 
+
+
+
+        self.default_radius = 15
+        self.skip_blink_detect = False
+
+        self.default_step = (5, 5)  # bigger the steps,lower the processing time! ofc acc also takes an impact
+        # self.default_step==(x,y)
+        self.radius_cand_list = []
+        self.blink_init_frames = 60 * 3
+        prev_max_size = 60 * 3  # 60fps*3sec
+        # response_min=0
+        self.response_max = None
+        self.default_radius = 20
+        self.auto_radius_range = (self.default_radius - 10, self.default_radius + 10) 
 
         #blink
         self.max_ints = []
@@ -1134,68 +990,89 @@ class EyeProcessor:
     
 
     def HSF(self):
-        
+
+        frame = self.current_image_gray     
         if self.now_mode == self.cv_mode[1]:
+
+            
             prev_res_len = len(self.response_list)
             # adjustment of radius
             if prev_res_len == 1:
-                self.cvparam.radius = self.radius_range[0]
+                # len==1==self.response_list==[self.default_radius]
+                self.cvparam.radius = self.auto_radius_range[0]
             elif prev_res_len == 2:
-                self.cvparam.radius = self.radius_range[1]
+                # len==2==self.response_list==[self.default_radius, self.auto_radius_range[0]]
+                self.cvparam.radius = self.auto_radius_range[1]
             elif prev_res_len == 3:
-                # response_list==[default_radius,self.radius_range[0],self.radius_range[1]]
+                # len==3==self.response_list==[self.default_radius,self.auto_radius_range[0],self.auto_radius_range[1]]
                 sort_res = sorted(self.response_list, key=lambda x: x[1])[0]
+                # Extract the radius with the lowest response value
                 if sort_res[0] == self.default_radius:
+                    # If the default value is best, change self.now_mode to init after setting radius to the default value.
                     self.cvparam.radius = self.default_radius
-                    self.now_mode = self.cv_mode[2]
-                    response_list = []
-                elif sort_res[0] == self.radius_range[0]:
-                    self.radius_cand_list = [i for i in range(self.radius_range[0], self.default_radius, self.default_step[0])][1:]
+                    self.now_mode = self.cv_mode[2] if not self.skip_blink_detect else self.cv_mode[3]
+                    self.response_list = []
+                elif sort_res[0] == self.auto_radius_range[0]:
+                    self.radius_cand_list = [i for i in range(self.auto_radius_range[0], self.default_radius, self.default_step[0])][1:]
+                    # self.default_step is defined separately for xy, but radius is shared by xy, so it may be buggy
+                    # It should be no problem to set it to anything other than self.default_step
                     self.cvparam.radius = self.radius_cand_list.pop()
                 else:
-                    self.radius_cand_list = [i for i in range(self.default_radius, self.radius_range[1], self.default_step[0])][1:]
+                    self.radius_cand_list = [i for i in range(self.default_radius, self.auto_radius_range[1], self.default_step[0])][1:]
+                    # self.default_step is defined separately for xy, but radius is shared by xy, so it may be buggy
+                    # It should be no problem to set it to anything other than self.default_step
                     self.cvparam.radius = self.radius_cand_list.pop()
             else:
+                # Try the contents of the self.radius_cand_list in order until the self.radius_cand_list runs out
                 # Better make it a binary search.
                 if len(self.radius_cand_list) == 0:
                     sort_res = sorted(self.response_list, key=lambda x: x[1])[0]
                     self.cvparam.radius = sort_res[0]
-                    self.now_mode = self.cv_mode[2]
+                    self.now_mode = self.cv_mode[2] if not self.skip_blink_detect else self.cv_mode[3]
                     self.response_list = []
                 else:
                     self.cvparam.radius = self.radius_cand_list.pop()
-
+        
         radius, pad, step, hsf = self.cvparam.get_rpsh()
         
-        gray_frame = to_gray(self.current_image_gray) #pretty sure we do no need this step, should already be receiving gray frame
-        frame = self.current_image_gray
+        # For measuring processing time of image processing
+        cv_start_time = timeit.default_timer()
+        
+        gray_frame = frame
+        
         # Calculate the integral image of the frame
-
-        frame_pad = cv2.copyMakeBorder(gray_frame, pad, pad, pad, pad, cv2.BORDER_CONSTANT)  #cv2.BORDER_REPLICATE
+        int_start_time = timeit.default_timer()
+        # BORDER_CONSTANT is faster than BORDER_REPLICATE There seems to be almost no negative impact when BORDER_CONSTANT is used.
+        frame_pad = cv2.copyMakeBorder(gray_frame, pad, pad, pad, pad, cv2.BORDER_CONSTANT)
         frame_int = cv2.integral(frame_pad)
         
         # Convolve the feature with the integral image
+        conv_int_start_time = timeit.default_timer()
         xy_step = frameint_get_xy_step(frame_int.shape, step, pad, start_offset=None, end_offset=None)
         frame_conv, response, center_xy = conv_int(frame_int, hsf, step, pad, xy_step)
-
+        
+        crop_start_time = timeit.default_timer()
         # Define the center point and radius
-        # center_y, center_x = center
         center_x, center_y = center_xy
-        upper_x = center_x + 20
+        upper_x = center_x + 20 #TODO make this a setting
         lower_x = center_x - 20
         upper_y = center_y + 20
         lower_y = center_y - 20
         
         # Crop the image using the calculated bounds
-        # cropped_image = gray_frame[lower_x:upper_x, lower_y:upper_y]
         cropped_image = gray_frame[lower_y:upper_y, lower_x:upper_x]
         
         if self.now_mode == self.cv_mode[0] or self.now_mode == self.cv_mode[1]:
-            self.response_list.append((radius, response))  # , center_x, center_y))
+            # If mode is first_frame or radius_adjust, record current radius and response
+            self.response_list.append((radius, response))
         elif self.now_mode == self.cv_mode[2]:
-            if len(self.response_list) < self.prev_max_size:
-                self.response_list.append(cropped_image.mean())
+            # Statistics for blink detection
+            if len(self.response_list) < self.blink_init_frames:
+                # Record the average value of cropped_image
+                self.response_list.append(cv2.mean(cropped_image)[0])
             else:
+                # Calculate self.response_max by computing interquartile range, IQR
+                # Change self.cv_mode to normal
                 self.response_list = np.array(self.response_list)
                 # 25%,75%
                 # This value may need to be adjusted depending on the environment.
@@ -1205,22 +1082,22 @@ class EyeProcessor:
                 self.response_max = quartile_3 + (iqr * 1.5)
                 self.now_mode = self.cv_mode[3]
         else:
-            if cropped_image.size < 400:
+            if 0 in cropped_image.shape:
+                # If shape contains 0, it is not detected well.
                 print("Something's wrong.")
             else:
-                if cropped_image.mean() > self.response_max:  # or cropped_image.mean() < response_min:
+                # If the average value of cropped_image is greater than self.response_max
+                # (i.e., if the cropimage is whitish
+                if self.response_max is not None and cv2.mean(cropped_image)[0] > self.response_max:
                     # blink
-                    print("BLINK")
-                    cv2.circle(frame, (center_x, center_y), 20, (0, 0, 255), -1)
-                    self.output_images_and_update(frame, EyeInformation(InformationOrigin.HSF, 0, 0, 0, True))
-                    f = False
-
-                    #self.output_images_and_update(frame,EyeInformation(InformationOrigin.HSF, 0, 0, 0, self.blinkvalue))
-        # If you want to update self.response_max. it may be more cost-effective to rewrite response_list in the following way
+                    
+                    cv2.circle(frame, (center_x, center_y), 10, (0, 0, 255), -1)
+        # If you want to update self.response_max. it may be more cost-effective to rewrite self.response_list in the following way
         # https://stackoverflow.com/questions/42771110/fastest-way-to-left-cycle-a-numpy-array-like-pop-push-for-a-queue
         
-       
-        hsfandransac = True
+
+
+        hsfandransac = False
         if not hsfandransac:
             out_x, out_y = cal_osc(self, center_x, center_y)
             
@@ -1589,8 +1466,7 @@ class EyeProcessor:
 
     def run(self):
 
-        self.radius_range = (self.default_radius - 10, self.default_radius + 10)  # (10,30)
-        self.cvparam = CvParameters(self.default_radius, self.default_step)
+        cvparam = CvParameters(self.default_radius, self.default_step)
         kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (3, 3))
         thresh_add = 10
         rng = np.random.default_rng()
