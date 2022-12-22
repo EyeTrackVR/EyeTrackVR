@@ -592,13 +592,6 @@ def conv_int(frame_int, kernel, xy_step, padding, xy_steps_list):
 
 
 
-
-
-
-
-
-
-
 def ellipse_model(data, y, f):
     """
     There is no need to make this process a function, since making the process a function will slow it down a little by calling it.
@@ -612,12 +605,11 @@ def ellipse_model(data, y, f):
     return data.dot(y) + f
 
 
-def fit_rotated_ellipse_ransac(data: np.ndarray, iter=100, sample_num=10, offset=80  # 80.0, 10, 80
+# @profile
+def fit_rotated_ellipse_ransac(data: np.ndarray, rng: np.random.Generator, iter=100, sample_num=10, offset=80  # 80.0, 10, 80
                                ):  # before changing these values, please read up on the ransac algorithm
     # However if you want to change any value just know that higher iterations will make processing frames slower
-    count_max = 0
     effective_sample = None
-    rng = np.random.default_rng()
     
     # The array contents do not change during the loop, so only one call is needed.
     # They say len is faster than shape.
@@ -628,12 +620,7 @@ def fit_rotated_ellipse_ransac(data: np.ndarray, iter=100, sample_num=10, offset
         return None
     
     # Type of calculation result
-    # Although the accuracy may be lower, I feel that float32 is better considering the memory used.
-    # Whether float32 or float64 is faster depends on the execution environment.
     ret_dtype = np.float64
-    
-    # Declare this number only once, since it is immutable.
-    a = np.array(1.0, dtype=ret_dtype)
     
     # Sorts a random number array of size (iter,len_data). After sorting, returns the index of sample_num random numbers before sorting.
     # If the array size is less than about 100, this is faster than rng.choice.
@@ -652,64 +639,40 @@ def fit_rotated_ellipse_ransac(data: np.ndarray, iter=100, sample_num=10, offset
     datamod_slim = np.array(datamod[:, :5], dtype=ret_dtype)
     
     datamod_rng = datamod[rng_sample]
+    datamod_rng6 = datamod_rng[:, :, 6]
+    datamod_rng_swap = datamod_rng[:, :, [4, 3, 0, 1, 5]]
+    datamod_rng_swap_trans = datamod_rng_swap.transpose((0, 2, 1))
     
-    P5x5 = np.empty((5, 5), dtype=ret_dtype)
-    P5xSmp = np.empty((5, sample_num), dtype=ret_dtype)
-    P = np.empty(5, dtype=ret_dtype)
+    # These two lines are one of the bottlenecks
+    datamod_rng_5x5 = np.matmul(datamod_rng_swap_trans, datamod_rng_swap)
+    datamod_rng_p5smp = np.matmul(np.linalg.inv(datamod_rng_5x5), datamod_rng_swap_trans)
     
-    for data_smp in datamod_rng:
-        
-        # np.random.choice is slow
-        # data_smp = datamod[sample]
-        # xs, ys, xs2, ys2, xy, smp_ones = data_smp[:, 0], data_smp[:, 1], data_smp[:, 2], data_smp[:, 3], data_smp[:, 4], data_smp[:, 5]
-        J = data_smp[:, [4, 3, 0, 1, 5]]
-        
-        # Y = -1 * xs2
-        Y = data_smp[:, 6]
-        
-        J_T = J.T
-        # I don't know which is faster, this or np.dot.
-        J_T.dot(J, out=P5x5)
-        np.linalg.inv(P5x5).dot(J_T, out=P5xSmp)
-        P5xSmp.dot(Y, out=P)
-        
-        # fitter a*x**2 + b*x*y + c*y**2 + d*x + e*y + f = 0
-        # b,c,d,e,f = P[0],P[1],P[2],P[3],P[4] # It looks like they are making copies of these and I want to remove it.
-        
-        ellipse_y = np.asarray([P[2], P[3], a, P[1], P[0]], dtype=ret_dtype)
-        ellipse_data = np.abs(ellipse_model(datamod_slim, ellipse_y, P[4]))
-        
-        # threshold
-        ran_sample = datamod[ellipse_data < offset]
-        
-        # Reduce one function call by using a variable.
-        len_ran = len(ran_sample)
-        
-        if len_ran > count_max:
-            count_max = len_ran
-            effective_sample = ran_sample
+    datamod_rng_p = np.matmul(datamod_rng_p5smp, datamod_rng6[:, :, np.newaxis]).reshape((-1, 5))
     
-    return fit_rotated_ellipse(effective_sample)
+    # I don't think it looks beautiful.
+    ellipse_y_arr = np.asarray(
+        [datamod_rng_p[:, 2], datamod_rng_p[:, 3], np.ones(len(datamod_rng_p)), datamod_rng_p[:, 1], datamod_rng_p[:, 0]], dtype=ret_dtype)
+    
+    ellipse_data_arr = ellipse_model(datamod_slim, ellipse_y_arr, np.asarray(datamod_rng_p[:, 4])).transpose((1, 0))
+    ellipse_data_abs = np.abs(ellipse_data_arr)
+    ellipse_data_index = np.argmax(np.sum(ellipse_data_abs < offset, axis=1), axis=0)
+    effective_data_arr = ellipse_data_arr[ellipse_data_index]
+    effective_sample_p_arr = datamod_rng_p[ellipse_data_index]
+    
+    return fit_rotated_ellipse(effective_data_arr, effective_sample_p_arr)
 
 
-def fit_rotated_ellipse(data):
-    J = data[:, [4, 3, 0, 1, 5]]
-    
-    # Y = -1 * xs2
-    Y = data[:, 6]
-    J_T = J.T
-    
-    P = np.linalg.inv(J_T.dot(J)).dot(J_T).dot(Y)
-    
+
+# @profile
+def fit_rotated_ellipse(data, P):
     a = 1.0
     b = P[0]
     c = P[1]
     d = P[2]
     e = P[3]
     f = P[4]
-    
-    theta = 0.5 * np.arctan(b / (a - c), dtype=np.float64)
     # The cost of trigonometric functions is high.
+    theta = 0.5 * np.arctan(b / (a - c), dtype=np.float64)
     theta_sin = np.sin(theta, dtype=np.float64)
     theta_cos = np.cos(theta, dtype=np.float64)
     tc2 = theta_cos ** 2
@@ -725,15 +688,13 @@ def fit_rotated_ellipse(data):
     cu = a * cx ** 2 + b * cx * cy + c * cy ** 2 - f
     cu_r = np.array([(a * tc2 + b_tcs + c * ts2), (a * ts2 - b_tcs + c * tc2)])
     wh = np.sqrt(cu / cu_r)
+    
     w, h = wh[0], wh[1]
     
-    ellipse_y = np.asarray([d, e, a, c, b], dtype=np.float64)
-    
-    error_sum = np.sum(ellipse_model(data[:, :5], ellipse_y, f))
+    error_sum = np.sum(data)
     # print("fitting error = %.3f" % (error_sum))
     
     return (cx, cy, w, h, theta)
-
 
 
 class EyeProcessor:
@@ -1265,37 +1226,39 @@ class EyeProcessor:
             self.cct = 300
 
        
-
-
-        newImage2 = self.current_image_gray.copy()
         # Crop first to reduce the amount of data to process.
-
-        img = self.current_image_gray[0:len(self.current_image_gray) - 10, :]
-
+        newFrame2 = self.current_image_gray.copy()
+        frame = self.current_image_gray
+        # For measuring processing time of image processing
+        # Crop first to reduce the amount of data to process.
+        frame = frame[0:len(frame) - 5, :]
         # To reduce the processing data, first convert to 1-channel and then blur.
         # The processing results were the same when I swapped the order of blurring and 1-channelization.
-       # image_gray = self.current_image_gray
-        image_gray = cv2.GaussianBlur(self.current_image_gray, (5, 5), 0)
-        
+        frame_gray = cv2.GaussianBlur(frame, (5, 5), 0)
+    
+       
         # this will need to be adjusted everytime hardware is changed (brightness of IR, Camera postion, etc)m
-        min_val, max_val, min_loc, max_loc = cv2.minMaxLoc(image_gray)
+        min_val, max_val, min_loc, max_loc = cv2.minMaxLoc(frame_gray)
         
         maxloc0_hf, maxloc1_hf = int(0.5 * max_loc[0]), int(0.5 * max_loc[1])
         
         # crop 15% sqare around min_loc
-       # image_gray = image_gray[max_loc[1] - maxloc1_hf:max_loc[1] + maxloc1_hf,
-         #            max_loc[0] - maxloc0_hf:max_loc[0] + maxloc0_hf]
+       # frame_gray = frame_gray[max_loc[1] - maxloc1_hf:max_loc[1] + maxloc1_hf,
+         #               max_loc[0] - maxloc0_hf:max_loc[0] + maxloc0_hf]
         
         threshold_value = min_val + thresh_add
-        th_ret, thresh = cv2.threshold(image_gray, threshold_value, 255, cv2.THRESH_BINARY)
+        _, thresh = cv2.threshold(frame_gray, threshold_value, 255, cv2.THRESH_BINARY)
         try:
             opening = cv2.morphologyEx(thresh, cv2.MORPH_OPEN, kernel)
             closing = cv2.morphologyEx(opening, cv2.MORPH_CLOSE, kernel)
-            image = 255 - closing
+            th_frame = 255 - closing
         except:
             # I want to eliminate try here because try tends to be slow in execution.
-            image = 255 - image_gray
-        contours, hierarchy = cv2.findContours(image, cv2.RETR_TREE, cv2.CHAIN_APPROX_NONE)
+            th_frame = 255 - frame_gray
+
+        
+        detect_start_time = timeit.default_timer()
+        contours, _ = cv2.findContours(th_frame, cv2.RETR_TREE, cv2.CHAIN_APPROX_NONE)
         hull = []
         # This way is faster than contours[i]
         # But maybe this one is faster. hull = [cv2.convexHull(cnt, False) for cnt in contours]
@@ -1305,34 +1268,38 @@ class EyeProcessor:
             # If empty, go to next loop
             pass
         try:
-            cv2.drawContours(self.current_image_gray, contours, -1, (255, 0, 0), 1)
+            
             cnt = sorted(hull, key=cv2.contourArea)
             maxcnt = cnt[-1]
-            ellipse = cv2.fitEllipse(maxcnt)
-            ransac_data = fit_rotated_ellipse_ransac(maxcnt.reshape(-1, 2))
+            # ellipse = cv2.fitEllipse(maxcnt)
+            ransac_data = fit_rotated_ellipse_ransac(maxcnt.reshape(-1, 2), rng)
             if ransac_data is None:
                 # ransac_data is None==maxcnt.shape[0]<sample_num
                 # go to next loop
                 pass
-            cx, cy, w, h, theta = ransac_data
-            print(cx, cy)
-            cx, cy, w, h = int(cx), int(cy), int(w), int(h)
-            cv2.circle(self.current_image_gray, (cx, cy), 2, (0, 0, 255), -1)
-            # cx1, cy1, w1, h1, theta1 = fit_rotated_ellipse(maxcnt.reshape(-1, 2))
-            cv2.ellipse(self.current_image_gray, (cx, cy), (w, h), theta * 180.0 / np.pi, 0.0, 360.0, (50, 250, 200), 1, )
             
+            crop_start_time = timeit.default_timer()
+            cx, cy, w, h, theta = ransac_data
+            out_x, out_y = cal_osc(self, cx, cy)
+            # print(cx, cy)
+            cx, cy, w, h = int(cx), int(cy), int(w), int(h)
             # once a pupil is found, crop 100x100 around it
             x1 = cx - 50
             x2 = cx + 50
             y1 = cy - 50
             y2 = cy + 50
-            out_x, out_y = cal_osc(self, cx, cy)
+            cropped_image = newFrame2[y1:y2, x1:x2]
             
-            #img = newImage2[y1:y2, x1:x2]
+            cv2.drawContours(self.current_image_gray, contours, -1, (255, 0, 0), 1)
+            cv2.circle(self.current_image_gray, (cx, cy), 2, (0, 0, 255), -1)
+            # cx1, cy1, w1, h1, theta1 = fit_rotated_ellipse(maxcnt.reshape(-1, 2))
+            cv2.ellipse(self.current_image_gray, (cx, cy), (w, h), theta * 180.0 / np.pi, 0.0, 360.0, (50, 250, 200), 1, )
+    
+        #img = newImage2[y1:y2, x1:x2]
         except:
             pass
     
-        
+        self.current_image_gray = frame
         cv2.circle(self.current_image_gray, min_loc, 2, (0, 0, 255),
                    -1)  # the point of the darkest area in the image
         
@@ -1419,8 +1386,10 @@ class EyeProcessor:
              #   tuple(int(v) for v in ellipse_3d["center"]),
               #  (0, 255, 0),  # color (BGR): red
            # )
+        
         except:
             pass
+        
         try:
             if self.settings.gui_BLINK:
                 self.output_images_and_update(thresh, EyeInformation(InformationOrigin.RANSAC, out_x, out_y, 0, self.blinkvalue))
@@ -1476,7 +1445,7 @@ class EyeProcessor:
            # f = True
              # Check to make sure we haven't been requested to close
             if self.cancellation_event.is_set():
-                print("Exiting Tracking thread")
+                print("\033[94m[INFO] Exiting Tracking thread\033[0m")
                 return
 
             if self.config.roi_window_w <= 0 or self.config.roi_window_h <= 0:
@@ -1538,9 +1507,9 @@ class EyeProcessor:
                 pass
                 
              """   #print("[WARN] ALL ALGORITHIMS HAVE FAILED OR ARE DISABLED.")
-            #self.RANSAC3D()
+            self.RANSAC3D()
             #self.BLINK()
-            self.HSF()
+           # self.HSF()
            # f == self.RANSAC3D()'''
            
         #FLOW MOCK

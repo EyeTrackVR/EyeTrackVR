@@ -33,7 +33,7 @@ class Camera:
         self.cancellation_event = cancellation_event
         self.current_capture_source = config.capture_source
         self.wired_camera: "cv2.VideoCapture" = None
-        self.error_message = "Capture source {} not found, retrying"
+        self.error_message = "\033[93m[WARN] Capture source {} not found, retrying...\033[0m"
 
     def set_output_queue(self, camera_output_outgoing: "queue.Queue"):
         self.camera_output_outgoing = camera_output_outgoing
@@ -41,7 +41,7 @@ class Camera:
     def run(self):
         while True:
             if self.cancellation_event.is_set():
-                print("Exiting capture thread")
+                print("\033[94m[INFO] Exiting capture thread\033[0m")
                 return
             should_push = True
             # If things aren't open, retry until they are. Don't let read requests come in any earlier

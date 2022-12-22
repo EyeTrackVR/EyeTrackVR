@@ -38,7 +38,7 @@ class VRChatOSC:
         lb = False
         while True:
             if self.cancellation_event.is_set():
-                print("Exiting OSC Queue")
+                print("\033[94m[INFO] Exiting OSC Queue\033[0m")
                 return
             try:
                 (eye_id, eye_info) = self.msg_queue.get(block=True, timeout=0.1)
@@ -160,10 +160,10 @@ class VRChatOSCReceiver:
         try:
             self.server = osc_server.OSCUDPServer((self.config.gui_osc_address, int(self.config.gui_osc_receiver_port)), self.dispatcher)
         except:
-            print(f"[ERROR] OSC Recieve port: {self.config.gui_osc_receiver_port} occupied. ")
+            print(f"\033[91m[ERROR] OSC Recieve port: {self.config.gui_osc_receiver_port} occupied.\033[0m")
 
     def shutdown(self):
-        print("Shutting down OSC receiver")
+        print("\033[94m[INFO] Shutting down OSC receiver")
         try:
             self.server.shutdown()
         except:
@@ -189,8 +189,8 @@ class VRChatOSCReceiver:
             self.dispatcher.map(self.config.gui_osc_recalibrate_address, self.recalibrate_eyes)
             self.dispatcher.map(self.config.gui_osc_recenter_address, self.recenter_eyes)
             # start the server
-            print("VRChatOSCReceiver serving on {}".format(self.server.server_address))
+            print("\033[92m[INFO] VRChatOSCReceiver serving on {}\033[0m".format(self.server.server_address))
             self.server.serve_forever()
             
         except:
-            print(f"[ERROR] OSC Recieve port: {self.config.gui_osc_receiver_port} occupied. ")
+            print(f"\033[91m[ERROR] OSC Recieve port: {self.config.gui_osc_receiver_port} occupied.\033[0m")

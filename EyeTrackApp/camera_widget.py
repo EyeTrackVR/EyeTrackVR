@@ -43,7 +43,7 @@ class CameraWidget:
         elif self.eye_id == EyeId.LEFT:
             self.config = main_config.left_eye
         else:
-            raise RuntimeError("Cannot have a camera widget represent both eyes!")
+            raise RuntimeError("\033[91m[WARN] Cannot have a camera widget represent both eyes!\033[0m")
 
         self.roi_layout = [
             [
@@ -192,7 +192,7 @@ class CameraWidget:
             event == self.gui_save_tracking_button
             and values[self.gui_camera_addr] != self.config.capture_source
         ):
-            print("New value: {}".format(values[self.gui_camera_addr]))
+            print("[INFO] New value: {}".format(values[self.gui_camera_addr]))
             try:
                 # Try storing ints as ints, for those using wired cameras.
                 self.config.capture_source = int(values[self.gui_camera_addr])
@@ -219,14 +219,14 @@ class CameraWidget:
             self.main_config.save()
 
         if event == self.gui_tracking_button:
-            print("Moving to tracking mode")
+            print("[INFO] Moving to tracking mode")
             self.in_roi_mode = False
             self.camera.set_output_queue(self.capture_queue)
             window[self.gui_roi_layout].update(visible=False)
             window[self.gui_tracking_layout].update(visible=True)
 
         if event == self.gui_roi_button:
-            print("Move to roi mode")
+            print("[INFO] Move to roi mode")
             self.in_roi_mode = True
             self.camera.set_output_queue(self.roi_queue)
             window[self.gui_roi_layout].update(visible=True)

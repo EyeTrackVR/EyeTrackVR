@@ -51,7 +51,7 @@ def main():
     # Check to see if we can connect to our video source first. If not, bring up camera finding
     # dialog.
 
-    
+    print("[INFO] Checking for updates...")
     url = "https://raw.githubusercontent.com/RedHawk989/EyeTrackVR-Installer/master/Version-Data/Version_Num.txt"
     html = urlopen(url).read()
     soup = BeautifulSoup(html, features="html.parser")
@@ -67,9 +67,9 @@ def main():
     latestversion = '\n'.join(chunk for chunk in chunks if chunk)
 
     if appversion == latestversion: # If what we scraped and hardcoded versions are same, assume we are up to date.
-        print(f"[INFO] App is up to date! {latestversion}")
+        print(f"\033[92m[INFO] App is up to date! {latestversion}\033[0m")
     else: 
-        print(f"[INFO] You have app version {appversion} installed. Please update to {latestversion} for the newest fixes.")
+        print(f"\033[93m[INFO] You have app version {appversion} installed. Please update to {latestversion} for the newest fixes.\033[0m")
         if sys.platform.startswith("win"):
             toaster = ToastNotifier()
             toaster.show_toast(  #show windows toast
@@ -190,7 +190,7 @@ def main():
             # and then call the pythonosc shutdown function
             osc_receiver.shutdown()
             osc_receiver_thread.join()
-            print("Exiting EyeTrackApp")
+            print("\033[94m[INFO] Exiting EyeTrackApp\033[0m")
             return
 
         if values[RIGHT_EYE_RADIO_NAME] and config.eye_display_id != EyeId.RIGHT:
