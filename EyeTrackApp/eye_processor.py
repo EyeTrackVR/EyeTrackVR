@@ -130,43 +130,45 @@ def cal_osc(self, cx, cy):
     else:
         self.ts = 10
 
-    xl = float(
-        (cx - self.xoff) / (self.xmax - self.xoff)
-    )
-    xr = float(
-        (cx - self.xoff) / (self.xmin - self.xoff)
-    )
-    yu = float(
-        (cy - self.yoff) / (self.ymin - self.yoff)
-    )
-    yd = float(
-        (cy - self.yoff) / (self.ymax - self.yoff)
-    )
+    try:
+        xl = float(
+            (cx - self.xoff) / (self.xmax - self.xoff)
+        )
+        xr = float(
+            (cx - self.xoff) / (self.xmin - self.xoff)
+        )
+        yu = float(
+            (cy - self.yoff) / (self.ymin - self.yoff)
+        )
+        yd = float(
+            (cy - self.yoff) / (self.ymax - self.yoff)
+        )
 
-    out_x = 0
-    out_y = 0
-    if self.settings.gui_flip_y_axis:  # check config on flipped values settings and apply accordingly
-        if yd >= 0:
-            out_y = max(0.0, min(1.0, yd))
-        if yu > 0:
-            out_y = -abs(max(0.0, min(1.0, yu)))
-    else:
-        if yd >= 0:
-            out_y = -abs(max(0.0, min(1.0, yd)))
-        if yu > 0:
-            out_y = max(0.0, min(1.0, yu))
+        out_x = 0
+        out_y = 0
+        if self.settings.gui_flip_y_axis:  # check config on flipped values settings and apply accordingly
+            if yd >= 0:
+                out_y = max(0.0, min(1.0, yd))
+            if yu > 0:
+                out_y = -abs(max(0.0, min(1.0, yu)))
+        else:
+            if yd >= 0:
+                out_y = -abs(max(0.0, min(1.0, yd)))
+            if yu > 0:
+                out_y = max(0.0, min(1.0, yu))
 
-    if flipx:  #TODO Check for working function
-        if xr >= 0:
-            out_x = -abs(max(0.0, min(1.0, xr)))
-        if xl > 0:
-            out_x = max(0.0, min(1.0, xl))
-    else:
-        if xr >= 0:
-            out_x = max(0.0, min(1.0, xr))
-        if xl > 0:
-            out_x = -abs(max(0.0, min(1.0, xl)))
-
+        if flipx:  #TODO Check for working function
+            if xr >= 0:
+                out_x = -abs(max(0.0, min(1.0, xr)))
+            if xl > 0:
+                out_x = max(0.0, min(1.0, xl))
+        else:
+            if xr >= 0:
+                out_x = max(0.0, min(1.0, xr))
+            if xl > 0:
+                out_x = -abs(max(0.0, min(1.0, xl)))
+    except:
+        print("[ERROR] Eye Calibration Invalid!")
     try:
         noisy_point = np.array([float(out_x), float(out_y)])  # fliter our values with a One Euro Filter
         point_hat = self.one_euro_filter(noisy_point)
@@ -888,8 +890,8 @@ class EyeProcessor:
             if len(contours) == 0:
                 raise RuntimeError("No contours found for image")
         except:
-            self.output_images_and_update(larger_threshold, EyeInformation(InformationOrigin.FAILURE, 0, 0, 0, False))
             self.failed = self.failed + 1
+            self.output_images_and_update(larger_threshold, EyeInformation(InformationOrigin.FAILURE, 0, 0, 0, False))
             return
 
         rows, cols = larger_threshold.shape
@@ -937,8 +939,9 @@ class EyeProcessor:
             self.failed = 0
             return
 
-        self.output_images_and_update(larger_threshold, EyeInformation(InformationOrigin.BLOB, 0, 0, 0, self.blinkvalue))
         self.failed = self.failed + 1
+        self.output_images_and_update(larger_threshold, EyeInformation(InformationOrigin.BLOB, 0, 0, 0, self.blinkvalue))
+        
 
     def HSF(self):
 
@@ -1553,7 +1556,7 @@ class EyeProcessor:
 
         intensity = np.sum(self.current_image_gray)
         self.frames = self.frames + 1
-
+ 
         if intensity > self.max_int:
             self.max_int = intensity 
             if self.frames > 200: 
@@ -1573,31 +1576,39 @@ class EyeProcessor:
     def ALGOSELECT(self): 
 
         if self.failed == 0 and self.firstalgo != None: 
+            print('first')
             self.firstalgo()
+            
         else:
             self.failed = self.failed + 1
 
         if self.failed == 1 and self.secondalgo != None:
+            print('2nd')
             self.secondalgo() #send the tracking algos previous fail number, in algo if we pass set to 0, if fail, + 1
+            
         else:
             self.failed = self.failed + 1
 
         if self.failed == 2 and self.thirdalgo != None:
+            print('3rd')
             self.thirdalgo()
+            
         else:
             self.failed = self.failed + 1
 
         if self.failed == 3 and self.fourthalgo != None:
+            print('4th')
             self.fourthalgo()
+            
         else:
             self.failed = 0 # we have reached last possible algo and it is disabled, move to first algo
-
+        print(self.failed)
 
 
 
     def run(self):
 
-
+        print("running")
         self.firstalgo = None
         self.secondalgo = None
         self.thirdalgo = None
@@ -1630,13 +1641,13 @@ class EyeProcessor:
         elif self.settings.gui_HSRAC and self.settings.gui_HSRACP == 4:
             self.fourthalgo = self.HSRAC
 
-        if self.settings.gui_HSRAC and self.settings.gui_BLOBP == 1:
+        if self.settings.gui_BLOB and self.settings.gui_BLOBP == 1:
             self.firstalgo = self.BLOB
-        elif self.settings.gui_HSRAC and self.settings.gui_BLOBP == 2:
+        elif self.settings.gui_BLOB and self.settings.gui_BLOBP == 2:
             self.secondalgo = self.BLOB
-        elif self.settings.gui_HSRAC and self.settings.gui_BLOBP == 3:
+        elif self.settings.gui_BLOB and self.settings.gui_BLOBP == 3:
             self.thirdalgo = self.BLOB
-        elif self.settings.gui_HSRAC and self.settings.gui_BLOBP == 4:
+        elif self.settings.gui_BLOB and self.settings.gui_BLOBP == 4:
             self.fourthalgo = self.BLOB
         
 
@@ -1699,7 +1710,7 @@ class EyeProcessor:
            # print(self.settings.gui_RANSAC3D)
             
             self.ALGOSELECT() #run our algos in priority order set in settings
-
+            
 
         
 
