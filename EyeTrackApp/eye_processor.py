@@ -55,6 +55,7 @@ from haar_surround_feature import *
 from blob import *
 from ransac import *
 from hsrac import *
+from blink import *
 
 class InformationOrigin(Enum):
     RANSAC = 1
@@ -397,40 +398,6 @@ class EyeProcessor:
 
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-    def BLINK(self): 
-
-        intensity = np.sum(self.current_image_gray)
-        self.frames = self.frames + 1
- 
-        if intensity > self.max_int:
-            self.max_int = intensity 
-            if self.frames > 200: 
-                self.max_ints.append(self.max_int)
-        if intensity < self.min_int:
-            self.min_int = intensity
-
-        if len(self.max_ints) > 1:
-            if intensity > min(self.max_ints):
-                print("Blink")
-                self.blinkvalue = True
-            else:
-                self.blinkvalue = False
-        print(self.blinkvalue)
-
-
     def ALGOSELECT(self): 
 
         if self.failed == 0 and self.firstalgo != None: 
@@ -569,11 +536,16 @@ class EyeProcessor:
             self.current_image_gray_clean = self.current_image_gray.copy() #copy this frame to have a clean image for blink algo
            # print(self.settings.gui_RANSAC3D)
 
+            BLINK(self)
+
             cx, cy, thresh =  HSRAC(self)
             out_x, out_y = cal_osc(self, cx, cy)
-            self.output_images_and_update(thresh, EyeInformation(InformationOrigin.HSRAC, out_x, out_y, 0, False)) #update app
+            if cx == 0:
+                self.output_images_and_update(thresh, EyeInformation(InformationOrigin.HSRAC, out_x, out_y, 0, True)) #update app
+            else:
+                self.output_images_and_update(thresh, EyeInformation(InformationOrigin.HSRAC, out_x, out_y, 0, self.blinkvalue))
+            
 
-           
            # cx, cy, thresh =  RANSAC3D(self)
            # out_x, out_y = cal_osc(self, cx, cy)
            # self.output_images_and_update(thresh, EyeInformation(InformationOrigin.RANSAC, out_x, out_y, 0, False)) #update app

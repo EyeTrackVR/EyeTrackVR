@@ -13,7 +13,8 @@ import math
 lru_maxsize_vvs = 16
 lru_maxsize_vs = 64
 # CV param
-default_radius = 20
+
+default_radius = 15
 auto_radius_range = (default_radius - 10, default_radius + 10)  # (10,30)
 blink_init_frames = 60 * 3  # 60fps*3sec,Number of blink statistical frames
 # step==(x,y)
@@ -523,6 +524,8 @@ def fit_rotated_ellipse(data, P):
 
 def HSRAC(self):
 
+    default_radius = self.settings.gui_HSF_radius
+    auto_radius_range = (default_radius - 10, default_radius + 10)  # (10,30)
     frame = self.current_image_gray     
     if self.now_mode == self.cv_mode[1]:
 
@@ -530,27 +533,27 @@ def HSRAC(self):
         prev_res_len = len(self.response_list)
         # adjustment of radius
         if prev_res_len == 1:
-            # len==1==self.response_list==[self.default_radius]
+            # len==1==self.response_list==[default_radius]
             self.cvparam.radius = self.auto_radius_range[0]
         elif prev_res_len == 2:
-            # len==2==self.response_list==[self.default_radius, self.auto_radius_range[0]]
+            # len==2==self.response_list==[default_radius, self.auto_radius_range[0]]
             self.cvparam.radius = self.auto_radius_range[1]
         elif prev_res_len == 3:
-            # len==3==self.response_list==[self.default_radius,self.auto_radius_range[0],self.auto_radius_range[1]]
+            # len==3==self.response_list==[default_radius,self.auto_radius_range[0],self.auto_radius_range[1]]
             sort_res = sorted(self.response_list, key=lambda x: x[1])[0]
             # Extract the radius with the lowest response value
-            if sort_res[0] == self.default_radius:
+            if sort_res[0] == default_radius:
                 # If the default value is best, change self.now_mode to init after setting radius to the default value.
-                self.cvparam.radius = self.default_radius
+                self.cvparam.radius = default_radius
                 self.now_mode = self.cv_mode[2] if not self.skip_blink_detect else self.cv_mode[3]
                 self.response_list = []
             elif sort_res[0] == self.auto_radius_range[0]:
-                self.radius_cand_list = [i for i in range(self.auto_radius_range[0], self.default_radius, self.default_step[0])][1:]
+                self.radius_cand_list = [i for i in range(self.auto_radius_range[0], default_radius, self.default_step[0])][1:]
                 # self.default_step is defined separately for xy, but radius is shared by xy, so it may be buggy
                 # It should be no problem to set it to anything other than self.default_step
                 self.cvparam.radius = self.radius_cand_list.pop()
             else:
-                self.radius_cand_list = [i for i in range(self.default_radius, self.auto_radius_range[1], self.default_step[0])][1:]
+                self.radius_cand_list = [i for i in range(default_radius, self.auto_radius_range[1], self.default_step[0])][1:]
                 # self.default_step is defined separately for xy, but radius is shared by xy, so it may be buggy
                 # It should be no problem to set it to anything other than self.default_step
                 self.cvparam.radius = self.radius_cand_list.pop()
@@ -721,7 +724,9 @@ def HSRAC(self):
         cv2.circle(self.current_image_gray, min_loc, 2, (0, 0, 255),
                 -1)  # the point of the darkest area in the image
         try:
+            print(radius)
             return out_x, out_y, thresh
+            
         except:
             return 0, 0, thresh
 
