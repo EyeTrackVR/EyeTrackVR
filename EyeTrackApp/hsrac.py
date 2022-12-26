@@ -1,32 +1,3 @@
-'''
-------------------------------------------------------------------------------------------------------                                                                                                    
-                                                                                                    
-                                               ,@@@@@@                                              
-                                            @@@@@@@@@@@            @@@                              
-                                          @@@@@@@@@@@@      @@@@@@@@@@@                             
-                                        @@@@@@@@@@@@@   @@@@@@@@@@@@@@                              
-                                      @@@@@@@/         ,@@@@@@@@@@@@@                               
-                                         /@@@@@@@@@@@@@@@  @@@@@@@@                                 
-                                    @@@@@@@@@@@@@@@@@@@@@@@@ @@@@@                                  
-                                @@@@@@@@                @@@@@                                       
-                              ,@@@                        @@@@&                                     
-                                             @@@@@@.       @@@@                                     
-                                   @@@     @@@@@@@@@/      @@@@@                                    
-                                   ,@@@.     @@@@@@((@     @@@@(                                    
-                                   //@@@        ,,  @@@@  @@@@@                                     
-                                   @@@(                @@@@@@@                                      
-                                   @@@  @          @@@@@@@@#                                        
-                                       @@@@@@@@@@@@@@@@@                                            
-                                      @@@@@@@@@@@@@(     
-
-HSR By: Sean.Denka (Optimization Wizard, Contributor), Summer#2406 (Main Algorithm Engineer)  
-Algorithm App Implimentations By: Prohurtz#0001, qdot (Inital App Creator)
-
-Copyright (c) 2022 EyeTrackVR <3                                
-------------------------------------------------------------------------------------------------------
-'''     
-
-
 import cv2
 import numpy as np
 import timeit
@@ -35,6 +6,7 @@ import os
 import sys
 import functools
 import math
+
 #HSF \/
 
 # cache param
@@ -442,142 +414,324 @@ def conv_int(frame_int, kernel, xy_step, padding, xy_steps_list):
     return frame_conv, min_response, center
 
 
-def HSF(self):
 
-        frame = self.current_image_gray     
-        if self.now_mode == self.cv_mode[1]:
+#RANSAC \/
+def ellipse_model(data, y, f):
+    """
+    There is no need to make this process a function, since making the process a function will slow it down a little by calling it.
+    The results may be slightly different from the lambda version due to calculation errors derived from float types, but the calculation results are virtually the same.
+    a = 1.0,b = P[0],c = P[1],d = P[2],e = P[3],f = P[4]
+    :param data:
+    :param y: np.c_[d, e, a, c, b]
+    :param f: f == P[4, 0]
+    :return: this_return == np.array([ellipse_model(x, y) for (x, y) in data ])
+    """
+    return data.dot(y) + f
 
-            prev_res_len = len(self.response_list)
-            # adjustment of radius
-            if prev_res_len == 1:
-                # len==1==self.response_list==[self.settings.gui_HSF_radius]
-                self.cvparam.radius = self.auto_radius_range[0]
-            elif prev_res_len == 2:
-                # len==2==self.response_list==[self.settings.gui_HSF_radius, self.auto_radius_range[0]]
-                self.cvparam.radius = self.auto_radius_range[1]
-            elif prev_res_len == 3:
-                # len==3==self.response_list==[self.settings.gui_HSF_radius,self.auto_radius_range[0],self.auto_radius_range[1]]
-                sort_res = sorted(self.response_list, key=lambda x: x[1])[0]
-                # Extract the radius with the lowest response value
-                if sort_res[0] == self.settings.gui_HSF_radius:
-                    # If the default value is best, change self.now_mode to init after setting radius to the default value.
-                    self.cvparam.radius = self.settings.gui_HSF_radius
-                    self.now_mode = self.cv_mode[2] if not self.skip_blink_detect else self.cv_mode[3]
-                    self.response_list = []
-                elif sort_res[0] == self.auto_radius_range[0]:
-                    self.radius_cand_list = [i for i in range(self.auto_radius_range[0], self.settings.gui_HSF_radius, self.default_step[0])][1:]
-                    # self.default_step is defined separately for xy, but radius is shared by xy, so it may be buggy
-                    # It should be no problem to set it to anything other than self.default_step
-                    self.cvparam.radius = self.radius_cand_list.pop()
-                else:
-                    self.radius_cand_list = [i for i in range(self.settings.gui_HSF_radius, self.auto_radius_range[1], self.default_step[0])][1:]
-                    # self.default_step is defined separately for xy, but radius is shared by xy, so it may be buggy
-                    # It should be no problem to set it to anything other than self.default_step
-                    self.cvparam.radius = self.radius_cand_list.pop()
-            else:
-                # Try the contents of the self.radius_cand_list in order until the self.radius_cand_list runs out
-                # Better make it a binary search.
-                if len(self.radius_cand_list) == 0:
-                    sort_res = sorted(self.response_list, key=lambda x: x[1])[0]
-                    self.cvparam.radius = sort_res[0]
-                    self.now_mode = self.cv_mode[2] if not self.skip_blink_detect else self.cv_mode[3]
-                    self.response_list = []
-                else:
-                    self.cvparam.radius = self.radius_cand_list.pop()
-        
-        radius, pad, step, hsf = self.cvparam.get_rpsh()
-        
-        # For measuring processing time of image processing
-        cv_start_time = timeit.default_timer()
-        
-        gray_frame = frame
-        
-        # Calculate the integral image of the frame
-        int_start_time = timeit.default_timer()
-        # BORDER_CONSTANT is faster than BORDER_REPLICATE There seems to be almost no negative impact when BORDER_CONSTANT is used.
-        frame_pad = cv2.copyMakeBorder(gray_frame, pad, pad, pad, pad, cv2.BORDER_CONSTANT)
-        frame_int = cv2.integral(frame_pad)
-        
-        # Convolve the feature with the integral image
-        conv_int_start_time = timeit.default_timer()
-        xy_step = frameint_get_xy_step(frame_int.shape, step, pad, start_offset=None, end_offset=None)
-        frame_conv, response, center_xy = conv_int(frame_int, hsf, step, pad, xy_step)
-        
-        crop_start_time = timeit.default_timer()
-        # Define the center point and radius
-        center_x, center_y = center_xy
-        upper_x = center_x + 25 #TODO make this a setting
-        lower_x = center_x - 25
-        upper_y = center_y + 25
-        lower_y = center_y - 25
-        
-        # Crop the image using the calculated bounds
-        cropped_image = gray_frame[lower_y:upper_y, lower_x:upper_x] # y is 50px, x is 45? why?
-        
-        if self.now_mode == self.cv_mode[0] or self.now_mode == self.cv_mode[1]:
-            # If mode is first_frame or radius_adjust, record current radius and response
-            self.response_list.append((radius, response))
-        elif self.now_mode == self.cv_mode[2]:
-            # Statistics for blink detection
-            if len(self.response_list) < self.blink_init_frames:
-                # Record the average value of cropped_image
-                self.response_list.append(cv2.mean(cropped_image)[0])
-            else:
-                # Calculate self.response_max by computing interquartile range, IQR
-                # Change self.cv_mode to normal
-                self.response_list = np.array(self.response_list)
-                # 25%,75%
-                # This value may need to be adjusted depending on the environment.
-                quartile_1, quartile_3 = np.percentile(self.response_list, [25, 75])
-                iqr = quartile_3 - quartile_1
-                # response_min = quartile_1 - (iqr * 1.5)
-                self.response_max = quartile_3 + (iqr * 1.5)
-                self.now_mode = self.cv_mode[3]
-        else:
-            if 0 in cropped_image.shape:
-                # If shape contains 0, it is not detected well.
-                print("[WARN] HSF: Something's wrong.")
-            else:
-                # If the average value of cropped_image is greater than self.response_max
-                # (i.e., if the cropimage is whitish
-                if self.response_max is not None and cv2.mean(cropped_image)[0] > self.response_max:
-                    # blink
-                    
-                    cv2.circle(frame, (center_x, center_y), 10, (0, 0, 255), -1)
-        # If you want to update self.response_max. it may be more cost-effective to rewrite self.response_list in the following way
-        # https://stackoverflow.com/questions/42771110/fastest-way-to-left-cycle-a-numpy-array-like-pop-push-for-a-queue
-        
-        
-
-
-        
-        
-        cv2.circle(frame, (center_x, center_y), 10, (0, 0, 255), -1)
-    # print(center_x, center_y)
-
-        if self.now_mode != self.cv_mode[0] and self.now_mode != self.cv_mode[1]:
-            if cropped_image.size < 400:
-                pass
+# @profile
+def fit_rotated_ellipse_ransac(data: np.ndarray, rng: np.random.Generator, iter=100, sample_num=10, offset=80  # 80.0, 10, 80
+                               ):  # before changing these values, please read up on the ransac algorithm
+    # However if you want to change any value just know that higher iterations will make processing frames slower
+    effective_sample = None
     
-        if self.now_mode == self.cv_mode[0]:
-            self.now_mode = self.cv_mode[1]
+    # The array contents do not change during the loop, so only one call is needed.
+    # They say len is faster than shape.
+    # Reference url: https://stackoverflow.com/questions/35547853/what-is-faster-python3s-len-or-numpys-shape
+    len_data = len(data)
+    
+    if len_data < sample_num:
+        return None
+    
+    # Type of calculation result
+    ret_dtype = np.float64
+    
+    # Sorts a random number array of size (iter,len_data). After sorting, returns the index of sample_num random numbers before sorting.
+    # If the array size is less than about 100, this is faster than rng.choice.
+    rng_sample = rng.random((iter, len_data)).argsort()[:, :sample_num]
+    # or
+    # I don't see any advantage to doing this.
+    # rng_sample = np.asarray(rng.random((iter, len_data)).argsort()[:, :sample_num], dtype=np.int32)
+    
+    # I don't think it looks beautiful.
+    # x,y,x**2,y**2,x*y,1,-1*x**2
+    datamod = np.concatenate(
+        [data, data ** 2, (data[:, 0] * data[:, 1])[:, np.newaxis], np.ones((len_data, 1), dtype=ret_dtype),
+         (-1 * data[:, 0] ** 2)[:, np.newaxis]], axis=1,
+        dtype=ret_dtype)
+    
+    datamod_slim = np.array(datamod[:, :5], dtype=ret_dtype)
+    
+    datamod_rng = datamod[rng_sample]
+    datamod_rng6 = datamod_rng[:, :, 6]
+    datamod_rng_swap = datamod_rng[:, :, [4, 3, 0, 1, 5]]
+    datamod_rng_swap_trans = datamod_rng_swap.transpose((0, 2, 1))
+    
+    # These two lines are one of the bottlenecks
+    datamod_rng_5x5 = np.matmul(datamod_rng_swap_trans, datamod_rng_swap)
+    datamod_rng_p5smp = np.matmul(np.linalg.inv(datamod_rng_5x5), datamod_rng_swap_trans)
+    
+    datamod_rng_p = np.matmul(datamod_rng_p5smp, datamod_rng6[:, :, np.newaxis]).reshape((-1, 5))
+    
+    # I don't think it looks beautiful.
+    ellipse_y_arr = np.asarray(
+        [datamod_rng_p[:, 2], datamod_rng_p[:, 3], np.ones(len(datamod_rng_p)), datamod_rng_p[:, 1], datamod_rng_p[:, 0]], dtype=ret_dtype)
+    
+    ellipse_data_arr = ellipse_model(datamod_slim, ellipse_y_arr, np.asarray(datamod_rng_p[:, 4])).transpose((1, 0))
+    ellipse_data_abs = np.abs(ellipse_data_arr)
+    ellipse_data_index = np.argmax(np.sum(ellipse_data_abs < offset, axis=1), axis=0)
+    effective_data_arr = ellipse_data_arr[ellipse_data_index]
+    effective_sample_p_arr = datamod_rng_p[ellipse_data_index]
+    
+    return fit_rotated_ellipse(effective_data_arr, effective_sample_p_arr)
+
+
+# @profile
+def fit_rotated_ellipse(data, P):
+    a = 1.0
+    b = P[0]
+    c = P[1]
+    d = P[2]
+    e = P[3]
+    f = P[4]
+    # The cost of trigonometric functions is high.
+    theta = 0.5 * np.arctan(b / (a - c), dtype=np.float64)
+    theta_sin = np.sin(theta, dtype=np.float64)
+    theta_cos = np.cos(theta, dtype=np.float64)
+    tc2 = theta_cos ** 2
+    ts2 = theta_sin ** 2
+    b_tcs = b * theta_cos * theta_sin
+    
+    # Do the calculation only once
+    cxy = b ** 2 - 4 * a * c
+    cx = (2 * c * d - b * e) / cxy
+    cy = (2 * a * e - b * d) / cxy
+    
+    # I just want to clear things up around here.
+    cu = a * cx ** 2 + b * cx * cy + c * cy ** 2 - f
+    cu_r = np.array([(a * tc2 + b_tcs + c * ts2), (a * ts2 - b_tcs + c * tc2)])
+    wh = np.sqrt(cu / cu_r)
+    
+    w, h = wh[0], wh[1]
+    
+    error_sum = np.sum(data)
+    # print("fitting error = %.3f" % (error_sum))
+    
+    return (cx, cy, w, h, theta)
 
 
 
 
+def HSRAC(self):
+
+    frame = self.current_image_gray     
+    if self.now_mode == self.cv_mode[1]:
+
+        
+        prev_res_len = len(self.response_list)
+        # adjustment of radius
+        if prev_res_len == 1:
+            # len==1==self.response_list==[self.default_radius]
+            self.cvparam.radius = self.auto_radius_range[0]
+        elif prev_res_len == 2:
+            # len==2==self.response_list==[self.default_radius, self.auto_radius_range[0]]
+            self.cvparam.radius = self.auto_radius_range[1]
+        elif prev_res_len == 3:
+            # len==3==self.response_list==[self.default_radius,self.auto_radius_range[0],self.auto_radius_range[1]]
+            sort_res = sorted(self.response_list, key=lambda x: x[1])[0]
+            # Extract the radius with the lowest response value
+            if sort_res[0] == self.default_radius:
+                # If the default value is best, change self.now_mode to init after setting radius to the default value.
+                self.cvparam.radius = self.default_radius
+                self.now_mode = self.cv_mode[2] if not self.skip_blink_detect else self.cv_mode[3]
+                self.response_list = []
+            elif sort_res[0] == self.auto_radius_range[0]:
+                self.radius_cand_list = [i for i in range(self.auto_radius_range[0], self.default_radius, self.default_step[0])][1:]
+                # self.default_step is defined separately for xy, but radius is shared by xy, so it may be buggy
+                # It should be no problem to set it to anything other than self.default_step
+                self.cvparam.radius = self.radius_cand_list.pop()
+            else:
+                self.radius_cand_list = [i for i in range(self.default_radius, self.auto_radius_range[1], self.default_step[0])][1:]
+                # self.default_step is defined separately for xy, but radius is shared by xy, so it may be buggy
+                # It should be no problem to set it to anything other than self.default_step
+                self.cvparam.radius = self.radius_cand_list.pop()
+        else:
+            # Try the contents of the self.radius_cand_list in order until the self.radius_cand_list runs out
+            # Better make it a binary search.
+            if len(self.radius_cand_list) == 0:
+                sort_res = sorted(self.response_list, key=lambda x: x[1])[0]
+                self.cvparam.radius = sort_res[0]
+                self.now_mode = self.cv_mode[2] if not self.skip_blink_detect else self.cv_mode[3]
+                self.response_list = []
+            else:
+                self.cvparam.radius = self.radius_cand_list.pop()
+    
+    radius, pad, step, hsf = self.cvparam.get_rpsh()
+    
+    # For measuring processing time of image processing
+    cv_start_time = timeit.default_timer()
+    
+    gray_frame = frame
+    
+    # Calculate the integral image of the frame
+    int_start_time = timeit.default_timer()
+    # BORDER_CONSTANT is faster than BORDER_REPLICATE There seems to be almost no negative impact when BORDER_CONSTANT is used.
+    frame_pad = cv2.copyMakeBorder(gray_frame, pad, pad, pad, pad, cv2.BORDER_CONSTANT)
+    frame_int = cv2.integral(frame_pad)
+    
+    # Convolve the feature with the integral image
+    conv_int_start_time = timeit.default_timer()
+    xy_step = frameint_get_xy_step(frame_int.shape, step, pad, start_offset=None, end_offset=None)
+    frame_conv, response, center_xy = conv_int(frame_int, hsf, step, pad, xy_step)
+    
+    crop_start_time = timeit.default_timer()
+    # Define the center point and radius
+    center_x, center_y = center_xy
+    upper_x = center_x + 25 #TODO make this a setting
+    lower_x = center_x - 25
+    upper_y = center_y + 25
+    lower_y = center_y - 25
+    
+    # Crop the image using the calculated bounds
+    cropped_image = gray_frame[lower_y:upper_y, lower_x:upper_x] # y is 50px, x is 45? why?
+    
+    if self.now_mode == self.cv_mode[0] or self.now_mode == self.cv_mode[1]:
+        # If mode is first_frame or radius_adjust, record current radius and response
+        self.response_list.append((radius, response))
+    elif self.now_mode == self.cv_mode[2]:
+        # Statistics for blink detection
+        if len(self.response_list) < self.blink_init_frames:
+            # Record the average value of cropped_image
+            self.response_list.append(cv2.mean(cropped_image)[0])
+        else:
+            # Calculate self.response_max by computing interquartile range, IQR
+            # Change self.cv_mode to normal
+            self.response_list = np.array(self.response_list)
+            # 25%,75%
+            # This value may need to be adjusted depending on the environment.
+            quartile_1, quartile_3 = np.percentile(self.response_list, [25, 75])
+            iqr = quartile_3 - quartile_1
+            # response_min = quartile_1 - (iqr * 1.5)
+            self.response_max = quartile_3 + (iqr * 1.5)
+            self.now_mode = self.cv_mode[3]
+    else:
+        if 0 in cropped_image.shape:
+            # If shape contains 0, it is not detected well.
+            print("Something's wrong.")
+        else:
+            # If the average value of cropped_image is greater than self.response_max
+            # (i.e., if the cropimage is whitish
+            if self.response_max is not None and cv2.mean(cropped_image)[0] > self.response_max:
+                # blink
+                
+                cv2.circle(frame, (center_x, center_y), 10, (0, 0, 255), -1)
+    # If you want to update self.response_max. it may be more cost-effective to rewrite self.response_list in the following way
+    # https://stackoverflow.com/questions/42771110/fastest-way-to-left-cycle-a-numpy-array-like-pop-push-for-a-queue
+    
+
+#run ransac on the HSF crop\
+    try:
+        kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (3, 3))
+        thresh_add = 10
+        rng = np.random.default_rng()
+        
+        f = False
+        
+        # Convert the image to grayscale, and set up thresholding. Thresholds here are basically a
+        # low-pass filter that will set any pixel < the threshold value to 0. Thresholding is user
+        # configurable in this utility as we're dealing with variable lighting amounts/placement, as
+        # well as camera positioning and lensing. Therefore everyone's cutoff may be different.
+        #
+        # The goal of thresholding settings is to make sure we can ONLY see the pupil. This is why we
+        # crop the image earlier; it gives us less possible dark area to get confused about in the
+        # next step.
+        frame = cropped_image
+        # For measuring processing time of image processing
+        # Crop first to reduce the amount of data to process.
+
+        #frame = frame[0:len(frame) - 5, :]
+        
+        # To reduce the processing data, first convert to 1-channel and then blur.
+        # The processing results were the same when I swapped the order of blurring and 1-channelization.
+        frame_gray = cv2.GaussianBlur(frame, (5, 5), 0)
+    
+    
+        # this will need to be adjusted everytime hardware is changed (brightness of IR, Camera postion, etc)m
+        min_val, max_val, min_loc, max_loc = cv2.minMaxLoc(frame_gray)
+        
+        maxloc0_hf, maxloc1_hf = int(0.5 * max_loc[0]), int(0.5 * max_loc[1])
+        
+        # crop 15% sqare around min_loc
+    # frame_gray = frame_gray[max_loc[1] - maxloc1_hf:max_loc[1] + maxloc1_hf,
+        #               max_loc[0] - maxloc0_hf:max_loc[0] + maxloc0_hf]
+        
+        threshold_value = min_val + thresh_add
+        _, thresh = cv2.threshold(frame_gray, threshold_value, 255, cv2.THRESH_BINARY)
         try:
-            self.failed = 0
-            return center_x, center_y, frame
+            opening = cv2.morphologyEx(thresh, cv2.MORPH_OPEN, kernel)
+            closing = cv2.morphologyEx(opening, cv2.MORPH_CLOSE, kernel)
+            th_frame = 255 - closing
+        except:
+            # I want to eliminate try here because try tends to be slow in execution.
+            th_frame = 255 - frame_gray
+
+        
+        detect_start_time = timeit.default_timer()
+        contours, _ = cv2.findContours(th_frame, cv2.RETR_TREE, cv2.CHAIN_APPROX_NONE)
+        hull = []
+        # This way is faster than contours[i]
+        # But maybe this one is faster. hull = [cv2.convexHull(cnt, False) for cnt in contours]
+        for cnt in contours:
+            hull.append(cv2.convexHull(cnt, False))
+        if not hull:
+            # If empty, go to next loop
+            pass
+        try:
             
-        except:     
-            self.failed = self.failed + 1
-            return 0, 0, frame
-
+            cnt = sorted(hull, key=cv2.contourArea)
+            maxcnt = cnt[-1]
+            # ellipse = cv2.fitEllipse(maxcnt)
+            ransac_data = fit_rotated_ellipse_ransac(maxcnt.reshape(-1, 2), rng)
+            if ransac_data is None:
+                # ransac_data is None==maxcnt.shape[0]<sample_num
+                # go to next loop
+                pass
             
+            crop_start_time = timeit.default_timer()
+            cx, cy, w, h, theta = ransac_data
 
-            #self.output_images_and_update(thresh, EyeInformation(InformationOrigin.FAILURE, 0, 0, 0, False))
-        # return
+            csx = frame.shape[0]
+            csy = frame.shape[1]
 
-        #self.output_images_and_update(larger_threshold,EyeInformation(InformationOrigin.HSF, out_x, out_y, 0, False),)
-    # return
-        #self.output_images_and_update(larger_threshold, EyeInformation(InformationOrigin.HSF, 0, 0, 0, True))
+            cx = center_x - (csx - cx) # we find the difference between the crop size and ransac point, and subtract from the center point from HSF
+            cy = center_y - (csy - cy)
+            out_x, out_y = cx, cy
+
+            cx, cy, w, h = int(cx), int(cy), int(w), int(h)
+  
+            cv2.drawContours(self.current_image_gray, contours, -1, (255, 0, 0), 1)
+            cv2.circle(self.current_image_gray, (cx, cy), 2, (0, 0, 255), -1)
+            # cx1, cy1, w1, h1, theta1 = fit_rotated_ellipse(maxcnt.reshape(-1, 2))
+            cv2.ellipse(self.current_image_gray, (cx, cy), (w, h), theta * 180.0 / np.pi, 0.0, 360.0, (50, 250, 200), 1, )
+    
+        #img = newImage2[y1:y2, x1:x2]
+        except:
+            pass
+    
+        self.current_image_gray = frame
+        cv2.circle(self.current_image_gray, min_loc, 2, (0, 0, 255),
+                -1)  # the point of the darkest area in the image
+        try:
+            return out_x, out_y, thresh
+        except:
+            return 0, 0, thresh
+
+
+    except:
+         return center_x, center_y, self.current_image_gray
+
+
+
+
+
+
+
