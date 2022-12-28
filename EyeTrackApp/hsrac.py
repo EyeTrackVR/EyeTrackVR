@@ -14,8 +14,8 @@ lru_maxsize_vvs = 16
 lru_maxsize_vs = 64
 # CV param
 
-default_radius = 15
-auto_radius_range = (default_radius - 10, default_radius + 10)  # (10,30)
+#default_radius = 15
+#auto_radius_range = (default_radius - 10, default_radius + 10)  # (10,30)
 blink_init_frames = 60 * 3  # 60fps*3sec,Number of blink statistical frames
 # step==(x,y)
 default_step = (5, 5)  # bigger the steps,lower the processing time! ofc acc also takes an impact
@@ -205,6 +205,7 @@ class CvParameters:
         # self.prev_step=step
         self._step = step
         self._hsf = HaarSurroundFeature(radius)
+        
     
     def get_rpsh(self):
         return self._radius, self.pad, self._step, self._hsf
@@ -570,67 +571,63 @@ def HSRAC(self):
     
     radius, pad, step, hsf = self.cvparam.get_rpsh()
     
-    # For measuring processing time of image processing
-    cv_start_time = timeit.default_timer()
-    
     gray_frame = frame
-    
-    # Calculate the integral image of the frame
-    int_start_time = timeit.default_timer()
-    # BORDER_CONSTANT is faster than BORDER_REPLICATE There seems to be almost no negative impact when BORDER_CONSTANT is used.
-    frame_pad = cv2.copyMakeBorder(gray_frame, pad, pad, pad, pad, cv2.BORDER_CONSTANT)
-    frame_int = cv2.integral(frame_pad)
-    
-    # Convolve the feature with the integral image
-    conv_int_start_time = timeit.default_timer()
-    xy_step = frameint_get_xy_step(frame_int.shape, step, pad, start_offset=None, end_offset=None)
-    frame_conv, response, center_xy = conv_int(frame_int, hsf, step, pad, xy_step)
-    
-    crop_start_time = timeit.default_timer()
-    # Define the center point and radius
-    center_x, center_y = center_xy
-    upper_x = center_x + 25 #TODO make this a setting
-    lower_x = center_x - 25
-    upper_y = center_y + 25
-    lower_y = center_y - 25
-    
-    # Crop the image using the calculated bounds
-    cropped_image = gray_frame[lower_y:upper_y, lower_x:upper_x] # y is 50px, x is 45? why?
-    
-    if self.now_mode == self.cv_mode[0] or self.now_mode == self.cv_mode[1]:
-        # If mode is first_frame or radius_adjust, record current radius and response
-        self.response_list.append((radius, response))
-    elif self.now_mode == self.cv_mode[2]:
-        # Statistics for blink detection
-        if len(self.response_list) < self.blink_init_frames:
-            # Record the average value of cropped_image
-            self.response_list.append(cv2.mean(cropped_image)[0])
+    try:
+        # BORDER_CONSTANT is faster than BORDER_REPLICATE There seems to be almost no negative impact when BORDER_CONSTANT is used.
+        frame_pad = cv2.copyMakeBorder(gray_frame, pad, pad, pad, pad, cv2.BORDER_CONSTANT)
+        frame_int = cv2.integral(frame_pad)
+        
+        # Convolve the feature with the integral image
+        conv_int_start_time = timeit.default_timer()
+        xy_step = frameint_get_xy_step(frame_int.shape, step, pad, start_offset=None, end_offset=None)
+        frame_conv, response, center_xy = conv_int(frame_int, hsf, step, pad, xy_step)
+        
+        crop_start_time = timeit.default_timer()
+        # Define the center point and radius
+        center_x, center_y = center_xy
+        upper_x = center_x + 25 #TODO make this a setting
+        lower_x = center_x - 25
+        upper_y = center_y + 25
+        lower_y = center_y - 25
+        
+        # Crop the image using the calculated bounds
+        cropped_image = gray_frame[lower_y:upper_y, lower_x:upper_x] # y is 50px, x is 45? why?
+        
+        if self.now_mode == self.cv_mode[0] or self.now_mode == self.cv_mode[1]:
+            # If mode is first_frame or radius_adjust, record current radius and response
+            self.response_list.append((radius, response))
+        elif self.now_mode == self.cv_mode[2]:
+            # Statistics for blink detection
+            if len(self.response_list) < self.blink_init_frames:
+                # Record the average value of cropped_image
+                self.response_list.append(cv2.mean(cropped_image)[0])
+            else:
+                # Calculate self.response_max by computing interquartile range, IQR
+                # Change self.cv_mode to normal
+                self.response_list = np.array(self.response_list)
+                # 25%,75%
+                # This value may need to be adjusted depending on the environment.
+                quartile_1, quartile_3 = np.percentile(self.response_list, [25, 75])
+                iqr = quartile_3 - quartile_1
+                # response_min = quartile_1 - (iqr * 1.5)
+                self.response_max = quartile_3 + (iqr * 1.5)
+                self.now_mode = self.cv_mode[3]
         else:
-            # Calculate self.response_max by computing interquartile range, IQR
-            # Change self.cv_mode to normal
-            self.response_list = np.array(self.response_list)
-            # 25%,75%
-            # This value may need to be adjusted depending on the environment.
-            quartile_1, quartile_3 = np.percentile(self.response_list, [25, 75])
-            iqr = quartile_3 - quartile_1
-            # response_min = quartile_1 - (iqr * 1.5)
-            self.response_max = quartile_3 + (iqr * 1.5)
-            self.now_mode = self.cv_mode[3]
-    else:
-        if 0 in cropped_image.shape:
-            # If shape contains 0, it is not detected well.
-            print("Something's wrong.")
-        else:
-            # If the average value of cropped_image is greater than self.response_max
-            # (i.e., if the cropimage is whitish
-            if self.response_max is not None and cv2.mean(cropped_image)[0] > self.response_max:
-                # blink
-                
-                cv2.circle(frame, (center_x, center_y), 10, (0, 0, 255), -1)
-    # If you want to update self.response_max. it may be more cost-effective to rewrite self.response_list in the following way
-    # https://stackoverflow.com/questions/42771110/fastest-way-to-left-cycle-a-numpy-array-like-pop-push-for-a-queue
-    
-
+            if 0 in cropped_image.shape:
+                # If shape contains 0, it is not detected well.
+                print("Something's wrong.")
+            else:
+                # If the average value of cropped_image is greater than self.response_max
+                # (i.e., if the cropimage is whitish
+                if self.response_max is not None and cv2.mean(cropped_image)[0] > self.response_max:
+                    # blink
+                    
+                    cv2.circle(frame, (center_x, center_y), 10, (0, 0, 255), -1)
+        # If you want to update self.response_max. it may be more cost-effective to rewrite self.response_list in the following way
+        # https://stackoverflow.com/questions/42771110/fastest-way-to-left-cycle-a-numpy-array-like-pop-push-for-a-queue
+        
+    except:
+        return 0, 0, frame
 #run ransac on the HSF crop\
     try:
         kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (3, 3))
@@ -724,7 +721,7 @@ def HSRAC(self):
         cv2.circle(self.current_image_gray, min_loc, 2, (0, 0, 255),
                 -1)  # the point of the darkest area in the image
         try:
-            print(radius)
+          #  print(radius)
             return out_x, out_y, thresh
             
         except:
