@@ -299,7 +299,6 @@ class EyeProcessor:
             print('first')
             self.firstalgo()
 
-            
         else:
             self.failed = self.failed + 1
 
