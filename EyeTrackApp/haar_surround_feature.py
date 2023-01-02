@@ -27,15 +27,22 @@ Copyright (c) 2022 EyeTrackVR <3
 '''     
 
 
-import cv2
-import numpy as np
-import timeit
-from functools import lru_cache
-import os
-import sys
 import functools
 import math
-#HSF \/
+import os
+import sys
+import timeit
+from functools import lru_cache
+
+import cv2
+import numpy as np
+
+# from line_profiler_pycharm import profile
+
+calc_print_enable = True
+save_video = False
+skip_autoradius = False
+skip_blink_detect = False
 
 # cache param
 lru_maxsize_vvs = 16
@@ -46,7 +53,6 @@ auto_radius_range = (default_radius - 10, default_radius + 10)  # (10,30)
 blink_init_frames = 60 * 3  # 60fps*3sec,Number of blink statistical frames
 # step==(x,y)
 default_step = (5, 5)  # bigger the steps,lower the processing time! ofc acc also takes an impact
-response_list = []
 
 """
 Attention.
@@ -303,12 +309,6 @@ class HaarSurroundFeature:
         return kernel
 
 
-def to_gray(frame):
-    # Faster by quitting checking if the input image is already grayscale
-    # Perhaps it would be faster with less overhead to call cv2.cvtColor directly instead of using this function
-    return cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-
-
 @lru_cache(maxsize=lru_maxsize_vs)
 def frameint_get_xy_step(imageshape, xysteps, pad, start_offset=None, end_offset=None):
     """
@@ -430,154 +430,179 @@ def conv_int(frame_int, kernel, xy_step, padding, xy_steps_list):
     np.multiply(kernel.val_in, inner_sum, dtype=np.float64, out=response_list)
     response_list += kernel.val_out * outer_sum
     
-    # min_response, max_val, min_loc, max_loc = cv2.minMaxLoc(self.response_list)
+    # min_response, max_val, min_loc, max_loc = cv2.minMaxLoc(response_list)
     min_response, _, min_loc, _ = cv2.minMaxLoc(response_list)
     
     center = ((xy_steps_list[0][min_loc[0]] - padding), (xy_steps_list[1][min_loc[1]] - padding))
     
     frame_conv_stride[:, :] = response_list
     # or
-    # frame_conv_stride[:, :] = self.response_list.astype(np.uint8)
+    # frame_conv_stride[:, :] = response_list.astype(np.uint8)
     
     return frame_conv, min_response, center
 
 
+# @profile
+
+    
+
+timedict = {"to_gray": [], "int_img": [], "conv_int": [], "crop": [], "total_cv": []}
+# I'd like to take into account things like print, end_time - start_time processing time, etc., but it's too much trouble.
+
+# For measuring total processing time
+main_start_time = timeit.default_timer()
+
+rng = np.random.default_rng()
+cvparam = CvParameters(default_radius, default_step)
+
+cv_mode = ["first_frame", "radius_adjust", "init", "normal"]
+now_mode = cv_mode[0]
+
+radius_cand_list = []
+
+# response_min=0
+response_max = None
+response_list = []
+
 def HSF(self):
 
-        frame = self.current_image_gray     
-        if self.now_mode == self.cv_mode[1]:
-
-            prev_res_len = len(self.response_list)
-            # adjustment of radius
-            if prev_res_len == 1:
-                # len==1==self.response_list==[self.settings.gui_HSF_radius]
-                self.cvparam.radius = self.auto_radius_range[0]
-            elif prev_res_len == 2:
-                # len==2==self.response_list==[self.settings.gui_HSF_radius, self.auto_radius_range[0]]
-                self.cvparam.radius = self.auto_radius_range[1]
-            elif prev_res_len == 3:
-                # len==3==self.response_list==[self.settings.gui_HSF_radius,self.auto_radius_range[0],self.auto_radius_range[1]]
-                sort_res = sorted(self.response_list, key=lambda x: x[1])[0]
-                # Extract the radius with the lowest response value
-                if sort_res[0] == self.settings.gui_HSF_radius:
-                    # If the default value is best, change self.now_mode to init after setting radius to the default value.
-                    self.cvparam.radius = self.settings.gui_HSF_radius
-                    self.now_mode = self.cv_mode[2] if not self.skip_blink_detect else self.cv_mode[3]
-                    self.response_list = []
-                elif sort_res[0] == self.auto_radius_range[0]:
-                    self.radius_cand_list = [i for i in range(self.auto_radius_range[0], self.settings.gui_HSF_radius, self.default_step[0])][1:]
-                    # self.default_step is defined separately for xy, but radius is shared by xy, so it may be buggy
-                    # It should be no problem to set it to anything other than self.default_step
-                    self.cvparam.radius = self.radius_cand_list.pop()
-                else:
-                    self.radius_cand_list = [i for i in range(self.settings.gui_HSF_radius, self.auto_radius_range[1], self.default_step[0])][1:]
-                    # self.default_step is defined separately for xy, but radius is shared by xy, so it may be buggy
-                    # It should be no problem to set it to anything other than self.default_step
-                    self.cvparam.radius = self.radius_cand_list.pop()
+    global now_mode
+    global response_list
+    global radius_cand_list
+    global response_max
+   # default_radius = 15
+    frame = self.current_image_gray  
+    if now_mode == cv_mode[1]:
+        prev_res_len = len(response_list)
+        # adjustment of radius
+        if prev_res_len == 1:
+            # len==1==response_list==[default_radius]
+            cvparam.radius = auto_radius_range[0]
+        elif prev_res_len == 2:
+            # len==2==response_list==[default_radius, auto_radius_range[0]]
+            cvparam.radius = auto_radius_range[1]
+        elif prev_res_len == 3:
+            # len==3==response_list==[default_radius,auto_radius_range[0],auto_radius_range[1]]
+            sort_res = sorted(response_list, key=lambda x: x[1])[0]
+            # Extract the radius with the lowest response value
+            if sort_res[0] == default_radius:
+                # If the default value is best, change now_mode to init after setting radius to the default value.
+                cvparam.radius = default_radius
+                now_mode = cv_mode[2] if not skip_blink_detect else cv_mode[3]
+                response_list = []
+            elif sort_res[0] == auto_radius_range[0]:
+                radius_cand_list = [i for i in range(auto_radius_range[0], default_radius, default_step[0])][1:]
+                # default_step is defined separately for xy, but radius is shared by xy, so it may be buggy
+                # It should be no problem to set it to anything other than default_step
+                cvparam.radius = radius_cand_list.pop()
             else:
-                # Try the contents of the self.radius_cand_list in order until the self.radius_cand_list runs out
-                # Better make it a binary search.
-                if len(self.radius_cand_list) == 0:
-                    sort_res = sorted(self.response_list, key=lambda x: x[1])[0]
-                    self.cvparam.radius = sort_res[0]
-                    self.now_mode = self.cv_mode[2] if not self.skip_blink_detect else self.cv_mode[3]
-                    self.response_list = []
-                else:
-                    self.cvparam.radius = self.radius_cand_list.pop()
-        
-        radius, pad, step, hsf = self.cvparam.get_rpsh()
-        
-        # For measuring processing time of image processing
-        cv_start_time = timeit.default_timer()
-        
-        gray_frame = frame
-        
-        # Calculate the integral image of the frame
-        int_start_time = timeit.default_timer()
-        # BORDER_CONSTANT is faster than BORDER_REPLICATE There seems to be almost no negative impact when BORDER_CONSTANT is used.
-        frame_pad = cv2.copyMakeBorder(gray_frame, pad, pad, pad, pad, cv2.BORDER_CONSTANT)
-        frame_int = cv2.integral(frame_pad)
-        
-        # Convolve the feature with the integral image
-        conv_int_start_time = timeit.default_timer()
-        xy_step = frameint_get_xy_step(frame_int.shape, step, pad, start_offset=None, end_offset=None)
-        frame_conv, response, center_xy = conv_int(frame_int, hsf, step, pad, xy_step)
-        
-        crop_start_time = timeit.default_timer()
-        # Define the center point and radius
-        center_x, center_y = center_xy
-        upper_x = center_x + 25 #TODO make this a setting
-        lower_x = center_x - 25
-        upper_y = center_y + 25
-        lower_y = center_y - 25
-        
-        # Crop the image using the calculated bounds
-        cropped_image = gray_frame[lower_y:upper_y, lower_x:upper_x] # y is 50px, x is 45? why?
-        
-        if self.now_mode == self.cv_mode[0] or self.now_mode == self.cv_mode[1]:
-            # If mode is first_frame or radius_adjust, record current radius and response
-            self.response_list.append((radius, response))
-        elif self.now_mode == self.cv_mode[2]:
-            # Statistics for blink detection
-            if len(self.response_list) < self.blink_init_frames:
-                # Record the average value of cropped_image
-                self.response_list.append(cv2.mean(cropped_image)[0])
-            else:
-                # Calculate self.response_max by computing interquartile range, IQR
-                # Change self.cv_mode to normal
-                self.response_list = np.array(self.response_list)
-                # 25%,75%
-                # This value may need to be adjusted depending on the environment.
-                quartile_1, quartile_3 = np.percentile(self.response_list, [25, 75])
-                iqr = quartile_3 - quartile_1
-                # response_min = quartile_1 - (iqr * 1.5)
-                self.response_max = quartile_3 + (iqr * 1.5)
-                self.now_mode = self.cv_mode[3]
+                radius_cand_list = [i for i in range(default_radius, auto_radius_range[1], default_step[0])][1:]
+                # default_step is defined separately for xy, but radius is shared by xy, so it may be buggy
+                # It should be no problem to set it to anything other than default_step
+                cvparam.radius = radius_cand_list.pop()
         else:
-            if 0 in cropped_image.shape:
-                # If shape contains 0, it is not detected well.
-                print("[WARN] HSF: Something's wrong.")
+            # Try the contents of the radius_cand_list in order until the radius_cand_list runs out
+            # Better make it a binary search.
+            if len(radius_cand_list) == 0:
+                sort_res = sorted(response_list, key=lambda x: x[1])[0]
+                cvparam.radius = sort_res[0]
+                now_mode = cv_mode[2] if not skip_blink_detect else cv_mode[3]
+                response_list = []
             else:
-                # If the average value of cropped_image is greater than self.response_max
-                # (i.e., if the cropimage is whitish
-                if self.response_max is not None and cv2.mean(cropped_image)[0] > self.response_max:
-                    # blink
-                    
-                    cv2.circle(frame, (center_x, center_y), 10, (0, 0, 255), -1)
-        # If you want to update self.response_max. it may be more cost-effective to rewrite self.response_list in the following way
-        # https://stackoverflow.com/questions/42771110/fastest-way-to-left-cycle-a-numpy-array-like-pop-push-for-a-queue
-        
-        
-
-
-        
-        
-        cv2.circle(frame, (center_x, center_y), 10, (0, 0, 255), -1)
-    # print(center_x, center_y)
-
-        if self.now_mode != self.cv_mode[0] and self.now_mode != self.cv_mode[1]:
-            if cropped_image.size < 400:
-                pass
+                cvparam.radius = radius_cand_list.pop()
     
-        if self.now_mode == self.cv_mode[0]:
-            self.now_mode = self.cv_mode[1]
+    radius, pad, step, hsf = cvparam.get_rpsh()
+    
+    # For measuring processing time of image processing
+    cv_start_time = timeit.default_timer()
+    
+    gray_frame = frame
+    timedict["to_gray"].append(timeit.default_timer() - cv_start_time)
+    
+    # Calculate the integral image of the frame
+    int_start_time = timeit.default_timer()
+    # BORDER_CONSTANT is faster than BORDER_REPLICATE There seems to be almost no negative impact when BORDER_CONSTANT is used.
+    frame_pad = cv2.copyMakeBorder(gray_frame, pad, pad, pad, pad, cv2.BORDER_CONSTANT)
+    frame_int = cv2.integral(frame_pad)
+    timedict["int_img"].append(timeit.default_timer() - int_start_time)
+    
+    # Convolve the feature with the integral image
+    conv_int_start_time = timeit.default_timer()
+    xy_step = frameint_get_xy_step(frame_int.shape, step, pad, start_offset=None, end_offset=None)
+    frame_conv, response, center_xy = conv_int(frame_int, hsf, step, pad, xy_step)
+    timedict["conv_int"].append(timeit.default_timer() - conv_int_start_time)
+    
+    crop_start_time = timeit.default_timer()
+    # Define the center point and radius
+    center_x, center_y = center_xy
+    upper_x = center_x + radius
+    lower_x = center_x - radius
+    upper_y = center_y + radius
+    lower_y = center_y - radius
+    
+    # Crop the image using the calculated bounds
+    cropped_image = gray_frame[lower_y:upper_y, lower_x:upper_x]
+    
+    if now_mode == cv_mode[0] or now_mode == cv_mode[1]:
+        # If mode is first_frame or radius_adjust, record current radius and response
+        response_list.append((radius, response))
+    elif now_mode == cv_mode[2]:
+        # Statistics for blink detection
+        if len(response_list) < blink_init_frames:
+            # Record the average value of cropped_image
+            response_list.append(cv2.mean(cropped_image)[0])
+        else:
+            # Calculate response_max by computing interquartile range, IQR
+            # Change cv_mode to normal
+            response_list = np.array(response_list)
+            # 25%,75%
+            # This value may need to be adjusted depending on the environment.
+            quartile_1, quartile_3 = np.percentile(response_list, [25, 75])
+            iqr = quartile_3 - quartile_1
+            # response_min = quartile_1 - (iqr * 1.5)
+            response_max = quartile_3 + (iqr * 1.5)
+            now_mode = cv_mode[3]
+    else:
+        if 0 in cropped_image.shape:
+            # If shape contains 0, it is not detected well.
+            print("Something's wrong.")
+        else:
+            # If the average value of cropped_image is greater than response_max
+            # (i.e., if the cropimage is whitish
+            if response_max is not None and cv2.mean(cropped_image)[0] > response_max:
+                # blink
+                cv2.circle(frame, (center_x, center_y), 10, (0, 0, 255), -1)
+                
+    # If you want to update response_max. it may be more cost-effective to rewrite response_list in the following way
+    # https://stackoverflow.com/questions/42771110/fastest-way-to-left-cycle-a-numpy-array-like-pop-push-for-a-queue
+    
+    cv_end_time = timeit.default_timer()
+    timedict["crop"].append(cv_end_time - crop_start_time)
+    timedict["total_cv"].append(cv_end_time - cv_start_time)
+    
+    # the lower the response the better the likelyhood of there being a pupil. you can adujst the radius and steps accordingly
+    print('Kernel response:', response)
+    print('Pixel position:', center_xy)
+
+
+    if now_mode == cv_mode[0]:
+        # Moving from first_frame to the next mode
+        if skip_autoradius and skip_blink_detect:
+            now_mode = cv_mode[3]
+            response_list = []
+        elif skip_autoradius:
+            now_mode = cv_mode[2]
+            response_list = []
+        else:
+            now_mode = cv_mode[1]
+
+    try:
+        self.failed = 0
+        return center_x, center_y, frame
+        
+    except:     
+        self.failed = self.failed + 1
+        return 0, 0, frame
 
 
 
-
-        try:
-            self.failed = 0
-            return center_x, center_y, frame
-            
-        except:     
-            self.failed = self.failed + 1
-            return 0, 0, frame
-
-            
-
-            #self.output_images_and_update(thresh, EyeInformation(InformationOrigin.FAILURE, 0, 0, 0, False))
-        # return
-
-        #self.output_images_and_update(larger_threshold,EyeInformation(InformationOrigin.HSF, out_x, out_y, 0, False),)
-    # return
-        #self.output_images_and_update(larger_threshold, EyeInformation(InformationOrigin.HSF, 0, 0, 0, True))

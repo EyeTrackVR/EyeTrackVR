@@ -12,9 +12,6 @@ def cal_osc(self, cx, cy):
         self.calibration_frame_counter = None
         self.xoff = cx
         self.yoff = cy
-        self.now_mode = self.cv_mode[0]
-        self.response_list = []
-        self.response_max = 0
         if sys.platform.startswith("win"):
             PlaySound('Audio/compleated.wav', SND_FILENAME | SND_ASYNC)
     elif self.calibration_frame_counter != None:

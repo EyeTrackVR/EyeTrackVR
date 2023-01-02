@@ -45,6 +45,7 @@ class EyeTrackSettingsConfig(BaseModel):
     gui_RANSAC3DP: int = 2
     gui_HSFP: int = 3
     gui_BLOBP: int = 4
+    gui_skip_autoradius: bool = True
 
 class EyeTrackConfig(BaseModel):
     version: int = 1

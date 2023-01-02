@@ -153,24 +153,7 @@ class EyeProcessor:
 
         self.failed = 0
 
-
-        self.response_list = []  #This might not be correct. 
-         #HSF
-        
-        self.cv_mode = ["first_frame", "radius_adjust", "init", "normal"]
-        self.now_mode = self.cv_mode[0]
-        self.cvparam = CvParameters(default_radius, default_step)
         self.skip_blink_detect = False
-
-        self.default_step = (5, 5)  # bigger the steps,lower the processing time! ofc acc also takes an impact
-        # self.default_step==(x,y)
-        self.radius_cand_list = []
-        self.blink_init_frames = 60 * 3
-        prev_max_size = 60 * 3  # 60fps*3sec
-        # response_min=0
-        self.response_max = None
-
-        self.auto_radius_range = (self.settings.gui_HSF_radius - 10, self.settings.gui_HSF_radius + 10) 
 
         #blink
         self.max_ints = []
@@ -179,6 +162,8 @@ class EyeProcessor:
         self.frames = 0 
         self.blinkvalue = False
         
+        self.prev_x = None
+        self.prev_y = None
 
         
 
@@ -209,7 +194,7 @@ class EyeProcessor:
             self.previous_image = self.current_image
             self.previous_rotation = self.config.rotation_angle
         except:
-            print("E")
+            pass
     def capture_crop_rotate_image(self):
         # Get our current frame
         
@@ -255,12 +240,22 @@ class EyeProcessor:
 
     def HSRACM(self):
         cx, cy, thresh = HSRAC(self)
+        if self.prev_x == None:
+            self.prev_x = cx
+            self.prev_y = cy
+        #print(self.prev_x, self.prev_y, cx, cy)
+       # if (cx - self.prev_x) <= 45 and (cy - self.prev_y) <= 45 :
+          #  self.prev_x = cx
+          #  self.prev_y = cy
         out_x, out_y = cal_osc(self, cx, cy)
         if cx == 0:
-            self.output_images_and_update(thresh, EyeInformation(InformationOrigin.HSRAC, out_x, out_y, 0, True)) #update app
+            self.output_images_and_update(thresh, EyeInformation(InformationOrigin.HSRAC, out_x, out_y, 0, False)) #update app
         else:
-            self.output_images_and_update(thresh, EyeInformation(InformationOrigin.HSRAC, out_x, out_y, 0, self.blinkvalue))
-        
+            self.blinkvalue = False
+            self.output_images_and_update(thresh, EyeInformation(InformationOrigin.HSRAC, out_x, out_y, 0, False))
+      #  else:
+      #      print("EYE MOVED TOO FAST")
+       #     self.output_images_and_update(thresh, EyeInformation(InformationOrigin.HSRAC, 0, 0, 0, False))
     def HSFM(self):
         cx, cy, frame = HSF(self)
         out_x, out_y = cal_osc(self, cx, cy)
@@ -294,31 +289,24 @@ class EyeProcessor:
 
 
     def ALGOSELECT(self): 
-        print(self.failed, self.firstalgo)
-        if self.failed == 0 and self.firstalgo != None: 
-            print('first')
-            self.firstalgo()
 
+        if self.failed == 0 and self.firstalgo != None: 
+            self.firstalgo()
         else:
             self.failed = self.failed + 1
 
-        if self.failed == 1 and self.secondalgo != None:
-            print('2nd')  #send the tracking algos previous fail number, in algo if we pass set to 0, if fail, + 1
+        if self.failed == 1 and self.secondalgo != None:  #send the tracking algos previous fail number, in algo if we pass set to 0, if fail, + 1
             self.secondalgo()
         else:
             self.failed = self.failed + 1
 
         if self.failed == 2 and self.thirdalgo != None:
-            print('3rd')
             self.thirdalgo()
-            
         else:
             self.failed = self.failed + 1
 
         if self.failed == 3 and self.fourthalgo != None:
-            print('4th')
             self.fourthalgo()
-            
         else:
             self.failed = 0 # we have reached last possible algo and it is disabled, move to first algo
 
@@ -352,7 +340,6 @@ class EyeProcessor:
             self.fourthalgo = self.RANSAC3DM
 
         if self.settings.gui_HSRAC == True and self.settings.gui_HSRACP == 1:
-            print("HERE")
             self.firstalgo = self.HSRACM
         elif self.settings.gui_HSRAC and self.settings.gui_HSRACP == 2:
             self.secondalgo = self.HSRACM
@@ -370,12 +357,6 @@ class EyeProcessor:
         elif self.settings.gui_BLOB and self.settings.gui_BLOBP == 4:
             self.fourthalgo = self.BLOBM
 
-
-        if self.settings.gui_HSRACP == '1':
-            print("HERE")
-
-        print(self.settings.gui_HSRACP, self.settings.gui_HSRAC, self.firstalgo)
-
         f = True
         while True:
            # f = True
@@ -391,7 +372,7 @@ class EyeProcessor:
                     return
                 continue
 
-
+          
             
             # If our ROI configuration has changed, reset our model and detector
             if (self.camera_model is None

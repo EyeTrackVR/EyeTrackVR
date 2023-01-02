@@ -32,7 +32,7 @@ class SettingsWidget:
         self.gui_min_cutoff = f"-MINCUTOFF{widget_id}-"
         self.gui_eye_falloff = f"-EYEFALLOFF{widget_id}-"
         self.gui_blink_sync = f"-BLINKSYNC{widget_id}-"
-
+        self.gui_skip_autoradius = f"-SKIPAUTORADIUS{widget_id}-"
         self.gui_HSRACP = f"-HSRACP{widget_id}-"
         self.gui_RANSAC3DP = f"-RANSAC3DP{widget_id}-"
         self.gui_HSFP = f"-HSFP{widget_id}-"
@@ -177,7 +177,15 @@ class SettingsWidget:
                 ),
             ],
         
-            [sg.Text("HSF Radius:", background_color='#424042'),
+            [sg.Checkbox(
+                    "HSF: Skip Auto Radius",
+                    default=self.config.gui_skip_autoradius,
+                    key=self.gui_skip_autoradius,
+                    background_color='#424042',
+                    tooltip = "To gain more control and possibly better tracking quality of HSF, please disable auto radius to enable manual adjustment.",
+                ),
+                
+                sg.Text("HSF Radius:", background_color='#424042'),
                 sg.Slider(
                     range=(1, 50),
                     default_value=self.config.gui_HSF_radius,
@@ -397,6 +405,11 @@ class SettingsWidget:
         if self.config.gui_HSRAC != values[self.gui_HSRAC]:
             self.config.gui_HSRAC = values[self.gui_HSRAC]
             changed = True
+
+        if self.config.gui_skip_autoradius != values[self.gui_skip_autoradius]:
+            self.config.gui_skip_autoradius = values[self.gui_skip_autoradius]
+            changed = True
+        
 
         if self.config.gui_BLINK != values[self.gui_BLINK]:
             self.config.gui_BLINK = values[self.gui_BLINK]
