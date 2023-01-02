@@ -49,7 +49,7 @@ from one_euro_filter import OneEuroFilter
 if sys.platform.startswith("win"):
     from winsound import PlaySound, SND_FILENAME, SND_ASYNC
 
-
+import importlib
 from osc_calibrate_filter import *
 from haar_surround_feature import *
 from blob import *
@@ -294,7 +294,7 @@ class EyeProcessor:
 
 
     def ALGOSELECT(self): 
-
+        print(self.failed, self.firstalgo)
         if self.failed == 0 and self.firstalgo != None: 
             print('first')
             self.firstalgo()
@@ -351,7 +351,8 @@ class EyeProcessor:
         elif self.settings.gui_RANSAC3D and self.settings.gui_RANSAC3DP == 4:
             self.fourthalgo = self.RANSAC3DM
 
-        if self.settings.gui_HSRAC and self.settings.gui_HSRACP == 1:
+        if self.settings.gui_HSRAC == True and self.settings.gui_HSRACP == 1:
+            print("HERE")
             self.firstalgo = self.HSRACM
         elif self.settings.gui_HSRAC and self.settings.gui_HSRACP == 2:
             self.secondalgo = self.HSRACM
@@ -368,6 +369,12 @@ class EyeProcessor:
             self.thirdalgo = self.BLOBM
         elif self.settings.gui_BLOB and self.settings.gui_BLOBP == 4:
             self.fourthalgo = self.BLOBM
+
+
+        if self.settings.gui_HSRACP == '1':
+            print("HERE")
+
+        print(self.settings.gui_HSRACP, self.settings.gui_HSRAC, self.firstalgo)
 
         f = True
         while True:

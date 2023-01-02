@@ -374,24 +374,24 @@ class SettingsWidget:
             self.config.gui_flip_x_axis_left = values[self.gui_flip_x_axis_left]
             changed = True
 
-        if self.config.gui_HSFP != values[self.gui_HSFP]:
-            self.config.gui_HSFP = values[self.gui_HSFP]
+        if self.config.gui_HSFP != int(values[self.gui_HSFP]):
+            self.config.gui_HSFP = int(values[self.gui_HSFP])
             changed = True
 
         if self.config.gui_HSF != values[self.gui_HSF]:
             self.config.gui_HSF = values[self.gui_HSF]
             changed = True
         
-        if self.config.gui_RANSAC3DP != values[self.gui_RANSAC3DP]: #TODO check that priority order is unique/auto fix it.
-            self.config.gui_RANSAC3DP = values[self.gui_RANSAC3DP]
+        if self.config.gui_RANSAC3DP != int(values[self.gui_RANSAC3DP]): #TODO check that priority order is unique/auto fix it.
+            self.config.gui_RANSAC3DP = int(values[self.gui_RANSAC3DP])
             changed = True
 
         if self.config.gui_RANSAC3D != values[self.gui_RANSAC3D]:
             self.config.gui_RANSAC3D = values[self.gui_RANSAC3D]
             changed = True
 
-        if self.config.gui_HSRACP != values[self.gui_HSRACP]:
-            self.config.gui_HSRACP = values[self.gui_HSRACP]
+        if self.config.gui_HSRACP != int(values[self.gui_HSRACP]):
+            self.config.gui_HSRACP = int(values[self.gui_HSRACP])
             changed = True
 
         if self.config.gui_HSRAC != values[self.gui_HSRAC]:
@@ -414,8 +414,8 @@ class SettingsWidget:
             self.config.gui_BLOB = values[self.gui_BLOB]
             changed = True
 
-        if self.config.gui_BLOBP != values[self.gui_BLOBP]:
-            self.config.gui_BLOBP = values[self.gui_BLOBP]
+        if self.config.gui_BLOBP != int(values[self.gui_BLOBP]):
+            self.config.gui_BLOBP = int(values[self.gui_BLOBP])
             changed = True
 
         if self.config.gui_threshold != values[self.gui_threshold_slider]:
