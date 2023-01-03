@@ -285,9 +285,6 @@ class EyeProcessor:
 
 
 
-
-
-
     def ALGOSELECT(self): 
 
         if self.failed == 0 and self.firstalgo != None: 

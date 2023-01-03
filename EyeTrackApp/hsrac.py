@@ -10,285 +10,18 @@ import numpy as np
 
 # from line_profiler_pycharm import profile
 
-#RANSACAHA
-
-
-
-
-thresh_add = 20
-
-
-class TimeitResult(object):
-    """
-    from https://github.com/ipython/ipython/blob/339c0d510a1f3cb2158dd8c6e7f4ac89aa4c89d8/IPython/core/magics/execution.py#L55
-
-    Object returned by the timeit magic with info about the run.
-    Contains the following attributes :
-    loops: (int) number of loops done per measurement
-    repeat: (int) number of times the measurement has been repeated
-    best: (float) best execution time / number
-    all_runs: (list of float) execution time of each run (in s)
-    """
-    
-    def __init__(self, loops, repeat, best, worst, all_runs, precision):
-        self.loops = loops
-        self.repeat = repeat
-        self.best = best
-        self.worst = worst
-        self.all_runs = all_runs
-        self._precision = precision
-        self.timings = [dt / self.loops for dt in all_runs]
-    
-    @property
-    def average(self):
-        return math.fsum(self.timings) / len(self.timings)
-    
-    @property
-    def stdev(self):
-        mean = self.average
-        return (math.fsum([(x - mean) ** 2 for x in self.timings]) / len(self.timings)) ** 0.5
-    
-    def __str__(self):
-        pm = '+-'
-        if hasattr(sys.stdout, 'encoding') and sys.stdout.encoding:
-            try:
-                u'\xb1'.encode(sys.stdout.encoding)
-                pm = u'\xb1'
-            except:
-                pass
-        return "min:{best} max:{worst} mean:{mean} {pm} {std} per loop (mean {pm} std. dev. of {runs} run{run_plural}, {loops:,} loop{loop_plural} each)".format(
-            pm=pm,
-            runs=self.repeat,
-            loops=self.loops,
-            loop_plural="" if self.loops == 1 else "s",
-            run_plural="" if self.repeat == 1 else "s",
-            mean=format_time(self.average, self._precision),
-            std=format_time(self.stdev, self._precision),
-            best=format_time(self.best, self._precision),
-            worst=format_time(self.worst, self._precision),
-        )
-    
-    def _repr_pretty_(self, p, cycle):
-        unic = self.__str__()
-        p.text(u'<TimeitResult : ' + unic + u'>')
-
-
-class FPSResult(object):
-    """
-    base https://github.com/ipython/ipython/blob/339c0d510a1f3cb2158dd8c6e7f4ac89aa4c89d8/IPython/core/magics/execution.py#L55
-    """
-    
-    def __init__(self, loops, repeat, best, worst, all_runs, precision):
-        self.loops = loops
-        self.repeat = repeat
-        self.best = 1 / best
-        self.worst = 1 / worst
-        self.all_runs = all_runs
-        self._precision = precision
-        self.fps = [1 / dt for dt in all_runs]
-        self.unit = "fps"
-    
-    @property
-    def average(self):
-        return math.fsum(self.fps) / len(self.fps)
-    
-    @property
-    def stdev(self):
-        mean = self.average
-        return (math.fsum([(x - mean) ** 2 for x in self.fps]) / len(self.fps)) ** 0.5
-    
-    def __str__(self):
-        pm = '+-'
-        if hasattr(sys.stdout, 'encoding') and sys.stdout.encoding:
-            try:
-                u'\xb1'.encode(sys.stdout.encoding)
-                pm = u'\xb1'
-            except:
-                pass
-        return "min:{best} max:{worst} mean:{mean} {pm} {std} per loop (mean {pm} std. dev. of {runs} run{run_plural}, {loops:,} loop{loop_plural} each)".format(
-            pm=pm,
-            runs=self.repeat,
-            loops=self.loops,
-            loop_plural="" if self.loops == 1 else "s",
-            run_plural="" if self.repeat == 1 else "s",
-            mean="%.*g%s" % (self._precision, self.average, self.unit),
-            std="%.*g%s" % (self._precision, self.stdev, self.unit),
-            best="%.*g%s" % (self._precision, self.best, self.unit),
-            worst="%.*g%s" % (self._precision, self.worst, self.unit),
-        )
-    
-    def _repr_pretty_(self, p, cycle):
-        unic = self.__str__()
-        p.text(u'<FPSResult : ' + unic + u'>')
-
-
-def format_time(timespan, precision=3):
-    """
-    https://github.com/ipython/ipython/blob/339c0d510a1f3cb2158dd8c6e7f4ac89aa4c89d8/IPython/core/magics/execution.py#L1473
-    Formats the timespan in a human readable form
-    """
-    
-    if timespan >= 60.0:
-        # we have more than a minute, format that in a human readable form
-        # Idea from http://snipplr.com/view/5713/
-        parts = [("d", 60 * 60 * 24), ("h", 60 * 60), ("min", 60), ("s", 1)]
-        time = []
-        leftover = timespan
-        for suffix, length in parts:
-            value = int(leftover / length)
-            if value > 0:
-                leftover = leftover % length
-                time.append(u'%s%s' % (str(value), suffix))
-            if leftover < 1:
-                break
-        return " ".join(time)
-    
-    # Unfortunately the unicode 'micro' symbol can cause problems in
-    # certain terminals.
-    # See bug: https://bugs.launchpad.net/ipython/+bug/348466
-    # Try to prevent crashes by being more secure than it needs to
-    # E.g. eclipse is able to print a µ, but has no sys.stdout.encoding set.
-    units = [u"s", u"ms", u'us', "ns"]  # the save value
-    if hasattr(sys.stdout, 'encoding') and sys.stdout.encoding:
-        try:
-            u'\xb5'.encode(sys.stdout.encoding)
-            units = [u"s", u"ms", u'\xb5s', "ns"]
-        except:
-            pass
-    scaling = [1, 1e3, 1e6, 1e9]
-    
-    if timespan > 0.0:
-        order = min(-int(math.floor(math.log10(timespan)) // 3), 3)
-    else:
-        order = 3
-    return u"%.*g %s" % (precision, timespan * scaling[order], units[order])
-
-
-def ellipse_model(data, y, f):
-    """
-    There is no need to make this process a function, since making the process a function will slow it down a little by calling it.
-    The results may be slightly different from the lambda version due to calculation errors derived from float types, but the calculation results are virtually the same.
-    a = 1.0,b = P[0],c = P[1],d = P[2],e = P[3],f = P[4]
-    :param data:
-    :param y: np.c_[d, e, a, c, b]
-    :param f: f == P[4, 0]
-    :return: this_return == np.array([ellipse_model(x, y) for (x, y) in data ])
-    """
-    return data.dot(y) + f
-
-
-# @profile
-def fit_rotated_ellipse_ransac(data: np.ndarray, rng: np.random.Generator, iter=100, sample_num=10, offset=80  # 80.0, 10, 80
-                               ):  # before changing these values, please read up on the ransac algorithm
-    # However if you want to change any value just know that higher iterations will make processing frames slower
-    effective_sample = None
-    
-    # The array contents do not change during the loop, so only one call is needed.
-    # They say len is faster than shape.
-    # Reference url: https://stackoverflow.com/questions/35547853/what-is-faster-python3s-len-or-numpys-shape
-    len_data = len(data)
-    
-    if len_data < sample_num:
-        return None
-    
-    # Type of calculation result
-    ret_dtype = np.float64
-    
-    # Sorts a random number array of size (iter,len_data). After sorting, returns the index of sample_num random numbers before sorting.
-    # If the array size is less than about 100, this is faster than rng.choice.
-    rng_sample = rng.random((iter, len_data)).argsort()[:, :sample_num]
-    # or
-    # I don't see any advantage to doing this.
-    # rng_sample = np.asarray(rng.random((iter, len_data)).argsort()[:, :sample_num], dtype=np.int32)
-    
-    # I don't think it looks beautiful.
-    # x,y,x**2,y**2,x*y,1,-1*x**2
-    datamod = np.concatenate(
-        [data, data ** 2, (data[:, 0] * data[:, 1])[:, np.newaxis], np.ones((len_data, 1), dtype=ret_dtype),
-         (-1 * data[:, 0] ** 2)[:, np.newaxis]], axis=1,
-        dtype=ret_dtype)
-    
-    datamod_slim = np.array(datamod[:, :5], dtype=ret_dtype)
-    
-    datamod_rng = datamod[rng_sample]
-    datamod_rng6 = datamod_rng[:, :, 6]
-    datamod_rng_swap = datamod_rng[:, :, [4, 3, 0, 1, 5]]
-    datamod_rng_swap_trans = datamod_rng_swap.transpose((0, 2, 1))
-    
-    # These two lines are one of the bottlenecks
-    datamod_rng_5x5 = np.matmul(datamod_rng_swap_trans, datamod_rng_swap)
-    datamod_rng_p5smp = np.matmul(np.linalg.inv(datamod_rng_5x5), datamod_rng_swap_trans)
-    
-    datamod_rng_p = np.matmul(datamod_rng_p5smp, datamod_rng6[:, :, np.newaxis]).reshape((-1, 5))
-    
-    # I don't think it looks beautiful.
-    ellipse_y_arr = np.asarray(
-        [datamod_rng_p[:, 2], datamod_rng_p[:, 3], np.ones(len(datamod_rng_p)), datamod_rng_p[:, 1], datamod_rng_p[:, 0]], dtype=ret_dtype)
-    
-    ellipse_data_arr = ellipse_model(datamod_slim, ellipse_y_arr, np.asarray(datamod_rng_p[:, 4])).transpose((1, 0))
-    ellipse_data_abs = np.abs(ellipse_data_arr)
-    ellipse_data_index = np.argmax(np.sum(ellipse_data_abs < offset, axis=1), axis=0)
-    effective_data_arr = ellipse_data_arr[ellipse_data_index]
-    effective_sample_p_arr = datamod_rng_p[ellipse_data_index]
-    
-    return fit_rotated_ellipse(effective_data_arr, effective_sample_p_arr)
-
-
-# @profile
-def fit_rotated_ellipse(data, P):
-    a = 1.0
-    b = P[0]
-    c = P[1]
-    d = P[2]
-    e = P[3]
-    f = P[4]
-    # The cost of trigonometric functions is high.
-    theta = 0.5 * np.arctan(b / (a - c), dtype=np.float64)
-    theta_sin = np.sin(theta, dtype=np.float64)
-    theta_cos = np.cos(theta, dtype=np.float64)
-    tc2 = theta_cos ** 2
-    ts2 = theta_sin ** 2
-    b_tcs = b * theta_cos * theta_sin
-    
-    # Do the calculation only once
-    cxy = b ** 2 - 4 * a * c
-    cx = (2 * c * d - b * e) / cxy
-    cy = (2 * a * e - b * d) / cxy
-    
-    # I just want to clear things up around here.
-    cu = a * cx ** 2 + b * cx * cy + c * cy ** 2 - f
-    cu_r = np.array([(a * tc2 + b_tcs + c * ts2), (a * ts2 - b_tcs + c * tc2)])
-    wh = np.sqrt(cu / cu_r)
-    
-    w, h = wh[0], wh[1]
-    
-    error_sum = np.sum(data)
-    # print("fitting error = %.3f" % (error_sum))
-    
-    return (cx, cy, w, h, theta)
-
-
-
-
-
-
-
-
-
-
-
-
-# HSF
+video_path = "ezgif.com-gif-maker.avi"
+imshow_enable = True
 calc_print_enable = True
 save_video = False
-skip_autoradius = True
+skip_autoradius = False
 skip_blink_detect = False
 
 # cache param
 lru_maxsize_vvs = 16
 lru_maxsize_vs = 64
 # CV param
-default_radius = 10
+default_radius = 20
 auto_radius_range = (default_radius - 10, default_radius + 10)  # (10,30)
 blink_init_frames = 60 * 3  # 60fps*3sec,Number of blink statistical frames
 # step==(x,y)
@@ -518,7 +251,7 @@ class HaarSurroundFeature:
     def __init__(self, r_inner, r_outer=None, val=None):
         if r_outer is None:
             r_outer = r_inner * 3
-        
+        print(r_outer)
         r_inner2 = r_inner * r_inner
         count_inner = r_inner2
         count_outer = r_outer * r_outer - r_inner2
@@ -547,6 +280,12 @@ class HaarSurroundFeature:
         kernel[start:end, start:end] = self.val_in
         
         return kernel
+
+
+def to_gray(frame):
+    # Faster by quitting checking if the input image is already grayscale
+    # Perhaps it would be faster with less overhead to call cv2.cvtColor directly instead of using this function
+    return cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
 
 
 @lru_cache(maxsize=lru_maxsize_vs)
@@ -684,7 +423,226 @@ def conv_int(frame_int, kernel, xy_step, padding, xy_steps_list):
 
 # @profile
 
+class 
+
+
+# I'd like to take into account things like print, end_time - start_time processing time, etc., but it's too much trouble.
+
+# For measuring total processing time
+main_start_time = timeit.default_timer()
+
+rng = np.random.default_rng()
+cvparam = CvParameters(default_radius, default_step)
+
+cv_modeo = ["first_frame", "radius_adjust", "init", "normal"]
+now_modeo = cv_modeo[0]
+
+radius_cand_listo = []
+
+# response_min=0
+response_maxo = None
+response_listo = []
+
     
+def HSRAC(self):
+
+
+   ## default_radius = 14
+
+    frame = self.current_image_gray
+    if now_modeo == cv_modeo[1]:
+        prev_res_len = len(response_listo)
+        # adjustment of radius
+        if prev_res_len == 1:
+            # len==1==response_list==[default_radius]
+            cvparam.radius = auto_radius_range[0]
+        elif prev_res_len == 2:
+            # len==2==response_list==[default_radius, auto_radius_range[0]]
+            cvparam.radius = auto_radius_range[1]
+        elif prev_res_len == 3:
+            # len==3==response_list==[default_radius,auto_radius_range[0],auto_radius_range[1]]
+            sort_res = sorted(response_listo, key=lambda x: x[1])[0]
+            # Extract the radius with the lowest response value
+            if sort_res[0] == default_radius:
+                # If the default value is best, change now_mode to init after setting radius to the default value.
+                cvparam.radius = default_radius
+                now_modeo = cv_modeo[2] if not skip_blink_detect else cv_modeo[3]
+                response_listo = []
+            elif sort_res[0] == auto_radius_range[0]:
+                radius_cand_listo = [i for i in range(auto_radius_range[0], default_radius, default_step[0])][1:]
+                # default_step is defined separately for xy, but radius is shared by xy, so it may be buggy
+                # It should be no problem to set it to anything other than default_step
+                cvparam.radius = radius_cand_listo.pop()
+            else:
+                radius_cand_listo = [i for i in range(default_radius, auto_radius_range[1], default_step[0])][1:]
+                # default_step is defined separately for xy, but radius is shared by xy, so it may be buggy
+                # It should be no problem to set it to anything other than default_step
+                cvparam.radius = radius_cand_listo.pop()
+        else:
+            # Try the contents of the radius_cand_list in order until the radius_cand_list runs out
+            # Better make it a binary search.
+            if len(radius_cand_listo) == 0:
+                sort_res = sorted(response_listo, key=lambda x: x[1])[0]
+                cvparam.radius = sort_res[0]
+                now_modeo = cv_modeo[2] if not skip_blink_detect else cv_modeo[3]
+                response_listo = []
+            else:
+                cvparam.radius = radius_cand_listo.pop()
+    
+    radius, pad, step, hsf = cvparam.get_rpsh()
+    
+    # For measuring processing time of image processing
+    cv_start_time = timeit.default_timer()
+    
+    gray_frame = frame
+    timedict["to_gray"].append(timeit.default_timer() - cv_start_time)
+    
+    # Calculate the integral image of the frame
+    int_start_time = timeit.default_timer()
+    # BORDER_CONSTANT is faster than BORDER_REPLICATE There seems to be almost no negative impact when BORDER_CONSTANT is used.
+    frame_pad = cv2.copyMakeBorder(gray_frame, pad, pad, pad, pad, cv2.BORDER_CONSTANT)
+    frame_int = cv2.integral(frame_pad)
+    timedict["int_img"].append(timeit.default_timer() - int_start_time)
+    
+    # Convolve the feature with the integral image
+    conv_int_start_time = timeit.default_timer()
+    xy_step = frameint_get_xy_step(frame_int.shape, step, pad, start_offset=None, end_offset=None)
+    frame_conv, response, center_xy = conv_int(frame_int, hsf, step, pad, xy_step)
+    timedict["conv_int"].append(timeit.default_timer() - conv_int_start_time)
+    
+    crop_start_time = timeit.default_timer()
+    # Define the center point and radius
+    center_x, center_y = center_xy
+    upper_x = center_x + radius
+    lower_x = center_x - radius
+    upper_y = center_y + radius
+    lower_y = center_y - radius
+    
+    # Crop the image using the calculated bounds
+    cropped_image = gray_frame[lower_y:upper_y, lower_x:upper_x]
+    
+    if now_modeo == cv_modeo[0] or now_modeo == cv_modeo[1]:
+        # If mode is first_frame or radius_adjust, record current radius and response
+        response_listo.append((radius, response))
+    elif now_modeo == cv_modeo[2]:
+        # Statistics for blink detection
+        if len(response_listo) < blink_init_frames:
+            # Record the average value of cropped_image
+            response_listo.append(cv2.mean(cropped_image)[0])
+        else:
+            # Calculate response_max by computing interquartile range, IQR
+            # Change cv_mode to normal
+            response_listo = np.array(response_listo)
+            # 25%,75%
+            # This value may need to be adjusted depending on the environment.
+            quartile_1, quartile_3 = np.percentile(response_listo, [25, 75])
+            iqr = quartile_3 - quartile_1
+            # response_min = quartile_1 - (iqr * 1.5)
+            response_maxo = quartile_3 + (iqr * 1.5)
+            now_modeo = cv_modeo[3]
+    else:
+        if 0 in cropped_image.shape:
+            # If shape contains 0, it is not detected well.
+            print("Something's wrong.")
+        else:
+            # If the average value of cropped_image is greater than response_max
+            # (i.e., if the cropimage is whitish
+            if response_maxo is not None and cv2.mean(cropped_image)[0] > response_maxo:
+                # blink
+                pass
+               # if imshow_enable or save_video:
+                #    cv2.circle(frame, (center_x, center_y), 10, (0, 0, 255), -1)
+    # If you want to update response_max. it may be more cost-effective to rewrite response_list in the following way
+    # https://stackoverflow.com/questions/42771110/fastest-way-to-left-cycle-a-numpy-array-like-pop-push-for-a-queue
+    
+    cv_end_time = timeit.default_timer()
+    timedict["crop"].append(cv_end_time - crop_start_time)
+    timedict["total_cv"].append(cv_end_time - cv_start_time)
+    
+    if calc_print_enable:
+        # the lower the response the better the likelyhood of there being a pupil. you can adujst the radius and steps accordingly
+        print('Kernel response:', response)
+        print('Pixel position:', center_xy)
+    
+    if imshow_enable:
+
+        if now_modeo != cv_modeo[0] and now_modeo != cv_modeo[1]:
+            if 0 in cropped_image.shape:
+                # If shape contains 0, it is not detected well.
+                pass
+            else:
+                cv2.imshow("crop", cropped_image)
+        if cv2.waitKey(1) & 0xFF == ord("q"):
+            pass
+
+    
+    if now_modeo == cv_modeo[0]:
+        # Moving from first_frame to the next mode
+        if skip_autoradius and skip_blink_detect:
+            now_modeo = cv_modeo[3]
+            response_list = []
+        elif skip_autoradius:
+            now_modeo = cv_modeo[2]
+            response_list = []
+        else:
+            now_modeo = cv_modeo[1]
+
+    return center_x, center_y, frame
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+'''
 
 timedict = {"to_gray": [], "int_img": [], "conv_int": [], "crop": [], "total_cv": []}
 # I'd like to take into account things like print, end_time - start_time processing time, etc., but it's too much trouble.
@@ -715,14 +673,17 @@ def HSRAC(self):
     global response_list
     global radius_cand_list
     global response_max
+
     global skip_autoradius
     global default_radius
+
     global prev_rany
     global prev_ranx
     global prev_hsfy
     global prev_hsfx
     skip_autoradius = self.settings.gui_skip_autoradius
     default_radius  = self.settings.gui_HSF_radius
+    thresh_add = self.settings.gui_thresh_add
     frame = self.current_image_gray  
 
     if now_mode == cv_mode[1]:
@@ -851,10 +812,7 @@ def HSRAC(self):
     
    # try:
     kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (3, 3))
-    thresh_add = 10
-    rng = np.random.default_rng()
-    
-    f = False
+
     
     # Convert the image to grayscale, and set up thresholding. Thresholds here are basically a
     # low-pass filter that will set any pixel < the threshold value to 0. Thresholding is user
@@ -955,20 +913,21 @@ def HSRAC(self):
         except:
             xoff = prev_hsfx - prev_ranx
             yoff = prev_hsfy - prev_rany
-            return (center_x + xoff), (center_y + yoff), thresh
+            return (xoff), (yoff), thresh
 
     except:
         self.current_image_gray = frame #cv2.resize(frame, (150, 150), interpolation = cv2.INTER_AREA)
-        xoff = prev_hsfx - prev_ranx
-        yoff = prev_hsfy - prev_rany
-        return (center_x + xoff), (center_y + yoff), thresh
+        xoff = prev_hsfx - 28
+        yoff = prev_hsfy - 28
+        print(prev_hsfx, prev_ranx)
+        return (xoff), (yoff), thresh
 
 
 
 
 
 
-'''
+
 
     try:
         self.failed = 0

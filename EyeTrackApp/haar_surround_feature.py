@@ -465,13 +465,29 @@ response_max = None
 response_list = []
 
 def HSF(self):
+    #global now_mode
+    #global response_list
+    #global radius_cand_list
+    #global response_max
+   # default_radius = 15
+    #frame = self.current_image_gray  
 
     global now_mode
     global response_list
     global radius_cand_list
     global response_max
-   # default_radius = 15
-    frame = self.current_image_gray  
+
+    global skip_autoradius
+    global default_radius
+
+    global prev_rany
+    global prev_ranx
+    global prev_hsfy
+    global prev_hsfx
+    skip_autoradius = self.settings.gui_skip_autoradius
+    default_radius  = self.settings.gui_HSF_radius
+
+    frame = self.current_image_gray 
     if now_mode == cv_mode[1]:
         prev_res_len = len(response_list)
         # adjustment of radius
@@ -535,14 +551,13 @@ def HSF(self):
     crop_start_time = timeit.default_timer()
     # Define the center point and radius
     center_x, center_y = center_xy
-    upper_x = center_x + radius
-    lower_x = center_x - radius
-    upper_y = center_y + radius
-    lower_y = center_y - radius
+    upper_x = center_x + 20
+    lower_x = center_x - 20
+    upper_y = center_y + 20
+    lower_y = center_y - 20
     
     # Crop the image using the calculated bounds
     cropped_image = gray_frame[lower_y:upper_y, lower_x:upper_x]
-    
     if now_mode == cv_mode[0] or now_mode == cv_mode[1]:
         # If mode is first_frame or radius_adjust, record current radius and response
         response_list.append((radius, response))
@@ -572,7 +587,7 @@ def HSF(self):
             if response_max is not None and cv2.mean(cropped_image)[0] > response_max:
                 # blink
                 cv2.circle(frame, (center_x, center_y), 10, (0, 0, 255), -1)
-                
+             
     # If you want to update response_max. it may be more cost-effective to rewrite response_list in the following way
     # https://stackoverflow.com/questions/42771110/fastest-way-to-left-cycle-a-numpy-array-like-pop-push-for-a-queue
     
@@ -598,6 +613,7 @@ def HSF(self):
 
     try:
         self.failed = 0
+        cv2.circle(frame, (center_x, center_y), 10, (0, 0, 255), -1) 
         return center_x, center_y, frame
         
     except:     

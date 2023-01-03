@@ -46,6 +46,7 @@ class EyeTrackSettingsConfig(BaseModel):
     gui_HSFP: int = 3
     gui_BLOBP: int = 4
     gui_skip_autoradius: bool = True
+    gui_thresh_add: int = 20
 
 class EyeTrackConfig(BaseModel):
     version: int = 1

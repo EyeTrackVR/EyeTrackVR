@@ -37,7 +37,7 @@ class SettingsWidget:
         self.gui_RANSAC3DP = f"-RANSAC3DP{widget_id}-"
         self.gui_HSFP = f"-HSFP{widget_id}-"
         self.gui_BLOBP = f"-BLOBP{widget_id}-"
-
+        self.gui_thresh_add = f"-THRESHADD{widget_id}-"
 
         self.gui_threshold_slider = f"-BLOBTHRESHOLD{widget_id}-"
         self.main_config = main_config
@@ -193,6 +193,16 @@ class SettingsWidget:
                     key=self.gui_HSF_radius,
                     background_color='#424042',
                     tooltip = "Adjusts the radius paramater for HSF. Only adjust if you are having tracking issues.",
+                ),
+            ],
+            [sg.Text("RANSAC Thresh Add", background_color='#424042'),
+                sg.Slider(
+                    range=(1, 50),
+                    default_value=self.config.gui_thresh_add,
+                    orientation="h",
+                    key=self.gui_thresh_add,
+                    background_color='#424042',
+                    tooltip = "Adjusts the ammount of threshold to add to RANSAC. Usefull for fine tuning your setup.",
                 ),
             ],
             [
@@ -435,6 +445,10 @@ class SettingsWidget:
             self.config.gui_threshold = int(values[self.gui_threshold_slider])
             changed = True
 
+        if self.config.gui_thresh_add != values[self.gui_thresh_add]:
+            self.config.gui_thresh_add = int(values[self.gui_thresh_add])
+            changed = True
+            
         if self.config.gui_eye_falloff != values[self.gui_eye_falloff]:
             self.config.gui_eye_falloff = values[self.gui_eye_falloff]
             changed = True
