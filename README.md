@@ -3,8 +3,6 @@ Picture courtesy of Wackalope#6737
 
 [![GitHub issues](https://img.shields.io/github/issues/RedHawk989/EyeTrackVR?style=plastic)](https://github.com/RedHawk989/EyeTrackVR/issues) [![GitHub forks](https://img.shields.io/github/forks/RedHawk989/EyeTrackVR?style=plastic)](https://github.com/RedHawk989/EyeTrackVR/network) [![GitHub stars](https://img.shields.io/github/stars/RedHawk989/EyeTrackVR?style=plastic)](https://github.com/RedHawk989/EyeTrackVR/stargazers)
 
-[![Project Card](https://project-card-app.herokuapp.com/project_card/RedHawk989/EyeTrackVR)](https://github.com/RedHawk989/EyeTrackVR)
-
 - [EyeTrackVR](#eyetrackvr)
       - [This project is in development and is not fully finished](#this-project-is-in-development-and-is-not-fully-finished)
   - [Hardware](#hardware)
