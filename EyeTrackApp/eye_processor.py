@@ -239,7 +239,7 @@ class EyeProcessor:
   
 
     def HSRACM(self):
-        cx, cy, thresh = HSRAC(self)
+        cx, cy, thresh = External_Run.HSRACE(self)
         if self.prev_x == None:
             self.prev_x = cx
             self.prev_y = cy
