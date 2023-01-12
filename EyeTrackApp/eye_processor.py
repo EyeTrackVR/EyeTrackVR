@@ -239,7 +239,7 @@ class EyeProcessor:
   
 
     def HSRACM(self):
-        cx, cy, thresh = External_Run.HSRACE(self)
+        cx, cy, thresh = External_Run.HSRACS(self)
         if self.prev_x == None:
             self.prev_x = cx
             self.prev_y = cy
@@ -257,7 +257,7 @@ class EyeProcessor:
       #      print("EYE MOVED TOO FAST")
        #     self.output_images_and_update(thresh, EyeInformation(InformationOrigin.HSRAC, 0, 0, 0, False))
     def HSFM(self):
-        cx, cy, frame = HSF(self)
+        cx, cy, frame = External_Run_HSF.HSFS(self)
         out_x, out_y = cal_osc(self, cx, cy)
         if cx == 0:
             self.output_images_and_update(frame, EyeInformation(InformationOrigin.HSF, out_x, out_y, 0, True)) #update app

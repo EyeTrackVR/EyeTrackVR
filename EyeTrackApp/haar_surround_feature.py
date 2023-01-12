@@ -1,35 +1,5 @@
-'''
-------------------------------------------------------------------------------------------------------                                                                                                    
-                                                                                                    
-                                               ,@@@@@@                                              
-                                            @@@@@@@@@@@            @@@                              
-                                          @@@@@@@@@@@@      @@@@@@@@@@@                             
-                                        @@@@@@@@@@@@@   @@@@@@@@@@@@@@                              
-                                      @@@@@@@/         ,@@@@@@@@@@@@@                               
-                                         /@@@@@@@@@@@@@@@  @@@@@@@@                                 
-                                    @@@@@@@@@@@@@@@@@@@@@@@@ @@@@@                                  
-                                @@@@@@@@                @@@@@                                       
-                              ,@@@                        @@@@&                                     
-                                             @@@@@@.       @@@@                                     
-                                   @@@     @@@@@@@@@/      @@@@@                                    
-                                   ,@@@.     @@@@@@((@     @@@@(                                    
-                                   //@@@        ,,  @@@@  @@@@@                                     
-                                   @@@(                @@@@@@@                                      
-                                   @@@  @          @@@@@@@@#                                        
-                                       @@@@@@@@@@@@@@@@@                                            
-                                      @@@@@@@@@@@@@(     
-
-HSR By: Sean.Denka (Optimization Wizard, Contributor), Summer#2406 (Main Algorithm Engineer)  
-Algorithm App Implimentations By: Prohurtz#0001, qdot (Inital App Creator)
-
-Copyright (c) 2022 EyeTrackVR <3                                
-------------------------------------------------------------------------------------------------------
-'''     
-
-
 import functools
 import math
-import os
 import sys
 import timeit
 from functools import lru_cache
@@ -39,6 +9,8 @@ import numpy as np
 
 # from line_profiler_pycharm import profile
 
+video_path = "ezgif.com-gif-maker.avi"
+imshow_enable = True
 calc_print_enable = True
 save_video = False
 skip_autoradius = False
@@ -50,6 +22,7 @@ lru_maxsize_vs = 64
 # CV param
 default_radius = 20
 auto_radius_range = (default_radius - 10, default_radius + 10)  # (10,30)
+auto_radius_step = 1
 blink_init_frames = 60 * 3  # 60fps*3sec,Number of blink statistical frames
 # step==(x,y)
 default_step = (5, 5)  # bigger the steps,lower the processing time! ofc acc also takes an impact
@@ -86,7 +59,7 @@ def TimeitWrapper(*args, **kwargs):
 class TimeitResult(object):
     """
     from https://github.com/ipython/ipython/blob/339c0d510a1f3cb2158dd8c6e7f4ac89aa4c89d8/IPython/core/magics/execution.py#L55
-    
+
     Object returned by the timeit magic with info about the run.
     Contains the following attributes :
     loops: (int) number of loops done per measurement
@@ -278,7 +251,7 @@ class HaarSurroundFeature:
     def __init__(self, r_inner, r_outer=None, val=None):
         if r_outer is None:
             r_outer = r_inner * 3
-        
+        # print(r_outer)
         r_inner2 = r_inner * r_inner
         count_inner = r_inner2
         count_outer = r_outer * r_outer - r_inner2
@@ -309,10 +282,15 @@ class HaarSurroundFeature:
         return kernel
 
 
+def to_gray(frame):
+    # Faster by quitting checking if the input image is already grayscale
+    # Perhaps it would be faster with less overhead to call cv2.cvtColor directly instead of using this function
+    return cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+
+
 @lru_cache(maxsize=lru_maxsize_vs)
 def frameint_get_xy_step(imageshape, xysteps, pad, start_offset=None, end_offset=None):
     """
-
     :param imageshape: (height(row),width(col)). row==y,cal==x
     :param xysteps: (x,y)
     :param pad: int
@@ -361,7 +339,6 @@ def get_hsf_empty_array(len_syx, frameint_x, frame_int_dtype, fcshape):
 # @profile
 def conv_int(frame_int, kernel, xy_step, padding, xy_steps_list):
     """
-
     :param frame_int:
     :param kernel: hsf
     :param step: (x,y)
@@ -442,183 +419,438 @@ def conv_int(frame_int, kernel, xy_step, padding, xy_steps_list):
     return frame_conv, min_response, center
 
 
-# @profile
-
+class Auto_Radius_Calc(object):
+    def __init__(self):
+        self.response_list = []
+        self.radius_cand_list = []
+        self.adj_comp_flag = False
+        
+        self.radius_middle_index = None
+        
+        self.left_item = None
+        self.right_item = None
+        self.left_index = None
+        self.right_index = None
     
-
-timedict = {"to_gray": [], "int_img": [], "conv_int": [], "crop": [], "total_cv": []}
-# I'd like to take into account things like print, end_time - start_time processing time, etc., but it's too much trouble.
-
-# For measuring total processing time
-main_start_time = timeit.default_timer()
-
-rng = np.random.default_rng()
-cvparam = CvParameters(default_radius, default_step)
-
-cv_mode = ["first_frame", "radius_adjust", "init", "normal"]
-now_mode = cv_mode[0]
-
-radius_cand_list = []
-
-# response_min=0
-response_max = None
-response_list = []
-
-def HSF(self):
-    #global now_mode
-    #global response_list
-    #global radius_cand_list
-    #global response_max
-   # default_radius = 15
-    #frame = self.current_image_gray  
-
-    global now_mode
-    global response_list
-    global radius_cand_list
-    global response_max
-
-    global skip_autoradius
-    global default_radius
-
-    global prev_rany
-    global prev_ranx
-    global prev_hsfy
-    global prev_hsfx
-    skip_autoradius = self.settings.gui_skip_autoradius
-    default_radius  = self.settings.gui_HSF_radius
-
-    frame = self.current_image_gray 
-    if now_mode == cv_mode[1]:
-        prev_res_len = len(response_list)
+    def get_radius(self):
+        prev_res_len = len(self.response_list)
         # adjustment of radius
         if prev_res_len == 1:
             # len==1==response_list==[default_radius]
-            cvparam.radius = auto_radius_range[0]
+            self.adj_comp_flag = False
+            return auto_radius_range[0]
         elif prev_res_len == 2:
             # len==2==response_list==[default_radius, auto_radius_range[0]]
-            cvparam.radius = auto_radius_range[1]
+            self.adj_comp_flag = False
+            return auto_radius_range[1]
         elif prev_res_len == 3:
             # len==3==response_list==[default_radius,auto_radius_range[0],auto_radius_range[1]]
-            sort_res = sorted(response_list, key=lambda x: x[1])[0]
+            if self.response_list[1][1] < self.response_list[2][1]:
+                self.left_item = self.response_list[1]
+                self.right_item = self.response_list[0]
+            else:
+                self.left_item = self.response_list[0]
+                self.right_item = self.response_list[2]
+            self.radius_cand_list = [i for i in range(self.left_item[0], self.right_item[0] + auto_radius_step, auto_radius_step)]
+            self.left_index = 0
+            self.right_index = len(self.radius_cand_list) - 1
+            self.radius_middle_index = (self.left_index + self.right_index) // 2
+            self.adj_comp_flag = False
+            return self.radius_cand_list[self.radius_middle_index]
+        else:
+            if self.left_index <= self.right_index and self.left_index != self.radius_middle_index:
+                if (self.left_item[1] + self.response_list[-1][1]) < (self.right_item[1] + self.response_list[-1][1]):
+                    self.right_item = self.response_list[-1]
+                    self.right_index = self.radius_middle_index - 1
+                    self.radius_middle_index = (self.left_index + self.right_index) // 2
+                    self.adj_comp_flag = False
+                    return self.radius_cand_list[self.radius_middle_index]
+                if (self.left_item[1] + self.response_list[-1][1]) > (self.right_item[1] + self.response_list[-1][1]):
+                    self.left_item = self.response_list[-1]
+                    self.left_index = self.radius_middle_index + 1
+                    self.radius_middle_index = (self.left_index + self.right_index) // 2
+                    self.adj_comp_flag = False
+                    return self.radius_cand_list[self.radius_middle_index]
+            self.adj_comp_flag = True
+            return self.radius_cand_list[self.radius_middle_index]
+    
+    def get_radius_base(self):
+        """
+        Use it when the new version doesn't work well.
+        :return:
+        """
+        
+        prev_res_len = len(self.response_list)
+        # adjustment of radius
+        if prev_res_len == 1:
+            # len==1==response_list==[default_radius]
+            self.adj_comp_flag = False
+            return auto_radius_range[0]
+        elif prev_res_len == 2:
+            # len==2==response_list==[default_radius, auto_radius_range[0]]
+            self.adj_comp_flag = False
+            return auto_radius_range[1]
+        elif prev_res_len == 3:
+            # len==3==response_list==[default_radius,auto_radius_range[0],auto_radius_range[1]]
+            sort_res = sorted(self.response_list, key=lambda x: x[1])[0]
             # Extract the radius with the lowest response value
             if sort_res[0] == default_radius:
                 # If the default value is best, change now_mode to init after setting radius to the default value.
-                cvparam.radius = default_radius
-                now_mode = cv_mode[2] if not skip_blink_detect else cv_mode[3]
-                response_list = []
+                self.adj_comp_flag = True
+                return default_radius
             elif sort_res[0] == auto_radius_range[0]:
-                radius_cand_list = [i for i in range(auto_radius_range[0], default_radius, default_step[0])][1:]
-                # default_step is defined separately for xy, but radius is shared by xy, so it may be buggy
-                # It should be no problem to set it to anything other than default_step
-                cvparam.radius = radius_cand_list.pop()
+                self.radius_cand_list = [i for i in range(auto_radius_range[0], default_radius, auto_radius_step)][1:]
+                self.adj_comp_flag = False
+                return self.radius_cand_list.pop()
             else:
-                radius_cand_list = [i for i in range(default_radius, auto_radius_range[1], default_step[0])][1:]
-                # default_step is defined separately for xy, but radius is shared by xy, so it may be buggy
-                # It should be no problem to set it to anything other than default_step
-                cvparam.radius = radius_cand_list.pop()
+                self.radius_cand_list = [i for i in range(default_radius, auto_radius_range[1], auto_radius_step)][1:]
+                self.adj_comp_flag = False
+                return self.radius_cand_list.pop()
         else:
             # Try the contents of the radius_cand_list in order until the radius_cand_list runs out
             # Better make it a binary search.
-            if len(radius_cand_list) == 0:
-                sort_res = sorted(response_list, key=lambda x: x[1])[0]
-                cvparam.radius = sort_res[0]
-                now_mode = cv_mode[2] if not skip_blink_detect else cv_mode[3]
-                response_list = []
+            if len(self.radius_cand_list) == 0:
+                sort_res = sorted(self.response_list, key=lambda x: x[1])[0]
+                self.adj_comp_flag = True
+                return sort_res[0]
             else:
-                cvparam.radius = radius_cand_list.pop()
+                self.adj_comp_flag = False
+                return self.radius_cand_list.pop()
     
-    radius, pad, step, hsf = cvparam.get_rpsh()
-    
-    # For measuring processing time of image processing
-    cv_start_time = timeit.default_timer()
-    
-    gray_frame = frame
-    timedict["to_gray"].append(timeit.default_timer() - cv_start_time)
-    
-    # Calculate the integral image of the frame
-    int_start_time = timeit.default_timer()
-    # BORDER_CONSTANT is faster than BORDER_REPLICATE There seems to be almost no negative impact when BORDER_CONSTANT is used.
-    frame_pad = cv2.copyMakeBorder(gray_frame, pad, pad, pad, pad, cv2.BORDER_CONSTANT)
-    frame_int = cv2.integral(frame_pad)
-    timedict["int_img"].append(timeit.default_timer() - int_start_time)
-    
-    # Convolve the feature with the integral image
-    conv_int_start_time = timeit.default_timer()
-    xy_step = frameint_get_xy_step(frame_int.shape, step, pad, start_offset=None, end_offset=None)
-    frame_conv, response, center_xy = conv_int(frame_int, hsf, step, pad, xy_step)
-    timedict["conv_int"].append(timeit.default_timer() - conv_int_start_time)
-    
-    crop_start_time = timeit.default_timer()
-    # Define the center point and radius
-    center_x, center_y = center_xy
-    upper_x = center_x + 20
-    lower_x = center_x - 20
-    upper_y = center_y + 20
-    lower_y = center_y - 20
-    
-    # Crop the image using the calculated bounds
-    cropped_image = gray_frame[lower_y:upper_y, lower_x:upper_x]
-    if now_mode == cv_mode[0] or now_mode == cv_mode[1]:
-        # If mode is first_frame or radius_adjust, record current radius and response
-        response_list.append((radius, response))
-    elif now_mode == cv_mode[2]:
-        # Statistics for blink detection
-        if len(response_list) < blink_init_frames:
-            # Record the average value of cropped_image
-            response_list.append(cv2.mean(cropped_image)[0])
-        else:
-            # Calculate response_max by computing interquartile range, IQR
-            # Change cv_mode to normal
-            response_list = np.array(response_list)
-            # 25%,75%
-            # This value may need to be adjusted depending on the environment.
-            quartile_1, quartile_3 = np.percentile(response_list, [25, 75])
-            iqr = quartile_3 - quartile_1
-            # response_min = quartile_1 - (iqr * 1.5)
-            response_max = quartile_3 + (iqr * 1.5)
-            now_mode = cv_mode[3]
-    else:
-        if 0 in cropped_image.shape:
-            # If shape contains 0, it is not detected well.
-            print("Something's wrong.")
-        else:
-            # If the average value of cropped_image is greater than response_max
-            # (i.e., if the cropimage is whitish
-            if response_max is not None and cv2.mean(cropped_image)[0] > response_max:
-                # blink
-                cv2.circle(frame, (center_x, center_y), 10, (0, 0, 255), -1)
-             
-    # If you want to update response_max. it may be more cost-effective to rewrite response_list in the following way
-    # https://stackoverflow.com/questions/42771110/fastest-way-to-left-cycle-a-numpy-array-like-pop-push-for-a-queue
-    
-    cv_end_time = timeit.default_timer()
-    timedict["crop"].append(cv_end_time - crop_start_time)
-    timedict["total_cv"].append(cv_end_time - cv_start_time)
-    
-    # the lower the response the better the likelyhood of there being a pupil. you can adujst the radius and steps accordingly
-    print('Kernel response:', response)
-    print('Pixel position:', center_xy)
+    def add_response(self, radius, response):
+        self.response_list.append((radius, response))
+        return None
 
 
-    if now_mode == cv_mode[0]:
-        # Moving from first_frame to the next mode
-        if skip_autoradius and skip_blink_detect:
-            now_mode = cv_mode[3]
-            response_list = []
-        elif skip_autoradius:
-            now_mode = cv_mode[2]
-            response_list = []
-        else:
-            now_mode = cv_mode[1]
-
-    try:
-        self.failed = 0
-        cv2.circle(frame, (center_x, center_y), 10, (0, 0, 255), -1) 
-        return center_x, center_y, frame
+class Blink_Detector(object):
+    def __init__(self):
+        self.response_list = []
+        self.response_max = None
+        self.enable_detect_flg = False
+        self.quartile_1 = None
+    
+    def calc_thresh(self):
+        # Calculate response_max by computing interquartile range, IQR
+        # self.response_listo = np.array(self.response_listo)
+        # 25%,75%
+        # This value may need to be adjusted depending on the environment.
+        # quartile_1, quartile_3 = np.percentile(self.response_listo, [25, 75])
+        # iqr = quartile_3 - quartile_1
+        # self.response_maxo = quartile_3 + (iqr * 1.5)
         
-    except:     
-        self.failed = self.failed + 1
-        return 0, 0, frame
+        # quartile_1, quartile_3 = np.percentile(self.response_list, [25, 75])
+        # or
+        quartile_1, quartile_3 = np.percentile(np.array(self.response_list), [25, 75])
+        self.quartile_1 = quartile_1
+        iqr = quartile_3 - quartile_1
+        # response_min = quartile_1 - (iqr * 1.5)
+        
+        self.response_max = float(quartile_3 + (iqr * 1.5))
+        # or
+        # self.response_max = quartile_3 + (iqr * 1.5)
+        
+        self.enable_detect_flg = True
+        return None
+    
+    def detect(self, now_response):
+        return now_response > self.response_max
+    
+    def add_response(self, response):
+        self.response_list.append(response)
+        return None
+    
+    def response_len(self):
+        return len(self.response_list)
 
 
+class CenterCorrection(object):
+    def __init__(self):
+        # Tunable parameters
+        kernel_size = 7  # 3 or 5 or 7
+        self.hist_thr = float(4)  # 4%
+        self.center_q1_radius = 20
+        
+        self.setup_comp = False
+        self.quartile_1 = None
+        self.radius = None
+        self.frame_shape = None
+        self.frame_mask = None
+        self.frame_bin = None
+        self.frame_final = None
+        self.morph_kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (kernel_size, kernel_size))
+        self.morph_kernel2 = np.ones((3, 3))
+        self.hist_index = np.arange(256)
+        self.hist = np.empty((256, 1))
+        self.hist_norm = np.empty((256, 1))
+    
+    def init_array(self, gray_shape, quartile_1, radius):
+        self.frame_shape = gray_shape
+        self.frame_mask = np.empty(gray_shape, dtype=np.uint8)
+        self.frame_bin = np.empty(gray_shape, dtype=np.uint8)
+        self.frame_final = np.empty(gray_shape, dtype=np.uint8)
+        self.quartile_1 = quartile_1
+        self.radius = radius
+        self.setup_comp = True
+    
+    # def reset_array(self):
+    #     self.frame_mask.fill(0)
+    
+    def correction(self, gray_frame, orig_x, orig_y):
+        center_x, center_y = orig_x, orig_y
+        self.frame_mask.fill(0)
+        
+        cv2.circle(self.frame_mask, center=(center_x, center_y), radius=int(self.radius * 2), color=255, thickness=-1)
+        
+        # bottleneck
+        cv2.calcHist([gray_frame], [0], None, [256], [0, 256], hist=self.hist)
+        
+        cv2.normalize(self.hist, self.hist_norm, alpha=100.0, norm_type=cv2.NORM_L1)
+        hist_per = self.hist_norm.cumsum()
+        hist_index_list = self.hist_index[hist_per >= self.hist_thr]
+        frame_thr = hist_index_list[0] if len(hist_index_list) else np.percentile(cv2.bitwise_or(255 - self.frame_mask, gray_frame), 4)
+        
+        # bottleneck
+        self.frame_bin = cv2.threshold(gray_frame, frame_thr, 1, cv2.THRESH_BINARY_INV)[1]
+        cropped_x, cropped_y, cropped_w, cropped_h = cv2.boundingRect(self.frame_bin)
+        
+        self.frame_final = cv2.bitwise_and(self.frame_bin, self.frame_mask)
+        
+        # bottleneck
+        self.frame_final = cv2.morphologyEx(self.frame_final, cv2.MORPH_CLOSE, self.morph_kernel)
+        self.frame_final = cv2.morphologyEx(self.frame_final, cv2.MORPH_OPEN, self.morph_kernel)
+        
+        if (cropped_h, cropped_w) == self.frame_shape:
+            # Not detected.
+            base_x, base_y = center_x, center_y
+        else:
+            base_x = cropped_x + cropped_w // 2
+            base_y = cropped_y + cropped_h // 2
+            if self.frame_final[base_y, base_x] != 1:
+                if self.frame_final[center_y, center_x] != 1:
+                    self.frame_final = cv2.morphologyEx(self.frame_final, cv2.MORPH_DILATE, self.morph_kernel2, iterations=3)
+                else:
+                    base_x, base_y = center_x, center_y
+        
+        contours, _ = cv2.findContours(self.frame_final, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE)
+        contours_box = [cv2.boundingRect(cnt) for cnt in contours]
+        contours_dist = np.array(
+            [abs(base_x - (cnt_x + cnt_w / 2)) + abs(base_y - (cnt_y + cnt_h / 2)) for cnt_x, cnt_y, cnt_w, cnt_h in contours_box])
+        
+        if len(contours_box):
+            cropped_x2, cropped_y2, cropped_w2, cropped_h2 = contours_box[contours_dist.argmin()]
+            x = cropped_x2 + cropped_w2 // 2
+            y = cropped_y2 + cropped_h2 // 2
+        else:
+            x = center_x
+            y = center_y
+        
+        # if imshow_enable:
+        #     cv2.circle(frame, (orig_x, orig_y), 10, (255, 0, 0), -1)
+        #     cv2.circle(frame, (x, y), 7, (0, 0, 255), -1)
+        
+        #
+        # out_x = center_x if abs(x - center_x) > radius else x
+        # out_y = center_y if abs(y - center_y) > radius else y
+        out_x, out_y = orig_x, orig_y
+        if gray_frame[int(max(y - 5, 0)):int(min(y + 5, self.frame_shape[0])),
+           int(max(x - 5, 0)):int(min(x + 5, self.frame_shape[1]))].min() < self.quartile_1:
+            out_x = x
+            out_y = y
+        
+        # if imshow_enable:
+        #     cv2.circle(frame, (out_x, out_y), 5, (0, 255, 0), -1)
+        #
+        #     cv2.imshow("frame_bin", self.frame_bin * 255)
+        #     cv2.imshow("frame_final", self.frame_final * 255)
+        return out_x, out_y
 
+
+class HSRAC_cls(object):
+    def __init__(self):
+        # I'd like to take into account things like print, end_time - start_time processing time, etc., but it's too much trouble.
+        
+        # For measuring total processing time
+        
+        self.main_start_time = timeit.default_timer()
+        
+        self.rng = np.random.default_rng()
+        self.cvparam = CvParameters(default_radius, default_step)
+        
+        self.cv_modeo = ["first_frame", "radius_adjust", "blink_adjust", "normal"]
+        self.now_modeo = self.cv_modeo[0]
+        
+        self.auto_radius_calc = Auto_Radius_Calc()
+        self.blink_detector = Blink_Detector()
+        self.center_q1 = Blink_Detector()
+        self.center_correct = CenterCorrection()
+        
+        self.cap = None
+        
+        self.timedict = {"to_gray": [], "int_img": [], "conv_int": [], "crop": [], "total_cv": []}
+    
+    def open_video(self, video_path):
+        # Temporary implementation to run
+        cap = cv2.VideoCapture(video_path)
+        if not cap.isOpened():
+            raise IOError("Error opening video stream or file")
+        self.cap = cap
+        return True
+    
+    def read_frame(self):
+        # Temporary implementation to run
+        if not self.cap.isOpened():
+            return False
+        ret, frame = self.cap.read()
+        if ret:
+            # I have set it to grayscale (1ch) just in case, but if the frame is 1ch, this line can be commented out.
+            self.current_image_gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+            return True
+        return False
+    
+    def single_run(self):
+        # Temporary implementation to run
+        
+        ## default_radius = 14
+        
+        frame = self.current_image_gray
+        if self.now_modeo == self.cv_modeo[1]:
+            # adjustment of radius
+            
+            # debug print
+            # if calc_print_enable:
+            #     temp_radius = self.auto_radius_calc.get_radius()
+            #     print('Now radius:', temp_radius)
+            #     self.cvparam.radius = temp_radius
+            
+            self.cvparam.radius = self.auto_radius_calc.get_radius()
+            if self.auto_radius_calc.adj_comp_flag:
+                self.now_modeo = self.cv_modeo[2] if not skip_blink_detect else self.cv_modeo[3]
+        
+        radius, pad, step, hsf = self.cvparam.get_rpsh()
+        
+        # For measuring processing time of image processing
+        cv_start_time = timeit.default_timer()
+        
+        gray_frame = frame
+        self.timedict["to_gray"].append(timeit.default_timer() - cv_start_time)
+        
+        # Calculate the integral image of the frame
+        int_start_time = timeit.default_timer()
+        # BORDER_CONSTANT is faster than BORDER_REPLICATE There seems to be almost no negative impact when BORDER_CONSTANT is used.
+        frame_pad = cv2.copyMakeBorder(gray_frame, pad, pad, pad, pad, cv2.BORDER_CONSTANT)
+        frame_int = cv2.integral(frame_pad)
+        self.timedict["int_img"].append(timeit.default_timer() - int_start_time)
+        
+        # Convolve the feature with the integral image
+        conv_int_start_time = timeit.default_timer()
+        xy_step = frameint_get_xy_step(frame_int.shape, step, pad, start_offset=None, end_offset=None)
+        frame_conv, response, center_xy = conv_int(frame_int, hsf, step, pad, xy_step)
+        self.timedict["conv_int"].append(timeit.default_timer() - conv_int_start_time)
+        
+        crop_start_time = timeit.default_timer()
+        # Define the center point and radius
+        center_x, center_y = center_xy
+        upper_x = center_x + radius
+        lower_x = center_x - radius
+        upper_y = center_y + radius
+        lower_y = center_y - radius
+        
+        # Crop the image using the calculated bounds
+        cropped_image = gray_frame[lower_y:upper_y, lower_x:upper_x]
+        
+        if self.now_modeo == self.cv_modeo[0] or self.now_modeo == self.cv_modeo[1]:
+            # If mode is first_frame or radius_adjust, record current radius and response
+            self.auto_radius_calc.add_response(radius, response)
+        elif self.now_modeo == self.cv_modeo[2]:
+            # Statistics for blink detection
+            if self.blink_detector.response_len() < blink_init_frames:
+                self.blink_detector.add_response(cv2.mean(cropped_image)[0])
+                
+                upper_x = center_x + self.center_correct.center_q1_radius
+                lower_x = center_x - self.center_correct.center_q1_radius
+                upper_y = center_y + self.center_correct.center_q1_radius
+                lower_y = center_y - self.center_correct.center_q1_radius
+                self.center_q1.add_response(cv2.mean(gray_frame[lower_y:upper_y, lower_x:upper_x])[0])
+            
+            else:
+                
+                self.blink_detector.calc_thresh()
+                self.center_q1.calc_thresh()
+                self.now_modeo = self.cv_modeo[3]
+        else:
+            if 0 in cropped_image.shape:
+                # If shape contains 0, it is not detected well.
+                print("Something's wrong.")
+            else:
+                orig_x, orig_y = center_x, center_y
+                if self.blink_detector.enable_detect_flg:
+                    # If the average value of cropped_image is greater than response_max
+                    # (i.e., if the cropimage is whitish
+                    if self.blink_detector.detect(cv2.mean(cropped_image)[0]):
+                        # blink
+                        pass
+                    else:
+                       # pass
+                        if not self.center_correct.setup_comp:
+                            self.center_correct.init_array(gray_frame.shape, self.center_q1.quartile_1, radius)
+                        
+                        center_x, center_y = self.center_correct.correction(gray_frame, center_x, center_y)
+                        # Define the center point and radius
+                        center_xy = (center_x, center_y)
+                        upper_x = center_x + radius
+                        lower_x = center_x - radius
+                        upper_y = center_y + radius
+                        lower_y = center_y - radius
+                        # Crop the image using the calculated bounds
+                        cropped_image = gray_frame[lower_y:upper_y, lower_x:upper_x]
+                if imshow_enable or save_video:
+                    cv2.circle(frame, (orig_x, orig_y), 6, (0, 0, 255), -1)
+                    cv2.circle(frame, (center_x, center_y), 3, (255, 0, 0), -1)
+        # If you want to update response_max. it may be more cost-effective to rewrite response_list in the following way
+        # https://stackoverflow.com/questions/42771110/fastest-way-to-left-cycle-a-numpy-array-like-pop-push-for-a-queue
+        
+        cv_end_time = timeit.default_timer()
+        self.timedict["crop"].append(cv_end_time - crop_start_time)
+        self.timedict["total_cv"].append(cv_end_time - cv_start_time)
+        
+        if calc_print_enable:
+            # the lower the response the better the likelyhood of there being a pupil. you can adujst the radius and steps accordingly
+            print('Kernel response:', response)
+            print('Pixel position:', center_xy)
+        
+        if imshow_enable:
+            if self.now_modeo != self.cv_modeo[0] and self.now_modeo != self.cv_modeo[1]:
+                if 0 in cropped_image.shape:
+                    # If shape contains 0, it is not detected well.
+                    pass
+                else:
+                    cv2.imshow("crop", cropped_image)
+                    cv2.imshow("frame", frame)
+            if cv2.waitKey(1) & 0xFF == ord("q"):
+                pass
+        
+        if self.now_modeo == self.cv_modeo[0]:
+            # Moving from first_frame to the next mode
+            if skip_autoradius and skip_blink_detect:
+                self.now_modeo = self.cv_modeo[3]
+            elif skip_autoradius:
+                self.now_modeo = self.cv_modeo[2]
+            else:
+                self.now_modeo = self.cv_modeo[1]
+        
+        return center_x, center_y, frame
+
+class External_Run_HSF:
+
+    hsrac = HSRAC_cls()
+
+    def HSFS(self):
+        External_Run_HSF.hsrac.current_image_gray = self.current_image_gray
+        center_x, center_y, frame = External_Run_HSF.hsrac.single_run()
+        return center_x, center_y, frame
+
+if __name__ == '__main__':
+    hsrac = HSRAC_cls()
+    hsrac.open_video(video_path)
+    while hsrac.read_frame():
+        _ = hsrac.single_run()
