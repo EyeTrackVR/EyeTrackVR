@@ -193,7 +193,9 @@ class EyeProcessor:
             self.image_queue_outgoing.put((image_stack, output_information))
             self.previous_image = self.current_image
             self.previous_rotation = self.config.rotation_angle
-        except:
+        except: # If this fails it likely means that the images are not the same size for some reason.
+            print('[ERROR] Size of frames to display are of unequal sizes.')
+
             pass
     def capture_crop_rotate_image(self):
         # Get our current frame
@@ -239,7 +241,9 @@ class EyeProcessor:
   
 
     def HSRACM(self):
-        cx, cy, thresh = External_Run.HSRACS(self)
+        cx, cy, thresh, gray_frame = External_Run.HSRACS(self)
+        self.current_image_gray = gray_frame
+      #  thresh = gray_frame
         if self.prev_x == None:
             self.prev_x = cx
             self.prev_y = cy

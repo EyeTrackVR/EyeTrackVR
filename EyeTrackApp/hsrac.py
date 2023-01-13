@@ -975,11 +975,16 @@ class HSRAC_cls(object):
             return True
         return False
     
+
     def single_run(self):
         # Temporary implementation to run
         
         ## default_radius = 14
         
+        rng = np.random.default_rng()
+        kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (3, 3))
+
+
         frame = self.current_image_gray
         if self.now_modeo == self.cv_modeo[1]:
             # adjustment of radius
@@ -1000,6 +1005,7 @@ class HSRAC_cls(object):
         cv_start_time = timeit.default_timer()
         
         gray_frame = frame
+
         self.timedict["to_gray"].append(timeit.default_timer() - cv_start_time)
         
         # Calculate the integral image of the frame
@@ -1018,13 +1024,13 @@ class HSRAC_cls(object):
         crop_start_time = timeit.default_timer()
         # Define the center point and radius
         center_x, center_y = center_xy
-        upper_x = center_x + radius
-        lower_x = center_x - radius
-        upper_y = center_y + radius
-        lower_y = center_y - radius
-        
+        upper_x = center_x + 20
+        lower_x = center_x - 20
+        upper_y = center_y + 20
+        lower_y = center_y - 20
         # Crop the image using the calculated bounds
-        cropped_image = gray_frame[lower_y:upper_y, lower_x:upper_x]
+        cropped_image = frame[lower_y:upper_y, lower_x:upper_x]
+      #  frame = cropped_image
         
         if self.now_modeo == self.cv_modeo[0] or self.now_modeo == self.cv_modeo[1]:
             # If mode is first_frame or radius_adjust, record current radius and response
@@ -1065,15 +1071,16 @@ class HSRAC_cls(object):
                         center_x, center_y = self.center_correct.correction(gray_frame, center_x, center_y)
                         # Define the center point and radius
                         center_xy = (center_x, center_y)
-                        upper_x = center_x + radius
-                        lower_x = center_x - radius
-                        upper_y = center_y + radius
-                        lower_y = center_y - radius
+                        upper_x = center_x + 20
+                        lower_x = center_x - 20
+                        upper_y = center_y + 20
+                        lower_y = center_y - 20
                         # Crop the image using the calculated bounds
-                        cropped_image = gray_frame[lower_y:upper_y, lower_x:upper_x]
-                if imshow_enable or save_video:
-                    cv2.circle(frame, (orig_x, orig_y), 6, (0, 255, 255), -1)
-                    cv2.circle(frame, (center_x, center_y), 3, (255, 0, 0), -1)
+                        cropped_image = frame[lower_y:upper_y, lower_x:upper_x]
+                       # frame = cropped_image
+               # if imshow_enable or save_video:
+                #    cv2.circle(frame, (orig_x, orig_y), 6, (0, 255, 255), -1)
+                 #   cv2.circle(frame, (center_x, center_y), 3, (255, 0, 0), -1)
         # If you want to update response_max. it may be more cost-effective to rewrite response_list in the following way
         # https://stackoverflow.com/questions/42771110/fastest-way-to-left-cycle-a-numpy-array-like-pop-push-for-a-queue
         
@@ -1092,7 +1099,9 @@ class HSRAC_cls(object):
                     # If shape contains 0, it is not detected well.
                     pass
                 else:
+                    
                     cv2.imshow("crop", cropped_image)
+                   # cv2.imshow("thresh", thresh)
                     cv2.imshow("frame", frame)
             if cv2.waitKey(1) & 0xFF == ord("q"):
                 pass
@@ -1106,101 +1115,165 @@ class HSRAC_cls(object):
             else:
                 self.now_modeo = self.cv_modeo[1]
         
-#run ransac on the HSF crop\
+
+        #run ransac on the HSF crop\
+        frame = cropped_image
+        
+    # try:
+        kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (3, 3))
+        thresh_add = 10
+        rng = np.random.default_rng()
+        
+        f = False
+        
+        # Convert the image to grayscale, and set up thresholding. Thresholds here are basically a
+        # low-pass filter that will set any pixel < the threshold value to 0. Thresholding is user
+        # configurable in this utility as we're dealing with variable lighting amounts/placement, as
+        # well as camera positioning and lensing. Therefore everyone's cutoff may be different.
+        #
+        # The goal of thresholding settings is to make sure we can ONLY see the pupil. This is why we
+        # crop the image earlier; it gives us less possible dark area to get confused about in the
+        # next step.
+        
+        # For measuring processing time of image processing
+        # Crop first to reduce the amount of data to process.
+
+        #frame = frame[0:len(frame) - 5, :]
+        
+        # To reduce the processing data, first convert to 1-channel and then blur.
+        # The processing results were the same when I swapped the order of blurring and 1-channelization.
         try:
-            kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (3, 3))
-            thresh_add = 10
-            rng = np.random.default_rng()
+            frame = cv2.GaussianBlur(frame, (5, 5), 0)
+        except:
+            pass
 
-            f = False
+        # this will need to be adjusted everytime hardware is changed (brightness of IR, Camera postion, etc)m
+        min_val, max_val, min_loc, max_loc = cv2.minMaxLoc(frame)
+        
+        maxloc0_hf, maxloc1_hf = int(0.5 * max_loc[0]), int(0.5 * max_loc[1])
+        
+        # crop 15% sqare around min_loc
+    # frame = frame[max_loc[1] - maxloc1_hf:max_loc[1] + maxloc1_hf,
+        #               max_loc[0] - maxloc0_hf:max_loc[0] + maxloc0_hf]
+        
+        threshold_value = min_val + thresh_add
+        _, thresh = cv2.threshold(frame, threshold_value, 255, cv2.THRESH_BINARY)
+        try:
+            opening = cv2.morphologyEx(thresh, cv2.MORPH_OPEN, kernel)
+            closing = cv2.morphologyEx(opening, cv2.MORPH_CLOSE, kernel)
+            th_frame = 255 - closing
+        except:
+            # I want to eliminate try here because try tends to be slow in execution.
+            th_frame = 255 - frame
 
-            # Convert the image to grayscale, and set up thresholding. Thresholds here are basically a
-            # low-pass filter that will set any pixel < the threshold value to 0. Thresholding is user
-            # configurable in this utility as we're dealing with variable lighting amounts/placement, as
-            # well as camera positioning and lensing. Therefore everyone's cutoff may be different.
-            #
-            # The goal of thresholding settings is to make sure we can ONLY see the pupil. This is why we
-            # crop the image earlier; it gives us less possible dark area to get confused about in the
-            # next step.
-            frame = cropped_image
-            # For measuring processing time of image processing
-            # Crop first to reduce the amount of data to process.
-            #frame = frame[0:len(frame) - 5, :]
-
-            # To reduce the processing data, first convert to 1-channel and then blur.
-            # The processing results were the same when I swapped the order of blurring and 1-channelization.
-            try:
-                frame = cv2.GaussianBlur(frame, (5, 5), 0)
-            except:
+        
+        contours, _ = cv2.findContours(th_frame, cv2.RETR_TREE, cv2.CHAIN_APPROX_NONE)
+        hull = []
+        # This way is faster than contours[i]
+        # But maybe this one is faster. hull = [cv2.convexHull(cnt, False) for cnt in contours]
+        for cnt in contours:
+            hull.append(cv2.convexHull(cnt, False))
+        if not hull:
+            # If empty, go to next loop
+            pass
+        try:
+            
+            cnt = sorted(hull, key=cv2.contourArea)
+            maxcnt = cnt[-1]
+            # ellipse = cv2.fitEllipse(maxcnt)
+            ransac_data = fit_rotated_ellipse_ransac(maxcnt.reshape(-1, 2), rng)
+            if ransac_data is None:
+                # ransac_data is None==maxcnt.shape[0]<sample_num
+                # go to next loop
+                print("NODATYA")
                 pass
+            
+            crop_start_time = timeit.default_timer()
+            cx, cy, w, h, theta = ransac_data
 
-            # this will need to be adjusted everytime hardware is changed (brightness of IR, Camera postion, etc)m
-            min_val, max_val, min_loc, max_loc = cv2.minMaxLoc(frame)
+            csx = frame.shape[0]
+            csy = frame.shape[1]
 
-            maxloc0_hf, maxloc1_hf = int(0.5 * max_loc[0]), int(0.5 * max_loc[1])
+            cx = center_x - (csx - cx) # we find the difference between the crop size and ransac point, and subtract from the center point from HSF
+            cy = center_y - (csy - cy)
 
-            # crop 15% sqare around min_loc
-        # frame = frame[max_loc[1] - maxloc1_hf:max_loc[1] + maxloc1_hf,
-            #               max_loc[0] - maxloc0_hf:max_loc[0] + maxloc0_hf]
+            out_x, out_y = cx, cy
+            prev_hsfx = center_x
+            prev_hsfy = center_y
+            prev_ranx = cx
+            prev_rany = cy
+            cx, cy, w, h = int(cx), int(cy), int(w), int(h)
 
-            threshold_value = min_val + thresh_add
-            _, thresh = cv2.threshold(frame, threshold_value, 255, cv2.THRESH_BINARY)
-            try:
-                opening = cv2.morphologyEx(thresh, cv2.MORPH_OPEN, kernel)
-                closing = cv2.morphologyEx(opening, cv2.MORPH_CLOSE, kernel)
-                th_frame = 255 - closing
-            except:
-                # I want to eliminate try here because try tends to be slow in execution.
-                th_frame = 255 - frame
-
-            detect_start_time = timeit.default_timer()
-            contours, _ = cv2.findContours(th_frame, cv2.RETR_TREE, cv2.CHAIN_APPROX_NONE)
-            hull = []
-            # This way is faster than contours[i]
-            # But maybe this one is faster. hull = [cv2.convexHull(cnt, False) for cnt in contours]
-            for cnt in contours:
-                hull.append(cv2.convexHull(cnt, False))
-            if not hull:
-                # If empty, go to next loop
-                pass
-            try:
-
-                cnt = sorted(hull, key=cv2.contourArea)
-                maxcnt = cnt[-1]
-                # ellipse = cv2.fitEllipse(maxcnt)
-                ransac_data = fit_rotated_ellipse_ransac(maxcnt.reshape(-1, 2), rng)
-                if ransac_data is None:
-                    # ransac_data is None==maxcnt.shape[0]<sample_num
-                    # go to next loop
-                    
-                    pass
-
-                crop_start_time = timeit.default_timer()
-                cx, cy, w, h, theta = ransac_data
-                csx = frame.shape[0]
-                csy = frame.shape[1]
-                cx = center_x - (csx - cx) # we find the difference between the crop size and ransac point, and subtract from the center point from HSF
-                cy = center_y - (csy - cy)
-                out_x, out_y = cx, cy
-                cx, cy, w, h = int(cx), int(cy), int(w), int(h)
-               
-                cv2.drawContours(frame, contours, -1, (255, 0, 0), 1)
-                cv2.circle(frame, (cx, cy), 2, (0, 0, 255), -1)
-                # cx1, cy1, w1, h1, theta1 = fit_rotated_ellipse(maxcnt.reshape(-1, 2))
-                cv2.ellipse(frame, (cx, cy), (w, h), theta * 180.0 / np.pi, 0.0, 360.0, (50, 250, 200), 1, )
-
+            cv2.drawContours(frame, contours, -1, (255, 0, 0), 1)
+            cv2.circle(frame, (cx, cy), 2, (0, 0, 255), -1)
+            # cx1, cy1, w1, h1, theta1 = fit_rotated_ellipse(maxcnt.reshape(-1, 2))
+            cv2.ellipse(frame, (cx, cy), (w, h), theta * 180.0 / np.pi, 0.0, 360.0, (50, 250, 200), 1, )
+            cv2.circle(frame, min_loc, 2, (0, 0, 255),-1)  # the point of the darkest area in the image
+            self.current_image_gray = frame
             #img = newImage2[y1:y2, x1:x2]
-            except:
-                pass
+            #except:
 
+            # print('R F')
+            #  pass
+        
+            print(thresh.shape, cropped_image.shape)
             try:
             #  print(radius)
-                return out_x, out_y, thresh
-
+                return out_x, out_y, thresh, cropped_image
+                
             except:
-                return 0, 0, thresh
+               # xoff = prev_hsfx - prev_ranx
+                #yoff = prev_hsfy - prev_rany
+                return center_x, center_y, thresh, cropped_image
+
         except:
-            return center_x, center_y, frame
+
+            return center_x, center_y, thresh, cropped_image
+
+        
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+        thresh = cropped_image
+
+       # frame = cv2.resize(frame, (300, 300))
+       #z print(frame)
+        return center_x, center_y, thresh, cropped_image
 
 
 
@@ -1213,8 +1286,8 @@ class External_Run:
 
     def HSRACS(self):
         External_Run.hsrac.current_image_gray = self.current_image_gray
-        center_x, center_y, frame = External_Run.hsrac.single_run()
-        return center_x, center_y, frame
+        center_x, center_y, thresh, frame = External_Run.hsrac.single_run()
+        return center_x, center_y, thresh, frame
 
 if __name__ == '__main__':
     hsrac = HSRAC_cls()
