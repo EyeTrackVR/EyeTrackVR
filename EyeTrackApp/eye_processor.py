@@ -238,10 +238,12 @@ class EyeProcessor:
         except:
             pass
 
+    def BLINKM(self):
+        self.blinkvalue = BLINK(self)
   
 
     def HSRACM(self):
-        cx, cy, thresh, gray_frame = External_Run.HSRACS(self)
+        cx, cy, thresh, gray_frame, self.blinkvalue = External_Run.HSRACS(self)
         self.current_image_gray = gray_frame
       #  thresh = gray_frame
         if self.prev_x == None:
@@ -251,12 +253,13 @@ class EyeProcessor:
        # if (cx - self.prev_x) <= 45 and (cy - self.prev_y) <= 45 :
           #  self.prev_x = cx
           #  self.prev_y = cy
+        print(self.blinkvalue)
         out_x, out_y = cal_osc(self, cx, cy)
         if cx == 0:
-            self.output_images_and_update(thresh, EyeInformation(InformationOrigin.HSRAC, out_x, out_y, 0, False)) #update app
+            self.output_images_and_update(thresh, EyeInformation(InformationOrigin.HSRAC, out_x, out_y, 0, self.blinkvalue)) #update app
         else:
-            self.blinkvalue = False
-            self.output_images_and_update(thresh, EyeInformation(InformationOrigin.HSRAC, out_x, out_y, 0, False))
+
+            self.output_images_and_update(thresh, EyeInformation(InformationOrigin.HSRAC, out_x, out_y, 0, self.blinkvalue))
       #  else:
       #      print("EYE MOVED TOO FAST")
        #     self.output_images_and_update(thresh, EyeInformation(InformationOrigin.HSRAC, 0, 0, 0, False))
@@ -438,7 +441,7 @@ class EyeProcessor:
             #self.output_images_and_update(frame, EyeInformation(InformationOrigin.HSF, out_x, out_y, 0, False)) #update app
             
             self.ALGOSELECT() #run our algos in priority order set in settings
-            
+            self.BLINKM()
 
         
 

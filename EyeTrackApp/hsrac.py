@@ -986,6 +986,9 @@ class HSRAC_cls(object):
 
 
         frame = self.current_image_gray
+
+        frame = cv2.copyMakeBorder(frame, 21, 21, 21, 21, cv2.BORDER_CONSTANT, value=[255, 255, 255]) # add a border to prevent overcropping the image.
+    
         if self.now_modeo == self.cv_modeo[1]:
             # adjustment of radius
             
@@ -1063,6 +1066,7 @@ class HSRAC_cls(object):
                     if self.blink_detector.detect(cv2.mean(cropped_image)[0]):
                         # blink
                         pass
+                       # return center_x, center_y, frame, frame, True
                     else:
                         #pass
                         if not self.center_correct.setup_comp:
@@ -1076,7 +1080,7 @@ class HSRAC_cls(object):
                         upper_y = center_y + 20
                         lower_y = center_y - 20
                         # Crop the image using the calculated bounds
-                        cropped_image = frame[lower_y:upper_y, lower_x:upper_x]
+                        cropped_imagecc = frame[lower_y:upper_y, lower_x:upper_x]
                        # frame = cropped_image
                # if imshow_enable or save_video:
                 #    cv2.circle(frame, (orig_x, orig_y), 6, (0, 255, 255), -1)
@@ -1088,10 +1092,10 @@ class HSRAC_cls(object):
         self.timedict["crop"].append(cv_end_time - crop_start_time)
         self.timedict["total_cv"].append(cv_end_time - cv_start_time)
         
-        if calc_print_enable:
+      #  if calc_print_enable:
             # the lower the response the better the likelyhood of there being a pupil. you can adujst the radius and steps accordingly
-            print('Kernel response:', response)
-            print('Pixel position:', center_xy)
+       #     print('Kernel response:', response)
+        #    print('Pixel position:', center_xy)
         
         if imshow_enable:
             if self.now_modeo != self.cv_modeo[0] and self.now_modeo != self.cv_modeo[1]:
@@ -1185,11 +1189,14 @@ class HSRAC_cls(object):
             if ransac_data is None:
                 # ransac_data is None==maxcnt.shape[0]<sample_num
                 # go to next loop
-                print("NODATYA")
                 pass
             
             crop_start_time = timeit.default_timer()
             cx, cy, w, h, theta = ransac_data
+            print(h, w)
+            if w >= 2.1 * h: #new blink detection algo lmao this works pretty good actually
+                print("RAN BLINK")
+                return center_x, center_y, frame, frame, True
 
             csx = frame.shape[0]
             csy = frame.shape[1]
@@ -1216,69 +1223,22 @@ class HSRAC_cls(object):
             # print('R F')
             #  pass
         
-            print(thresh.shape, cropped_image.shape)
+           # print(thresh.shape, cropped_image.shape)
             try:
             #  print(radius)
-                return out_x, out_y, thresh, cropped_image
+                return out_x, out_y, thresh, cropped_image, False
                 
             except:
                # xoff = prev_hsfx - prev_ranx
                 #yoff = prev_hsfy - prev_rany
-                return center_x, center_y, thresh, cropped_image
+                return center_x, center_y, thresh, cropped_image, False
 
         except:
 
-            return center_x, center_y, thresh, cropped_image
+            return center_x, center_y, thresh, cropped_image, False
 
         
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-        thresh = cropped_image
-
-       # frame = cv2.resize(frame, (300, 300))
-       #z print(frame)
-        return center_x, center_y, thresh, cropped_image
-
-
-
-
-      #  return center_x, center_y, frame
 
 class External_Run:
 
@@ -1286,8 +1246,8 @@ class External_Run:
 
     def HSRACS(self):
         External_Run.hsrac.current_image_gray = self.current_image_gray
-        center_x, center_y, thresh, frame = External_Run.hsrac.single_run()
-        return center_x, center_y, thresh, frame
+        center_x, center_y, thresh, frame, blinkv = External_Run.hsrac.single_run()
+        return center_x, center_y, thresh, frame, blinkv
 
 if __name__ == '__main__':
     hsrac = HSRAC_cls()
