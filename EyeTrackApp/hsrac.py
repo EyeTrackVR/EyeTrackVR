@@ -1033,6 +1033,8 @@ class HSRAC_cls(object):
         lower_y = center_y - 20
         # Crop the image using the calculated bounds
         cropped_image = frame[lower_y:upper_y, lower_x:upper_x]
+        intensity = np.sum(cropped_image)
+        print(intensity)
       #  frame = cropped_image
         
         if self.now_modeo == self.cv_modeo[0] or self.now_modeo == self.cv_modeo[1]:
@@ -1080,7 +1082,9 @@ class HSRAC_cls(object):
                         upper_y = center_y + 20
                         lower_y = center_y - 20
                         # Crop the image using the calculated bounds
-                        cropped_imagecc = frame[lower_y:upper_y, lower_x:upper_x]
+                        cropped_image = frame[lower_y:upper_y, lower_x:upper_x]
+                        intensity = np.sum(cropped_image)
+                        print(intensity)
                        # frame = cropped_image
                # if imshow_enable or save_video:
                 #    cv2.circle(frame, (orig_x, orig_y), 6, (0, 255, 255), -1)
