@@ -39,6 +39,7 @@ class SettingsWidget:
         self.gui_BLOBP = f"-BLOBP{widget_id}-"
         self.gui_thresh_add = f"-THRESHADD{widget_id}-"
 
+        self.gui_update_check = f"-UPDATECHECK{widget_id}-"
         self.gui_threshold_slider = f"-BLOBTHRESHOLD{widget_id}-"
         self.main_config = main_config
         self.config = main_config.settings
@@ -88,6 +89,15 @@ class SettingsWidget:
                     tooltip = "Only send a blink to VRC if both eyes are closed.",
                 ),
             ],
+            [sg.Checkbox(
+                    "Check For Updates",
+                    default=self.config.gui_update_check,
+                    key=self.gui_update_check,
+                    background_color='#424042',
+                    tooltip = "Toggle update check on launch.",
+                ),
+            ],
+            
 
             [
                 sg.Text("Tracking Algorithim Settings:", background_color='#242224'),
@@ -420,6 +430,9 @@ class SettingsWidget:
             self.config.gui_skip_autoradius = values[self.gui_skip_autoradius]
             changed = True
         
+        if self.config.gui_update_check != values[self.gui_update_check]:
+            self.config.gui_update_check = values[self.gui_update_check]
+            changed = True
 
         if self.config.gui_BLINK != values[self.gui_BLINK]:
             self.config.gui_BLINK = values[self.gui_BLINK]
