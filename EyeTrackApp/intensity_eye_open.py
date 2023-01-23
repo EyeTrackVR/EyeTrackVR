@@ -5,10 +5,6 @@ from pythonosc import udp_client
  
      
      
-     
-  
-
-
 OSCip="127.0.0.1" 
 OSCport=9000 #VR Chat OSC port
 client = udp_client.SimpleUDPClient(OSCip, OSCport)
@@ -23,35 +19,35 @@ client = udp_client.SimpleUDPClient(OSCip, OSCport)
 fname = "test_list.txt"
 data = pd.read_csv(fname, sep=",")
 
-print (data)
-xy = 69
 
 def intense(x, y, frame):
-    xy = int(str(x) + str(y))
+    xy = int(str(x) + str(y) + str(x+y))
     intensity = np.sum(frame)
     #print(intensity)
-
+    changed = False
     try: #max pupil per cord
         dfb = data[data['xy']==xy].index.values.astype(int)[0] # find pandas index of line with matching xy value
 
         if intensity < data.at[dfb, 'intensity']: #if current intensity value is less (more pupil), save that
             data.at[dfb, 'intensity'] = intensity # set value
-            data.to_csv(fname, encoding='utf-8', index=False) #save file since we made a change
+            changed = True
+
 
     except: # that value is not yet saved
         data.loc[len(data.index)] = [xy, intensity] #create new data on last line of csv with current intesity
-        data.to_csv(fname, encoding='utf-8', index=False) #save file since we made a change
+        changed = True
 
 
     try: # min pupil global
         if intensity > data.at[0, 'intensity']: #if current intensity value is more (less pupil), save that NOTE: we have the 
             data.at[0, 'intensity'] = intensity # set value at 0 index
-            data.to_csv(fname, encoding='utf-8', index=False) #save file since we made a change
+            changed = True
+
             print("new max", intensity)
             
     except: # there is no max intensity yet, create
         data.at[0, 'intensity'] = intensity # set value at 0 index
-        data.to_csv(fname, encoding='utf-8', index=False) #save file since we made a change
+        changed = True
         print("create max", intensity)
 
     try:
@@ -65,7 +61,12 @@ def intense(x, y, frame):
         client.send_message("/avatar/parameters/RightEyeLidExpandedSqueeze", float(eyeopen)) # open r
         client.send_message("/avatar/parameters/LeftEyeLidExpandedSqueeze", float(eyeopen))
     except:
-        print('e')
+        print('[INFO] Something went wrong, assuming blink.')
+        eyeopen = 0.0
+
+    if changed == True:
+        data.to_csv(fname, encoding='utf-8', index=False) #save file since we made a change
+
     #e = data.at[dfb,'intensity'] #find intensity with value
 
 
@@ -77,7 +78,7 @@ def intense(x, y, frame):
 
     #data.loc[len(data.index)] = [xy, intensity] 
 
-    return  
+    return eyeopen
 
 #vid = cv2.VideoCapture("http://192.168.1.43:4747/video")
 #x = int(input("x"))
