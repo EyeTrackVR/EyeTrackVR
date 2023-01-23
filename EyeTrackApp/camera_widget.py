@@ -183,7 +183,7 @@ class CameraWidget:
             event == self.gui_save_tracking_button
             and values[self.gui_camera_addr] != self.config.capture_source
         ):
-            print("[INFO] New value: {}".format(values[self.gui_camera_addr]))
+            print("\033[94m[INFO] New value: {}\033[0m".format(values[self.gui_camera_addr]))
             try:
                 # Try storing ints as ints, for those using wired cameras.
                 self.config.capture_source = int(values[self.gui_camera_addr])
@@ -208,14 +208,14 @@ class CameraWidget:
             self.main_config.save()
 
         if event == self.gui_tracking_button:
-            print("[INFO] Moving to tracking mode")
+            print("\033[94m[INFO] Moving to tracking mode\033[0m")
             self.in_roi_mode = False
             self.camera.set_output_queue(self.capture_queue)
             window[self.gui_roi_layout].update(visible=False)
             window[self.gui_tracking_layout].update(visible=True)
 
         if event == self.gui_roi_button:
-            print("[INFO] Move to roi mode")
+            print("\033[94m[INFO] Move to roi mode\033[0m")
             self.in_roi_mode = True
             self.camera.set_output_queue(self.roi_queue)
             window[self.gui_roi_layout].update(visible=True)
@@ -257,7 +257,7 @@ class CameraWidget:
         elif self.camera.camera_status == CameraState.DISCONNECTED:
             window[self.gui_mode_readout].update("CAMERA DISCONNECTED")
         elif needs_roi_set:
-            window[self.gui_mode_readout].update("Awaiting Eye Cropping Setting")
+            window[self.gui_mode_readout].update("Awaiting Eye Crop")
         elif self.ransac.calibration_frame_counter != None:
             window[self.gui_mode_readout].update("Calibration")
         else:
@@ -301,9 +301,6 @@ class CameraWidget:
 
                 if eye_info.info_type != InformationOrigin.FAILURE and not eye_info.blink:
                     graph.update(background_color="white")
-
-                    #try:
-                 #   print(eye_info.x, eye_info.y)
                     if not np.isnan(eye_info.x) and not np.isnan(eye_info.y):
                         
                         graph.draw_circle(
@@ -313,15 +310,13 @@ class CameraWidget:
                             line_color="white",
                         )
                     else:
-                        
                         graph.draw_circle(
                             (0.0 * -100, 0.0 * -100),
                             25,
                             fill_color="black",
                             line_color="white",
                         )
-                   # except:
-                     #   pass
+
                 elif eye_info.blink:
                     graph.update(background_color="#6f4ca1")
                 elif eye_info.info_type == InformationOrigin.FAILURE:

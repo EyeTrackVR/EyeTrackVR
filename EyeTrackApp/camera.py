@@ -90,9 +90,7 @@ class Camera:
             if should_push:
                 self.push_image_to_queue(image, frame_number, fps)
         except:
-            print(
-                "Capture source problem, assuming camera disconnected, waiting for reconnect."
-            )
+            print("\033[91m[WARN] Capture source problem, assuming camera disconnected, waiting for reconnect...\033[0m")
             self.camera_status = CameraState.DISCONNECTED
             pass
 
@@ -101,8 +99,6 @@ class Camera:
         # some sort of capture event conflict though.
         qsize = self.camera_output_outgoing.qsize()
         if qsize > 1:
-            print(
-                f"CAPTURE QUEUE BACKPRESSURE OF {qsize}. CHECK FOR CRASH OR TIMING ISSUES IN ALGORITHM."
-            )
+            print(f"\033[91mCAPTURE QUEUE BACKPRESSURE OF {qsize}. CHECK FOR CRASH OR TIMING ISSUES IN ALGORITHM.\033[0m")
         self.camera_output_outgoing.put((image, frame_number, fps))
         self.capture_event.clear()

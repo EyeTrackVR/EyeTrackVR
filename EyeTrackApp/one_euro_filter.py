@@ -50,4 +50,4 @@ class OneEuroFilter:
 
                 return x_hat
         except:
-            print("[WARN] One Euro Filter Error. Is your system clock running properly?")
+            print("\033[91m[ERROR] One Euro Filter Error. Is your system clock running properly?\033[0m")

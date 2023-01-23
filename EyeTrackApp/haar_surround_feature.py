@@ -813,10 +813,10 @@ class HSRAC_cls(object):
         self.timedict["crop"].append(cv_end_time - crop_start_time)
         self.timedict["total_cv"].append(cv_end_time - cv_start_time)
         
-        if calc_print_enable:
+       # if calc_print_enable:
             # the lower the response the better the likelyhood of there being a pupil. you can adujst the radius and steps accordingly
-            print('Kernel response:', response)
-            print('Pixel position:', center_xy)
+        #    print('Kernel response:', response)
+         #   print('Pixel position:', center_xy)
         
         if imshow_enable:
             if self.now_modeo != self.cv_modeo[0] and self.now_modeo != self.cv_modeo[1]:

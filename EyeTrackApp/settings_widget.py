@@ -349,9 +349,9 @@ class SettingsWidget:
                     self.config.gui_osc_port = int(values[self.gui_osc_port])
                     changed = True
                 else:
-                    print("[ERROR] OSC port value must be an integer 0-65535")
+                    print("\033[91m[ERROR] OSC port value must be an integer 0-65535\033[0m")
             except:
-                print("[ERROR] OSC port value must be an integer 0-65535")
+                print("\033[91m[ERROR] OSC port value must be an integer 0-65535\033[0m")
 
         if self.config.gui_osc_receiver_port != values[self.gui_osc_receiver_port]:
             try: 
@@ -360,9 +360,9 @@ class SettingsWidget:
                     self.config.gui_osc_receiver_port = int(values[self.gui_osc_receiver_port])
                     changed = True
                 else:
-                    print("[ERROR] OSC receive port value must be an integer 0-65535")
+                    print("\033[91m[ERROR] OSC receive port value must be an integer 0-65535\033[0m")
             except:
-                print("[ERROR] OSC receive port value must be an integer 0-65535")
+                print("\033[91m[ERROR] OSC receive port value must be an integer 0-65535\033[0m")
 
         if self.config.gui_osc_address != values[self.gui_osc_address]:
             self.config.gui_osc_address = values[self.gui_osc_address]

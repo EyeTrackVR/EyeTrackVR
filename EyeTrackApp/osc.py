@@ -163,7 +163,7 @@ class VRChatOSCReceiver:
             print(f"\033[91m[ERROR] OSC Recieve port: {self.config.gui_osc_receiver_port} occupied.\033[0m")
 
     def shutdown(self):
-        print("\033[94m[INFO] Exiting OSC receiver")
+        print("\033[94m[INFO] Exiting OSC receiver\033[0m")
         try:
             self.server.shutdown()
         except:

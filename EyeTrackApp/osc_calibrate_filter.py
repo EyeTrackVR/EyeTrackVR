@@ -38,6 +38,8 @@ def cal_osc(self, cx, cy):
         self.ts = 10
 
     try:
+        out_x = 0.5
+        out_y = 0.5
         xl = float(
             (cx - self.xoff) / (self.xmax - self.xoff)
         )
@@ -51,8 +53,6 @@ def cal_osc(self, cx, cy):
             (cy - self.yoff) / (self.ymax - self.yoff)
         )
 
-        out_x = 0
-        out_y = 0
         if self.settings.gui_flip_y_axis:  # check config on flipped values settings and apply accordingly
             if yd >= 0:
                 out_y = max(0.0, min(1.0, yd))
@@ -76,6 +76,8 @@ def cal_osc(self, cx, cy):
                 out_x = -abs(max(0.0, min(1.0, xl)))
     except:
         print("[ERROR] Eye Calibration Invalid!")
+        out_x = 0.5
+        out_y = 0.5
     try:
         noisy_point = np.array([float(out_x), float(out_y)])  # fliter our values with a One Euro Filter
         point_hat = self.one_euro_filter(noisy_point)

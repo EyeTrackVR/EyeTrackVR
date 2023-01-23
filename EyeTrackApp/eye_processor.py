@@ -57,6 +57,9 @@ from ransac import *
 from hsrac import *
 from blink import *
 
+
+from intensity_eye_open import *
+
 class InformationOrigin(Enum):
     RANSAC = 1
     BLOB = 2
@@ -171,7 +174,7 @@ class EyeProcessor:
             min_cutoff = float(self.settings.gui_min_cutoff)  # 0.0004
             beta = float(self.settings.gui_speed_coefficient)  # 0.9
         except:
-            print('[WARN] OneEuroFilter values must be a legal number.')
+            print('\033[93m[WARN] OneEuroFilter values must be a legal number.\033[0m')
             min_cutoff = 0.0004
             beta = 0.9
         noisy_point = np.array([1, 1])
@@ -194,7 +197,7 @@ class EyeProcessor:
             self.previous_image = self.current_image
             self.previous_rotation = self.config.rotation_angle
         except: # If this fails it likely means that the images are not the same size for some reason.
-            print('[ERROR] Size of frames to display are of unequal sizes.')
+            print('\033[91m[ERROR] Size of frames to display are of unequal sizes.\033[0m')
 
             pass
     def capture_crop_rotate_image(self):
@@ -214,7 +217,7 @@ class EyeProcessor:
         except:
             # Failure to process frame, reuse previous frame.
             self.current_image = self.previous_image
-            print("[ERROR] Frame capture issue detected.")
+            print("\033[91m[ERROR] Frame capture issue detected.\033[0m")
 
         try:
             # Apply rotation to cropped area. For any rotation area outside of the bounds of the image,
@@ -265,6 +268,7 @@ class EyeProcessor:
        #     self.output_images_and_update(thresh, EyeInformation(InformationOrigin.HSRAC, 0, 0, 0, False))
     def HSFM(self):
         cx, cy, frame = External_Run_HSF.HSFS(self)
+        intense(cx, cy, frame)
         out_x, out_y = cal_osc(self, cx, cy)
         if cx == 0:
             self.output_images_and_update(frame, EyeInformation(InformationOrigin.HSF, out_x, out_y, 0, True)) #update app

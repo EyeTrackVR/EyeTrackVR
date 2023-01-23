@@ -19,25 +19,39 @@ xy = 69
 def intense(x, y, frame):
     xy = int(str(x) + str(y))
     intensity = np.sum(frame)
-    print(intensity)
+    #print(intensity)
 
-    try:
+    try: #max pupil per cord
         dfb = data[data['xy']==xy].index.values.astype(int)[0] # find pandas index of line with matching xy value
 
         if intensity < data.at[dfb, 'intensity']: #if current intensity value is less (more pupil), save that
             data.at[dfb, 'intensity'] = intensity # set value
             data.to_csv(fname, encoding='utf-8', index=False) #save file since we made a change
 
-        if intensity > data.at[0, 'intensity']: #if current intensity value is more (less pupil), save that NOTE: we have the 
-            data.at[0, 'intensity'] = intensity # set value
-            data.to_csv(fname, encoding='utf-8', index=False) #save file since we made a change
-            
-
-    #e = data.at[dfb,'intensity'] #find intensity with value
-
     except: # that value is not yet saved
         data.loc[len(data.index)] = [xy, intensity] #create new data on last line of csv with current intesity
         data.to_csv(fname, encoding='utf-8', index=False) #save file since we made a change
+
+
+    try: # min pupil global
+        if intensity > data.at[0, 'intensity']: #if current intensity value is more (less pupil), save that NOTE: we have the 
+            data.at[0, 'intensity'] = intensity # set value at 0 index
+            data.to_csv(fname, encoding='utf-8', index=False) #save file since we made a change
+            print("new max", intensity)
+            
+    except: # there is no max intensity yet, create
+        data.at[0, 'intensity'] = intensity # set value at 0 index
+        data.to_csv(fname, encoding='utf-8', index=False) #save file since we made a change
+        print("create max", intensity)
+
+        maxp = data.at[dfb, 'intensity']
+        minp = data.at[0, 'intensity']
+        eyeopen = (intensity - maxp) / (minp - maxp)
+        print(f"EYEOPEN: {eyeopen}")
+
+    #e = data.at[dfb,'intensity'] #find intensity with value
+
+
 
     #data.at[dfb, 'intensity'] = 4 # set value
 
@@ -48,24 +62,25 @@ def intense(x, y, frame):
 
     return  
 
-vid = cv2.VideoCapture("http://192.168.1.43:4747/video")
-x = int(input("x"))
-y = int(input("y"))
-while(True):
-      
-    ret, frame = vid.read()
-  
-    cv2.imshow('frame', frame)
-    upper_x = x + 20
-    lower_x = x - 20
-    upper_y = y + 20
-    lower_y = y - 20
-    
-    cropped_image = frame[lower_y:upper_y, lower_x:upper_x]
-    intense(x,y, cropped_image)
+#vid = cv2.VideoCapture("http://192.168.1.43:4747/video")
+#x = int(input("x"))
+#y = int(input("y"))
 
-    if cv2.waitKey(1) & 0xFF == ord('q'):
-        break
+#while(True):
+      
+ #   ret, frame = vid.read()
   
-vid.release()
-cv2.destroyAllWindows()
+  #  cv2.imshow('frame', frame)
+   # upper_x = x + 20
+    #lower_x = x - 20
+  #  upper_y = y + 20
+   # lower_y = y - 20
+    
+  #  cropped_image = frame[lower_y:upper_y, lower_x:upper_x]
+   # intense(x,y, cropped_image)
+
+   # if cv2.waitKey(1) & 0xFF == ord('q'):
+    #    break
+  
+#vid.release()
+#cv2.destroyAllWindows()
