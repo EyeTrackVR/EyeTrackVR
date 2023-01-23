@@ -1,7 +1,17 @@
 import pandas as pd
 import numpy as np
 import cv2
+from pythonosc import udp_client
+ 
+     
+     
+     
+  
 
+
+OSCip="127.0.0.1" 
+OSCport=9000 #VR Chat OSC port
+client = udp_client.SimpleUDPClient(OSCip, OSCport)
 #higher intensity means more closed/ more white/less pupil
 
 # HOW THIS WORKS:
@@ -44,11 +54,18 @@ def intense(x, y, frame):
         data.to_csv(fname, encoding='utf-8', index=False) #save file since we made a change
         print("create max", intensity)
 
+    try:
         maxp = data.at[dfb, 'intensity']
         minp = data.at[0, 'intensity']
+        #eyeopen = (intensity - minp) / (maxp - minp)
         eyeopen = (intensity - maxp) / (minp - maxp)
+        eyeopen = 1 - eyeopen
+       # eyeopen = max(0.0, min(1.0, eyeopen))
         print(f"EYEOPEN: {eyeopen}")
-
+        client.send_message("/avatar/parameters/RightEyeLidExpandedSqueeze", float(eyeopen)) # open r
+        client.send_message("/avatar/parameters/LeftEyeLidExpandedSqueeze", float(eyeopen))
+    except:
+        print('e')
     #e = data.at[dfb,'intensity'] #find intensity with value
 
 
