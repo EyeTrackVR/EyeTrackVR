@@ -19,7 +19,7 @@ client = udp_client.SimpleUDPClient(OSCip, OSCport)
 fname = "test_list.txt"
 data = pd.read_csv(fname, sep=",")
 
-fl = []
+#TODO we need more pixel points for smooth operation, lets get this setup in hsrac and add a .25 or .33 range?
 
 def intense(x, y, frame):
     upper_x = x + 25
