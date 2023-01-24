@@ -268,10 +268,10 @@ class EyeProcessor:
        #     self.output_images_and_update(thresh, EyeInformation(InformationOrigin.HSRAC, 0, 0, 0, False))
     def HSFM(self):
         cx, cy, frame = External_Run_HSF.HSFS(self)
-        eyeopen = intense(cx, cy, frame) #not sure if i want this run on every algo or on the system..
+        eyeopen = intense(cx, cy, self.current_image_gray) #not sure if i want this run on every algo or on the system..
         out_x, out_y = cal_osc(self, cx, cy)
         if cx == 0:
-            self.output_images_and_update(frame, EyeInformation(InformationOrigin.HSF, out_x, out_y, 0, True)) #update app
+            self.output_images_and_update(frame, EyeInformation(InformationOrigin.HSF, out_x, out_y, 0, eyeopen)) #update app
         else:
             self.output_images_and_update(frame, EyeInformation(InformationOrigin.HSF, out_x, out_y, 0, eyeopen))
         

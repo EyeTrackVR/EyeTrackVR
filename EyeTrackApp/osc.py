@@ -44,7 +44,7 @@ class VRChatOSC:
                 (eye_id, eye_info) = self.msg_queue.get(block=True, timeout=0.1)
             except:
                 continue
-
+#eye_info.blink
             if not eye_info.blink:
                 if self.config.tracker_single_eye == 1 or self.config.tracker_single_eye == 2:
                     self.client.send_message("/avatar/parameters/LeftEyeX", eye_info.x)  # only one eye is detected or there is an error. Send mirrored data to both eyes.

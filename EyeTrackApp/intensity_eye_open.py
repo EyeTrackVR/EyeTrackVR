@@ -19,8 +19,15 @@ client = udp_client.SimpleUDPClient(OSCip, OSCport)
 fname = "test_list.txt"
 data = pd.read_csv(fname, sep=",")
 
+fl = []
 
 def intense(x, y, frame):
+    upper_x = x + 25
+    lower_x = x - 25
+    upper_y = y + 25
+    lower_y = y - 25
+    frame = frame[lower_y:upper_y, lower_x:upper_x]
+
     xy = int(str(x) + str(y) + str(x+y))
     intensity = np.sum(frame)
     #print(intensity)
@@ -31,6 +38,13 @@ def intense(x, y, frame):
         if intensity < data.at[dfb, 'intensity']: #if current intensity value is less (more pupil), save that
             data.at[dfb, 'intensity'] = intensity # set value
             changed = True
+            print("var adjusted")
+        
+        else: 
+            intensitya = data.at[dfb, 'intensity'] - 3 #if current intensity value is less (more pupil), save that
+            data.at[dfb, 'intensity'] = intensitya # set value
+            changed = True
+          #  print("var inc", intensity, intensitya)
 
 
     except: # that value is not yet saved
@@ -42,8 +56,12 @@ def intense(x, y, frame):
         if intensity > data.at[0, 'intensity']: #if current intensity value is more (less pupil), save that NOTE: we have the 
             data.at[0, 'intensity'] = intensity # set value at 0 index
             changed = True
-
             print("new max", intensity)
+
+        else:
+            intensityd = data.at[0, 'intensity'] - 10 #continuously adjust closed intensity, will be set when user blink, used to allow eyes to close when lighting changes
+            data.at[0, 'intensity'] = intensityd # set value at 0 index
+            changed = True
             
     except: # there is no max intensity yet, create
         data.at[0, 'intensity'] = intensity # set value at 0 index
@@ -56,8 +74,9 @@ def intense(x, y, frame):
         #eyeopen = (intensity - minp) / (maxp - minp)
         eyeopen = (intensity - maxp) / (minp - maxp)
         eyeopen = 1 - eyeopen
+        print(intensity, maxp, minp, x, y)
        # eyeopen = max(0.0, min(1.0, eyeopen))
-        print(f"EYEOPEN: {eyeopen}")
+      #  print(f"EYEOPEN: {eyeopen}")
         client.send_message("/avatar/parameters/RightEyeLidExpandedSqueeze", float(eyeopen)) # open r
         client.send_message("/avatar/parameters/LeftEyeLidExpandedSqueeze", float(eyeopen))
     except:
@@ -67,16 +86,7 @@ def intense(x, y, frame):
     if changed == True:
         data.to_csv(fname, encoding='utf-8', index=False) #save file since we made a change
 
-    #e = data.at[dfb,'intensity'] #find intensity with value
 
-
-
-    #data.at[dfb, 'intensity'] = 4 # set value
-
-    #data.to_csv(fname, encoding='utf-8', index=False) #save file
-
-
-    #data.loc[len(data.index)] = [xy, intensity] 
 
     return eyeopen
 

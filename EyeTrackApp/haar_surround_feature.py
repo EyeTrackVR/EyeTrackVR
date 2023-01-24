@@ -599,7 +599,7 @@ class CenterCorrection(object):
         center_x, center_y = orig_x, orig_y
         self.frame_mask.fill(0)
         
-        cv2.circle(self.frame_mask, center=(center_x, center_y), radius=int(self.radius * 2), color=255, thickness=-1)
+      #  cv2.circle(self.frame_mask, center=(center_x, center_y), radius=int(self.radius * 2), color=255, thickness=-1)
         
         # bottleneck
         cv2.calcHist([gray_frame], [0], None, [256], [0, 256], hist=self.hist)
@@ -803,9 +803,9 @@ class HSRAC_cls(object):
                         lower_y = center_y - radius
                         # Crop the image using the calculated bounds
                         cropped_image = gray_frame[lower_y:upper_y, lower_x:upper_x]
-                if imshow_enable or save_video:
-                    cv2.circle(frame, (orig_x, orig_y), 6, (0, 0, 255), -1)
-                    cv2.circle(frame, (center_x, center_y), 3, (255, 0, 0), -1)
+               # if imshow_enable or save_video:
+                #    cv2.circle(frame, (orig_x, orig_y), 6, (0, 0, 255), -1)
+                 #   cv2.circle(frame, (center_x, center_y), 3, (255, 0, 0), -1)
         # If you want to update response_max. it may be more cost-effective to rewrite response_list in the following way
         # https://stackoverflow.com/questions/42771110/fastest-way-to-left-cycle-a-numpy-array-like-pop-push-for-a-queue
         

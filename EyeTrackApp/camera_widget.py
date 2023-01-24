@@ -299,7 +299,7 @@ class CameraWidget:
                 graph = window[self.gui_output_graph]
                 graph.erase()
 
-                if eye_info.info_type != InformationOrigin.FAILURE and not eye_info.blink:
+                if eye_info.info_type != InformationOrigin.FAILURE: #and not eye_info.blink:
                     graph.update(background_color="white")
                     if not np.isnan(eye_info.x) and not np.isnan(eye_info.y):
                         
@@ -317,8 +317,8 @@ class CameraWidget:
                             line_color="white",
                         )
 
-                elif eye_info.blink:
-                    graph.update(background_color="#6f4ca1")
+               # elif eye_info.blink:
+                #    graph.update(background_color="#6f4ca1")
                 elif eye_info.info_type == InformationOrigin.FAILURE:
                     graph.update(background_color="red")
                 # Relay information to OSC
