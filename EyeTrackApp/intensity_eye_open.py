@@ -28,14 +28,17 @@ except:
 #TODO we need more pixel points for smooth operation, lets get this setup in hsrac
 
 def intense(x, y, frame):
-    upper_x = x + 25
-    lower_x = x - 25
-    upper_y = y + 25
-    lower_y = y - 25
-    frame = frame[lower_y:upper_y, lower_x:upper_x]
+  #  upper_x = x + 25
+   # lower_x = x - 25
+   # upper_y = y + 25
+   # lower_y = y - 25
+   # frame = frame[lower_y:upper_y, lower_x:upper_x]
 
-    xy = int(str(x) + str(y) + str(x+y))
-    intensity = np.sum(frame)
+    try:
+        xy = int(str(int(x)) + str(int(y)) + str(int(x)+int(y)))
+        intensity = np.sum(frame)
+    except:
+        return 0.0 #TODO find how on earth a hyphen gets thrown into this
 
     changed = False
     try: #max pupil per cord
