@@ -276,25 +276,24 @@ class EyeProcessor:
         else:
             self.output_images_and_update(frame, EyeInformation(InformationOrigin.HSF, out_x, out_y, 0, eyeopen))
         
-
     def RANSAC3DM(self):
         cx, cy, thresh = RANSAC3D(self)
+        eyeopen = intense(cx, cy, self.current_image_gray)
         out_x, out_y = cal_osc(self, cx, cy)
         if cx == 0:
-            self.output_images_and_update(thresh, EyeInformation(InformationOrigin.RANSAC, out_x, out_y, 0, True)) #update app
+            self.output_images_and_update(thresh, EyeInformation(InformationOrigin.RANSAC, out_x, out_y, 0, eyeopen)) #update app
         else:
-            self.output_images_and_update(thresh, EyeInformation(InformationOrigin.RANSAC, out_x, out_y, 0, self.blinkvalue))
+            self.output_images_and_update(thresh, EyeInformation(InformationOrigin.RANSAC, out_x, out_y, 0, eyeopen))
         
     def BLOBM(self):
         cx, cy, thresh = BLOB(self)
+        eyeopen = intense(cx, cy, self.current_image_gray)
         out_x, out_y = cal_osc(self, cx, cy)
         if cx == 0:
-            self.output_images_and_update(thresh, EyeInformation(InformationOrigin.HSRAC, out_x, out_y, 0, True)) #update app
+            self.output_images_and_update(thresh, EyeInformation(InformationOrigin.HSRAC, out_x, out_y, 0, eyeopen)) #update app
         else:
-            self.output_images_and_update(thresh, EyeInformation(InformationOrigin.HSRAC, out_x, out_y, 0, self.blinkvalue))
+            self.output_images_and_update(thresh, EyeInformation(InformationOrigin.HSRAC, out_x, out_y, 0, eyeopen))
         
-
-
 
 
     def ALGOSELECT(self): 
