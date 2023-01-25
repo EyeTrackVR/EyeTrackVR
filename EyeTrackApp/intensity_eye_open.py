@@ -10,16 +10,27 @@ OSCport=9000 #VR Chat OSC port
 client = udp_client.SimpleUDPClient(OSCip, OSCport)
 #higher intensity means more closed/ more white/less pupil
 
-# HOW THIS WORKS:
-# Here is my idea: 
+#Hm I need an acronym for this, any ideas?
+#IBO Intensity Based Openess
+
+
+# HOW THIS WORKS: 
 # we get the intensity of pupil area from HSF crop, When the eyelid starts to close, the pupil starts being obstructed by skin which is generally lighter than the pupil. 
 # This causes the intensity to increase. We save all of the darkest intensities of each pupil position to calculate for pupil movement. 
 # ex. when you look up there is less pupil visible, which results in an uncalculated change in intensity even though the eyelid has not moved in a meaningful way. 
 # We compare the darkest intensity of that area, to the lightest (global) intensity to find the appropriate openness state via a float.
-fname = "test_list.txt"
-data = pd.read_csv(fname, sep=",")
 
-#TODO we need more pixel points for smooth operation, lets get this setup in hsrac and add a .25 or .33 range?
+fname = "IBO.csv" #TODO Expose as setting
+
+try:
+    data = pd.read_csv(fname, sep=",")
+except:
+    cf = open(fname, "w")
+    cf.write("xy,intensity")
+    cf.close()
+    data = pd.read_csv(fname, sep=",")
+
+#TODO we need more pixel points for smooth operation, lets get this setup in hsrac
 
 def intense(x, y, frame):
     upper_x = x + 25
@@ -77,7 +88,7 @@ def intense(x, y, frame):
         print(intensity, maxp, minp, x, y)
        # eyeopen = max(0.0, min(1.0, eyeopen))
       #  print(f"EYEOPEN: {eyeopen}")
-        client.send_message("/avatar/parameters/RightEyeLidExpandedSqueeze", float(eyeopen)) # open r
+        client.send_message("/avatar/parameters/RightEyeLidExpandedSqueeze", float(eyeopen)) # open r 
         client.send_message("/avatar/parameters/LeftEyeLidExpandedSqueeze", float(eyeopen))
     except:
         print('[INFO] Something went wrong, assuming blink.')

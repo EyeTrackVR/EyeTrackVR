@@ -248,28 +248,28 @@ class EyeProcessor:
     def HSRACM(self):
         cx, cy, thresh, gray_frame = External_Run_HSRACS.HSRACS(self)
         self.current_image_gray = gray_frame
-        
-      #  thresh = gray_frame
         if self.prev_x == None:
             self.prev_x = cx
             self.prev_y = cy
-        #print(self.prev_x, self.prev_y, cx, cy)
+        #print(self.prev_x, self.prev_y, cx, cy) 
+        # #filter values with too much movement
        # if (cx - self.prev_x) <= 45 and (cy - self.prev_y) <= 45 :
           #  self.prev_x = cx
           #  self.prev_y = cy
-        print(self.blinkvalue)
+        eyeopen = intense(cx, cy, self.current_image_gray)
         out_x, out_y = cal_osc(self, cx, cy)
+
         if cx == 0:
-            self.output_images_and_update(thresh, EyeInformation(InformationOrigin.HSRAC, out_x, out_y, 0, self.blinkvalue)) #update app
+            self.output_images_and_update(thresh, EyeInformation(InformationOrigin.HSRAC, out_x, out_y, 0, eyeopen)) #update app
         else:
 
-            self.output_images_and_update(thresh, EyeInformation(InformationOrigin.HSRAC, out_x, out_y, 0, self.blinkvalue))
+            self.output_images_and_update(thresh, EyeInformation(InformationOrigin.HSRAC, out_x, out_y, 0, eyeopen))
       #  else:
       #      print("EYE MOVED TOO FAST")
        #     self.output_images_and_update(thresh, EyeInformation(InformationOrigin.HSRAC, 0, 0, 0, False))
     def HSFM(self):
         cx, cy, frame = External_Run_HSF.HSFS(self)
-        eyeopen = intense(cx, cy, self.current_image_gray) #not sure if i want this run on every algo or on the system..
+        eyeopen = intense(cx, cy, self.current_image_gray)
         out_x, out_y = cal_osc(self, cx, cy)
         if cx == 0:
             self.output_images_and_update(frame, EyeInformation(InformationOrigin.HSF, out_x, out_y, 0, eyeopen)) #update app

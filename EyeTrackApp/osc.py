@@ -45,7 +45,8 @@ class VRChatOSC:
             except:
                 continue
 #eye_info.blink
-            if not eye_info.blink:
+            print(eye_info.blink)
+            if eye_info.blink > 0.1: #if eye is not "closed" this will need tuning
                 if self.config.tracker_single_eye == 1 or self.config.tracker_single_eye == 2:
                     self.client.send_message("/avatar/parameters/LeftEyeX", eye_info.x)  # only one eye is detected or there is an error. Send mirrored data to both eyes.
                     self.client.send_message("/avatar/parameters/RightEyeX", eye_info.x)
