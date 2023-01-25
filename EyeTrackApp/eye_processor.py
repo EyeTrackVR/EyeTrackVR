@@ -246,8 +246,9 @@ class EyeProcessor:
   
 
     def HSRACM(self):
-        cx, cy, thresh, gray_frame, self.blinkvalue = External_Run.HSRACS(self)
+        cx, cy, thresh, gray_frame = External_Run_HSRACS.HSRACS(self)
         self.current_image_gray = gray_frame
+        
       #  thresh = gray_frame
         if self.prev_x == None:
             self.prev_x = cx
