@@ -13,7 +13,7 @@ Picture courtesy of Wackalope#6737
       - [Contact](#contact)
 - [Licenses](#licenses)
 
-### [Documentation](https://redhawk989.github.io/EyeTrackVR/)
+### [Documentation](https://docs.eyetrackvr.dev/)
 
 # EyeTrackVR
 
@@ -24,7 +24,7 @@ Open source and *affordable* VR eye tracker platform for [VRChat](https://hello.
 
 
 ## Documentation
-Please check out our [documentation site.](https://redhawk989.github.io/EyeTrackVR/)
+Please check out our [documentation site.](https://docs.eyetrackvr.dev/)
 
 
 
