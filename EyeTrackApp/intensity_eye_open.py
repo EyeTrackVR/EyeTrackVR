@@ -6,7 +6,7 @@ from pythonosc import udp_client
 #higher intensity means more closed/ more white/less pupil
 
 #Hm I need an acronym for this, any ideas?
-#IBO Intensity Based Openess
+#IBO Intensity Based Openess 
 
 
 # HOW THIS WORKS: 
@@ -80,8 +80,8 @@ def intense(x, y, frame):
         #eyeopen = (intensity - minp) / (maxp - minp)
         eyeopen = (intensity - maxp) / (minp - maxp)
         eyeopen = 1 - eyeopen
-        print(intensity, maxp, minp, x, y)
-      #  print(f"EYEOPEN: {eyeopen}")
+       # print(intensity, maxp, minp, x, y)
+        print(f"EYEOPEN: {eyeopen}")
 
     except:
         print('[INFO] Something went wrong, assuming blink.')
