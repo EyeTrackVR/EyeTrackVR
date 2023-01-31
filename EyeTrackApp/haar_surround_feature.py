@@ -7,7 +7,7 @@ from functools import lru_cache
 import cv2
 import numpy as np
 
-from EyeTrackApp.img_utils import safe_crop
+from img_utils import safe_crop
 
 # from line_profiler_pycharm import profile
 

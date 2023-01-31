@@ -6,7 +6,7 @@ from functools import lru_cache
 import cv2
 import numpy as np
 
-from EyeTrackApp.haar_surround_feature import (
+from haar_surround_feature import (
     AutoRadiusCalc,
     BlinkDetector,
     CenterCorrection,
@@ -14,8 +14,8 @@ from EyeTrackApp.haar_surround_feature import (
     conv_int,
     frameint_get_xy_step,
 )
-from EyeTrackApp.img_utils import safe_crop
-from EyeTrackApp.utils import clamp
+from img_utils import safe_crop
+from utils import clamp
 
 # from line_profiler_pycharm import profile
 
@@ -496,3 +496,4 @@ if __name__ == "__main__":
     hsrac.open_video(video_path)
     while hsrac.read_frame():
         _ = hsrac.single_run()
+1
