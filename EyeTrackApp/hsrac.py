@@ -669,7 +669,7 @@ class CenterCorrection(object):
 
 
 video_path = "demo2.mp4"
-imshow_enable = False
+imshow_enable = True
 save_video = False
 
 thresh_add = 10
@@ -1089,12 +1089,14 @@ class HSRAC_cls(object):
         #    print('Kernel response:', response)
          #   print('Pixel position:', center_xy)
         
+        
         if imshow_enable:
             if self.now_modeo != self.cv_modeo[0] and self.now_modeo != self.cv_modeo[1]:
                 if 0 in cropped_image.shape:
                     # If shape contains 0, it is not detected well.
                     pass
                 else:
+                    
                     cv2.imshow("crop", cropped_image)
                     cv2.imshow("frame", frame)
             if cv2.waitKey(1) & 0xFF == ord("q"):
@@ -1181,8 +1183,12 @@ class HSRAC_cls(object):
             csx = frame.shape[0]
             csy = frame.shape[1]
 
-            cx = center_x - (csx - cx) # we find the difference between the crop size and ransac point, and subtract from the center point from HSF
-            cy = center_y - (csy - cy)
+            #cx = center_x - (csx - cx) # we find the difference between the crop size and ransac point, and subtract from the center point from HSF
+           # cy = center_y - (csy - cy)
+
+            cx = (cx - 20) + center_x
+            cy = (cy - 20) + center_y
+
 
 
             cv_end_time = timeit.default_timer()
@@ -1196,13 +1202,12 @@ class HSRAC_cls(object):
             pass
         
         
-        
-
       #  print(frame_gray.shape, thresh.shape)
         try:
-            return cx, cy, thresh, frame
+            return cx, cy, thresh, frame, gray_frame
         except:
-            return center_x, center_y, thresh, frame
+            return center_x, center_y, thresh, frame, gray_frame
+
 
 class External_Run_HSRACS:
 
@@ -1210,8 +1215,9 @@ class External_Run_HSRACS:
 
     def HSRACS(self):
         External_Run_HSRACS.hsrac.current_image_gray = self.current_image_gray
-        center_x, center_y, thresh, frame = External_Run_HSRACS.hsrac.single_run()
-        return center_x, center_y, thresh, frame
+        center_x, center_y, thresh, frame, gray_frame = External_Run_HSRACS.hsrac.single_run()
+        return center_x, center_y, thresh, frame, gray_frame
+
 
 if __name__ == '__main__':
     hsrac = HSRAC_cls()

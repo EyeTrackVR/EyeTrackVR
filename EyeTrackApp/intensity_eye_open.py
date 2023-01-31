@@ -1,8 +1,6 @@
 import pandas as pd
 import numpy as np
-import cv2
-from pythonosc import udp_client
- 
+import time
 #higher intensity means more closed/ more white/less pupil
 
 #Hm I need an acronym for this, any ideas?
@@ -16,7 +14,7 @@ from pythonosc import udp_client
 # We compare the darkest intensity of that area, to the lightest (global) intensity to find the appropriate openness state via a float.
 
 fname = "IBO.csv" #TODO Expose as setting
-
+lct = time.time()
 try:
     data = pd.read_csv(fname, sep=",")
 except:
@@ -28,11 +26,12 @@ except:
 #TODO we need more pixel points for smooth operation, lets get this setup in hsrac
 
 def intense(x, y, frame):
-  #  upper_x = x + 25
-   # lower_x = x - 25
-   # upper_y = y + 25
-   # lower_y = y - 25
-   # frame = frame[lower_y:upper_y, lower_x:upper_x]
+    global lct
+    upper_x = int(x) + 25 #TODO make this a setting
+    lower_x = int(x) - 25
+    upper_y = int(y) + 25
+    lower_y = int(y) - 25
+    frame = frame[lower_y:upper_y, lower_x:upper_x]
 
     try:
         xy = int(str(int(x)) + str(int(y)) + str(int(x)+int(y)))
@@ -73,7 +72,6 @@ def intense(x, y, frame):
         data.at[0, 'intensity'] = intensity # set value at 0 index
         changed = True
         print("create max", intensity)
-
     try:
         maxp = data.at[dfb, 'intensity']
         minp = data.at[0, 'intensity']
@@ -82,12 +80,15 @@ def intense(x, y, frame):
         eyeopen = 1 - eyeopen
        # print(intensity, maxp, minp, x, y)
         print(f"EYEOPEN: {eyeopen}")
+        
 
     except:
         print('[INFO] Something went wrong, assuming blink.')
         eyeopen = 0.0
-
-    if changed == True:
+    if changed == True and ((time.time() - lct) > 4): #save every 4 seconds if something changed to save disk usage
         data.to_csv(fname, encoding='utf-8', index=False) #save file since we made a change
+        lct = time.time()
+        print("SAVED")
+
 
     return eyeopen
