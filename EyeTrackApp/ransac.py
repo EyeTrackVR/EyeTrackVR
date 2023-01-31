@@ -19,7 +19,7 @@
                                        @@@@@@@@@@@@@@@@@                                            
                                       @@@@@@@@@@@@@(     
 
-RANSAC 3D By: Summer#2406 (Main Algorithm Engineer), Pupil Labs (pye3d), PallasNeko (Optimization)
+RANSAC 3D By: Summer#2406 (Main Algorithm Engineer), Pupil Labs (pye3d), Sean.Denka (Optimization)
 Algorithm App Implimentations By: Prohurtz#0001, qdot (Inital App Creator)
 
 Copyright (c) 2022 EyeTrackVR <3                                
