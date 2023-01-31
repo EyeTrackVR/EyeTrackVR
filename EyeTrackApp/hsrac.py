@@ -7,6 +7,7 @@ from functools import lru_cache
 import cv2
 import numpy as np
 
+
 # from line_profiler_pycharm import profile
 
 video_path = "ezgif.com-gif-maker.avi"
@@ -1224,3 +1225,4 @@ if __name__ == '__main__':
     hsrac.open_video(video_path)
     while hsrac.read_frame():
         _ = hsrac.single_run()
+
