@@ -1,4 +1,4 @@
-'''
+"""
 ------------------------------------------------------------------------------------------------------                                                                                                    
                                                                                                     
                                                ,@@@@@@                                              
@@ -28,7 +28,7 @@ Additional Contributors: [Assassin], Summer404NotFound, lorow, ZanzyTHEbar
 
 Copyright (c) 2022 EyeTrackVR <3                                
 ------------------------------------------------------------------------------------------------------
-'''
+"""
 
 from operator import truth
 from dataclasses import dataclass
@@ -98,7 +98,7 @@ async def delayed_setting_change(setting, value):
     await asyncio.sleep(5)
     setting = value
     if sys.platform.startswith("win"):
-        PlaySound('Audio/compleated.wav', SND_FILENAME | SND_ASYNC)
+        PlaySound("Audio/compleated.wav", SND_FILENAME | SND_ASYNC)
 
 
 class EyeProcessor:
@@ -150,7 +150,6 @@ class EyeProcessor:
         self.cccs = False
         self.ts = 10
         self.previous_rotation = self.config.rotation_angle
-        self.calibration_frame_counter
         self.camera_model = None
         self.detector_3d = None
         
@@ -175,17 +174,17 @@ class EyeProcessor:
             min_cutoff = float(self.settings.gui_min_cutoff)  # 0.0004
             beta = float(self.settings.gui_speed_coefficient)  # 0.9
         except:
-            print('\033[93m[WARN] OneEuroFilter values must be a legal number.\033[0m')
+            print("\033[93m[WARN] OneEuroFilter values must be a legal number.\033[0m")
             min_cutoff = 0.0004
             beta = 0.9
         noisy_point = np.array([1, 1])
         self.one_euro_filter = OneEuroFilter(
-            noisy_point,
-            min_cutoff=min_cutoff,
-            beta=beta
+            noisy_point, min_cutoff=min_cutoff, beta=beta
         )
     
-    def output_images_and_update(self, threshold_image, output_information: EyeInformation):
+    def output_images_and_update(
+            self, threshold_image, output_information: EyeInformation
+    ):
         try:
             image_stack = np.concatenate(
                 (
@@ -198,7 +197,9 @@ class EyeProcessor:
             self.previous_image = self.current_image
             self.previous_rotation = self.config.rotation_angle
         except:  # If this fails it likely means that the images are not the same size for some reason.
-            print('\033[91m[ERROR] Size of frames to display are of unequal sizes.\033[0m')
+            print(
+                "\033[91m[ERROR] Size of frames to display are of unequal sizes.\033[0m"
+            )
             
             pass
     
@@ -248,9 +249,11 @@ class EyeProcessor:
     
     def HSRACM(self):
         # temporary implementation
-        cx, cy, thresh, gray_frame, uncropframe = External_Run_HSRACS().run(self.current_image_gray)
+        cx, cy, thresh, gray_frame, uncropframe = External_Run_HSRACS().run(
+            self.current_image_gray
+        )
         self.current_image_gray = gray_frame
-        if self.prev_x == None:
+        if self.prev_x is None:
             self.prev_x = cx
             self.prev_y = cy
         # print(self.prev_x, self.prev_y, cx, cy)
@@ -262,10 +265,16 @@ class EyeProcessor:
         out_x, out_y = cal_osc(self, cx, cy)
         
         if cx == 0:
-            self.output_images_and_update(thresh, EyeInformation(InformationOrigin.HSRAC, out_x, out_y, 0, eyeopen))  # update app
+            self.output_images_and_update(
+                thresh,
+                EyeInformation(InformationOrigin.HSRAC, out_x, out_y, 0, eyeopen),
+            )  # update app
         else:
             
-            self.output_images_and_update(thresh, EyeInformation(InformationOrigin.HSRAC, out_x, out_y, 0, eyeopen))
+            self.output_images_and_update(
+                thresh,
+                EyeInformation(InformationOrigin.HSRAC, out_x, out_y, 0, eyeopen),
+            )
     
     #  else:
     #      print("EYE MOVED TOO FAST")
@@ -276,46 +285,64 @@ class EyeProcessor:
         eyeopen = intense(cx, cy, self.current_image_gray)
         out_x, out_y = cal_osc(self, cx, cy)
         if cx == 0:
-            self.output_images_and_update(frame, EyeInformation(InformationOrigin.HSF, out_x, out_y, 0, eyeopen))  # update app
+            self.output_images_and_update(
+                frame, EyeInformation(InformationOrigin.HSF, out_x, out_y, 0, eyeopen)
+            )  # update app
         else:
-            self.output_images_and_update(frame, EyeInformation(InformationOrigin.HSF, out_x, out_y, 0, eyeopen))
+            self.output_images_and_update(
+                frame, EyeInformation(InformationOrigin.HSF, out_x, out_y, 0, eyeopen)
+            )
     
     def RANSAC3DM(self):
         cx, cy, thresh = RANSAC3D(self)
         eyeopen = intense(cx, cy, self.current_image_gray)
         out_x, out_y = cal_osc(self, cx, cy)
         if cx == 0:
-            self.output_images_and_update(thresh, EyeInformation(InformationOrigin.RANSAC, out_x, out_y, 0, eyeopen))  # update app
+            self.output_images_and_update(
+                thresh,
+                EyeInformation(InformationOrigin.RANSAC, out_x, out_y, 0, eyeopen),
+            )  # update app
         else:
-            self.output_images_and_update(thresh, EyeInformation(InformationOrigin.RANSAC, out_x, out_y, 0, eyeopen))
+            self.output_images_and_update(
+                thresh,
+                EyeInformation(InformationOrigin.RANSAC, out_x, out_y, 0, eyeopen),
+            )
     
     def BLOBM(self):
         cx, cy, thresh = BLOB(self)
         eyeopen = intense(cx, cy, self.current_image_gray)
         out_x, out_y = cal_osc(self, cx, cy)
         if cx == 0:
-            self.output_images_and_update(thresh, EyeInformation(InformationOrigin.HSRAC, out_x, out_y, 0, eyeopen))  # update app
+            self.output_images_and_update(
+                thresh,
+                EyeInformation(InformationOrigin.HSRAC, out_x, out_y, 0, eyeopen),
+            )  # update app
         else:
-            self.output_images_and_update(thresh, EyeInformation(InformationOrigin.HSRAC, out_x, out_y, 0, eyeopen))
+            self.output_images_and_update(
+                thresh,
+                EyeInformation(InformationOrigin.HSRAC, out_x, out_y, 0, eyeopen),
+            )
     
     def ALGOSELECT(self):
         
-        if self.failed == 0 and self.firstalgo != None:
+        if self.failed == 0 and self.firstalgo is not None:
             self.firstalgo()
         else:
             self.failed = self.failed + 1
         
-        if self.failed == 1 and self.secondalgo != None:  # send the tracking algos previous fail number, in algo if we pass set to 0, if fail, + 1
+        if (
+                self.failed == 1 and self.secondalgo is not None
+        ):  # send the tracking algos previous fail number, in algo if we pass set to 0, if fail, + 1
             self.secondalgo()
         else:
             self.failed = self.failed + 1
         
-        if self.failed == 2 and self.thirdalgo != None:
+        if self.failed == 2 and self.thirdalgo is not None:
             self.thirdalgo()
         else:
             self.failed = self.failed + 1
         
-        if self.failed == 3 and self.fourthalgo != None:
+        if self.failed == 3 and self.fourthalgo is not None:
             self.fourthalgo()
         else:
             self.failed = 0  # we have reached last possible algo and it is disabled, move to first algo
@@ -328,7 +355,7 @@ class EyeProcessor:
         self.fourthalgo = None
         # set algo priorities
         
-        if self.settings.gui_HSF and self.settings.gui_HSFP == 1:  # I feel like this is super innefficient though it only runs at startup and no solution is coming to me atm
+        if (self.settings.gui_HSF and self.settings.gui_HSFP == 1):  # I feel like this is super innefficient though it only runs at startup and no solution is coming to me atm
             self.firstalgo = self.HSFM
         elif self.settings.gui_HSF and self.settings.gui_HSFP == 2:
             self.secondalgo = self.HSFM
@@ -346,7 +373,7 @@ class EyeProcessor:
         elif self.settings.gui_RANSAC3D and self.settings.gui_RANSAC3DP == 4:
             self.fourthalgo = self.RANSAC3DM
         
-        if self.settings.gui_HSRAC == True and self.settings.gui_HSRACP == 1:
+        if self.settings.gui_HSRAC and self.settings.gui_HSRACP == 1:
             self.firstalgo = self.HSRACM
         elif self.settings.gui_HSRAC and self.settings.gui_HSRACP == 2:
             self.secondalgo = self.HSRACM
@@ -380,12 +407,14 @@ class EyeProcessor:
                 continue
             
             # If our ROI configuration has changed, reset our model and detector
-            if (self.camera_model is None
+            if (
+                    self.camera_model is None
                     or self.detector_3d is None
-                    or self.camera_model.resolution != (
-                            self.config.roi_window_w,
-                            self.config.roi_window_h,
-                    )
+                    or self.camera_model.resolution
+                    != (
+                    self.config.roi_window_w,
+                    self.config.roi_window_h,
+            )
             ):
                 self.camera_model = CameraModel(
                     focal_length=self.config.focal_length,
@@ -414,7 +443,9 @@ class EyeProcessor:
             self.current_image_gray = cv2.cvtColor(
                 self.current_image, cv2.COLOR_BGR2GRAY
             )
-            self.current_image_gray_clean = self.current_image_gray.copy()  # copy this frame to have a clean image for blink algo
+            self.current_image_gray_clean = (
+                self.current_image_gray.copy()
+            )  # copy this frame to have a clean image for blink algo
             # print(self.settings.gui_RANSAC3D)
             
             # BLINK(self)
