@@ -1,11 +1,17 @@
 import pandas as pd
 import numpy as np
 import time
+
+from enum import IntEnum
 #higher intensity means more closed/ more white/less pupil
 
 #Hm I need an acronym for this, any ideas?
 #IBO Intensity Based Openess 
-
+class EyeId(IntEnum):
+    RIGHT = 0
+    LEFT = 1
+    BOTH = 2
+    SETTINGS = 3
 
 # HOW THIS WORKS: 
 # we get the intensity of pupil area from HSF crop, When the eyelid starts to close, the pupil starts being obstructed by skin which is generally lighter than the pupil. 
@@ -13,8 +19,14 @@ import time
 # ex. when you look up there is less pupil visible, which results in an uncalculated change in intensity even though the eyelid has not moved in a meaningful way. 
 # We compare the darkest intensity of that area, to the lightest (global) intensity to find the appropriate openness state via a float.
 
-fname = "IBO.csv" #TODO Expose as setting
+
+if EyeId.RIGHT:
+    fname = "IBO_RIGHT.csv"
+if EyeId.LEFT:
+    fname = "IBO_LEFT.csv"
+
 lct = time.time()
+
 try:
     data = pd.read_csv(fname, sep=",")
 except:
@@ -27,15 +39,18 @@ except:
 
 def intense(x, y, frame):
     global lct
+
     upper_x = int(x) + 25 #TODO make this a setting
     lower_x = int(x) - 25
     upper_y = int(y) + 25
     lower_y = int(y) - 25
     frame = frame[lower_y:upper_y, lower_x:upper_x]
 
+    print(x, y, int(x), int(y), upper_x, upper_y, lower_x, lower_y)
     try:
         xy = int(str(int(x)) + str(int(y)) + str(int(x)+int(y)))
-        intensity = np.sum(frame)
+        intensity = np.sum(frame) #why is this outputting 0s?
+       # print(intensity, upper_x, upper_y, lower_x, lower_y)
     except:
         return 0.0 #TODO find how on earth a hyphen gets thrown into this
 
@@ -78,9 +93,10 @@ def intense(x, y, frame):
         #eyeopen = (intensity - minp) / (maxp - minp)
         eyeopen = (intensity - maxp) / (minp - maxp)
         eyeopen = 1 - eyeopen
+        eyeopen = eyeopen - 0.2
        # print(intensity, maxp, minp, x, y)
-        print(f"EYEOPEN: {eyeopen}")
-        
+      #  print(f"EYEOPEN: {eyeopen}")
+     #   print(int(x), int(y), eyeopen, maxp, minp)
 
     except:
         print('[INFO] Something went wrong, assuming blink.')

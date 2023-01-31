@@ -242,7 +242,7 @@ class EyeProcessor:
             pass
 
     def BLINKM(self):
-        self.blinkvalue = BLINK(self)
+        self.eyeoffx = BLINK(self)
   
 
     def HSRACM(self):
@@ -256,43 +256,43 @@ class EyeProcessor:
        # if (cx - self.prev_x) <= 45 and (cy - self.prev_y) <= 45 :
           #  self.prev_x = cx
           #  self.prev_y = cy
-        eyeopen = intense(cx, cy, uncropframe)
+        self.eyeopen = intense(cx, cy, uncropframe)
         out_x, out_y = cal_osc(self, cx, cy)
 
         if cx == 0:
-            self.output_images_and_update(thresh, EyeInformation(InformationOrigin.HSRAC, out_x, out_y, 0, eyeopen)) #update app
+            self.output_images_and_update(thresh, EyeInformation(InformationOrigin.HSRAC, out_x, out_y, 0, self.eyeopen)) #update app
         else:
 
-            self.output_images_and_update(thresh, EyeInformation(InformationOrigin.HSRAC, out_x, out_y, 0, eyeopen))
+            self.output_images_and_update(thresh, EyeInformation(InformationOrigin.HSRAC, out_x, out_y, 0, self.eyeopen))
       #  else:
       #      print("EYE MOVED TOO FAST")
        #     self.output_images_and_update(thresh, EyeInformation(InformationOrigin.HSRAC, 0, 0, 0, False))
     def HSFM(self):
         cx, cy, frame = External_Run_HSF.HSFS(self)
-        eyeopen = intense(cx, cy, self.current_image_gray)
+        self.eyeopen = intense(cx, cy, self.current_image_gray)
         out_x, out_y = cal_osc(self, cx, cy)
         if cx == 0:
-            self.output_images_and_update(frame, EyeInformation(InformationOrigin.HSF, out_x, out_y, 0, eyeopen)) #update app
+            self.output_images_and_update(frame, EyeInformation(InformationOrigin.HSF, out_x, out_y, 0, self.eyeopen)) #update app
         else:
-            self.output_images_and_update(frame, EyeInformation(InformationOrigin.HSF, out_x, out_y, 0, eyeopen))
+            self.output_images_and_update(frame, EyeInformation(InformationOrigin.HSF, out_x, out_y, 0, self.eyeopen))
         
     def RANSAC3DM(self):
         cx, cy, thresh = RANSAC3D(self)
-        eyeopen = intense(cx, cy, self.current_image_gray)
+        self.eyeopen = intense(cx, cy, self.current_image_gray)
         out_x, out_y = cal_osc(self, cx, cy)
         if cx == 0:
-            self.output_images_and_update(thresh, EyeInformation(InformationOrigin.RANSAC, out_x, out_y, 0, eyeopen)) #update app
+            self.output_images_and_update(thresh, EyeInformation(InformationOrigin.RANSAC, out_x, out_y, 0, self.eyeopen)) #update app
         else:
-            self.output_images_and_update(thresh, EyeInformation(InformationOrigin.RANSAC, out_x, out_y, 0, eyeopen))
+            self.output_images_and_update(thresh, EyeInformation(InformationOrigin.RANSAC, out_x, out_y, 0, self.eyeopen))
         
     def BLOBM(self):
         cx, cy, thresh = BLOB(self)
-        eyeopen = intense(cx, cy, self.current_image_gray)
+        self.eyeopen = intense(cx, cy, self.current_image_gray)
         out_x, out_y = cal_osc(self, cx, cy)
         if cx == 0:
-            self.output_images_and_update(thresh, EyeInformation(InformationOrigin.HSRAC, out_x, out_y, 0, eyeopen)) #update app
+            self.output_images_and_update(thresh, EyeInformation(InformationOrigin.HSRAC, out_x, out_y, 0, self.eyeopen)) #update app
         else:
-            self.output_images_and_update(thresh, EyeInformation(InformationOrigin.HSRAC, out_x, out_y, 0, eyeopen))
+            self.output_images_and_update(thresh, EyeInformation(InformationOrigin.HSRAC, out_x, out_y, 0, self.eyeopen))
         
 
 

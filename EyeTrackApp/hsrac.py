@@ -983,7 +983,7 @@ class HSRAC_cls(object):
         ## default_radius = 14
         
         frame = self.current_image_gray
-        frame = cv2.copyMakeBorder(frame, 21, 21, 21, 21, cv2.BORDER_CONSTANT, value=[255, 255, 255]) # add a border to prevent overcropping the image.
+       # frame = cv2.copyMakeBorder(frame, 21, 21, 21, 21, cv2.BORDER_CONSTANT, value=[255, 255, 255]) # add a border to prevent overcropping the image.
         
         if self.now_modeo == self.cv_modeo[1]:
             # adjustment of radius
@@ -1091,17 +1091,17 @@ class HSRAC_cls(object):
          #   print('Pixel position:', center_xy)
         
         
-        if imshow_enable:
-            if self.now_modeo != self.cv_modeo[0] and self.now_modeo != self.cv_modeo[1]:
-                if 0 in cropped_image.shape:
+    #    if imshow_enable:
+     #       if self.now_modeo != self.cv_modeo[0] and self.now_modeo != self.cv_modeo[1]:
+      #          if 0 in cropped_image.shape:
                     # If shape contains 0, it is not detected well.
-                    pass
-                else:
+       #             pass
+        #        else:
                     
-                    cv2.imshow("crop", cropped_image)
-                    cv2.imshow("frame", frame)
-            if cv2.waitKey(1) & 0xFF == ord("q"):
-                pass
+         #           cv2.imshow("crop", cropped_image)
+          #          cv2.imshow("frame", frame)
+          #  if cv2.waitKey(1) & 0xFF == ord("q"):
+           #     pass
         
         if self.now_modeo == self.cv_modeo[0]:
             # Moving from first_frame to the next mode
@@ -1129,7 +1129,6 @@ class HSRAC_cls(object):
         lower_y = center_y - 20
 
         # Crop the image using the calculated bounds
-       
         frame_gray = frame_gray[lower_y:upper_y, lower_x:upper_x]
         frame = frame_gray
         # this will need to be adjusted everytime hardware is changed (brightness of IR, Camera postion, etc)m
@@ -1176,7 +1175,7 @@ class HSRAC_cls(object):
             
             crop_start_time = timeit.default_timer()
             cx, cy, w, h, theta = ransac_data
-            print(cx, cy)
+          #  print(cx, cy)
             if w >= 2.1 * h: #new blink detection algo lmao this works pretty good actually
                 print("RAN BLINK")
                 #return center_x, center_y, frame, frame, True
