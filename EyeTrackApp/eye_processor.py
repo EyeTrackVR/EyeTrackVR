@@ -19,8 +19,8 @@
                                        @@@@@@@@@@@@@@@@@                                            
                                       @@@@@@@@@@@@@(     
 
-HSR By: Sean.Denka (Optimization Wizard, Contributor), Summer#2406 (Main Algorithm Engineer)  
-RANSAC 3D By: Summer#2406 (Main Algorithm Engineer), Pupil Labs (pye3d), Sean.Denka (Optimization)
+HSR By: PallasNeko (Optimization Wizard, Contributor), Summer#2406 (Main Algorithm Engineer)  
+RANSAC 3D By: Summer#2406 (Main Algorithm Engineer), Pupil Labs (pye3d), PallasNeko (Optimization)
 BLOB By: Prohurtz#0001 (Main App Developer)
 Algorithm App Implimentations By: Prohurtz#0001, qdot (Inital App Creator)
 
@@ -51,10 +51,10 @@ if sys.platform.startswith("win"):
 
 import importlib
 from osc_calibrate_filter import *
-from haar_surround_feature import *
+from haar_surround_feature import External_Run_HSF
 from blob import *
 from ransac import *
-from hsrac import *
+from hsrac import External_Run_HSRACS
 from blink import *
 
 
@@ -147,7 +147,6 @@ class EyeProcessor:
         self.cccs = False
         self.ts = 10
         self.previous_rotation = self.config.rotation_angle
-        self.calibration_frame_counter
         self.camera_model = None
         self.detector_3d = None
 
@@ -246,9 +245,9 @@ class EyeProcessor:
   
 
     def HSRACM(self):
-        cx, cy, thresh, gray_frame, uncropframe = External_Run_HSRACS.HSRACS(self)
+        cx, cy, thresh, gray_frame, uncropframe = External_Run_HSRACS().run(self.current_image_gray)
         self.current_image_gray = gray_frame
-        if self.prev_x == None:
+        if self.prev_x is None:
             self.prev_x = cx
             self.prev_y = cy
         #print(self.prev_x, self.prev_y, cx, cy) 
@@ -268,7 +267,7 @@ class EyeProcessor:
       #      print("EYE MOVED TOO FAST")
        #     self.output_images_and_update(thresh, EyeInformation(InformationOrigin.HSRAC, 0, 0, 0, False))
     def HSFM(self):
-        cx, cy, frame = External_Run_HSF.HSFS(self)
+        cx, cy, frame = External_Run_HSF().run(self.current_image_gray)
         self.eyeopen = intense(cx, cy, self.current_image_gray)
         out_x, out_y = cal_osc(self, cx, cy)
         if cx == 0:
@@ -347,7 +346,7 @@ class EyeProcessor:
         elif self.settings.gui_RANSAC3D and self.settings.gui_RANSAC3DP == 4:
             self.fourthalgo = self.RANSAC3DM
 
-        if self.settings.gui_HSRAC == True and self.settings.gui_HSRACP == 1:
+        if self.settings.gui_HSRAC and self.settings.gui_HSRACP == 1:
             self.firstalgo = self.HSRACM
         elif self.settings.gui_HSRAC and self.settings.gui_HSRACP == 2:
             self.secondalgo = self.HSRACM

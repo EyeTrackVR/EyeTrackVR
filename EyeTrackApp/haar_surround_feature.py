@@ -1,6 +1,3 @@
-import functools
-import math
-import sys
 import timeit
 from functools import lru_cache
 
@@ -720,7 +717,7 @@ class HSF_cls(object):
                             self.center_correct.init_array(
                                 gray_frame.shape, self.center_q1.quartile_1, radius
                             )
-                        elif self.center_correct.frame_shape!=gray_frame.shape:
+                        elif self.center_correct.frame_shape != gray_frame.shape:
                             """The resolution should have changed and the statistics should have changed, so essentially the statistics
                             need to be reworked, but implementation will be postponed as viability is the highest priority. """
                             self.center_correct.init_array(
