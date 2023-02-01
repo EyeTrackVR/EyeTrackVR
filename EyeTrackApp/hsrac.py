@@ -1,7 +1,4 @@
-import math
-import sys
 import timeit
-from functools import lru_cache
 
 import cv2
 import numpy as np
@@ -9,13 +6,12 @@ import numpy as np
 from haar_surround_feature import (
     AutoRadiusCalc,
     BlinkDetector,
-    CenterCorrection,
-    CvParameters,
-    conv_int,
+    CvParameters, conv_int,
     frameint_get_xy_step,
 )
-from img_utils import safe_crop
-from utils import clamp
+from utils.img_utils import safe_crop
+from utils.misc_utils import clamp
+
 
 # from line_profiler_pycharm import profile
 
@@ -190,7 +186,6 @@ class HSRAC_cls(object):
         self.auto_radius_calc = AutoRadiusCalc()
         self.blink_detector = BlinkDetector()
         self.center_q1 = BlinkDetector()
-        self.center_correct = CenterCorrection()
 
         self.cap = None
 
@@ -204,7 +199,10 @@ class HSRAC_cls(object):
 
         # ransac
         self.rng = np.random.default_rng()
-        self.kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (3, 3))
+        
+        # self.kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (3, 3))
+        # or
+        self.kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (3,3))
 
     def open_video(self, video_path):
         # Temporary implementation to run
@@ -221,17 +219,20 @@ class HSRAC_cls(object):
         ret, frame = self.cap.read()
         if ret:
             # I have set it to grayscale (1ch) just in case, but if the frame is 1ch, this line can be commented out.
+            # self.current_image=frame # debug code
             self.current_image_gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
             return True
         return False
 
     def single_run(self):
         # Temporary implementation to run
-
-        ## default_radius = 14
-
+        # default_radius = 14
+        
+        # ori_frame = self.current_image.copy()# debug code
+        # cropbox=[] # debug code
+        
+        blink_bd = False
         frame = self.current_image_gray
-
         if self.now_modeo == self.cv_modeo[1]:
             # adjustment of radius
 
@@ -282,7 +283,9 @@ class HSRAC_cls(object):
 
         # Crop the image using the calculated bounds
         cropped_image = safe_crop(gray_frame, lower_x, lower_y, upper_x, upper_y)
-
+        
+        # cropbox=[clamp(val, 0, gray_frame.shape[i]) for i,val in zip([1,0,1,0],[lower_x,lower_y,upper_x,upper_y])] # debug code
+        
         if self.now_modeo == self.cv_modeo[0] or self.now_modeo == self.cv_modeo[1]:
             # If mode is first_frame or radius_adjust, record current radius and response
             self.auto_radius_calc.add_response(radius, response)
@@ -291,12 +294,12 @@ class HSRAC_cls(object):
             if self.blink_detector.response_len() < blink_init_frames:
                 self.blink_detector.add_response(cv2.mean(cropped_image)[0])
 
-                upper_x = center_x + self.center_correct.center_q1_radius
-                lower_x = center_x - self.center_correct.center_q1_radius
-                upper_y = center_y + self.center_correct.center_q1_radius
-                lower_y = center_y - self.center_correct.center_q1_radius
+                upper_x = center_x + 20
+                lower_x = center_x - 20
+                upper_y = center_y + 20
+                lower_y = center_y - 20
                 self.center_q1.add_response(
-                    cv2.mean(safe_crop(gray_frame, lower_x, lower_y, upper_x, upper_y))[
+                    cv2.mean(safe_crop(gray_frame, lower_x, lower_y, upper_x, upper_y,keepsize=False))[
                         0
                     ]
                 )
@@ -307,7 +310,7 @@ class HSRAC_cls(object):
                 self.center_q1.calc_thresh()
                 self.now_modeo = self.cv_modeo[3]
         else:
-            if 0 in cropped_image.shape:
+            if 0 in cropped_image.shape: # This line may not be needed. The image will be cropped using safecrop.
                 # If shape contains 0, it is not detected well.
                 print("Something's wrong.")
             else:
@@ -317,30 +320,11 @@ class HSRAC_cls(object):
                     # (i.e., if the cropimage is whitish
                     if self.blink_detector.detect(cv2.mean(cropped_image)[0]):
                         # blink
-                        pass
-                    else:
-                        # pass
-                        if not self.center_correct.setup_comp:
-                            self.center_correct.init_array(
-                                gray_frame.shape, self.center_q1.quartile_1, radius
-                            )
-
-                        center_x, center_y = self.center_correct.correction(
-                            gray_frame, center_x, center_y
-                        )
-                        # Define the center point and radius
-                        center_xy = (center_x, center_y)
-                        upper_x = center_x + radius
-                        lower_x = center_x - radius
-                        upper_y = center_y + radius
-                        lower_y = center_y - radius
-                        # Crop the image using the calculated bounds
-                        cropped_image = safe_crop(
-                            gray_frame, lower_x, lower_y, upper_x, upper_y
-                        )
+                        print("BLINK BD")
+                        blink_bd=True
             # if imshow_enable or save_video:
             #    cv2.circle(frame, (orig_x, orig_y), 6, (0, 0, 255), -1)
-            #   cv2.circle(frame, (center_x, center_y), 3, (255, 0, 0), -1)
+            # cv2.circle(ori_frame, (center_x, center_y), 7, (255, 0, 0), -1)
         # If you want to update response_max. it may be more cost-effective to rewrite response_list in the following way
         # https://stackoverflow.com/questions/42771110/fastest-way-to-left-cycle-a-numpy-array-like-pop-push-for-a-queue
 
@@ -362,7 +346,6 @@ class HSRAC_cls(object):
                     # If shape contains 0, it is not detected well.
                     pass
                 else:
-
                     cv2.imshow("crop", cropped_image)
                     cv2.imshow("frame", frame)
             if cv2.waitKey(1) & 0xFF == ord("q"):
@@ -377,8 +360,6 @@ class HSRAC_cls(object):
             else:
                 self.now_modeo = self.cv_modeo[1]
 
-        newFrame2 = frame.copy()
-        # frame = cropped_image
         # For measuring processing time of image processing
         cv_start_time = timeit.default_timer()
         # Crop first to reduce the amount of data to process.
@@ -386,37 +367,56 @@ class HSRAC_cls(object):
         # To reduce the processing data, first convert to 1-channel and then blur.
         # The processing results were the same when I swapped the order of blurring and 1-channelization.
         frame_gray = cv2.GaussianBlur(frame, (5, 5), 0)
-
-        upper_x = center_x + 20
-        lower_x = center_x - 20
-        upper_y = center_y + 20
-        lower_y = center_y - 20
+        hsf_center_x, hsf_center_y = center_x.copy(), center_y.copy()
+        ransac_xy_offset = (hsf_center_x-20, hsf_center_y-20)
+        upper_x = hsf_center_x + 20
+        lower_x = hsf_center_x - 20
+        upper_y = hsf_center_y + 20
+        lower_y = hsf_center_y - 20
 
         # Crop the image using the calculated bounds
 
-        frame_gray = safe_crop(frame_gray, lower_x, lower_y, upper_x, upper_y)
-        frame = frame_gray
+        frame_gray_crop = safe_crop(frame_gray, lower_x, lower_y, upper_x, upper_y)
+        frame = frame_gray_crop
         # this will need to be adjusted everytime hardware is changed (brightness of IR, Camera postion, etc)m
-        min_val, max_val, min_loc, max_loc = cv2.minMaxLoc(frame_gray)
-
-        maxloc0_hf, maxloc1_hf = int(0.5 * max_loc[0]), int(0.5 * max_loc[1])
-
-        # crop 15% sqare around min_loc
-        # frame_gray = frame_gray[max_loc[1] - maxloc1_hf:max_loc[1] + maxloc1_hf,
-        #            max_loc[0] - maxloc0_hf:max_loc[0] + maxloc0_hf]
+        min_val, max_val, min_loc, max_loc = cv2.minMaxLoc(frame_gray_crop)
 
         threshold_value = min_val + thresh_add
-        _, thresh = cv2.threshold(frame_gray, threshold_value, 255, cv2.THRESH_BINARY)
+        _, thresh = cv2.threshold(frame_gray_crop, threshold_value, 255, cv2.THRESH_BINARY)
         # print(thresh.shape, frame_gray.shape)
         try:
+            
             opening = cv2.morphologyEx(thresh, cv2.MORPH_OPEN, self.kernel)
             closing = cv2.morphologyEx(opening, cv2.MORPH_CLOSE, self.kernel)
             th_frame = 255 - closing
         except:
             # I want to eliminate try here because try tends to be slow in execution.
-            th_frame = 255 - frame_gray
+            th_frame = 255 - frame_gray_crop
 
         contours, _ = cv2.findContours(th_frame, cv2.RETR_TREE, cv2.CHAIN_APPROX_NONE)
+        # or
+        # contours, _=cv2.findContours(th_frame, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE)
+        
+        if not blink_bd and self.blink_detector.enable_detect_flg:
+            threshold_value = self.center_q1.quartile_1
+            if threshold_value<min_val + thresh_add:
+                # In most of these cases, the pupil is at the edge of the eye.
+                frame_gray_crop=cv2.threshold(frame_gray_crop,(min_val + thresh_add*4+threshold_value)/2, 255, cv2.THRESH_BINARY)[1]
+
+            else:
+                threshold_value = self.center_q1.quartile_1
+                _, thresh = cv2.threshold(frame_gray_crop, threshold_value, 255, cv2.THRESH_BINARY)
+            try:
+                opening = cv2.morphologyEx(thresh, cv2.MORPH_OPEN, self.kernel)
+                closing = cv2.morphologyEx(opening, cv2.MORPH_CLOSE, self.kernel)
+                th_frame = 255 - closing
+            except:
+                # I want to eliminate try here because try tends to be slow in execution.
+                th_frame = 255 - frame_gray_crop
+
+            contours2, _ = cv2.findContours(th_frame, cv2.RETR_TREE, cv2.CHAIN_APPROX_NONE)
+            contours = (*contours, *contours2)
+        
         hull = []
         # This way is faster than contours[i]
         # But maybe this one is faster. hull = [cv2.convexHull(cnt, False) for cnt in contours]
@@ -446,39 +446,63 @@ class HSRAC_cls(object):
                 print("RAN BLINK")
                 # return center_x, center_y, frame, frame, True
 
-            csy = frame.shape[0]
-            csx = frame.shape[1]
+            # csy = frame.shape[0]
+            # csx = frame.shape[1]
+            csy = gray_frame.shape[0]
+            csx = gray_frame.shape[1]
 
             # cx = center_x - (csx - cx) # we find the difference between the crop size and ransac point, and subtract from the center point from HSF
             # cy = center_y - (csy - cy)
 
-            cx = clamp((cx - 20) + center_x, 0, csx)
-            cy = clamp((cy - 20) + center_y, 0, csy)
+            # cx = clamp((cx - 20) + center_x, 0, csx)
+            # cy = clamp((cy - 20) + center_y, 0, csy)
+            cx = int(clamp(cx + ransac_xy_offset[0], 0, csx))
+            cy = int(clamp(cy + ransac_xy_offset[1], 0, csy))
 
             cv_end_time = timeit.default_timer()
-            if imshow_enable or save_video:
-                cv2.drawContours(frame_gray, contours, -1, (255, 0, 0), 1)
-                cv2.circle(frame_gray, (cx, cy), 2, (0, 0, 255), -1)
-                # cx1, cy1, w1, h1, theta1 = fit_rotated_ellipse(maxcnt.reshape(-1, 2))
-                cv2.ellipse(
-                    frame_gray,
-                    (cx, cy),
-                    (w, h),
-                    theta * 180.0 / np.pi,
-                    0.0,
-                    360.0,
-                    (50, 250, 200),
-                    1,
-                )
+            # if imshow_enable or save_video:
+            #
+            #     cv2.circle(ori_frame, (orig_x, orig_y), 3, (0, 255, 0), -1)
+            #     cv2.drawContours(ori_frame, contours, -1, (255, 0, 0), 1)
+            #     cv2.circle(ori_frame, (cx, cy), 2, (0, 0, 255), -1)
+            #     # cx1, cy1, w1, h1, theta1 = fit_rotated_ellipse(maxcnt.reshape(-1, 2))
+            #     cv2.ellipse(
+            #         ori_frame,
+            #         (cx, cy),
+            #         (int(w), int(h)),
+            #         theta * 180.0 / np.pi,
+            #         0.0,
+            #         360.0,
+            #         (50, 250, 200),
+            #         1,
+            #     )
+            #     cv2.imshow("crop", cropped_image)
+            #     # cv2.imshow("frame", frame)
+            #     cv2.imshow("ori_frame",ori_frame)
+            #     if cv2.waitKey(1) & 0xFF == ord("q"):
+            #         pass
 
-        except:
+        except Exception as e:
+            # print(e)
             pass
 
+        # debug code
+        # try:
+        #     if any([isinstance(val, float) for val in [cx, cy]]):
+        #         print()
+        #     return int(cx), int(cy),cropbox, ori_frame,thresh, frame, gray_frame
+        # except:
+        #     if any([isinstance(val, float) for val in [center_x, center_y]]):
+        #         print()
+        #     return center_x, center_y,cropbox, ori_frame,thresh, frame, gray_frame
         #  print(frame_gray.shape, thresh.shape)
+        
         try:
-            return cx, cy, thresh, frame, gray_frame
+            return int(cx), int(cy), thresh, frame, gray_frame
         except:
-            return center_x, center_y, thresh, frame, gray_frame
+            return int(center_x), int(center_y), thresh, frame, gray_frame
+
+
 
 
 class External_Run_HSRACS(object):
@@ -487,8 +511,12 @@ class External_Run_HSRACS(object):
 
     def run(self, current_image_gray):
         self.algo.current_image_gray = current_image_gray
+        #debug code
+        # center_x, center_y,cropbox,ori_frame, thresh, frame, gray_frame = self.algo.single_run()
+        # return center_x, center_y,cropbox,ori_frame, thresh, frame, gray_frame
         center_x, center_y, thresh, frame, gray_frame = self.algo.single_run()
         return center_x, center_y, thresh, frame, gray_frame
+
 
 
 if __name__ == "__main__":
@@ -496,4 +524,58 @@ if __name__ == "__main__":
     hsrac.open_video(video_path)
     while hsrac.read_frame():
         _ = hsrac.single_run()
-1
+    
+    # hsrac = HSRAC_cls()
+    # hsrac.open_video(video_path)
+    # hsf = HSF_cls()
+    # while hsrac.read_frame():
+    #     hsf.current_image_gray = hsrac.current_image_gray.copy()
+    #     _ = hsrac.single_run()
+    #
+    #     _ = hsf.single_run()
+    
+    # w_video=True
+    #
+    # er_hsracs=External_Run_HSRACS()
+    # er_hsracs.algo.open_video(video_path)
+    # er_hsf=External_Run_HSF()
+    #
+    # if w_video:
+    #     filepath = 'test.mp4'
+    #     codec = cv2.VideoWriter_fourcc(*"x264")
+    #     video = cv2.VideoWriter(filepath, codec, 60.0, (200,150))#(60, 60))  # (150, 200))
+    # while er_hsracs.algo.read_frame():
+    #     base_gray =  er_hsracs.algo.current_image_gray.copy()
+    #     base_img=er_hsracs.algo.current_image.copy()
+    #     cv2.imshow("frame",base_gray)
+    #     hsf_x, hsf_y, hsf_cropbox,*_ = er_hsf.run(base_gray)
+    #
+    #     # hsrac_x, hsrac_y, hsrac_cropbox, *_ = er_hsracs.run(base_gray)
+    #     if 0:#random.random()<0.1:
+    #         hsrac_x, hsrac_y, hsrac_cropbox, *_ = er_hsracs.run(cv2.resize(base_gray,None,fx=0.75,fy=0.75).copy())
+    #         hsrac_x=int(hsrac_x*1.25)
+    #         hsrac_y=int(hsrac_y*1.25)
+    #         hsrac_cropbox=[int(val*1.25) for val in hsrac_cropbox]
+    #     else:
+    #         hsrac_x, hsrac_y, hsrac_cropbox,ori_frame, *_ = er_hsracs.run(base_gray)
+    #
+    #
+    #
+    #     cv2.rectangle(base_img,hsf_cropbox[:2],hsf_cropbox[2:],(0, 0, 255),3)
+    #     cv2.rectangle(base_img, hsrac_cropbox[:2], hsrac_cropbox[2:], (255, 0, 0), 1)
+    #     cv2.circle(base_img, (hsf_x, hsf_y), 6, (0, 0, 255), -1)
+    #     try:
+    #         cv2.circle(base_img, (hsrac_x, hsrac_y), 3, (255, 0, 0), -1)
+    #     except:
+    #         print()
+    #     cv2.imshow("hsf_hsrac",base_img)
+    #     if cv2.waitKey(1) & 0xFF == ord("q"):
+    #         pass
+    #     if w_video:
+    #         video.write(ori_frame)
+    # if w_video:
+    #     video.release()
+    # # cv2.imwrite("b.png",er_hsracs.algo.result2)
+    # er_hsracs.algo.cap.release()
+    # cv2.destroyAllWindows()
+    

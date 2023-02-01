@@ -7,12 +7,13 @@ from functools import lru_cache
 import cv2
 import numpy as np
 
-from img_utils import safe_crop
+from utils.misc_utils import clamp
+from utils.img_utils import safe_crop
 
 # from line_profiler_pycharm import profile
 
 video_path = "ezgif.com-gif-maker.avi"
-imshow_enable = True
+imshow_enable = False
 calc_print_enable = True
 save_video = False
 skip_autoradius = False
@@ -619,8 +620,10 @@ class HSF_cls(object):
     def single_run(self):
         # Temporary implementation to run
 
-        ## default_radius = 14
-
+        # default_radius = 14
+        
+        # cropbox=[] # debug code
+        
         frame = self.current_image_gray
         if self.now_modeo == self.cv_modeo[1]:
             # adjustment of radius
@@ -673,6 +676,9 @@ class HSF_cls(object):
         # Crop the image using the calculated bounds
         cropped_image = safe_crop(gray_frame, lower_x, lower_y, upper_x, upper_y)
 
+        # cropbox = [clamp(val, 0, gray_frame.shape[i]) for i, val in
+        #            zip([1, 0, 1, 0], [lower_x, lower_y, upper_x, upper_y])]  # debug code
+        
         if self.now_modeo == self.cv_modeo[0] or self.now_modeo == self.cv_modeo[1]:
             # If mode is first_frame or radius_adjust, record current radius and response
             self.auto_radius_calc.add_response(radius, response)
@@ -686,7 +692,7 @@ class HSF_cls(object):
                 upper_y = center_y + self.center_correct.center_q1_radius
                 lower_y = center_y - self.center_correct.center_q1_radius
                 self.center_q1.add_response(
-                    cv2.mean(safe_crop(gray_frame, lower_x, lower_y, upper_x, upper_y))[
+                    cv2.mean(safe_crop(gray_frame, lower_x, lower_y, upper_x, upper_y,keepsize=False))[
                         0
                     ]
                 )
@@ -714,6 +720,12 @@ class HSF_cls(object):
                             self.center_correct.init_array(
                                 gray_frame.shape, self.center_q1.quartile_1, radius
                             )
+                        elif self.center_correct.frame_shape!=gray_frame.shape:
+                            """The resolution should have changed and the statistics should have changed, so essentially the statistics
+                            need to be reworked, but implementation will be postponed as viability is the highest priority. """
+                            self.center_correct.init_array(
+                                gray_frame.shape, self.center_q1.quartile_1, radius
+                            )
 
                         center_x, center_y = self.center_correct.correction(
                             gray_frame, center_x, center_y
@@ -728,6 +740,9 @@ class HSF_cls(object):
                         cropped_image = safe_crop(
                             gray_frame, lower_x, lower_y, upper_x, upper_y
                         )
+                        # cropbox = [clamp(val, 0, gray_frame.shape[i]) for i, val in
+                        #            zip([1, 0, 1, 0], [lower_x, lower_y, upper_x, upper_y])]  # debug code
+                        
             # if imshow_enable or save_video:
             #    cv2.circle(frame, (orig_x, orig_y), 6, (0, 0, 255), -1)
             #   cv2.circle(frame, (center_x, center_y), 3, (255, 0, 0), -1)
@@ -765,8 +780,11 @@ class HSF_cls(object):
                 self.now_modeo = self.cv_modeo[2]
             else:
                 self.now_modeo = self.cv_modeo[1]
-
+                
+        # debug code
+        # return center_x,center_y,cropbox,frame
         return center_x, center_y, frame
+
 
 
 class External_Run_HSF(object):
@@ -775,8 +793,12 @@ class External_Run_HSF(object):
 
     def run(self, current_image_gray):
         self.algo.current_image_gray = current_image_gray
+        # debug code
+        # center_x, center_y,cropbox, frame = self.algo.single_run()
+        # return center_x, center_y,cropbox, frame
         center_x, center_y, frame = self.algo.single_run()
         return center_x, center_y, frame
+
 
 
 if __name__ == "__main__":
