@@ -143,6 +143,7 @@ def intense(x, y, frame):
     # I don't know which is faster.
 
     changed = False
+    newval_flg = False
     
     data_val = data[int_y, int_x]
 
@@ -151,6 +152,7 @@ def intense(x, y, frame):
         # The value of the specified coordinates has not yet been recorded.
         data[int_y, int_x] = intensity
         changed = True
+        newval_flg = True
     elif intensity < data_val:  # if current intensity value is less (more pupil), save that
         data[int_y, int_x] = intensity  # set value
         changed = True
@@ -173,16 +175,24 @@ def intense(x, y, frame):
         intensityd = max(data[0, -1] - 10, 1) #continuously adjust closed intensity, will be set when user blink, used to allow eyes to close when lighting changes
         data[0, -1] = intensityd # set value at 0 index
         changed = True
-
-    maxp = data[int_y, int_x]
-    minp = data[0, -1]
-    diffp = minp - maxp if (minp - maxp) != 0 else 1
-    eyeopen = (intensity - maxp) / diffp
-    eyeopen = 1 - eyeopen
-    eyeopen = eyeopen - 0.2
+    
+    if newval_flg:
+        # Do the same thing as in the original version.
+        print('[INFO] Something went wrong, assuming blink.')
+        eyeopen = 0.0
+    else:
+        maxp = data[int_y, int_x]
+        minp = data[0, -1]
+        diffp = minp - maxp if (minp - maxp) != 0 else 1
+        eyeopen = (intensity - maxp) / diffp
+        eyeopen = 1 - eyeopen
+        eyeopen = eyeopen - 0.2
+        # print(intensity, maxp, minp, x, y)
+        # print(f"EYEOPEN: {eyeopen}")
+        # print(int(x), int(y), eyeopen, maxp, minp)
 
     if changed and ((time.time() - lct) > 4):  # save every 4 seconds if something changed to save disk usage
-        cv2.imwrite(fname,u32_u16_1ch3ch(data))
+        cv2.imwrite(fname, u32_u16_1ch3ch(data))
         lct = time.time()
         print("SAVED")
 
