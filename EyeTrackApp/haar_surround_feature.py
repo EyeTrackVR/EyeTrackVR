@@ -1,16 +1,18 @@
-import functools
-import math
-import sys
 import timeit
 from functools import lru_cache
 
 import cv2
 import numpy as np
 
+
+from utils.misc_utils import clamp
+from utils.img_utils import safe_crop
+
+
 # from line_profiler_pycharm import profile
 
 video_path = "ezgif.com-gif-maker.avi"
-imshow_enable = True
+imshow_enable = False
 calc_print_enable = True
 save_video = False
 skip_autoradius = False
@@ -26,181 +28,6 @@ auto_radius_step = 1
 blink_init_frames = 60 * 3  # 60fps*3sec,Number of blink statistical frames
 # step==(x,y)
 default_step = (5, 5)  # bigger the steps,lower the processing time! ofc acc also takes an impact
-
-"""
-Attention.
-If using cv2.filter2D in this code, be careful with the kernel
-https://stackoverflow.com/questions/39457468/convolution-without-any-padding-opencv-python
-"""
-
-
-def TimeitWrapper(*args, **kwargs):
-    """
-    This decorator @TimeitWrapper() prints the function name and execution time in seconds.
-    :param args:
-    :param kwargs:
-    :return:
-    """
-    
-    def decorator(function):
-        @functools.wraps(function)
-        def wrapper(*args, **kwargs):
-            start = timeit.default_timer()
-            results = function(*args, **kwargs)
-            end = timeit.default_timer()
-            print('{} execution time: {:.10f} s'.format(function.__name__, end - start))
-            return results
-        
-        return wrapper
-    
-    return decorator
-
-
-class TimeitResult(object):
-    """
-    from https://github.com/ipython/ipython/blob/339c0d510a1f3cb2158dd8c6e7f4ac89aa4c89d8/IPython/core/magics/execution.py#L55
-
-    Object returned by the timeit magic with info about the run.
-    Contains the following attributes :
-    loops: (int) number of loops done per measurement
-    repeat: (int) number of times the measurement has been repeated
-    best: (float) best execution time / number
-    all_runs: (list of float) execution time of each run (in s)
-    """
-    
-    def __init__(self, loops, repeat, best, worst, all_runs, precision):
-        self.loops = loops
-        self.repeat = repeat
-        self.best = best
-        self.worst = worst
-        self.all_runs = all_runs
-        self._precision = precision
-        self.timings = [dt / self.loops for dt in all_runs]
-    
-    @property
-    def average(self):
-        return math.fsum(self.timings) / len(self.timings)
-    
-    @property
-    def stdev(self):
-        mean = self.average
-        return (math.fsum([(x - mean) ** 2 for x in self.timings]) / len(self.timings)) ** 0.5
-    
-    def __str__(self):
-        pm = '+-'
-        if hasattr(sys.stdout, 'encoding') and sys.stdout.encoding:
-            try:
-                u'\xb1'.encode(sys.stdout.encoding)
-                pm = u'\xb1'
-            except:
-                pass
-        return "min:{best} max:{worst} mean:{mean} {pm} {std} per loop (mean {pm} std. dev. of {runs} run{run_plural}, {loops:,} loop{loop_plural} each)".format(
-            pm=pm,
-            runs=self.repeat,
-            loops=self.loops,
-            loop_plural="" if self.loops == 1 else "s",
-            run_plural="" if self.repeat == 1 else "s",
-            mean=format_time(self.average, self._precision),
-            std=format_time(self.stdev, self._precision),
-            best=format_time(self.best, self._precision),
-            worst=format_time(self.worst, self._precision),
-        )
-    
-    def _repr_pretty_(self, p, cycle):
-        unic = self.__str__()
-        p.text(u'<TimeitResult : ' + unic + u'>')
-
-
-class FPSResult(object):
-    """
-    base https://github.com/ipython/ipython/blob/339c0d510a1f3cb2158dd8c6e7f4ac89aa4c89d8/IPython/core/magics/execution.py#L55
-    """
-    
-    def __init__(self, loops, repeat, best, worst, all_runs, precision):
-        self.loops = loops
-        self.repeat = repeat
-        self.best = 1 / best
-        self.worst = 1 / worst
-        self.all_runs = all_runs
-        self._precision = precision
-        self.fps = [1 / dt for dt in all_runs]
-        self.unit = "fps"
-    
-    @property
-    def average(self):
-        return math.fsum(self.fps) / len(self.fps)
-    
-    @property
-    def stdev(self):
-        mean = self.average
-        return (math.fsum([(x - mean) ** 2 for x in self.fps]) / len(self.fps)) ** 0.5
-    
-    def __str__(self):
-        pm = '+-'
-        if hasattr(sys.stdout, 'encoding') and sys.stdout.encoding:
-            try:
-                u'\xb1'.encode(sys.stdout.encoding)
-                pm = u'\xb1'
-            except:
-                pass
-        return "min:{best} max:{worst} mean:{mean} {pm} {std} per loop (mean {pm} std. dev. of {runs} run{run_plural}, {loops:,} loop{loop_plural} each)".format(
-            pm=pm,
-            runs=self.repeat,
-            loops=self.loops,
-            loop_plural="" if self.loops == 1 else "s",
-            run_plural="" if self.repeat == 1 else "s",
-            mean="%.*g%s" % (self._precision, self.average, self.unit),
-            std="%.*g%s" % (self._precision, self.stdev, self.unit),
-            best="%.*g%s" % (self._precision, self.best, self.unit),
-            worst="%.*g%s" % (self._precision, self.worst, self.unit),
-        )
-    
-    def _repr_pretty_(self, p, cycle):
-        unic = self.__str__()
-        p.text(u'<FPSResult : ' + unic + u'>')
-
-
-def format_time(timespan, precision=3):
-    """
-    https://github.com/ipython/ipython/blob/339c0d510a1f3cb2158dd8c6e7f4ac89aa4c89d8/IPython/core/magics/execution.py#L1473
-    Formats the timespan in a human readable form
-    """
-    
-    if timespan >= 60.0:
-        # we have more than a minute, format that in a human readable form
-        # Idea from http://snipplr.com/view/5713/
-        parts = [("d", 60 * 60 * 24), ("h", 60 * 60), ("min", 60), ("s", 1)]
-        time = []
-        leftover = timespan
-        for suffix, length in parts:
-            value = int(leftover / length)
-            if value > 0:
-                leftover = leftover % length
-                time.append(u'%s%s' % (str(value), suffix))
-            if leftover < 1:
-                break
-        return " ".join(time)
-    
-    # Unfortunately the unicode 'micro' symbol can cause problems in
-    # certain terminals.
-    # See bug: https://bugs.launchpad.net/ipython/+bug/348466
-    # Try to prevent crashes by being more secure than it needs to
-    # E.g. eclipse is able to print a µ, but has no sys.stdout.encoding set.
-    units = [u"s", u"ms", u'us', "ns"]  # the save value
-    if hasattr(sys.stdout, 'encoding') and sys.stdout.encoding:
-        try:
-            u'\xb5'.encode(sys.stdout.encoding)
-            units = [u"s", u"ms", u'\xb5s', "ns"]
-        except:
-            pass
-    scaling = [1, 1e3, 1e6, 1e9]
-    
-    if timespan > 0.0:
-        order = min(-int(math.floor(math.log10(timespan)) // 3), 3)
-    else:
-        order = 3
-    return u"%.*g %s" % (precision, timespan * scaling[order], units[order])
-
 
 class CvParameters:
     # It may be a little slower because a dict named "self" is read for each function call.
@@ -419,7 +246,7 @@ def conv_int(frame_int, kernel, xy_step, padding, xy_steps_list):
     return frame_conv, min_response, center
 
 
-class Auto_Radius_Calc(object):
+class AutoRadiusCalc(object):
     def __init__(self):
         self.response_list = []
         self.radius_cand_list = []
@@ -522,7 +349,7 @@ class Auto_Radius_Calc(object):
         return None
 
 
-class Blink_Detector(object):
+class BlinkDetector(object):
     def __init__(self):
         self.response_list = []
         self.response_max = None
@@ -665,7 +492,7 @@ class CenterCorrection(object):
         return out_x, out_y
 
 
-class HSRAC_cls(object):
+class HSF_cls(object):
     def __init__(self):
         # I'd like to take into account things like print, end_time - start_time processing time, etc., but it's too much trouble.
         
@@ -679,9 +506,9 @@ class HSRAC_cls(object):
         self.cv_modeo = ["first_frame", "radius_adjust", "blink_adjust", "normal"]
         self.now_modeo = self.cv_modeo[0]
         
-        self.auto_radius_calc = Auto_Radius_Calc()
-        self.blink_detector = Blink_Detector()
-        self.center_q1 = Blink_Detector()
+        self.auto_radius_calc = AutoRadiusCalc()
+        self.blink_detector = BlinkDetector()
+        self.center_q1 = BlinkDetector()
         self.center_correct = CenterCorrection()
         
         self.cap = None
@@ -709,8 +536,12 @@ class HSRAC_cls(object):
     
     def single_run(self):
         # Temporary implementation to run
-        
+
+
         ## default_radius = 14
+        
+        # cropbox=[] # debug code
+
         
         frame = self.current_image_gray
         if self.now_modeo == self.cv_modeo[1]:
@@ -756,7 +587,12 @@ class HSRAC_cls(object):
         lower_y = center_y - radius
         
         # Crop the image using the calculated bounds
-        cropped_image = gray_frame[lower_y:upper_y, lower_x:upper_x]
+
+        cropped_image = safe_crop(gray_frame, lower_x, lower_y, upper_x, upper_y)
+
+        # cropbox = [clamp(val, 0, gray_frame.shape[i]) for i, val in
+        #            zip([1, 0, 1, 0], [lower_x, lower_y, upper_x, upper_y])]  # debug code
+
         
         if self.now_modeo == self.cv_modeo[0] or self.now_modeo == self.cv_modeo[1]:
             # If mode is first_frame or radius_adjust, record current radius and response
@@ -770,8 +606,14 @@ class HSRAC_cls(object):
                 lower_x = center_x - self.center_correct.center_q1_radius
                 upper_y = center_y + self.center_correct.center_q1_radius
                 lower_y = center_y - self.center_correct.center_q1_radius
-                self.center_q1.add_response(cv2.mean(gray_frame[lower_y:upper_y, lower_x:upper_x])[0])
-            
+
+                self.center_q1.add_response(
+                    cv2.mean(safe_crop(gray_frame, lower_x, lower_y, upper_x, upper_y,keepsize=False))[
+                        0
+                    ]
+                )
+
+
             else:
                 
                 self.blink_detector.calc_thresh()
@@ -792,9 +634,19 @@ class HSRAC_cls(object):
                     else:
                        # pass
                         if not self.center_correct.setup_comp:
-                            self.center_correct.init_array(gray_frame.shape, self.center_q1.quartile_1, radius)
-                        
-                        center_x, center_y = self.center_correct.correction(gray_frame, center_x, center_y)
+                            self.center_correct.init_array(
+                                gray_frame.shape, self.center_q1.quartile_1, radius
+                            )
+                        elif self.center_correct.frame_shape != gray_frame.shape:
+                            """The resolution should have changed and the statistics should have changed, so essentially the statistics
+                            need to be reworked, but implementation will be postponed as viability is the highest priority. """
+                            self.center_correct.init_array(
+                                gray_frame.shape, self.center_q1.quartile_1, radius
+                            )
+
+                        center_x, center_y = self.center_correct.correction(
+                            gray_frame, center_x, center_y
+                        )
                         # Define the center point and radius
                         center_xy = (center_x, center_y)
                         upper_x = center_x + radius
@@ -802,10 +654,16 @@ class HSRAC_cls(object):
                         upper_y = center_y + radius
                         lower_y = center_y - radius
                         # Crop the image using the calculated bounds
-                        cropped_image = gray_frame[lower_y:upper_y, lower_x:upper_x]
-               # if imshow_enable or save_video:
-                #    cv2.circle(frame, (orig_x, orig_y), 6, (0, 0, 255), -1)
-                 #   cv2.circle(frame, (center_x, center_y), 3, (255, 0, 0), -1)
+                        cropped_image = safe_crop(
+                            gray_frame, lower_x, lower_y, upper_x, upper_y
+                        )
+                        # cropbox = [clamp(val, 0, gray_frame.shape[i]) for i, val in
+                        #            zip([1, 0, 1, 0], [lower_x, lower_y, upper_x, upper_y])]  # debug code
+                        
+            # if imshow_enable or save_video:
+            #    cv2.circle(frame, (orig_x, orig_y), 6, (0, 0, 255), -1)
+            #   cv2.circle(frame, (center_x, center_y), 3, (255, 0, 0), -1)
+
         # If you want to update response_max. it may be more cost-effective to rewrite response_list in the following way
         # https://stackoverflow.com/questions/42771110/fastest-way-to-left-cycle-a-numpy-array-like-pop-push-for-a-queue
         
@@ -837,20 +695,28 @@ class HSRAC_cls(object):
                 self.now_modeo = self.cv_modeo[2]
             else:
                 self.now_modeo = self.cv_modeo[1]
-        
+
+                
+        # debug code
+        # return center_x,center_y,cropbox,frame
         return center_x, center_y, frame
 
-class External_Run_HSF:
+class External_Run_HSF(object):
+    def __init__(self):
+        self.algo = HSF_cls()
 
-    hsrac = HSRAC_cls()
-
-    def HSFS(self):
-        External_Run_HSF.hsrac.current_image_gray = self.current_image_gray
-        center_x, center_y, frame = External_Run_HSF.hsrac.single_run()
+    def run(self, current_image_gray):
+        self.algo.current_image_gray = current_image_gray
+        # debug code
+        # center_x, center_y,cropbox, frame = self.algo.single_run()
+        # return center_x, center_y,cropbox, frame
+        center_x, center_y, frame = self.algo.single_run()
         return center_x, center_y, frame
 
-if __name__ == '__main__':
-    hsrac = HSRAC_cls()
-    hsrac.open_video(video_path)
-    while hsrac.read_frame():
-        _ = hsrac.single_run()
+
+
+if __name__ == "__main__":
+    hsf = HSF_cls()
+    hsf.open_video(video_path)
+    while hsf.read_frame():
+        _ = hsf.single_run()
