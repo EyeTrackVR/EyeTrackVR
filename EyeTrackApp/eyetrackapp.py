@@ -7,8 +7,7 @@ import queue
 import threading
 import PySimpleGUI as sg
 import sys
-from urllib.request import urlopen
-from bs4 import BeautifulSoup
+import urllib.request
 
 import webbrowser
 
@@ -53,35 +52,33 @@ def main():
     if config.settings.gui_update_check:
         print("\033[95m[INFO] Checking for updates...\033[0m")
         url = "https://raw.githubusercontent.com/RedHawk989/EyeTrackVR-Installer/master/Version-Data/Version_Num.txt"
-        html = urlopen(url).read()
-        soup = BeautifulSoup(html, features="html.parser")
-        for script in soup(["script", "style"]):
-            script.extract() 
-        text = soup.get_text()
-
-        # break into lines and remove leading and trailing space on each
-        lines = (line.strip() for line in text.splitlines())
-        # break multi-headlines into a line each
-        chunks = (phrase.strip() for line in lines for phrase in line.split("  "))
-        # drop blank lines
-        latestversion = '\n'.join(chunk for chunk in chunks if chunk)
-
-        if appversion == latestversion: # If what we scraped and hardcoded versions are same, assume we are up to date.
-            print(f"\033[92m[INFO] App is up to date! [{latestversion}]\033[0m")
-        else: 
-            print(f"\033[93m[INFO] You have app version [{appversion}] installed. Please update to [{latestversion}] for the newest features.\033[0m")
-            if sys.platform.startswith("win"):
-                toaster = ToastNotifier()
-                toaster.show_toast(  #show windows toast
-                    "EyeTrackVR has an update.",
-                    "Click to go to the latest version.",
-                    icon_path= "Images/logo.ico",
-                    duration=5,
-                    threaded=True,
-                    callback_on_click=open_url
+        req = urllib.request.Request(url)
+        try:
+            with urllib.request.urlopen(req, timeout=10) as res:
+                latestversion = res.read().decode("utf-8").strip()
+        except urllib.error.HTTPError as err:
+            print("Failed to check latest version.")
+            print("{} : {}".format(err.code,err.reason))
+        except urllib.error.URLError as err:
+            print("Failed to check latest version.")
+            print(err.reason)
+        else:
+            if appversion == latestversion:  # If what we scraped and hardcoded versions are same, assume we are up to date.
+                print(f"\033[92m[INFO] App is up to date! [{latestversion}]\033[0m")
+            else:
+                print(
+                    f"\033[93m[INFO] You have app version [{appversion}] installed. Please update to [{latestversion}] for the newest features.\033[0m")
+                if sys.platform.startswith("win"):
+                    toaster = ToastNotifier()
+                    toaster.show_toast(  # show windows toast
+                        "EyeTrackVR has an update.",
+                        "Click to go to the latest version.",
+                        icon_path="Images/logo.ico",
+                        duration=5,
+                        threaded=True,
+                        callback_on_click=open_url
                     )
-            
-
+                    
     # Check to see if we have an ROI. If not, bring up ROI finder GUI.
 
     # Spawn worker threads
