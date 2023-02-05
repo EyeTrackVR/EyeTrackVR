@@ -6,14 +6,6 @@ category = "dev"
 optional = false
 python-versions = "*"
 
-[[package]]
-name = "beautifulsoup4"
-version = "4.11.1"
-description = "Screen-scraping library"
-category = "main"
-optional = false
-python-versions = ">=3.6.0"
-
 [package.dependencies]
 soupsieve = ">1.2"
 
