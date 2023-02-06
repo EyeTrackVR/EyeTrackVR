@@ -257,11 +257,11 @@ class EyeProcessor:
           #  self.prev_y = cy
         self.eyeopen = intense(cx, cy, uncropframe)
         out_x, out_y = cal_osc(self, cx, cy)
+        #print(self.eyeoffx, self.eyeopen)
 
-        if cx == 0:
-            self.output_images_and_update(thresh, EyeInformation(InformationOrigin.HSRAC, out_x, out_y, 0, self.eyeopen)) #update app
+        if self.eyeoffx:
+            self.output_images_and_update(thresh, EyeInformation(InformationOrigin.HSRAC, out_x, out_y, 0, 0.0)) #update app
         else:
-
             self.output_images_and_update(thresh, EyeInformation(InformationOrigin.HSRAC, out_x, out_y, 0, self.eyeopen))
       #  else:
       #      print("EYE MOVED TOO FAST")

@@ -117,8 +117,6 @@ def check_and_load(frameshape, now_data):
     return now_data
 
 
-#TODO we need more pixel points for smooth operation, lets get this setup in hsrac
-
 def intense(x, y, frame):
     global lct, data
     
@@ -127,25 +125,30 @@ def intense(x, y, frame):
     data = check_and_load(frame.shape[:2], data)
     int_x, int_y = int(x), int(y)
 
-    upper_x = min(int_x + 25, frame.shape[1]) #TODO make this a setting
-    lower_x = max(int_x - 25, 0)
-    upper_y = min(int_y + 25, frame.shape[0])
-    lower_y = max(int_y - 25, 0)
+   # upper_x = min(int_x + 25, frame.shape[1]) #TODO make this a setting
+    #lower_x = max(int_x - 25, 0)
+    #upper_y = min(int_y + 25, frame.shape[0])
+    #lower_y = max(int_y - 25, 0)
     
-    frame_crop = frame[lower_y:upper_y, lower_x:upper_x]
-
-    print(x, y, int_x, int_y, upper_x, upper_y, lower_x, lower_y)
+    #frame_crop = frame[lower_y:upper_y, lower_x:upper_x]
+    frame_crop = frame
     
     # The same can be done with cv2.integral, but since there is only one area of the rectangle for which we want to know the total value, there is no advantage in terms of computational complexity.
     intensity = frame_crop.sum()+1
     # numpy:np.sum(),ndarray.sum()
     # opencv:cv2.sumElems()
     # I don't know which is faster.
-
+    print(frame.shape[1], frame.shape[0], int_x, int_y)
     changed = False
     newval_flg = False
-    
-    data_val = data[int_y, int_x]
+    if int_y >= frame.shape[1]:
+        data_val = 0
+        print('CAUGHT Y OUT OF BOUNDS')
+
+    else:
+
+        data_val = data[int_y, int_x]
+
 
     # max pupil per cord
     if data_val == 0:
@@ -179,14 +182,14 @@ def intense(x, y, frame):
     if newval_flg:
         # Do the same thing as in the original version.
         print('[INFO] Something went wrong, assuming blink.')
-        eyeopen = 0.0
+        eyeopen = 0.7
     else:
         maxp = data[int_y, int_x]
         minp = data[0, -1]
         diffp = minp - maxp if (minp - maxp) != 0 else 1
         eyeopen = (intensity - maxp) / diffp
         eyeopen = 1 - eyeopen
-        eyeopen = eyeopen - 0.2
+        #eyeopen = eyeopen - 0.2
         # print(intensity, maxp, minp, x, y)
         # print(f"EYEOPEN: {eyeopen}")
         # print(int(x), int(y), eyeopen, maxp, minp)
