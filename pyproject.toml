@@ -17,6 +17,7 @@ pydantic = "^1.10.2"
 win10toast_click = [ 
     { version = "^0.1.2", platform = 'win32' }
 ]
+onnxruntime = "^1.13.1"
 
 [tool.poetry.group.dev.dependencies]
 black = "^22.10.0"
