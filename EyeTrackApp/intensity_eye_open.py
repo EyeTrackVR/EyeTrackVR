@@ -29,8 +29,14 @@ class EyeId(IntEnum):
 
 if EyeId.RIGHT:
     fname = "IBO_RIGHT.png"
+    eye = "RIGHT"
 if EyeId.LEFT:
     fname = "IBO_LEFT.png"
+    eye = "LEFT"
+
+#TODO There is a bug where eyeID is not correct which causes dual eye to fail when frame of 
+# one eye is smaller than tracked cord of other eye. seems to be stuck on LEFT
+
 
 lct = time.time()
 data = None
@@ -119,7 +125,7 @@ def check_and_load(frameshape, now_data):
 
 def intense(x, y, frame):
     global lct, data
-    
+    e = False
     # 0 in data is used as the initial value.
     # When assigning a value, +1 is added to the value to be assigned.
     data = check_and_load(frame.shape[:2], data)
@@ -138,16 +144,24 @@ def intense(x, y, frame):
     # numpy:np.sum(),ndarray.sum()
     # opencv:cv2.sumElems()
     # I don't know which is faster.
-    print(frame.shape[1], frame.shape[0], int_x, int_y)
+    print(frame.shape[1], frame.shape[0], int_x, int_y, eye)
     changed = False
     newval_flg = False
-    if int_y >= frame.shape[1]:
-        data_val = 0
+    if int_y >= frame.shape[0]:
+      #  data_val = 1
+        int_y = frame.shape[0] - 1
+        e = True
         print('CAUGHT Y OUT OF BOUNDS')
 
-    else:
+    if int_x >= frame.shape[1]:
+       # data_val = 1
+        e = True
+        int_x = frame.shape[0] - 1
+        print('CAUGHT X OUT OF BOUNDS')
 
-        data_val = data[int_y, int_x]
+    #if e == False: #TODO clean this up 
+        
+    data_val = data[int_y, int_x]
 
 
     # max pupil per cord
