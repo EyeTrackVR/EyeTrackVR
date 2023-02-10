@@ -29,5 +29,5 @@ build-backend = "poetry.core.masonry.api"
 
 [tool.black]
 line-length = 135
-exclude = "(.git|.env|venv|*.spec)"
+exclude = "(.git|.env|venv)"
 target-version = ["py310","py311"]
