@@ -150,9 +150,9 @@ class EyeProcessor:
         self.camera_model = None
         self.detector_3d = None
 
-        self.camera_model = None
-        self.detector_3d = None
-
+        self.er_hsf = None
+        self.er_hsrac = None
+        
         self.failed = 0
 
         self.skip_blink_detect = False
@@ -234,7 +234,7 @@ class EyeProcessor:
                 rotation_matrix,
                 (cols, rows),
                 borderMode=cv2.BORDER_CONSTANT,
-                borderValue=(255, 255, 255),
+                borderValue=(64, 64, 64),#(255, 255, 255),
             )
             return True
         except:
@@ -245,7 +245,8 @@ class EyeProcessor:
   
 
     def HSRACM(self):
-        cx, cy, thresh, gray_frame, uncropframe = External_Run_HSRACS().run(self.current_image_gray)
+        # todo: added process to initialise er_hsrac when resolution changes
+        cx, cy, thresh, gray_frame, uncropframe = self.er_hsrac.run(self.current_image_gray)
         self.current_image_gray = gray_frame
         if self.prev_x is None:
             self.prev_x = cx
@@ -267,7 +268,8 @@ class EyeProcessor:
       #      print("EYE MOVED TOO FAST")
        #     self.output_images_and_update(thresh, EyeInformation(InformationOrigin.HSRAC, 0, 0, 0, False))
     def HSFM(self):
-        cx, cy, frame = External_Run_HSF().run(self.current_image_gray)
+        # todo: added process to initialise er_hsf when resolution changes
+        cx, cy, frame = self.er_hsf.run(self.current_image_gray)
         self.eyeopen = intense(cx, cy, self.current_image_gray)
         out_x, out_y = cal_osc(self, cx, cy)
         if cx == 0:
@@ -326,16 +328,36 @@ class EyeProcessor:
         self.secondalgo = None
         self.thirdalgo = None
         self.fourthalgo = None
+        algolist = [None, None, None, None, None]
+        
         #set algo priorities
+        
+        if self.settings.gui_HSF:
+            if self.er_hsf is None:
+                self.er_hsf = External_Run_HSF(self.settings.gui_skip_autoradius, self.settings.gui_HSF_radius)
+            algolist[self.settings.gui_HSFP] = self.HSFM
+        else:
+            if self.er_hsf is not None:
+                self.er_hsf = None
+        
+        if self.settings.gui_HSRAC:
+            if self.er_hsrac is None:
+                self.er_hsrac = External_Run_HSRACS(self.settings.gui_skip_autoradius, self.settings.gui_HSF_radius)
+            algolist[self.settings.gui_HSRACP] = self.HSRACM
+        else:
+            if self.er_hsrac is not None:
+                self.er_hsrac = None
 
-        if self.settings.gui_HSF and self.settings.gui_HSFP == 1: #I feel like this is super innefficient though it only runs at startup and no solution is coming to me atm
-            self.firstalgo = self.HSFM
-        elif self.settings.gui_HSF and self.settings.gui_HSFP == 2:
-            self.secondalgo = self.HSFM
-        elif self.settings.gui_HSF and self.settings.gui_HSFP == 3:
-            self.thirdalgo = self.HSFM
-        elif self.settings.gui_HSF and self.settings.gui_HSFP == 4:
-            self.fourthalgo = self.HSFM
+        _, self.firstalgo, self.secondalgo, self.thirdalgo, self.fourthalgo = algolist
+        
+        # if self.settings.gui_HSF and self.settings.gui_HSFP == 1: #I feel like this is super innefficient though it only runs at startup and no solution is coming to me atm
+        #     self.firstalgo = self.HSFM
+        # elif self.settings.gui_HSF and self.settings.gui_HSFP == 2:
+        #     self.secondalgo = self.HSFM
+        # elif self.settings.gui_HSF and self.settings.gui_HSFP == 3:
+        #     self.thirdalgo = self.HSFM
+        # elif self.settings.gui_HSF and self.settings.gui_HSFP == 4:
+        #     self.fourthalgo = self.HSFM
 
         if self.settings.gui_RANSAC3D and self.settings.gui_RANSAC3DP == 1:
             self.firstalgo = self.RANSAC3DM
@@ -346,14 +368,14 @@ class EyeProcessor:
         elif self.settings.gui_RANSAC3D and self.settings.gui_RANSAC3DP == 4:
             self.fourthalgo = self.RANSAC3DM
 
-        if self.settings.gui_HSRAC and self.settings.gui_HSRACP == 1:
-            self.firstalgo = self.HSRACM
-        elif self.settings.gui_HSRAC and self.settings.gui_HSRACP == 2:
-            self.secondalgo = self.HSRACM
-        elif self.settings.gui_HSRAC and self.settings.gui_HSRACP == 3:
-            self.thirdalgo = self.HSRACM
-        elif self.settings.gui_HSRAC and self.settings.gui_HSRACP == 4:
-            self.fourthalgo = self.HSRACM
+        # if self.settings.gui_HSRAC and self.settings.gui_HSRACP == 1:
+        #     self.firstalgo = self.HSRACM
+        # elif self.settings.gui_HSRAC and self.settings.gui_HSRACP == 2:
+        #     self.secondalgo = self.HSRACM
+        # elif self.settings.gui_HSRAC and self.settings.gui_HSRACP == 3:
+        #     self.thirdalgo = self.HSRACM
+        # elif self.settings.gui_HSRAC and self.settings.gui_HSRACP == 4:
+        #     self.fourthalgo = self.HSRACM
 
         if self.settings.gui_BLOB and self.settings.gui_BLOBP == 1:
             self.firstalgo = self.BLOBM

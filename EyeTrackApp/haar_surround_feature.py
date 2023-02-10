@@ -602,10 +602,10 @@ class HSF_cls(object):
             if self.blink_detector.response_len() < blink_init_frames:
                 self.blink_detector.add_response(cv2.mean(cropped_image)[0])
                 
-                upper_x = center_x + self.center_correct.center_q1_radius
-                lower_x = center_x - self.center_correct.center_q1_radius
-                upper_y = center_y + self.center_correct.center_q1_radius
-                lower_y = center_y - self.center_correct.center_q1_radius
+                upper_x = center_x + max(20, radius)#self.center_correct.center_q1_radius
+                lower_x = center_x - max(20, radius)#self.center_correct.center_q1_radius
+                upper_y = center_y + max(20, radius)#self.center_correct.center_q1_radius
+                lower_y = center_y - max(20, radius)#self.center_correct.center_q1_radius
 
                 self.center_q1.add_response(
                     cv2.mean(safe_crop(gray_frame, lower_x, lower_y, upper_x, upper_y,keepsize=False))[
@@ -702,7 +702,13 @@ class HSF_cls(object):
         return center_x, center_y, frame
 
 class External_Run_HSF(object):
-    def __init__(self):
+    def __init__(self, skip_autoradius_flg=False, radius=20):
+        # temporary code
+        global skip_autoradius,default_radius
+        skip_autoradius = skip_autoradius_flg
+        if skip_autoradius:
+            default_radius = radius
+        
         self.algo = HSF_cls()
 
     def run(self, current_image_gray):

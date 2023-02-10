@@ -257,10 +257,10 @@ class HSRAC_cls(object):
             if self.blink_detector.response_len() < blink_init_frames:
                 self.blink_detector.add_response(cv2.mean(cropped_image)[0])
 
-                upper_x = center_x + 20
-                lower_x = center_x - 20
-                upper_y = center_y + 20
-                lower_y = center_y - 20
+                upper_x = center_x + max(20,radius)
+                lower_x = center_x - max(20,radius)
+                upper_y = center_y + max(20,radius)
+                lower_y = center_y - max(20,radius)
                 self.center_q1.add_response(
                     cv2.mean(safe_crop(gray_frame, lower_x, lower_y, upper_x, upper_y,keepsize=False))[
                         0
@@ -330,12 +330,13 @@ class HSRAC_cls(object):
         # The processing results were the same when I swapped the order of blurring and 1-channelization.
         frame_gray = cv2.GaussianBlur(frame, (5, 5), 0)
         hsf_center_x, hsf_center_y = center_x.copy(), center_y.copy()
-        ransac_xy_offset = (hsf_center_x-20, hsf_center_y-20)
-        upper_x = hsf_center_x + 20
-        lower_x = hsf_center_x - 20
-        upper_y = hsf_center_y + 20
-        lower_y = hsf_center_y - 20
-
+        # ransac_xy_offset = (hsf_center_x-20, hsf_center_y-20)
+        upper_x = hsf_center_x + max(20, radius)
+        lower_x = hsf_center_x - max(20, radius)
+        upper_y = hsf_center_y + max(20, radius)
+        lower_y = hsf_center_y - max(20, radius)
+        ransac_xy_offset = (lower_x, lower_y)
+        
         # Crop the image using the calculated bounds
 
         frame_gray_crop = safe_crop(frame_gray, lower_x, lower_y, upper_x, upper_y)
@@ -363,7 +364,7 @@ class HSRAC_cls(object):
             threshold_value = self.center_q1.quartile_1
             if threshold_value<min_val + thresh_add:
                 # In most of these cases, the pupil is at the edge of the eye.
-                frame_gray_crop=cv2.threshold(frame_gray_crop,(min_val + thresh_add*4+threshold_value)/2, 255, cv2.THRESH_BINARY)[1]
+                thresh = cv2.threshold(frame_gray_crop, (min_val + thresh_add*4+threshold_value)/2, 255, cv2.THRESH_BINARY)[1]
 
             else:
                 threshold_value = self.center_q1.quartile_1
@@ -458,7 +459,7 @@ class HSRAC_cls(object):
         #         print()
         #     return center_x, center_y,cropbox, ori_frame,thresh, frame, gray_frame
         #  print(frame_gray.shape, thresh.shape)
-        
+
         try:
             return int(cx), int(cy), thresh, frame, gray_frame
         except:
@@ -468,7 +469,13 @@ class HSRAC_cls(object):
 
 
 class External_Run_HSRACS(object):
-    def __init__(self):
+    def __init__(self, skip_autoradius_flg=False, radius=20):
+        # temporary code
+        global skip_autoradius,default_radius
+        skip_autoradius = skip_autoradius_flg
+        if skip_autoradius:
+            default_radius = radius
+        
         self.algo = HSRAC_cls()
 
     def run(self, current_image_gray):
