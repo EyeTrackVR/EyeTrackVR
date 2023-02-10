@@ -12,7 +12,6 @@ python-osc = "^1.8.0"
 opencv-python = "^4.6.0.66"
 numpy = "~1.23.5"
 pye3d = "^0.3.1.post1"
-requests = "^2.28.1"
 pysimplegui = "^4.60.4"
 pydantic = "^1.10.2"
 win10toast_click = [ 
