@@ -3,7 +3,10 @@ from osc import EyeId
 import os.path
 import json
 from pydantic import BaseModel
+import shutil
+
 CONFIG_FILE_NAME: str = "eyetrack_settings.json"
+BACKUP_CONFIG_FILE_NAME: str = "eyetrack_settings.backup"
 
 
 class EyeTrackCameraConfig(BaseModel):
@@ -61,9 +64,35 @@ class EyeTrackConfig(BaseModel):
         if not os.path.exists(CONFIG_FILE_NAME):
             print("No settings file, using base settings")
             return EyeTrackConfig()
-        with open(CONFIG_FILE_NAME, "r") as settings_file:
-            return EyeTrackConfig(**json.load(settings_file))
+        try:
+            with open(CONFIG_FILE_NAME, "r") as settings_file:
+                return EyeTrackConfig(**json.load(settings_file))
+        except json.JSONDecodeError:
+            print("Failed to load settings file.")
+            load_config = None
+            if os.path.exists(BACKUP_CONFIG_FILE_NAME):
+                try:
+                    with open(BACKUP_CONFIG_FILE_NAME, "r") as settings_file:
+                        load_config = EyeTrackConfig(**json.load(settings_file))
+                    print("using backup settings")
+                except json.JSONDecodeError:
+                    pass
+            if load_config is None:
+                print("using base settings")
+                load_config = EyeTrackConfig()
+            return load_config
 
     def save(self):
-        with open(CONFIG_FILE_NAME, "w+") as settings_file:
+        # todo: Write only if there is a difference between the saved configuration file and the current configuration.
+        if os.path.exists(CONFIG_FILE_NAME):
+            try:
+                # Verify existing configuration files.
+                with open(CONFIG_FILE_NAME, "r") as settings_file:
+                    EyeTrackConfig(**json.load(settings_file))
+                shutil.copy(CONFIG_FILE_NAME, BACKUP_CONFIG_FILE_NAME)
+                # print("Backed up settings files.") # Comment out because it's too loud.
+            except json.JSONDecodeError:
+                # No backup because the saved settings file is broken.
+                pass
+        with open(CONFIG_FILE_NAME, "w") as settings_file:
             json.dump(obj=self.dict(), fp=settings_file)
