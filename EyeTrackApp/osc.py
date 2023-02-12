@@ -3,8 +3,7 @@ from pythonosc import udp_client
 from pythonosc import osc_server
 from pythonosc import dispatcher
 import sys
-if sys.platform.startswith("win"):
-    from winsound import PlaySound, SND_FILENAME, SND_ASYNC
+from utils.misc_utils import PlaySound,SND_FILENAME,SND_ASYNC
 import queue
 import threading
 from enum import IntEnum
@@ -179,8 +178,7 @@ class VRChatOSCReceiver:
         if osc_value:
             for eye in self.eyes:
                 eye.ransac.calibration_frame_counter = 300
-                if sys.platform.startswith("win"):
-                    PlaySound('Audio/start.wav', SND_FILENAME | SND_ASYNC)
+                PlaySound('Audio/start.wav', SND_FILENAME | SND_ASYNC)
 
     def run(self):
         

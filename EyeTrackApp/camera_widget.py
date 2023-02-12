@@ -9,8 +9,7 @@ from camera import Camera, CameraState
 from osc import EyeId
 import cv2
 import sys
-if sys.platform.startswith("win"):
-    from winsound import PlaySound, SND_FILENAME, SND_ASYNC
+from utils.misc_utils import PlaySound,SND_FILENAME,SND_ASYNC
 import traceback
 import numpy as np
 
@@ -243,8 +242,7 @@ class CameraWidget:
 
         if event == self.gui_restart_calibration:
             self.ransac.calibration_frame_counter = 300
-            if sys.platform.startswith("win"):
-                PlaySound('Audio/start.wav', SND_FILENAME | SND_ASYNC)
+            PlaySound('Audio/start.wav', SND_FILENAME | SND_ASYNC)
 
         if event == self.gui_recenter_eyes:
             self.settings.gui_recenter_eyes = True

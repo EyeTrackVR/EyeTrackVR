@@ -1,8 +1,10 @@
 import os
+from utils.misc_utils import is_nt
 from osc import VRChatOSCReceiver, VRChatOSC, EyeId
 from config import EyeTrackConfig
 from camera_widget import CameraWidget
 from settings_widget import SettingsWidget
+
 import queue
 import threading
 import PySimpleGUI as sg
@@ -11,8 +13,7 @@ import urllib.request
 
 import webbrowser
 
-if sys.platform.startswith("win"):
-    from win10toast_click import ToastNotifier
+
 
 # Random environment variable to speed up webcam opening on the MSMF backend.
 # https://github.com/opencv/opencv/issues/17687
@@ -68,7 +69,8 @@ def main():
             else:
                 print(
                     f"\033[93m[INFO] You have app version [{appversion}] installed. Please update to [{latestversion}] for the newest features.\033[0m")
-                if sys.platform.startswith("win"):
+                if is_nt:
+                    from win10toast_click import ToastNotifier
                     toaster = ToastNotifier()
                     toaster.show_toast(  # show windows toast
                         "EyeTrackVR has an update.",
