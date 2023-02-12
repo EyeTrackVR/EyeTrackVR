@@ -46,9 +46,7 @@ import numpy as np
 import cv2
 from enum import Enum
 from one_euro_filter import OneEuroFilter
-if sys.platform.startswith("win"):
-    from winsound import PlaySound, SND_FILENAME, SND_ASYNC
-
+from utils.misc_utils import PlaySound, SND_FILENAME, SND_ASYNC
 import importlib
 from osc_calibrate_filter import *
 from haar_surround_feature import External_Run_HSF
@@ -93,8 +91,7 @@ def run_once(f):
 async def delayed_setting_change(setting, value):
     await asyncio.sleep(5)
     setting = value
-    if sys.platform.startswith("win"):
-        PlaySound('Audio/compleated.wav', SND_FILENAME | SND_ASYNC)
+    PlaySound('Audio/compleated.wav', SND_FILENAME | SND_ASYNC)
 
 
 

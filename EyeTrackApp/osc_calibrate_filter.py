@@ -1,6 +1,5 @@
 import sys
-if sys.platform.startswith("win"):
-    from winsound import PlaySound, SND_FILENAME, SND_ASYNC
+from utils.misc_utils import PlaySound, SND_FILENAME, SND_ASYNC
 import numpy as np
 
 def cal_osc(self, cx, cy):
@@ -12,8 +11,7 @@ def cal_osc(self, cx, cy):
         self.calibration_frame_counter = None
         self.xoff = cx
         self.yoff = cy
-        if sys.platform.startswith("win"):
-            PlaySound('Audio/compleated.wav', SND_FILENAME | SND_ASYNC)
+        PlaySound('Audio/compleated.wav', SND_FILENAME | SND_ASYNC)
     elif self.calibration_frame_counter != None:
         self.settings.gui_recenter_eyes = False
         if cx > self.xmax:
@@ -30,8 +28,7 @@ def cal_osc(self, cx, cy):
         self.yoff = cy
         if self.ts == 0:
             self.settings.gui_recenter_eyes = False
-            if sys.platform.startswith("win"):
-                PlaySound('Audio/compleated.wav', SND_FILENAME | SND_ASYNC)
+            PlaySound('Audio/compleated.wav', SND_FILENAME | SND_ASYNC)
         else:
             self.ts = self.ts - 1
     else:
