@@ -256,7 +256,7 @@ class EyeProcessor:
        # if (cx - self.prev_x) <= 45 and (cy - self.prev_y) <= 45 :
           #  self.prev_x = cx
           #  self.prev_y = cy
-        self.eyeopen = intense(cx, cy, uncropframe)
+        self.eyeopen = intense(cx, cy, uncropframe, self)
         out_x, out_y = cal_osc(self, cx, cy)
         #print(self.eyeoffx, self.eyeopen)
 

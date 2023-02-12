@@ -2,7 +2,7 @@ import numpy as np
 import time
 import os
 import cv2
-
+import queue
 from enum import IntEnum
 #higher intensity means more closed/ more white/less pupil
 
@@ -27,12 +27,6 @@ class EyeId(IntEnum):
 # https://github.com/opencv/opencv/issues/18305
 
 
-if EyeId.RIGHT:
-    fname = "IBO_RIGHT.png"
-    eye = "RIGHT"
-if EyeId.LEFT:
-    fname = "IBO_LEFT.png"
-    eye = "LEFT"
 
 #TODO There is a bug where eyeID is not correct which causes dual eye to fail when frame of 
 # one eye is smaller than tracked cord of other eye. seems to be stuck on LEFT
@@ -123,9 +117,20 @@ def check_and_load(frameshape, now_data):
     return now_data
 
 
-def intense(x, y, frame):
+def intense(x, y, frame, self):
     global lct, data
     e = False
+
+    try:
+        (eye_id, eye_info) = self.msg_queue.get(block=True, timeout=0.1)
+    except:
+        pass
+    if eye_id in [EyeId.RIGHT]:
+        fname = "IBO_RIGHT.png"
+        eye = "RIGHT"
+    if eye_id in [EyeId.LEFT]:
+        fname = "IBO_LEFT.png"
+        eye = "LEFT"
     # 0 in data is used as the initial value.
     # When assigning a value, +1 is added to the value to be assigned.
     data = check_and_load(frame.shape[:2], data)
