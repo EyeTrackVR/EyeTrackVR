@@ -28,10 +28,6 @@ class EyeId(IntEnum):
 
 
 
-#TODO There is a bug where eyeID is not correct which causes dual eye to fail when frame of 
-# one eye is smaller than tracked cord of other eye. seems to be stuck on LEFT
-
-
 lct = time.time()
 data = None
 
@@ -89,7 +85,6 @@ def newdata(frameshape):
 
 
 def check_and_load(frameshape, now_data, fname):
-    # In the future, both eyes may be processed at the same time. Therefore, data should be passed as arguments.
     req_newdata = False
     # Not very clever, but increase the width by 1px to save the maximum value.
     frameshape = (frameshape[0], frameshape[1]+1)
@@ -112,6 +107,7 @@ def check_and_load(frameshape, now_data, fname):
             req_newdata = True
     if req_newdata:
         now_data = newdata(frameshape)
+    
     # data2csv(now_data, "a.csv")
     # csv2data(frameshape,"a.csv")
     return now_data
@@ -120,8 +116,7 @@ def check_and_load(frameshape, now_data, fname):
 def intense(x, y, frame, eye_id):
     global lct, data
     e = False
-    print(eye_id)
-    if eye_id in [EyeId.RIGHT]:
+    if eye_id in [EyeId.RIGHT]: #TODO run only once
         fname = "IBO_RIGHT.png"
         eye = "RIGHT"
     if eye_id in [EyeId.LEFT]:
@@ -146,10 +141,10 @@ def intense(x, y, frame, eye_id):
     # numpy:np.sum(),ndarray.sum()
     # opencv:cv2.sumElems()
     # I don't know which is faster.
-    print(frame.shape[1], frame.shape[0], int_x, int_y, eye)
+    #print(frame.shape[1], frame.shape[0], int_x, int_y, eye)
     changed = False
     newval_flg = False
-    if int_y >= frame.shape[0]:
+    if int_y >= frame.shape[0]: 
       #  data_val = 1
         int_y = frame.shape[0] - 1
         e = True
@@ -209,7 +204,7 @@ def intense(x, y, frame, eye_id):
         # print(intensity, maxp, minp, x, y)
         # print(f"EYEOPEN: {eyeopen}")
         # print(int(x), int(y), eyeopen, maxp, minp)
-
+    print(data[0, -1])
     if changed and ((time.time() - lct) > 4):  # save every 4 seconds if something changed to save disk usage
         cv2.imwrite(fname, u32_u16_1ch3ch(data))
         lct = time.time()
