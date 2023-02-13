@@ -48,6 +48,7 @@ from enum import Enum
 from one_euro_filter import OneEuroFilter
 from utils.misc_utils import PlaySound, SND_FILENAME, SND_ASYNC
 import importlib
+from osc import EyeId
 from osc_calibrate_filter import *
 from haar_surround_feature import External_Run_HSF
 from blob import *
@@ -150,6 +151,9 @@ class EyeProcessor:
         self.er_hsf = None
         self.er_hsrac = None
         
+        self.ibo = IntensityBasedOpeness(eyeside=EyeLR.LEFT if self.eye_id is EyeId.LEFT else EyeLR.RIGHT if eye_id is EyeId.RIGHT else -1)
+        self.roi_include_set = {"rotation_angle", "roi_window_x", "roi_window_y"}
+        
         self.failed = 0
 
         self.skip_blink_detect = False
@@ -209,6 +213,7 @@ class EyeProcessor:
                     self.config.roi_window_x + self.config.roi_window_w
                 ),
             ]
+            self.ibo.change_roi(self.config.dict(include=self.roi_include_set))
     
         except:
             # Failure to process frame, reuse previous frame.
@@ -253,7 +258,8 @@ class EyeProcessor:
        # if (cx - self.prev_x) <= 45 and (cy - self.prev_y) <= 45 :
           #  self.prev_x = cx
           #  self.prev_y = cy
-        self.eyeopen = intense(cx, cy, uncropframe, self.eye_id)
+        # self.eyeopen = intense(cx, cy, uncropframe, self.eye_id)
+        self.eyeopen = self.ibo.intense(cx,cy,uncropframe)
         out_x, out_y = cal_osc(self, cx, cy)
         #print(self.eyeoffx, self.eyeopen)
 
@@ -267,7 +273,7 @@ class EyeProcessor:
     def HSFM(self):
         # todo: added process to initialise er_hsf when resolution changes
         cx, cy, frame = self.er_hsf.run(self.current_image_gray)
-        self.eyeopen = intense(cx, cy, self.current_image_gray)
+        self.eyeopen = self.ibo.intense(cx, cy, self.current_image_gray)
         out_x, out_y = cal_osc(self, cx, cy)
         if cx == 0:
             self.output_images_and_update(frame, EyeInformation(InformationOrigin.HSF, out_x, out_y, 0, self.eyeopen)) #update app
@@ -276,7 +282,7 @@ class EyeProcessor:
         
     def RANSAC3DM(self):
         cx, cy, thresh = RANSAC3D(self)
-        self.eyeopen = intense(cx, cy, self.current_image_gray)
+        self.eyeopen = self.ibo.intense(cx, cy, self.current_image_gray)
         out_x, out_y = cal_osc(self, cx, cy)
         if cx == 0:
             self.output_images_and_update(thresh, EyeInformation(InformationOrigin.RANSAC, out_x, out_y, 0, self.eyeopen)) #update app
@@ -285,7 +291,7 @@ class EyeProcessor:
         
     def BLOBM(self):
         cx, cy, thresh = BLOB(self)
-        self.eyeopen = intense(cx, cy, self.current_image_gray)
+        self.eyeopen = self.ibo.intense(cx, cy, self.current_image_gray)
         out_x, out_y = cal_osc(self, cx, cy)
         if cx == 0:
             self.output_images_and_update(thresh, EyeInformation(InformationOrigin.HSRAC, out_x, out_y, 0, self.eyeopen)) #update app
