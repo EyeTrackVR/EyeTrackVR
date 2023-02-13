@@ -17,8 +17,7 @@ class EyeId(IntEnum):
 from config import EyeTrackConfig
 
 class VRChatOSC:
-    # Use a tuple of blink (true, blinking, false, not), x, y for now. Probably clearer as a class but
-    # we're stuck in python 3.6 so still no dataclasses. God I hate python.
+    # Use a tuple of blink (true, blinking, false, not), x, y for now. 
     def __init__(self, cancellation_event: threading.Event, msg_queue: queue.Queue[tuple[bool, int, int]], main_config: EyeTrackConfig,):
         self.main_config = main_config
         self.config = main_config.settings

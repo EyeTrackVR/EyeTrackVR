@@ -108,7 +108,7 @@ class EyeProcessor:
     ):
         self.config = config
         self.settings = settings
-
+        self.eye_id = eye_id
         # Cross-thread communication management
         self.capture_queue_incoming = capture_queue_incoming
         self.image_queue_outgoing = image_queue_outgoing
@@ -253,7 +253,7 @@ class EyeProcessor:
        # if (cx - self.prev_x) <= 45 and (cy - self.prev_y) <= 45 :
           #  self.prev_x = cx
           #  self.prev_y = cy
-        self.eyeopen = intense(cx, cy, uncropframe, self)
+        self.eyeopen = intense(cx, cy, uncropframe, self.eye_id)
         out_x, out_y = cal_osc(self, cx, cy)
         #print(self.eyeoffx, self.eyeopen)
 
@@ -329,6 +329,10 @@ class EyeProcessor:
         
         #set algo priorities
         
+
+
+
+
         if self.settings.gui_HSF:
             if self.er_hsf is None:
                 self.er_hsf = External_Run_HSF(self.settings.gui_skip_autoradius, self.settings.gui_HSF_radius)
@@ -390,6 +394,14 @@ class EyeProcessor:
             if self.cancellation_event.is_set():
                 print("\033[94m[INFO] Exiting Tracking thread\033[0m")
                 return
+
+            #try:
+           # (self.eye_id, eye_info) = self.msg_queue.get(block=True, timeout=0.1)
+             #   print(self.eye_id)
+            #except:
+                #print('eeeeeeee')
+                #pass
+
 
             if self.config.roi_window_w <= 0 or self.config.roi_window_h <= 0:
                 # At this point, we're waiting for the user to set up the ROI window in the GUI.

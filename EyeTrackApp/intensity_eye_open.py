@@ -2,8 +2,8 @@ import numpy as np
 import time
 import os
 import cv2
-import queue
 from enum import IntEnum
+from osc import EyeId
 #higher intensity means more closed/ more white/less pupil
 
 #Hm I need an acronym for this, any ideas?
@@ -88,7 +88,7 @@ def newdata(frameshape):
     return np.zeros(frameshape, dtype=np.uint32)
 
 
-def check_and_load(frameshape, now_data):
+def check_and_load(frameshape, now_data, fname):
     # In the future, both eyes may be processed at the same time. Therefore, data should be passed as arguments.
     req_newdata = False
     # Not very clever, but increase the width by 1px to save the maximum value.
@@ -117,23 +117,20 @@ def check_and_load(frameshape, now_data):
     return now_data
 
 
-def intense(x, y, frame, self):
+def intense(x, y, frame, eye_id):
     global lct, data
     e = False
-
-    try:
-        (eye_id, eye_info) = self.msg_queue.get(block=True, timeout=0.1)
-    except:
-        pass
+    print(eye_id)
     if eye_id in [EyeId.RIGHT]:
         fname = "IBO_RIGHT.png"
         eye = "RIGHT"
     if eye_id in [EyeId.LEFT]:
         fname = "IBO_LEFT.png"
         eye = "LEFT"
+
     # 0 in data is used as the initial value.
     # When assigning a value, +1 is added to the value to be assigned.
-    data = check_and_load(frame.shape[:2], data)
+    data = check_and_load(frame.shape[:2], data, fname)
     int_x, int_y = int(x), int(y)
 
    # upper_x = min(int_x + 25, frame.shape[1]) #TODO make this a setting
