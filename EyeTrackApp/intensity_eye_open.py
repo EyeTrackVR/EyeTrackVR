@@ -162,8 +162,8 @@ class IntensityBasedOpeness:
         changed = False
         newval_flg = False
         oob = False
-        if int_x >= frame.shape[0]:
-            int_x = frame.shape[0] - 1
+        if int_x >= frame.shape[1]:
+            int_x = frame.shape[1] - 1
             obb = True
             print('CAUGHT X OUT OF BOUNDS')
     
@@ -171,8 +171,8 @@ class IntensityBasedOpeness:
             int_x = True
             print('CAUGHT X UNDER BOUNDS')
 
-        if int_y >= frame.shape[1]:
-            int_y = frame.shape[1] - 1
+        if int_y >= frame.shape[0]:
+            int_y = frame.shape[0] - 1
             oob = True
             print('CAUGHT Y OUT OF BOUNDS')
 
