@@ -357,14 +357,14 @@ class EyeProcessor:
 
         _, self.firstalgo, self.secondalgo, self.thirdalgo, self.fourthalgo = algolist
         
-        # if self.settings.gui_HSF and self.settings.gui_HSFP == 1: #I feel like this is super innefficient though it only runs at startup and no solution is coming to me atm
-        #     self.firstalgo = self.HSFM
-        # elif self.settings.gui_HSF and self.settings.gui_HSFP == 2:
-        #     self.secondalgo = self.HSFM
-        # elif self.settings.gui_HSF and self.settings.gui_HSFP == 3:
-        #     self.thirdalgo = self.HSFM
-        # elif self.settings.gui_HSF and self.settings.gui_HSFP == 4:
-        #     self.fourthalgo = self.HSFM
+        if self.settings.gui_HSF and self.settings.gui_HSFP == 1: #I feel like this is super innefficient though it only runs at startup and no solution is coming to me atm
+             self.firstalgo = self.HSFM
+        elif self.settings.gui_HSF and self.settings.gui_HSFP == 2:
+             self.secondalgo = self.HSFM
+        elif self.settings.gui_HSF and self.settings.gui_HSFP == 3:
+             self.thirdalgo = self.HSFM
+        elif self.settings.gui_HSF and self.settings.gui_HSFP == 4:
+             self.fourthalgo = self.HSFM
 
         if self.settings.gui_RANSAC3D and self.settings.gui_RANSAC3DP == 1:
             self.firstalgo = self.RANSAC3DM
@@ -375,14 +375,14 @@ class EyeProcessor:
         elif self.settings.gui_RANSAC3D and self.settings.gui_RANSAC3DP == 4:
             self.fourthalgo = self.RANSAC3DM
 
-        # if self.settings.gui_HSRAC and self.settings.gui_HSRACP == 1:
-        #     self.firstalgo = self.HSRACM
-        # elif self.settings.gui_HSRAC and self.settings.gui_HSRACP == 2:
-        #     self.secondalgo = self.HSRACM
-        # elif self.settings.gui_HSRAC and self.settings.gui_HSRACP == 3:
-        #     self.thirdalgo = self.HSRACM
-        # elif self.settings.gui_HSRAC and self.settings.gui_HSRACP == 4:
-        #     self.fourthalgo = self.HSRACM
+        if self.settings.gui_HSRAC and self.settings.gui_HSRACP == 1:
+             self.firstalgo = self.HSRACM
+        elif self.settings.gui_HSRAC and self.settings.gui_HSRACP == 2:
+             self.secondalgo = self.HSRACM
+        elif self.settings.gui_HSRAC and self.settings.gui_HSRACP == 3:
+             self.thirdalgo = self.HSRACM
+        elif self.settings.gui_HSRAC and self.settings.gui_HSRACP == 4:
+             self.fourthalgo = self.HSRACM
 
         if self.settings.gui_BLOB and self.settings.gui_BLOBP == 1:
             self.firstalgo = self.BLOBM

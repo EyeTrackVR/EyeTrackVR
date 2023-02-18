@@ -19,7 +19,6 @@ from utils.misc_utils import clamp
 
 thresh_add = 10
 
-video_path = "ezgif.com-gif-maker.avi"
 imshow_enable = True
 calc_print_enable = True
 save_video = False

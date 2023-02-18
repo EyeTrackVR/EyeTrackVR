@@ -161,18 +161,30 @@ class IntensityBasedOpeness:
         # print(frame.shape[1], frame.shape[0], int_x, int_y, eye)
         changed = False
         newval_flg = False
-        if int_y >= frame.shape[0]:
-            #  data_val = 1
-            int_y = frame.shape[0] - 1
-            print('CAUGHT Y OUT OF BOUNDS')
-    
+        oob = False
         if int_x >= frame.shape[1]:
-            # data_val = 1
             int_x = frame.shape[0] - 1
+            obb = True
+            print('CAUGHT X OUT OF BOUNDS')
+    
+        if int_x < 0:
+            int_x = True
+            print('CAUGHT X UNDER BOUNDS')
+
+        if int_x >= frame.shape[1]:
+            int_x = frame.shape[0] - 1
+            oob = True
             print('CAUGHT X OUT OF BOUNDS')
 
-        data_val = self.data[int_y, int_x]
-        
+        if int_x < 0:
+            int_x = 1
+            oob = True
+            print('CAUGHT X UNDER BOUNDS')
+
+        if oob != True:
+            data_val = self.data[int_y, int_x]
+        else:
+            data_val = 0
         # max pupil per cord
         if data_val == 0:
             # The value of the specified coordinates has not yet been recorded.
@@ -183,7 +195,7 @@ class IntensityBasedOpeness:
             if intensity < data_val:  # if current intensity value is less (more pupil), save that
                 self.data[int_y, int_x] = intensity  # set value
                 changed = True
-                print("var adjusted")
+               # print("var adjusted")
             else:
                 intensitya = max(data_val - 3, 1)  # if current intensity value is less (more pupil), save that
                 self.data[int_y, int_x] = intensitya  # set value
@@ -192,11 +204,11 @@ class IntensityBasedOpeness:
         # min pupil global
         if self.maxval == 0:  # that value is not yet saved
             self.maxval = intensity  # set value at 0 index
-            print("create max", intensity)
+          #  print("create max", intensity)
         else:
             if intensity > self.maxval:  # if current intensity value is more (less pupil), save that NOTE: we have the
                 self.maxval = intensity  # set value at 0 index
-                print("new max", intensity)
+              #  print("new max", intensity)
             else:
                 intensityd = max(self.maxval - 10, 1)  # continuously adjust closed intensity, will be set when user blink, used to allow eyes to close when lighting changes
                 self.maxval = intensityd  # set value at 0 index
@@ -213,7 +225,7 @@ class IntensityBasedOpeness:
             eyeopen = 1 - eyeopen
             # eyeopen = eyeopen - 0.2
             # print(intensity, maxp, minp, x, y)
-            # print(f"EYEOPEN: {eyeopen}")
+            print(f"EYEOPEN: {eyeopen}")
             # print(int(x), int(y), eyeopen, maxp, minp)
         # print(self.data[0, -1])
         # print(self.maxval)
