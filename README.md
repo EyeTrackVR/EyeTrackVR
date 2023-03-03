@@ -31,7 +31,7 @@ Please check out our [documentation site.](https://docs.eyetrackvr.dev/)
 ## Hardware
 
 3d files for mounting brackets will be found [here](https://github.com/RedHawk989/EyeTrackVR-Hardware)
-IR emitter files are also located there. For more info please reference our [documentation site](https://redhawk989.github.io/EyeTrackVR/parts-list/)
+IR emitter files are also located there. For more info please reference our [documentation site](https://docs.eyetrackvr.dev/how_to_build/parts_list)
 
 
 
@@ -43,7 +43,7 @@ Current work has been with our official firmware by `lorow`, found [here](https:
 
 ## Headset support
 
-Any headset that can fit the camera and LEDs can likely be supported, however, mounts may not have been made for it. Please reference to our [parts list](https://redhawk989.github.io/EyeTrackVR/parts-list/#other-parts) for details.
+Any headset that can fit the camera and LEDs can likely be supported, however, mounts may not have been made for it. Please reference to our [parts list](https://docs.eyetrackvr.dev/how_to_build/parts_list#_3d-printed-mounts) for details.
 
 
 ## About IR Emitter Safety
