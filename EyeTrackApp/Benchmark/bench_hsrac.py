@@ -885,8 +885,12 @@ class HSRAC_cls(object):
         
         # self.kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (3, 3))
         # or
-        self.kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (3, 3))
-        self.gauss_k = cv2.getGaussianKernel(5, 0)
+        self.kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (3, 3)) # dont
+        
+        self.gauss_k = cv2.getGaussianKernel(5,2)
+        # cv2.getGaussianKernel(kernel size, sigma)
+        # Increasing the kernel size improves accuracy but slows down performance.
+        # Increasing sigma improves accuracy a little, but has less effect than kernel size.
     
     def open_video(self, video_path):
         # Temporary implementation to run
