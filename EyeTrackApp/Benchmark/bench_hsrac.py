@@ -2,7 +2,7 @@ import math
 import os
 import timeit
 from functools import lru_cache
-from logging import Formatter, INFO, StreamHandler,FileHandler, getLogger
+from logging import Formatter, INFO, StreamHandler, FileHandler, getLogger
 
 import cv2
 import numpy as np
@@ -18,7 +18,6 @@ this_file_basename = os.path.basename(__file__)
 this_file_name = this_file_basename.replace(".py", "")
 alg_ver = "230314-1"  # Do not change it.
 
-
 ##############################
 # These can be changed
 old_mode = False
@@ -31,17 +30,11 @@ output_video_path = f'./{this_file_name}_{alg_ver}_new.mp4' if not old_mode else
 logfilename = f'./{this_file_name}_{alg_ver}_new.log' if not old_mode else f'./{this_file_name}_old.log'
 print_enable = False  # I don't recommend changing to True.
 
-
-
 # RANSAC
 thresh_add = 10
 skip_autoradius = False
 skip_blink_detect = False
 ##############################
-
-
-
-
 
 
 ##############################
@@ -61,7 +54,6 @@ blink_init_frames = 60 * 3  # 60fps*3sec,Number of blink statistical frames
 # step==(x,y)
 default_step = (5, 5)  # bigger the steps,lower the processing time! ofc acc also takes an impact
 
-
 logger = getLogger(__name__)
 logger.setLevel(INFO)
 formatter = Formatter('%(message)s')
@@ -77,8 +69,8 @@ if save_logfile and not imsave_flg:
 else:
     save_logfile = False
 
-
 video_wr = cv2.VideoWriter(output_video_path, cv2.VideoWriter_fourcc(*"x264"), 60.0, (200, 150)) if save_video else None
+
 
 ##############################
 
@@ -226,6 +218,7 @@ class BlinkDetector(object):
     def response_len(self):
         return len(self.response_list)
 
+
 def ellipse_model(data, y, f):
     """
     There is no need to make this process a function, since making the process a function will slow it down a little by calling it.
@@ -238,8 +231,9 @@ def ellipse_model(data, y, f):
     """
     return data.dot(y) + f
 
+
 def fit_rotated_ellipse_ransac_old(data: np.ndarray, rng: np.random.Generator, iter=100, sample_num=10,
-                                    offset=80):  # before changing these values, please read up on the ransac algorithm
+                                   offset=80):  # before changing these values, please read up on the ransac algorithm
     # However if you want to change any value just know that higher iterations will make processing frames slower
     effective_sample = None
     
@@ -539,58 +533,46 @@ def conv_int_old(frame_int, kernel, xy_step, padding, xy_steps_list):
     return frame_conv, min_response, center
 
 
-
-
-
-
-@lru_cache(maxsize=lru_maxsize_vs)
-def get_ransac_empty_array_lendata_new(len_data,iter_num, sample_num):
+@lru_cache(maxsize=lru_maxsize_s)
+def get_ransac_empty_array_new(iter_num, sample_num, len_data):
     # Function to reduce array allocation by providing an empty array first and recycling it with lru
-    use_dtype=np.float64
+    use_dtype = np.float64
+    dm_rng = np.empty((iter_num, sample_num, 7), dtype=use_dtype)
+    dm_rng_swap = np.empty((iter_num, sample_num, 5), dtype=use_dtype)
+    dm_rng_swap_trans = dm_rng_swap.transpose((0, 2, 1))
+    # dm_rng_swap_trans = np.empty((iter_num, 5,sample_num), dtype=use_dtype)
+    dm_rng_5x5 = np.empty((iter_num, 5, 5), dtype=use_dtype)
+    dm_rng_p5smp = np.empty((iter_num, 5, sample_num), dtype=use_dtype)
+    dm_rng_p = np.empty((iter_num, 5), dtype=use_dtype)
+    dm_rng_p_npaxis = dm_rng_p[:, :, np.newaxis]
+    ellipse_y_arr = np.empty((iter_num, 5), dtype=use_dtype)
+    ellipse_y_arr[:, 2] = 1
+    swap_index = np.array([4, 3, 0, 1, 5], dtype=np.uint8)
+    dm_brod = np.broadcast_to(dm_rng_p[:, 4, np.newaxis], (iter_num, len_data))
+    dm_rng_six = dm_rng[:, :, 6, np.newaxis]
+    dm_rng_p_24 = dm_rng_p[:, 2:4]
+    dm_rng_p_10 = dm_rng_p[:, 1::-1]
+    el_y_arr_2 = ellipse_y_arr[:, :2]
+    el_y_arr_3 = ellipse_y_arr[:, 3:]
     datamod = np.empty((len_data, 7), dtype=use_dtype)  # np.empty((len(data), 7), dtype=ret_dtype)
     datamod[:, 5] = 1
-    datamod_b=datamod[:, :5]#.T
-    random_index_init_arr = np.empty((iter_num, len_data), dtype=np.uint16)
-    random_index_init_arr[:, :] = np.arange(len_data, dtype=np.uint16)
-    random_index = np.empty((iter_num, len_data), dtype=np.uint16)
-    random_index_samplenum=random_index[:, :sample_num]
-    ellipse_data_arr=np.empty((iter_num,len_data),dtype=use_dtype)
-    th_abs=np.empty((iter_num,len_data),dtype=use_dtype)
-    
-    dm_data_view=datamod[:, :2]# = data
-    dm_p2_view=datamod[:, 2:4]# = data * data
-    dm_mul_view=datamod[:, 4]# = data[:, 0] * data[:, 1]
-    dm_neg_view=datamod[:, 6]# = -datamod[:, 2]
-    
-    # return datamod,random_index_init_arr,random_index,ellipse_data_arr,th_abs
-    return datamod,datamod_b,dm_data_view,dm_p2_view,dm_mul_view,dm_neg_view, random_index_init_arr, random_index,random_index_samplenum, ellipse_data_arr, th_abs
+    datamod_b = datamod[:, :5]  # .T
+    rdm_index_init_arr = np.empty((iter_num, len_data), dtype=np.uint16)
+    rdm_index_init_arr[:, :] = np.arange(len_data, dtype=np.uint16)
+    rdm_index = np.empty((iter_num, len_data), dtype=np.uint16)
+    rdm_index_smpnum = rdm_index[:, :sample_num]
+    ellipse_data_arr = np.empty((iter_num, len_data), dtype=use_dtype)
+    th_abs = np.empty((iter_num, len_data), dtype=use_dtype)
+    dm_data = datamod[:, :2]  # = data
+    dm_p2 = datamod[:, 2:4]  # = data * data
+    dm_mul = datamod[:, 4]  # = data[:, 0] * data[:, 1]
+    dm_neg = datamod[:, 6]  # = -datamod[:, 2]
+    return dm_rng, dm_rng_swap, dm_rng_swap_trans, dm_rng_5x5, dm_rng_p5smp, dm_rng_p, dm_rng_p_npaxis, ellipse_y_arr, swap_index, dm_brod, dm_rng_six, dm_rng_p_24, dm_rng_p_10, el_y_arr_2, el_y_arr_3, datamod, datamod_b, dm_data, dm_p2, dm_mul, dm_neg, rdm_index_init_arr, rdm_index, rdm_index_smpnum, ellipse_data_arr, th_abs
 
-@lru_cache(maxsize=lru_maxsize_s)
-def get_ransac_empty_array_iternum_samplenum_new(iter_num, sample_num,len_data):
-    # Function to reduce array allocation by providing an empty array first and recycling it with lru
-    use_dtype=np.float64
-    datamod_rng=np.empty((iter_num,sample_num,7),dtype=use_dtype)
-    datamod_rng_swap = np.empty((iter_num, sample_num, 5), dtype=use_dtype)
-    datamod_rng_swap_trans=datamod_rng_swap.transpose((0,2,1))
-    # datamod_rng_swap_trans = np.empty((iter_num, 5,sample_num), dtype=use_dtype)
-    datamod_rng_5x5= np.empty((iter_num, 5,5), dtype=use_dtype)
-    datamod_rng_p5smp = np.empty((iter_num, 5,sample_num), dtype=use_dtype)
-    datamod_rng_p=np.empty((iter_num,5),dtype=use_dtype)
-    datamod_rng_p_npaxis=datamod_rng_p[:,:,np.newaxis]
-    ellipse_y_arr=np.empty((iter_num,5),dtype=use_dtype)
-    ellipse_y_arr[:, 2] = 1
-    swap_index=np.array([4, 3, 0, 1, 5])
-    dm_brod=np.broadcast_to(datamod_rng_p[:, 4, np.newaxis], (iter_num, len_data))
-    dm_rng_six=datamod_rng[:, :, 6, np.newaxis]
-    dm_rng_p_24_view= datamod_rng_p[:, 2:4]
-    dm_rng_p_10_view= datamod_rng_p[:, 1::-1]
-    el_y_arr_2_view=ellipse_y_arr[:, :2]
-    el_y_arr_3_view=ellipse_y_arr[:, 3:]
-    return datamod_rng,datamod_rng_swap,datamod_rng_swap_trans,datamod_rng_5x5,datamod_rng_p5smp,datamod_rng_p,datamod_rng_p_npaxis,ellipse_y_arr,swap_index,dm_brod,dm_rng_six,dm_rng_p_24_view,dm_rng_p_10_view,el_y_arr_2_view,el_y_arr_3_view
 
 # @profile
 def fit_rotated_ellipse_ransac_new(data: np.ndarray, sfc: np.random.Generator, iter_num=100, sample_num=10, offset=80  # 80.0, 10, 80
-                               ):  # before changing these values, please read up on the ransac algorithm
+                                   ):  # before changing these values, please read up on the ransac algorithm
     # However if you want to change any value just know that higher iterations will make processing frames slower
     
     # The array contents do not change during the loop, so only one call is needed.
@@ -601,13 +583,8 @@ def fit_rotated_ellipse_ransac_new(data: np.ndarray, sfc: np.random.Generator, i
     if len_data < sample_num:
         return None
     
-    # Type of calculation result
-    # ret_dtype = np.float64
-    # todo:create view
-    datamod_rng, datamod_rng_swap, datamod_rng_swap_trans, datamod_rng_5x5, datamod_rng_p5smp, datamod_rng_p,datamod_rng_p_npaxis, ellipse_y_arr,swap_index,dm_brod,dm_rng_six,dm_rng_p_24_view,dm_rng_p_10_view,el_y_arr_2_view,el_y_arr_3_view=get_ransac_empty_array_iternum_samplenum_new(iter_num,sample_num,len_data)
-
-    datamod,datamod_b,dm_data_view,dm_p2_view,dm_mul_view,dm_neg_view,random_index_init_arr,random_index,random_index_samplenum,ellipse_data_arr,th_abs=get_ransac_empty_array_lendata_new(len_data,iter_num,sample_num)
-    
+    dm_rng, dm_rng_swap, dm_rng_swap_trans, dm_rng_5x5, dm_rng_p5smp, dm_rng_p, dm_rng_p_npaxis, ellipse_y_arr, swap_index, dm_brod, dm_rng_six, dm_rng_p_24, dm_rng_p_10, el_y_arr_2, el_y_arr_3, datamod, datamod_b, dm_data, dm_p2, dm_mul, dm_neg, rdm_index_init_arr, rdm_index, rdm_index_smpnum, ellipse_data_arr, th_abs = get_ransac_empty_array_new(
+        iter_num, sample_num, len_data)
     
     # I don't think it looks beautiful.
     # x,y,x**2,y**2,x*y,1,-1*x**2
@@ -616,43 +593,43 @@ def fit_rotated_ellipse_ransac_new(data: np.ndarray, sfc: np.random.Generator, i
     #      (-1 * data[:, 0] ** 2)[:, np.newaxis]], axis=1,
     #     dtype=ret_dtype)
     
-    dm_data_view[:, :] = data#[:]
-    dm_p2_view[:,:] = data * data
-    dm_mul_view[:] = data[:, 0] * data[:, 1]
-    dm_neg_view[:] = -dm_p2_view[:,0] # -1 * data[:, 0] ** 2#
+    dm_data[:, :] = data  # [:]
+    dm_p2[:, :] = data * data
+    dm_mul[:] = data[:, 0] * data[:, 1]
+    dm_neg[:] = -dm_p2[:, 0]  # -1 * data[:, 0] ** 2#
     
     # Sorts a random number array of size (iter,len_data). After sorting, returns the index of sample_num random numbers before sorting.
-    sfc.permuted(random_index_init_arr, axis=1, out=random_index)
-
+    sfc.permuted(rdm_index_init_arr, axis=1, out=rdm_index)
+    
     # np.take replaces a[ind,:] and is 3-4 times faster, https://gist.github.com/rossant/4645217
     # a.take() is faster than np.take(a)
-    datamod.take(random_index_samplenum, axis=0, mode="clip", out=datamod_rng)
+    datamod.take(rdm_index_smpnum, axis=0, mode="clip", out=dm_rng)
     
-    datamod_rng.take(swap_index, axis=2, mode="clip", out=datamod_rng_swap)
+    dm_rng.take(swap_index, axis=2, mode="clip", out=dm_rng_swap)
     # or
-    # datamod_rng_swap = np.take(datamod_rng,[4, 3, 0, 1, 5],axis=2)
+    # dm_rng_swap = np.take(dm_rng,[4, 3, 0, 1, 5],axis=2)
     
-    np.matmul(datamod_rng_swap_trans, datamod_rng_swap, out=datamod_rng_5x5)
-    # I want to use cv2.mulTransposed, but for some reason the results are different and it can only use 1-channel arrays.
-    # np.linalg.solve(np.matmul(datamod_rng_swap_trans, datamod_rng_swap), datamod_rng_swap_trans) # solve is slow https://github.com/bogovicj/JaneliaMLCourse/issues/1
-    _umath_linalg.inv(datamod_rng_5x5, signature='d->d', extobj=np.linalg.linalg.get_linalg_error_extobj(np.linalg.linalg._raise_linalgerror_singular), out=datamod_rng_5x5)
-    np.matmul(datamod_rng_5x5, datamod_rng_swap_trans, out=datamod_rng_p5smp)
+    np.matmul(dm_rng_swap_trans, dm_rng_swap, out=dm_rng_5x5)
+    # np.linalg.solve(np.matmul(dm_rng_swap_trans, dm_rng_swap), dm_rng_swap_trans) # solve is slow https://github.com/bogovicj/JaneliaMLCourse/issues/1
+    _umath_linalg.inv(dm_rng_5x5, signature='d->d',
+                      extobj=np.linalg.linalg.get_linalg_error_extobj(np.linalg.linalg._raise_linalgerror_singular), out=dm_rng_5x5)
+    np.matmul(dm_rng_5x5, dm_rng_swap_trans, out=dm_rng_p5smp)
     
-    np.matmul(datamod_rng_p5smp, dm_rng_six, out=datamod_rng_p_npaxis)
+    np.matmul(dm_rng_p5smp, dm_rng_six, out=dm_rng_p_npaxis)
     
-    el_y_arr_2_view[:,:] = dm_rng_p_24_view
-    el_y_arr_3_view[:,:] = dm_rng_p_10_view
+    el_y_arr_2[:, :] = dm_rng_p_24
+    el_y_arr_3[:, :] = dm_rng_p_10
     
-    cv2.gemm(ellipse_y_arr,datamod_b,1.0,dm_brod,1.0,dst=ellipse_data_arr,flags=cv2.GEMM_2_T)
-
-    np.abs(ellipse_data_arr,out=th_abs)
-    cv2.threshold(th_abs, offset, 1.0, cv2.THRESH_BINARY_INV,dst=th_abs)#[1]
+    cv2.gemm(ellipse_y_arr, datamod_b, 1.0, dm_brod, 1.0, dst=ellipse_data_arr, flags=cv2.GEMM_2_T)
+    
+    np.abs(ellipse_data_arr, out=th_abs)
+    cv2.threshold(th_abs, offset, 1.0, cv2.THRESH_BINARY_INV, dst=th_abs)  # [1]
     ellipse_data_index = \
-    cv2.minMaxLoc(cv2.reduce(th_abs, 1, cv2.REDUCE_SUM))[3][1]
-
+        cv2.minMaxLoc(cv2.reduce(th_abs, 1, cv2.REDUCE_SUM))[3][1]
+    
     # error_num = ellipse_data_arr[ellipse_data_index].sum()
     error_num = cv2.sumElems(ellipse_data_arr[ellipse_data_index])[0]
-    effective_sample_p_arr = datamod_rng_p[ellipse_data_index].tolist()
+    effective_sample_p_arr = dm_rng_p[ellipse_data_index].tolist()
     
     # if fit_rotated_ellipse(effective_data_arr.sum(), effective_sample_p_arr)!= fit_rotated_ellipse_base(effective_data_arr, effective_sample_p_arr):
     #     print()
@@ -746,8 +723,8 @@ class HaarSurroundFeature_new:
             val_inner = val[0]
             val_outer = val[1]
         
-        self.val_in = float(val_inner)#np.array(val_inner, dtype=np.float64)
-        self.val_out = float(val_outer)#np.array(val_outer, dtype=np.float64)
+        self.val_in = float(val_inner)  # np.array(val_inner, dtype=np.float64)
+        self.val_out = float(val_outer)  # np.array(val_outer, dtype=np.float64)
         self.r_in = r_inner
         self.r_out = r_outer
     
@@ -763,163 +740,71 @@ class HaarSurroundFeature_new:
         
         return kernel
 
-@lru_cache(maxsize=lru_maxsize_vvs)
-def get_hsf_empty_array_new(len_sx,len_sy, frameint_x, frame_int_dtype, fcshape):
-# def get_hsf_empty_array(len_syx, frameint_x, frame_int_dtype, fcshape):
-    # Function to reduce array allocation by providing an empty array first and recycling it with lru
-    len_syx=(len_sy,len_sx)
-    inner_sum = np.empty(len_syx, dtype=frame_int_dtype)
-    
-    # in_p_temp = np.empty((len_syx[0], frameint_x), dtype=frame_int_dtype)
-    # in_p00 = np.empty(len_syx, dtype=frame_int_dtype)
-    # in_p11 = np.empty(len_syx, dtype=frame_int_dtype)
-    # in_p01 = np.empty(len_syx, dtype=frame_int_dtype)
-    # in_p10 = np.empty(len_syx, dtype=frame_int_dtype)
-    
-    # inner_sum_temp = np.empty((*len_syx,4), dtype=frame_int_dtype)
-    outer_sum = np.empty(len_syx, dtype=frame_int_dtype)
-    # outer_sum_temp = np.empty((*len_syx,5), dtype=frame_int_dtype)
-    p_temp = np.empty((len_sy, frameint_x), dtype=frame_int_dtype)
-    p00 = np.empty(len_syx, dtype=frame_int_dtype)
-    p11 = np.empty(len_syx, dtype=frame_int_dtype)
-    p01 = np.empty(len_syx, dtype=frame_int_dtype)
-    p10 = np.empty(len_syx, dtype=frame_int_dtype)
-    response_list = np.empty(len_syx, dtype=np.float64)# or np.int32
-    frame_conv = np.zeros(shape=fcshape[0], dtype=np.uint8)# or np.float64
-    frame_conv_stride = frame_conv[::fcshape[1], ::fcshape[2]]
-    return inner_sum, outer_sum, p_temp, p00, p11, p01, p10, response_list, frame_conv, frame_conv_stride
-    # return inner_sum,in_p_temp,in_p00,in_p11,in_p01,in_p10, outer_sum, p_temp, p00, p11, p01, p10, response_list, frame_conv, frame_conv_stride
-
 
 @lru_cache(maxsize=lru_maxsize_vvs)
-def get_hsf_inout_index(padding, x_step, y_step, col, row, r_in, r_out):#,val_in,val_out):
-    # y_steps,x_steps=np.ogrid[padding:y_step * len_sy + padding:y_step, padding:x_step * len_sx + padding:x_step]
-    y_steps_arr = np.arange(padding, row - padding, y_step,dtype=np.int16)
-    x_steps_arr = np.arange(padding, col - padding, x_step,dtype=np.int16)
+def get_frameint_empty_array(frame_shape, pad, x_step, y_step, r_in, r_out):
+    frame_int_dtype = np.intc
+    
+    frame_pad = np.empty((frame_shape[0] + (pad * 2), frame_shape[1] + (pad * 2)), dtype=np.uint8)
+    
+    row, col = frame_pad.shape
+    
+    frame_int = np.empty((row + 1, col + 1), dtype=frame_int_dtype)
+    
+    y_steps_arr = np.arange(pad, row - pad, y_step, dtype=np.int16)
+    x_steps_arr = np.arange(pad, col - pad, x_step, dtype=np.int16)
     len_sx, len_sy = len(x_steps_arr), len(y_steps_arr)
-    
-    y_end=padding+(y_step*(len_sy-1))
-    x_end=padding+(x_step*(len_sx-1))
-    y_rin_m_f = padding - r_in
-    y_rin_m_e = y_end - r_in + 1
-    y_rin_p_f = padding + r_in
-    y_rin_p_e = y_end + r_in + 1
-
-    x_rin_m_f = padding - r_in
-    x_rin_m_e = x_end - r_in + 1
-    x_rin_p_f = padding + r_in
-    x_rin_p_e = x_end + r_in + 1
-    
-    y_rin_m=slice(y_rin_m_f,y_rin_m_e,y_step)
-    y_rin_p=slice(y_rin_p_f,y_rin_p_e,y_step)
-    x_rin_m=slice(x_rin_m_f,x_rin_m_e,x_step)
-    x_rin_p=slice(x_rin_p_f,x_rin_p_e,x_step)
-    
-    # y_rin_m=np.arange(padding-r_in,y_end-r_in+1,y_step,dtype=np.int16)
-    # y_rin_p=np.arange(padding+r_in,y_end+r_in+1,y_step,dtype=np.int16)
-    # x_rin_m=np.arange(padding-r_in,x_end-r_in+1,x_step,dtype=np.int16)
-    # x_rin_p=np.arange(padding+r_in,x_end+r_in+1,x_step,dtype=np.int16)
-    
-    # y_ro_m = y_steps_arr - r_out
-    # x_ro_m = x_steps_arr - r_out
-    # y_ro_p = y_steps_arr + r_out
-    # x_ro_p = x_steps_arr + r_out
-    
-    # y_ro_m = slice(max(0,y_steps_arr[0]-r_out),max(0,y_steps_arr[-1]-r_out),y_step)#,y_steps_arr - r_out
-    # x_ro_m = slice(max(0,x_steps_arr[0]-r_out),max(0,x_steps_arr[-1]-r_out),x_step)#x_steps_arr - r_out
-    # y_ro_p = slice(min(row,y_steps_arr[0]+r_out),min(row,y_steps_arr[-1]+r_out),y_step)#y_steps_arr + r_out
-    # x_ro_p = slice(min(col,x_steps_arr[0]+r_out),min(col,x_steps_arr[-1]+r_out),x_step)#x_steps_arr + r_out
-    
-    # y_ro_m = np.clip(y_steps_arr - r_out,0,y_steps_arr[-1])#[:,np.newaxis]
-    # x_ro_m = np.clip(x_steps_arr - r_out,0,x_steps_arr[-1])#[np.newaxis,:]
-    # y_ro_p = np.clip(y_steps_arr + r_out,0,row)#[:,np.newaxis]
-    # x_ro_p = np.clip(x_steps_arr + r_out,0,col)#[np.newaxis,:]
-    
-    y_ro_m = np.maximum(y_steps_arr - r_out,0)#[:,np.newaxis]
-    x_ro_m = np.maximum(x_steps_arr - r_out,0)#[np.newaxis,:]
-    y_ro_p = np.minimum(row,y_steps_arr + r_out)#[:,np.newaxis]
-    x_ro_p = np.minimum(col,x_steps_arr + r_out)#[np.newaxis,:]
-    
-    # return x_steps_arr, y_steps_arr, len_sx, len_sy, y_rin_m_f, y_rin_m_e, y_rin_p_f, y_rin_p_e, x_rin_m_f, x_rin_m_e, x_rin_p_f, x_rin_p_e, y_ro_m, x_ro_m, y_ro_p, x_ro_p
-    # return len_sx, len_sy, y_rin_m, y_rin_p, x_rin_m, x_rin_p, y_ro_m, x_ro_m, y_ro_p, x_ro_p,val_in,val_out,(row - 2 * padding, col - 2 * padding)
-    return len_sx, len_sy, y_rin_m, y_rin_p, x_rin_m, x_rin_p, y_ro_m, x_ro_m, y_ro_p, x_ro_p,(row - 2 * padding, col - 2 * padding)
-
-@lru_cache(maxsize=lru_maxsize_s)
-def get_hsf_center(padding, x_step, y_step, min_loc):#min_x,min_y):
-    # y_steps,x_steps=np.ogrid[padding:y_step * len_sy + padding:y_step, padding:x_step * len_sx + padding:x_step]
-    # y_steps_arr = np.arange(padding, row - padding, y_step)
-    # x_steps_arr = np.arange(padding, col - padding, x_step)
-    # return x_steps_arr[min_x] - padding, y_steps_arr[min_y] - padding
-    # return np.array(padding+(x_step*min_loc[0])-padding),np.array(padding+(y_step*min_loc[1])-padding)
-    return padding+(x_step*min_loc[0])-padding,padding+(y_step*min_loc[1])-padding
-
-@lru_cache(maxsize=lru_maxsize_vvs)
-def get_frameint_empty_array(frame_shape,pad,x_step, y_step, r_in, r_out):
-    frame_int_dtype=np.intc
-    
-    frame_pad=np.empty((frame_shape[0]+(pad*2),frame_shape[1]+(pad*2)),dtype=np.uint8)
-    
-    row,col=frame_pad.shape
-    
-    frame_int=np.empty((row+1,col+1),dtype=frame_int_dtype)
-    
-    y_steps_arr = np.arange(pad, row - pad, y_step,dtype=np.int16)
-    x_steps_arr = np.arange(pad, col - pad, x_step,dtype=np.int16)
-    len_sx, len_sy = len(x_steps_arr), len(y_steps_arr)
+    len_syx = (len_sy, len_sx)
     y_end = pad + (y_step * (len_sy - 1))
     x_end = pad + (x_step * (len_sx - 1))
     
-    y_rin_m = slice( pad - r_in,  y_end - r_in + 1, y_step)
+    y_rin_m = slice(pad - r_in, y_end - r_in + 1, y_step)
     y_rin_p = slice(pad + r_in, y_end + r_in + 1, y_step)
     x_rin_m = slice(pad - r_in, x_end - r_in + 1, x_step)
     x_rin_p = slice(pad + r_in, x_end + r_in + 1, x_step)
-
-    in_p00_view=frame_int[y_rin_m,x_rin_m]
-    in_p11_view=frame_int[y_rin_p,x_rin_p]
-    in_p01_view=frame_int[y_rin_m,x_rin_p]
-    in_p10_view=frame_int[y_rin_p,x_rin_m]
     
-    y_ro_m = np.maximum(y_steps_arr - r_out,0)#[:,np.newaxis]
-    x_ro_m = np.maximum(x_steps_arr - r_out,0)#[np.newaxis,:]
-    y_ro_p = np.minimum(row,y_steps_arr + r_out)#[:,np.newaxis]
-    x_ro_p = np.minimum(col,x_steps_arr + r_out)#[np.newaxis,:]
+    in_p00 = frame_int[y_rin_m, x_rin_m]
+    in_p11 = frame_int[y_rin_p, x_rin_p]
+    in_p01 = frame_int[y_rin_m, x_rin_p]
+    in_p10 = frame_int[y_rin_p, x_rin_m]
     
-    return frame_pad,frame_int,in_p00_view,in_p11_view,in_p01_view,in_p10_view,y_ro_m, x_ro_m, y_ro_p, x_ro_p,(row - 2 * pad, col - 2 * pad),len_sx, len_sy
+    y_ro_m = np.maximum(y_steps_arr - r_out, 0)  # [:,np.newaxis]
+    x_ro_m = np.maximum(x_steps_arr - r_out, 0)  # [np.newaxis,:]
+    y_ro_p = np.minimum(row, y_steps_arr + r_out)  # [:,np.newaxis]
+    x_ro_p = np.minimum(col, x_steps_arr + r_out)  # [np.newaxis,:]
+    
+    inner_sum = np.empty(len_syx, dtype=frame_int_dtype)
+    outer_sum = np.empty(len_syx, dtype=frame_int_dtype)
+    
+    out_p_temp = np.empty((len_sy, col + 1), dtype=frame_int_dtype)
+    out_p00 = np.empty(len_syx, dtype=frame_int_dtype)
+    out_p11 = np.empty(len_syx, dtype=frame_int_dtype)
+    out_p01 = np.empty(len_syx, dtype=frame_int_dtype)
+    out_p10 = np.empty(len_syx, dtype=frame_int_dtype)
+    response_list = np.empty(len_syx, dtype=np.float64)  # or np.int32
+    frame_conv = np.zeros(shape=(row - 2 * pad, col - 2 * pad), dtype=np.uint8)  # or np.float64
+    frame_conv_stride = frame_conv[::y_step, ::x_step]
+    
+    return frame_pad, frame_int, inner_sum, in_p00, in_p11, in_p01, in_p10, y_ro_m, x_ro_m, y_ro_p, x_ro_p, outer_sum, out_p_temp, out_p00, out_p11, out_p01, out_p10, response_list, frame_conv, frame_conv_stride, len_sx, len_sy
 
-# todo: Check performance when changing integer type numpy array to low bits integer type
-# todo: Consider using np.clip if the clamp function input meets some conditions
+
 # @profile
-def conv_int(frame_int, kernel, x_step,y_step, padding,in_p00_view, in_p11_view, in_p01_view, in_p10_view, y_ro_m, x_ro_m, y_ro_p, x_ro_p, f_shape, len_sx, len_sy):  # , x_steps,y_steps):#xy_steps_list):
-    """
-    :param frame_int:
-    :param kernel: hsf
-    :param step: (x,y)
-    :param padding: int
-    :return:
-    """
-    
-    inner_sum, outer_sum,p_temp, p00, p11, p01, p10, response_list, frame_conv, frame_conv_stride = get_hsf_empty_array_new(len_sx,len_sy,#(len_sy, len_sx),
-                                                                                                                         frame_int.shape[1],#col + 1,
-                                                                                                                         frame_int.dtype, (
-                                                                                                                         f_shape, y_step,
-                                                                                                                         x_step))
-
-    inner_sum[:, :] = in_p00_view + in_p11_view - in_p01_view - in_p10_view
-    
+def conv_int_new(frame_int, kernel, inner_sum, in_p00, in_p11, in_p01, in_p10, y_ro_m, x_ro_m, y_ro_p, x_ro_p, outer_sum, out_p_temp,
+                 out_p00, out_p11, out_p01, out_p10, response_list, frame_conv_stride):
+    inner_sum[:, :] = in_p00 + in_p11 - in_p01 - in_p10
     
     # p00 calc
-    frame_int.take( y_ro_m, axis=0, mode="clip", out=p_temp)
-    p_temp.take(x_ro_m, axis=1, mode="clip", out=p00)
+    frame_int.take(y_ro_m, axis=0, mode="clip", out=out_p_temp)
+    out_p_temp.take(x_ro_m, axis=1, mode="clip", out=out_p00)
     # p01 calc
-    p_temp.take( x_ro_p, axis=1, mode="clip", out=p01)
+    out_p_temp.take(x_ro_p, axis=1, mode="clip", out=out_p01)
     # p11 calc
-    frame_int.take( y_ro_p, axis=0, mode="clip", out=p_temp)
-    p_temp.take( x_ro_p, axis=1, mode="clip", out=p11)
+    frame_int.take(y_ro_p, axis=0, mode="clip", out=out_p_temp)
+    out_p_temp.take(x_ro_p, axis=1, mode="clip", out=out_p11)
     # p10 calc
-    p_temp.take( x_ro_m, axis=1, mode="clip", out=p10)
+    out_p_temp.take(x_ro_m, axis=1, mode="clip", out=out_p10)
     
-    
-    outer_sum[:, :] = p00 + p11 - p01 - p10 - inner_sum
+    outer_sum[:, :] = out_p00 + out_p11 - out_p01 - out_p10 - inner_sum
     # cv2.transform(np.asarray([p00, p11, -p01, -p10, -inner_sum]).transpose((1, 2, 0)), np.ones((1, 5)),
     #               dst=outer_sum)  # https://answers.opencv.org/question/3120/how-to-sum-a-3-channel-matrix-to-a-one-channel-matrix/
     
@@ -927,51 +812,47 @@ def conv_int(frame_int, kernel, x_step,y_step, padding,in_p00_view, in_p11_view,
     # response_list += kernel.val_out * outer_sum
     cv2.addWeighted(inner_sum,
                     kernel.val_in,
-                    outer_sum,# or p00 + p11 - p01 - p10 - inner_sum
+                    outer_sum,  # or p00 + p11 - p01 - p10 - inner_sum
                     kernel.val_out,
                     0.0,
-                    dtype=cv2.CV_64F,#or cv2.CV_32S
+                    dtype=cv2.CV_64F,  # or cv2.CV_32S
                     dst=response_list)
     
-    # min_response, max_val, min_loc, max_loc = cv2.minMaxLoc(response_list)
     min_response, _, min_loc, _ = cv2.minMaxLoc(response_list)
-    
-    # center = get_hsf_center(padding,x_step,y_step,min_loc)
     
     frame_conv_stride[:, :] = response_list
     # or
     # frame_conv_stride[:, :] = response_list.astype(np.uint8)
     
-    # return frame_conv, min_response, center
-    return frame_conv, min_response, get_hsf_center(padding,x_step,y_step,min_loc)
+    return min_response, min_loc
+
+
+@lru_cache(maxsize=lru_maxsize_s)
+def get_hsf_center(padding, x_step, y_step, min_loc):  # min_x,min_y):
+    return padding + (x_step * min_loc[0]) - padding, padding + (y_step * min_loc[1]) - padding
 
 
 @lru_cache(lru_maxsize_vvs)
 def get_ransac_frame(frame_shape):
-    return np.empty(frame_shape,dtype=np.uint8),np.empty(frame_shape,dtype=np.uint8)#np.float64)
+    return np.empty(frame_shape, dtype=np.uint8), np.empty(frame_shape, dtype=np.uint8)  # np.float64)
 
 
 @lru_cache(lru_maxsize_s)
-def get_center_noclamp(center_xy,radius):
+def get_center_noclamp(center_xy, radius):
     center_x, center_y = center_xy
     upper_x = center_x + radius
     lower_x = center_x - radius
     upper_y = center_y + radius
     lower_y = center_y - radius
-    return center_x,center_y,upper_x,lower_x,upper_y,lower_y
-
-
-@lru_cache(lru_maxsize_s)
-def get_hsf_center_uplow(center_x,center_y,radius):
-    hsf_center_x, hsf_center_y = center_x, center_y
-    # ransac_xy_offset = (hsf_center_x-20, hsf_center_y-20)
-    upper_x = hsf_center_x + max(20, radius)
-    lower_x = hsf_center_x - max(20, radius)
-    upper_y = hsf_center_y + max(20, radius)
-    lower_y = hsf_center_y - max(20, radius)
-    ransac_xy_offset = (lower_x, lower_y)
-    return upper_x,lower_x,upper_y,lower_y,ransac_xy_offset
     
+    ransac_upper_x = center_x + max(20, radius)
+    ransac_lower_x = center_x - max(20, radius)
+    ransac_upper_y = center_y + max(20, radius)
+    ransac_lower_y = center_y - max(20, radius)
+    ransac_xy_offset = (ransac_lower_x, ransac_lower_y)
+    return center_x, center_y, upper_x, lower_x, upper_y, lower_y, ransac_lower_x, ransac_lower_y, ransac_upper_x, ransac_upper_y, ransac_xy_offset
+
+
 class HSRAC_cls(object):
     def __init__(self):
         # I'd like to take into account things like print, end_time - start_time processing time, etc., but it's too much trouble.
@@ -1034,7 +915,7 @@ class HSRAC_cls(object):
         ## default_radius = 14
         
         if imshow_enable or save_video:
-            ori_frame = self.current_image.copy()# debug code
+            ori_frame = self.current_image.copy()  # debug code
         # cropbox=[] # debug code
         
         blink_bd = False
@@ -1068,9 +949,10 @@ class HSRAC_cls(object):
             frame_pad = cv2.copyMakeBorder(gray_frame, pad, pad, pad, pad, cv2.BORDER_CONSTANT)
             frame_int = cv2.integral(frame_pad)
         else:
-            frame_pad, frame_int, in_p00_view, in_p11_view, in_p01_view, in_p10_view, y_ro_m, x_ro_m, y_ro_p, x_ro_p, f_shape, len_sx, len_sy = get_frameint_empty_array(gray_frame.shape,pad,step[0],step[1],hsf.r_in,hsf.r_out)
-            cv2.copyMakeBorder(gray_frame, pad, pad, pad, pad, cv2.BORDER_CONSTANT,dst=frame_pad)
-            cv2.integral(frame_pad,sum=frame_int,sdepth=cv2.CV_32S)
+            frame_pad, frame_int, inner_sum, in_p00, in_p11, in_p01, in_p10, y_ro_m, x_ro_m, y_ro_p, x_ro_p, outer_sum, out_p_temp, out_p00, out_p11, out_p01, out_p10, response_list, frame_conv, frame_conv_stride, len_sx, len_sy = get_frameint_empty_array(
+                gray_frame.shape, pad, step[0], step[1], hsf.r_in, hsf.r_out)
+            cv2.copyMakeBorder(gray_frame, pad, pad, pad, pad, cv2.BORDER_CONSTANT, dst=frame_pad)
+            cv2.integral(frame_pad, sum=frame_int, sdepth=cv2.CV_32S)
         self.timedict["int_img"].append(timeit.default_timer() - int_start_time)
         
         # Convolve the feature with the integral image
@@ -1079,10 +961,12 @@ class HSRAC_cls(object):
             xy_step = frameint_get_xy_step_old(frame_int.shape, step, pad, start_offset=None, end_offset=None)
             frame_conv, response, center_xy = conv_int_old(frame_int, hsf, step, pad, xy_step)
         else:
-            # frame_conv, response, center_xy = conv_int(frame_int, hsf, step, pad)  # , x_step,y_step)
-            frame_conv, response, center_xy = conv_int(frame_int, hsf, step[0],step[1], pad,in_p00_view, in_p11_view, in_p01_view, in_p10_view, y_ro_m, x_ro_m, y_ro_p, x_ro_p, f_shape, len_sx, len_sy)  # , x_step,y_step)
-        # x_step,y_step = frameint_get_xy_step(frame_int.shape, step, pad, start_offset=None, end_offset=None)
-
+            
+            response, hsf_min_loc = conv_int_new(frame_int, hsf, inner_sum, in_p00, in_p11, in_p01, in_p10, y_ro_m, x_ro_m, y_ro_p, x_ro_p,
+                                                 outer_sum, out_p_temp, out_p00, out_p11, out_p01, out_p10, response_list,
+                                                 frame_conv_stride)
+            center_xy = get_hsf_center(pad, step[0], step[1], hsf_min_loc)
+        
         self.timedict["conv_int"].append(timeit.default_timer() - conv_int_start_time)
         
         crop_start_time = timeit.default_timer()
@@ -1094,49 +978,76 @@ class HSRAC_cls(object):
             upper_y = center_y + radius
             lower_y = center_y - radius
         else:
-            center_x, center_y, upper_x, lower_x, upper_y, lower_y=get_center_noclamp(center_xy,radius)
+            center_x, center_y, upper_x, lower_x, upper_y, lower_y, ransac_lower_x, ransac_lower_y, ransac_upper_x, ransac_upper_y, ransac_xy_offset = get_center_noclamp(
+                center_xy, radius)
         
-        # Crop the image using the calculated bounds
-        cropped_image = safe_crop(gray_frame, lower_x, lower_y, upper_x, upper_y)
-        
-        # cropbox=[clamp(val, 0, gray_frame.shape[i]) for i,val in zip([1,0,1,0],[lower_x,lower_y,upper_x,upper_y])] # debug code
-        
-        if self.now_modeo == self.cv_modeo[0] or self.now_modeo == self.cv_modeo[1]:
-            # If mode is first_frame or radius_adjust, record current radius and response
-            self.auto_radius_calc.add_response(radius, response)
-        elif self.now_modeo == self.cv_modeo[2]:
-            # Statistics for blink detection
-            if self.blink_detector.response_len() < blink_init_frames:
-                self.blink_detector.add_response(cv2.mean(cropped_image)[0])
-                
-                upper_x = center_x + max(20, radius)
-                lower_x = center_x - max(20, radius)
-                upper_y = center_y + max(20, radius)
-                lower_y = center_y - max(20, radius)
-                self.center_q1.add_response(
-                    cv2.mean(safe_crop(gray_frame, lower_x, lower_y, upper_x, upper_y, keepsize=False))[
-                        0
-                    ]
-                )
+        if old_mode:
+            # Crop the image using the calculated bounds
+            cropped_image = safe_crop(gray_frame, lower_x, lower_y, upper_x, upper_y)
             
-            else:
+            # cropbox=[clamp(val, 0, gray_frame.shape[i]) for i,val in zip([1,0,1,0],[lower_x,lower_y,upper_x,upper_y])] # debug code
+            
+            if self.now_modeo == self.cv_modeo[0] or self.now_modeo == self.cv_modeo[1]:
+                # If mode is first_frame or radius_adjust, record current radius and response
+                self.auto_radius_calc.add_response(radius, response)
+            elif self.now_modeo == self.cv_modeo[2]:
+                # Statistics for blink detection
+                if self.blink_detector.response_len() < blink_init_frames:
+                    self.blink_detector.add_response(cv2.mean(cropped_image)[0])
+                    self.center_q1.add_response(
+                        cv2.mean(safe_crop(gray_frame, center_x - max(20, radius), center_y - max(20, radius), center_x + max(20, radius),
+                                           center_y + max(20, radius), keepsize=False))[
+                            0
+                        ]
+                    )
                 
-                self.blink_detector.calc_thresh()
-                self.center_q1.calc_thresh()
-                self.now_modeo = self.cv_modeo[3]
-        else:
-            if 0 in cropped_image.shape:  # This line may not be needed. The image will be cropped using safecrop.
-                # If shape contains 0, it is not detected well.
-                print("Something's wrong.")
+                else:
+                    
+                    self.blink_detector.calc_thresh()
+                    self.center_q1.calc_thresh()
+                    self.now_modeo = self.cv_modeo[3]
             else:
-                orig_x, orig_y = center_x, center_y
-                if self.blink_detector.enable_detect_flg:
+                if 0 in cropped_image.shape:  # This line may not be needed. The image will be cropped using safecrop.
+                    # If shape contains 0, it is not detected well.
+                    print("Something's wrong.")
+                else:
+                    orig_x, orig_y = center_x, center_y
+                    if self.blink_detector.enable_detect_flg:
+                        # If the average value of cropped_image is greater than response_max
+                        # (i.e., if the cropimage is whitish
+                        if self.blink_detector.detect(cv2.mean(cropped_image)[0]):
+                            # blink
+                            print("BLINK BD")
+                            blink_bd = True
+        else:
+            if self.now_modeo == self.cv_modeo[0] or self.now_modeo == self.cv_modeo[1]:
+                # If mode is first_frame or radius_adjust, record current radius and response
+                self.auto_radius_calc.add_response(radius, response)
+            elif self.now_modeo == self.cv_modeo[2]:
+                # Statistics for blink detection
+                if self.blink_detector.response_len() < blink_init_frames:
+                    self.blink_detector.add_response(cv2.mean(safe_crop(gray_frame, lower_x, lower_y, upper_x, upper_y, 1))[0])
+                    self.center_q1.add_response(
+                        cv2.mean(safe_crop(gray_frame, center_x - max(20, radius), center_y - max(20, radius), center_x + max(20, radius),
+                                           center_y + max(20, radius), keepsize=False))[
+                            0
+                        ]
+                    )
+                
+                else:
+                    
+                    self.blink_detector.calc_thresh()
+                    self.center_q1.calc_thresh()
+                    self.now_modeo = self.cv_modeo[3]
+            else:
+                if self.blink_detector.enable_detect_flg and self.blink_detector.detect(
+                        cv2.mean(safe_crop(gray_frame, lower_x, lower_y, upper_x, upper_y, 1))[0]):
                     # If the average value of cropped_image is greater than response_max
                     # (i.e., if the cropimage is whitish
-                    if self.blink_detector.detect(cv2.mean(cropped_image)[0]):
-                        # blink
-                        print("BLINK BD")
-                        blink_bd = True
+                    # blink
+                    print("BLINK BD")
+                    blink_bd = True
+            
             # if imshow_enable or save_video:
             #    cv2.circle(frame, (orig_x, orig_y), 6, (0, 0, 255), -1)
             # cv2.circle(ori_frame, (center_x, center_y), 7, (255, 0, 0), -1)
@@ -1175,8 +1086,7 @@ class HSRAC_cls(object):
         
         # For measuring processing time of image processing
         ransac_start_time = timeit.default_timer()
-
-
+        
         if old_mode:
             frame_gray = cv2.GaussianBlur(frame, (5, 5), 0)
         else:
@@ -1190,24 +1100,21 @@ class HSRAC_cls(object):
             # or
             frame_gray = cv2.sepFilter2D(frame, -1, self.gauss_k, self.gauss_k)
         
-
+        # Crop the image using the calculated bounds
+        # todo:safecrop tune
         if old_mode:
-            hsf_center_x, hsf_center_y = center_x, center_y#center_x.copy(), center_y.copy()
+            hsf_center_x, hsf_center_y = center_x, center_y  # center_x.copy(), center_y.copy()
             # ransac_xy_offset = (hsf_center_x-20, hsf_center_y-20)
             upper_x = hsf_center_x + max(20, radius)
             lower_x = hsf_center_x - max(20, radius)
             upper_y = hsf_center_y + max(20, radius)
             lower_y = hsf_center_y - max(20, radius)
             ransac_xy_offset = (lower_x, lower_y)
+            frame_gray_crop = safe_crop(frame_gray, lower_x, lower_y, upper_x, upper_y)
         else:
-            upper_x, lower_x, upper_y, lower_y, ransac_xy_offset = get_hsf_center_uplow(center_x,center_y,radius)
-        
-        # Crop the image using the calculated bounds
-        #todo:safecrop tune
-        frame_gray_crop = safe_crop(frame_gray, lower_x, lower_y, upper_x, upper_y)
-        if not old_mode:
-            th_frame,fic_frame=get_ransac_frame(frame_gray_crop.shape)
-        frame = frame_gray_crop # todo: It can cause bugs.
+            frame_gray_crop = safe_crop(frame_gray, ransac_lower_x, ransac_lower_y, ransac_upper_x, ransac_upper_y, 1)
+            th_frame, fic_frame = get_ransac_frame(frame_gray_crop.shape)
+        frame = frame_gray_crop  # todo: It can cause bugs.
         
         # this will need to be adjusted everytime hardware is changed (brightness of IR, Camera postion, etc)m
         # min_val, max_val, min_loc, max_loc = cv2.minMaxLoc(frame_gray_crop)
@@ -1218,20 +1125,19 @@ class HSRAC_cls(object):
         else:
             cv2.threshold(frame_gray_crop, min_val + thresh_add, 255, cv2.THRESH_BINARY, dst=th_frame)
         # print(thresh.shape, frame_gray.shape)
-        try:
-            if old_mode:
+        
+        if old_mode:
+            try:
                 opening = cv2.morphologyEx(thresh, cv2.MORPH_OPEN, self.kernel)
                 closing = cv2.morphologyEx(opening, cv2.MORPH_CLOSE, self.kernel)
                 th_frame = 255 - closing
-            else:
-                cv2.morphologyEx(th_frame, cv2.MORPH_OPEN, self.kernel,dst=fic_frame)
-                cv2.morphologyEx(fic_frame, cv2.MORPH_CLOSE, self.kernel,dst=fic_frame)
-                cv2.bitwise_not(fic_frame,fic_frame)
-            # th_frame = 255 - closing
-        except Exception as e:
-            raise e
-            # I want to eliminate try here because try tends to be slow in execution.
-            # fic_frame = 255 - frame_gray_crop
+            except:
+                th_frame = 255 - frame_gray_crop
+        else:
+            cv2.morphologyEx(th_frame, cv2.MORPH_OPEN, self.kernel, dst=fic_frame)
+            cv2.morphologyEx(fic_frame, cv2.MORPH_CLOSE, self.kernel, dst=fic_frame)
+            cv2.bitwise_not(fic_frame, fic_frame)
+        
         if old_mode:
             contours, _ = cv2.findContours(th_frame, cv2.RETR_TREE, cv2.CHAIN_APPROX_NONE)
         else:
@@ -1246,30 +1152,26 @@ class HSRAC_cls(object):
                 if old_mode:
                     thresh = cv2.threshold(frame_gray_crop, (min_val + thresh_add * 4 + threshold_value) / 2, 255, cv2.THRESH_BINARY)[1]
                 else:
-                    cv2.threshold(frame_gray_crop, (min_val + thresh_add * 4 + threshold_value) / 2, 255, cv2.THRESH_BINARY,dst=th_frame)
+                    cv2.threshold(frame_gray_crop, (min_val + thresh_add * 4 + threshold_value) / 2, 255, cv2.THRESH_BINARY, dst=th_frame)
             else:
                 threshold_value = self.center_q1.quartile_1
                 if old_mode:
                     _, thresh = cv2.threshold(frame_gray_crop, threshold_value, 255, cv2.THRESH_BINARY)
                 else:
-                    cv2.threshold(frame_gray_crop, threshold_value, 255, cv2.THRESH_BINARY,dst=th_frame)
-            try:
-                if old_mode:
+                    cv2.threshold(frame_gray_crop, threshold_value, 255, cv2.THRESH_BINARY, dst=th_frame)
+            if old_mode:
+                try:
                     opening = cv2.morphologyEx(thresh, cv2.MORPH_OPEN, self.kernel)
                     closing = cv2.morphologyEx(opening, cv2.MORPH_CLOSE, self.kernel)
                     th_frame = 255 - closing
-                else:
-                    cv2.morphologyEx(th_frame, cv2.MORPH_OPEN, self.kernel, dst=fic_frame)
-                    cv2.morphologyEx(fic_frame, cv2.MORPH_CLOSE, self.kernel, dst=fic_frame)
-                    cv2.bitwise_not(fic_frame, fic_frame)
-            except Exception as e:
-                raise e
-                # I want to eliminate try here because try tends to be slow in execution.
-                # fic_frame = 255 - frame_gray_crop
-            if old_mode:
+                except:
+                    th_frame = 255 - frame_gray_crop
                 contours2, _ = cv2.findContours(th_frame, cv2.RETR_TREE, cv2.CHAIN_APPROX_NONE)
                 contours = (*contours, *contours2)
             else:
+                cv2.morphologyEx(th_frame, cv2.MORPH_OPEN, self.kernel, dst=fic_frame)
+                cv2.morphologyEx(fic_frame, cv2.MORPH_CLOSE, self.kernel, dst=fic_frame)
+                cv2.bitwise_not(fic_frame, fic_frame)
                 contours = (*contours, *cv2.findContours(fic_frame, cv2.RETR_LIST, cv2.CHAIN_APPROX_SIMPLE)[0])
                 # or
                 # contours = (*contours, *cv2.findContours(fic_frame, cv2.RETR_LIST, cv2.CHAIN_APPROX_NONE)[0])
@@ -1352,7 +1254,6 @@ class HSRAC_cls(object):
                     if cv2.waitKey(1) & 0xFF == ord("q"):
                         pass
         
-        
         cv_end_time = timeit.default_timer()
         self.timedict["ransac"].append(cv_end_time - ransac_start_time)
         self.timedict["total_cv"].append(cv_end_time - cv_start_time)
@@ -1379,9 +1280,10 @@ if __name__ == "__main__":
                                                                                   int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT)),
                                                                                   cap.get(cv2.CAP_PROP_FPS),
                                                                                   int(cap.get(cv2.CAP_PROP_FRAME_COUNT)),
-                                                                                  cap.get(cv2.CAP_PROP_FRAME_COUNT) / cap.get(cv2.CAP_PROP_FPS)))
+                                                                                  cap.get(cv2.CAP_PROP_FRAME_COUNT) / cap.get(
+                                                                                      cv2.CAP_PROP_FPS)))
     cap.release()
-
+    
     if not print_enable:
         def print(*args, **kwargs):
             pass
@@ -1423,7 +1325,7 @@ if __name__ == "__main__":
                     pass
             else:
                 _ = hsrac.single_run()
-            
+        
         if save_video:
             video_wr.release()
         hsrac.cap.release()
