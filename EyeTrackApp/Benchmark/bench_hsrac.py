@@ -1,52 +1,54 @@
+import math
 import os
 import timeit
 from functools import lru_cache
-
-from logging import getLogger, Formatter, StreamHandler, FileHandler, INFO
-
-old_mode=True#False
-
-this_file_name = os.path.basename(__file__)
-logger = getLogger(__name__)
-logger.setLevel(INFO)
-formatter = Formatter('%(message)s')
-handler = StreamHandler()
-handler.setLevel(INFO)
-handler.setFormatter(formatter)
-logger.addHandler(handler)
-
-# handler = FileHandler(f'./{this_file_name.replace(".py","")}2.log' if not old_mode else f'./{this_file_name.replace(".py","")}.log',encoding="utf8",mode="w")
-# handler.setLevel(INFO)
-# handler.setFormatter(formatter)
-# logger.addHandler(handler)
-
+from logging import Formatter, INFO, StreamHandler,FileHandler, getLogger
 
 import cv2
 import numpy as np
 from numpy.linalg import _umath_linalg
-from EyeTrackApp.utils.time_utils import FPSResult, TimeitResult, format_time
-from EyeTrackApp.haar_surround_feature import (
-    AutoRadiusCalc,
-    BlinkDetector,
-    # CvParameters,
-    # conv_int,
-    # frameint_get_xy_step,
-)
+
 from EyeTrackApp.utils.img_utils import safe_crop
 from EyeTrackApp.utils.misc_utils import clamp
-import math
-from line_profiler_pycharm import profile
+from EyeTrackApp.utils.time_utils import FPSResult, TimeitResult, format_time
+
+# from line_profiler_pycharm import profile
+
+this_file_basename = os.path.basename(__file__)
+this_file_name = this_file_basename.replace(".py", "")
+alg_ver = "230314-1"  # Do not change it.
+
+
+##############################
+# These can be changed
+old_mode = False
+save_logfile = False  # This setting is disabled when imshow_enable or save_video is true
+imshow_enable = False
+save_video = False
+loop_num = 1 if imshow_enable or save_video else 100
+input_video_path = "Pro_demo2.mp4"
+output_video_path = f'./{this_file_name}_{alg_ver}_new.mp4' if not old_mode else f'./{this_file_name}_{alg_ver}_old.mp4'
+logfilename = f'./{this_file_name}_{alg_ver}_new.log' if not old_mode else f'./{this_file_name}_old.log'
+print_enable = False  # I don't recommend changing to True.
+
+
 
 # RANSAC
-
 thresh_add = 10
-
-# imshow_enable = True
 # calc_print_enable = True
-print_enable = False
-save_video = False
 skip_autoradius = False
 skip_blink_detect = False
+##############################
+
+
+
+
+
+
+##############################
+# Do not change these.
+
+imsave_flg = imshow_enable or save_video
 
 # cache param
 lru_maxsize_vvs = 16
@@ -61,6 +63,170 @@ blink_init_frames = 60 * 3  # 60fps*3sec,Number of blink statistical frames
 default_step = (5, 5)  # bigger the steps,lower the processing time! ofc acc also takes an impact
 
 
+logger = getLogger(__name__)
+logger.setLevel(INFO)
+formatter = Formatter('%(message)s')
+handler = StreamHandler()
+handler.setLevel(INFO)
+handler.setFormatter(formatter)
+logger.addHandler(handler)
+if save_logfile and not imsave_flg:
+    handler = FileHandler(logfilename, encoding="utf8", mode="w")
+    handler.setLevel(INFO)
+    handler.setFormatter(formatter)
+    logger.addHandler(handler)
+else:
+    save_logfile = False
+
+
+video_wr = cv2.VideoWriter(output_video_path, cv2.VideoWriter_fourcc(*"x264"), 60.0, (200, 150)) if save_video else None
+
+##############################
+
+
+class AutoRadiusCalc(object):
+    def __init__(self):
+        self.response_list = []
+        self.radius_cand_list = []
+        self.adj_comp_flag = False
+        
+        self.radius_middle_index = None
+        
+        self.left_item = None
+        self.right_item = None
+        self.left_index = None
+        self.right_index = None
+    
+    def get_radius(self):
+        prev_res_len = len(self.response_list)
+        # adjustment of radius
+        if prev_res_len == 1:
+            # len==1==response_list==[default_radius]
+            self.adj_comp_flag = False
+            return auto_radius_range[0]
+        elif prev_res_len == 2:
+            # len==2==response_list==[default_radius, auto_radius_range[0]]
+            self.adj_comp_flag = False
+            return auto_radius_range[1]
+        elif prev_res_len == 3:
+            # len==3==response_list==[default_radius,auto_radius_range[0],auto_radius_range[1]]
+            if self.response_list[1][1] < self.response_list[2][1]:
+                self.left_item = self.response_list[1]
+                self.right_item = self.response_list[0]
+            else:
+                self.left_item = self.response_list[0]
+                self.right_item = self.response_list[2]
+            self.radius_cand_list = [i for i in range(self.left_item[0], self.right_item[0] + auto_radius_step, auto_radius_step)]
+            self.left_index = 0
+            self.right_index = len(self.radius_cand_list) - 1
+            self.radius_middle_index = (self.left_index + self.right_index) // 2
+            self.adj_comp_flag = False
+            return self.radius_cand_list[self.radius_middle_index]
+        else:
+            if self.left_index <= self.right_index and self.left_index != self.radius_middle_index:
+                if (self.left_item[1] + self.response_list[-1][1]) < (self.right_item[1] + self.response_list[-1][1]):
+                    self.right_item = self.response_list[-1]
+                    self.right_index = self.radius_middle_index - 1
+                    self.radius_middle_index = (self.left_index + self.right_index) // 2
+                    self.adj_comp_flag = False
+                    return self.radius_cand_list[self.radius_middle_index]
+                if (self.left_item[1] + self.response_list[-1][1]) > (self.right_item[1] + self.response_list[-1][1]):
+                    self.left_item = self.response_list[-1]
+                    self.left_index = self.radius_middle_index + 1
+                    self.radius_middle_index = (self.left_index + self.right_index) // 2
+                    self.adj_comp_flag = False
+                    return self.radius_cand_list[self.radius_middle_index]
+            self.adj_comp_flag = True
+            return self.radius_cand_list[self.radius_middle_index]
+    
+    def get_radius_base(self):
+        """
+        Use it when the new version doesn't work well.
+        :return:
+        """
+        
+        prev_res_len = len(self.response_list)
+        # adjustment of radius
+        if prev_res_len == 1:
+            # len==1==response_list==[default_radius]
+            self.adj_comp_flag = False
+            return auto_radius_range[0]
+        elif prev_res_len == 2:
+            # len==2==response_list==[default_radius, auto_radius_range[0]]
+            self.adj_comp_flag = False
+            return auto_radius_range[1]
+        elif prev_res_len == 3:
+            # len==3==response_list==[default_radius,auto_radius_range[0],auto_radius_range[1]]
+            sort_res = sorted(self.response_list, key=lambda x: x[1])[0]
+            # Extract the radius with the lowest response value
+            if sort_res[0] == default_radius:
+                # If the default value is best, change now_mode to init after setting radius to the default value.
+                self.adj_comp_flag = True
+                return default_radius
+            elif sort_res[0] == auto_radius_range[0]:
+                self.radius_cand_list = [i for i in range(auto_radius_range[0], default_radius, auto_radius_step)][1:]
+                self.adj_comp_flag = False
+                return self.radius_cand_list.pop()
+            else:
+                self.radius_cand_list = [i for i in range(default_radius, auto_radius_range[1], auto_radius_step)][1:]
+                self.adj_comp_flag = False
+                return self.radius_cand_list.pop()
+        else:
+            # Try the contents of the radius_cand_list in order until the radius_cand_list runs out
+            # Better make it a binary search.
+            if len(self.radius_cand_list) == 0:
+                sort_res = sorted(self.response_list, key=lambda x: x[1])[0]
+                self.adj_comp_flag = True
+                return sort_res[0]
+            else:
+                self.adj_comp_flag = False
+                return self.radius_cand_list.pop()
+    
+    def add_response(self, radius, response):
+        self.response_list.append((radius, response))
+        return None
+
+
+class BlinkDetector(object):
+    def __init__(self):
+        self.response_list = []
+        self.response_max = None
+        self.enable_detect_flg = False
+        self.quartile_1 = None
+    
+    def calc_thresh(self):
+        # Calculate response_max by computing interquartile range, IQR
+        # self.response_listo = np.array(self.response_listo)
+        # 25%,75%
+        # This value may need to be adjusted depending on the environment.
+        # quartile_1, quartile_3 = np.percentile(self.response_listo, [25, 75])
+        # iqr = quartile_3 - quartile_1
+        # self.response_maxo = quartile_3 + (iqr * 1.5)
+        
+        # quartile_1, quartile_3 = np.percentile(self.response_list, [25, 75])
+        # or
+        quartile_1, quartile_3 = np.percentile(np.array(self.response_list), [25, 75])
+        self.quartile_1 = quartile_1
+        iqr = quartile_3 - quartile_1
+        # response_min = quartile_1 - (iqr * 1.5)
+        
+        self.response_max = float(quartile_3 + (iqr * 1.5))
+        # or
+        # self.response_max = quartile_3 + (iqr * 1.5)
+        
+        self.enable_detect_flg = True
+        return None
+    
+    def detect(self, now_response):
+        return now_response > self.response_max
+    
+    def add_response(self, response):
+        self.response_list.append(response)
+        return None
+    
+    def response_len(self):
+        return len(self.response_list)
+
 def ellipse_model(data, y, f):
     """
     There is no need to make this process a function, since making the process a function will slow it down a little by calling it.
@@ -73,191 +239,7 @@ def ellipse_model(data, y, f):
     """
     return data.dot(y) + f
 
-
-# from scipy.linalg import cho_factor, cho_solve
-import scipy
-
-
-# from scipy.linalg import solve
-
-# def inv_sc(a):
-#     orig_shape = a.shape
-#     dim1 = int(math.sqrt(a.shape[0]))
-#     # u, s, vt = scipy.linalg.svd(a.reshape((a.shape[0],a.shape[1] * a.shape[2])), full_matrices=False,compute_uv=True,overwrite_a=False, check_finite=False)
-#     u, s, vt = scipy.linalg.svd(a.reshape(((a.shape[1] * dim1) + (a.shape[0] % 2), a.shape[2] * dim1)), full_matrices=False,
-#                                 compute_uv=True, overwrite_a=False,
-#                                 check_finite=False)
-#     # rcond = np.array(1e-15)
-#     # # discard small singular values
-#     # cutoff = rcond[..., np.newaxis] * np.amax(s, axis=-1, keepdims=True)
-#     # large = s > cutoff
-#     # s = np.divide(1, s, where=large, out=s)
-#     # s[~large] = 0
-#
-#     res = np.matmul(vt.T, s[..., np.newaxis] * u.T)
-#     return res.reshape(orig_shape)
-
-
-# @profile
-def fit_rotated_ellipse_ransac_bad(data: np.ndarray, rng: np.random.Generator, iter=100, sample_num=10, offset=80  # 80.0, 10, 80
-                                   ):  # before changing these values, please read up on the ransac algorithm
-    # However if you want to change any value just know that higher iterations will make processing frames slower
-    # effective_sample = None
-    
-    # The array contents do not change during the loop, so only one call is needed.
-    # They say len is faster than shape.
-    # Reference url: https://stackoverflow.com/questions/35547853/what-is-faster-python3s-len-or-numpys-shape
-    len_data = len(data)
-    
-    if len_data < sample_num:
-        return None
-    
-    # Type of calculation result
-    ret_dtype = np.float64
-    
-    # Sorts a random number array of size (iter,len_data). After sorting, returns the index of sample_num random numbers before sorting.
-    # If the array size is less than about 100, this is faster than rng.choice.
-    # rng_sample = rng.random((iter, len_data)).argsort()[:, :sample_num]
-    # or
-    # I don't see any advantage to doing this.
-    # rng_sample = np.asarray(rng.random((iter, len_data)).argsort()[:, :sample_num], dtype=np.int32)
-    
-    # I don't think it looks beautiful.
-    # x,y,x**2,y**2,x*y,1,-1*x**2
-    data_squared = np.square(data)
-    datamod = np.empty((len(data), 7), dtype=ret_dtype)  # np.empty((len(data), 7), dtype=ret_dtype)
-    datamod[:, :2] = data
-    datamod[:, 2:4] = data_squared
-    datamod[:, 4] = data[:, 0] * data[:, 1]
-    datamod[:, 5] = 1
-    datamod[:, 6] = -data_squared[:, 0]
-    
-    # datamod = np.concatenate(
-    #     [data, data_squared, (data[:, 0] * data[:, 1])[:, np.newaxis], np.ones((len_data, 1), dtype=ret_dtype),
-    #      (-data_squared[:,0])[:, np.newaxis]], axis=1,
-    #     dtype=ret_dtype)
-    
-    # datamod_slim = datamod[:, :5]#np.array(datamod[:, :5], dtype=ret_dtype)
-    #
-    # datamod_rng = datamod[rng_sample]
-    datamod_rng = rng.choice(datamod, (iter, sample_num), replace=True, shuffle=False)
-    # datamod_rng6 = datamod_rng[:, :, 6]
-    # datamod_rng_swap = datamod_rng[:, :, [4, 3, 0, 1, 5]]
-    # datamod_rng_swap_trans = datamod_rng_swap.transpose((0, 2, 1))
-    #
-    # # These two lines are one of the bottlenecks
-    # datamod_rng_5x5 = np.matmul(datamod_rng_swap_trans, datamod_rng_swap)
-    # datamod_rng_p5smp = np.matmul(np.linalg.inv(datamod_rng_5x5), datamod_rng_swap_trans)
-    #
-    # datamod_rng_p = np.matmul(datamod_rng_p5smp, datamod_rng6[:, :, np.newaxis]).reshape((-1, 5))
-    #
-    # # I don't think it looks beautiful.
-    # ellipse_y_arr = np.asarray(
-    #     [datamod_rng_p[:, 2], datamod_rng_p[:, 3], np.ones(len(datamod_rng_p)), datamod_rng_p[:, 1], datamod_rng_p[:, 0]], dtype=ret_dtype)
-    #
-    # ellipse_data_arr = ellipse_model(datamod_slim, ellipse_y_arr, np.asarray(datamod_rng_p[:, 4])).transpose((1, 0))
-    # ellipse_data_abs = np.abs(ellipse_data_arr)
-    # ellipse_data_index = np.argmax(np.sum(ellipse_data_abs < offset, axis=1), axis=0)
-    # effective_data_arr = ellipse_data_arr[ellipse_data_index]
-    # effective_sample_p_arr = datamod_rng_p[ellipse_data_index]
-    # datamod_rng[:, [3, 4]] = datamod_rng[:, [4, 3]]  # Swap columns 3 and 4
-    
-    # datamod_rng_swap = datamod_rng[..., [2, 3, 4, 1, 0, 5]]
-    datamod_rng_swap = datamod_rng[:, :, [4, 3, 0, 1, 5]]
-    
-    # datamod_rng_5x5 = np.matmul(datamod_rng[:, :, None, :].transpose(0,1,3,2), datamod_rng[:, :, None, :]).squeeze()#np.matmul(datamod_rng[:, :, None, :].transpose(0,1,3,2), datamod_rng[:, :, :, None]).squeeze()
-    # datamod_rng_5x5_inv = np.linalg.inv(datamod_rng_5x5)
-    datamod_rng_swap_trans = datamod_rng_swap.transpose(0, 2, 1)
-    # datamod_rng_5x5 = datamod_rng_swap_trans@datamod_rng_swap#np.matmul(datamod_rng_swap_trans, datamod_rng_swap)
-    # datamod_rng_p5smp = np.matmul(np.linalg.inv(datamod_rng_5x5), datamod_rng_swap_trans)
-    datamod_rng6 = datamod_rng[:, :, 6]
-    # These two lines are one of the bottlenecks
-    datamod_rng_5x5 = np.matmul(datamod_rng_swap_trans, datamod_rng_swap)
-    datamod_rng_p5smp = np.matmul(np.linalg.inv(datamod_rng_5x5), datamod_rng_swap_trans)
-    
-    datamod_rng_p = np.matmul(datamod_rng_p5smp, datamod_rng6[:, :, np.newaxis]).reshape((-1, 5))
-    
-    # inv_sc(datamod_rng_5x5)
-    # datamod_rng_p5smp = np.linalg.inv(datamod_rng_5x5) @ datamod_rng_swap_trans
-    # chol = np.linalg.cholesky(datamod_rng_5x5)
-    # datamod_rng_p5smp = np.linalg.solve(chol.T, np.linalg.solve(chol, datamod_rng_swap_trans))
-    # Compute the Cholesky factorization of datamod_rng_5x5
-    
-    # datamod_rng_p5smp = solve(datamod_rng_5x5, datamod_rng_swap_trans)
-    # Q, R = np.linalg.qr(datamod_rng_5x5)
-    # datamod_rng_p5smp = np.matmul(Q.T, np.matmul(Q, datamod_rng_swap_trans))
-    # datamod_rng_p5smp=np.linalg.solve(datamod_rng_5x5,datamod_rng_swap_trans)
-    # datamod_rng_p = np.matmul(datamod_rng_5x5_inv, datamod_rng[:, :, 5])[:, :5]
-    
-    # datamod_rng_p=np.matmul(datamod_rng_p5smp, datamod_rng[..., 6,np.newaxis]).reshape(-1, 5)
-    # datamod_rng_p=np.matmul(datamod_rng_p5smp, datamod_rng[..., 6, np.newaxis])[:, :5].reshape((-1, 5))
-    ellipse_y_arr = np.asarray(
-        [datamod_rng_p[:, 2], datamod_rng_p[:, 3], np.ones(len(datamod_rng_p), dtype=ret_dtype), datamod_rng_p[:, 1], datamod_rng_p[:, 0]],
-        dtype=ret_dtype)
-    ellipse_data_arr = np.dot(datamod[:, :5], ellipse_y_arr) + datamod_rng_p[:,
-                                                               4]  # np.dot(datamod[:, :5], ellipse_y_arr) + datamod_rng_p[:, 4, None]
-    ellipse_data_abs = np.abs(ellipse_data_arr)
-    # ellipse_data_index = np.argmax(np.sum(ellipse_data_abs < offset, axis=1), axis=0)
-    ellipse_data_index = np.argmax(
-        cv2.reduce(cv2.threshold(ellipse_data_abs, offset, 1, cv2.THRESH_BINARY_INV)[1], 1, cv2.REDUCE_SUM).reshape(-1), axis=0)
-    effective_data_arr = ellipse_data_arr[ellipse_data_index]
-    effective_sample_p_arr = datamod_rng_p[ellipse_data_index]
-    return fit_rotated_ellipse2(effective_data_arr, effective_sample_p_arr)
-
-
-# @profile
-def fit_rotated_ellipse2(data, P):
-    a = 1.0
-    b, c, d, e, f = P[:5]
-    # The cost of trigonometric functions is high.
-    # theta = 0.5 * np.arctan(b / (a - c), dtype=np.float64)
-    # theta = 0.5 * np.arctan2(b, a - c, dtype=np.float64)
-    theta = 0.5 * math.atan(b / (a - c))
-    # theta_sin = np.sin(theta, dtype=np.float64)
-    # theta_cos = np.cos(theta, dtype=np.float64)
-    theta_sin = math.sin(theta)
-    theta_cos = math.cos(theta)
-    tc2 = theta_cos ** 2
-    ts2 = theta_sin ** 2
-    b_tcs = b * theta_cos * theta_sin
-    
-    # Do the calculation only once
-    cxy = b ** 2 - 4 * a * c
-    cx = (2 * c * d - b * e) / cxy
-    cy = (2 * a * e - b * d) / cxy
-    
-    # I just want to clear things up around here.
-    cu = a * cx ** 2 + b * cx * cy + c * cy ** 2 - f
-    cu_r = np.array([(a * tc2 + b_tcs + c * ts2), (a * ts2 - b_tcs + c * tc2)])
-    wh = np.sqrt(cu / cu_r)
-    
-    w, h = wh[0], wh[1]
-    
-    error_sum = np.sum(data)
-    # print("fitting error = %.3f" % (error_sum))
-    
-    return (cx, cy, w, h, theta)
-
-
-def fit_rotated_ellipse3(data, P):
-    # a, b, c, d, e, f = P
-    a = 1.0
-    b, c, d, e, f = P  # [:5]
-    theta = 0.5 * math.atan2(b, a - c)
-    ct, st = math.cos(theta), math.sin(theta)
-    a2 = a * ct ** 2 + b * ct * st + c * st ** 2
-    b2 = a * st ** 2 - b * ct * st + c * ct ** 2
-    cu = a * d ** 2 + b * d * e + c * e ** 2 - f * a2 * b2
-    # wh = np.sqrt(abs(cu / (a2+b2)))
-    wh = [math.sqrt(abs(cu / a2)), math.sqrt(abs(cu / b2))]
-    w, h = wh[0], wh[1]
-    cx = (b * e - 2 * c * d) / (4 * a2 * b2 - c ** 2)
-    cy = (b * d - 2 * a * e) / (4 * a2 * b2 - c ** 2)
-    error_sum = np.sum(data)
-    return cx, cy, w, h, theta
-
-
-def fit_rotated_ellipse_ransac_base(data: np.ndarray, rng: np.random.Generator, iter=100, sample_num=10,
+def fit_rotated_ellipse_ransac_old(data: np.ndarray, rng: np.random.Generator, iter=100, sample_num=10,
                                     offset=80):  # before changing these values, please read up on the ransac algorithm
     # However if you want to change any value just know that higher iterations will make processing frames slower
     effective_sample = None
@@ -310,11 +292,11 @@ def fit_rotated_ellipse_ransac_base(data: np.ndarray, rng: np.random.Generator, 
     effective_data_arr = ellipse_data_arr[ellipse_data_index]
     effective_sample_p_arr = datamod_rng_p[ellipse_data_index]
     
-    return fit_rotated_ellipse_base(effective_data_arr, effective_sample_p_arr)
+    return fit_rotated_ellipse_old(effective_data_arr, effective_sample_p_arr)
 
 
 # @profile
-def fit_rotated_ellipse_base(data, P):
+def fit_rotated_ellipse_old(data, P):
     a = 1.0
     b = P[0]
     c = P[1]
@@ -488,8 +470,18 @@ def fit_rotated_ellipse_ransac(data: np.ndarray, sfc: np.random.Generator, iter_
     # I want to use cv2.mulTransposed, but for some reason the results are different and it can only use 1-channel arrays.
     # np.linalg.inv(datamod_rng_5x5)
     # datamod_rng_5x5[:,:,:]=np.linalg.inv(datamod_rng_5x5)
-    _umath_linalg.inv(datamod_rng_5x5,out=datamod_rng_5x5)# check error
+    # _umath_linalg.inv(datamod_rng_5x5,out=datamod_rng_5x5)# check error
+    # https://github.com/bogovicj/JaneliaMLCourse/issues/1
+    # solve is slow
+    # np.linalg.solve(np.matmul(datamod_rng_swap_trans, datamod_rng_swap), datamod_rng_swap_trans)
+    _umath_linalg.inv(datamod_rng_5x5, signature='d->d', extobj=np.linalg.linalg.get_linalg_error_extobj(np.linalg.linalg._raise_linalgerror_singular),out=datamod_rng_5x5)
+    
     np.matmul(datamod_rng_5x5, datamod_rng_swap_trans,out=datamod_rng_p5smp)
+
+
+    
+
+
     # global ein_path
     # if ein_path is None:
     #     ein_path = np.einsum_path("ijk,ijl->ikl", datamod_rng_swap, datamod_rng_swap, optimize='optimal')[0]#'optimal','greedy'
@@ -648,7 +640,7 @@ def fit_rotated_ellipse(data, P):
     return cx, cy, w, h, theta
 
 
-class CvParameters_base:
+class CvParameters_old:
     # It may be a little slower because a dict named "self" is read for each function call.
     def __init__(self, radius, step):
         # self.prev_radius=radius
@@ -656,7 +648,7 @@ class CvParameters_base:
         self.pad = 2 * radius
         # self.prev_step=step
         self._step = step
-        self._hsf = HaarSurroundFeature_base(radius)
+        self._hsf = HaarSurroundFeature_old(radius)
     
     def get_rpsh(self):
         return self._radius, self.pad, self._step, self._hsf
@@ -689,10 +681,10 @@ class CvParameters_base:
     
     @hsf.setter
     def hsf(self, now_radius):
-        self._hsf = HaarSurroundFeature_base(now_radius)
+        self._hsf = HaarSurroundFeature_old(now_radius)
 
 
-class HaarSurroundFeature_base:
+class HaarSurroundFeature_old:
     
     def __init__(self, r_inner, r_outer=None, val=None):
         if r_outer is None:
@@ -728,7 +720,7 @@ class HaarSurroundFeature_base:
         return kernel
 
 @lru_cache(maxsize=lru_maxsize_vvs)
-def get_hsf_empty_array_base(len_syx, frameint_x, frame_int_dtype, fcshape):
+def get_hsf_empty_array_old(len_syx, frameint_x, frame_int_dtype, fcshape):
     # Function to reduce array allocation by providing an empty array first and recycling it with lru
     inner_sum = np.empty(len_syx, dtype=frame_int_dtype)
     outer_sum = np.empty(len_syx, dtype=frame_int_dtype)
@@ -744,7 +736,7 @@ def get_hsf_empty_array_base(len_syx, frameint_x, frame_int_dtype, fcshape):
 
 
 @lru_cache(maxsize=lru_maxsize_vs)
-def frameint_get_xy_step_base(imageshape, xysteps, pad, start_offset=None, end_offset=None):
+def frameint_get_xy_step_old(imageshape, xysteps, pad, start_offset=None, end_offset=None):
     """
     :param imageshape: (height(row),width(col)). row==y,cal==x
     :param xysteps: (x,y)
@@ -776,7 +768,7 @@ def frameint_get_xy_step_base(imageshape, xysteps, pad, start_offset=None, end_o
 
 
 # @profile
-def conv_int_base(frame_int, kernel, xy_step, padding, xy_steps_list):
+def conv_int_old(frame_int, kernel, xy_step, padding, xy_steps_list):
     """
     :param frame_int:
     :param kernel: hsf
@@ -793,7 +785,7 @@ def conv_int_base(frame_int, kernel, xy_step, padding, xy_steps_list):
     r_in = kernel.r_in
     
     len_sx, len_sy = len(xy_steps_list[0]), len(xy_steps_list[1])
-    inout_sum, p_temp, p_list, response_list, frameconvlist = get_hsf_empty_array_base((len_sy, len_sx), col + 1,
+    inout_sum, p_temp, p_list, response_list, frameconvlist = get_hsf_empty_array_old((len_sy, len_sx), col + 1,
                                                                                        frame_int.dtype, (f_shape, y_step, x_step))
     inner_sum, outer_sum = inout_sum
     p00, p11, p01, p10 = p_list
@@ -1388,8 +1380,9 @@ class HSRAC_cls(object):
         
         self.rng = np.random.default_rng()
         if old_mode:
-            self.cvparam = CvParameters_base(default_radius, default_step)
+            self.cvparam = CvParameters_old(default_radius, default_step)
         else:
+            # os.environ["OPENBLAS_NUM_THREADS"]="1" # https://github.com/numpy/numpy/issues/22928
             self.cvparam = CvParameters_new(default_radius, default_step)
         
         self.cv_modeo = ["first_frame", "radius_adjust", "blink_adjust", "normal"]
@@ -1437,7 +1430,8 @@ class HSRAC_cls(object):
         # Temporary implementation to run
         ## default_radius = 14
         
-        # ori_frame = self.current_image.copy()# debug code
+        if imshow_enable or save_video:
+            ori_frame = self.current_image.copy()# debug code
         # cropbox=[] # debug code
         
         blink_bd = False
@@ -1479,8 +1473,8 @@ class HSRAC_cls(object):
         # Convolve the feature with the integral image
         conv_int_start_time = timeit.default_timer()
         if old_mode:
-            xy_step = frameint_get_xy_step_base(frame_int.shape, step, pad, start_offset=None, end_offset=None)
-            frame_conv, response, center_xy = conv_int_base(frame_int, hsf, step, pad, xy_step)
+            xy_step = frameint_get_xy_step_old(frame_int.shape, step, pad, start_offset=None, end_offset=None)
+            frame_conv, response, center_xy = conv_int_old(frame_int, hsf, step, pad, xy_step)
         else:
             # frame_conv, response, center_xy = conv_int(frame_int, hsf, step, pad)  # , x_step,y_step)
             frame_conv, response, center_xy = conv_int(frame_int, hsf, step[0],step[1], pad,in_p00_view, in_p11_view, in_p01_view, in_p10_view, y_ro_m, x_ro_m, y_ro_p, x_ro_p, f_shape, len_sx, len_sy)  # , x_step,y_step)
@@ -1593,7 +1587,8 @@ class HSRAC_cls(object):
             frame_gray = cv2.sepFilter2D(frame, -1, self.gauss_k, self.gauss_k)
         
 
-        #todo:no numpy and int and use lru
+        #todo:no numpy and use lru
+        
         # hsf_center_x, hsf_center_y = center_x.copy(), center_y.copy()
         # # ransac_xy_offset = (hsf_center_x-20, hsf_center_y-20)
         # upper_x = hsf_center_x + max(20, radius)
@@ -1607,7 +1602,7 @@ class HSRAC_cls(object):
         #todo:safecrop tune
         frame_gray_crop = safe_crop(frame_gray, lower_x, lower_y, upper_x, upper_y)
         th_frame,fic_frame=get_ransac_frame(frame_gray_crop.shape)
-        frame = frame_gray_crop
+        frame = frame_gray_crop # todo: It can cause bugs.
         # this will need to be adjusted everytime hardware is changed (brightness of IR, Camera postion, etc)m
         # min_val, max_val, min_loc, max_loc = cv2.minMaxLoc(frame_gray_crop)
         min_val = cv2.minMaxLoc(frame_gray_crop)[0]
@@ -1710,7 +1705,7 @@ class HSRAC_cls(object):
                 maxcnt = hull
             # ellipse = cv2.fitEllipse(maxcnt)
             if old_mode:
-                ransac_data = fit_rotated_ellipse_ransac_base(maxcnt.reshape(-1, 2), self.rng)
+                ransac_data = fit_rotated_ellipse_ransac_old(maxcnt.reshape(-1, 2), self.rng)
             else:
                 ransac_data = fit_rotated_ellipse_ransac(maxcnt.reshape(-1, 2).astype(np.float64), self.sfc)
             if ransac_data is None:
@@ -1740,7 +1735,7 @@ class HSRAC_cls(object):
             cy = int(clamp(cy + ransac_xy_offset[1], 0, csy))
             
             # cv_end_time = timeit.default_timer()
-            if 0:  # imshow_enable or save_video:
+            if imsave_flg:
                 
                 cv2.circle(ori_frame, (int(center_x), int(center_y)), 3, (0, 255, 0), -1)
                 cv2.drawContours(ori_frame, contours, -1, (255, 0, 0), 1)
@@ -1758,9 +1753,10 @@ class HSRAC_cls(object):
                 # )
                 # cv2.imshow("crop", cropped_image)
                 # cv2.imshow("frame", frame)
-                cv2.imshow("ori_frame", ori_frame)
-                if cv2.waitKey(1) & 0xFF == ord("q"):
-                    pass
+                if imshow_enable:
+                    cv2.imshow("ori_frame", ori_frame)
+                    if cv2.waitKey(1) & 0xFF == ord("q"):
+                        pass
         
         # except Exception as e:
         #     print(e)
@@ -1788,21 +1784,22 @@ class HSRAC_cls(object):
 
 
 if __name__ == "__main__":
-    
-    loop_num = 100
-    
-    logger.info(this_file_name)
-    video_path = "Pro_demo2.mp4"
-    cap = cv2.VideoCapture(video_path)
-    logger.info("video: size:{}x{} fps:{} frames:{} total:{:.3f} sec".format(int(cap.get(cv2.CAP_PROP_FRAME_WIDTH)),
-                                                                             int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT)),
-                                                                             cap.get(cv2.CAP_PROP_FPS),
-                                                                             int(cap.get(cv2.CAP_PROP_FRAME_COUNT)),
-                                                                             cap.get(cv2.CAP_PROP_FRAME_COUNT) / cap.get(cv2.CAP_PROP_FPS)))
+    # print(np.show_config())
+    logger.info(this_file_basename)
+    if save_logfile:
+        logger.info("log path: {}".format(logfilename))
+    logger.info("alg ver: {}".format(alg_ver))
+    logger.info("alg mode: {}".format("old" if old_mode else "new"))
+    logger.info("loops: {}".format(loop_num))
+    logger.info("video name: {}".format(os.path.basename(input_video_path)))
+    cap = cv2.VideoCapture(input_video_path)
+    logger.info("video info: size:{}x{} fps:{} frames:{} total:{:.3f} sec".format(int(cap.get(cv2.CAP_PROP_FRAME_WIDTH)),
+                                                                                  int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT)),
+                                                                                  cap.get(cv2.CAP_PROP_FPS),
+                                                                                  int(cap.get(cv2.CAP_PROP_FRAME_COUNT)),
+                                                                                  cap.get(cv2.CAP_PROP_FRAME_COUNT) / cap.get(cv2.CAP_PROP_FPS)))
     cap.release()
-    filepath = 'test.mp4'
-    codec = cv2.VideoWriter_fourcc(*"x264")
-    # video = cv2.VideoWriter(filepath, codec, 60.0, (200,150))#(60, 60))  # (150, 200))
+
     if not print_enable:
         def print(*args, **kwargs):
             pass
@@ -1810,11 +1807,12 @@ if __name__ == "__main__":
     hsrac = HSRAC_cls()
     # For measuring total processing time
     main_start_time = timeit.default_timer()
+    
     for i in range(loop_num):
-        hsrac.open_video(video_path)
+        hsrac.open_video(input_video_path)
         
         while hsrac.read_frame():
-            if 1:
+            if imsave_flg:
                 base_gray = hsrac.current_image_gray.copy()
                 base_img = hsrac.current_image.copy()
                 cv2.imshow("frame", base_gray)
@@ -1835,15 +1833,17 @@ if __name__ == "__main__":
                 #     cv2.circle(base_img, (hsrac_x, hsrac_y), 3, (255, 0, 0), -1)
                 # except:
                 #     print()
-                cv2.imshow("hsf_hsrac", base_img)
-                video.write(cv2.resize(base_img, (200, 150)))
+                if imshow_enable:
+                    cv2.imshow("hsf_hsrac", base_img)
+                if save_video:
+                    video_wr.write(cv2.resize(base_img, (200, 150)))
                 if cv2.waitKey(1) & 0xFF == ord("q"):
                     pass
             else:
                 _ = hsrac.single_run()
             
-            # _ = hsrac.single_run()
-        video.release()
+        if save_video:
+            video_wr.release()
         hsrac.cap.release()
         cv2.destroyAllWindows()
     main_end_time = timeit.default_timer()
@@ -1856,8 +1856,6 @@ if __name__ == "__main__":
     for k, v in hsrac.timedict.items():
         # number=1, precision=5
         len_v = len(v)
-        if not len_v:
-            print()
         best = min(v)  # / number
         worst = max(v)  # / number
         logger.info(k + ":")
@@ -1865,58 +1863,4 @@ if __name__ == "__main__":
         logger.info(FPSResult(loop_num, len_v, worst, best, v, 5))
         # print("")
     logger.info("")
-    logger.info(f"{this_file_name}: ALL Finish {format_time(main_total_time)}")
-    
-    # hsrac = HSRAC_cls()
-    # hsrac.open_video(video_path)
-    # hsf = HSF_cls()
-    # while hsrac.read_frame():
-    #     hsf.current_image_gray = hsrac.current_image_gray.copy()
-    #     _ = hsrac.single_run()
-    #
-    #     _ = hsf.single_run()
-    
-    # w_video=True
-    #
-    # er_hsracs=External_Run_HSRACS()
-    # er_hsracs.algo.open_video(video_path)
-    # er_hsf=External_Run_HSF()
-    #
-    # if w_video:
-    #     filepath = 'test.mp4'
-    #     codec = cv2.VideoWriter_fourcc(*"x264")
-    #     video = cv2.VideoWriter(filepath, codec, 60.0, (200,150))#(60, 60))  # (150, 200))
-    # while er_hsracs.algo.read_frame():
-    #     base_gray =  er_hsracs.algo.current_image_gray.copy()
-    #     base_img=er_hsracs.algo.current_image.copy()
-    #     cv2.imshow("frame",base_gray)
-    #     hsf_x, hsf_y, hsf_cropbox,*_ = er_hsf.run(base_gray)
-    #
-    #     # hsrac_x, hsrac_y, hsrac_cropbox, *_ = er_hsracs.run(base_gray)
-    #     if 0:#random.random()<0.1:
-    #         hsrac_x, hsrac_y, hsrac_cropbox, *_ = er_hsracs.run(cv2.resize(base_gray,None,fx=0.75,fy=0.75).copy())
-    #         hsrac_x=int(hsrac_x*1.25)
-    #         hsrac_y=int(hsrac_y*1.25)
-    #         hsrac_cropbox=[int(val*1.25) for val in hsrac_cropbox]
-    #     else:
-    #         hsrac_x, hsrac_y, hsrac_cropbox,ori_frame, *_ = er_hsracs.run(base_gray)
-    #
-    #
-    #
-    #     cv2.rectangle(base_img,hsf_cropbox[:2],hsf_cropbox[2:],(0, 0, 255),3)
-    #     cv2.rectangle(base_img, hsrac_cropbox[:2], hsrac_cropbox[2:], (255, 0, 0), 1)
-    #     cv2.circle(base_img, (hsf_x, hsf_y), 6, (0, 0, 255), -1)
-    #     try:
-    #         cv2.circle(base_img, (hsrac_x, hsrac_y), 3, (255, 0, 0), -1)
-    #     except:
-    #         print()
-    #     cv2.imshow("hsf_hsrac",base_img)
-    #     if cv2.waitKey(1) & 0xFF == ord("q"):
-    #         pass
-    #     if w_video:
-    #         video.write(ori_frame)
-    # if w_video:
-    #     video.release()
-    # # cv2.imwrite("b.png",er_hsracs.algo.result2)
-    # er_hsracs.algo.cap.release()
-    # cv2.destroyAllWindows()
+    logger.info(f"{this_file_basename}: ALL Finish {format_time(main_total_time)}")
