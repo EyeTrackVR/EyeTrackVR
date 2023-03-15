@@ -394,23 +394,23 @@ class HSRAC_cls(object):
         contours = cv2.findContours(fic_frame, cv2.RETR_LIST, cv2.CHAIN_APPROX_SIMPLE)[0]
         # or
         # contours = cv2.findContours(fic_frame, cv2.RETR_LIST, cv2.CHAIN_APPROX_NONE)[0]
-        if not blink_bd and self.blink_detector.enable_detect_flg:
-            threshold_value = self.center_q1.quartile_1
-            if threshold_value < min_val + thresh_add:
-                # In most of these cases, the pupil is at the edge of the eye.
-                cv2.threshold(frame_gray_crop, (min_val + thresh_add * 4 + threshold_value) / 2, 255, cv2.THRESH_BINARY, dst=th_frame)
-            else:
-                threshold_value = self.center_q1.quartile_1
-                cv2.threshold(frame_gray_crop, threshold_value, 255, cv2.THRESH_BINARY_INV, dst=th_frame)
-                # cv2.morphologyEx(th_frame, cv2.MORPH_OPEN, self.kernel, dst=fic_frame)
-                # cv2.morphologyEx(fic_frame, cv2.MORPH_CLOSE, self.kernel, dst=fic_frame)
-                # cv2.bitwise_not(fic_frame, fic_frame)
-                # https://stackoverflow.com/questions/23062572/why-multiple-openings-closing-with-a-same-kernel-does-not-have-effect
-                # try (cv2.absdiff(cv2.morphologyEx(th_frame, cv2.MORPH_OPEN, self.kernel),cv2.morphologyEx( cv2.morphologyEx(th_frame, cv2.MORPH_OPEN, self.kernel), cv2.MORPH_CLOSE, self.kernel))>1).sum()
-                cv2.morphologyEx(th_frame, cv2.MORPH_OPEN, self.kernel, dst=fic_frame)  # or cv2.MORPH_CLOSE
-                contours = (*contours, *cv2.findContours(fic_frame, cv2.RETR_LIST, cv2.CHAIN_APPROX_SIMPLE)[0])
-                # or
-                # contours = (*contours, *cv2.findContours(fic_frame, cv2.RETR_LIST, cv2.CHAIN_APPROX_NONE)[0])
+        # if not blink_bd and self.blink_detector.enable_detect_flg:
+        #     threshold_value = self.center_q1.quartile_1
+        #     if threshold_value < min_val + thresh_add:
+        #         # In most of these cases, the pupil is at the edge of the eye.
+        #         cv2.threshold(frame_gray_crop, (min_val + thresh_add * 4 + threshold_value) / 2, 255, cv2.THRESH_BINARY, dst=th_frame)
+        #     else:
+        #         threshold_value = self.center_q1.quartile_1
+        #         cv2.threshold(frame_gray_crop, threshold_value, 255, cv2.THRESH_BINARY_INV, dst=th_frame)
+        #         # cv2.morphologyEx(th_frame, cv2.MORPH_OPEN, self.kernel, dst=fic_frame)
+        #         # cv2.morphologyEx(fic_frame, cv2.MORPH_CLOSE, self.kernel, dst=fic_frame)
+        #         # cv2.bitwise_not(fic_frame, fic_frame)
+        #         # https://stackoverflow.com/questions/23062572/why-multiple-openings-closing-with-a-same-kernel-does-not-have-effect
+        #         # try (cv2.absdiff(cv2.morphologyEx(th_frame, cv2.MORPH_OPEN, self.kernel),cv2.morphologyEx( cv2.morphologyEx(th_frame, cv2.MORPH_OPEN, self.kernel), cv2.MORPH_CLOSE, self.kernel))>1).sum()
+        #     cv2.morphologyEx(th_frame, cv2.MORPH_OPEN, self.kernel, dst=fic_frame)  # or cv2.MORPH_CLOSE
+        #     contours = (*contours, *cv2.findContours(fic_frame, cv2.RETR_LIST, cv2.CHAIN_APPROX_SIMPLE)[0])
+        #     # or
+        #     # contours = (*contours, *cv2.findContours(fic_frame, cv2.RETR_LIST, cv2.CHAIN_APPROX_NONE)[0])
 
 
         if not contours:
