@@ -1,3 +1,4 @@
+import sys
 import math
 import os
 import timeit
@@ -8,9 +9,15 @@ import cv2
 import numpy as np
 from numpy.linalg import _umath_linalg
 
-from EyeTrackApp.utils.img_utils import safe_crop
-from EyeTrackApp.utils.misc_utils import clamp
-from EyeTrackApp.utils.time_utils import FPSResult, TimeitResult, format_time
+if os.environ.get("PyCharm", None) is None:
+    sys.path.append("../")
+    from utils.img_utils import safe_crop # noqa
+    from utils.misc_utils import clamp # noqa
+    from utils.time_utils import FPSResult, TimeitResult, format_time # noqa
+else:
+    from EyeTrackApp.utils.img_utils import safe_crop
+    from EyeTrackApp.utils.misc_utils import clamp
+    from EyeTrackApp.utils.time_utils import FPSResult, TimeitResult, format_time
 
 # from line_profiler_pycharm import profile
 
@@ -29,7 +36,7 @@ loop_num = 1 if imshow_enable or save_img or save_video else 100
 input_video_path = "Pro_demo2.mp4"
 output_img_path = f'./{this_file_name}_{alg_ver}_new.png' if not old_mode else f'./{this_file_name}_{alg_ver}_old.png'
 output_video_path = f'./{this_file_name}_{alg_ver}_new.mp4' if not old_mode else f'./{this_file_name}_{alg_ver}_old.mp4'
-logfilename = f'./{this_file_name}_{alg_ver}_new.log' if not old_mode else f'./{this_file_name}_old.log'
+logfilename = f'./{this_file_name}_{alg_ver}_new.log' if not old_mode else f'./{this_file_name}_{alg_ver}_old.log'
 print_enable = False  # I don't recommend changing to True.
 
 # RANSAC
@@ -881,7 +888,7 @@ class HSRAC_cls(object):
         
         self.cap = None
         
-        self.timedict = {"to_gray": [], "int_img": [], "conv_int": [], "crop": [], "ransac": [], "total_cv": []}
+        self.timedict = {"to_gray": [], "int_img": [], "hsf": [], "crop": [], "ransac": [], "total_cv": []}
         
         # ransac
         self.rng = np.random.default_rng()
@@ -976,7 +983,7 @@ class HSRAC_cls(object):
             # Pseudo-visualization of HSF
             # cv2.normalize(cv2.filter2D(cv2.filter2D(frame_pad, cv2.CV_64F, hsf.get_kernel()[hsf.get_kernel().shape[0]//2,:].reshape(1,-1), borderType=cv2.BORDER_CONSTANT), cv2.CV_64F, hsf.get_kernel()[:,hsf.get_kernel().shape[1]//2].reshape(-1,1), borderType=cv2.BORDER_CONSTANT),None,0,255,cv2.NORM_MINMAX,dtype=cv2.CV_8U))
         
-        self.timedict["conv_int"].append(timeit.default_timer() - conv_int_start_time)
+        self.timedict["hsf"].append(timeit.default_timer() - conv_int_start_time)
         
         crop_start_time = timeit.default_timer()
         # Define the center point and radius
