@@ -21,6 +21,7 @@ skip_blink_detect = False
 # cache param
 lru_maxsize_vvs = 16
 lru_maxsize_vs = 64
+lru_maxsize_s = 128
 # CV param
 default_radius = 20
 auto_radius_range = (default_radius - 10, default_radius + 10)  # (10,30)
@@ -91,8 +92,8 @@ class HaarSurroundFeature:
             val_inner = val[0]
             val_outer = val[1]
         
-        self.val_in = np.array(val_inner, dtype=np.float64)
-        self.val_out = np.array(val_outer, dtype=np.float64)
+        self.val_in = float(val_inner)  # np.array(val_inner, dtype=np.float64)
+        self.val_out = float(val_outer)  # np.array(val_outer, dtype=np.float64)
         self.r_in = r_inner
         self.r_out = r_outer
     
@@ -115,135 +116,101 @@ def to_gray(frame):
     return cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
 
 
-@lru_cache(maxsize=lru_maxsize_vs)
-def frameint_get_xy_step(imageshape, xysteps, pad, start_offset=None, end_offset=None):
-    """
-    :param imageshape: (height(row),width(col)). row==y,cal==x
-    :param xysteps: (x,y)
-    :param pad: int
-    :param start_offset: (x,y) or None
-    :param end_offset: (x,y) or None
-    :return: xy_np:tuple(x,y)
-    """
-    row, col = imageshape
-    row -= 1
-    col -= 1
-    x_step, y_step = xysteps
-    
-    # This is not beautiful.
-    start_pad_x = start_pad_y = end_pad_x = end_pad_y = pad
-    
-    if start_offset is not None:
-        start_pad_x += start_offset[0]
-        start_pad_y += start_offset[1]
-    if end_offset is not None:
-        end_pad_x += end_offset[0]
-        end_pad_y += end_offset[1]
-    y_np = np.arange(start_pad_y, row - end_pad_y, y_step)
-    x_np = np.arange(start_pad_x, col - end_pad_x, x_step)
-    
-    xy_np = (x_np, y_np)
-    
-    return xy_np
-
-
 @lru_cache(maxsize=lru_maxsize_vvs)
-def get_hsf_empty_array(len_syx, frameint_x, frame_int_dtype, fcshape):
-    # Function to reduce array allocation by providing an empty array first and recycling it with lru
+def get_frameint_empty_array(frame_shape, pad, x_step, y_step, r_in, r_out):
+    frame_int_dtype = np.intc
+    
+    frame_pad = np.empty((frame_shape[0] + (pad * 2), frame_shape[1] + (pad * 2)), dtype=np.uint8)
+    
+    row, col = frame_pad.shape
+    
+    frame_int = np.empty((row + 1, col + 1), dtype=frame_int_dtype)
+    
+    y_steps_arr = np.arange(pad, row - pad, y_step, dtype=np.int16)
+    x_steps_arr = np.arange(pad, col - pad, x_step, dtype=np.int16)
+    len_sx, len_sy = len(x_steps_arr), len(y_steps_arr)
+    len_syx = (len_sy, len_sx)
+    y_end = pad + (y_step * (len_sy - 1))
+    x_end = pad + (x_step * (len_sx - 1))
+    
+    y_rin_m = slice(pad - r_in, y_end - r_in + 1, y_step)
+    y_rin_p = slice(pad + r_in, y_end + r_in + 1, y_step)
+    x_rin_m = slice(pad - r_in, x_end - r_in + 1, x_step)
+    x_rin_p = slice(pad + r_in, x_end + r_in + 1, x_step)
+    
+    in_p00 = frame_int[y_rin_m, x_rin_m]
+    in_p11 = frame_int[y_rin_p, x_rin_p]
+    in_p01 = frame_int[y_rin_m, x_rin_p]
+    in_p10 = frame_int[y_rin_p, x_rin_m]
+    
+    y_ro_m = np.maximum(y_steps_arr - r_out, 0)  # [:,np.newaxis]
+    x_ro_m = np.maximum(x_steps_arr - r_out, 0)  # [np.newaxis,:]
+    y_ro_p = np.minimum(row, y_steps_arr + r_out)  # [:,np.newaxis]
+    x_ro_p = np.minimum(col, x_steps_arr + r_out)  # [np.newaxis,:]
+    
     inner_sum = np.empty(len_syx, dtype=frame_int_dtype)
     outer_sum = np.empty(len_syx, dtype=frame_int_dtype)
-    p_temp = np.empty((len_syx[0], frameint_x), dtype=frame_int_dtype)
-    p00 = np.empty(len_syx, dtype=frame_int_dtype)
-    p11 = np.empty(len_syx, dtype=frame_int_dtype)
-    p01 = np.empty(len_syx, dtype=frame_int_dtype)
-    p10 = np.empty(len_syx, dtype=frame_int_dtype)
-    response_list = np.empty(len_syx, dtype=np.float64)
-    frame_conv = np.zeros(shape=fcshape[0], dtype=np.uint8)
-    frame_conv_stride = frame_conv[::fcshape[1], ::fcshape[2]]
-    return (inner_sum, outer_sum), p_temp, (p00, p11, p01, p10), response_list, (frame_conv, frame_conv_stride)
+    
+    out_p_temp = np.empty((len_sy, col + 1), dtype=frame_int_dtype)
+    out_p00 = np.empty(len_syx, dtype=frame_int_dtype)
+    out_p11 = np.empty(len_syx, dtype=frame_int_dtype)
+    out_p01 = np.empty(len_syx, dtype=frame_int_dtype)
+    out_p10 = np.empty(len_syx, dtype=frame_int_dtype)
+    response_list = np.empty(len_syx, dtype=np.float64)  # or np.int32
+    frame_conv = np.zeros(shape=(row - 2 * pad, col - 2 * pad), dtype=np.uint8)  # or np.float64
+    frame_conv_stride = frame_conv[::y_step, ::x_step]
+    
+    return frame_pad, frame_int, inner_sum, in_p00, in_p11, in_p01, in_p10, y_ro_m, x_ro_m, y_ro_p, x_ro_p, outer_sum, out_p_temp, out_p00, out_p11, out_p01, out_p10, response_list, frame_conv, frame_conv_stride
 
 
-# @profile
-def conv_int(frame_int, kernel, xy_step, padding, xy_steps_list):
-    """
-    :param frame_int:
-    :param kernel: hsf
-    :param step: (x,y)
-    :param padding: int
-    :return:
-    """
-    row, col = frame_int.shape
-    row -= 1
-    col -= 1
-    x_step, y_step = xy_step
-    # padding2 = 2 * padding
-    f_shape = row - 2 * padding, col - 2 * padding
-    r_in = kernel.r_in
+def conv_int(frame_int, kernel, inner_sum, in_p00, in_p11, in_p01, in_p10, y_ro_m, x_ro_m, y_ro_p, x_ro_p, outer_sum, out_p_temp,
+                 out_p00, out_p11, out_p01, out_p10, response_list, frame_conv_stride):
+    # inner_sum[:, :] = in_p00 + in_p11 - in_p01 - in_p10
+    cv2.add(in_p00, in_p11, dst=inner_sum)
+    cv2.subtract(inner_sum, in_p01, dst=inner_sum)
+    cv2.subtract(inner_sum, in_p10, dst=inner_sum)
     
-    len_sx, len_sy = len(xy_steps_list[0]), len(xy_steps_list[1])
-    inout_sum, p_temp, p_list, response_list, frameconvlist = get_hsf_empty_array((len_sy, len_sx), col + 1,
-                                                                                  frame_int.dtype, (f_shape, y_step, x_step))
-    inner_sum, outer_sum = inout_sum
-    p00, p11, p01, p10 = p_list
-    frame_conv, frame_conv_stride = frameconvlist
-    
-    y_rin_m = xy_steps_list[1] - r_in
-    x_rin_m = xy_steps_list[0] - r_in
-    y_rin_p = xy_steps_list[1] + r_in
-    x_rin_p = xy_steps_list[0] + r_in
-    # xx==(y,x),m==MINUS,p==PLUS, ex: mm==(y-,x-)
-    inarr_mm = frame_int[y_rin_m[0]:y_rin_m[-1] + 1:y_step, x_rin_m[0]:x_rin_m[-1] + 1:x_step]
-    inarr_mp = frame_int[y_rin_m[0]:y_rin_m[-1] + 1:y_step, x_rin_p[0]:x_rin_p[-1] + 1:x_step]
-    inarr_pm = frame_int[y_rin_p[0]:y_rin_p[-1] + 1:y_step, x_rin_m[0]:x_rin_m[-1] + 1:x_step]
-    inarr_pp = frame_int[y_rin_p[0]:y_rin_p[-1] + 1:y_step, x_rin_p[0]:x_rin_p[-1] + 1:x_step]
-    
-    # == inarr_mm + inarr_pp - inarr_mp - inarr_pm
-    inner_sum[:, :] = inarr_mm
-    inner_sum += inarr_pp
-    inner_sum -= inarr_mp
-    inner_sum -= inarr_pm
-    
-    # Bottleneck here, I want to make it smarter. Someone do it.
-    # (y,x)
-    # p00=max(y_ro_m,0),max(x_ro_m,0)
-    # p11=min(y_ro_p,ylim),min(x_ro_p,xlim)
-    # p01=max(y_ro_m,0),min(x_ro_p,xlim)
-    # p10=min(y_ro_p,ylim),max(x_ro_m,0)
-    y_ro_m = xy_steps_list[1] - kernel.r_out
-    x_ro_m = xy_steps_list[0] - kernel.r_out
-    y_ro_p = xy_steps_list[1] + kernel.r_out
-    x_ro_p = xy_steps_list[0] + kernel.r_out
     # p00 calc
-    np.take(frame_int, y_ro_m, axis=0, mode="clip", out=p_temp)
-    np.take(p_temp, x_ro_m, axis=1, mode="clip", out=p00)
+    frame_int.take(y_ro_m, axis=0, mode="clip", out=out_p_temp)
+    out_p_temp.take(x_ro_m, axis=1, mode="clip", out=out_p00)
     # p01 calc
-    np.take(p_temp, x_ro_p, axis=1, mode="clip", out=p01)
+    out_p_temp.take(x_ro_p, axis=1, mode="clip", out=out_p01)
     # p11 calc
-    np.take(frame_int, y_ro_p, axis=0, mode="clip", out=p_temp)
-    np.take(p_temp, x_ro_p, axis=1, mode="clip", out=p11)
+    frame_int.take(y_ro_p, axis=0, mode="clip", out=out_p_temp)
+    out_p_temp.take(x_ro_p, axis=1, mode="clip", out=out_p11)
     # p10 calc
-    np.take(p_temp, x_ro_m, axis=1, mode="clip", out=p10)
-    # the point is this
-    # p00=np.take(np.take(frame_int, y_ro_m, axis=0, mode="clip"), x_ro_m, axis=1, mode="clip")
-    # p11=np.take(np.take(frame_int, y_ro_p, axis=0, mode="clip"), x_ro_p, axis=1, mode="clip")
-    # p01=np.take(np.take(frame_int, y_ro_m, axis=0, mode="clip"), x_ro_p, axis=1, mode="clip")
-    # p10=np.take(np.take(frame_int, y_ro_p, axis=0, mode="clip"), x_ro_m, axis=1, mode="clip")
+    out_p_temp.take(x_ro_m, axis=1, mode="clip", out=out_p10)
     
-    outer_sum[:, :] = p00 + p11 - p01 - p10 - inner_sum
+    # outer_sum[:, :] = out_p00 + out_p11 - out_p01 - out_p10 - inner_sum
+    cv2.add(out_p00, out_p11, dst=outer_sum)
+    cv2.subtract(outer_sum, out_p01, dst=outer_sum)
+    cv2.subtract(outer_sum, out_p10, dst=outer_sum)
+    cv2.subtract(outer_sum, inner_sum, dst=outer_sum)
+    # cv2.transform(np.asarray([p00, p11, -p01, -p10, -inner_sum]).transpose((1, 2, 0)), np.ones((1, 5)),
+    #               dst=outer_sum)  # https://answers.opencv.org/question/3120/how-to-sum-a-3-channel-matrix-to-a-one-channel-matrix/
     
-    np.multiply(kernel.val_in, inner_sum, dtype=np.float64, out=response_list)
-    response_list += kernel.val_out * outer_sum
+    # np.multiply(kernel.val_in, inner_sum, dtype=np.float64, out=response_list)
+    # response_list += kernel.val_out * outer_sum
+    cv2.addWeighted(inner_sum,
+                    kernel.val_in,
+                    outer_sum,  # or p00 + p11 - p01 - p10 - inner_sum
+                    kernel.val_out,
+                    0.0,
+                    dtype=cv2.CV_64F,  # or cv2.CV_32S
+                    dst=response_list)
     
-    # min_response, max_val, min_loc, max_loc = cv2.minMaxLoc(response_list)
     min_response, _, min_loc, _ = cv2.minMaxLoc(response_list)
-    
-    center = ((xy_steps_list[0][min_loc[0]] - padding), (xy_steps_list[1][min_loc[1]] - padding))
     
     frame_conv_stride[:, :] = response_list
     # or
     # frame_conv_stride[:, :] = response_list.astype(np.uint8)
     
-    return frame_conv, min_response, center
+    return min_response, min_loc
+
+
+@lru_cache(maxsize=lru_maxsize_s)
+def get_hsf_center(padding, x_step, y_step, min_loc):  # min_x,min_y):
+    return padding + (x_step * min_loc[0]) - padding, padding + (y_step * min_loc[1]) - padding
 
 
 class AutoRadiusCalc(object):
@@ -567,15 +534,22 @@ class HSF_cls(object):
         
         # Calculate the integral image of the frame
         int_start_time = timeit.default_timer()
+        frame_pad, frame_int, inner_sum, in_p00, in_p11, in_p01, in_p10, y_ro_m, x_ro_m, y_ro_p, x_ro_p, outer_sum, out_p_temp, out_p00, out_p11, out_p01, out_p10, response_list, frame_conv, frame_conv_stride = get_frameint_empty_array(
+            gray_frame.shape, pad, step[0], step[1], hsf.r_in, hsf.r_out)
         # BORDER_CONSTANT is faster than BORDER_REPLICATE There seems to be almost no negative impact when BORDER_CONSTANT is used.
-        frame_pad = cv2.copyMakeBorder(gray_frame, pad, pad, pad, pad, cv2.BORDER_CONSTANT)
-        frame_int = cv2.integral(frame_pad)
+        cv2.copyMakeBorder(gray_frame, pad, pad, pad, pad, cv2.BORDER_CONSTANT, dst=frame_pad)
+        cv2.integral(frame_pad, sum=frame_int, sdepth=cv2.CV_32S)
         self.timedict["int_img"].append(timeit.default_timer() - int_start_time)
         
         # Convolve the feature with the integral image
         conv_int_start_time = timeit.default_timer()
-        xy_step = frameint_get_xy_step(frame_int.shape, step, pad, start_offset=None, end_offset=None)
-        frame_conv, response, center_xy = conv_int(frame_int, hsf, step, pad, xy_step)
+        response, hsf_min_loc = conv_int(frame_int, hsf, inner_sum, in_p00, in_p11, in_p01, in_p10, y_ro_m, x_ro_m, y_ro_p, x_ro_p,
+                                             outer_sum, out_p_temp, out_p00, out_p11, out_p01, out_p10, response_list,
+                                             frame_conv_stride)
+        center_xy = get_hsf_center(pad, step[0], step[1], hsf_min_loc)
+        # Pseudo-visualization of HSF
+        # cv2.normalize(cv2.filter2D(cv2.filter2D(frame_pad, cv2.CV_64F, hsf.get_kernel()[hsf.get_kernel().shape[0]//2,:].reshape(1,-1), borderType=cv2.BORDER_CONSTANT), cv2.CV_64F, hsf.get_kernel()[:,hsf.get_kernel().shape[1]//2].reshape(-1,1), borderType=cv2.BORDER_CONSTANT),None,0,255,cv2.NORM_MINMAX,dtype=cv2.CV_8U))
+
         self.timedict["conv_int"].append(timeit.default_timer() - conv_int_start_time)
         
         crop_start_time = timeit.default_timer()
