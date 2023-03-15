@@ -16,16 +16,18 @@ from EyeTrackApp.utils.time_utils import FPSResult, TimeitResult, format_time
 
 this_file_basename = os.path.basename(__file__)
 this_file_name = this_file_basename.replace(".py", "")
-alg_ver = "230314-1"  # Do not change it.
+alg_ver = "230315-1"  # Do not change it.
 
 ##############################
 # These can be changed
 old_mode = False
-save_logfile = False  # This setting is disabled when imshow_enable or save_video is true
+save_logfile = False  # This setting is disabled when imshow_enable or save_img or save_video is true
 imshow_enable = False
+save_img = False
 save_video = False
-loop_num = 1 if imshow_enable or save_video else 100
+loop_num = 1 if imshow_enable or save_img or save_video else 100
 input_video_path = "Pro_demo2.mp4"
+output_img_path = f'./{this_file_name}_{alg_ver}_new.png' if not old_mode else f'./{this_file_name}_{alg_ver}_old.png'
 output_video_path = f'./{this_file_name}_{alg_ver}_new.mp4' if not old_mode else f'./{this_file_name}_{alg_ver}_old.mp4'
 logfilename = f'./{this_file_name}_{alg_ver}_new.log' if not old_mode else f'./{this_file_name}_old.log'
 print_enable = False  # I don't recommend changing to True.
@@ -40,7 +42,7 @@ skip_blink_detect = False
 ##############################
 # Do not change these.
 
-imsave_flg = imshow_enable or save_video
+imsave_flg = imshow_enable or save_img or save_video
 
 # cache param
 lru_maxsize_vvs = 16
@@ -69,6 +71,7 @@ if save_logfile and not imsave_flg:
 else:
     save_logfile = False
 
+all_point_img = None
 video_wr = cv2.VideoWriter(output_video_path, cv2.VideoWriter_fourcc(*"x264"), 60.0, (200, 150)) if save_video else None
 
 
@@ -567,7 +570,8 @@ def get_ransac_empty_array_new(iter_num, sample_num, len_data):
     dm_p2 = datamod[:, 2:4]  # = data * data
     dm_mul = datamod[:, 4]  # = data[:, 0] * data[:, 1]
     dm_neg = datamod[:, 6]  # = -datamod[:, 2]
-    return dm_rng, dm_rng_swap, dm_rng_swap_trans, dm_rng_5x5, dm_rng_p5smp, dm_rng_p, dm_rng_p_npaxis, ellipse_y_arr, swap_index, dm_brod, dm_rng_six, dm_rng_p_24, dm_rng_p_10, el_y_arr_2, el_y_arr_3, datamod, datamod_b, dm_data, dm_p2, dm_mul, dm_neg, rdm_index_init_arr, rdm_index, rdm_index_smpnum, ellipse_data_arr, th_abs
+    inv_ext = np.linalg.linalg.get_linalg_error_extobj(np.linalg.linalg._raise_linalgerror_singular)
+    return dm_rng, dm_rng_swap, dm_rng_swap_trans, dm_rng_5x5, dm_rng_p5smp, dm_rng_p, dm_rng_p_npaxis, ellipse_y_arr, swap_index, dm_brod, dm_rng_six, dm_rng_p_24, dm_rng_p_10, el_y_arr_2, el_y_arr_3, datamod, datamod_b, dm_data, dm_p2, dm_mul, dm_neg, rdm_index_init_arr, rdm_index, rdm_index_smpnum, ellipse_data_arr, th_abs,inv_ext
 
 
 # @profile
@@ -583,36 +587,30 @@ def fit_rotated_ellipse_ransac_new(data: np.ndarray, sfc: np.random.Generator, i
     if len_data < sample_num:
         return None
     
-    dm_rng, dm_rng_swap, dm_rng_swap_trans, dm_rng_5x5, dm_rng_p5smp, dm_rng_p, dm_rng_p_npaxis, ellipse_y_arr, swap_index, dm_brod, dm_rng_six, dm_rng_p_24, dm_rng_p_10, el_y_arr_2, el_y_arr_3, datamod, datamod_b, dm_data, dm_p2, dm_mul, dm_neg, rdm_index_init_arr, rdm_index, rdm_index_smpnum, ellipse_data_arr, th_abs = get_ransac_empty_array_new(
+    dm_rng, dm_rng_swap, dm_rng_swap_trans, dm_rng_5x5, dm_rng_p5smp, dm_rng_p, dm_rng_p_npaxis, ellipse_y_arr, swap_index, dm_brod, dm_rng_six, dm_rng_p_24, dm_rng_p_10, el_y_arr_2, el_y_arr_3, datamod, datamod_b, dm_data, dm_p2, dm_mul, dm_neg, rdm_index_init_arr, rdm_index, rdm_index_smpnum, ellipse_data_arr, th_abs,inv_ext = get_ransac_empty_array_new(
         iter_num, sample_num, len_data)
-    
-    # I don't think it looks beautiful.
-    # x,y,x**2,y**2,x*y,1,-1*x**2
-    # datamod = np.concatenate(
-    #     [data, data ** 2, (data[:, 0] * data[:, 1])[:, np.newaxis], np.ones((len_data, 1), dtype=ret_dtype),
-    #      (-1 * data[:, 0] ** 2)[:, np.newaxis]], axis=1,
-    #     dtype=ret_dtype)
     
     dm_data[:, :] = data  # [:]
     dm_p2[:, :] = data * data
     dm_mul[:] = data[:, 0] * data[:, 1]
     dm_neg[:] = -dm_p2[:, 0]  # -1 * data[:, 0] ** 2#
     
-    # Sorts a random number array of size (iter,len_data). After sorting, returns the index of sample_num random numbers before sorting.
     sfc.permuted(rdm_index_init_arr, axis=1, out=rdm_index)
     
     # np.take replaces a[ind,:] and is 3-4 times faster, https://gist.github.com/rossant/4645217
     # a.take() is faster than np.take(a)
     datamod.take(rdm_index_smpnum, axis=0, mode="clip", out=dm_rng)
-    
-    dm_rng.take(swap_index, axis=2, mode="clip", out=dm_rng_swap)
+
+    dm_rng_swap[:, :, :] = dm_rng[:, :, swap_index]
+    # or
+    # dm_rng.take(swap_index, axis=2, mode="clip", out=dm_rng_swap)
     # or
     # dm_rng_swap = np.take(dm_rng,[4, 3, 0, 1, 5],axis=2)
     
     np.matmul(dm_rng_swap_trans, dm_rng_swap, out=dm_rng_5x5)
     # np.linalg.solve(np.matmul(dm_rng_swap_trans, dm_rng_swap), dm_rng_swap_trans) # solve is slow https://github.com/bogovicj/JaneliaMLCourse/issues/1
     _umath_linalg.inv(dm_rng_5x5, signature='d->d',
-                      extobj=np.linalg.linalg.get_linalg_error_extobj(np.linalg.linalg._raise_linalgerror_singular), out=dm_rng_5x5)
+                      extobj=inv_ext, out=dm_rng_5x5)
     np.matmul(dm_rng_5x5, dm_rng_swap_trans, out=dm_rng_p5smp)
     
     np.matmul(dm_rng_p5smp, dm_rng_six, out=dm_rng_p_npaxis)
@@ -623,7 +621,7 @@ def fit_rotated_ellipse_ransac_new(data: np.ndarray, sfc: np.random.Generator, i
     cv2.gemm(ellipse_y_arr, datamod_b, 1.0, dm_brod, 1.0, dst=ellipse_data_arr, flags=cv2.GEMM_2_T)
     
     np.abs(ellipse_data_arr, out=th_abs)
-    cv2.threshold(th_abs, offset, 1.0, cv2.THRESH_BINARY_INV, dst=th_abs)  # [1]
+    cv2.threshold(th_abs, offset, 1.0, cv2.THRESH_BINARY_INV, dst=th_abs)
     ellipse_data_index = \
         cv2.minMaxLoc(cv2.reduce(th_abs, 1, cv2.REDUCE_SUM))[3][1]
     
@@ -631,8 +629,6 @@ def fit_rotated_ellipse_ransac_new(data: np.ndarray, sfc: np.random.Generator, i
     error_num = cv2.sumElems(ellipse_data_arr[ellipse_data_index])[0]
     effective_sample_p_arr = dm_rng_p[ellipse_data_index].tolist()
     
-    # if fit_rotated_ellipse(effective_data_arr.sum(), effective_sample_p_arr)!= fit_rotated_ellipse_base(effective_data_arr, effective_sample_p_arr):
-    #     print()
     return fit_rotated_ellipse_new(error_num, effective_sample_p_arr)
 
 
@@ -785,13 +781,17 @@ def get_frameint_empty_array(frame_shape, pad, x_step, y_step, r_in, r_out):
     frame_conv = np.zeros(shape=(row - 2 * pad, col - 2 * pad), dtype=np.uint8)  # or np.float64
     frame_conv_stride = frame_conv[::y_step, ::x_step]
     
-    return frame_pad, frame_int, inner_sum, in_p00, in_p11, in_p01, in_p10, y_ro_m, x_ro_m, y_ro_p, x_ro_p, outer_sum, out_p_temp, out_p00, out_p11, out_p01, out_p10, response_list, frame_conv, frame_conv_stride, len_sx, len_sy
+    return frame_pad, frame_int, inner_sum, in_p00, in_p11, in_p01, in_p10, y_ro_m, x_ro_m, y_ro_p, x_ro_p, outer_sum, out_p_temp, out_p00, out_p11, out_p01, out_p10, response_list, frame_conv, frame_conv_stride
 
 
 # @profile
 def conv_int_new(frame_int, kernel, inner_sum, in_p00, in_p11, in_p01, in_p10, y_ro_m, x_ro_m, y_ro_p, x_ro_p, outer_sum, out_p_temp,
                  out_p00, out_p11, out_p01, out_p10, response_list, frame_conv_stride):
-    inner_sum[:, :] = in_p00 + in_p11 - in_p01 - in_p10
+    
+    # inner_sum[:, :] = in_p00 + in_p11 - in_p01 - in_p10
+    cv2.add(in_p00, in_p11, dst=inner_sum)
+    cv2.subtract(inner_sum, in_p01, dst=inner_sum)
+    cv2.subtract(inner_sum, in_p10, dst=inner_sum)
     
     # p00 calc
     frame_int.take(y_ro_m, axis=0, mode="clip", out=out_p_temp)
@@ -804,7 +804,11 @@ def conv_int_new(frame_int, kernel, inner_sum, in_p00, in_p11, in_p01, in_p10, y
     # p10 calc
     out_p_temp.take(x_ro_m, axis=1, mode="clip", out=out_p10)
     
-    outer_sum[:, :] = out_p00 + out_p11 - out_p01 - out_p10 - inner_sum
+    # outer_sum[:, :] = out_p00 + out_p11 - out_p01 - out_p10 - inner_sum
+    cv2.add(out_p00, out_p11, dst=outer_sum)
+    cv2.subtract(outer_sum, out_p01, dst=outer_sum)
+    cv2.subtract(outer_sum, out_p10, dst=outer_sum)
+    cv2.subtract(outer_sum, inner_sum, dst=outer_sum)
     # cv2.transform(np.asarray([p00, p11, -p01, -p10, -inner_sum]).transpose((1, 2, 0)), np.ones((1, 5)),
     #               dst=outer_sum)  # https://answers.opencv.org/question/3120/how-to-sum-a-3-channel-matrix-to-a-one-channel-matrix/
     
@@ -885,9 +889,10 @@ class HSRAC_cls(object):
         
         # self.kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (3, 3))
         # or
-        self.kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (3, 3)) # dont
+        # https://stackoverflow.com/questions/31025368/erode-is-too-slow-opencv
+        self.kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (3, 3))
         
-        self.gauss_k = cv2.getGaussianKernel(5,2)
+        self.gauss_k = cv2.getGaussianKernel(5, 2)
         # cv2.getGaussianKernel(kernel size, sigma)
         # Increasing the kernel size improves accuracy but slows down performance.
         # Increasing sigma improves accuracy a little, but has less effect than kernel size.
@@ -907,7 +912,7 @@ class HSRAC_cls(object):
         ret, frame = self.cap.read()
         if ret:
             # I have set it to grayscale (1ch) just in case, but if the frame is 1ch, this line can be commented out.
-            if imshow_enable or save_video:
+            if imsave_flg:
                 self.current_image = frame  # debug code
             self.current_image_gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
             return True
@@ -916,11 +921,9 @@ class HSRAC_cls(object):
     # @profile
     def single_run(self):
         # Temporary implementation to run
-        ## default_radius = 14
         
-        if imshow_enable or save_video:
+        if imsave_flg:
             ori_frame = self.current_image.copy()  # debug code
-        # cropbox=[] # debug code
         
         blink_bd = False
         # frame = self.current_image_gray
@@ -953,7 +956,7 @@ class HSRAC_cls(object):
             frame_pad = cv2.copyMakeBorder(gray_frame, pad, pad, pad, pad, cv2.BORDER_CONSTANT)
             frame_int = cv2.integral(frame_pad)
         else:
-            frame_pad, frame_int, inner_sum, in_p00, in_p11, in_p01, in_p10, y_ro_m, x_ro_m, y_ro_p, x_ro_p, outer_sum, out_p_temp, out_p00, out_p11, out_p01, out_p10, response_list, frame_conv, frame_conv_stride, len_sx, len_sy = get_frameint_empty_array(
+            frame_pad, frame_int, inner_sum, in_p00, in_p11, in_p01, in_p10, y_ro_m, x_ro_m, y_ro_p, x_ro_p, outer_sum, out_p_temp, out_p00, out_p11, out_p01, out_p10, response_list, frame_conv, frame_conv_stride= get_frameint_empty_array(
                 gray_frame.shape, pad, step[0], step[1], hsf.r_in, hsf.r_out)
             cv2.copyMakeBorder(gray_frame, pad, pad, pad, pad, cv2.BORDER_CONSTANT, dst=frame_pad)
             cv2.integral(frame_pad, sum=frame_int, sdepth=cv2.CV_32S)
@@ -970,6 +973,8 @@ class HSRAC_cls(object):
                                                  outer_sum, out_p_temp, out_p00, out_p11, out_p01, out_p10, response_list,
                                                  frame_conv_stride)
             center_xy = get_hsf_center(pad, step[0], step[1], hsf_min_loc)
+            # Pseudo-visualization of HSF
+            # cv2.normalize(cv2.filter2D(cv2.filter2D(frame_pad, cv2.CV_64F, hsf.get_kernel()[hsf.get_kernel().shape[0]//2,:].reshape(1,-1), borderType=cv2.BORDER_CONSTANT), cv2.CV_64F, hsf.get_kernel()[:,hsf.get_kernel().shape[1]//2].reshape(-1,1), borderType=cv2.BORDER_CONSTANT),None,0,255,cv2.NORM_MINMAX,dtype=cv2.CV_8U))
         
         self.timedict["conv_int"].append(timeit.default_timer() - conv_int_start_time)
         
@@ -988,8 +993,6 @@ class HSRAC_cls(object):
         if old_mode:
             # Crop the image using the calculated bounds
             cropped_image = safe_crop(gray_frame, lower_x, lower_y, upper_x, upper_y)
-            
-            # cropbox=[clamp(val, 0, gray_frame.shape[i]) for i,val in zip([1,0,1,0],[lower_x,lower_y,upper_x,upper_y])] # debug code
             
             if self.now_modeo == self.cv_modeo[0] or self.now_modeo == self.cv_modeo[1]:
                 # If mode is first_frame or radius_adjust, record current radius and response
@@ -1127,7 +1130,7 @@ class HSRAC_cls(object):
         if old_mode:
             _, thresh = cv2.threshold(frame_gray_crop, min_val + thresh_add, 255, cv2.THRESH_BINARY)
         else:
-            cv2.threshold(frame_gray_crop, min_val + thresh_add, 255, cv2.THRESH_BINARY, dst=th_frame)
+            cv2.threshold(frame_gray_crop, min_val + thresh_add, 255, cv2.THRESH_BINARY_INV, dst=th_frame)
         # print(thresh.shape, frame_gray.shape)
         
         if old_mode:
@@ -1138,9 +1141,12 @@ class HSRAC_cls(object):
             except:
                 th_frame = 255 - frame_gray_crop
         else:
-            cv2.morphologyEx(th_frame, cv2.MORPH_OPEN, self.kernel, dst=fic_frame)
-            cv2.morphologyEx(fic_frame, cv2.MORPH_CLOSE, self.kernel, dst=fic_frame)
-            cv2.bitwise_not(fic_frame, fic_frame)
+            # cv2.morphologyEx(th_frame, cv2.MORPH_OPEN, self.kernel, dst=fic_frame)
+            # cv2.morphologyEx(fic_frame, cv2.MORPH_CLOSE, self.kernel, dst=fic_frame)
+            # cv2.bitwise_not(fic_frame, fic_frame)
+            # https://stackoverflow.com/questions/23062572/why-multiple-openings-closing-with-a-same-kernel-does-not-have-effect
+            # try (cv2.absdiff(cv2.morphologyEx(th_frame, cv2.MORPH_OPEN, self.kernel),cv2.morphologyEx( cv2.morphologyEx(th_frame, cv2.MORPH_OPEN, self.kernel), cv2.MORPH_CLOSE, self.kernel))>1).sum()
+            cv2.morphologyEx(th_frame, cv2.MORPH_OPEN, self.kernel, dst=fic_frame)   # or cv2.MORPH_CLOSE
         
         if old_mode:
             contours, _ = cv2.findContours(th_frame, cv2.RETR_TREE, cv2.CHAIN_APPROX_NONE)
@@ -1162,7 +1168,7 @@ class HSRAC_cls(object):
                 if old_mode:
                     _, thresh = cv2.threshold(frame_gray_crop, threshold_value, 255, cv2.THRESH_BINARY)
                 else:
-                    cv2.threshold(frame_gray_crop, threshold_value, 255, cv2.THRESH_BINARY, dst=th_frame)
+                    cv2.threshold(frame_gray_crop, threshold_value, 255, cv2.THRESH_BINARY_INV, dst=th_frame)
             if old_mode:
                 try:
                     opening = cv2.morphologyEx(thresh, cv2.MORPH_OPEN, self.kernel)
@@ -1173,9 +1179,12 @@ class HSRAC_cls(object):
                 contours2, _ = cv2.findContours(th_frame, cv2.RETR_TREE, cv2.CHAIN_APPROX_NONE)
                 contours = (*contours, *contours2)
             else:
-                cv2.morphologyEx(th_frame, cv2.MORPH_OPEN, self.kernel, dst=fic_frame)
-                cv2.morphologyEx(fic_frame, cv2.MORPH_CLOSE, self.kernel, dst=fic_frame)
-                cv2.bitwise_not(fic_frame, fic_frame)
+                # cv2.morphologyEx(th_frame, cv2.MORPH_OPEN, self.kernel, dst=fic_frame)
+                # cv2.morphologyEx(fic_frame, cv2.MORPH_CLOSE, self.kernel, dst=fic_frame)
+                # cv2.bitwise_not(fic_frame, fic_frame)
+                # https://stackoverflow.com/questions/23062572/why-multiple-openings-closing-with-a-same-kernel-does-not-have-effect
+                # try (cv2.absdiff(cv2.morphologyEx(th_frame, cv2.MORPH_OPEN, self.kernel),cv2.morphologyEx( cv2.morphologyEx(th_frame, cv2.MORPH_OPEN, self.kernel), cv2.MORPH_CLOSE, self.kernel))>1).sum()
+                cv2.morphologyEx(th_frame, cv2.MORPH_OPEN, self.kernel, dst=fic_frame)  # or cv2.MORPH_CLOSE
                 contours = (*contours, *cv2.findContours(fic_frame, cv2.RETR_LIST, cv2.CHAIN_APPROX_SIMPLE)[0])
                 # or
                 # contours = (*contours, *cv2.findContours(fic_frame, cv2.RETR_LIST, cv2.CHAIN_APPROX_NONE)[0])
@@ -1286,6 +1295,8 @@ if __name__ == "__main__":
                                                                                   int(cap.get(cv2.CAP_PROP_FRAME_COUNT)),
                                                                                   cap.get(cv2.CAP_PROP_FRAME_COUNT) / cap.get(
                                                                                       cv2.CAP_PROP_FPS)))
+    if save_img:
+        all_point_img = np.zeros((int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT)), int(cap.get(cv2.CAP_PROP_FRAME_WIDTH)), 3), dtype=np.uint8)
     cap.release()
     
     if not print_enable:
@@ -1303,7 +1314,7 @@ if __name__ == "__main__":
             if imsave_flg:
                 base_gray = hsrac.current_image_gray.copy()
                 base_img = hsrac.current_image.copy()
-                cv2.imshow("frame", base_gray)
+
                 hsf_x, hsf_y, hsf_cropbox, *_ = hsrac.single_run()
                 
                 # # hsrac_x, hsrac_y, hsrac_cropbox, *_ = er_hsracs.run(base_gray)
@@ -1317,25 +1328,36 @@ if __name__ == "__main__":
                 # cv2.rectangle(base_img, hsf_cropbox[:2], hsf_cropbox[2:], (0, 0, 255), 3)
                 # cv2.rectangle(base_img, hsrac_cropbox[:2], hsrac_cropbox[2:], (255, 0, 0), 1)
                 cv2.circle(base_img, (hsf_x, hsf_y), 6, (0, 0, 255), -1)
+                if save_img:
+                    cv2.circle(all_point_img, (hsf_x, hsf_y), 2, (0, 0, 255), -1)
                 # try:
                 #     cv2.circle(base_img, (hsrac_x, hsrac_y), 3, (255, 0, 0), -1)
                 # except:
                 #     print()
                 if imshow_enable:
+                    cv2.imshow("frame", base_gray)
                     cv2.imshow("hsf_hsrac", base_img)
+                    if cv2.waitKey(1) & 0xFF == ord("q"):
+                        pass
                 if save_video:
                     video_wr.write(cv2.resize(base_img, (200, 150)))
-                if cv2.waitKey(1) & 0xFF == ord("q"):
-                    pass
             else:
                 _ = hsrac.single_run()
         
         if save_video:
             video_wr.release()
+            logger.info("video output: {}".format(output_video_path))
         hsrac.cap.release()
         cv2.destroyAllWindows()
     main_end_time = timeit.default_timer()
     main_total_time = main_end_time - main_start_time
+    if save_img:
+        cv2.imwrite(output_img_path, all_point_img)
+        logger.info("image output: {}".format(output_img_path))
+        if imshow_enable:
+            cv2.imshow("allpoint", all_point_img)
+            if cv2.waitKey(10000):  # wait 10sec
+                cv2.destroyAllWindows()
     if not print_enable:
         # del print
         # or

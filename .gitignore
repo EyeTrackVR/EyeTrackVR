@@ -3,9 +3,11 @@
 **/__pycache__/**
 **/*.pyc
 *.cfg
+*.log
 EyeTrackApp/eyetrack_settings.json
+EyeTrackApp/eyetrack_settings.backup
 EyeTrackApp/build
 EyeTrackApp/dist
 EyeTrackApp/IBO_LEFT.png
 EyeTrackApp/IBO_RIGHT.png
-EyeTrackApp/eyetrack_settings.backup
+
