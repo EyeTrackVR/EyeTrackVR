@@ -50,22 +50,21 @@ def data2csv(data_u32, filepath):
     return
 
 
-def u32_u16_1ch3ch(img):
-    img_copy = img.copy()
-    # In the case of bit operations. (img>>32)&0xffff,(img>>16)&0xffff,img&0xffff
+def u32_1ch_to_u16_3ch(img):
     out = np.zeros((*img.shape[:2], 3), dtype=np.uint16)
-    for i in range(3):
-        out[:, :, i] = img_copy % 0xffff
-        img_copy //= 0xffff
+    # https://github.com/numpy/numpy/issues/2524
+    # https://stackoverflow.com/questions/52782511/why-is-numpy-slower-than-python-for-left-bit-shifts
+    out[:, :, 0] = img & np.uint32(65535)
+    out[:, :, 1] = (img >> np.uint32(16)) & np.uint32(65535)
+    
     return out
 
 
-def u16_u32_3ch_1ch(img):
-    # In the case of bit operations. ((img >> 32) & 0xffff) << 32 |((img >> 16) & 0xffff) << 16 | (img & 0xffff)
-    out = np.zeros(img.shape[:2], dtype=np.uint32)
-    for i in range(3):
-        out += img[:, :, i] if i == 0 else img[:, :, i] * (i * 0xffff)
-    return out
+def u16_3ch_to_u32_1ch(img):
+    # The image format with the most bits that can be displayed on Windows without additional software and that opencv can handle is PNG's uint16
+    out = img[:, :, 0].astype(np.float64)  # float64 = max 2^53
+    cv2.add(out, img[:, :, 1].astype(np.float64)*np.float64(65536), dst=out)  # opencv did not have uint32 type
+    return out.astype(np.uint32)  # cast
 
 
 def newdata(frameshape):
@@ -102,11 +101,12 @@ class IntensityBasedOpeness:
             if os.path.isfile(self.imgfile):
                 try:
                     img = cv2.imread(self.imgfile, flags=cv2.IMREAD_UNCHANGED)
+                    # check code: cv2.absdiff(img,u32_1ch_to_u16_3ch(u16_3ch_to_u32_1ch(img)))
                     if img.shape[:2] != frameshape:
                         print("size does not match the input frame.")
                         req_newdata = True
                     else:
-                        self.data = u16_u32_3ch_1ch(img)
+                        self.data = u16_3ch_to_u32_1ch(img)
                         self.img_roi[:] = self.data[1:4, -1]
                         if not np.array_equal(self.img_roi, self.now_roi):
                             # If the ROI recorded in the image file differs from the current ROI
@@ -135,7 +135,7 @@ class IntensityBasedOpeness:
     def save(self):
         self.data[0, -1] = self.maxval
         self.data[1:4, -1] = self.now_roi
-        cv2.imwrite(self.imgfile, u32_u16_1ch3ch(self.data))
+        cv2.imwrite(self.imgfile, u32_1ch_to_u16_3ch(self.data))
         print("SAVED: {}".format(self.imgfile))
         
     def change_roi(self, roiinfo: dict):
