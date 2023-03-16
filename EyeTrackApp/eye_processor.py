@@ -309,6 +309,7 @@ class EyeProcessor:
 
 
     def ALGOSELECT(self):
+        # self.DADDYM()
         if self.failed == 0 and self.firstalgo != None: 
             self.firstalgo()
         else:
