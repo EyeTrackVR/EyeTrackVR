@@ -144,27 +144,22 @@ class IntensityBasedOpeness:
     def intense(self, x, y, frame):
         self.check(frame.shape)
         int_x, int_y = int(x), int(y)
-        print(int_x, int_y, frame.shape[1], frame.shape[0] )
         upper_x = min(int_x + 25, frame.shape[1]) #TODO make this a setting
         lower_x = max(int_x - 25, 0)
         upper_y = min(int_y + 25, frame.shape[0])
         lower_y = max(int_y - 25, 0)
 
         frame_crop = frame[lower_y:upper_y, lower_x:upper_x]
-       # frame_crop = frame
-       # cv2.imwrite("frame.jpg", frame_crop)
         # The same can be done with cv2.integral, but since there is only one area of the rectangle for which we want to know the total value, there is no advantage in terms of computational complexity.
         intensity = frame_crop.sum() + 1
         # numpy:np.sum(),ndarray.sum()
         # opencv:cv2.sumElems()
         # I don't know which is faster.
-        # print(frame.shape[1], frame.shape[0], int_x, int_y, eye)
         changed = False
         newval_flg = False
         oob = False
 
-
-     #   if int_x >= frame.shape[1]: 
+     #   if int_x >= frame.shape[1]:  #TODO: deprecate once wider testing is done
       #      int_x = frame.shape[1] - 1
        #     obb = True
         #    print('CAUGHT X OUT OF BOUNDS')
@@ -197,20 +192,17 @@ class IntensityBasedOpeness:
             if intensity < data_val:  # if current intensity value is less (more pupil), save that
                 self.data[int_y, int_x] = intensity  # set value
                 changed = True
-               # print("var adjusted")
             else:
                 intensitya = max(data_val - 5, 1)  # if current intensity value is less (more pupil), save that
                 self.data[int_y, int_x] = intensitya  # set value
                 changed = True
-            
+        
         # min pupil global
         if self.maxval == 0:  # that value is not yet saved
             self.maxval = intensity  # set value at 0 index
-           # print("create max", intensity)
         else:
             if intensity > self.maxval:  # if current intensity value is more (less pupil), save that NOTE: we have the
                 self.maxval = intensity  # set value at 0 index
-             #   print("new max", intensity)
             else:
                 intensityd = max(self.maxval - 10, 1)  # continuously adjust closed intensity, will be set when user blink, used to allow eyes to close when lighting changes
                 self.maxval = intensityd  # set value at 0 index
