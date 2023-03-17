@@ -24,11 +24,12 @@ class EyeTrackSettingsConfig(BaseModel):
     gui_flip_x_axis_left: bool = False
     gui_flip_x_axis_right: bool = False
     gui_flip_y_axis: bool = False
-    gui_RANSAC3D: bool = True
-    gui_HSF: bool = True
+    gui_RANSAC3D: bool = False
+    gui_HSF: bool = False
     gui_BLOB: bool = False
     gui_BLINK: bool = True
     gui_HSRAC: bool = True
+    gui_DADDY: bool = False
     gui_HSF_radius: int = 15
     gui_min_cutoff: str = "0.0004"
     gui_speed_coefficient: str = "0.9"
@@ -45,9 +46,11 @@ class EyeTrackSettingsConfig(BaseModel):
     gui_blink_sync: bool = False
     gui_threshold: int = 65
     gui_HSRACP: int = 1
-    gui_RANSAC3DP: int = 2
-    gui_HSFP: int = 3
-    gui_BLOBP: int = 4
+    gui_HSFP: int = 2
+    gui_DADDYP: int = 3
+    gui_RANSAC3DP: int = 4
+    gui_BLOBP: int = 5
+
     gui_skip_autoradius: bool = True
     gui_thresh_add: int = 20
     gui_update_check: bool = True

@@ -22,6 +22,8 @@ class SettingsWidget:
         self.gui_osc_recalibrate_address = f"OSCRECALIBRATEADDRESS{widget_id}-"
         self.gui_BLOB = f"-BLOBFALLBACK{widget_id}-"
         self.gui_HSF = f"-HSF{widget_id}-"
+        self.gui_DADDY = f"-DADDY{widget_id}-"
+        self.gui_DADDYP = f"-DADDYP{widget_id}-"
         self.gui_RANSAC3D = f"-RANSAC3D{widget_id}-"
         self.gui_BLINK = f"-BLINK{widget_id}-"
         self.gui_HSRAC = f"-HSRAC{widget_id}-"
@@ -111,7 +113,7 @@ class SettingsWidget:
                     tooltip = "Our newest algoritim, utilizing both HSF and RANSAC for best tracking quality and lighting resistance.",
                 ),
                 sg.Combo(['1','2','3','4'],
-                default_value=self.config.gui_HSRAC,
+                default_value=self.config.gui_HSRACP,
                 key=self.gui_HSRACP,
                 background_color='#424042',
                 text_color='white',
@@ -124,12 +126,49 @@ class SettingsWidget:
             [
                 sg.Checkbox(
                     "",
+                    default=self.config.gui_HSF,
+                    key=self.gui_HSF,
+                    background_color='#424042',
+                    tooltip = "HSF Is a new, lower resolution tracking algorithim that provides excelent resilancy to lighting conditions and great speed.",
+                ),
+                sg.Combo(['1','2','3','4','5'],
+                default_value=self.config.gui_HSFP,
+                key=self.gui_HSFP,
+                background_color='#424042',
+                text_color='white',
+                button_arrow_color= "black",
+                button_background_color = "#6f4ca1",
+                tooltip = "Select the priority of eyetracking algorithims.",
+                ),
+                sg.Text("Haar Surround Feature", background_color='#424042'),
+            ],
+            [sg.Checkbox(
+                    "",
+                    default=self.config.gui_DADDY,
+                    key=self.gui_DADDY,
+                    background_color='#424042',
+                    tooltip = "Our newest algoritim, utilizing both HSF and RANSAC for best tracking quality and lighting resistance.",
+                ),
+                sg.Combo(['1','2','3','4','5'],
+                default_value=self.config.gui_DADDYP,
+                key=self.gui_DADDYP,
+                background_color='#424042',
+                text_color='white',
+                button_arrow_color= "black",
+                button_background_color = "#6f4ca1",
+                tooltip = "Select the priority of eyetracking algorithims.",
+                ),
+                sg.Text("DADDY", background_color='#424042'),
+            ],
+            [
+                sg.Checkbox(
+                    "",
                     default=self.config.gui_RANSAC3D,
                     key=self.gui_RANSAC3D,
                     background_color='#424042',
                     tooltip = "RANSAC3D provides good tracking quality, however does not do well in bad lighting conditions.",
                 ),
-                sg.Combo(['1','2','3','4'],
+                sg.Combo(['1','2','3','4','5'],
                 default_value=self.config.gui_RANSAC3DP,
                 key=self.gui_RANSAC3DP,
                 background_color='#424042',
@@ -143,31 +182,12 @@ class SettingsWidget:
             [
                 sg.Checkbox(
                     "",
-                    default=self.config.gui_HSF,
-                    key=self.gui_HSF,
-                    background_color='#424042',
-                    tooltip = "HSF Is a new, lower resolution tracking algorithim that provides excelent resilancy to lighting conditions and great speed.",
-                ),
-                sg.Combo(['1','2','3','4'],
-                default_value=self.config.gui_HSFP,
-                key=self.gui_HSFP,
-                background_color='#424042',
-                text_color='white',
-                button_arrow_color= "black",
-                button_background_color = "#6f4ca1",
-                tooltip = "Select the priority of eyetracking algorithims.",
-                ),
-                sg.Text("Haar Surround Feature", background_color='#424042'),
-            ],
-            [
-                sg.Checkbox(
-                    "",
                     default=self.config.gui_BLOB,
                     key=self.gui_BLOB,
                     background_color='#424042',
                     tooltip = "Blob tracking is the oldest and worst tracking algorithm, it provides fast, though sometimes innaccurate tracking.",
                 ),
-                sg.Combo(['1','2','3','4'],
+                sg.Combo(['1','2','3','4','5'],
                 default_value=self.config.gui_BLOBP,
                 key=self.gui_BLOBP,
                 background_color='#424042',
@@ -408,6 +428,14 @@ class SettingsWidget:
 
         if self.config.gui_HSF != values[self.gui_HSF]:
             self.config.gui_HSF = values[self.gui_HSF]
+            changed = True
+
+        if self.config.gui_DADDYP != int(values[self.gui_DADDYP]):
+            self.config.gui_DADDYP = int(values[self.gui_DADDYP])
+            changed = True
+
+        if self.config.gui_DADDY != values[self.gui_DADDY]:
+            self.config.gui_DADDY = values[self.gui_DADDY]
             changed = True
         
         if self.config.gui_RANSAC3DP != int(values[self.gui_RANSAC3DP]): #TODO check that priority order is unique/auto fix it.
