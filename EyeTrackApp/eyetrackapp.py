@@ -31,7 +31,7 @@ SETTINGS_RADIO_NAME = '-SETTINGSRADIO-'
 
 
 page_url = 'https://github.com/RedHawk989/EyeTrackVR/releases/latest'
-appversion = "0.2.0"
+appversion = "0.2.0 BETA 1"
 
 def open_url():
     try: 

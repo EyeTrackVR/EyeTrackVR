@@ -53,7 +53,7 @@ class EyeTrackSettingsConfig(BaseModel):
     gui_IBO: bool = True
     gui_skip_autoradius: bool = True
     gui_thresh_add: int = 20
-    gui_update_check: bool = True
+    gui_update_check: bool = False
 
 class EyeTrackConfig(BaseModel):
     version: int = 1
