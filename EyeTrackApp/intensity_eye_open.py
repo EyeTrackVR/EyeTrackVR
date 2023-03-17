@@ -212,7 +212,6 @@ class IntensityBasedOpeness:
     
         if newval_flg:
             # Do the same thing as in the original version.
-            print('[INFO] [IBO] Something went wrong')
             eyeopen = 0.9
         else:
             maxp = self.data[int_y, int_x]

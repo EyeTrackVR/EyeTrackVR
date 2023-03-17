@@ -10,7 +10,6 @@ import threading
 import PySimpleGUI as sg
 import sys
 import urllib.request
-
 import webbrowser
 
 os.system('color') # init ANSI color
