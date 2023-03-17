@@ -35,6 +35,8 @@ from dataclasses import dataclass
 import sys
 import asyncio
 
+
+
 sys.path.append(".")
 from config import EyeTrackCameraConfig
 from config import EyeTrackSettingsConfig
@@ -50,6 +52,7 @@ from utils.misc_utils import PlaySound, SND_FILENAME, SND_ASYNC
 import importlib
 from osc import EyeId
 from osc_calibrate_filter import *
+from daddy import External_Run_DADDY
 from haar_surround_feature import External_Run_HSF
 from blob import *
 from ransac import *
@@ -167,6 +170,8 @@ class EyeProcessor:
         
         self.prev_x = None
         self.prev_y = None
+        
+        self.daddy = None
 
         
 
@@ -244,7 +249,10 @@ class EyeProcessor:
 
     def BLINKM(self):
         self.eyeoffx = BLINK(self)
-  
+        
+    def DADDYM(self):
+        landmark = self.daddy.run(self.current_image_gray)
+
 
     def HSRACM(self):
         # todo: added process to initialise er_hsrac when resolution changes
@@ -301,8 +309,8 @@ class EyeProcessor:
         
 
 
-    def ALGOSELECT(self): 
-
+    def ALGOSELECT(self):
+        # self.DADDYM()
         if self.failed == 0 and self.firstalgo != None: 
             self.firstalgo()
         else:
@@ -322,11 +330,14 @@ class EyeProcessor:
             self.fourthalgo()
         else:
             self.failed = 0 # we have reached last possible algo and it is disabled, move to first algo
-
+            
+        
 
 
 
     def run(self):
+        # Run the following somewhere
+        # self.daddy = External_Run_DADDY()
 
         self.firstalgo = None
         self.secondalgo = None
