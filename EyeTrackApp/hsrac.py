@@ -148,12 +148,16 @@ def fit_rotated_ellipse(data, P):
     cxy = b * b - 4 * a * c
     cx = (2 * c * d - b * e) / cxy
     cy = (2 * a * e - b * d) / cxy
-    # cu = a * cx * cx + b * cx * cy + c * cy * cy - P[4]
-    cu = c * cy * cy + cx * (a * cx + b * cy) - P[4]
+    cu = a * cx * cx + b * cx * cy + c * cy * cy - P[4]
+    # cu = c * cy * cy + cx * (a * cx + b * cy) - P[4]
     # here: https://stackoverflow.com/questions/327002/which-is-faster-in-python-x-5-or-math-sqrtx
     # and : https://gist.github.com/zed/783011
-    w = math.sqrt(cu / (a * tc2 + b_tcs + c * ts2))
-    h = math.sqrt(cu / (a * ts2 - b_tcs + c * tc2))
+    try:
+        # For some reason, a negative value may cause an error.
+        w = math.sqrt(cu / (a * tc2 + b_tcs + c * ts2))
+        h = math.sqrt(cu / (a * ts2 - b_tcs + c * tc2))
+    except ValueError:
+        return None
     error_sum = data  # sum(data)
     # print("fitting error = %.3f" % (error_sum))
     
@@ -212,7 +216,7 @@ class HSRAC_cls(object):
         # https://stackoverflow.com/questions/31025368/erode-is-too-slow-opencv
         self.kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (3, 3))
 
-        self.gauss_k = cv2.getGaussianKernel(5, 2)
+        self.gauss_k = cv2.getGaussianKernel(5, 1)
         # cv2.getGaussianKernel(kernel size, sigma)
         # Increasing the kernel size improves accuracy but slows down performance.
         # Increasing sigma improves accuracy a little, but has less effect than kernel size.
@@ -381,15 +385,17 @@ class HSRAC_cls(object):
         min_val = cv2.minMaxLoc(frame_gray_crop)[0]
         # threshold_value = min_val + thresh_add
 
-        cv2.threshold(frame_gray_crop, min_val + thresh_add, 255, cv2.THRESH_BINARY_INV, dst=th_frame)
-        # print(thresh.shape, frame_gray.shape)
-
-        # cv2.morphologyEx(th_frame, cv2.MORPH_OPEN, self.kernel, dst=fic_frame)
-        # cv2.morphologyEx(fic_frame, cv2.MORPH_CLOSE, self.kernel, dst=fic_frame)
-        # cv2.bitwise_not(fic_frame, fic_frame)
-        # https://stackoverflow.com/questions/23062572/why-multiple-openings-closing-with-a-same-kernel-does-not-have-effect
-        # try (cv2.absdiff(cv2.morphologyEx(th_frame, cv2.MORPH_OPEN, self.kernel),cv2.morphologyEx( cv2.morphologyEx(th_frame, cv2.MORPH_OPEN, self.kernel), cv2.MORPH_CLOSE, self.kernel))>1).sum()
-        cv2.morphologyEx(th_frame, cv2.MORPH_OPEN, self.kernel, dst=fic_frame)  # or cv2.MORPH_CLOSE
+        if not blink_bd and self.blink_detector.enable_detect_flg:
+            cv2.threshold(frame_gray_crop, (min_val + thresh_add + self.center_q1.quartile_1) / 2, 255, cv2.THRESH_BINARY_INV, dst=th_frame)
+            cv2.morphologyEx(th_frame, cv2.MORPH_OPEN, self.kernel, dst=fic_frame)
+            # cv2.morphologyEx(fic_frame, cv2.MORPH_CLOSE, self.kernel, dst=fic_frame)
+            # cv2.erode(fic_frame,self.kernel,dst=fic_frame)
+            # cv2.bitwise_not(fic_frame, fic_frame)
+        else:
+            cv2.threshold(frame_gray_crop, min_val + thresh_add, 255, cv2.THRESH_BINARY, dst=th_frame)
+            cv2.morphologyEx(th_frame, cv2.MORPH_OPEN, self.kernel, dst=fic_frame)  # or cv2.MORPH_CLOSE
+            cv2.morphologyEx(fic_frame, cv2.MORPH_CLOSE, self.kernel, dst=fic_frame)
+            cv2.bitwise_not(fic_frame, fic_frame)
 
         contours = cv2.findContours(fic_frame, cv2.RETR_LIST, cv2.CHAIN_APPROX_SIMPLE)[0]
         # or
