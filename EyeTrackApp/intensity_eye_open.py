@@ -145,10 +145,10 @@ class IntensityBasedOpeness:
         self.check(frame.shape)
         int_x, int_y = int(x), int(y)
     
-        # upper_x = min(int_x + 25, frame.shape[1]) #TODO make this a setting
-        # lower_x = max(int_x - 25, 0)
-        # upper_y = min(int_y + 25, frame.shape[0])
-        # lower_y = max(int_y - 25, 0)
+        upper_x = min(int_x + 25, frame.shape[1]) #TODO make this a setting
+        lower_x = max(int_x - 25, 0)
+        upper_y = min(int_y + 25, frame.shape[0])
+        lower_y = max(int_y - 25, 0)
 
         # frame_crop = frame[lower_y:upper_y, lower_x:upper_x]
         frame_crop = frame
@@ -162,7 +162,8 @@ class IntensityBasedOpeness:
         changed = False
         newval_flg = False
         oob = False
-        if int_x >= frame.shape[1]:
+
+        if int_x >= frame.shape[1]: # TODO: these checks should be able to be removed, cause seems to be fixed.
             int_x = frame.shape[1] - 1
             obb = True
             print('CAUGHT X OUT OF BOUNDS')

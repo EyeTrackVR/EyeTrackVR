@@ -272,6 +272,7 @@ class EyeProcessor:
        #     self.output_images_and_update(thresh, EyeInformation(InformationOrigin.HSRAC, 0, 0, 0, False))
     def HSFM(self):
         # todo: added process to initialise er_hsf when resolution changes
+        
         cx, cy, frame = self.er_hsf.run(self.current_image_gray)
         self.eyeopen = self.ibo.intense(cx, cy, self.current_image_gray)
         out_x, out_y = cal_osc(self, cx, cy)
