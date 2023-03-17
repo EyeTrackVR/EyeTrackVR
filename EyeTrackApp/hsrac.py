@@ -152,8 +152,12 @@ def fit_rotated_ellipse(data, P):
     cu = c * cy * cy + cx * (a * cx + b * cy) - P[4]
     # here: https://stackoverflow.com/questions/327002/which-is-faster-in-python-x-5-or-math-sqrtx
     # and : https://gist.github.com/zed/783011
-    w = math.sqrt(cu / (a * tc2 + b_tcs + c * ts2))
-    h = math.sqrt(cu / (a * ts2 - b_tcs + c * tc2))
+    try:
+        # For some reason, a negative value may cause an error.
+        w = math.sqrt(cu / (a * tc2 + b_tcs + c * ts2))
+        h = math.sqrt(cu / (a * ts2 - b_tcs + c * tc2))
+    except ValueError:
+        return None
     error_sum = data  # sum(data)
     # print("fitting error = %.3f" % (error_sum))
     
