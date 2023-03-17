@@ -150,8 +150,8 @@ class IntensityBasedOpeness:
         upper_y = min(int_y + 25, frame.shape[0])
         lower_y = max(int_y - 25, 0)
 
-        # frame_crop = frame[lower_y:upper_y, lower_x:upper_x]
-        frame_crop = frame
+        frame_crop = frame[lower_y:upper_y, lower_x:upper_x]
+       # frame_crop = frame
     
         # The same can be done with cv2.integral, but since there is only one area of the rectangle for which we want to know the total value, there is no advantage in terms of computational complexity.
         intensity = frame_crop.sum() + 1

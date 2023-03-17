@@ -386,7 +386,8 @@ class HSRAC_cls(object):
         # threshold_value = min_val + thresh_add
 
         if not blink_bd and self.blink_detector.enable_detect_flg:
-            cv2.threshold(frame_gray_crop, (min_val + thresh_add + self.center_q1.quartile_1) / 2, 255, cv2.THRESH_BINARY_INV, dst=th_frame)
+            print(min_val, thresh_add, self.center_q1.quartile_1)
+            cv2.threshold(frame_gray_crop, ((min_val + self.center_q1.quartile_1) - 10) / 2, 255, cv2.THRESH_BINARY_INV, dst=th_frame)
             cv2.morphologyEx(th_frame, cv2.MORPH_OPEN, self.kernel, dst=fic_frame)
             # cv2.morphologyEx(fic_frame, cv2.MORPH_CLOSE, self.kernel, dst=fic_frame)
             # cv2.erode(fic_frame,self.kernel,dst=fic_frame)

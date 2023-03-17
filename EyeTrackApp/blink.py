@@ -7,7 +7,7 @@ def BLINK(self):
 
     if intensity > self.max_int:
         self.max_int = intensity 
-        if self.frames > 200: 
+        if self.frames > 400: #TODO: test this number more (make it a setting??)
             self.max_ints.append(self.max_int)
     if intensity < self.min_int:
         self.min_int = intensity

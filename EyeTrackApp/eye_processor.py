@@ -248,11 +248,10 @@ class EyeProcessor:
             pass
 
     def BLINKM(self):
-        self.eyeoffx = BLINK(self)
+        x = BLINK(self)
         
     def DADDYM(self):
         landmark = self.daddy.run(self.current_image_gray)
-
 
     def HSRACM(self):
         # todo: added process to initialise er_hsrac when resolution changes
@@ -272,7 +271,7 @@ class EyeProcessor:
         #print(self.eyeoffx, self.eyeopen)
 
         if self.eyeoffx:
-            self.output_images_and_update(thresh, EyeInformation(InformationOrigin.HSRAC, out_x, out_y, 0, 0.0)) #update app
+            self.output_images_and_update(thresh, EyeInformation(InformationOrigin.HSRAC, out_x, out_y, 0, self.eyeopen)) #update app
         else:
             self.output_images_and_update(thresh, EyeInformation(InformationOrigin.HSRAC, out_x, out_y, 0, self.eyeopen))
       #  else:
