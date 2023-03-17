@@ -9,7 +9,7 @@ import cv2
 import numpy as np
 from numpy.linalg import _umath_linalg
 
-if os.environ.get("PyCharm", None) is None:
+if os.environ.get("PYCHARM_HOSTED", None) is None:
     sys.path.append("../")
     from utils.img_utils import safe_crop # noqa
     from utils.misc_utils import clamp # noqa
