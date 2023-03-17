@@ -137,7 +137,7 @@ class IntensityBasedOpeness:
         self.data[0, -1] = self.maxval
         self.data[1:4, -1] = self.now_roi
         cv2.imwrite(self.imgfile, u32_1ch_to_u16_3ch(self.data))
-        print("SAVED: {}".format(self.imgfile))
+        #print("SAVED: {}".format(self.imgfile))
         
     def change_roi(self, roiinfo: dict):
         self.now_roi[:] = [v for v in roiinfo.values()]
@@ -161,24 +161,25 @@ class IntensityBasedOpeness:
         newval_flg = False
         oob = False
 
-     #   if int_x >= frame.shape[1]:  #TODO: deprecate once wider testing is done
-      #      int_x = frame.shape[1] - 1
-       #     obb = True
-        #    print('CAUGHT X OUT OF BOUNDS')
+        if int_x >= frame.shape[1]:
+            int_x = frame.shape[1] - 1
+            oob = True
+          #  print('CAUGHT X OUT OF BOUNDS')
     
-        #if int_x < 0:
-       #     int_x = True
-       #     print('CAUGHT X UNDER BOUNDS')
+        if int_x < 0:
+            int_x = True
+            oob = True
+          #  print('CAUGHT X UNDER BOUNDS')
 
-    #    if int_y >= frame.shape[0]:
-    #        int_y = frame.shape[0] - 1
-    #        oob = True
-    #        print('CAUGHT Y OUT OF BOUNDS')
+        if int_y >= frame.shape[0]:
+            int_y = frame.shape[0] - 1
+            oob = True
+          #  print('CAUGHT Y OUT OF BOUNDS')
 
-    #    if int_y < 0:
-    #        int_y = 1
-    #        oob = True
-    #        print('CAUGHT Y UNDER BOUNDS')
+        if int_y < 0:
+            int_y = 1
+            oob = True
+          #  print('CAUGHT Y UNDER BOUNDS')
 
         if oob != True:
             data_val = self.data[int_y, int_x]
