@@ -225,6 +225,10 @@ class CameraWidget:
         if event == "{}+UP".format(self.gui_roi_selection):
             # Event for mouse button up in ROI mode
             self.is_mouse_up = True
+            if self.x1 < 0:
+                    self.x1 = 0
+            if self.y1 < 0:
+                    self.y1 = 0 
             if abs(self.x0 - self.x1) != 0 and abs(self.y0 - self.y1) != 0:
                 self.config.roi_window_x = min([self.x0, self.x1])
                 self.config.roi_window_y = min([self.y0, self.y1])
