@@ -80,13 +80,13 @@ class CameraWidget:
             [
                 sg.Text("Mode:", background_color='#424042'),
                 sg.Text("Calibrating", key=self.gui_mode_readout, background_color='#424042'),
-                sg.Checkbox(
-                    "Circle crop:",
-                    default=self.config.gui_circular_crop,
-                    key=self.gui_circular_crop,
-                    background_color='#424042',
-                    tooltip = "Circle crop only applies to RANSAC3D and Blob.",
-                ),
+            #    sg.Checkbox(
+            #        "Circle crop:",
+            #        default=self.config.gui_circular_crop,
+            #        key=self.gui_circular_crop,
+            #        background_color='#424042',
+            #        tooltip = "Circle crop only applies to RANSAC3D and Blob.",
+            #    ),
             ],
             [sg.Image(filename="", key=self.gui_tracking_image)],
             [
@@ -201,9 +201,9 @@ class CameraWidget:
             self.config.rotation_angle = int(values[self.gui_rotation_slider])
             changed = True
 
-        if self.config.gui_circular_crop != values[self.gui_circular_crop]:
-            self.config.gui_circular_crop = values[self.gui_circular_crop]
-            changed = True
+      # if self.config.gui_circular_crop != values[self.gui_circular_crop]:
+       #     self.config.gui_circular_crop = values[self.gui_circular_crop]
+        #    changed = True
 
         if changed:
             self.main_config.save()

@@ -27,7 +27,7 @@ class EyeTrackSettingsConfig(BaseModel):
     gui_RANSAC3D: bool = False
     gui_HSF: bool = False
     gui_BLOB: bool = False
-    gui_BLINK: bool = True
+    gui_BLINK: bool = False
     gui_HSRAC: bool = True
     gui_DADDY: bool = False
     gui_HSF_radius: int = 15
@@ -50,7 +50,7 @@ class EyeTrackSettingsConfig(BaseModel):
     gui_DADDYP: int = 3
     gui_RANSAC3DP: int = 4
     gui_BLOBP: int = 5
-
+    gui_IBO: bool = True
     gui_skip_autoradius: bool = True
     gui_thresh_add: int = 20
     gui_update_check: bool = True

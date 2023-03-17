@@ -14,11 +14,11 @@ def BLINK(self):
 
     if len(self.max_ints) > 1:
         if intensity > min(self.max_ints):
-            blinkvalue = True
+            blinkvalue = 0.0
         else:
-            blinkvalue = False
+            blinkvalue = 0.7
     try:
         return blinkvalue
     except:
-        return False
+        return 0.7
    # print(self.blinkvalue, self.max_int, self.min_int, self.frames, intensity)

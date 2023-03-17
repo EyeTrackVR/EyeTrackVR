@@ -26,6 +26,7 @@ class SettingsWidget:
         self.gui_DADDYP = f"-DADDYP{widget_id}-"
         self.gui_RANSAC3D = f"-RANSAC3D{widget_id}-"
         self.gui_BLINK = f"-BLINK{widget_id}-"
+        self.gui_IBO = f"-THRESHADD{widget_id}-"
         self.gui_HSRAC = f"-HSRAC{widget_id}-"
         self.gui_HSF_radius = f"-HSFRADIUS{widget_id}-"
         self.gui_blob_maxsize = f"-BLOBMAXSIZE{widget_id}-"
@@ -200,7 +201,15 @@ class SettingsWidget:
             ],
             [
                 sg.Checkbox(
-                    "Blink Algo",
+                    "Intensity Based Openness",
+                    default=self.config.gui_IBO,
+                    key=self.gui_IBO,
+                    background_color='#424042',
+                ),
+            ],
+            [
+                sg.Checkbox(
+                    "Bianary Blink Algo",
                     default=self.config.gui_BLINK,
                     key=self.gui_BLINK,
                     background_color='#424042',
@@ -464,6 +473,10 @@ class SettingsWidget:
 
         if self.config.gui_BLINK != values[self.gui_BLINK]:
             self.config.gui_BLINK = values[self.gui_BLINK]
+            changed = True
+        
+        if self.config.gui_IBO != values[self.gui_IBO]:
+            self.config.gui_IBO = values[self.gui_IBO]
             changed = True
 
         if self.config.gui_HSF_radius != values[self.gui_HSF_radius]:

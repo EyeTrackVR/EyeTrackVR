@@ -144,7 +144,7 @@ class IntensityBasedOpeness:
     def intense(self, x, y, frame):
         self.check(frame.shape)
         int_x, int_y = int(x), int(y)
-    
+        print(int_x, int_y, frame.shape[1], frame.shape[0] )
         upper_x = min(int_x + 25, frame.shape[1]) #TODO make this a setting
         lower_x = max(int_x - 25, 0)
         upper_y = min(int_y + 25, frame.shape[0])
@@ -152,7 +152,7 @@ class IntensityBasedOpeness:
 
         frame_crop = frame[lower_y:upper_y, lower_x:upper_x]
        # frame_crop = frame
-    
+       # cv2.imwrite("frame.jpg", frame_crop)
         # The same can be done with cv2.integral, but since there is only one area of the rectangle for which we want to know the total value, there is no advantage in terms of computational complexity.
         intensity = frame_crop.sum() + 1
         # numpy:np.sum(),ndarray.sum()
@@ -163,24 +163,25 @@ class IntensityBasedOpeness:
         newval_flg = False
         oob = False
 
-        if int_x >= frame.shape[1]: # TODO: these checks should be able to be removed, cause seems to be fixed.
-            int_x = frame.shape[1] - 1
-            obb = True
-            print('CAUGHT X OUT OF BOUNDS')
+
+     #   if int_x >= frame.shape[1]: 
+      #      int_x = frame.shape[1] - 1
+       #     obb = True
+        #    print('CAUGHT X OUT OF BOUNDS')
     
-        if int_x < 0:
-            int_x = True
-            print('CAUGHT X UNDER BOUNDS')
+        #if int_x < 0:
+       #     int_x = True
+       #     print('CAUGHT X UNDER BOUNDS')
 
-        if int_y >= frame.shape[0]:
-            int_y = frame.shape[0] - 1
-            oob = True
-            print('CAUGHT Y OUT OF BOUNDS')
+    #    if int_y >= frame.shape[0]:
+    #        int_y = frame.shape[0] - 1
+    #        oob = True
+    #        print('CAUGHT Y OUT OF BOUNDS')
 
-        if int_y < 0:
-            int_y = 1
-            oob = True
-            print('CAUGHT Y UNDER BOUNDS')
+    #    if int_y < 0:
+    #        int_y = 1
+    #        oob = True
+    #        print('CAUGHT Y UNDER BOUNDS')
 
         if oob != True:
             data_val = self.data[int_y, int_x]
@@ -198,26 +199,26 @@ class IntensityBasedOpeness:
                 changed = True
                # print("var adjusted")
             else:
-                intensitya = max(data_val - 3, 1)  # if current intensity value is less (more pupil), save that
+                intensitya = max(data_val - 5, 1)  # if current intensity value is less (more pupil), save that
                 self.data[int_y, int_x] = intensitya  # set value
                 changed = True
             
         # min pupil global
         if self.maxval == 0:  # that value is not yet saved
             self.maxval = intensity  # set value at 0 index
-          #  print("create max", intensity)
+           # print("create max", intensity)
         else:
             if intensity > self.maxval:  # if current intensity value is more (less pupil), save that NOTE: we have the
                 self.maxval = intensity  # set value at 0 index
-              #  print("new max", intensity)
+             #   print("new max", intensity)
             else:
                 intensityd = max(self.maxval - 10, 1)  # continuously adjust closed intensity, will be set when user blink, used to allow eyes to close when lighting changes
                 self.maxval = intensityd  # set value at 0 index
     
         if newval_flg:
             # Do the same thing as in the original version.
-            print('[INFO] Something went wrong, assuming blink.')
-            eyeopen = 0.7
+            print('[INFO] [IBO] Something went wrong')
+            eyeopen = 0.9
         else:
             maxp = self.data[int_y, int_x]
             minp = self.maxval
@@ -226,7 +227,7 @@ class IntensityBasedOpeness:
             eyeopen = 1 - eyeopen
             # eyeopen = eyeopen - 0.2
             # print(intensity, maxp, minp, x, y)
-            print(f"EYEOPEN: {eyeopen}")
+       #     print(f"EYEOPEN: {eyeopen}")
             # print(int(x), int(y), eyeopen, maxp, minp)
         # print(self.data[0, -1])
         # print(self.maxval)

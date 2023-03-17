@@ -161,6 +161,10 @@ class EyeProcessor:
 
         self.skip_blink_detect = False
 
+        self.out_y = 0.0
+        self.out_x = 0.0
+        self.rawx = 0.0
+        self.rawy = 0.0
         #blink
         self.max_ints = []
         self.max_int = 0
@@ -172,7 +176,7 @@ class EyeProcessor:
         self.prev_y = None
         
         self.daddy = None
-
+        self.current_algo = InformationOrigin.HSRAC
         
 
         try:
@@ -247,65 +251,76 @@ class EyeProcessor:
         except:
             pass
 
+
+    def UPDATE(self):
+        if self.settings.gui_BLINK:
+            self.eyeopen = BLINK(self)
+
+        if self.settings.gui_IBO:
+            self.eyeopen = self.ibo.intense(self.rawx, self.rawy, self.current_image)
+            if self.eyeopen < 0.35: #threshold so the eye fully closes
+                self.eyeopen = 0.0
+
+        if self.settings.gui_IBO and self.settings.gui_BLINK:
+            ibo = self.ibo.intense(self.rawx, self.rawy, self.current_image)
+            
+            blink = BLINK(self)
+            if blink == 0.0:
+                self.eyeopen = 0.0
+            else:
+                self.eyeopen = ibo
+
+        self.output_images_and_update(self.thresh, EyeInformation(self.current_algo, self.out_x, self.out_y, 0, self.eyeopen))
+
+
+
     def BLINKM(self):
-        x = BLINK(self)
+        self.eyeopen = BLINK(self)
         
     def DADDYM(self):
         landmark = self.daddy.run(self.current_image_gray)
 
     def HSRACM(self):
         # todo: added process to initialise er_hsrac when resolution changes
-        cx, cy, thresh, gray_frame, uncropframe = self.er_hsrac.run(self.current_image_gray)
+        self.rawx, self.rawy, self.thresh, gray_frame = self.er_hsrac.run(self.current_image_gray)
         self.current_image_gray = gray_frame
         if self.prev_x is None:
-            self.prev_x = cx
-            self.prev_y = cy
+            self.prev_x = self.rawx
+            self.prev_y = self.rawy
         #print(self.prev_x, self.prev_y, cx, cy) 
         # #filter values with too much movement
        # if (cx - self.prev_x) <= 45 and (cy - self.prev_y) <= 45 :
           #  self.prev_x = cx
           #  self.prev_y = cy
         # self.eyeopen = intense(cx, cy, uncropframe, self.eye_id)
-        self.eyeopen = self.ibo.intense(cx,cy,uncropframe)
-        out_x, out_y = cal_osc(self, cx, cy)
+      #  self.eyeopen = self.ibo.intense(cx,cy,uncropframe)
+        self.out_x, self.out_y = cal_osc(self, self.rawx, self.rawy)
         #print(self.eyeoffx, self.eyeopen)
-
-        if self.eyeoffx:
-            self.output_images_and_update(thresh, EyeInformation(InformationOrigin.HSRAC, out_x, out_y, 0, self.eyeopen)) #update app
-        else:
-            self.output_images_and_update(thresh, EyeInformation(InformationOrigin.HSRAC, out_x, out_y, 0, self.eyeopen))
+        self.current_algorithm = InformationOrigin.HSRAC
+        
       #  else:
       #      print("EYE MOVED TOO FAST")
        #     self.output_images_and_update(thresh, EyeInformation(InformationOrigin.HSRAC, 0, 0, 0, False))
     def HSFM(self):
         # todo: added process to initialise er_hsf when resolution changes
         
-        cx, cy, frame = self.er_hsf.run(self.current_image_gray)
-        self.eyeopen = self.ibo.intense(cx, cy, self.current_image_gray)
-        out_x, out_y = cal_osc(self, cx, cy)
-        if cx == 0:
-            self.output_images_and_update(frame, EyeInformation(InformationOrigin.HSF, out_x, out_y, 0, self.eyeopen)) #update app
-        else:
-            self.output_images_and_update(frame, EyeInformation(InformationOrigin.HSF, out_x, out_y, 0, self.eyeopen))
-        
+        self.rawx, self.rawy, self.thresh = self.er_hsf.run(self.current_image_gray)
+        self.eyeopen = self.ibo.intense(self.rawx, self.rawy, self.current_image_gray)
+        out_x, out_y = cal_osc(self, self.rawx, self.rawy)
+        self.current_algorithm = InformationOrigin.HSF
+
     def RANSAC3DM(self):
-        cx, cy, thresh = RANSAC3D(self)
-        self.eyeopen = self.ibo.intense(cx, cy, self.current_image_gray)
-        out_x, out_y = cal_osc(self, cx, cy)
-        if cx == 0:
-            self.output_images_and_update(thresh, EyeInformation(InformationOrigin.RANSAC, out_x, out_y, 0, self.eyeopen)) #update app
-        else:
-            self.output_images_and_update(thresh, EyeInformation(InformationOrigin.RANSAC, out_x, out_y, 0, self.eyeopen))
-        
+        self.rawx, self.rawy, self.thresh = RANSAC3D(self)
+        self.eyeopen = self.ibo.intense(self.rawx, self.rawy, self.current_image_gray)
+        out_x, out_y = cal_osc(self, self.rawx, self.rawy)
+        self.current_algorithm = InformationOrigin.RANSAC
+
     def BLOBM(self):
-        cx, cy, thresh = BLOB(self)
-        self.eyeopen = self.ibo.intense(cx, cy, self.current_image_gray)
-        out_x, out_y = cal_osc(self, cx, cy)
-        if cx == 0:
-            self.output_images_and_update(thresh, EyeInformation(InformationOrigin.HSRAC, out_x, out_y, 0, self.eyeopen)) #update app
-        else:
-            self.output_images_and_update(thresh, EyeInformation(InformationOrigin.HSRAC, out_x, out_y, 0, self.eyeopen))
-        
+        self.rawx, self.rawy, self.thresh = BLOB(self)
+        self.eyeopen = self.ibo.intense(self.rawx, self.rawy, self.current_image_gray)
+        out_x, out_y = cal_osc(self, self.rawx, self.rawy)
+        self.current_algorithm = InformationOrigin.BLOB
+
 
 
     def ALGOSELECT(self):
@@ -492,7 +507,9 @@ class EyeProcessor:
             #self.output_images_and_update(frame, EyeInformation(InformationOrigin.HSF, out_x, out_y, 0, False)) #update app
             
             self.ALGOSELECT() #run our algos in priority order set in settings
-            self.BLINKM()
+            self.UPDATE()
+
+
 
         
 

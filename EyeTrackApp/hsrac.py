@@ -386,8 +386,7 @@ class HSRAC_cls(object):
         # threshold_value = min_val + thresh_add
 
         if not blink_bd and self.blink_detector.enable_detect_flg:
-            print(min_val, thresh_add, self.center_q1.quartile_1)
-            cv2.threshold(frame_gray_crop, ((min_val + self.center_q1.quartile_1) - 10) / 2, 255, cv2.THRESH_BINARY_INV, dst=th_frame)
+            cv2.threshold(frame_gray_crop, ((min_val + self.center_q1.quartile_1) - thresh_add) / 2, 255, cv2.THRESH_BINARY_INV, dst=th_frame)
             cv2.morphologyEx(th_frame, cv2.MORPH_OPEN, self.kernel, dst=fic_frame)
             # cv2.morphologyEx(fic_frame, cv2.MORPH_CLOSE, self.kernel, dst=fic_frame)
             # cv2.erode(fic_frame,self.kernel,dst=fic_frame)
@@ -422,7 +421,7 @@ class HSRAC_cls(object):
 
         if not contours:
             #     If empty, go to next loop
-            return int(center_x), int(center_y), th_frame, frame, gray_frame
+            return int(center_x), int(center_y), th_frame, frame
         cnt_ind = None
         max_area = -1
         for i, cnt in enumerate(contours):
@@ -439,7 +438,7 @@ class HSRAC_cls(object):
             # ransac_data is None==maxcnt.shape[0]<sample_num
             # go to next loop
             # pass
-            return int(center_x), int(center_y), th_frame, frame, gray_frame
+            return int(center_x), int(center_y), th_frame, frame
 
         # crop_start_time = timeit.default_timer()
         cx, cy, w, h, theta = ransac_data
@@ -490,9 +489,9 @@ class HSRAC_cls(object):
         # self.timedict["total_cv"].append(cv_end_time - cv_start_time)
 
         try:
-            return int(cx), int(cy), th_frame, frame, gray_frame
+            return int(cx), int(cy), th_frame, frame
         except:
-            return int(center_x), int(center_y), th_frame, frame, gray_frame
+            return int(center_x), int(center_y), th_frame, frame
 
 
 
@@ -512,8 +511,8 @@ class External_Run_HSRACS(object):
         #debug code
         # center_x, center_y,cropbox,ori_frame, thresh, frame, gray_frame = self.algo.single_run()
         # return center_x, center_y,cropbox,ori_frame, thresh, frame, gray_frame
-        center_x, center_y, thresh, frame, gray_frame = self.algo.single_run()
-        return center_x, center_y, thresh, frame, gray_frame
+        center_x, center_y, thresh, frame = self.algo.single_run()
+        return center_x, center_y, thresh, frame
 
 
 
