@@ -310,8 +310,9 @@ class EyeProcessor:
         self.current_algorithm = InformationOrigin.HSF
 
     def RANSAC3DM(self):
+        current_image_gray_copy = self.current_image_gray.copy()  # Duplicate before overwriting in RANSAC3D.
         self.rawx, self.rawy, self.thresh = RANSAC3D(self)
-        self.eyeopen = self.ibo.intense(self.rawx, self.rawy, self.current_image_gray)
+        self.eyeopen = self.ibo.intense(self.rawx, self.rawy, current_image_gray_copy)
         out_x, out_y = cal_osc(self, self.rawx, self.rawy)
         self.current_algorithm = InformationOrigin.RANSAC
 

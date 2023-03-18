@@ -84,6 +84,7 @@ class IntensityBasedOpeness:
         # self.img_roi = self.now_roi == {"rotation": 0, "x": 0, "y": 0}
         self.img_roi = np.zeros(3, dtype=np.int32)
         self.now_roi = np.zeros(3, dtype=np.int32)
+        self.prev_val = 0.5
         
     def check(self, frameshape):
         # 0 in data is used as the initial value.
@@ -143,14 +144,17 @@ class IntensityBasedOpeness:
         self.now_roi[:] = [v for v in roiinfo.values()]
     
     def intense(self, x, y, frame):
+        # x,y = 0~(frame.shape[1 or 0]-1), frame = 1-channel frame cropped by ROI
         self.check(frame.shape)
         int_x, int_y = int(x), int(y)
-        upper_x = min(int_x + 25, frame.shape[1]) #TODO make this a setting
+        if int_x < 0 or int_y < 0:
+            return self.prev_val
+        upper_x = min(int_x + 25, frame.shape[1]-1) #TODO make this a setting
         lower_x = max(int_x - 25, 0)
-        upper_y = min(int_y + 25, frame.shape[0])
+        upper_y = min(int_y + 25, frame.shape[0]-1)
         lower_y = max(int_y - 25, 0)
 
-       # frame_crop = frame[lower_y:upper_y, lower_x:upper_x]
+        # frame_crop = frame[lower_y:upper_y, lower_x:upper_x]
         frame_crop = safe_crop(frame, lower_x, lower_y, upper_x, upper_y, 1)
         # The same can be done with cv2.integral, but since there is only one area of the rectangle for which we want to know the total value, there is no advantage in terms of computational complexity.
         intensity = frame_crop.sum() + 1
@@ -228,4 +232,5 @@ class IntensityBasedOpeness:
         if changed and ((time.time() - self.lct) > 4):  # save every 4 seconds if something changed to save disk usage
             self.save()
             self.lct = time.time()
+        self.prev_val = eyeopen
         return eyeopen
