@@ -320,7 +320,7 @@ class HSRAC_cls(object):
                 # If the average value of cropped_image is greater than response_max
                 # (i.e., if the cropimage is whitish
                 # blink
-                print("BLINK BD")
+                # print("BLINK BD")
                 blink_bd = True
 
         # if imshow_enable or save_video:
@@ -385,17 +385,18 @@ class HSRAC_cls(object):
         min_val = cv2.minMaxLoc(frame_gray_crop)[0]
         # threshold_value = min_val + thresh_add
 
-        if not blink_bd and self.blink_detector.enable_detect_flg:
-            cv2.threshold(frame_gray_crop, ((min_val + self.center_q1.quartile_1) - thresh_add) / 2, 255, cv2.THRESH_BINARY_INV, dst=th_frame)
-            cv2.morphologyEx(th_frame, cv2.MORPH_OPEN, self.kernel, dst=fic_frame)
-            # cv2.morphologyEx(fic_frame, cv2.MORPH_CLOSE, self.kernel, dst=fic_frame)
-            # cv2.erode(fic_frame,self.kernel,dst=fic_frame)
-            # cv2.bitwise_not(fic_frame, fic_frame)
-        else:
-            cv2.threshold(frame_gray_crop, min_val + thresh_add, 255, cv2.THRESH_BINARY, dst=th_frame)
-            cv2.morphologyEx(th_frame, cv2.MORPH_OPEN, self.kernel, dst=fic_frame)  # or cv2.MORPH_CLOSE
-            cv2.morphologyEx(fic_frame, cv2.MORPH_CLOSE, self.kernel, dst=fic_frame)
-            cv2.bitwise_not(fic_frame, fic_frame)
+        # if not blink_bd and self.blink_detector.enable_detect_flg:
+        #     cv2.threshold(frame_gray_crop, ((min_val + self.center_q1.quartile_1) - thresh_add) / 2, 255, cv2.THRESH_BINARY_INV, dst=th_frame)
+        #     cv2.morphologyEx(th_frame, cv2.MORPH_OPEN, self.kernel, dst=fic_frame)
+        #     # cv2.morphologyEx(fic_frame, cv2.MORPH_CLOSE, self.kernel, dst=fic_frame)
+        #     # cv2.erode(fic_frame,self.kernel,dst=fic_frame)
+        #     # cv2.bitwise_not(fic_frame, fic_frame)
+        # else:
+        
+        cv2.threshold(frame_gray_crop, min_val + thresh_add, 255, cv2.THRESH_BINARY, dst=th_frame)
+        cv2.morphologyEx(th_frame, cv2.MORPH_OPEN, self.kernel, dst=fic_frame)  # or cv2.MORPH_CLOSE
+        cv2.morphologyEx(fic_frame, cv2.MORPH_CLOSE, self.kernel, dst=fic_frame)
+        cv2.bitwise_not(fic_frame, fic_frame)
 
         contours = cv2.findContours(fic_frame, cv2.RETR_LIST, cv2.CHAIN_APPROX_SIMPLE)[0]
         # or
@@ -497,12 +498,13 @@ class HSRAC_cls(object):
 
 
 class External_Run_HSRACS(object):
-    def __init__(self, skip_autoradius_flg=False, radius=20):
+    def __init__(self, skip_autoradius_flg=False, radius=20, threshold=10):
         # temporary code
-        global skip_autoradius,default_radius
+        global skip_autoradius,default_radius, thresh_add
         skip_autoradius = skip_autoradius_flg
         if skip_autoradius:
             default_radius = radius
+        thresh_add = threshold
         
         self.algo = HSRAC_cls()
 
