@@ -265,28 +265,26 @@ class DADDY_cls(object):
         kps = pred.astype(np.int32)
         
         # eyecenter = kps[:6].mean(axis=0).astype(int)
-        # temp_eyecenter = pred[:6].mean(axis=0)
         ear = self.beer.ear(pred)
         # ear=self.ear_oef(ear[np.newaxis])#memo: Parameters need tuning
 
-        if save_video or imshow_enable:
-            for i in range(kps.shape[0]):
-                if i < 6:
-                    color = (0, 0, 255)
-                elif i == 6:
-                    color = 128  # (0, 255, 0)
-                else:
-                    color = (255, 0, 0)
-                cv2.circle(gray_frame, (kps[i, 0], kps[i, 1]), 1, color, 2)
-                cv2.putText(gray_frame, str(i), (kps[i, 0] - 10,  kps[i, 1] - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.35, (0, 0, 255), 1)
-            # cv2.circle(gray_frame, (eyecenter.tolist()), 1, (128, 128, 0), 2)
-            # cv2.circle(gray_frame, (iriscenter.tolist()), 1, (0, 128, 128), 2)
-            # cv2.circle(gray_frame,(eyecenter.tolist()),int(self.center_dist_med.median()),(0, 0, 255),1)
-            # cv2.ellipse(gray_frame, (eyecenter.tolist(), (int(self.iris_med_w.median()*2.5), int(self.iris_med_h.median()*2.5)), np.rad2deg(self.eye_med_rad.median())), (255, 0, 0), thickness=1)
-            cv2.putText(gray_frame, "EAR: "+str(ear), (self.current_image_gray.shape[1]//10, self.current_image_gray.shape[0]//10), cv2.FONT_HERSHEY_SIMPLEX, 0.75, (255,0,0), 1)
-            cv2.imshow("gray_frame", gray_frame)
-            if cv2.waitKey(1) & 0xFF == ord("q"):
-                pass
+        pupil_center = pred[7:].mean(axis=0)
+        pupil_center_x = int(pupil_center[0])
+        pupil_center_y = int(pupil_center[1])
+
+        for i in range(kps.shape[0]):
+            if i < 6:
+                color = (0, 0, 255)
+            elif i == 6:
+                color = 128
+            else:
+                color = (255, 0, 0)
+            # todo: We should have a proper variable for drawing.
+            cv2.circle(self.current_image_gray, (kps[i, 0], kps[i, 1]), 1, color, 2)
+            # cv2.putText(self.current_image_gray, str(i), (kps[i, 0] - 10,  kps[i, 1] - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.35, (0, 0, 255), 1)
+        # cv2.putText(self.current_image_gray, "EAR: "+str(ear), (self.current_image_gray.shape[1]//10, self.current_image_gray.shape[0]//10), cv2.FONT_HERSHEY_SIMPLEX, 0.75, (255,0,0), 1)
+
+        
         # global loopnum
         # if loopnum < 1350*2:
         #     # self.video.write(cv2.resize(gray_frame.copy(), (200, 150), None))
@@ -302,7 +300,8 @@ class DADDY_cls(object):
         # i == [0:6] = Inner and outer corners of eyes and eyelids
         # i == [6] = pupil
         # i == [7:] = iris
-        return ear
+        
+        return pupil_center_x, pupil_center_y, ear
 
 
 class External_Run_DADDY(object):
@@ -311,8 +310,8 @@ class External_Run_DADDY(object):
     
     def run(self, current_image_gray):
         self.algo.current_image_gray = current_image_gray
-        pupil = self.algo.single_run()
-        return pupil
+        pupil_x, pupil_y, ear = self.algo.single_run()
+        return pupil_x, pupil_y, ear
 
 
 if __name__ == "__main__":

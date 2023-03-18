@@ -68,6 +68,7 @@ class InformationOrigin(Enum):
     FAILURE = 3
     HSF = 4
     HSRAC = 5
+    DADDY = 6
 
 bbb = 0
 @dataclass
@@ -153,6 +154,7 @@ class EyeProcessor:
 
         self.er_hsf = None
         self.er_hsrac = None
+        self.er_daddy = None
         
         self.ibo = IntensityBasedOpeness(eyeside=EyeLR.LEFT if self.eye_id is EyeId.LEFT else EyeLR.RIGHT if eye_id is EyeId.RIGHT else -1)
         self.roi_include_set = {"rotation_angle", "roi_window_x", "roi_window_y"}
@@ -175,7 +177,6 @@ class EyeProcessor:
         self.prev_x = None
         self.prev_y = None
         
-        self.daddy = None
         self.current_algo = InformationOrigin.HSRAC
         
 
@@ -278,7 +279,13 @@ class EyeProcessor:
         self.eyeopen = BLINK(self)
         
     def DADDYM(self):
-        landmark = self.daddy.run(self.current_image_gray)
+        # todo: We should have a proper variable for drawing.
+        self.thresh=self.current_image_gray.copy()
+        self.rawx, self.rawy, self.eyeopen = self.er_daddy.run(self.current_image_gray)
+        # Daddy also uses a one euro filter, so I'll have to use it twice, but I'm not going to think too much about it.
+        self.out_x, self.out_y = cal_osc(self, self.rawx, self.rawy)
+        
+        self.current_algorithm = InformationOrigin.DADDY
 
     def HSRACM(self):
         # todo: added process to initialise er_hsrac when resolution changes
@@ -361,11 +368,6 @@ class EyeProcessor:
         algolist = [None, None, None, None, None]
         
         #set algo priorities
-        
-
-
-
-
         if self.settings.gui_HSF:
             if self.er_hsf is None:
                 self.er_hsf = External_Run_HSF(self.settings.gui_skip_autoradius, self.settings.gui_HSF_radius)
@@ -381,17 +383,16 @@ class EyeProcessor:
         else:
             if self.er_hsrac is not None:
                 self.er_hsrac = None
+                
+        if self.settings.gui_DADDY:
+            if self.er_daddy is None:
+                self.er_daddy = External_Run_DADDY()
+            algolist[self.settings.gui_DADDYP] = self.DADDYM
+        else:
+            if self.er_daddy is not None:
+                self.er_daddy = None
 
         _, self.firstalgo, self.secondalgo, self.thirdalgo, self.fourthalgo = algolist
-        
-        if self.settings.gui_HSF and self.settings.gui_HSFP == 1: #I feel like this is super innefficient though it only runs at startup and no solution is coming to me atm
-             self.firstalgo = self.HSFM
-        elif self.settings.gui_HSF and self.settings.gui_HSFP == 2:
-             self.secondalgo = self.HSFM
-        elif self.settings.gui_HSF and self.settings.gui_HSFP == 3:
-             self.thirdalgo = self.HSFM
-        elif self.settings.gui_HSF and self.settings.gui_HSFP == 4:
-             self.fourthalgo = self.HSFM
 
         if self.settings.gui_RANSAC3D and self.settings.gui_RANSAC3DP == 1:
             self.firstalgo = self.RANSAC3DM
@@ -401,15 +402,6 @@ class EyeProcessor:
             self.thirdalgo = self.RANSAC3DM
         elif self.settings.gui_RANSAC3D and self.settings.gui_RANSAC3DP == 4:
             self.fourthalgo = self.RANSAC3DM
-
-        if self.settings.gui_HSRAC and self.settings.gui_HSRACP == 1:
-             self.firstalgo = self.HSRACM
-        elif self.settings.gui_HSRAC and self.settings.gui_HSRACP == 2:
-             self.secondalgo = self.HSRACM
-        elif self.settings.gui_HSRAC and self.settings.gui_HSRACP == 3:
-             self.thirdalgo = self.HSRACM
-        elif self.settings.gui_HSRAC and self.settings.gui_HSRACP == 4:
-             self.fourthalgo = self.HSRACM
 
         if self.settings.gui_BLOB and self.settings.gui_BLOBP == 1:
             self.firstalgo = self.BLOBM
