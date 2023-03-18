@@ -376,7 +376,7 @@ class EyeProcessor:
         
         if self.settings.gui_HSRAC:
             if self.er_hsrac is None:
-                self.er_hsrac = External_Run_HSRACS(self.settings.gui_skip_autoradius, self.settings.gui_HSF_radius)
+                self.er_hsrac = External_Run_HSRACS(self.settings.gui_skip_autoradius, self.settings.gui_HSF_radius, self.settings.gui_thresh_add)
             algolist[self.settings.gui_HSRACP] = self.HSRACM
         else:
             if self.er_hsrac is not None:

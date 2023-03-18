@@ -26,7 +26,7 @@ class SettingsWidget:
         self.gui_DADDYP = f"-DADDYP{widget_id}-"
         self.gui_RANSAC3D = f"-RANSAC3D{widget_id}-"
         self.gui_BLINK = f"-BLINK{widget_id}-"
-        self.gui_IBO = f"-THRESHADD{widget_id}-"
+        self.gui_IBO = f"-IBO{widget_id}-"
         self.gui_HSRAC = f"-HSRAC{widget_id}-"
         self.gui_HSF_radius = f"-HSFRADIUS{widget_id}-"
         self.gui_blob_maxsize = f"-BLOBMAXSIZE{widget_id}-"
