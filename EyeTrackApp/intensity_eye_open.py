@@ -196,7 +196,7 @@ class IntensityBasedOpeness:
                 self.data[int_y, int_x] = intensity  # set value
                 changed = True
             else:
-                intensitya = max(data_val - 5, 1)  # if current intensity value is less (more pupil), save that
+                intensitya = max(data_val - 15, 1)  # if current intensity value is less (more pupil), save that
                 self.data[int_y, int_x] = intensitya  # set value
                 changed = True
         
