@@ -161,7 +161,6 @@ def main():
 
     if config.eye_display_id in [EyeId.SETTINGS, EyeId.BOTH]:
         settings[0].start()
-
     # the eye's needs to be running before it is passed to the OSC
     if config.settings.gui_ROSC:
         osc_receiver = VRChatOSCReceiver(cancellation_event, config, eyes)

@@ -16,6 +16,66 @@ class EyeId(IntEnum):
     SETTINGS = 3
 from config import EyeTrackConfig
 
+
+def output_osc(eye_x, eye_y, eye_blink, last_blink, self):
+        if self.main_config.eye_display_id in [EyeId.RIGHT, EyeId.LEFT]: #we are in single eye mode
+            self.client.send_message("/avatar/parameters/LeftEyeX", eye_x) 
+            self.client.send_message("/avatar/parameters/RightEyeX", eye_x)
+            self.client.send_message("/avatar/parameters/EyesY", eye_y)
+
+            self.client.send_message("/avatar/parameters/RightEyeLidExpandedSqueeze", float(eye_blink)) 
+            self.client.send_message("/avatar/parameters/LeftEyeLidExpandedSqueeze", float(eye_blink)) 
+
+        if self.eye_id in [EyeId.LEFT]: #left eye, send data to left
+            self.l_eye_x = eye_x
+            self.l_eye_blink = eye_blink
+
+            if self.l_eye_blink == 0.0:
+                if last_blink > 0.7: #when bianary blink is on, blinks may be too fast for OSC so we repeate them.
+                    for i in range(5):
+                        self.client.send_message("/avatar/parameters/LeftEyeLidExpandedSqueeze", float(self.l_eye_blink))
+                    last_blink = time.time() - last_blink
+            
+                if self.config.gui_eye_falloff:
+                    if self.r_eye_blink == 0.0: #if both eyes closed and DEF is enables, blink
+                        self.client.send_message("/avatar/parameters/LeftEyeLidExpandedSqueeze", float(self.l_eye_blink)) 
+                        self.client.send_message("/avatar/parameters/RightEyeLidExpandedSqueeze", float(self.l_eye_blink)) 
+                self.l_eye_x = self.r_eye_x
+
+            self.client.send_message("/avatar/parameters/LeftEyeX", self.l_eye_x) 
+            self.left_y = eye_y
+
+            self.client.send_message("/avatar/parameters/LeftEyeLidExpandedSqueeze", float(self.l_eye_blink)) 
+
+
+        elif self.eye_id in [EyeId.RIGHT]: #Right eye, send data to right
+            self.r_eye_x = eye_x
+            self.r_eye_blink = eye_blink
+
+            if self.r_eye_blink == 0.0:
+                if last_blink > 0.7: #when bianary blink is on, blinks may be too fast for OSC so we repeate them.
+                    for i in range(5):
+                        self.client.send_message("/avatar/parameters/LeftEyeLidExpandedSqueeze", float(self.r_eye_blink))
+                    last_blink = time.time() - last_blink
+            
+                if self.config.gui_eye_falloff:
+                    if self.l_eye_blink == 0.0: #if both eyes closed and DEF is enables, blink
+                        self.client.send_message("/avatar/parameters/LeftEyeLidExpandedSqueeze", float(self.r_eye_blink)) 
+                        self.client.send_message("/avatar/parameters/RightEyeLidExpandedSqueeze", float(self.r_eye_blink)) 
+                    
+                self.r_eye_x = self.l_eye_x
+
+            self.client.send_message("/avatar/parameters/RightEyeX", eye_x) 
+            self.right_y = eye_y
+
+            self.client.send_message("/avatar/parameters/RightEyeLidExpandedSqueeze", float(self.r_eye_blink)) 
+
+        if self.main_config.eye_display_id in [EyeId.BOTH] and self.right_y != 621 and self.left_y != 621:
+            y = (self.right_y + self.left_y) / 2
+            self.client.send_message("/avatar/parameters/EyesY", y)
+
+
+
 class VRChatOSC:
     # Use a tuple of blink (true, blinking, false, not), x, y for now. 
     def __init__(self, cancellation_event: threading.Event, msg_queue: queue.Queue[tuple[bool, int, int]], main_config: EyeTrackConfig,):
@@ -24,130 +84,31 @@ class VRChatOSC:
         self.client = udp_client.SimpleUDPClient(self.config.gui_osc_address, int(self.config.gui_osc_port)) # use OSC port and address that was set in the config
         self.cancellation_event = cancellation_event
         self.msg_queue = msg_queue
-        
+        self.eye_id = EyeId.RIGHT
+        self.left_y = 621
+        self.right_y = 621
+        self.r_eye_x = 0
+        self.l_eye_x = 0
+        self.r_eye_blink = 0.7
+        self.l_eye_blink = 0.7
+
+    
+
     def run(self):
         start = time.time()
         last_blink = time.time()
-        yl = 621
-        yr = 621
-        sx = 0 
-        sy = 0
-        se = 0
-        lec = 0
-        rec = 0
-        rb = False
-        lb = False
         while True:
             if self.cancellation_event.is_set():
                 print("\033[94m[INFO] Exiting OSC Queue\033[0m")
                 return
             try:
-                (eye_id, eye_info) = self.msg_queue.get(block=True, timeout=0.1)
+                (self.eye_id, eye_info) = self.msg_queue.get(block=True, timeout=0.1)
             except:
                 continue
-#eye_info.blink
-           #TODO: Re write this mess
+
+            output_osc(eye_info.x, eye_info.y, eye_info.blink, last_blink, self)
+
             
-            if eye_info.blink > 0.1: #if eye is not "closed" this will need tuning
-                if self.config.tracker_single_eye == 1 or self.config.tracker_single_eye == 2:
-                    self.client.send_message("/avatar/parameters/LeftEyeX", eye_info.x)  # only one eye is detected or there is an error. Send mirrored data to both eyes.
-                    self.client.send_message("/avatar/parameters/RightEyeX", eye_info.x)
-                    self.client.send_message("/avatar/parameters/EyesY", eye_info.y)
-                    self.client.send_message("/avatar/parameters/RightEyeLid", float(0))# old param open right
-                    self.client.send_message("/avatar/parameters/RightEyeLidExpandedSqueeze", float(eye_info.blink)) # open r
-                    self.client.send_message("/avatar/parameters/LeftEyeLid", float(0))# old param open left
-                    self.client.send_message("/avatar/parameters/LeftEyeLidExpandedSqueeze", float(eye_info.blink)) # open left eye
-                if self.config.gui_blink_sync and not rb and not lb:
-                    self.client.send_message("/avatar/parameters/RightEyeLid", float(0))# old param open right
-                    self.client.send_message("/avatar/parameters/RightEyeLidExpandedSqueeze", float(eye_info.blink)) # open r
-                    self.client.send_message("/avatar/parameters/LeftEyeLid", float(0))# old param open left
-                    self.client.send_message("/avatar/parameters/LeftEyeLidExpandedSqueeze", float(eye_info.blink)) # open left eye
-
-                else:
-                    if eye_id in [EyeId.RIGHT]:
-                        yr = eye_info.y
-                        sx = eye_info.x
-                        sy = eye_info.y
-                        rb = False
-                        self.client.send_message("/avatar/parameters/RightEyeX", eye_info.x)
-                        if not self.config.gui_blink_sync or self.config.gui_blink_sync and not lb:   
-                            self.client.send_message("/avatar/parameters/RightEyeLid", float(0))# old param open right
-                            self.client.send_message("/avatar/parameters/RightEyeLidExpandedSqueeze", float(eye_info.blink)) # open right eye
-
-                    if eye_id in [EyeId.LEFT]:
-                        yl = eye_info.y
-                        sx = eye_info.x
-                        sy = eye_info.y
-                        lb = False
-                        self.client.send_message("/avatar/parameters/LeftEyeX", eye_info.x)
-                        if not self.config.gui_blink_sync or self.config.gui_blink_sync and not rb:
-                            self.client.send_message("/avatar/parameters/LeftEyeLid", float(0))# old param open left
-                            self.client.send_message("/avatar/parameters/LeftEyeLidExpandedSqueeze", float(eye_info.blink)) # open left eye
-
-                    if (yr != 621 and yl != 621) and (lb == False and rb == False):
-                        y = (yr + yl) / 2
-                        self.client.send_message("/avatar/parameters/EyesY", y)
-            else:
-                if self.config.gui_blink_sync:
-                    if eye_id in [EyeId.LEFT]:
-                        lb = True
-                    if eye_id in [EyeId.RIGHT]:
-                        rb = True
-                    if rb == True and lb == True : # If both eyes are closed, blink
-                        if last_blink > 0.5:
-                            for i in range(4):
-                                self.client.send_message("/avatar/parameters/RightEyeLid", float(1)) #close eye
-                                self.client.send_message("/avatar/parameters/LeftEyeLid", float(1))
-                                self.client.send_message("/avatar/parameters/RightEyeLidExpandedSqueeze", float(eye_info.blink)) # close eye
-                                self.client.send_message("/avatar/parameters/LeftEyeLidExpandedSqueeze", float(eye_info.blink))
-                        last_blink = time.time() - last_blink
-                else:
-                    
-                    if self.config.tracker_single_eye == 1 or self.config.tracker_single_eye == 2:
-                        if last_blink > 0.5:
-                            for i in range(4):
-                                self.client.send_message("/avatar/parameters/RightEyeLid", float(1)) #close eye
-                                self.client.send_message("/avatar/parameters/LeftEyeLid", float(1))
-                                self.client.send_message("/avatar/parameters/RightEyeLidExpandedSqueeze", float(eye_info.blink)) # close eye
-                                self.client.send_message("/avatar/parameters/LeftEyeLidExpandedSqueeze", float(eye_info.blink))
-                        last_blink = time.time() - last_blink
-
-                    if not self.config.gui_eye_falloff:
-                        
-                        if eye_id in [EyeId.LEFT]:
-                            lb = True
-                            if last_blink > 0.7:
-                                for i in range(5):
-                                    self.client.send_message("/avatar/parameters/LeftEyeLid", float(1))
-                                    self.client.send_message("/avatar/parameters/LeftEyeLidExpandedSqueeze", float(eye_info.blink))
-                            last_blink = time.time() - last_blink
-
-
-                        if eye_id in [EyeId.RIGHT]:
-                            rb = True
-                            self.client.send_message("/avatar/parameters/RightEyeLid", float(1))
-                            self.client.send_message("/avatar/parameters/RightEyeLidExpandedSqueeze", float(eye_info.blink)) # close eye
-
-
-                    else:
-                        if eye_id in [EyeId.LEFT]:
-                            lb = True
-                        if eye_id in [EyeId.RIGHT]:
-                            rb = True
-                        if rb or lb: # If one eye closed and fall off is enabled, mirror data
-                            self.client.send_message("/avatar/parameters/LeftEyeX", sx)  #Send mirrored data to both eyes.
-                            self.client.send_message("/avatar/parameters/RightEyeX", sx)
-                            self.client.send_message("/avatar/parameters/EyesY", sy)
-                            self.client.send_message("/avatar/parameters/RightEyeLid", float(0))# old param open right
-                            self.client.send_message("/avatar/parameters/RightEyeLidExpandedSqueeze", float(eye_info.blink)) # open r
-                            self.client.send_message("/avatar/parameters/LeftEyeLid", float(0))# old param open left
-                            self.client.send_message("/avatar/parameters/LeftEyeLidExpandedSqueeze", float(eye_info.blink)) # open left eye
-                        if rb and lb: # If both eyes are closed, blink
-                                self.client.send_message("/avatar/parameters/RightEyeLid", float(1)) #close eye
-                                self.client.send_message("/avatar/parameters/LeftEyeLid", float(1))
-                                self.client.send_message("/avatar/parameters/RightEyeLidExpandedSqueeze", float(eye_info.blink)) # close eye
-                                self.client.send_message("/avatar/parameters/LeftEyeLidExpandedSqueeze", float(eye_info.blink))
-
 
 class VRChatOSCReceiver:
     def __init__(self, cancellation_event: threading.Event, main_config: EyeTrackConfig, eyes: []):
