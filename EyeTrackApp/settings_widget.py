@@ -34,7 +34,6 @@ class SettingsWidget:
         self.gui_speed_coefficient = f"-SPEEDCOEFFICIENT{widget_id}-"
         self.gui_min_cutoff = f"-MINCUTOFF{widget_id}-"
         self.gui_eye_falloff = f"-EYEFALLOFF{widget_id}-"
-        self.gui_blink_sync = f"-BLINKSYNC{widget_id}-"
         self.gui_skip_autoradius = f"-SKIPAUTORADIUS{widget_id}-"
         self.gui_HSRACP = f"-HSRACP{widget_id}-"
         self.gui_RANSAC3DP = f"-RANSAC3DP{widget_id}-"
@@ -83,14 +82,6 @@ class SettingsWidget:
                     key=self.gui_eye_falloff,
                     background_color='#424042',
                     tooltip = "If one eye stops tracking, we send tracking data from your other eye.",
-                ),
-            ],
-            [sg.Checkbox(
-                    "Sync Blinks (disables winking)",
-                    default=self.config.gui_blink_sync,
-                    key=self.gui_blink_sync,
-                    background_color='#424042',
-                    tooltip = "Only send a blink to VRC if both eyes are closed.",
                 ),
             ],
             [sg.Checkbox(
@@ -516,10 +507,6 @@ class SettingsWidget:
             
         if self.config.gui_eye_falloff != values[self.gui_eye_falloff]:
             self.config.gui_eye_falloff = values[self.gui_eye_falloff]
-            changed = True
-
-        if self.config.gui_blink_sync != values[self.gui_blink_sync]:
-            self.config.gui_blink_sync = values[self.gui_blink_sync]
             changed = True
 
         if self.config.gui_blob_maxsize != values[self.gui_blob_maxsize]:

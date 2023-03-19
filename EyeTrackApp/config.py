@@ -43,7 +43,6 @@ class EyeTrackSettingsConfig(BaseModel):
     gui_recenter_eyes: bool = False
     gui_eye_falloff: bool = False
     tracker_single_eye: int = 0
-    gui_blink_sync: bool = False
     gui_threshold: int = 65
     gui_HSRACP: int = 1
     gui_HSFP: int = 2
