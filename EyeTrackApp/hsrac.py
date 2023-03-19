@@ -443,16 +443,10 @@ class HSRAC_cls(object):
 
         # crop_start_time = timeit.default_timer()
         cx, cy, w, h, theta = ransac_data
-        #  print(cx, cy)
-        if w >= 2.1 * h:  # new blink detection algo lmao this works pretty good actually
-            print("RAN BLINK")
-            # return center_x, center_y, frame, frame, True
 
-        # cx = center_x - (csx - cx) # we find the difference between the crop size and ransac point, and subtract from the center point from HSF
-        # cy = center_y - (csy - cy)
+      #  if w >= 2.1 * h:  # new blink detection algo lmao this works pretty good actually
+            #print("RAN BLINK")
 
-        # csy = frame.shape[0]
-        # csx = frame.shape[1]
         csy = gray_frame.shape[0]
         csx = gray_frame.shape[1]
 

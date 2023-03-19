@@ -5,6 +5,9 @@ import queue
 import cv2
 import serial
 import time
+
+import numpy as np
+
 WAIT_TIME = 0.1
 
 
@@ -34,6 +37,12 @@ class Camera:
         self.cancellation_event = cancellation_event
         self.current_capture_source = config.capture_source
         self.wired_camera: "cv2.VideoCapture" = None
+
+        self.serial_connection = None
+        self.frame_number = 0
+        self.start = True
+        self.serialByteBuffer = b''
+        
         self.error_message = "\033[93m[WARN] Capture source {} not found, retrying...\033[0m"
 
     def set_output_queue(self, camera_output_outgoing: "queue.Queue"):
