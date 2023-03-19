@@ -1,9 +1,16 @@
 import sys
 from utils.misc_utils import PlaySound, SND_FILENAME, SND_ASYNC
 import numpy as np
+from enum import IntEnum
+
+class EyeId(IntEnum):
+    RIGHT = 0
+    LEFT = 1
+    BOTH = 2
+    SETTINGS = 3
 
 def cal_osc(self, cx, cy):
-    if self.eye_id == "EyeId.RIGHT":
+    if self.eye_id == EyeId.RIGHT:
         flipx = self.settings.gui_flip_x_axis_right
     else:
         flipx = self.settings.gui_flip_x_axis_left
@@ -61,7 +68,7 @@ def cal_osc(self, cx, cy):
             if yu > 0:
                 out_y = max(0.0, min(1.0, yu))
 
-        if flipx:  #TODO Check for working function
+        if flipx:  
             if xr >= 0:
                 out_x = -abs(max(0.0, min(1.0, xr)))
             if xl > 0:
@@ -72,7 +79,7 @@ def cal_osc(self, cx, cy):
             if xl > 0:
                 out_x = -abs(max(0.0, min(1.0, xl)))
     except:
-        print("[ERROR] Eye Calibration Invalid!")
+        print("\033[91m[ERROR] Eye Calibration Invalid!\033[0m")
         out_x = 0.5
         out_y = 0.5
     try:

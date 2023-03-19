@@ -59,10 +59,8 @@ class Camera:
             if (
             self.config.capture_source != None and self.config.capture_source != ""
         ):
-              #  if len(self.current_capture_source) > 2 and "http" not in self.current_capture_source:
-              #      self.current_capture_source = f"http://{self.current_capture_source}/"                 
-              #      print(self.current_capture_source)
-                if (self.current_capture_source[:3] == "COM"):
+
+                if (self.config.capture_source[:3] == "COM"):
                     if (
                         self.serial_connection is None
                         or self.camera_status == CameraState.DISCONNECTED
