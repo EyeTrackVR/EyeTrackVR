@@ -46,7 +46,7 @@ def main():
     config.save()
 
     cancellation_event = threading.Event()
-
+    ROSC = False
     # Check to see if we can connect to our video source first. If not, bring up camera finding
     # dialog.
     if config.settings.gui_update_check:
@@ -163,9 +163,11 @@ def main():
         settings[0].start()
 
     # the eye's needs to be running before it is passed to the OSC
-    osc_receiver = VRChatOSCReceiver(cancellation_event, config, eyes)
-    osc_receiver_thread = threading.Thread(target=osc_receiver.run)
-    osc_receiver_thread.start()
+    if config.settings.gui_ROSC:
+        osc_receiver = VRChatOSCReceiver(cancellation_event, config, eyes)
+        osc_receiver_thread = threading.Thread(target=osc_receiver.run)
+        osc_receiver_thread.start()
+        ROSC = True
 
     # Create the window
     window = sg.Window(f"EyeTrackVR {appversion}" , layout, icon='Images/logo.ico', background_color='#292929')
@@ -186,8 +188,9 @@ def main():
             # threading.Event() wont work because pythonosc spawns its own thread.
             # only way i can see to get around this is an ugly while loop that only checks if a threading event is triggered
             # and then call the pythonosc shutdown function
-            osc_receiver.shutdown()
-            osc_receiver_thread.join()
+            if ROSC:
+                osc_receiver.shutdown()
+                osc_receiver_thread.join()
             print("\033[94m[INFO] Exiting EyeTrackApp\033[0m")
             return
 

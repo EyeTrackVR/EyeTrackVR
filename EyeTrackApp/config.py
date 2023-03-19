@@ -54,6 +54,8 @@ class EyeTrackSettingsConfig(BaseModel):
     gui_skip_autoradius: bool = False
     gui_thresh_add: int = 11
     gui_update_check: bool = False
+    gui_ROSC: bool = False
+    
 
 class EyeTrackConfig(BaseModel):
     version: int = 1

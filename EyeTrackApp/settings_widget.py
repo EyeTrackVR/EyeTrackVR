@@ -41,6 +41,7 @@ class SettingsWidget:
         self.gui_HSFP = f"-HSFP{widget_id}-"
         self.gui_BLOBP = f"-BLOBP{widget_id}-"
         self.gui_thresh_add = f"-THRESHADD{widget_id}-"
+        self.gui_ROSC = f"-ROSC{widget_id}-"
 
         self.gui_update_check = f"-UPDATECHECK{widget_id}-"
         self.gui_threshold_slider = f"-BLOBTHRESHOLD{widget_id}-"
@@ -299,7 +300,7 @@ class SettingsWidget:
                 sg.Text("OSC Settings:", background_color='#242224'),
             ],
             [
-                sg.Text("OSC Address:", background_color='#424042'),
+                sg.Text("Address:", background_color='#424042'),
                 sg.InputText(
                     self.config.gui_osc_address, 
                     key=self.gui_osc_address,
@@ -308,7 +309,7 @@ class SettingsWidget:
                 
             ],
             [
-                sg.Text("OSC Port:", background_color='#424042'),
+                sg.Text("Port:", background_color='#424042'),
                 sg.InputText(
                     self.config.gui_osc_port, 
                     key=self.gui_osc_port,
@@ -316,7 +317,17 @@ class SettingsWidget:
                 ),
             ],
             [
-                sg.Text("OSC Receiver Port:", background_color='#424042'),
+                sg.Text("Receive functions", background_color='#424042'),
+                sg.Checkbox(
+                    "",
+                    default=self.config.gui_ROSC,
+                    key=self.gui_ROSC,
+                    background_color='#424042',
+                    tooltip = "Toggle OSC receive functions.",
+                ),
+            ],
+            [
+                sg.Text("Receiver Port:", background_color='#424042'),
                 sg.InputText(
                     self.config.gui_osc_receiver_port, 
                     key=self.gui_osc_receiver_port,
@@ -324,7 +335,7 @@ class SettingsWidget:
                 ),
             ],
             [
-                sg.Text("OSC Recenter Address:", background_color='#424042'),
+                sg.Text("Recenter Address:", background_color='#424042'),
                 sg.InputText(
                     self.config.gui_osc_recenter_address, 
                     key=self.gui_osc_recenter_address,
@@ -332,7 +343,7 @@ class SettingsWidget:
                     ),
             ],
             [
-                sg.Text("OSC Recalibrate Address:", background_color='#424042'),
+                sg.Text("Recalibrate Address:", background_color='#424042'),
                 sg.InputText(
                     self.config.gui_osc_recalibrate_address, 
                     key=self.gui_osc_recalibrate_address,
@@ -513,6 +524,10 @@ class SettingsWidget:
 
         if self.config.gui_blob_maxsize != values[self.gui_blob_maxsize]:
             self.config.gui_blob_maxsize = values[self.gui_blob_maxsize]
+            changed = True
+
+        if self.config.gui_ROSC != values[self.gui_ROSC]:
+            self.config.gui_ROSC = values[self.gui_ROSC]
             changed = True
 
         if changed:
