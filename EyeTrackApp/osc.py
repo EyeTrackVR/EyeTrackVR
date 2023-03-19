@@ -2,7 +2,6 @@
 from pythonosc import udp_client
 from pythonosc import osc_server
 from pythonosc import dispatcher
-import sys
 from utils.misc_utils import PlaySound,SND_FILENAME,SND_ASYNC
 import queue
 import threading
@@ -35,7 +34,6 @@ def output_osc(eye_x, eye_y, eye_blink, last_blink, self):
                     for i in range(5):
                         self.client.send_message("/avatar/parameters/LeftEyeLidExpandedSqueeze", float(self.l_eye_blink))
                     last_blink = time.time() - last_blink
-            
                 if self.config.gui_eye_falloff:
                     if self.r_eye_blink == 0.0: #if both eyes closed and DEF is enables, blink
                         self.client.send_message("/avatar/parameters/LeftEyeLidExpandedSqueeze", float(self.l_eye_blink)) 
@@ -57,7 +55,6 @@ def output_osc(eye_x, eye_y, eye_blink, last_blink, self):
                     for i in range(5):
                         self.client.send_message("/avatar/parameters/LeftEyeLidExpandedSqueeze", float(self.r_eye_blink))
                     last_blink = time.time() - last_blink
-            
                 if self.config.gui_eye_falloff:
                     if self.l_eye_blink == 0.0: #if both eyes closed and DEF is enables, blink
                         self.client.send_message("/avatar/parameters/LeftEyeLidExpandedSqueeze", float(self.r_eye_blink)) 
@@ -73,7 +70,6 @@ def output_osc(eye_x, eye_y, eye_blink, last_blink, self):
         if self.main_config.eye_display_id in [EyeId.BOTH] and self.right_y != 621 and self.left_y != 621:
             y = (self.right_y + self.left_y) / 2
             self.client.send_message("/avatar/parameters/EyesY", y)
-
 
 
 class VRChatOSC:
@@ -92,7 +88,6 @@ class VRChatOSC:
         self.r_eye_blink = 0.7
         self.l_eye_blink = 0.7
 
-    
 
     def run(self):
         start = time.time()
@@ -108,7 +103,6 @@ class VRChatOSC:
 
             output_osc(eye_info.x, eye_info.y, eye_info.blink, last_blink, self)
 
-            
 
 class VRChatOSCReceiver:
     def __init__(self, cancellation_event: threading.Event, main_config: EyeTrackConfig, eyes: []):

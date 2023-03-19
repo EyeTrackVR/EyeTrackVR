@@ -69,7 +69,7 @@ def u16_3ch_to_u32_1ch(img):
 
 
 def newdata(frameshape):
-    print("Initialise data for blinking.")
+    print("\033[94m[INFO] Initialise data for blinking.\033[0m")
     return np.zeros(frameshape, dtype=np.uint32)
 
 
@@ -99,7 +99,7 @@ class IntensityBasedOpeness:
         # Not very clever, but increase the width by 1px to save the maximum value.
         frameshape = (frameshape[0], frameshape[1] + 1)
         if self.data is None:
-            print("Load data for blinking: {}".format(self.imgfile))
+            print(f"\033[92m[INFO] Loaded data for blinking: {self.imgfile}\033[0m")
             if os.path.isfile(self.imgfile):
                 try:
                     img = cv2.imread(self.imgfile, flags=cv2.IMREAD_UNCHANGED)
@@ -116,16 +116,16 @@ class IntensityBasedOpeness:
                         else:
                             self.maxval = self.data[0, -1]
                 except:
-                    print("File read error: {}".format(self.imgfile))
+                    print("[ERROR] File read error: {}".format(self.imgfile))
                     req_newdata = True
             else:
-                print("File does not exist.")
+                print("\033[94m[INFO] File does not exist.\033[0m")
                 req_newdata = True
         else:
             if self.data.shape != frameshape or not np.array_equal(self.img_roi, self.now_roi):
                 # If the ROI recorded in the image file differs from the current ROI
                 #todo: Using the previous and current frame sizes and centre positions from the original, etc., the data can be ported to some extent, but there may be many areas where code changes are required.
-                print("Frame size changed.")
+                print("[INFO] \033[94mFrame size changed.\033[0m")
                 req_newdata = True
         if req_newdata:
             self.data = newdata(frameshape)
