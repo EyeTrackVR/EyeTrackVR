@@ -9,9 +9,11 @@ import queue
 import threading
 import PySimpleGUI as sg
 import sys
+import os
 import urllib.request
 import webbrowser
-
+import requests
+from winotify import Notification
 os.system('color') # init ANSI color
 
 # Random environment variable to speed up webcam opening on the MSMF backend.
@@ -30,7 +32,7 @@ SETTINGS_RADIO_NAME = '-SETTINGSRADIO-'
 
 
 page_url = 'https://github.com/RedHawk989/EyeTrackVR/releases/latest'
-appversion = "0.2.0 BETA 1"
+appversion = "EyeTrackApp 0.2.0 BETA 1"
 
 def open_url():
     try: 
@@ -49,36 +51,29 @@ def main():
     ROSC = False
     # Check to see if we can connect to our video source first. If not, bring up camera finding
     # dialog.
+
+    
     if config.settings.gui_update_check:
-        print("\033[95m[INFO] Checking for updates...\033[0m")
-        url = "https://raw.githubusercontent.com/RedHawk989/EyeTrackVR-Installer/master/Version-Data/Version_Num.txt"
-        req = urllib.request.Request(url)
-        try:
-            with urllib.request.urlopen(req, timeout=10) as res:
-                latestversion = res.read().decode("utf-8").strip()
-        except urllib.error.HTTPError as err:
-            print("Failed to check latest version.")
-            print("{} : {}".format(err.code,err.reason))
-        except urllib.error.URLError as err:
-            print("Failed to check latest version.")
-            print(err.reason)
-        else:
+            response = requests.get("https://api.github.com/repos/RedHawk989/EyeTrackVR/releases/latest")
+            latestversion = response.json()["name"]
             if appversion == latestversion:  # If what we scraped and hardcoded versions are same, assume we are up to date.
                 print(f"\033[92m[INFO] App is up to date! [{latestversion}]\033[0m")
             else:
                 print(
                     f"\033[93m[INFO] You have app version [{appversion}] installed. Please update to [{latestversion}] for the newest features.\033[0m")
                 if is_nt:
-                    from win10toast_click import ToastNotifier
-                    toaster = ToastNotifier()
-                    toaster.show_toast(  # show windows toast
-                        "EyeTrackVR has an update.",
-                        "Click to go to the latest version.",
-                        icon_path="Images/logo.ico",
-                        duration=5,
-                        threaded=True,
-                        callback_on_click=open_url
-                    )
+                    cwd = os.getcwd()
+                    icon = cwd + "\Images\logo.ico"
+                    toast = Notification(app_id="EyeTrackApp",
+                        title="New Update Available!",
+                        msg=f"Please update to {latestversion}",
+                        icon=r"{}".format(icon))
+                    toast.add_actions(label="Download Page", 
+                    launch="https://github.com/RedHawk989/EyeTrackVR/releases/latest")
+                    toast.show()
+
+               
+                
                     
     # Check to see if we have an ROI. If not, bring up ROI finder GUI.
 
@@ -169,7 +164,7 @@ def main():
         ROSC = True
 
     # Create the window
-    window = sg.Window(f"EyeTrackVR {appversion}" , layout, icon='Images/logo.ico', background_color='#292929')
+    window = sg.Window(f"{appversion}" , layout, icon='Images/logo.ico', background_color='#292929')
 
     # GUI Render loop
     while True:
