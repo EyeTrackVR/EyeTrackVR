@@ -8,10 +8,7 @@ from settings_widget import SettingsWidget
 import queue
 import threading
 import PySimpleGUI as sg
-import sys
 import os
-import urllib.request
-import webbrowser
 import requests
 from winotify import Notification
 os.system('color') # init ANSI color
