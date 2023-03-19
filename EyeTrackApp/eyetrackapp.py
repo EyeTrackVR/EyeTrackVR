@@ -32,14 +32,7 @@ SETTINGS_RADIO_NAME = '-SETTINGSRADIO-'
 
 
 page_url = 'https://github.com/RedHawk989/EyeTrackVR/releases/latest'
-appversion = "EyeTrackApp 0.2.0 BETA 1"
-
-def open_url():
-    try: 
-        webbrowser.open_new(page_url)
-        print('Opening URL...')  
-    except: 
-        print('Failed to open URL. Unsupported variable type.')
+appversion = "EyeTrackApp 0.2.0 BETA 2"
 
 
 def main():
