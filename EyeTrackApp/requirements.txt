@@ -4,6 +4,6 @@ numpy == 1.23.5
 pye3d == 0.3.1
 pysimplegui == 4.60.4
 pydantic == 1.10.2
-win10toast_click == 0.1.2
+winotify == 1.1.0
 onnxruntime == 1.13.1
 serial == 0.0.97
