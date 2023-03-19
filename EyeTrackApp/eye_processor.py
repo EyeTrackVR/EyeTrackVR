@@ -284,33 +284,20 @@ class EyeProcessor:
         self.rawx, self.rawy, self.eyeopen = self.er_daddy.run(self.current_image_gray)
         # Daddy also uses a one euro filter, so I'll have to use it twice, but I'm not going to think too much about it.
         self.out_x, self.out_y = cal_osc(self, self.rawx, self.rawy)
-        
         self.current_algorithm = InformationOrigin.DADDY
 
-    def HSRACM(self):
+    def HSRACM(self): 
         # todo: added process to initialise er_hsrac when resolution changes
         self.rawx, self.rawy, self.thresh, gray_frame = self.er_hsrac.run(self.current_image_gray)
         self.current_image_gray = gray_frame
         if self.prev_x is None:
             self.prev_x = self.rawx
             self.prev_y = self.rawy
-        #print(self.prev_x, self.prev_y, cx, cy) 
-        # #filter values with too much movement
-       # if (cx - self.prev_x) <= 45 and (cy - self.prev_y) <= 45 :
-          #  self.prev_x = cx
-          #  self.prev_y = cy
-        # self.eyeopen = intense(cx, cy, uncropframe, self.eye_id)
-      #  self.eyeopen = self.ibo.intense(cx,cy,uncropframe)
         self.out_x, self.out_y = cal_osc(self, self.rawx, self.rawy)
-        #print(self.eyeoffx, self.eyeopen)
         self.current_algorithm = InformationOrigin.HSRAC
-        
-      #  else:
-      #      print("EYE MOVED TOO FAST")
-       #     self.output_images_and_update(thresh, EyeInformation(InformationOrigin.HSRAC, 0, 0, 0, False))
+
     def HSFM(self):
         # todo: added process to initialise er_hsf when resolution changes
-        
         self.rawx, self.rawy, self.thresh = self.er_hsf.run(self.current_image_gray)
         self.eyeopen = self.ibo.intense(self.rawx, self.rawy, self.current_image_gray)
         self.out_x, self.out_y = cal_osc(self, self.rawx, self.rawy)
