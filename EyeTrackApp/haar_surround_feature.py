@@ -119,7 +119,6 @@ def to_gray(frame):
 @lru_cache(maxsize=lru_maxsize_vvs)
 def get_frameint_empty_array(frame_shape, pad, x_step, y_step, r_in, r_out):
     frame_int_dtype = np.intc
-    
     frame_pad = np.empty((frame_shape[0] + (pad * 2), frame_shape[1] + (pad * 2)), dtype=np.uint8)
     
     row, col = frame_pad.shape

@@ -479,8 +479,8 @@ class SettingsWidget:
             self.config.gui_IBO = values[self.gui_IBO]
             changed = True
 
-        if self.config.gui_HSF_radius != values[self.gui_HSF_radius]:
-            self.config.gui_HSF_radius = values[self.gui_HSF_radius]
+        if self.config.gui_HSF_radius != int(values[self.gui_HSF_radius]):
+            self.config.gui_HSF_radius = int(values[self.gui_HSF_radius])
             changed = True
 
         if self.config.gui_flip_y_axis != values[self.gui_flip_y_axis]:

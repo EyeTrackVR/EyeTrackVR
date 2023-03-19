@@ -167,6 +167,7 @@ class EyeProcessor:
         self.out_x = 0.0
         self.rawx = 0.0
         self.rawy = 0.0
+        self.eyeopen = 0.7
         #blink
         self.max_ints = []
         self.max_int = 0
@@ -259,7 +260,7 @@ class EyeProcessor:
 
         if self.settings.gui_IBO:
             self.eyeopen = self.ibo.intense(self.rawx, self.rawy, self.current_image)
-            if self.eyeopen < 0.35: #threshold so the eye fully closes
+            if self.eyeopen < 0.35: #threshold so the eye fully closes #todo: make this a setting?
                 self.eyeopen = 0.0
 
         if self.settings.gui_IBO and self.settings.gui_BLINK:
@@ -353,6 +354,9 @@ class EyeProcessor:
         self.thirdalgo = None
         self.fourthalgo = None
         algolist = [None, None, None, None, None]
+
+        self.er_hsrac = None #clear HSF values when page is opened to correctly reflect setting changes
+        self.er_hsf = None
         
         #set algo priorities
         if self.settings.gui_HSF:
