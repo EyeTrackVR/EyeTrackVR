@@ -177,7 +177,7 @@ class EyeProcessor:
         
         self.prev_x = None
         self.prev_y = None
-        
+        self.bd_blink = False
         self.current_algo = InformationOrigin.HSRAC
         
 
@@ -262,6 +262,8 @@ class EyeProcessor:
             self.eyeopen = self.ibo.intense(self.rawx, self.rawy, self.current_image)
             if self.eyeopen < 0.35: #threshold so the eye fully closes #todo: make this a setting?
                 self.eyeopen = 0.0
+            if self.bd_blink == True:
+                self.eyeopen = 0.0
 
         if self.settings.gui_IBO and self.settings.gui_BLINK:
             ibo = self.ibo.intense(self.rawx, self.rawy, self.current_image)
@@ -289,7 +291,7 @@ class EyeProcessor:
 
     def HSRACM(self): 
         # todo: added process to initialise er_hsrac when resolution changes
-        self.rawx, self.rawy, self.thresh, gray_frame = self.er_hsrac.run(self.current_image_gray)
+        self.rawx, self.rawy, self.thresh, gray_frame, self.bd_blink = self.er_hsrac.run(self.current_image_gray)
         self.current_image_gray = gray_frame
         if self.prev_x is None:
             self.prev_x = self.rawx

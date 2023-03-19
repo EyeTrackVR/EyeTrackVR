@@ -320,7 +320,7 @@ class HSRAC_cls(object):
                 # If the average value of cropped_image is greater than response_max
                 # (i.e., if the cropimage is whitish
                 # blink
-                # print("BLINK BD")
+               # print("BLINK BD")
                 blink_bd = True
 
         # if imshow_enable or save_video:
@@ -422,7 +422,7 @@ class HSRAC_cls(object):
 
         if not contours:
             #     If empty, go to next loop
-            return int(center_x), int(center_y), th_frame, frame
+            return int(center_x), int(center_y), th_frame, frame, blink_bd
         cnt_ind = None
         max_area = -1
         for i, cnt in enumerate(contours):
@@ -439,7 +439,7 @@ class HSRAC_cls(object):
             # ransac_data is None==maxcnt.shape[0]<sample_num
             # go to next loop
             # pass
-            return int(center_x), int(center_y), th_frame, frame
+            return int(center_x), int(center_y), th_frame, frame, blink_bd
 
         # crop_start_time = timeit.default_timer()
         cx, cy, w, h, theta = ransac_data
@@ -484,9 +484,9 @@ class HSRAC_cls(object):
         # self.timedict["total_cv"].append(cv_end_time - cv_start_time)
 
         try:
-            return int(cx), int(cy), th_frame, frame
+            return int(cx), int(cy), th_frame, frame, blink_bd
         except:
-            return int(center_x), int(center_y), th_frame, frame
+            return int(center_x), int(center_y), th_frame, frame, blink_bd
 
 
 
@@ -507,8 +507,8 @@ class External_Run_HSRACS(object):
         #debug code
         # center_x, center_y,cropbox,ori_frame, thresh, frame, gray_frame = self.algo.single_run()
         # return center_x, center_y,cropbox,ori_frame, thresh, frame, gray_frame
-        center_x, center_y, thresh, frame = self.algo.single_run()
-        return center_x, center_y, thresh, frame
+        center_x, center_y, thresh, frame, bd_blink = self.algo.single_run()
+        return center_x, center_y, thresh, frame, bd_blink
 
 
 
