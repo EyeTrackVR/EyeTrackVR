@@ -52,7 +52,7 @@ class EyeTrackSettingsConfig(BaseModel):
     gui_BLOBP: int = 5
     gui_IBO: bool = True
     gui_skip_autoradius: bool = False
-    gui_thresh_add: int = 20
+    gui_thresh_add: int = 11
     gui_update_check: bool = False
 
 class EyeTrackConfig(BaseModel):
