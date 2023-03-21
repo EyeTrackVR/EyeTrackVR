@@ -26,6 +26,7 @@ class CameraWidget:
         self.gui_tracking_image = f"-IMAGE{widget_id}-"
         self.gui_output_graph = f"-OUTPUTGRAPH{widget_id}-"
         self.gui_restart_calibration = f"-RESTARTCALIBRATION{widget_id}-"
+        self.gui_stop_calibration = f"-STOPCALIBRATION{widget_id}-"
         self.gui_recenter_eyes = f"-RECENTEREYES{widget_id}-"
         self.gui_mode_readout = f"-APPMODE{widget_id}-"
         self.gui_circular_crop = f"-CIRCLECROP{widget_id}-"
@@ -73,7 +74,8 @@ class CameraWidget:
                 ),
             ],
             [
-                sg.Button("Restart Calibration", key=self.gui_restart_calibration, button_color='#6f4ca1', tooltip = "Start eye calibration. Look all arround to all extreams without blinking until sound is heard.",),
+                sg.Button("Start Calibration", key=self.gui_restart_calibration, button_color='#6f4ca1', tooltip = "Start eye calibration. Look all arround to all extreams without blinking until sound is heard.",),
+                sg.Button("Stop Calibration", key=self.gui_stop_calibration, button_color='#6f4ca1', tooltip = "Stop eye calibration manualy.",),
                 sg.Button("Recenter Eyes", key=self.gui_recenter_eyes, button_color='#6f4ca1', tooltip = "Make your eyes center again.",),
 
             ],
@@ -250,6 +252,9 @@ class CameraWidget:
         if event == self.gui_restart_calibration:
             self.ransac.calibration_frame_counter = 300
             PlaySound('Audio/start.wav', SND_FILENAME | SND_ASYNC)
+
+        if event == self.gui_stop_calibration:
+            self.ransac.calibration_frame_counter = 0
 
         if event == self.gui_recenter_eyes:
             self.settings.gui_recenter_eyes = True
