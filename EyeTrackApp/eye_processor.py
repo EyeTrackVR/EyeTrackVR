@@ -286,7 +286,7 @@ class EyeProcessor:
         self.thresh=self.current_image_gray.copy()
         self.rawx, self.rawy, self.eyeopen = self.er_daddy.run(self.current_image_gray)
         # Daddy also uses a one euro filter, so I'll have to use it twice, but I'm not going to think too much about it.
-        self.out_x, self.out_y = cal_osc(self, self.rawx, self.rawy)
+        self.out_x, self.out_y = cal.cal_osc(self, self.rawx, self.rawy)
         self.current_algorithm = InformationOrigin.DADDY
 
     def HSRACM(self): 
@@ -296,27 +296,27 @@ class EyeProcessor:
         if self.prev_x is None:
             self.prev_x = self.rawx
             self.prev_y = self.rawy
-        self.out_x, self.out_y = cal_osc(self, self.rawx, self.rawy)
+        self.out_x, self.out_y = cal.cal_osc(self, self.rawx, self.rawy)
         self.current_algorithm = InformationOrigin.HSRAC
 
     def HSFM(self):
         # todo: added process to initialise er_hsf when resolution changes
         self.rawx, self.rawy, self.thresh = self.er_hsf.run(self.current_image_gray)
         self.eyeopen = self.ibo.intense(self.rawx, self.rawy, self.current_image_gray)
-        self.out_x, self.out_y = cal_osc(self, self.rawx, self.rawy)
+        self.out_x, self.out_y = cal.cal_osc(self, self.rawx, self.rawy)
         self.current_algorithm = InformationOrigin.HSF
 
     def RANSAC3DM(self):
         current_image_gray_copy = self.current_image_gray.copy()  # Duplicate before overwriting in RANSAC3D.
         self.rawx, self.rawy, self.thresh = RANSAC3D(self)
         self.eyeopen = self.ibo.intense(self.rawx, self.rawy, current_image_gray_copy)
-        self.out_x, self.out_y = cal_osc(self, self.rawx, self.rawy)
+        self.out_x, self.out_y = cal.cal_osc(self, self.rawx, self.rawy)
         self.current_algorithm = InformationOrigin.RANSAC
 
     def BLOBM(self):
         self.rawx, self.rawy, self.thresh = BLOB(self)
         self.eyeopen = self.ibo.intense(self.rawx, self.rawy, self.current_image_gray)
-        self.out_x, self.out_y = cal_osc(self, self.rawx, self.rawy)
+        self.out_x, self.out_y = cal.cal_osc(self, self.rawx, self.rawy)
         self.current_algorithm = InformationOrigin.BLOB
 
 

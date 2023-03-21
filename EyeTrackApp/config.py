@@ -18,7 +18,11 @@ class EyeTrackCameraConfig(BaseModel):
     focal_length: int = 30
     capture_source: Union[int, str, None] = None
     gui_circular_crop: bool = False
-
+    
+    calib_XMAX: int = None
+    calib_XMIN: int = None
+    calib_YMAX: int = None
+    calib_YMIN: int = None
 
 class EyeTrackSettingsConfig(BaseModel):
     gui_flip_x_axis_left: bool = False
@@ -54,7 +58,7 @@ class EyeTrackSettingsConfig(BaseModel):
     gui_thresh_add: int = 11
     gui_update_check: bool = False
     gui_ROSC: bool = False
-    
+
 
 class EyeTrackConfig(BaseModel):
     version: int = 1
