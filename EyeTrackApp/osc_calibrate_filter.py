@@ -13,52 +13,31 @@ class EyeId(IntEnum):
 
 
 class cal():
-  #  main_config = EyeTrackConfig
-
-   # def __init__(self, main_config: EyeTrackSettingsConfig):
-  #      self.settings = main_config
-
     def cal_osc(self, cx, cy):
-        svs = False
         if self.eye_id == EyeId.RIGHT:
             flipx = self.settings.gui_flip_x_axis_right
         else:
             flipx = self.settings.gui_flip_x_axis_left
         if self.calibration_frame_counter == 0:
             self.calibration_frame_counter = None
-            self.xoff = cx
-            self.yoff = cy
-            self.config.calib_XMAX = self.xmax
-            self.config.calib_YMAX = self.ymax
-            self.config.calib_XMIN = self.xmin
-            self.config.calib_YMIN = self.ymin
-            svs = False
-           # self.settings.save()
+            self.config.calib_XOFF = cx
+            self.config.calib_YOFF = cy
             PlaySound('Audio/compleated.wav', SND_FILENAME | SND_ASYNC)
         elif self.calibration_frame_counter != None:
             self.settings.gui_recenter_eyes = False
-            if cx > self.xmax:
-                self.xmax = cx
-            if cx < self.xmin:
-                self.xmin = cx
-            if cy > self.ymax:
-                self.ymax = cy
-            if cy < self.ymin:
-                self.ymin = cy
-
-        #self.config.calib_XMIN not None and self.config.calib_YMAX
+            if cx > self.config.calib_XMAX:
+                self.config.calib_XMAX = cx
+            if cx < self.config.calib_XMIN:
+                self.config.calib_XMIN = cx
+            if cy > self.config.calib_YMAX:
+                self.config.calib_YMAX = cy
+            if cy < self.config.calib_YMIN:
+                self.config.calib_YMIN = cy
             self.calibration_frame_counter -= 1
 
-        if not any(i == None for i in (self.config.calib_XMIN, self.config.calib_YMIN, self.config.calib_XMAX, self.config.calib_YMAX)) and not svs:
-            self.xmax = self.config.calib_XMAX
-            self.ymax = self.config.calib_YMAX 
-            self.xmin = self.config.calib_XMIN
-            self.ymin = self.config.calib_YMIN
-            svs = True
-
         if self.settings.gui_recenter_eyes == True:
-            self.xoff = cx
-            self.yoff = cy
+            self.config.calib_XOFF = cx
+            self.config.calib_YOFF = cy
             if self.ts == 0:
                 self.settings.gui_recenter_eyes = False
                 PlaySound('Audio/compleated.wav', SND_FILENAME | SND_ASYNC)
@@ -71,16 +50,16 @@ class cal():
             out_x = 0.5
             out_y = 0.5
             xl = float(
-                (cx - self.xoff) / (self.xmax - self.xoff)
+                (cx - self.config.calib_XOFF) / (self.config.calib_XMAX - self.config.calib_XOFF)
             )
             xr = float(
-                (cx - self.xoff) / (self.xmin - self.xoff)
+                (cx - self.config.calib_XOFF) / (self.config.calib_XMIN - self.config.calib_XOFF)
             )
             yu = float(
-                (cy - self.yoff) / (self.ymin - self.yoff)
+                (cy - self.config.calib_YOFF) / (self.config.calib_YMIN - self.config.calib_YOFF)
             )
             yd = float(
-                (cy - self.yoff) / (self.ymax - self.yoff)
+                (cy - self.config.calib_YOFF) / (self.config.calib_YMAX - self.config.calib_YOFF)
             )
 
             if self.settings.gui_flip_y_axis:  # check config on flipped values settings and apply accordingly
@@ -105,7 +84,13 @@ class cal():
                 if xl > 0:
                     out_x = -abs(max(0.0, min(1.0, xl)))
         except:
-            print("\033[91m[ERROR] Eye Calibration Invalid!\033[0m")
+          #  print("\033[91m[ERROR] Eye Calibration Invalid!\033[0m")
+            self.config.calib_XOFF = 0
+            self.config.calib_YOFF = 0
+            self.config.calib_XMAX = 1
+            self.config.calib_YMAX = 1
+            self.config.calib_XMIN = 1
+            self.config.calib_YMIN = 1
             out_x = 0.5
             out_y = 0.5
         try:

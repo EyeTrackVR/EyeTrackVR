@@ -23,6 +23,8 @@ class EyeTrackCameraConfig(BaseModel):
     calib_XMIN: int = None
     calib_YMAX: int = None
     calib_YMIN: int = None
+    calib_XOFF: int = None
+    calib_YOFF: int = None
 
 class EyeTrackSettingsConfig(BaseModel):
     gui_flip_x_axis_left: bool = False
