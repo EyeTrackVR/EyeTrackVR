@@ -10,8 +10,12 @@ import threading
 import PySimpleGUI as sg
 import os
 import requests
-from winotify import Notification
-os.system('color') # init ANSI color
+
+try:
+    from winotify import Notification
+except ImportError:
+    print("Notifications not supported")
+os.system("color")  # init ANSI color
 
 # Random environment variable to speed up webcam opening on the MSMF backend.
 # https://github.com/opencv/opencv/issues/17687
@@ -25,10 +29,10 @@ SETTINGS_NAME = "-SETTINGSWIDGET-"
 LEFT_EYE_RADIO_NAME = "-LEFTEYERADIO-"
 RIGHT_EYE_RADIO_NAME = "-RIGHTEYERADIO-"
 BOTH_EYE_RADIO_NAME = "-BOTHEYERADIO-"
-SETTINGS_RADIO_NAME = '-SETTINGSRADIO-'
+SETTINGS_RADIO_NAME = "-SETTINGSRADIO-"
 
 
-page_url = 'https://github.com/RedHawk989/EyeTrackVR/releases/latest'
+page_url = "https://github.com/RedHawk989/EyeTrackVR/releases/latest"
 appversion = "EyeTrackApp 0.2.0 BETA 2"
 
 
@@ -42,29 +46,37 @@ def main():
     # Check to see if we can connect to our video source first. If not, bring up camera finding
     # dialog.
 
-    
     if config.settings.gui_update_check:
-            response = requests.get("https://api.github.com/repos/RedHawk989/EyeTrackVR/releases/latest")
-            latestversion = response.json()["name"]
-            if appversion == latestversion:  # If what we scraped and hardcoded versions are same, assume we are up to date.
-                print(f"\033[92m[INFO] App is up to date! [{latestversion}]\033[0m")
-            else:
-                print(
-                    f"\033[93m[INFO] You have app version [{appversion}] installed. Please update to [{latestversion}] for the newest features.\033[0m")
+        response = requests.get(
+            "https://api.github.com/repos/RedHawk989/EyeTrackVR/releases/latest"
+        )
+        latestversion = response.json()["name"]
+        if (
+            appversion == latestversion
+        ):  # If what we scraped and hardcoded versions are same, assume we are up to date.
+            print(f"\033[92m[INFO] App is up to date! [{latestversion}]\033[0m")
+        else:
+            print(
+                f"\033[93m[INFO] You have app version [{appversion}] installed. Please update to [{latestversion}] for the newest features.\033[0m"
+            )
+            try:
                 if is_nt:
                     cwd = os.getcwd()
                     icon = cwd + "\Images\logo.ico"
-                    toast = Notification(app_id="EyeTrackApp",
+                    toast = Notification(
+                        app_id="EyeTrackApp",
                         title="New Update Available!",
                         msg=f"Please update to {latestversion}",
-                        icon=r"{}".format(icon))
-                    toast.add_actions(label="Download Page", 
-                    launch="https://github.com/RedHawk989/EyeTrackVR/releases/latest")
+                        icon=r"{}".format(icon),
+                    )
+                    toast.add_actions(
+                        label="Download Page",
+                        launch="https://github.com/RedHawk989/EyeTrackVR/releases/latest",
+                    )
                     toast.show()
+            except Exception as e:
+                print("Notifications not supported")
 
-               
-                
-                    
     # Check to see if we have an ROI. If not, bring up ROI finder GUI.
 
     # Spawn worker threads
@@ -88,28 +100,28 @@ def main():
             sg.Radio(
                 "Right Eye",
                 "EYESELECTRADIO",
-                background_color='#292929',
+                background_color="#292929",
                 default=(config.eye_display_id == EyeId.RIGHT),
                 key=RIGHT_EYE_RADIO_NAME,
             ),
             sg.Radio(
                 "Left Eye",
                 "EYESELECTRADIO",
-                background_color='#292929',
+                background_color="#292929",
                 default=(config.eye_display_id == EyeId.LEFT),
                 key=LEFT_EYE_RADIO_NAME,
             ),
             sg.Radio(
                 "Both Eyes",
                 "EYESELECTRADIO",
-                background_color='#292929',
+                background_color="#292929",
                 default=(config.eye_display_id == EyeId.BOTH),
                 key=BOTH_EYE_RADIO_NAME,
             ),
             sg.Radio(
                 "Settings",
                 "EYESELECTRADIO",
-                background_color='#292929',
+                background_color="#292929",
                 default=(config.eye_display_id == EyeId.SETTINGS),
                 key=SETTINGS_RADIO_NAME,
             ),
@@ -120,21 +132,21 @@ def main():
                 vertical_alignment="top",
                 key=LEFT_EYE_NAME,
                 visible=(config.eye_display_id in [EyeId.LEFT, EyeId.BOTH]),
-                background_color='#424042',
+                background_color="#424042",
             ),
             sg.Column(
                 eyes[0].widget_layout,
                 vertical_alignment="top",
                 key=RIGHT_EYE_NAME,
                 visible=(config.eye_display_id in [EyeId.RIGHT, EyeId.BOTH]),
-                background_color='#424042',
+                background_color="#424042",
             ),
             sg.Column(
                 settings[0].widget_layout,
                 vertical_alignment="top",
                 key=SETTINGS_NAME,
                 visible=(config.eye_display_id in [EyeId.SETTINGS]),
-                background_color='#424042',
+                background_color="#424042",
             ),
         ],
     ]
@@ -154,7 +166,9 @@ def main():
         ROSC = True
 
     # Create the window
-    window = sg.Window(f"{appversion}" , layout, icon='Images/logo.ico', background_color='#292929')
+    window = sg.Window(
+        f"{appversion}", layout, icon="Images/logo.ico", background_color="#292929"
+    )
 
     # GUI Render loop
     while True:
@@ -230,4 +244,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-    
