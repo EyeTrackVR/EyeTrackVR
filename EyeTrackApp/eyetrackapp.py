@@ -10,7 +10,8 @@ import threading
 import PySimpleGUI as sg
 import os
 import requests
-from winotify import Notification
+if is_nt:
+    from winotify import Notification
 os.system('color') # init ANSI color
 
 # Random environment variable to speed up webcam opening on the MSMF backend.
