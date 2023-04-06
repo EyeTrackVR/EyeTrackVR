@@ -26,6 +26,7 @@ class EyeTrackCameraConfig(BaseModel):
     calib_XOFF: int = None
     calib_YOFF: int = None
 
+
 class EyeTrackSettingsConfig(BaseModel):
     gui_flip_x_axis_left: bool = False
     gui_flip_x_axis_right: bool = False

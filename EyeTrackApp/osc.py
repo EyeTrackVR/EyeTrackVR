@@ -15,18 +15,22 @@ class EyeId(IntEnum):
     SETTINGS = 3
 from config import EyeTrackConfig
 
-
+se = False
 def output_osc(eye_x, eye_y, eye_blink, last_blink, self):
+        global se
         if self.main_config.eye_display_id in [EyeId.RIGHT, EyeId.LEFT]: #we are in single eye mode
-            self.client.send_message("/tracking/eye/LeftRightPitchYaw", [float(xl), float(xr), float(yl), float(yr)])
-           # self.client.send_message("/avatar/parameters/LeftEyeX", eye_x) 
-            #self.client.send_message("/avatar/parameters/RightEyeX", eye_x)
-            #self.client.send_message("/avatar/parameters/EyesY", eye_y)
+            se = True
+        #    self.client.send_message("/tracking/eye/LeftRightPitchYaw", [float(eye_y * 100), float(eye_x * 100), float(eye_y * 100), float(eye_x * 101)]) #vrc native ET test
+        #   self.client.send_message("/tracking/eye/EyesClosedAmount", float(1 - eye_blink))
 
-            #self.client.send_message("/avatar/parameters/RightEyeLidExpandedSqueeze", float(eye_blink)) 
-            #self.client.send_message("/avatar/parameters/LeftEyeLidExpandedSqueeze", float(eye_blink)) 
+            self.client.send_message("/avatar/parameters/LeftEyeX", eye_x)
+            self.client.send_message("/avatar/parameters/RightEyeX", eye_x)
+            self.client.send_message("/avatar/parameters/EyesY", eye_y)
 
-        if self.eye_id in [EyeId.LEFT]: #left eye, send data to left
+            self.client.send_message("/avatar/parameters/RightEyeLidExpandedSqueeze", float(eye_blink))
+            self.client.send_message("/avatar/parameters/LeftEyeLidExpandedSqueeze", float(eye_blink))
+
+        if self.eye_id in [EyeId.LEFT] and not se: #left eye, send data to left
             self.l_eye_x = eye_x
             self.l_eye_blink = eye_blink
 
@@ -47,7 +51,7 @@ def output_osc(eye_x, eye_y, eye_blink, last_blink, self):
             self.client.send_message("/avatar/parameters/LeftEyeLidExpandedSqueeze", float(self.l_eye_blink)) 
 
 
-        elif self.eye_id in [EyeId.RIGHT]: #Right eye, send data to right
+        elif self.eye_id in [EyeId.RIGHT] and not se: #Right eye, send data to right
             self.r_eye_x = eye_x
             self.r_eye_blink = eye_blink
 
