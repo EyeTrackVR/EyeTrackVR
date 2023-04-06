@@ -18,12 +18,13 @@ from config import EyeTrackConfig
 
 def output_osc(eye_x, eye_y, eye_blink, last_blink, self):
         if self.main_config.eye_display_id in [EyeId.RIGHT, EyeId.LEFT]: #we are in single eye mode
-            self.client.send_message("/avatar/parameters/LeftEyeX", eye_x) 
-            self.client.send_message("/avatar/parameters/RightEyeX", eye_x)
-            self.client.send_message("/avatar/parameters/EyesY", eye_y)
+            self.client.send_message("/tracking/eye/LeftRightPitchYaw", [float(xl), float(xr), float(yl), float(yr)])
+           # self.client.send_message("/avatar/parameters/LeftEyeX", eye_x) 
+            #self.client.send_message("/avatar/parameters/RightEyeX", eye_x)
+            #self.client.send_message("/avatar/parameters/EyesY", eye_y)
 
-            self.client.send_message("/avatar/parameters/RightEyeLidExpandedSqueeze", float(eye_blink)) 
-            self.client.send_message("/avatar/parameters/LeftEyeLidExpandedSqueeze", float(eye_blink)) 
+            #self.client.send_message("/avatar/parameters/RightEyeLidExpandedSqueeze", float(eye_blink)) 
+            #self.client.send_message("/avatar/parameters/LeftEyeLidExpandedSqueeze", float(eye_blink)) 
 
         if self.eye_id in [EyeId.LEFT]: #left eye, send data to left
             self.l_eye_x = eye_x
