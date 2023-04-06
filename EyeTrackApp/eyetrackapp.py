@@ -11,11 +11,9 @@ import PySimpleGUI as sg
 import os
 import requests
 
-try:
+if is_nt:
     from winotify import Notification
-except ImportError:
-    print("Notifications not supported")
-os.system("color")  # init ANSI color
+os.system('color') # init ANSI color
 
 # Random environment variable to speed up webcam opening on the MSMF backend.
 # https://github.com/opencv/opencv/issues/17687

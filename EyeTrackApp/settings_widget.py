@@ -67,8 +67,9 @@ class SettingsWidget:
                     tooltip = "Flips the right eye's X axis.",
                 ),
 
-            ],
-            [sg.Checkbox(
+           # ],
+            #[
+            sg.Checkbox(
                     "Flip Y Axis",
                     default=self.config.gui_flip_y_axis,
                     key=self.gui_flip_y_axis,
@@ -198,8 +199,8 @@ class SettingsWidget:
                     key=self.gui_IBO,
                     background_color='#424042',
                 ),
-            ],
-            [
+          #  ],
+         #   [
                 sg.Checkbox(
                     "Bianary Blink Algo",
                     default=self.config.gui_BLINK,
@@ -278,13 +279,15 @@ class SettingsWidget:
                 sg.InputText(
                     self.config.gui_min_cutoff,
                     key=self.gui_min_cutoff,
+                    size=(0,10),
                 ),
-            ],
-            [
+            #],
+            #[
                 sg.Text("Speed Coefficient", background_color='#424042'),
                 sg.InputText(
                     self.config.gui_speed_coefficient, 
                     key=self.gui_speed_coefficient,
+                    size=(0,10),
                 ),
             ],
              [
@@ -295,15 +298,17 @@ class SettingsWidget:
                 sg.InputText(
                     self.config.gui_osc_address, 
                     key=self.gui_osc_address,
+                    size=(0,20),
                     tooltip = "IP address we send OSC data to.",
                 ),
                 
-            ],
-            [
+          #  ],
+          #  [
                 sg.Text("Port:", background_color='#424042'),
                 sg.InputText(
                     self.config.gui_osc_port, 
                     key=self.gui_osc_port,
+                    size=(0,10),
                     tooltip = "OSC port we send data to.",
                 ),
             ],
@@ -314,6 +319,7 @@ class SettingsWidget:
                     default=self.config.gui_ROSC,
                     key=self.gui_ROSC,
                     background_color='#424042',
+                    size=(0,10),
                     tooltip = "Toggle OSC receive functions.",
                 ),
             ],
@@ -322,14 +328,16 @@ class SettingsWidget:
                 sg.InputText(
                     self.config.gui_osc_receiver_port, 
                     key=self.gui_osc_receiver_port,
+                    size=(0,10),
                     tooltip = "Port we receive OSC data from (used to recalibrate or recenter app from within VRChat.",
                 ),
-            ],
-            [
+            #],
+           # [
                 sg.Text("Recenter Address:", background_color='#424042'),
                 sg.InputText(
                     self.config.gui_osc_recenter_address, 
                     key=self.gui_osc_recenter_address,
+                    size=(0,10),
                     tooltip = "OSC Address used for recentering your eye.",
                     ),
             ],
@@ -338,6 +346,7 @@ class SettingsWidget:
                 sg.InputText(
                     self.config.gui_osc_recalibrate_address, 
                     key=self.gui_osc_recalibrate_address,
+                    size=(0,10),
                     tooltip = "OSC address we use for recalibrating your eye",
                     ),
             ]
