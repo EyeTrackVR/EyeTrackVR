@@ -1,14 +1,24 @@
 from config import EyeTrackConfig
 from enum import Enum
-import threading
-import queue
 import cv2
+import queue
 import serial
+import serial.tools.list_ports
+import threading
 import time
 
 import numpy as np
 
 WAIT_TIME = 0.1
+
+# Serial communication protocol:
+# header-begin (2 bytes)
+# header-type (2 bytes)
+# packet-size (2 bytes)
+# packet (packet-size bytes)
+ETVR_HEADER = b'\xff\xa0'
+ETVR_HEADER_FRAME = b'\xff\xa1'
+ETVR_HEADER_LEN = 6
 
 
 class CameraState(Enum):
@@ -39,9 +49,11 @@ class Camera:
         self.wired_camera: "cv2.VideoCapture" = None
 
         self.serial_connection = None
+        self.last_frame_time = time.time()
         self.frame_number = 0
+        self.fps = 0
         self.start = True
-        self.serialByteBuffer = b''
+        self.buffer = b''
 
         self.error_message = "\033[93m[WARN] Capture source {} not found, retrying...\033[0m"
 
@@ -66,7 +78,8 @@ class Camera:
                             or self.camera_status == CameraState.DISCONNECTED
                             or self.config.capture_source != self.current_capture_source
                     ):
-                        port = self.current_capture_source
+                        port = self.config.capture_source
+                        self.current_capture_source = port
                         self.start_serial_connection(port)
                 else:
                     if (
@@ -109,75 +122,92 @@ class Camera:
                 self.wired_camera.set(cv2.CAP_PROP_POS_FRAMES, 0)
                 raise RuntimeError("Problem while getting frame")
             frame_number = self.wired_camera.get(cv2.CAP_PROP_POS_FRAMES)
-            fps = self.wired_camera.get(cv2.CAP_PROP_FPS)
+            self.fps = self.wired_camera.get(cv2.CAP_PROP_FPS)
             if should_push:
-                self.push_image_to_queue(image, frame_number, fps)
+                self.push_image_to_queue(image, frame_number, self.fps)
         except:
-            print("\033[93m[INFO] Capture source problem, assuming camera disconnected, waiting for reconnect.\033[0m")
+            print("\033[93m[WARN] Capture source problem, assuming camera disconnected, waiting for reconnect.\033[0m")
             self.camera_status = CameraState.DISCONNECTED
             pass
 
+    def get_next_packet_bounds(self):
+        beg = -1
+        while beg == -1:
+            self.buffer += self.serial_connection.read(2048)
+            beg = self.buffer.find(ETVR_HEADER + ETVR_HEADER_FRAME)
+        # Discard any data before the frame header.
+        if beg > 0:
+            self.buffer = self.buffer[beg:]
+            beg = 0
+        # We know exactly how long the jpeg packet is
+        end = int.from_bytes(self.buffer[4:6], signed=False, byteorder="little")
+        self.buffer += self.serial_connection.read(end - len(self.buffer))
+        return beg, end
+
+    def get_next_jpeg_frame(self):
+        beg, end = self.get_next_packet_bounds()
+        jpeg = self.buffer[beg+ETVR_HEADER_LEN:end+ETVR_HEADER_LEN]
+        self.buffer = self.buffer[end+ETVR_HEADER_LEN:]
+        return jpeg
+
     def get_serial_camera_picture(self, should_push):
-        start = time.time()
         try:
-            bytes = self.serialByteBuffer
             if self.serial_connection.in_waiting:
-                bytes += self.serial_connection.read(4096)  # Read in initial bytes
-
-                a = bytes.find(b'\xff\xd8')  # Find start byte for jpeg image
-                b = bytes.find(b'\xff\xd9')  # Fine end byte for jpeg image
-
-                # If the first found end byte is before the start byte, keep reading in serial
-                # data and discarding the old data until the start byte is before the end byte
-                while a > b:
-                    bytes = bytes[a:]
-                    a = bytes.find(b'\xff\xd8')
-                    b = bytes.find(b'\xff\xd9')
-                    if a == -1 or b == -1:
-                        bytes += self.serial_connection.read(2048)
-
-                if a != -1 and b != -1:  # If there is jpeg data
-                    jpg = bytes[a:b + 2]  # Create the string of bytes for the current jpeg
-                    bytes = bytes[b + 2:]  # Clear the buffer until the end of our current jpeg
-                    self.serialByteBuffer = bytes
-
-                    if jpg:
-                        # Create jpeg frame from byte string
-                        image = cv2.imdecode(np.fromstring(jpg, dtype=np.uint8), cv2.IMREAD_UNCHANGED)
-                        if image is None:
-                            print("image not found")
-                        else:
-                            self.frame_number = self.frame_number + 1
-                        fps = 1 / (time.time() - start)  # Calculate FPS - This could use a better implementation
-                        if should_push:
-                            self.push_image_to_queue(image, self.frame_number, fps)
+                jpeg = self.get_next_jpeg_frame()
+                if jpeg:
+                    # Create jpeg frame from byte string
+                    image = cv2.imdecode(np.fromstring(jpeg, dtype=np.uint8), cv2.IMREAD_UNCHANGED)
+                    if image is None:
+                        print("image not found")
+                        return
+                    # Discard the serial buffer. This is due to the fact that it
+                    # may build up some outdated frames. A bit of a workaround here tbh.
+                    self.serial_connection.reset_input_buffer()
+                    self.buffer = b''
+                    # Calculate the fps.
+                    current_frame_time = time.time()
+                    delta_time = current_frame_time - self.last_frame_time
+                    self.last_frame_time = current_frame_time
+                    if delta_time > 0:
+                        self.fps = 1 / delta_time
+                    self.frame_number = self.frame_number + 1
+                    if should_push:
+                        self.push_image_to_queue(image, self.frame_number, self.fps)
 
         except UnboundLocalError as ex:
             print(ex)
-        except Exception as ex:
-            print(ex.__class__)
-            print(
-                "\033[93m[INFO]Serial capture source problem, assuming camera disconnected, waiting for reconnect.\033[0m")
+        except Exception:
+            print("\033[93m[WARN]Serial capture source problem, assuming camera disconnected, waiting for reconnect.\033[0m")
+            self.serial_connection.close()
             self.camera_status = CameraState.DISCONNECTED
             pass
 
     def start_serial_connection(self, port):
+        if self.serial_connection is not None and self.serial_connection.is_open:
+            # Do nothing. The connection is already open on this port.
+            if self.serial_connection.port == port:
+                return
+            # Otherwise, close the connection before trying to reopen.
+            self.serial_connection.close()
+        com_ports = [tuple(p) for p in list(serial.tools.list_ports.comports())]
+        # Do not try connecting if no such port i.e. device was unplugged.
+        if not any(p for p in com_ports if port in p):
+            return
         try:
-            serialInst = serial.Serial()
-            print("setting baud rate")
-            serialInst.baudrate = 2000000
-            print("baud rate set")
+            conn = serial.Serial(
+                baudrate = 3000000,
+                port = port,
+                xonxoff=False,
+                dsrdtr=False,
+                rtscts=False)
 
-            serialInst.port = port
-            serialInst.setDTR(False)
-            serialInst.setRTS(False)
+            conn.reset_input_buffer()
 
-            serialInst.open()
-            print("port open")
-            self.serial_connection = serialInst
+            print(f"\033[94m[INFO] Serial Tracker successfully connected on {port}\033[0m")
+            self.serial_connection = conn
             self.camera_status = CameraState.CONNECTED
-        except:
-            print("Error Opening Serial Port")
+        except Exception:
+            self.camera_status = CameraState.DISCONNECTED
 
     def push_image_to_queue(self, image, frame_number, fps):
         # If there's backpressure, just yell. We really shouldn't have this unless we start getting
