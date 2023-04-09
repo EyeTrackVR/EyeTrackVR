@@ -11,16 +11,20 @@ import numpy as np
 
 WAIT_TIME = 0.1
 
+# Serial communication protocol:
+# header-begin (2 bytes)
+# header-type (2 bytes)
+# packet-size (2 bytes)
+# packet (packet-size bytes)
+ETVR_HEADER = b'\xff\xa0'
+ETVR_HEADER_FRAME = b'\xff\xa1'
+ETVR_HEADER_LEN = 6
+
 
 class CameraState(Enum):
     CONNECTING = 0
     CONNECTED = 1
     DISCONNECTED = 2
-
-
-# Find JPEG frames based on start and end bytes.
-FRAME_JPEG_BEGIN = b'\xff\xd8'
-FRAME_JPEG_END = b'\xff\xd9'
 
 
 class Camera:
@@ -45,6 +49,7 @@ class Camera:
         self.wired_camera: "cv2.VideoCapture" = None
 
         self.serial_connection = None
+        self.last_frame_time = time.time()
         self.frame_number = 0
         self.fps = 0
         self.start = True
@@ -125,38 +130,27 @@ class Camera:
             self.camera_status = CameraState.DISCONNECTED
             pass
 
-    def get_next_frame_bounds(self):
+    def get_next_packet_bounds(self):
         beg = -1
-        end = -1
-        # Initial read.
-        self.buffer += self.serial_connection.read(4096)
-        while beg == -1 or end == -1:
-            # Find the jpeg begin bytes.
-            if beg == -1:
-                beg = self.buffer.find(FRAME_JPEG_BEGIN)
-                continue
-            # Discard any data before the jpeg frame.
-            if beg > 0:
-                self.buffer = self.buffer[beg:]
-                beg = 0
-                continue
-            # Find the jpeg end bytes.
-            end = self.buffer.find(FRAME_JPEG_END)
-            # Read more data when no jpeg end bytes found.
-            if end == -1:
-                self.buffer += self.serial_connection.read(2048)
+        while beg == -1:
+            self.buffer += self.serial_connection.read(2048)
+            beg = self.buffer.find(ETVR_HEADER + ETVR_HEADER_FRAME)
+        # Discard any data before the frame header.
+        if beg > 0:
+            self.buffer = self.buffer[beg:]
+            beg = 0
+        # We know exactly how long the jpeg packet is
+        end = int.from_bytes(self.buffer[4:6], signed=False, byteorder="little")
+        self.buffer += self.serial_connection.read(end - len(self.buffer))
         return beg, end
 
     def get_next_jpeg_frame(self):
-        beg, end = self.get_next_frame_bounds()
-        # Extract jpeg from the buffer.
-        jpeg = self.buffer[beg:end+2]
-        # Remove jpeg from the buffer.
-        self.buffer = self.buffer[end+2:]
+        beg, end = self.get_next_packet_bounds()
+        jpeg = self.buffer[beg+ETVR_HEADER_LEN:end+ETVR_HEADER_LEN]
+        self.buffer = self.buffer[end+ETVR_HEADER_LEN:]
         return jpeg
 
     def get_serial_camera_picture(self, should_push):
-        start = time.time()
         try:
             if self.serial_connection.in_waiting:
                 jpeg = self.get_next_jpeg_frame()
@@ -171,7 +165,9 @@ class Camera:
                     self.serial_connection.reset_input_buffer()
                     self.buffer = b''
                     # Calculate the fps.
-                    delta_time = time.time() - start
+                    current_frame_time = time.time()
+                    delta_time = current_frame_time - self.last_frame_time
+                    self.last_frame_time = current_frame_time
                     if delta_time > 0:
                         self.fps = 1 / delta_time
                     self.frame_number = self.frame_number + 1
@@ -182,7 +178,6 @@ class Camera:
             print(ex)
         except Exception:
             print("\033[93m[WARN]Serial capture source problem, assuming camera disconnected, waiting for reconnect.\033[0m")
-
             self.serial_connection.close()
             self.camera_status = CameraState.DISCONNECTED
             pass
@@ -217,7 +212,6 @@ class Camera:
     def push_image_to_queue(self, image, frame_number, fps):
         # If there's backpressure, just yell. We really shouldn't have this unless we start getting
         # some sort of capture event conflict though.
-        print(f"N {frame_number} FPS {fps}")
         qsize = self.camera_output_outgoing.qsize()
         if qsize > 1:
             print(
