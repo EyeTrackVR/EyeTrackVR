@@ -208,6 +208,7 @@ class EyeProcessor:
             self.previous_image = self.current_image
             self.previous_rotation = self.config.rotation_angle
         except: # If this fails it likely means that the images are not the same size for some reason.
+            print(self.current_image_gray.shape, threshold_image.shape)
             print('\033[91m[ERROR] Size of frames to display are of unequal sizes.\033[0m')
 
             pass
@@ -242,12 +243,15 @@ class EyeProcessor:
             rotation_matrix = cv2.getRotationMatrix2D(
                 img_center, self.config.rotation_angle, 1
             )
+            avg_color_per_row = np.average(self.current_image, axis=0)
+            avg_color = np.average(avg_color_per_row, axis=0)
+            ar, ag, ab = avg_color
             self.current_image = cv2.warpAffine(
                 self.current_image,
                 rotation_matrix,
                 (cols, rows),
                 borderMode=cv2.BORDER_CONSTANT,
-                borderValue=(64, 64, 64),#(255, 255, 255),
+                borderValue=(ar + 10, ag + 10, ab + 10),#(255, 255, 255),
             )
             return True
         except:

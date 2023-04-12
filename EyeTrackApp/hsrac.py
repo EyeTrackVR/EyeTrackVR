@@ -243,8 +243,8 @@ class HSRAC_cls(object):
     
     def single_run(self):
         # Temporary implementation to run
-        if imshow_enable:
-            ori_frame = self.current_image_gray.copy()  # debug code
+      #  if imshow_enable:
+        ori_frame = self.current_image_gray.copy()  # debug code
             
         blink_bd = False
         if self.now_modeo == self.cv_modeo[1]:
@@ -422,6 +422,8 @@ class HSRAC_cls(object):
 
         if not contours:
             #     If empty, go to next loop
+            y, x = ori_frame.shape
+            th_frame = cv2.resize(th_frame, (x, y))
             return int(center_x), int(center_y), th_frame, frame, blink_bd
         cnt_ind = None
         max_area = -1
@@ -439,7 +441,9 @@ class HSRAC_cls(object):
             # ransac_data is None==maxcnt.shape[0]<sample_num
             # go to next loop
             # pass
-            return int(center_x), int(center_y), th_frame, frame, blink_bd
+            y, x = ori_frame.shape
+            th_frame = cv2.resize(th_frame, (x, y))
+            return int(center_x), int(center_y), th_frame, ori_frame, blink_bd
 
         # crop_start_time = timeit.default_timer()
         cx, cy, w, h, theta = ransac_data
@@ -462,16 +466,16 @@ class HSRAC_cls(object):
             cv2.drawContours(ori_frame, contours, -1, (255, 0, 0), 1)
             cv2.circle(ori_frame, (int(cx), int(cy)), 2, (255, 0, 0), -1)
             # cx1, cy1, w1, h1, theta1 = fit_rotated_ellipse(maxcnt.reshape(-1, 2))
-            # cv2.ellipse(
-            #     ori_frame,
-            #     (cx, cy),
-            #     (int(w), int(h)),
-            #     theta * 180.0 / np.pi,
-            #     0.0,
-            #     360.0,
-            #     (50, 250, 200),
-            #     1,
-            # )
+            cv2.ellipse(
+                 ori_frame,
+                 (cx, cy),
+                 (int(w), int(h)),
+                 theta * 180.0 / np.pi,
+                 0.0,
+                 360.0,
+                 (50, 250, 200),
+                 1,
+             )
             # cv2.imshow("crop", cropped_image)
             # cv2.imshow("frame", frame)
             if imshow_enable:
@@ -484,9 +488,13 @@ class HSRAC_cls(object):
         # self.timedict["total_cv"].append(cv_end_time - cv_start_time)
 
         try:
-            return int(cx), int(cy), th_frame, frame, blink_bd
+            y, x = ori_frame.shape
+            th_frame = cv2.resize(th_frame, (x, y))
+            return int(cx), int(cy), th_frame, ori_frame, blink_bd
         except:
-            return int(center_x), int(center_y), th_frame, frame, blink_bd
+            y, x = ori_frame.shape
+            th_frame = cv2.resize(th_frame, (x, y))
+            return int(center_x), int(center_y), th_frame, ori_frame, blink_bd
 
 
 
