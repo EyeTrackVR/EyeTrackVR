@@ -20,7 +20,7 @@ from utils.misc_utils import clamp
 
 thresh_add = 10
 
-imshow_enable = False
+imshow_enable = True
 calc_print_enable = False
 save_video = False
 skip_autoradius = False
@@ -424,7 +424,7 @@ class HSRAC_cls(object):
             #     If empty, go to next loop
             y, x = ori_frame.shape
             th_frame = cv2.resize(th_frame, (x, y))
-            return int(center_x), int(center_y), th_frame, frame, blink_bd
+            return int(center_x), int(center_y), th_frame, ori_frame, blink_bd
         cnt_ind = None
         max_area = -1
         for i, cnt in enumerate(contours):
@@ -463,7 +463,7 @@ class HSRAC_cls(object):
         if imshow_enable:#imsave_flg:
 
             cv2.circle(ori_frame, (int(center_x), int(center_y)), 3, (128, 0, 0), -1)
-            cv2.drawContours(ori_frame, contours, -1, (255, 0, 0), 1)
+            #cv2.drawContours(ori_frame, contours, -1, (255, 0, 0), 1)
             cv2.circle(ori_frame, (int(cx), int(cy)), 2, (255, 0, 0), -1)
             # cx1, cy1, w1, h1, theta1 = fit_rotated_ellipse(maxcnt.reshape(-1, 2))
             cv2.ellipse(
@@ -477,11 +477,11 @@ class HSRAC_cls(object):
                  1,
              )
             # cv2.imshow("crop", cropped_image)
-            # cv2.imshow("frame", frame)
-            if imshow_enable:
-                cv2.imshow("ori_frame", ori_frame)
-                if cv2.waitKey(1) & 0xFF == ord("q"):
-                    pass
+         #    # cv2.imshow("frame", frame)
+         #   if imshow_enable:
+         #       cv2.imshow("ori_frame", ori_frame)
+         #       if cv2.waitKey(1) & 0xFF == ord("q"):
+         #           pass
 
         # cv_end_time = timeit.default_timer()
         # self.timedict["ransac"].append(cv_end_time - ransac_start_time)

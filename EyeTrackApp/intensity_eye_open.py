@@ -221,11 +221,11 @@ class IntensityBasedOpeness:
         else:
             maxp = self.data[int_y, int_x]
             minp = self.maxval
-            diffp = minp - maxp if (minp - maxp) != 0 else 1
+            diffp = minp - maxp
             eyeopen = (intensity - maxp) / diffp
             eyeopen = 1 - eyeopen
             # eyeopen = eyeopen - 0.2
-            # print(intensity, maxp, minp, x, y)
+            print(eyeopen, intensity, maxp, minp, x, y)
        #     print(f"EYEOPEN: {eyeopen}")
             # print(int(x), int(y), eyeopen, maxp, minp)
         # print(self.data[0, -1])
@@ -233,6 +233,7 @@ class IntensityBasedOpeness:
         if changed and ((time.time() - self.lct) > 5):  # save every 5 seconds if something changed to save disk usage
             self.save()
             self.lct = time.time()
-        filter_eyeopen = (eyeopen + self.prev_val) / 2
+      #  print(self.prev_val, eyeopen, intensity, self.maxval)
+       # filter_eyeopen = (eyeopen + self.prev_val) / 2
         self.prev_val = eyeopen
-        return filter_eyeopen
+        return eyeopen#filter_eyeopen

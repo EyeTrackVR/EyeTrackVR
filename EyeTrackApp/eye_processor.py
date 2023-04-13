@@ -208,7 +208,6 @@ class EyeProcessor:
             self.previous_image = self.current_image
             self.previous_rotation = self.config.rotation_angle
         except: # If this fails it likely means that the images are not the same size for some reason.
-            print(self.current_image_gray.shape, threshold_image.shape)
             print('\033[91m[ERROR] Size of frames to display are of unequal sizes.\033[0m')
 
             pass
