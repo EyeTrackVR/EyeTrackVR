@@ -15,7 +15,7 @@ video_path = "ezgif.com-gif-maker.avi"
 input_size = 192  # Do not change this number.
 heatmap_size = 48  # Do not change this number.
 kernel_size = 7
-model_file = "daddy230210.onnx"  # The model file name will be changed when performance stabilises.
+model_file = "Models/daddy230210.onnx"  # The model file name will be changed when performance stabilises.
 # SHA256 for model version verification
 # daddy230210.onnx = 59e59aa2a21024884200dd3acbd5e6a2e8d7209c46555fbdc727d4fe3adb68d3
 imshow_enable = False
