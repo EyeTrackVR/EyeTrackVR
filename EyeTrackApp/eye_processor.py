@@ -133,7 +133,7 @@ class EyeProcessor:
         self.current_frame_number = None
         self.current_fps = None
         self.threshold_image = None
-
+        self.thresh = None
         # Calibration Values
         self.xoff = 1
         self.yoff = 1
@@ -266,7 +266,8 @@ class EyeProcessor:
             if self.eyeopen < 0.35: #threshold so the eye fully closes #todo: make this a setting?
                 self.eyeopen = 0.0
             if self.bd_blink == True:
-                self.eyeopen = 0.0
+                pass
+               # self.eyeopen = 0.0
 
         if self.settings.gui_IBO and self.settings.gui_BLINK:
             ibo = self.ibo.intense(self.rawx, self.rawy, self.current_image)

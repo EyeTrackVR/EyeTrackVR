@@ -394,6 +394,7 @@ class HSRAC_cls(object):
         # else:
         
         cv2.threshold(frame_gray_crop, min_val + thresh_add, 255, cv2.THRESH_BINARY, dst=th_frame)
+
         cv2.morphologyEx(th_frame, cv2.MORPH_OPEN, self.kernel, dst=fic_frame)  # or cv2.MORPH_CLOSE
         cv2.morphologyEx(fic_frame, cv2.MORPH_CLOSE, self.kernel, dst=fic_frame)
         cv2.bitwise_not(fic_frame, fic_frame)
@@ -507,7 +508,7 @@ class External_Run_HSRACS(object):
         if skip_autoradius:
             default_radius = radius
         thresh_add = threshold
-        
+        print(radius)
         self.algo = HSRAC_cls()
 
     def run(self, current_image_gray):

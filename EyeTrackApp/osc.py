@@ -18,6 +18,7 @@ from config import EyeTrackConfig
 se = False
 def output_osc(eye_x, eye_y, eye_blink, last_blink, self):
         global se
+
         if self.main_config.eye_display_id in [EyeId.RIGHT, EyeId.LEFT]: #we are in single eye mode
             se = True
         #    self.client.send_message("/tracking/eye/LeftRightPitchYaw", [float(eye_y * 100), float(eye_x * 100), float(eye_y * 100), float(eye_x * 101)]) #vrc native ET test
@@ -29,6 +30,8 @@ def output_osc(eye_x, eye_y, eye_blink, last_blink, self):
 
             self.client.send_message("/avatar/parameters/RightEyeLidExpandedSqueeze", float(eye_blink))
             self.client.send_message("/avatar/parameters/LeftEyeLidExpandedSqueeze", float(eye_blink))
+        else:
+            se = False
 
         if self.eye_id in [EyeId.LEFT] and not se: #left eye, send data to left
             self.l_eye_x = eye_x

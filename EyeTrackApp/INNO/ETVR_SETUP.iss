@@ -24,7 +24,7 @@ DisableProgramGroupPage=yes
 ;PrivilegesRequired=lowest
 OutputBaseFilename=EyeTrackVR-Setup
 SetupIconFile=C:\Users\beaul\OneDrive\Desktop\EyeTrackApp\Images\logo.ico
-Compression=lzma
+Compression=lzma/ultra64
 SolidCompression=yes
 WizardStyle=modern
 

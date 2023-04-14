@@ -150,15 +150,35 @@ class IntensityBasedOpeness:
         int_x, int_y = int(x), int(y)
         if int_x < 0 or int_y < 0:
             return self.prev_val
-        upper_x = min(int_x + 25, frame.shape[1]-1) #TODO make this a setting
-        lower_x = max(int_x - 25, 0)
-        upper_y = min(int_y + 25, frame.shape[0]-1)
-        lower_y = max(int_y - 25, 0)
+        upper_x = min(int_x + 15, frame.shape[1]-1) #TODO make this a setting
+        lower_x = max(int_x - 15, 0)
+        upper_y = min(int_y + 15, frame.shape[0]-1)
+        lower_y = max(int_y - 15, 0)
 
         # frame_crop = frame[lower_y:upper_y, lower_x:upper_x]
         frame_crop = safe_crop(frame, lower_x, lower_y, upper_x, upper_y, 1)
+        #ret_, th = cv2.threshold(frame_crop, 80, 1.0, cv2.THRESH_BINARY_INV, dst=frame_crop)
+
+        ret, f = cv2.threshold(frame, 80, 255, cv2.THRESH_BINARY)
+      #  ret, frame_crop = cv2.threshold(frame_crop, 80, 255, cv2.THRESH_BINARY)
+
         # The same can be done with cv2.integral, but since there is only one area of the rectangle for which we want to know the total value, there is no advantage in terms of computational complexity.
         intensity = frame_crop.sum() + 1
+        avg_color_per_row = np.average(frame_crop, axis=0)
+        avg_color = np.average(avg_color_per_row, axis=0)
+        ar, ag, ab = avg_color
+        intensity = ar
+        cv2.imshow("IBO", frame_crop)
+        if cv2.waitKey(1) & 0xFF == ord("q"):
+            pass
+
+
+
+        #print(intensity)
+            # if our blob width/height are within suitable (yet arbitrary) boundaries, call that good.
+            #
+            # TODO This should be scaled based on camera resolution.
+
         # numpy:np.sum(),ndarray.sum()
         # opencv:cv2.sumElems()
         # I don't know which is faster.
@@ -201,7 +221,7 @@ class IntensityBasedOpeness:
                 self.data[int_y, int_x] = intensity  # set value
                 changed = True
             else:
-                intensitya = max(data_val - 15, 1)  # if current intensity value is less (more pupil), save that
+                intensitya = max(data_val + 0.02, 1)  # if current intensity value is less (more pupil), save that
                 self.data[int_y, int_x] = intensitya  # set value
                 changed = True
         
@@ -212,20 +232,23 @@ class IntensityBasedOpeness:
             if intensity > self.maxval:  # if current intensity value is more (less pupil), save that NOTE: we have the
                 self.maxval = intensity  # set value at 0 index
             else:
-                intensityd = max(self.maxval - 10, 1)  # continuously adjust closed intensity, will be set when user blink, used to allow eyes to close when lighting changes
+                intensityd = max(self.maxval - 0.02, 1)  # continuously adjust closed intensity, will be set when user blink, used to allow eyes to close when lighting changes
                 self.maxval = intensityd  # set value at 0 index
-    
+           #     print(intensityd, intensity)
         if newval_flg:
             # Do the same thing as in the original version.
             eyeopen = 0.9
         else:
             maxp = self.data[int_y, int_x]
             minp = self.maxval
-            diffp = minp - maxp
-            eyeopen = (intensity - maxp) / diffp
+            eyeopen = ((intensity - maxp) / (minp - maxp)) #for whatever reason when input and maxp are too close it outputs high
+
             eyeopen = 1 - eyeopen
-            # eyeopen = eyeopen - 0.2
             print(eyeopen, intensity, maxp, minp, x, y)
+            #if maxp - minp < 1.6:
+             #   eyeopen = 0.0
+            # eyeopen = eyeopen - 0.2
+
        #     print(f"EYEOPEN: {eyeopen}")
             # print(int(x), int(y), eyeopen, maxp, minp)
         # print(self.data[0, -1])
@@ -234,6 +257,7 @@ class IntensityBasedOpeness:
             self.save()
             self.lct = time.time()
       #  print(self.prev_val, eyeopen, intensity, self.maxval)
-       # filter_eyeopen = (eyeopen + self.prev_val) / 2
+        #@filter_eyeopen = (eyeopen + self.prev_val) / 2
+
         self.prev_val = eyeopen
-        return eyeopen#filter_eyeopen
+        return eyeopen

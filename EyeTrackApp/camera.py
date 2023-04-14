@@ -106,14 +106,14 @@ class Camera:
             # python event as a context-less, resettable one-shot channel.
             if should_push and not self.capture_event.wait(timeout=0.02):
                 continue
-
-            if (self.current_capture_source[:3] == "COM"):
-                self.get_serial_camera_picture(should_push)
-            else:
-                self.get_wired_camera_picture(should_push)
-            if not should_push:
-                # if we get all the way down here, consider ourselves connected
-                self.camera_status = CameraState.CONNECTED
+            if self.config.capture_source != None:
+                if (self.current_capture_source[:3] == "COM"):
+                    self.get_serial_camera_picture(should_push)
+                else:
+                    self.get_wired_camera_picture(should_push)
+                if not should_push:
+                    # if we get all the way down here, consider ourselves connected
+                    self.camera_status = CameraState.CONNECTED
 
     def get_wired_camera_picture(self, should_push):
         try:
