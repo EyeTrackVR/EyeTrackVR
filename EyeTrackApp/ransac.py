@@ -121,8 +121,11 @@ def fit_rotated_ellipse(data, P):
     # I just want to clear things up around here.
     cu = a * cx ** 2 + b * cx * cy + c * cy ** 2 - f
     cu_r = np.array([(a * tc2 + b_tcs + c * ts2), (a * ts2 - b_tcs + c * tc2)])
-    wh = np.sqrt(cu / cu_r)
-    
+    if cu > 1: #negatives can get thrown which cause errors, just ignore them
+        wh = np.sqrt(cu / cu_r)
+    else:
+        pass
+
     w, h = wh[0], wh[1]
     
     error_sum = np.sum(data)
@@ -177,7 +180,7 @@ def RANSAC3D(self):
     frame = self.current_image_gray
     # For measuring processing time of image processing
     # Crop first to reduce the amount of data to process.
-    frame = frame[0:len(frame) - 5, :]
+   # frame = frame[0:len(frame) - 5, :]
     # To reduce the processing data, first convert to 1-channel and then blur.
     # The processing results were the same when I swapped the order of blurring and 1-channelization.
     frame_gray = cv2.GaussianBlur(frame, (5, 5), 0)

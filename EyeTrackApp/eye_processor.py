@@ -287,7 +287,7 @@ class EyeProcessor:
         
     def DADDYM(self):
         # todo: We should have a proper variable for drawing.
-        self.thresh=self.current_image_gray.copy()
+        self.thresh = self.current_image_gray.copy()
         self.rawx, self.rawy, self.eyeopen = self.er_daddy.run(self.current_image_gray)
         # Daddy also uses a one euro filter, so I'll have to use it twice, but I'm not going to think too much about it.
         self.out_x, self.out_y = cal.cal_osc(self, self.rawx, self.rawy)
@@ -295,8 +295,7 @@ class EyeProcessor:
 
     def HSRACM(self): 
         # todo: added process to initialise er_hsrac when resolution changes
-        self.rawx, self.rawy, self.thresh, gray_frame, self.bd_blink = self.er_hsrac.run(self.current_image_gray)
-        self.current_image_gray = gray_frame
+        self.rawx, self.rawy, self.thresh, self.current_image_gray, self.bd_blink = self.er_hsrac.run(self.current_image_gray)
         if self.prev_x is None:
             self.prev_x = self.rawx
             self.prev_y = self.rawy
@@ -313,13 +312,11 @@ class EyeProcessor:
     def RANSAC3DM(self):
         current_image_gray_copy = self.current_image_gray.copy()  # Duplicate before overwriting in RANSAC3D.
         self.rawx, self.rawy, self.thresh = RANSAC3D(self)
-        self.eyeopen = self.ibo.intense(self.rawx, self.rawy, current_image_gray_copy)
         self.out_x, self.out_y = cal.cal_osc(self, self.rawx, self.rawy)
         self.current_algorithm = InformationOrigin.RANSAC
 
     def BLOBM(self):
         self.rawx, self.rawy, self.thresh = BLOB(self)
-        self.eyeopen = self.ibo.intense(self.rawx, self.rawy, self.current_image_gray)
         self.out_x, self.out_y = cal.cal_osc(self, self.rawx, self.rawy)
         self.current_algorithm = InformationOrigin.BLOB
 

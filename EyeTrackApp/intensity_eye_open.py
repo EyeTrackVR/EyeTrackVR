@@ -168,9 +168,9 @@ class IntensityBasedOpeness:
         avg_color = np.average(avg_color_per_row, axis=0)
         ar, ag, ab = avg_color
         intensity = ar
-        cv2.imshow("IBO", frame_crop)
-        if cv2.waitKey(1) & 0xFF == ord("q"):
-            pass
+        #cv2.imshow("IBO", frame_crop)
+        #if cv2.waitKey(1) & 0xFF == ord("q"):
+         #   pass
 
 
 

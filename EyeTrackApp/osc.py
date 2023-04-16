@@ -95,6 +95,7 @@ def output_osc(eye_x, eye_y, eye_blink, last_blink, self):
             if self.eye_id in [EyeId.LEFT] and not se:  # left eye, send data to left
                 self.l_eye_x = eye_x
                 self.l_eye_blink = eye_blink
+                self.left_y = eye_y
 
                 if self.l_eye_blink == 0.0:
                     if last_blink > 0.7:  # when binary blink is on, blinks may be too fast for OSC so we repeat them.
@@ -108,13 +109,14 @@ def output_osc(eye_x, eye_y, eye_blink, last_blink, self):
                                                      float(1 - eye_blink))
                     self.l_eye_x = self.r_eye_x
 
-                self.left_y = eye_y
+
 
 
 
             elif self.eye_id in [EyeId.RIGHT] and not se:  # Right eye, send data to right
                 self.r_eye_x = eye_x
                 self.r_eye_blink = eye_blink
+                self.right_y = eye_y
 
                 if self.r_eye_blink == 0.0:
                     if last_blink > 0.7:  # when binary blink is on, blinks may be too fast for OSC so we repeat them.
@@ -129,8 +131,6 @@ def output_osc(eye_x, eye_y, eye_blink, last_blink, self):
 
                     self.r_eye_x = self.l_eye_x
 
-                self.right_y = eye_y
-
 
             if self.main_config.eye_display_id in [EyeId.BOTH] and self.r_eye_blink != 621 and self.r_eye_blink != 621:
                 if self.r_eye_blink == 0.0 or self.l_eye_blink == 0.0:
@@ -138,6 +138,7 @@ def output_osc(eye_x, eye_y, eye_blink, last_blink, self):
                         for i in range(5):
                             self.client.send_message("/tracking/eye/EyesClosedAmount",
                                                      float(1))
+                        last_blink = time.time() - last_blink
                 eye_blink = (self.r_eye_blink + self.l_eye_blink) / 2
                 self.client.send_message("/tracking/eye/EyesClosedAmount",
                                          float(1 - eye_blink))
@@ -147,6 +148,7 @@ def output_osc(eye_x, eye_y, eye_blink, last_blink, self):
                 eye_y = (self.right_y + self.left_y) / 2
 
             if not se:
+
                 self.client.send_message("/tracking/eye/LeftRightVec",
                                      [float(self.l_eye_x), float(eye_y), 0.8, float(self.r_eye_x), float(eye_y),
                                       0.8])  # vrc native ET (z values may need tweaking, they act like a scalar)
