@@ -71,6 +71,7 @@ class EyeTrackConfig(BaseModel):
     settings: EyeTrackSettingsConfig = EyeTrackSettingsConfig()
     eye_display_id: EyeId = EyeId.RIGHT
 
+
     @staticmethod
     def load():
         if not os.path.exists(CONFIG_FILE_NAME):
@@ -95,7 +96,7 @@ class EyeTrackConfig(BaseModel):
             return load_config
 
     def save(self):
-        # todo: Write only if there is a difference between the saved configuration file and the current configuration.
+        # make sure this is only called if there is a change
         if os.path.exists(CONFIG_FILE_NAME):
             try:
                 # Verify existing configuration files.

@@ -400,7 +400,8 @@ class SettingsWidget:
         # If anything has changed in our configuration settings, change/update those.
         changed = False
 
-        if self.config.gui_osc_port != values[self.gui_osc_port]:
+        if self.config.gui_osc_port != int(values[self.gui_osc_port]):
+            print(self.config.gui_osc_port, values[self.gui_osc_port])
             try: 
                 int(values[self.gui_osc_port])
                 if len(values[self.gui_osc_port]) <= 5:
@@ -411,7 +412,7 @@ class SettingsWidget:
             except:
                 print("\033[91m[ERROR] OSC port value must be an integer 0-65535\033[0m")
 
-        if self.config.gui_osc_receiver_port != values[self.gui_osc_receiver_port]:
+        if self.config.gui_osc_receiver_port != int(values[self.gui_osc_receiver_port]):
             try: 
                 int(values[self.gui_osc_receiver_port])
                 if len(values[self.gui_osc_receiver_port]) <= 5:
@@ -540,5 +541,7 @@ class SettingsWidget:
 
         if changed:
             self.main_config.save()
-            
+      #  print(changed)
+       # changed = False
+       # print(changed)
         self.osc_queue.put((EyeId.SETTINGS))
