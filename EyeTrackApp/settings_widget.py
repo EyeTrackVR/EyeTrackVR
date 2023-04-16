@@ -41,6 +41,7 @@ class SettingsWidget:
         self.gui_BLOBP = f"-BLOBP{widget_id}-"
         self.gui_thresh_add = f"-THRESHADD{widget_id}-"
         self.gui_ROSC = f"-ROSC{widget_id}-"
+        self.gui_vrc_native = f"-VRCNATIVE{widget_id}-"
 
         self.gui_update_check = f"-UPDATECHECK{widget_id}-"
         self.gui_threshold_slider = f"-BLOBTHRESHOLD{widget_id}-"
@@ -78,6 +79,13 @@ class SettingsWidget:
                 ),
             ],
             [sg.Checkbox(
+                    "VRC Native Eyetracking",
+                    default=self.config.gui_vrc_native,
+                    key=self.gui_vrc_native,
+                    background_color='#424042',
+                    tooltip = "Toggle VRCFT output or VRC native",
+                ),
+                sg.Checkbox(
                     "Dual Eye Falloff",
                     default=self.config.gui_eye_falloff,
                     key=self.gui_eye_falloff,
@@ -448,6 +456,10 @@ class SettingsWidget:
 
         if self.config.gui_HSF != values[self.gui_HSF]:
             self.config.gui_HSF = values[self.gui_HSF]
+            changed = True
+
+        if self.config.gui_vrc_native != values[self.gui_vrc_native]:
+            self.config.gui_vrc_native = values[self.gui_vrc_native]
             changed = True
 
         if self.config.gui_DADDYP != int(values[self.gui_DADDYP]):

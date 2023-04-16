@@ -244,7 +244,7 @@ class IntensityBasedOpeness:
             eyeopen = ((intensity - maxp) / (minp - maxp)) #for whatever reason when input and maxp are too close it outputs high
 
             eyeopen = 1 - eyeopen
-            print(eyeopen, intensity, maxp, minp, x, y)
+          #  print(eyeopen, intensity, maxp, minp, x, y)
             #if maxp - minp < 1.6:
              #   eyeopen = 0.0
             # eyeopen = eyeopen - 0.2

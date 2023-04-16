@@ -22,7 +22,7 @@
 HSR By: PallasNeko (Optimization Wizard, Contributor), Summer#2406 (Main Algorithm Engineer)  
 RANSAC 3D By: Summer#2406 (Main Algorithm Engineer), Pupil Labs (pye3d), PallasNeko (Optimization)
 BLOB By: Prohurtz#0001 (Main App Developer)
-Algorithm App Implimentations By: Prohurtz#0001, qdot (Inital App Creator)
+Algorithm App Implementations By: Prohurtz#0001, qdot (Initial App Creator)
 
 Additional Contributors: [Assassin], Summer404NotFound, lorow, ZanzyTHEbar
 
@@ -76,8 +76,8 @@ class EyeInformation:
     info_type: InformationOrigin
     x: float
     y: float
-    pupil_dialation: int
-    blink: bool
+    pupil_dialation: float
+    blink: float
 
 
 lowb = np.array(0)
@@ -96,7 +96,7 @@ def run_once(f):
 async def delayed_setting_change(setting, value):
     await asyncio.sleep(5)
     setting = value
-    PlaySound('Audio/compleated.wav', SND_FILENAME | SND_ASYNC)
+    PlaySound('Audio/completed.wav', SND_FILENAME | SND_ASYNC)
 
 
 

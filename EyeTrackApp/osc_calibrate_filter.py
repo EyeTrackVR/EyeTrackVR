@@ -22,7 +22,13 @@ class cal():
             self.calibration_frame_counter = None
             self.config.calib_XOFF = cx
             self.config.calib_YOFF = cy
-            PlaySound('Audio/compleated.wav', SND_FILENAME | SND_ASYNC)
+            PlaySound('Audio/completed.wav', SND_FILENAME | SND_ASYNC)
+        if self.calibration_frame_counter == 300:
+            self.config.calib_XMAX = -69420
+            self.config.calib_XMIN = 69420
+            self.config.calib_YMAX = -69420
+            self.config.calib_YMIN = 69420
+            self.calibration_frame_counter -= 1
         elif self.calibration_frame_counter != None:
             self.settings.gui_recenter_eyes = False
             if cx > self.config.calib_XMAX:
@@ -40,7 +46,7 @@ class cal():
             self.config.calib_YOFF = cy
             if self.ts == 0:
                 self.settings.gui_recenter_eyes = False
-                PlaySound('Audio/compleated.wav', SND_FILENAME | SND_ASYNC)
+                PlaySound('Audio/completed.wav', SND_FILENAME | SND_ASYNC)
             else:
                 self.ts = self.ts - 1
         else:

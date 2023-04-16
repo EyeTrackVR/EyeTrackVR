@@ -61,6 +61,7 @@ class EyeTrackSettingsConfig(BaseModel):
     gui_thresh_add: int = 11
     gui_update_check: bool = False
     gui_ROSC: bool = False
+    gui_vrc_native: bool = True
 
 
 class EyeTrackConfig(BaseModel):
