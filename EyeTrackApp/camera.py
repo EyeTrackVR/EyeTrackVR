@@ -56,7 +56,9 @@ class Camera:
         self.buffer = b''
 
         self.error_message = "\033[93m[WARN] Capture source {} not found, retrying...\033[0m"
-
+    def __del__(self):
+        if self.serial_connection is not None:
+            self.serial_connection.close()
     def set_output_queue(self, camera_output_outgoing: "queue.Queue"):
         self.camera_output_outgoing = camera_output_outgoing
 
