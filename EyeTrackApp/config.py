@@ -71,7 +71,6 @@ class EyeTrackConfig(BaseModel):
     settings: EyeTrackSettingsConfig = EyeTrackSettingsConfig()
     eye_display_id: EyeId = EyeId.RIGHT
 
-
     @staticmethod
     def load():
         if not os.path.exists(CONFIG_FILE_NAME):
