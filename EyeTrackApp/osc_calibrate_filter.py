@@ -28,8 +28,10 @@ class cal():
             self.config.calib_XMIN = 69420
             self.config.calib_YMAX = -69420
             self.config.calib_YMIN = 69420
+            self.blink_clear = True
             self.calibration_frame_counter -= 1
         elif self.calibration_frame_counter != None:
+            self.blink_clear = False
             self.settings.gui_recenter_eyes = False
             if cx > self.config.calib_XMAX:
                 self.config.calib_XMAX = cx

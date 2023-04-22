@@ -3,6 +3,7 @@ import time
 import os
 import cv2
 from enums import EyeLR
+from one_euro_filter import OneEuroFilter
 from utils.img_utils import safe_crop
 #higher intensity means more closed/ more white/less pupil
 
@@ -85,6 +86,19 @@ class IntensityBasedOpeness:
         self.img_roi = np.zeros(3, dtype=np.int32)
         self.now_roi = np.zeros(3, dtype=np.int32)
         self.prev_val = 0.5
+      #  try:
+      #      min_cutoff = float(self.settings.gui_min_cutoff)  # 0.0004
+       #     beta = float(self.settings.gui_speed_coefficient)  # 0.9
+       # except:
+        print('\033[93m[WARN] OneEuroFilter values must be a legal number.\033[0m')
+        min_cutoff = 0.0004
+        beta = 0.9
+        noisy_point = np.array([1, 1])
+        self.one_euro_filter = OneEuroFilter(
+            noisy_point,
+            min_cutoff=min_cutoff,
+            beta=beta
+        )
 
         
     def check(self, frameshape):
@@ -156,10 +170,10 @@ class IntensityBasedOpeness:
         lower_y = max(int_y - 15, 0)
 
         # frame_crop = frame[lower_y:upper_y, lower_x:upper_x]
-        frame_crop = safe_crop(frame, lower_x, lower_y, upper_x, upper_y, 1)
+      #  frame_crop = safe_crop(frame, lower_x, lower_y, upper_x, upper_y, 1)
         #ret_, th = cv2.threshold(frame_crop, 80, 1.0, cv2.THRESH_BINARY_INV, dst=frame_crop)
-
-        ret, f = cv2.threshold(frame, 80, 255, cv2.THRESH_BINARY)
+        frame_crop = frame
+        #ret, f = cv2.threshold(frame, 80, 255, cv2.THRESH_BINARY)
       #  ret, frame_crop = cv2.threshold(frame_crop, 80, 255, cv2.THRESH_BINARY)
 
         # The same can be done with cv2.integral, but since there is only one area of the rectangle for which we want to know the total value, there is no advantage in terms of computational complexity.
@@ -167,7 +181,8 @@ class IntensityBasedOpeness:
         avg_color_per_row = np.average(frame_crop, axis=0)
         avg_color = np.average(avg_color_per_row, axis=0)
         ar, ag, ab = avg_color
-        intensity = ar
+        intensity = int(ar * 8) #higher = closed
+
         #cv2.imshow("IBO", frame_crop)
         #if cv2.waitKey(1) & 0xFF == ord("q"):
          #   pass
@@ -221,7 +236,7 @@ class IntensityBasedOpeness:
                 self.data[int_y, int_x] = intensity  # set value
                 changed = True
             else:
-                intensitya = max(data_val + 0.02, 1)  # if current intensity value is less (more pupil), save that
+                intensitya = max(data_val + 0.001, 1)  # if current intensity value is less (more pupil), save that
                 self.data[int_y, int_x] = intensitya  # set value
                 changed = True
         
@@ -232,7 +247,7 @@ class IntensityBasedOpeness:
             if intensity > self.maxval:  # if current intensity value is more (less pupil), save that NOTE: we have the
                 self.maxval = intensity  # set value at 0 index
             else:
-                intensityd = max(self.maxval - 0.02, 1)  # continuously adjust closed intensity, will be set when user blink, used to allow eyes to close when lighting changes
+                intensityd = max(self.maxval - 0.01, 1)  # continuously adjust closed intensity, will be set when user blink, used to allow eyes to close when lighting changes
                 self.maxval = intensityd  # set value at 0 index
            #     print(intensityd, intensity)
         if newval_flg:
@@ -260,4 +275,21 @@ class IntensityBasedOpeness:
         #@filter_eyeopen = (eyeopen + self.prev_val) / 2
 
         self.prev_val = eyeopen
+        try:
+            noisy_point = np.array([float(eyeopen), float(eyeopen)])  # fliter our values with a One Euro Filter
+            point_hat = self.one_euro_filter(noisy_point)
+            eyeopenx = point_hat[0]
+            eyeopeny = point_hat[1]
+            eyeopen = (eyeopenx + eyeopeny) / 2
+         #   print(eyeopen, eyeopenx, eyeopeny)
+        except:
+            pass
+        if eyeopen - self.prev_val > 100:
+            print('BLINK')
+
+        eyevec = abs(self.prev_val - eyeopen)
+        #print(eyevec)
+        if eyevec > 0.4:
+            print("BLINK LCOK", eyeopen, eyevec)
+        print(intensity)
         return eyeopen

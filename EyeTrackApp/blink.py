@@ -2,6 +2,10 @@ import numpy as np
 
 def BLINK(self): 
 
+    if self.blink_clear == True:
+        self.max_ints = []
+        self.max_int = 0
+
     intensity = np.sum(self.current_image_gray_clean)
     self.frames = self.frames + 1
 

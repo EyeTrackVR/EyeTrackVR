@@ -145,6 +145,7 @@ class EyeProcessor:
         self.xmin = 69420
         self.ymax = -69420
         self.ymin = 69420
+        self.blink_clear = False
         self.cct = 300
         self.cccs = False
         self.ts = 10
@@ -179,7 +180,7 @@ class EyeProcessor:
         self.prev_y = None
         self.bd_blink = False
         self.current_algo = InformationOrigin.HSRAC
-        
+
 
         try:
             min_cutoff = float(self.settings.gui_min_cutoff)  # 0.0004
@@ -258,6 +259,7 @@ class EyeProcessor:
 
 
     def UPDATE(self):
+       # print(self.blink_clear)
         if self.settings.gui_BLINK:
             self.eyeopen = BLINK(self)
 
@@ -496,9 +498,3 @@ class EyeProcessor:
             self.ALGOSELECT() #run our algos in priority order set in settings
             self.UPDATE()
 
-
-
-        
-
-
-        
