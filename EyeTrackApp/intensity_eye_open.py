@@ -225,6 +225,11 @@ class IntensityBasedOpeness:
             data_val = self.data[int_y, int_x]
         else:
             data_val = 0
+
+
+
+
+
         # max pupil per cord
         if data_val == 0:
             # The value of the specified coordinates has not yet been recorded.
@@ -236,7 +241,7 @@ class IntensityBasedOpeness:
                 self.data[int_y, int_x] = intensity  # set value
                 changed = True
             else:
-                intensitya = max(data_val + 0.001, 1)  # if current intensity value is less (more pupil), save that
+                intensitya = max(data_val + 0.001, 1)  # if current intensity value is not less use
                 self.data[int_y, int_x] = intensitya  # set value
                 changed = True
         
@@ -256,18 +261,13 @@ class IntensityBasedOpeness:
         else:
             maxp = self.data[int_y, int_x]
             minp = self.maxval
+
+
             eyeopen = ((intensity - maxp) / (minp - maxp)) #for whatever reason when input and maxp are too close it outputs high
 
             eyeopen = 1 - eyeopen
-          #  print(eyeopen, intensity, maxp, minp, x, y)
-            #if maxp - minp < 1.6:
-             #   eyeopen = 0.0
-            # eyeopen = eyeopen - 0.2
+            print(eyeopen, intensity, maxp, minp, x, y)
 
-       #     print(f"EYEOPEN: {eyeopen}")
-            # print(int(x), int(y), eyeopen, maxp, minp)
-        # print(self.data[0, -1])
-        # print(self.maxval)
         if changed and ((time.time() - self.lct) > 5):  # save every 5 seconds if something changed to save disk usage
             self.save()
             self.lct = time.time()

@@ -112,9 +112,9 @@ def fit_rotated_ellipse_ransac(data: np.ndarray, sfc: np.random.Generator, iter_
     
     np.matmul(dm_rng_swap_trans, dm_rng_swap, out=dm_rng_5x5)
     # np.linalg.solve(np.matmul(dm_rng_swap_trans, dm_rng_swap), dm_rng_swap_trans) # solve is slow https://github.com/bogovicj/JaneliaMLCourse/issues/1
-    _umath_linalg.inv(dm_rng_5x5, signature='d->d',
+    #_umath_linalg.inv(dm_rng_5x5, signature='d->d',
                       extobj=inv_ext, out=dm_rng_5x5)
-    #dm_rng_5x5 = np.linalg.pinv(dm_rng_5x5)
+    dm_rng_5x5 = np.linalg.pinv(dm_rng_5x5)
     np.matmul(dm_rng_5x5, dm_rng_swap_trans, out=dm_rng_p5smp)
     
     np.matmul(dm_rng_p5smp, dm_rng_six, out=dm_rng_p_npaxis)
