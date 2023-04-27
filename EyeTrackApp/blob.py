@@ -22,7 +22,7 @@
 BLOB By: Prohurtz#0001 (Main App Developer)
 Algorithm App Implimentations By: Prohurtz#0001, qdot (Inital App Creator)
 
-Copyright (c) 2022 EyeTrackVR <3                                
+Copyright (c) 2023 EyeTrackVR <3
 ------------------------------------------------------------------------------------------------------
 '''  
 
@@ -69,7 +69,7 @@ def BLOB(self):
                 raise RuntimeError("No contours found for image")
         except:
             self.failed = self.failed + 1
-            return
+            pass
 
         rows, cols = larger_threshold.shape
         
@@ -107,10 +107,6 @@ def BLOB(self):
             )
 
             #out_x, out_y = cal_osc(self, cx, cy) #filter and calibrate values
-
-
-
-
 
            
             self.failed = 0

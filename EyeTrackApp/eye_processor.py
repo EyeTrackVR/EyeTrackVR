@@ -26,7 +26,7 @@ Algorithm App Implementations By: Prohurtz#0001, qdot (Initial App Creator)
 
 Additional Contributors: [Assassin], Summer404NotFound, lorow, ZanzyTHEbar
 
-Copyright (c) 2022 EyeTrackVR <3                                
+Copyright (c) 2023 EyeTrackVR <3
 ------------------------------------------------------------------------------------------------------
 '''                                                                         
 
@@ -318,6 +318,7 @@ class EyeProcessor:
         self.current_algorithm = InformationOrigin.RANSAC
 
     def BLOBM(self):
+        print("calling")
         self.rawx, self.rawy, self.thresh = BLOB(self)
         self.out_x, self.out_y = cal.cal_osc(self, self.rawx, self.rawy)
         self.current_algorithm = InformationOrigin.BLOB
@@ -343,6 +344,10 @@ class EyeProcessor:
 
         if self.failed == 3 and self.fourthalgo != None:
             self.fourthalgo()
+
+        if self.failed == 4 and self.fithalgo != None:
+            self.fithalgo()
+
         else:
             self.failed = 0 # we have reached last possible algo and it is disabled, move to first algo
             
@@ -358,7 +363,8 @@ class EyeProcessor:
         self.secondalgo = None
         self.thirdalgo = None
         self.fourthalgo = None
-        algolist = [None, None, None, None, None]
+        self.fithalgo = None
+        algolist = [None, None, None, None, None, None]
 
         self.er_hsrac = None #clear HSF values when page is opened to correctly reflect setting changes
         self.er_hsf = None
@@ -388,25 +394,15 @@ class EyeProcessor:
             if self.er_daddy is not None:
                 self.er_daddy = None
 
-        _, self.firstalgo, self.secondalgo, self.thirdalgo, self.fourthalgo = algolist
+        if self.settings.gui_RANSAC3D:
+            algolist[self.settings.gui_RANSAC3DP] = self.RANSAC3DM
 
-        if self.settings.gui_RANSAC3D and self.settings.gui_RANSAC3DP == 1:
-            self.firstalgo = self.RANSAC3DM
-        elif self.settings.gui_RANSAC3D and self.settings.gui_RANSAC3DP == 2:
-            self.secondalgo = self.RANSAC3DM
-        elif self.settings.gui_RANSAC3D and self.settings.gui_RANSAC3DP == 3:
-            self.thirdalgo = self.RANSAC3DM
-        elif self.settings.gui_RANSAC3D and self.settings.gui_RANSAC3DP == 4:
-            self.fourthalgo = self.RANSAC3DM
+        if self.settings.gui_BLOB:
+            algolist[self.settings.gui_BLOBP] = self.BLOBM
 
-        if self.settings.gui_BLOB and self.settings.gui_BLOBP == 1:
-            self.firstalgo = self.BLOBM
-        elif self.settings.gui_BLOB and self.settings.gui_BLOBP == 2:
-            self.secondalgo = self.BLOBM
-        elif self.settings.gui_BLOB and self.settings.gui_BLOBP == 3:
-            self.thirdalgo = self.BLOBM
-        elif self.settings.gui_BLOB and self.settings.gui_BLOBP == 4:
-            self.fourthalgo = self.BLOBM
+        _, self.firstalgo, self.secondalgo, self.thirdalgo, self.fourthalgo, self.fithalgo = algolist
+
+
 
         f = True
         while True:
@@ -496,5 +492,6 @@ class EyeProcessor:
             #self.output_images_and_update(frame, EyeInformation(InformationOrigin.HSF, out_x, out_y, 0, False)) #update app
             
             self.ALGOSELECT() #run our algos in priority order set in settings
+            #self.BLOBM()
             self.UPDATE()
 
