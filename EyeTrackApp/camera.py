@@ -155,6 +155,8 @@ class Camera:
         return jpeg
 
     def get_serial_camera_picture(self, should_push):
+        if self.serial_connection is None:
+            return
         try:
             if self.serial_connection.in_waiting:
                 jpeg = self.get_next_jpeg_frame()
