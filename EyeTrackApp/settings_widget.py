@@ -1,12 +1,9 @@
 import PySimpleGUI as sg
+
 from config import EyeTrackSettingsConfig
-from threading import Event, Thread
-from eye_processor import EyeProcessor, InformationOrigin
-from enum import Enum
-from queue import Queue, Empty
-from camera import Camera, CameraState
-import cv2
 from osc import EyeId
+from queue import Queue
+from threading import Event
 
 class SettingsWidget:
     def __init__(self, widget_id: EyeId, main_config: EyeTrackSettingsConfig, osc_queue: Queue):

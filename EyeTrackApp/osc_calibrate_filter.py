@@ -1,9 +1,7 @@
-import sys
-from utils.misc_utils import PlaySound, SND_FILENAME, SND_ASYNC
 import numpy as np
+
 from enum import IntEnum
-from config import EyeTrackConfig
-from config import EyeTrackSettingsConfig
+from utils.misc_utils import PlaySound, SND_FILENAME, SND_ASYNC
 
 class EyeId(IntEnum):
     RIGHT = 0

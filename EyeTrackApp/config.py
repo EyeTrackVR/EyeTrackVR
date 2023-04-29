@@ -1,9 +1,10 @@
-from typing import Union, Dict
-from osc import EyeId
-import os.path
 import json
-from pydantic import BaseModel
+import os.path
 import shutil
+
+from eye import EyeId
+from pydantic import BaseModel
+from typing import Union
 
 CONFIG_FILE_NAME: str = "eyetrack_settings.json"
 BACKUP_CONFIG_FILE_NAME: str = "eyetrack_settings.backup"
