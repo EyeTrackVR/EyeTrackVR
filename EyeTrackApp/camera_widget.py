@@ -2,7 +2,7 @@ import PySimpleGUI as sg
 from config import EyeTrackConfig
 from config import EyeTrackSettingsConfig
 from threading import Event, Thread
-from eye_processor import EyeProcessor, InformationOrigin
+from eye_processor import EyeProcessor, EyeInfoOrigin
 from enum import Enum
 from queue import Queue, Empty
 from camera import Camera, CameraState
@@ -312,7 +312,7 @@ class CameraWidget:
                 graph = window[self.gui_output_graph]
                 graph.erase()
 
-                if eye_info.info_type != InformationOrigin.FAILURE: #and not eye_info.blink:
+                if eye_info.info_type != EyeInfoOrigin.FAILURE: #and not eye_info.blink:
                     graph.update(background_color="white")
                     if not np.isnan(eye_info.x) and not np.isnan(eye_info.y):
                         
@@ -332,10 +332,10 @@ class CameraWidget:
 
                # elif eye_info.blink:
                 #    graph.update(background_color="#6f4ca1")
-                elif eye_info.info_type == InformationOrigin.FAILURE:
+                elif eye_info.info_type == EyeInfoOrigin.FAILURE:
                     graph.update(background_color="red")
                 # Relay information to OSC
-                if eye_info.info_type != InformationOrigin.FAILURE:
+                if eye_info.info_type != EyeInfoOrigin.FAILURE:
                     self.osc_queue.put((self.eye_id, eye_info))
             except Empty:
                 pass
