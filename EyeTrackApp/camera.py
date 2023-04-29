@@ -162,24 +162,24 @@ class Camera:
                     # Create jpeg frame from byte string
                     image = cv2.imdecode(np.fromstring(jpeg, dtype=np.uint8), cv2.IMREAD_UNCHANGED)
                     if image is None:
-                        print("image not found")
+                        print("\033[93m[WARN] Frame drop. Corrupted JPEG.\033[0m")
                         return
                     # Discard the serial buffer. This is due to the fact that it
                     # may build up some outdated frames. A bit of a workaround here tbh.
-                    self.serial_connection.reset_input_buffer()
-                    self.buffer = b''
+                    if self.serial_connection.in_waiting > 32768:
+                        print(f"\033[94m[INFO] Discarding the serial buffer ({self.serial_connection.in_waiting} bytes\033[0m")
+                        self.serial_connection.reset_input_buffer()
+                        self.buffer = b''
                     # Calculate the fps.
                     current_frame_time = time.time()
                     delta_time = current_frame_time - self.last_frame_time
                     self.last_frame_time = current_frame_time
                     if delta_time > 0:
                         self.fps = 1 / delta_time
+                    # print(f'FPS: {int(self.fps)}')
                     self.frame_number = self.frame_number + 1
                     if should_push:
                         self.push_image_to_queue(image, self.frame_number, self.fps)
-
-        except UnboundLocalError as ex:
-            print(ex)
         except Exception:
             print("\033[93m[WARN]Serial capture source problem, assuming camera disconnected, waiting for reconnect.\033[0m")
             self.serial_connection.close()
@@ -204,13 +204,14 @@ class Camera:
                 xonxoff=False,
                 dsrdtr=False,
                 rtscts=False)
+            # Set explicit buffer size for serial.
+            conn.set_buffer_size(rx_size = 65536, tx_size = 65536)
 
-            conn.reset_input_buffer()
-
-            print(f"\033[94m[INFO] Serial Tracker successfully connected on {port}\033[0m")
+            print(f"\033[94m[INFO] ETVR Serial Tracker device connected on {port}\033[0m")
             self.serial_connection = conn
             self.camera_status = CameraState.CONNECTED
         except Exception:
+            print(f"\033[94m[INFO] Failed to connect on {port}\033[0m")
             self.camera_status = CameraState.DISCONNECTED
 
     def push_image_to_queue(self, image, frame_number, fps):
