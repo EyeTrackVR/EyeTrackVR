@@ -53,6 +53,7 @@ class Camera:
         self.last_frame_time = time.time()
         self.frame_number = 0
         self.fps = 0
+        self.bps = 0
         self.start = True
         self.buffer = b''
 
@@ -128,6 +129,7 @@ class Camera:
                 raise RuntimeError("Problem while getting frame")
             frame_number = self.wired_camera.get(cv2.CAP_PROP_POS_FRAMES)
             self.fps = self.wired_camera.get(cv2.CAP_PROP_FPS)
+            self.bps = image.nbytes
             if should_push:
                 self.push_image_to_queue(image, frame_number, self.fps)
         except:
@@ -156,10 +158,11 @@ class Camera:
         return jpeg
 
     def get_serial_camera_picture(self, should_push):
-        if self.serial_connection is None:
+        conn = self.serial_connection
+        if conn is None:
             return
         try:
-            if self.serial_connection.in_waiting:
+            if conn.in_waiting:
                 jpeg = self.get_next_jpeg_frame()
                 if jpeg:
                     # Create jpeg frame from byte string
@@ -169,9 +172,9 @@ class Camera:
                         return
                     # Discard the serial buffer. This is due to the fact that it
                     # may build up some outdated frames. A bit of a workaround here tbh.
-                    if self.serial_connection.in_waiting > 32768:
-                        print(f"{Fore.CYAN}[INFO] Discarding the serial buffer ({self.serial_connection.in_waiting} bytes{Fore.RESET}")
-                        self.serial_connection.reset_input_buffer()
+                    if conn.in_waiting >= 32768:
+                        print(f"{Fore.CYAN}[INFO] Discarding the serial buffer ({conn.in_waiting} bytes){Fore.RESET}")
+                        conn.reset_input_buffer()
                         self.buffer = b''
                     # Calculate the fps.
                     current_frame_time = time.time()
@@ -179,13 +182,13 @@ class Camera:
                     self.last_frame_time = current_frame_time
                     if delta_time > 0:
                         self.fps = 1 / delta_time
-                    # print(f'FPS: {int(self.fps)}')
+                        self.bps = len(jpeg) / delta_time
                     self.frame_number = self.frame_number + 1
                     if should_push:
                         self.push_image_to_queue(image, self.frame_number, self.fps)
         except Exception:
             print(f"{Fore.YELLOW}[WARN] Serial capture source problem, assuming camera disconnected, waiting for reconnect.{Fore.RESET}")
-            self.serial_connection.close()
+            conn.close()
             self.camera_status = CameraState.DISCONNECTED
             pass
 
@@ -208,7 +211,7 @@ class Camera:
                 dsrdtr=False,
                 rtscts=False)
             # Set explicit buffer size for serial.
-            conn.set_buffer_size(rx_size = 65536, tx_size = 65536)
+            conn.set_buffer_size(rx_size = 32768, tx_size = 32768)
 
             print(f"{Fore.CYAN}[INFO] ETVR Serial Tracker device connected on {port}{Fore.RESET}")
             self.serial_connection = conn

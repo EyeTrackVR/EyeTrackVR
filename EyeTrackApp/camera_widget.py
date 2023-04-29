@@ -1,6 +1,7 @@
 import PySimpleGUI as sg
 from config import EyeTrackConfig
 from config import EyeTrackSettingsConfig
+from collections import deque
 from threading import Event, Thread
 from eye_processor import EyeProcessor, EyeInfoOrigin
 from enum import Enum
@@ -24,6 +25,8 @@ class CameraWidget:
         self.gui_save_tracking_button = f"-SAVETRACKINGBUTTON{widget_id}-"
         self.gui_tracking_layout = f"-TRACKINGLAYOUT{widget_id}-"
         self.gui_tracking_image = f"-IMAGE{widget_id}-"
+        self.gui_tracking_fps = f"-TRACKINGFPS{widget_id}-"
+        self.gui_tracking_bps = f"-TRACKINGBPS{widget_id}-"
         self.gui_output_graph = f"-OUTPUTGRAPH{widget_id}-"
         self.gui_restart_calibration = f"-RESTARTCALIBRATION{widget_id}-"
         self.gui_stop_calibration = f"-STOPCALIBRATION{widget_id}-"
@@ -45,6 +48,35 @@ class CameraWidget:
             self.config = main_config.left_eye
         else:
             raise RuntimeError("\033[91m[WARN] Cannot have a camera widget represent both eyes!\033[0m")
+
+        self.cancellation_event = Event()
+        # Set the event until start is called, otherwise we can block if shutdown is called.
+        self.cancellation_event.set()
+        self.capture_event = Event()
+        self.capture_queue = Queue()
+        self.roi_queue = Queue()
+
+        self.image_queue = Queue()
+
+        self.ransac = EyeProcessor(
+            self.config,
+            self.settings_config,
+            self.cancellation_event,
+            self.capture_event,
+            self.capture_queue,
+            self.image_queue,
+            self.eye_id,
+        )
+
+        self.camera_status_queue = Queue()
+        self.camera = Camera(
+            self.config,
+            0,
+            self.cancellation_event,
+            self.capture_event,
+            self.camera_status_queue,
+            self.capture_queue,
+        )
 
         self.roi_layout = [
             [
@@ -82,6 +114,8 @@ class CameraWidget:
             [
                 sg.Text("Mode:", background_color='#424042'),
                 sg.Text("Calibrating", key=self.gui_mode_readout, background_color='#424042'),
+                sg.Text("", key=self.gui_tracking_fps, background_color='#424042'),
+                sg.Text("", key=self.gui_tracking_bps, background_color='#424042'),
             #    sg.Checkbox(
             #        "Circle crop:",
             #        default=self.config.gui_circular_crop,
@@ -123,40 +157,23 @@ class CameraWidget:
             ],
         ]
 
-        self.cancellation_event = Event()
-        # Set the event until start is called, otherwise we can block if shutdown is called.
-        self.cancellation_event.set()
-        self.capture_event = Event()
-        self.capture_queue = Queue()
-        self.roi_queue = Queue()
-
-        self.image_queue = Queue()
-
-        self.ransac = EyeProcessor(
-            self.config,
-            self.settings_config,
-            self.cancellation_event,
-            self.capture_event,
-            self.capture_queue,
-            self.image_queue,
-            self.eye_id,
-        )
-
-        self.camera_status_queue = Queue()
-        self.camera = Camera(
-            self.config,
-            0,
-            self.cancellation_event,
-            self.capture_event,
-            self.camera_status_queue,
-            self.capture_queue,
-        )
-
         self.x0, self.y0 = None, None
         self.x1, self.y1 = None, None
         self.figure = None
         self.is_mouse_up = True
         self.in_roi_mode = False
+        self.movavg_fps_queue = deque(maxlen=120)
+        self.movavg_bps_queue = deque(maxlen=120)
+
+    def _movavg_fps(self, next_fps):
+        self.movavg_fps_queue.append(next_fps)
+        fps = round(sum(self.movavg_fps_queue) / len(self.movavg_fps_queue))
+        millisec = round((1 / fps if fps else 0) * 1000)
+        return f"{fps} Fps {millisec} ms"
+
+    def _movavg_bps(self, next_bps):
+        self.movavg_bps_queue.append(next_bps)
+        return f"{sum(self.movavg_bps_queue) / len(self.movavg_bps_queue) * 0.001 * 0.001 * 8:.3f} Mbps"
 
     def started(self):
         return not self.cancellation_event.is_set()
@@ -261,6 +278,10 @@ class CameraWidget:
 
         needs_roi_set = self.config.roi_window_h <= 0 or self.config.roi_window_w <= 0
 
+        # TODO: Refactor if statements below...
+        window[self.gui_tracking_fps].update('')
+        window[self.gui_tracking_bps].update('')
+
         if self.config.capture_source is None or self.config.capture_source == "":
             window[self.gui_mode_readout].update("Waiting for camera address")
             window[self.gui_roi_message].update(visible=False)
@@ -275,6 +296,8 @@ class CameraWidget:
             window[self.gui_mode_readout].update("Calibration")
         else:
             window[self.gui_mode_readout].update("Tracking")
+            window[self.gui_tracking_fps].update(self._movavg_fps(self.camera.fps))
+            window[self.gui_tracking_bps].update(self._movavg_bps(self.camera.bps))
 
         if self.in_roi_mode:
             try:
