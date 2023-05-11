@@ -1,13 +1,14 @@
-from config import EyeTrackConfig
-from enum import Enum
 import cv2
+import numpy as np
 import queue
 import serial
 import serial.tools.list_ports
 import threading
 import time
 
-import numpy as np
+from colorama import Fore
+from config import EyeTrackConfig
+from enum import Enum
 
 WAIT_TIME = 0.1
 
@@ -52,20 +53,23 @@ class Camera:
         self.last_frame_time = time.time()
         self.frame_number = 0
         self.fps = 0
+        self.bps = 0
         self.start = True
         self.buffer = b''
 
-        self.error_message = "\033[93m[WARN] Capture source {} not found, retrying...\033[0m"
+        self.error_message = f"{Fore.YELLOW}[WARN] Capture source {{}} not found, retrying...{Fore.RESET}"
+
     def __del__(self):
         if self.serial_connection is not None:
             self.serial_connection.close()
+
     def set_output_queue(self, camera_output_outgoing: "queue.Queue"):
         self.camera_output_outgoing = camera_output_outgoing
 
     def run(self):
         while True:
             if self.cancellation_event.is_set():
-                print("\033[94m[INFO] Exiting Capture thread\033[0m")
+                print(f"{Fore.CYAN}[INFO] Exiting Capture thread{Fore.RESET}")
                 return
             should_push = True
             # If things aren't open, retry until they are. Don't let read requests come in any earlier
@@ -125,10 +129,11 @@ class Camera:
                 raise RuntimeError("Problem while getting frame")
             frame_number = self.wired_camera.get(cv2.CAP_PROP_POS_FRAMES)
             self.fps = self.wired_camera.get(cv2.CAP_PROP_FPS)
+            self.bps = image.nbytes
             if should_push:
                 self.push_image_to_queue(image, frame_number, self.fps)
         except:
-            print("\033[93m[WARN] Capture source problem, assuming camera disconnected, waiting for reconnect.\033[0m")
+            print(f"{Fore.YELLOW}[WARN] Capture source problem, assuming camera disconnected, waiting for reconnect.{Fore.RESET}")
             self.camera_status = CameraState.DISCONNECTED
             pass
 
@@ -153,34 +158,37 @@ class Camera:
         return jpeg
 
     def get_serial_camera_picture(self, should_push):
+        conn = self.serial_connection
+        if conn is None:
+            return
         try:
-            if self.serial_connection.in_waiting:
+            if conn.in_waiting:
                 jpeg = self.get_next_jpeg_frame()
                 if jpeg:
                     # Create jpeg frame from byte string
                     image = cv2.imdecode(np.fromstring(jpeg, dtype=np.uint8), cv2.IMREAD_UNCHANGED)
                     if image is None:
-                        print("image not found")
+                        print(f"{Fore.YELLOW}[WARN] Frame drop. Corrupted JPEG.{Fore.RESET}")
                         return
                     # Discard the serial buffer. This is due to the fact that it
                     # may build up some outdated frames. A bit of a workaround here tbh.
-                    self.serial_connection.reset_input_buffer()
-                    self.buffer = b''
+                    if conn.in_waiting >= 32768:
+                        print(f"{Fore.CYAN}[INFO] Discarding the serial buffer ({conn.in_waiting} bytes){Fore.RESET}")
+                        conn.reset_input_buffer()
+                        self.buffer = b''
                     # Calculate the fps.
                     current_frame_time = time.time()
                     delta_time = current_frame_time - self.last_frame_time
                     self.last_frame_time = current_frame_time
                     if delta_time > 0:
                         self.fps = 1 / delta_time
+                        self.bps = len(jpeg) / delta_time
                     self.frame_number = self.frame_number + 1
                     if should_push:
                         self.push_image_to_queue(image, self.frame_number, self.fps)
-
-        except UnboundLocalError as ex:
-            print(ex)
         except Exception:
-            print("\033[93m[WARN]Serial capture source problem, assuming camera disconnected, waiting for reconnect.\033[0m")
-            self.serial_connection.close()
+            print(f"{Fore.YELLOW}[WARN] Serial capture source problem, assuming camera disconnected, waiting for reconnect.{Fore.RESET}")
+            conn.close()
             self.camera_status = CameraState.DISCONNECTED
             pass
 
@@ -202,13 +210,14 @@ class Camera:
                 xonxoff=False,
                 dsrdtr=False,
                 rtscts=False)
+            # Set explicit buffer size for serial.
+            conn.set_buffer_size(rx_size = 32768, tx_size = 32768)
 
-            conn.reset_input_buffer()
-
-            print(f"\033[94m[INFO] Serial Tracker successfully connected on {port}\033[0m")
+            print(f"{Fore.CYAN}[INFO] ETVR Serial Tracker device connected on {port}{Fore.RESET}")
             self.serial_connection = conn
             self.camera_status = CameraState.CONNECTED
         except Exception:
+            print(f"{Fore.CYAN}[INFO] Failed to connect on {port}{Fore.RESET}")
             self.camera_status = CameraState.DISCONNECTED
 
     def push_image_to_queue(self, image, frame_number, fps):
@@ -217,6 +226,6 @@ class Camera:
         qsize = self.camera_output_outgoing.qsize()
         if qsize > 1:
             print(
-                f"\033[91m[WARN] CAPTURE QUEUE BACKPRESSURE OF {qsize}. CHECK FOR CRASH OR TIMING ISSUES IN ALGORITHM.\033[0m")
+                f"{Fore.YELLOW}[WARN] CAPTURE QUEUE BACKPRESSURE OF {qsize}. CHECK FOR CRASH OR TIMING ISSUES IN ALGORITHM.{Fore.RESET}")
         self.camera_output_outgoing.put((image, frame_number, fps))
         self.capture_event.clear()

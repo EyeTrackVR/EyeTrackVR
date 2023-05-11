@@ -59,28 +59,8 @@ from ransac import *
 from hsrac import External_Run_HSRACS
 from blink import *
 
-
+from eye import EyeInfo, EyeInfoOrigin
 from intensity_eye_open import *
-
-class InformationOrigin(Enum):
-    RANSAC = 1
-    BLOB = 2
-    FAILURE = 3
-    HSF = 4
-    HSRAC = 5
-    DADDY = 6
-
-bbb = 0
-@dataclass
-class EyeInformation:
-    info_type: InformationOrigin
-    x: float
-    y: float
-    pupil_dialation: float
-    blink: float
-
-
-lowb = np.array(0)
 
 
 def run_once(f):
@@ -179,8 +159,8 @@ class EyeProcessor:
         self.prev_x = None
         self.prev_y = None
         self.bd_blink = False
-        self.current_algo = InformationOrigin.HSRAC
-
+        self.current_algo = EyeInfoOrigin.HSRAC
+        
 
         try:
             min_cutoff = float(self.settings.gui_min_cutoff)  # 0.0004
@@ -196,7 +176,7 @@ class EyeProcessor:
             beta=beta
         )
 
-    def output_images_and_update(self, threshold_image, output_information: EyeInformation):
+    def output_images_and_update(self, threshold_image, output_information: EyeInfo):
         try:
             image_stack = np.concatenate(
                 (
@@ -280,7 +260,7 @@ class EyeProcessor:
             else:
                 self.eyeopen = ibo
 
-        self.output_images_and_update(self.thresh, EyeInformation(self.current_algo, self.out_x, self.out_y, 0, self.eyeopen))
+        self.output_images_and_update(self.thresh, EyeInfo(self.current_algo, self.out_x, self.out_y, 0, self.eyeopen))
 
 
 
@@ -293,7 +273,7 @@ class EyeProcessor:
         self.rawx, self.rawy, self.eyeopen = self.er_daddy.run(self.current_image_gray)
         # Daddy also uses a one euro filter, so I'll have to use it twice, but I'm not going to think too much about it.
         self.out_x, self.out_y = cal.cal_osc(self, self.rawx, self.rawy)
-        self.current_algorithm = InformationOrigin.DADDY
+        self.current_algorithm = EyeInfoOrigin.DADDY
 
     def HSRACM(self): 
         # todo: added process to initialise er_hsrac when resolution changes
@@ -302,26 +282,26 @@ class EyeProcessor:
             self.prev_x = self.rawx
             self.prev_y = self.rawy
         self.out_x, self.out_y = cal.cal_osc(self, self.rawx, self.rawy)
-        self.current_algorithm = InformationOrigin.HSRAC
+        self.current_algorithm = EyeInfoOrigin.HSRAC
 
     def HSFM(self):
         # todo: added process to initialise er_hsf when resolution changes
         self.rawx, self.rawy, self.thresh = self.er_hsf.run(self.current_image_gray)
         self.eyeopen = self.ibo.intense(self.rawx, self.rawy, self.current_image_gray)
         self.out_x, self.out_y = cal.cal_osc(self, self.rawx, self.rawy)
-        self.current_algorithm = InformationOrigin.HSF
+        self.current_algorithm = EyeInfoOrigin.HSF
 
     def RANSAC3DM(self):
         current_image_gray_copy = self.current_image_gray.copy()  # Duplicate before overwriting in RANSAC3D.
         self.rawx, self.rawy, self.thresh = RANSAC3D(self)
         self.out_x, self.out_y = cal.cal_osc(self, self.rawx, self.rawy)
-        self.current_algorithm = InformationOrigin.RANSAC
+        self.current_algorithm = EyeInfoOrigin.RANSAC
 
     def BLOBM(self):
         print("calling")
         self.rawx, self.rawy, self.thresh = BLOB(self)
         self.out_x, self.out_y = cal.cal_osc(self, self.rawx, self.rawy)
-        self.current_algorithm = InformationOrigin.BLOB
+        self.current_algorithm = EyeInfoOrigin.BLOB
 
 
 
@@ -358,6 +338,7 @@ class EyeProcessor:
     def run(self):
         # Run the following somewhere
         # self.daddy = External_Run_DADDY()
+
 
         self.firstalgo = None
         self.secondalgo = None
@@ -473,23 +454,23 @@ class EyeProcessor:
            # cx, cy, thresh =  HSRAC(self)
            # out_x, out_y = cal_osc(self, cx, cy)
            # if cx == 0:
-          #      self.output_images_and_update(thresh, EyeInformation(InformationOrigin.HSRAC, out_x, out_y, 0, True)) #update app
+          #      self.output_images_and_update(thresh, EyeInfo(EyeInfoOrigin.HSRAC, out_x, out_y, 0, True)) #update app
            # else:
-          #      self.output_images_and_update(thresh, EyeInformation(InformationOrigin.HSRAC, out_x, out_y, 0, self.blinkvalue))
+          #      self.output_images_and_update(thresh, EyeInfo(EyeInfoOrigin.HSRAC, out_x, out_y, 0, self.blinkvalue))
             
 
            # cx, cy, thresh =  RANSAC3D(self)
            # out_x, out_y = cal_osc(self, cx, cy)
-           # self.output_images_and_update(thresh, EyeInformation(InformationOrigin.RANSAC, out_x, out_y, 0, False)) #update app
+           # self.output_images_and_update(thresh, EyeInfo(EyeInfoOrigin.RANSAC, out_x, out_y, 0, False)) #update app
 
 
           #  cx, cy, larger_threshold = BLOB(self)
           #  out_x, out_y = cal_osc(self, cx, cy)
-           # self.output_images_and_update(larger_threshold, EyeInformation(InformationOrigin.BLOB, out_x, out_y, 0, False)) #update app
+           # self.output_images_and_update(larger_threshold, EyeInfo(EyeInfoOrigin.BLOB, out_x, out_y, 0, False)) #update app
 
             #center_x, center_y, frame = HSF(self) #run algo
             #out_x, out_y = cal_osc(self, center_x, center_y) #filter and calibrate
-            #self.output_images_and_update(frame, EyeInformation(InformationOrigin.HSF, out_x, out_y, 0, False)) #update app
+            #self.output_images_and_update(frame, EyeInfo(EyeInfoOrigin.HSF, out_x, out_y, 0, False)) #update app
             
             self.ALGOSELECT() #run our algos in priority order set in settings
             #self.BLOBM()

@@ -1,15 +1,17 @@
 import os
-from utils.misc_utils import is_nt
-from osc import VRChatOSCReceiver, VRChatOSC, EyeId
-from config import EyeTrackConfig
-from camera_widget import CameraWidget
-from settings_widget import SettingsWidget
-
-import queue
-import threading
-import PySimpleGUI as sg
 import os
+import PySimpleGUI as sg
+import queue
 import requests
+import threading
+
+from camera_widget import CameraWidget
+from config import EyeTrackConfig
+from eye import EyeId
+from osc import VRChatOSCReceiver, VRChatOSC
+from settings_widget import SettingsWidget
+from utils.misc_utils import is_nt
+
 
 if is_nt:
     from winotify import Notification

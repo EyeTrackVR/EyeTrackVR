@@ -335,7 +335,7 @@ def RANSAC3D(self):
         self.failed = self.failed + 1 #we have failed, move onto next algo
         return 0, 0, thresh
     # Shove a concatenated image out to the main GUI thread for rendering
-    #self.output_images_and_update(thresh, EyeInformation(InformationOrigin.FAILURE, 0 ,0, 0, False))
+    #self.output_images_and_update(thresh, EyeInfo(EyeInfoOrigin.FAILURE, 0 ,0, 0, False))
     #self.output_images_and_update(thresh, output_info)
     #except:
-    # self.output_images_and_update(thresh, EyeInformation(InformationOrigin.RANSAC, out_x, out_y, 0, self.blinkvalue))
+    # self.output_images_and_update(thresh, EyeInfo(EyeInfoOrigin.RANSAC, out_x, out_y, 0, self.blinkvalue))
