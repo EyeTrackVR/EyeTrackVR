@@ -214,15 +214,15 @@ class SettingsWidget:
             ],
                         [
                 sg.Checkbox(
-                    "Left Eye Circile crop",
-                    default=self.config.gui_IBO,
-                    key=self.gui_IBO,
+                    "Left Eye Circle crop",
+                    default=self.config.gui_circular_crop_left,
+                    key=self.gui_circular_crop_left ,
                     background_color='#424042',
                 ),
                 sg.Checkbox(
-                    "Bianary Blink Algo",
-                    default=self.config.gui_BLINK,
-                    key=self.gui_BLINK,
+                    "Right Eye Circle crop",
+                    default=self.config.gui_circular_crop_right,
+                    key=self.gui_circular_crop_right,
                     background_color='#424042',
                 ),
             ],
@@ -379,11 +379,6 @@ class SettingsWidget:
             [
                 sg.Column(self.general_settings_layout, key=self.gui_general_settings_layout, background_color='#424042' ),
             ],
-           # [
-            #    sg.Button(
-             #       "Save Settings", key=self.gui_save_button, button_color = '#6f4ca1'
-              #  ),
-            #],
         ]
 
         self.cancellation_event = Event() # Set the event until start is called, otherwise we can block if shutdown is called.
@@ -511,6 +506,14 @@ class SettingsWidget:
         
         if self.config.gui_IBO != values[self.gui_IBO]:
             self.config.gui_IBO = values[self.gui_IBO]
+            changed = True
+
+        if self.config.gui_circular_crop_left  != values[self.gui_circular_crop_left]:
+            self.config.gui_circular_crop_left = values[self.gui_circular_crop_left]
+            changed = True
+        
+        if self.config.gui_circular_crop_right != values[self.gui_circular_crop_right]:
+            self.gui_circular_crop_right = values[self.gui_circular_crop_right]
             changed = True
 
         if self.config.gui_HSF_radius != int(values[self.gui_HSF_radius]):
