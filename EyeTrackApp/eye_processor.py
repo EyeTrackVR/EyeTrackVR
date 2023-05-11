@@ -287,7 +287,6 @@ class EyeProcessor:
     def HSFM(self):
         # todo: added process to initialise er_hsf when resolution changes
         self.rawx, self.rawy, self.thresh = self.er_hsf.run(self.current_image_gray)
-        self.eyeopen = self.ibo.intense(self.rawx, self.rawy, self.current_image_gray)
         self.out_x, self.out_y = cal.cal_osc(self, self.rawx, self.rawy)
         self.current_algorithm = EyeInfoOrigin.HSF
 
