@@ -33,7 +33,7 @@ SETTINGS_RADIO_NAME = "-SETTINGSRADIO-"
 
 
 page_url = "https://github.com/RedHawk989/EyeTrackVR/releases/latest"
-appversion = "EyeTrackApp 0.2.0 BETA 3"
+appversion = "EyeTrackApp 0.2.0 BETA 4"
 
 
 def main():

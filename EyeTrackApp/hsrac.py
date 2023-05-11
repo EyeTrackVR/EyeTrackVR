@@ -488,7 +488,7 @@ class HSRAC_cls(object):
         # cv_end_time = timeit.default_timer()
         # self.timedict["ransac"].append(cv_end_time - ransac_start_time)
         # self.timedict["total_cv"].append(cv_end_time - cv_start_time)
-
+        print(radius)
         try:
             y, x = ori_frame.shape
             th_frame = cv2.resize(th_frame, (x, y))

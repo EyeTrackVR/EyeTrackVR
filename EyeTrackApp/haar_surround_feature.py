@@ -24,7 +24,7 @@ lru_maxsize_vs = 64
 lru_maxsize_s = 128
 # CV param
 default_radius = 20
-auto_radius_range = (default_radius - 10, default_radius + 10)  # (10,30)
+auto_radius_range = (default_radius - 18, default_radius + 15)  # (10,30)
 auto_radius_step = 1
 blink_init_frames = 60 * 3  # 60fps*3sec,Number of blink statistical frames
 # step==(x,y)

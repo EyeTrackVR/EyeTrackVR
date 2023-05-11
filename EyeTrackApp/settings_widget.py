@@ -39,8 +39,8 @@ class SettingsWidget:
         self.gui_thresh_add = f"-THRESHADD{widget_id}-"
         self.gui_ROSC = f"-ROSC{widget_id}-"
         self.gui_vrc_native = f"-VRCNATIVE{widget_id}-"
-        gui_circular_crop_left = f"-CIRCLECROPLEFT{widget_id}-"
-        gui_circular_crop_right = f"-CIRCLECROPRIGHT{widget_id}-"
+        self.gui_circular_crop_left = f"-CIRCLECROPLEFT{widget_id}-"
+        self.gui_circular_crop_right = f"-CIRCLECROPRIGHT{widget_id}-"
         self.gui_update_check = f"-UPDATECHECK{widget_id}-"
         self.gui_threshold_slider = f"-BLOBTHRESHOLD{widget_id}-"
         self.main_config = main_config
@@ -216,7 +216,7 @@ class SettingsWidget:
                 sg.Checkbox(
                     "Left Eye Circle crop",
                     default=self.config.gui_circular_crop_left,
-                    key=self.gui_circular_crop_left ,
+                    key=self.gui_circular_crop_left,
                     background_color='#424042',
                 ),
                 sg.Checkbox(
