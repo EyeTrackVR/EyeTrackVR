@@ -27,6 +27,8 @@ Copyright (c) 2023 EyeTrackVR <3
 '''  
 import cv2
 import numpy as np
+from enums import EyeLR
+
 
 def ellipse_model(data, y, f):
     """
@@ -134,6 +136,31 @@ def fit_rotated_ellipse(data, P):
     return (cx, cy, w, h, theta)
 
 
+def circle_crop(self):
+    if self.cct == 0:
+        try:
+            ht, wd = self.current_image_gray.shape[:2]
+            radius = int(float(self.lkg_projected_sphere["axes"][0]))
+            self.xc = int(float(self.lkg_projected_sphere["center"][0]))
+            self.yc = int(float(self.lkg_projected_sphere["center"][1]))
+            if radius < 8: #minimum size TODO: make shure this size is enough
+                radius = 8
+            # draw filled circle in white on black background as mask
+            mask = np.zeros((ht, wd), dtype=np.uint8)
+            mask = cv2.circle(mask, (self.xc, self.yc), radius, 255, -1)
+            # create white colored background
+            color = np.full_like(self.current_image_gray, (255))
+            # apply mask to image
+            masked_img = cv2.bitwise_and(self.current_image_gray, self.current_image_gray, mask=mask)
+            # apply inverse mask to colored image
+            masked_color = cv2.bitwise_and(color, color, mask=255 - mask)
+            # combine the two masked images
+            self.current_image_gray = cv2.add(masked_img, masked_color)
+        except:
+            pass
+    else:
+        self.cct = self.cct - 1
+
 def RANSAC3D(self): 
     f = False
     kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (3, 3))
@@ -149,31 +176,15 @@ def RANSAC3D(self):
     # crop the image earlier; it gives us less possible dark area to get confused about in the
     # next step.
 
-    if self.config.gui_circular_crop == True:
-        if self.cct == 0:
-            try:
-                ht, wd = self.current_image_gray.shape[:2]
-                radius = int(float(self.lkg_projected_sphere["axes"][0]))
-                self.xc = int(float(self.lkg_projected_sphere["center"][0]))
-                self.yc = int(float(self.lkg_projected_sphere["center"][1]))
-                # draw filled circle in white on black background as mask
-                mask = np.zeros((ht, wd), dtype=np.uint8)
-                mask = cv2.circle(mask, (self.xc, self.yc), radius, 255, -1)
-                # create white colored background
-                color = np.full_like(self.current_image_gray, (255))
-                # apply mask to image
-                masked_img = cv2.bitwise_and(self.current_image_gray, self.current_image_gray, mask=mask)
-                # apply inverse mask to colored image
-                masked_color = cv2.bitwise_and(color, color, mask=255 - mask)
-                # combine the two masked images
-                self.current_image_gray = cv2.add(masked_img, masked_color)
-            except:
-                pass
-        else:
-            self.cct = self.cct - 1
+    if self.eye_id == EyeId.LEFT and self.config.gui_circular_crop_left == True: #TODO TEST function
+        circle_crop(self)
     else:
         self.cct = 300
 
+    if self.eye_id == EyeId.RIGHT and self.config.gui_circular_crop_right == True:
+        circle_crop(self)
+    else:
+        self.cct = 300
     
     # Crop first to reduce the amount of data to process.
     newFrame2 = self.current_image_gray.copy()

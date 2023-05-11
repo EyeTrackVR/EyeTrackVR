@@ -136,7 +136,6 @@ class EyeProcessor:
         self.er_hsf = None
         self.er_hsrac = None
         self.er_daddy = None
-        
         self.ibo = IntensityBasedOpeness(eyeside=EyeLR.LEFT if self.eye_id is EyeId.LEFT else EyeLR.RIGHT if eye_id is EyeId.RIGHT else -1)
         self.roi_include_set = {"rotation_angle", "roi_window_x", "roi_window_y"}
         
@@ -391,13 +390,6 @@ class EyeProcessor:
                 print("\033[94m[INFO] Exiting Tracking thread\033[0m")
                 return
 
-            #try:
-           # (self.eye_id, eye_info) = self.msg_queue.get(block=True, timeout=0.1)
-             #   print(self.eye_id)
-            #except:
-                #print('eeeeeeee')
-                #pass
-
 
             if self.config.roi_window_w <= 0 or self.config.roi_window_h <= 0:
                 # At this point, we're waiting for the user to set up the ROI window in the GUI.
@@ -406,8 +398,7 @@ class EyeProcessor:
                     return
                 continue
 
-          
-            
+                  
             # If our ROI configuration has changed, reset our model and detector
             if (self.camera_model is None
                 or self.detector_3d is None
@@ -445,32 +436,7 @@ class EyeProcessor:
             self.current_image, cv2.COLOR_BGR2GRAY
             )
             self.current_image_gray_clean = self.current_image_gray.copy() #copy this frame to have a clean image for blink algo
-           # print(self.settings.gui_RANSAC3D)
-
-           # BLINK(self)
-
-           # cx, cy, thresh =  HSRAC(self)
-           # out_x, out_y = cal_osc(self, cx, cy)
-           # if cx == 0:
-          #      self.output_images_and_update(thresh, EyeInfo(EyeInfoOrigin.HSRAC, out_x, out_y, 0, True)) #update app
-           # else:
-          #      self.output_images_and_update(thresh, EyeInfo(EyeInfoOrigin.HSRAC, out_x, out_y, 0, self.blinkvalue))
-            
-
-           # cx, cy, thresh =  RANSAC3D(self)
-           # out_x, out_y = cal_osc(self, cx, cy)
-           # self.output_images_and_update(thresh, EyeInfo(EyeInfoOrigin.RANSAC, out_x, out_y, 0, False)) #update app
-
-
-          #  cx, cy, larger_threshold = BLOB(self)
-          #  out_x, out_y = cal_osc(self, cx, cy)
-           # self.output_images_and_update(larger_threshold, EyeInfo(EyeInfoOrigin.BLOB, out_x, out_y, 0, False)) #update app
-
-            #center_x, center_y, frame = HSF(self) #run algo
-            #out_x, out_y = cal_osc(self, center_x, center_y) #filter and calibrate
-            #self.output_images_and_update(frame, EyeInfo(EyeInfoOrigin.HSF, out_x, out_y, 0, False)) #update app
-            
+         
             self.ALGOSELECT() #run our algos in priority order set in settings
-            #self.BLOBM()
             self.UPDATE()
 
