@@ -128,8 +128,15 @@ class Camera:
                 self.wired_camera.set(cv2.CAP_PROP_POS_FRAMES, 0)
                 raise RuntimeError("Problem while getting frame")
             frame_number = self.wired_camera.get(cv2.CAP_PROP_POS_FRAMES)
-            self.fps = self.wired_camera.get(cv2.CAP_PROP_FPS)
-            self.bps = image.nbytes
+            # Calculate the fps.
+            current_frame_time = time.time()
+            delta_time = current_frame_time - self.last_frame_time
+            self.last_frame_time = current_frame_time
+            if delta_time > 0:
+                self.fps = 1 / delta_time
+                self.bps = len(jpeg) / delta_time
+            self.frame_number = self.frame_number + 1
+            #self.bps = image.nbytes
             if should_push:
                 self.push_image_to_queue(image, frame_number, self.fps)
         except:
