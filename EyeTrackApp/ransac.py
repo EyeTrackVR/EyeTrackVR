@@ -20,7 +20,7 @@
                                       @@@@@@@@@@@@@(     
 
 RANSAC 3D By: Summer#2406 (Main Algorithm Engineer), Pupil Labs (pye3d), PallasNeko (Optimization)
-Algorithm App Implementations By: Prohurtz#0001, qdot (Initial App Creator)
+Algorithm App Implementations By: Prohurtz, qdot (Initial App Creator)
 
 Copyright (c) 2023 EyeTrackVR <3
 ------------------------------------------------------------------------------------------------------
@@ -191,9 +191,8 @@ def RANSAC3D(self):
     frame = self.current_image_gray
     # For measuring processing time of image processing
     # Crop first to reduce the amount of data to process.
-   # frame = frame[0:len(frame) - 5, :]
-    # To reduce the processing data, first convert to 1-channel and then blur.
-    # The processing results were the same when I swapped the order of blurring and 1-channelization.
+    # frame = frame[0:len(frame) - 5, :]
+    # To reduce the processing data, blur.
     frame_gray = cv2.GaussianBlur(frame, (5, 5), 0)
 
     
@@ -264,9 +263,7 @@ def RANSAC3D(self):
     # via dicts).
         result_2d = {}
         result_2d_final = {}
-        
         result_2d["center"] = (cx, cy)
-        
         result_2d["axes"] = (w, h)
         result_2d["angle"] = theta * 180.0 / np.pi
         result_2d_final["ellipse"] = result_2d
@@ -345,8 +342,3 @@ def RANSAC3D(self):
     except:
         self.failed = self.failed + 1 #we have failed, move onto next algo
         return 0, 0, thresh
-    # Shove a concatenated image out to the main GUI thread for rendering
-    #self.output_images_and_update(thresh, EyeInfo(EyeInfoOrigin.FAILURE, 0 ,0, 0, False))
-    #self.output_images_and_update(thresh, output_info)
-    #except:
-    # self.output_images_and_update(thresh, EyeInfo(EyeInfoOrigin.RANSAC, out_x, out_y, 0, self.blinkvalue))

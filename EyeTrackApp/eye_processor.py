@@ -22,7 +22,7 @@
 HSR By: PallasNeko (Optimization Wizard, Contributor), Summer#2406 (Main Algorithm Engineer)  
 RANSAC 3D By: Summer#2406 (Main Algorithm Engineer), Pupil Labs (pye3d), PallasNeko (Optimization)
 BLOB By: Prohurtz#0001 (Main App Developer)
-Algorithm App Implementations By: Prohurtz#0001, qdot (Initial App Creator)
+Algorithm App Implementations By: Prohurtz, qdot (Initial App Creator)
 
 Additional Contributors: [Assassin], Summer404NotFound, lorow, ZanzyTHEbar
 
@@ -60,7 +60,7 @@ from hsrac import External_Run_HSRACS
 from blink import *
 
 from eye import EyeInfo, EyeInfoOrigin
-from intensity_eye_open import *
+from intensity_based_openness import *
 
 
 def run_once(f):
