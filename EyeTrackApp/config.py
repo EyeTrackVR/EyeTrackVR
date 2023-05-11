@@ -109,3 +109,4 @@ class EyeTrackConfig(BaseModel):
                 pass
         with open(CONFIG_FILE_NAME, "w") as settings_file:
             json.dump(obj=self.dict(), fp=settings_file)
+        print("[INFO] Config Saved Successfully")

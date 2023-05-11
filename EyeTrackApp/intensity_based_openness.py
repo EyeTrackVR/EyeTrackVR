@@ -19,7 +19,7 @@
                                        @@@@@@@@@@@@@@@@@                                            
                                       @@@@@@@@@@@@@(     
 Intensity Based Openess By: Prohurtz, PallasNeko (Optimization)
-Algorithm App Implementations By: Prohurtzs
+Algorithm App Implementations By: Prohurtz
 
 Copyright (c) 2023 EyeTrackVR <3
 ------------------------------------------------------------------------------------------------------
@@ -213,8 +213,6 @@ class IntensityBasedOpeness:
         #if cv2.waitKey(1) & 0xFF == ord("q"):
          #   pass
 
-
-
         #print(intensity)
             # if our blob width/height are within suitable (yet arbitrary) boundaries, call that good.
             #
@@ -251,9 +249,6 @@ class IntensityBasedOpeness:
             data_val = self.data[int_y, int_x]
         else:
             data_val = 0
-
-
-
 
 
         # max pupil per cord

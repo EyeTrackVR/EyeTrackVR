@@ -54,7 +54,7 @@ def main():
         if (
             appversion == latestversion
         ):  # If what we scraped and hardcoded versions are same, assume we are up to date.
-            print(f"\033[92m[INFO] App is up to date! [{latestversion}]\033[0m")
+            print(f"\033[92m[INFO] App is the latest version! [{latestversion}]\033[0m")
         else:
             print(
                 f"\033[93m[INFO] You have app version [{appversion}] installed. Please update to [{latestversion}] for the newest features.\033[0m"
@@ -75,7 +75,7 @@ def main():
                     )
                     toast.show()
             except Exception as e:
-                print("Notifications not supported")
+                print("[INFO] Toast notifications not supported")
 
     # Check to see if we have an ROI. If not, bring up ROI finder GUI.
 

@@ -21,8 +21,8 @@
 
 HSR By: PallasNeko (Optimization Wizard, Contributor), Summer#2406 (Main Algorithm Engineer)  
 RANSAC 3D By: Summer#2406 (Main Algorithm Engineer), Pupil Labs (pye3d), PallasNeko (Optimization)
-BLOB By: Prohurtz#0001 (Main App Developer)
-Algorithm App Implementations By: Prohurtz, qdot (Initial App Creator)
+BLOB By: Prohurtz (Main App Developer)
+Algorithm App Implementations By: Prohurtz, qdot (Initial App Creator), PallasNeko
 
 Additional Contributors: [Assassin], Summer404NotFound, lorow, ZanzyTHEbar
 
