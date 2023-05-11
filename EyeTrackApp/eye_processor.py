@@ -295,7 +295,6 @@ class EyeProcessor:
         self.current_algorithm = EyeInfoOrigin.RANSAC
 
     def BLOBM(self):
-        print("calling")
         self.rawx, self.rawy, self.thresh = BLOB(self)
         self.out_x, self.out_y = cal.cal_osc(self, self.rawx, self.rawy)
         self.current_algorithm = EyeInfoOrigin.BLOB

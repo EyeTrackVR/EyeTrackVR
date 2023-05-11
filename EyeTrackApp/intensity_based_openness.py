@@ -288,7 +288,7 @@ class IntensityBasedOpeness:
             eyeopen = ((intensity - maxp) / (minp - maxp)) #for whatever reason when input and maxp are too close it outputs high
 
             eyeopen = 1 - eyeopen
-            print(eyeopen, intensity, maxp, minp, x, y)
+          #  print(eyeopen, intensity, maxp, minp, x, y)
 
         if changed and ((time.time() - self.lct) > 5):  # save every 5 seconds if something changed to save disk usage
             self.save()
@@ -312,6 +312,6 @@ class IntensityBasedOpeness:
         eyevec = abs(self.prev_val - eyeopen)
         #print(eyevec)
         if eyevec > 0.4:
-            print("BLINK LCOK", eyeopen, eyevec)
-        print(intensity)
+            print("BLINK LCOK")
+
         return eyeopen
