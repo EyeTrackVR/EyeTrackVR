@@ -81,13 +81,13 @@ class EyeTrackConfig(BaseModel):
             with open(CONFIG_FILE_NAME, "r") as settings_file:
                 return EyeTrackConfig(**json.load(settings_file))
         except json.JSONDecodeError:
-            print("Failed to load settings file.")
+            print("[INFO] Failed to load settings file")
             load_config = None
             if os.path.exists(BACKUP_CONFIG_FILE_NAME):
                 try:
                     with open(BACKUP_CONFIG_FILE_NAME, "r") as settings_file:
                         load_config = EyeTrackConfig(**json.load(settings_file))
-                    print("using backup settings")
+                    print("[INFO] Using backup settings")
                 except json.JSONDecodeError:
                     pass
             if load_config is None:
