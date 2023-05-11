@@ -97,19 +97,19 @@ def main():
 
     layout = [
         [
+             sg.Radio(
+                "Left Eye",
+                "EYESELECTRADIO",
+                background_color="#292929",
+                default=(config.eye_display_id == EyeId.LEFT),
+                key=LEFT_EYE_RADIO_NAME,
+            ),
             sg.Radio(
                 "Right Eye",
                 "EYESELECTRADIO",
                 background_color="#292929",
                 default=(config.eye_display_id == EyeId.RIGHT),
                 key=RIGHT_EYE_RADIO_NAME,
-            ),
-            sg.Radio(
-                "Left Eye",
-                "EYESELECTRADIO",
-                background_color="#292929",
-                default=(config.eye_display_id == EyeId.LEFT),
-                key=LEFT_EYE_RADIO_NAME,
             ),
             sg.Radio(
                 "Both Eyes",
