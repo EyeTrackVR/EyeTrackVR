@@ -47,7 +47,7 @@ class Camera:
         self.capture_event = capture_event
         self.cancellation_event = cancellation_event
         self.current_capture_source = config.capture_source
-        self.wired_camera: "cv2.VideoCapture" = None
+        self.cv2_camera: "cv2.VideoCapture" = None
 
         self.serial_connection = None
         self.last_frame_time = time.time()
@@ -89,8 +89,8 @@ class Camera:
                         self.start_serial_connection(port)
                 else:
                     if (
-                            self.wired_camera is None
-                            or not self.wired_camera.isOpened()
+                            self.cv2_camera is None
+                            or not self.cv2_camera.isOpened()
                             or self.camera_status == CameraState.DISCONNECTED
                             or self.config.capture_source != self.current_capture_source
                     ):
@@ -100,7 +100,7 @@ class Camera:
                         if self.cancellation_event.wait(WAIT_TIME):
                             return
                         self.current_capture_source = self.config.capture_source
-                        self.wired_camera = cv2.VideoCapture(self.current_capture_source)
+                        self.cv2_camera = cv2.VideoCapture(self.current_capture_source)
                         should_push = False
             else:
                 # We don't have a capture source to try yet, wait for one to show up in the GUI.
@@ -116,18 +116,18 @@ class Camera:
                 if (self.current_capture_source[:3] == "COM"):
                     self.get_serial_camera_picture(should_push)
                 else:
-                    self.get_wired_camera_picture(should_push)
+                    self.get_cv2_camera_picture(should_push)
                 if not should_push:
                     # if we get all the way down here, consider ourselves connected
                     self.camera_status = CameraState.CONNECTED
 
-    def get_wired_camera_picture(self, should_push):
+    def get_cv2_camera_picture(self, should_push):
         try:
-            ret, image = self.wired_camera.read()
+            ret, image = self.cv2_camera.read()
             if not ret:
-                self.wired_camera.set(cv2.CAP_PROP_POS_FRAMES, 0)
+                self.cv2_camera.set(cv2.CAP_PROP_POS_FRAMES, 0)
                 raise RuntimeError("Problem while getting frame")
-            frame_number = self.wired_camera.get(cv2.CAP_PROP_POS_FRAMES)
+            frame_number = self.cv2_camera.get(cv2.CAP_PROP_POS_FRAMES)
             # Calculate the fps.
             current_frame_time = time.time()
             delta_time = current_frame_time - self.last_frame_time
