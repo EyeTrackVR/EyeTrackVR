@@ -39,7 +39,8 @@ class SettingsWidget:
         self.gui_thresh_add = f"-THRESHADD{widget_id}-"
         self.gui_ROSC = f"-ROSC{widget_id}-"
         self.gui_vrc_native = f"-VRCNATIVE{widget_id}-"
-
+        gui_circular_crop_left = f"-CIRCLECROPLEFT{widget_id}-"
+        gui_circular_crop_right = f"-CIRCLECROPRIGHT{widget_id}-"
         self.gui_update_check = f"-UPDATECHECK{widget_id}-"
         self.gui_threshold_slider = f"-BLOBTHRESHOLD{widget_id}-"
         self.main_config = main_config
@@ -121,8 +122,8 @@ class SettingsWidget:
                 tooltip = "Select the priority of eyetracking algorithims.",
                 ),
                 sg.Text("HSRAC", background_color='#424042'),
-            ],
-            [
+           # ],
+           # [
                 sg.Checkbox(
                     "",
                     default=self.config.gui_HSF,
@@ -158,8 +159,8 @@ class SettingsWidget:
                 tooltip = "Select the priority of eyetracking algorithims.",
                 ),
                 sg.Text("DADDY", background_color='#424042'),
-            ],
-            [
+         #   ],
+         #   [
                 sg.Checkbox(
                     "",
                     default=self.config.gui_RANSAC3D,
@@ -204,8 +205,20 @@ class SettingsWidget:
                     key=self.gui_IBO,
                     background_color='#424042',
                 ),
-          #  ],
-         #   [
+                sg.Checkbox(
+                    "Bianary Blink Algo",
+                    default=self.config.gui_BLINK,
+                    key=self.gui_BLINK,
+                    background_color='#424042',
+                ),
+            ],
+                        [
+                sg.Checkbox(
+                    "Left Eye Circile crop",
+                    default=self.config.gui_IBO,
+                    key=self.gui_IBO,
+                    background_color='#424042',
+                ),
                 sg.Checkbox(
                     "Bianary Blink Algo",
                     default=self.config.gui_BLINK,
@@ -241,8 +254,8 @@ class SettingsWidget:
                     background_color='#424042',
                     tooltip = "Adjusts the ammount of threshold to add to RANSAC. Usefull for fine tuning your setup.",
                 ),
-            ],
-            [
+          #  ],
+           # [
                 sg.Text("Blob Threshold", background_color='#424042'), #TODO make this for right and left eyes? I dont know how vital that is..
                 sg.Slider(
                     range=(0, 110),

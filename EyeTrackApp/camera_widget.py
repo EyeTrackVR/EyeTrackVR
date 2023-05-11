@@ -32,7 +32,6 @@ class CameraWidget:
         self.gui_stop_calibration = f"-STOPCALIBRATION{widget_id}-"
         self.gui_recenter_eyes = f"-RECENTEREYES{widget_id}-"
         self.gui_mode_readout = f"-APPMODE{widget_id}-"
-        self.gui_circular_crop = f"-CIRCLECROP{widget_id}-"
         self.gui_roi_message = f"-ROIMESSAGE{widget_id}-"
 
         self.osc_queue = osc_queue

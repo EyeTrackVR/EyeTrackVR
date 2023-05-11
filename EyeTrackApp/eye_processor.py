@@ -263,7 +263,6 @@ class EyeProcessor:
         self.output_images_and_update(self.thresh, EyeInfo(self.current_algo, self.out_x, self.out_y, 0, self.eyeopen))
 
 
-
     def BLINKM(self):
         self.eyeopen = BLINK(self)
         
@@ -276,7 +275,7 @@ class EyeProcessor:
         self.current_algorithm = EyeInfoOrigin.DADDY
 
     def HSRACM(self): 
-        # todo: added process to initialise er_hsrac when resolution changes
+        # todo: add process to initialise er_hsrac when resolution changes
         self.rawx, self.rawy, self.thresh, self.current_image_gray, self.bd_blink = self.er_hsrac.run(self.current_image_gray)
         if self.prev_x is None:
             self.prev_x = self.rawx
@@ -285,7 +284,7 @@ class EyeProcessor:
         self.current_algorithm = EyeInfoOrigin.HSRAC
 
     def HSFM(self):
-        # todo: added process to initialise er_hsf when resolution changes
+        # todo: add process to initialise er_hsf when resolution changes
         self.rawx, self.rawy, self.thresh = self.er_hsf.run(self.current_image_gray)
         self.out_x, self.out_y = cal.cal_osc(self, self.rawx, self.rawy)
         self.current_algorithm = EyeInfoOrigin.HSF

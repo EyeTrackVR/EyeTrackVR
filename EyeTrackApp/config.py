@@ -18,8 +18,6 @@ class EyeTrackCameraConfig(BaseModel):
     roi_window_h: int = 0
     focal_length: int = 30
     capture_source: Union[int, str, None] = None
-    gui_circular_crop: bool = False
-    
     calib_XMAX: int = None
     calib_XMIN: int = None
     calib_YMAX: int = None
@@ -63,6 +61,8 @@ class EyeTrackSettingsConfig(BaseModel):
     gui_update_check: bool = False
     gui_ROSC: bool = False
     gui_vrc_native: bool = True
+    gui_circular_crop_right: bool = False
+    gui_circular_crop_left: bool = False
 
 
 class EyeTrackConfig(BaseModel):
