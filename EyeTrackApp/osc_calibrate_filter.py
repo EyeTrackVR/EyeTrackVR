@@ -1,13 +1,7 @@
 import numpy as np
 
-from enum import IntEnum
+from EyeTrackApp.consts import EyeId
 from utils.misc_utils import PlaySound, SND_FILENAME, SND_ASYNC
-
-class EyeId(IntEnum):
-    RIGHT = 0
-    LEFT = 1
-    BOTH = 2
-    SETTINGS = 3
 
 
 class cal():

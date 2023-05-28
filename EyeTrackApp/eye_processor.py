@@ -30,27 +30,18 @@ Copyright (c) 2023 EyeTrackVR <3
 ------------------------------------------------------------------------------------------------------
 '''                                                                         
 
-from operator import truth
-from dataclasses import dataclass
-import sys
+
 import asyncio
 
+import sys
+sys.path.append(".")  # TODO is this necessary?
 
-
-sys.path.append(".")
 from config import EyeTrackCameraConfig
 from config import EyeTrackSettingsConfig
 from pye3d.camera import CameraModel
 from pye3d.detector_3d import Detector3D, DetectorMode
 import queue
 import threading
-import numpy as np
-import cv2
-from enum import Enum
-from one_euro_filter import OneEuroFilter
-from utils.misc_utils import PlaySound, SND_FILENAME, SND_ASYNC
-import importlib
-from osc import EyeId
 from osc_calibrate_filter import *
 from daddy import External_Run_DADDY
 from haar_surround_feature import External_Run_HSF
@@ -58,8 +49,9 @@ from blob import *
 from ransac import *
 from hsrac import External_Run_HSRACS
 from blink import *
+from EyeTrackApp.consts import EyeId, EyeInfoOrigin
+from eye import EyeInfo
 
-from eye import EyeInfo, EyeInfoOrigin
 from intensity_based_openness import *
 
 
@@ -279,7 +271,7 @@ class EyeProcessor:
         if self.prev_x is None:
             self.prev_x = self.rawx
             self.prev_y = self.rawy
-        self.out_x, self.out_y = cal.cal_osc(self, self.rawx, self.rawy)
+        self.out_x, self.out_y = cal.cal_osc(self, self.rawx, self.rawy)  # TODO we should NOT be doing it this way
         self.current_algorithm = EyeInfoOrigin.HSRAC
 
     def HSFM(self):
@@ -299,8 +291,7 @@ class EyeProcessor:
         self.out_x, self.out_y = cal.cal_osc(self, self.rawx, self.rawy)
         self.current_algorithm = EyeInfoOrigin.BLOB
 
-
-
+    # TODO refactor this into strategy pattern
     def ALGOSELECT(self):
         # self.DADDYM()
         if self.failed == 0 and self.firstalgo != None: 
@@ -334,7 +325,6 @@ class EyeProcessor:
     def run(self):
         # Run the following somewhere
         # self.daddy = External_Run_DADDY()
-
 
         self.firstalgo = None
         self.secondalgo = None
@@ -430,12 +420,10 @@ class EyeProcessor:
             if not self.capture_crop_rotate_image():
                 continue
 
-            
-            self.current_image_gray = cv2.cvtColor(
-            self.current_image, cv2.COLOR_BGR2GRAY
-            )
-            self.current_image_gray_clean = self.current_image_gray.copy() #copy this frame to have a clean image for blink algo
-         
-            self.ALGOSELECT() #run our algos in priority order set in settings
+            self.current_image_gray = cv2.cvtColor(self.current_image, cv2.COLOR_BGR2GRAY)
+            # copy this frame to have a clean image for blink algo
+            self.current_image_gray_clean = self.current_image_gray.copy()
+
+            self.ALGOSELECT()  # run our algos in priority order set in settings
             self.UPDATE()
 

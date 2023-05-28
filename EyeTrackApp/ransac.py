@@ -27,7 +27,7 @@ Copyright (c) 2023 EyeTrackVR <3
 '''  
 import cv2
 import numpy as np
-from enums import EyeLR
+from EyeTrackApp.consts import EyeId
 
 
 def ellipse_model(data, y, f):

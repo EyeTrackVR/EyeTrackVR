@@ -7,7 +7,7 @@ import threading
 
 from camera_widget import CameraWidget
 from config import EyeTrackConfig
-from eye import EyeId
+from EyeTrackApp.consts import EyeId
 from osc import VRChatOSCReceiver, VRChatOSC
 from settings_widget import SettingsWidget
 from utils.misc_utils import is_nt

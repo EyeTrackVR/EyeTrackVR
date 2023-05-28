@@ -1,23 +1,21 @@
-
 from pythonosc import udp_client
 from pythonosc import osc_server
 from pythonosc import dispatcher
-from utils.misc_utils import PlaySound,SND_FILENAME,SND_ASYNC
+
+from EyeTrackApp.consts import EyeId
+from utils.misc_utils import PlaySound, SND_FILENAME, SND_ASYNC
 import queue
 import threading
-from enum import IntEnum
-import time
 
-class EyeId(IntEnum):
-    RIGHT = 0
-    LEFT = 1
-    BOTH = 2
-    SETTINGS = 3
+import time
 from config import EyeTrackConfig
 
+
 se = False
+
+
 def output_osc(eye_x, eye_y, eye_blink, last_blink, self):
-        global se
+        global se # I have to yeet the fuck out this shit what in the name of everything zen of python
 
         if not self.config.gui_vrc_native:
 

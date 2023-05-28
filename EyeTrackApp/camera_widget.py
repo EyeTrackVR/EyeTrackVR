@@ -1,18 +1,15 @@
 import PySimpleGUI as sg
 from config import EyeTrackConfig
-from config import EyeTrackSettingsConfig
 from collections import deque
 from threading import Event, Thread
 from eye_processor import EyeProcessor, EyeInfoOrigin
-from enum import Enum
 from queue import Queue, Empty
 from camera import Camera, CameraState
-from osc import EyeId
+from EyeTrackApp.consts import EyeId
 import cv2
-import sys
-from utils.misc_utils import PlaySound,SND_FILENAME,SND_ASYNC
-import traceback
+from utils.misc_utils import PlaySound, SND_FILENAME, SND_ASYNC
 import numpy as np
+
 
 class CameraWidget:
     def __init__(self, widget_id: EyeId, main_config: EyeTrackConfig, osc_queue: Queue):

@@ -2,7 +2,7 @@ import json
 import os.path
 import shutil
 
-from eye import EyeId
+from EyeTrackApp.consts import EyeId
 from pydantic import BaseModel
 from typing import Union
 

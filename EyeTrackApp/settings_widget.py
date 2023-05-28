@@ -1,7 +1,7 @@
 import PySimpleGUI as sg
 
 from config import EyeTrackSettingsConfig
-from osc import EyeId
+from EyeTrackApp.consts import EyeId
 from queue import Queue
 from threading import Event
 
@@ -371,7 +371,6 @@ class SettingsWidget:
 
         ]
 
-        
         self.widget_layout = [
             [   
                 sg.Text("General Settings:", background_color='#242224'),
@@ -384,7 +383,6 @@ class SettingsWidget:
         self.cancellation_event = Event() # Set the event until start is called, otherwise we can block if shutdown is called.
         self.cancellation_event.set()
         self.image_queue = Queue()
-
 
     def started(self):
         return not self.cancellation_event.is_set()
@@ -553,8 +551,5 @@ class SettingsWidget:
             changed = True
 
         if changed:
-            self.main_config.save()
-      #  print(changed)
-       # changed = False
-       # print(changed)
-        self.osc_queue.put((EyeId.SETTINGS))
+            self.main_config.save()  # TODO fix this
+        self.osc_queue.put((EyeId.SETTINGS, ))
