@@ -28,34 +28,66 @@ Copyright (c) 2023 EyeTrackVR <3
 
 import cv2
 import numpy as np
+from enum import IntEnum
+
+class EyeId(IntEnum):
+    RIGHT = 0
+    LEFT = 1
+    BOTH = 2
+    SETTINGS = 3
 
 def BLOB(self):
-        
+
         # define circle
-        if self.config.gui_circular_crop:
-            if self.cct == 0:
-                try:
-                    ht, wd = self.current_image_gray.shape[:2]
+        if self.eye_id in [EyeId.LEFT]:
+            if self.gui_circular_crop_left:
+                if self.cct == 0:
+                    try:
+                        ht, wd = self.current_image_gray.shape[:2]
 
-                    radius = int(float(self.lkg_projected_sphere["axes"][0]))
+                        radius = int(float(self.lkg_projected_sphere["axes"][0]))
 
-                    # draw filled circle in white on black background as mask
-                    mask = np.zeros((ht, wd), dtype=np.uint8)
-                    mask = cv2.circle(mask, (self.xc, self.yc), radius, 255, -1)
-                    # create white colored background
-                    color = np.full_like(self.current_image_gray, (255))
-                    # apply mask to image
-                    masked_img = cv2.bitwise_and(self.current_image_gray, self.current_image_gray, mask=mask)
-                    # apply inverse mask to colored image
-                    masked_color = cv2.bitwise_and(color, color, mask=255 - mask)
-                    # combine the two masked images
-                    self.current_image_gray = cv2.add(masked_img, masked_color)
-                except:
-                    pass
-            else:
-                self.cct = self.cct - 1
-        _, larger_threshold = cv2.threshold(self.current_image_gray, int(self.settings.gui_threshold + 12), 255, cv2.THRESH_BINARY)
-    
+                        # draw filled circle in white on black background as mask
+                        mask = np.zeros((ht, wd), dtype=np.uint8)
+                        mask = cv2.circle(mask, (self.xc, self.yc), radius, 255, -1)
+                        # create white colored background
+                        color = np.full_like(self.current_image_gray, (255))
+                        # apply mask to image
+                        masked_img = cv2.bitwise_and(self.current_image_gray, self.current_image_gray, mask=mask)
+                        # apply inverse mask to colored image
+                        masked_color = cv2.bitwise_and(color, color, mask=255 - mask)
+                        # combine the two masked images
+                        self.current_image_gray = cv2.add(masked_img, masked_color)
+                    except:
+                        pass
+                else:
+                    self.cct = self.cct - 1
+            _, larger_threshold = cv2.threshold(self.current_image_gray, int(self.settings.gui_threshold + 12), 255, cv2.THRESH_BINARY)
+        else:
+            if self.gui_circular_crop_right:
+                if self.cct == 0:
+                    try:
+                        ht, wd = self.current_image_gray.shape[:2]
+
+                        radius = int(float(self.lkg_projected_sphere["axes"][0]))
+
+                        # draw filled circle in white on black background as mask
+                        mask = np.zeros((ht, wd), dtype=np.uint8)
+                        mask = cv2.circle(mask, (self.xc, self.yc), radius, 255, -1)
+                        # create white colored background
+                        color = np.full_like(self.current_image_gray, (255))
+                        # apply mask to image
+                        masked_img = cv2.bitwise_and(self.current_image_gray, self.current_image_gray, mask=mask)
+                        # apply inverse mask to colored image
+                        masked_color = cv2.bitwise_and(color, color, mask=255 - mask)
+                        # combine the two masked images
+                        self.current_image_gray = cv2.add(masked_img, masked_color)
+                    except:
+                        pass
+                else:
+                    self.cct = self.cct - 1
+            _, larger_threshold = cv2.threshold(self.current_image_gray, int(self.settings.gui_threshold + 12), 255,
+                                                cv2.THRESH_BINARY)
 
         try:
             # Try rebuilding our contours

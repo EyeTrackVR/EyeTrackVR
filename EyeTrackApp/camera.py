@@ -57,6 +57,9 @@ class Camera:
         self.start = True
         self.buffer = b''
         self.pf_fps = 0
+        self.prevft = 0
+        self.newft = 0
+        self.fl = [0]
 
         self.error_message = f"{Fore.YELLOW}[WARN] Capture source {{}} not found, retrying...{Fore.RESET}"
 
@@ -134,11 +137,19 @@ class Camera:
             delta_time = current_frame_time - self.last_frame_time
             self.last_frame_time = current_frame_time
             if delta_time > 0:
-                self.fps = 1 / delta_time
                 self.bps = len(image) / delta_time
             self.frame_number = self.frame_number + 1
             self.fps = (self.fps + self.pf_fps) / 2
-            self.pf_fps = self.fps
+            self.newft = time.time()
+            self.fps = 1 / (self.newft - self.prevft)
+            self.prevft = self.newft
+            self.fps = int(self.fps)
+            if len(self.fl) < 60:
+                self.fl.append(self.fps)
+            else:
+                self.fl.pop(0)
+                self.fl.append(self.fps)
+            self.fps = sum(self.fl) / len(self.fl)
             #self.bps = image.nbytes
             if should_push:
                 self.push_image_to_queue(image, frame_number, self.fps)

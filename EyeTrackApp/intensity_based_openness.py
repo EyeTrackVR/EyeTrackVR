@@ -32,6 +32,9 @@ import cv2
 from enums import EyeLR
 from one_euro_filter import OneEuroFilter
 from utils.img_utils import safe_crop
+
+
+import matplotlib.pyplot as plt
 #higher intensity means more closed/ more white/less pupil
 
 #Hm I need an acronym for this, any ideas?
@@ -113,6 +116,14 @@ class IntensityBasedOpeness:
         self.img_roi = np.zeros(3, dtype=np.int32)
         self.now_roi = np.zeros(3, dtype=np.int32)
         self.prev_val = 0.5
+
+
+        self.old = []
+        self.color = []
+        self.x = []
+        self.fc = 0
+
+        self.tri_filter = []
       #  try:
       #      min_cutoff = float(self.settings.gui_min_cutoff)  # 0.0004
        #     beta = float(self.settings.gui_speed_coefficient)  # 0.9
@@ -197,7 +208,7 @@ class IntensityBasedOpeness:
         lower_y = max(int_y - 15, 0)
 
         # frame_crop = frame[lower_y:upper_y, lower_x:upper_x]
-      #  frame_crop = safe_crop(frame, lower_x, lower_y, upper_x, upper_y, 1)
+        img = safe_crop(frame, lower_x, lower_y, upper_x, upper_y, 1)
         #ret_, th = cv2.threshold(frame_crop, 80, 1.0, cv2.THRESH_BINARY_INV, dst=frame_crop)
         frame_crop = frame
         #ret, f = cv2.threshold(frame, 80, 255, cv2.THRESH_BINARY)
@@ -205,10 +216,14 @@ class IntensityBasedOpeness:
 
         # The same can be done with cv2.integral, but since there is only one area of the rectangle for which we want to know the total value, there is no advantage in terms of computational complexity.
         intensity = frame_crop.sum() + 1
-        avg_color_per_row = np.average(frame_crop, axis=0)
-        avg_color = np.average(avg_color_per_row, axis=0)
-        ar, ag, ab = avg_color
-        intensity = int(ar * 8) #higher = closed
+        self.tri_filter.append(intensity)
+        if len(self.tri_filter) > 3:
+            self.tri_filter.pop(0)
+            intensity = sum(self.tri_filter) / 3
+        #avg_color_per_row = np.average(frame_crop, axis=0)
+        #avg_color = np.average(avg_color_per_row, axis=0)
+       # ar, ag, ab = avg_color
+      #  intensity = int(ar * 8) #higher = closed
 
         #cv2.imshow("IBO", frame_crop)
         #if cv2.waitKey(1) & 0xFF == ord("q"):
@@ -272,14 +287,14 @@ class IntensityBasedOpeness:
             self.maxval = intensity  # set value at 0 index
         else:
             if intensity > self.maxval:  # if current intensity value is more (less pupil), save that NOTE: we have the
-                self.maxval = intensity  # set value at 0 index
+                self.maxval = intensity - 5  # set value at 0 index
             else:
-                intensityd = max(self.maxval - 0.01, 1)  # continuously adjust closed intensity, will be set when user blink, used to allow eyes to close when lighting changes
+                intensityd = max((self.maxval - 5), 1)  # continuously adjust closed intensity, will be set when user blink, used to allow eyes to close when lighting changes
                 self.maxval = intensityd  # set value at 0 index
            #     print(intensityd, intensity)
         if newval_flg:
             # Do the same thing as in the original version.
-            eyeopen = 0.9
+            eyeopen = self.prev_val #0.9
         else:
             maxp = self.data[int_y, int_x]
             minp = self.maxval
@@ -309,9 +324,33 @@ class IntensityBasedOpeness:
         if eyeopen - self.prev_val > 100:
             print('BLINK')
 
+        #intensityold = img.sum() + 1
+        avg_color_per_row = np.average(img, axis=0)
+        avg_color = np.average(avg_color_per_row, axis=0)
+        ar, ag, ab = avg_color
+        intensity = int(ar * 8)  # higher = closed
+        #self.old.append(intensity)
+        #self.color.append(intensity)
+       # self.x.append(self.fc)
+
+       # cv2.imshow("show_img.jpg", img)
+       # self.fc = self.fc + 1
+
+      #  if self.fc == 800:
+      #      plt.plot(self.x, self.color)
+      #      # beautify the x-labels
+      #      plt.gcf().autofmt_xdate()
+
+      #      plt.show()
+
+     #       plt.plot(self.x, self.old)
+      #      plt.gcf().autofmt_xdate()
+
+        #    plt.show()
+
         eyevec = abs(self.prev_val - eyeopen)
         #print(eyevec)
         if eyevec > 0.4:
             print("BLINK LCOK")
-
+        print(eyeopen)
         return eyeopen
