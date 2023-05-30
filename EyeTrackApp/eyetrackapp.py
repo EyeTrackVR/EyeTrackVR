@@ -1,5 +1,4 @@
 import os
-import os
 import PySimpleGUI as sg
 import queue
 import requests
@@ -8,7 +7,8 @@ import threading
 from camera_widget import CameraWidget
 from config import EyeTrackConfig
 from EyeTrackApp.consts import EyeId
-from osc import VRChatOSCReceiver, VRChatOSC
+from EyeTrackApp.oscManager.osc import VRChatOSCReceiver, VRChatOSC
+from eye import EyeInfo
 from settings_widget import SettingsWidget
 from utils.misc_utils import is_nt
 
@@ -80,7 +80,7 @@ def main():
     # Check to see if we have an ROI. If not, bring up ROI finder GUI.
 
     # Spawn worker threads
-    osc_queue: queue.Queue[tuple[bool, int, int]] = queue.Queue()
+    osc_queue: queue.Queue[tuple[int, EyeInfo]] = queue.Queue()
     osc = VRChatOSC(cancellation_event, osc_queue, config)
     osc_thread = threading.Thread(target=osc.run)
     # start worker threads

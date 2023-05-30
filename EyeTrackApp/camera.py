@@ -7,7 +7,7 @@ import threading
 import time
 
 from colorama import Fore
-from config import EyeTrackConfig
+from config import EyeTrackCameraConfig
 from enum import Enum
 
 WAIT_TIME = 0.1
@@ -31,7 +31,7 @@ class CameraState(Enum):
 class Camera:
     def __init__(
             self,
-            config: EyeTrackConfig,
+            config: EyeTrackCameraConfig,
             camera_index: int,
             cancellation_event: "threading.Event",
             capture_event: "threading.Event",
@@ -75,11 +75,11 @@ class Camera:
             should_push = True
             # If things aren't open, retry until they are. Don't let read requests come in any earlier
             # than this, otherwise we can deadlock ourselves.
-            if (
-                    self.config.capture_source != None and self.config.capture_source != ""
-            ):
 
-                if (self.config.capture_source[:3] == "COM"):
+            # this *will* break for input like a camera ID, I do not expect that to be passed here
+            # but we better handle it, what's here right now is but a dirty hack
+            if (self.config.capture_source is not None and self.config.capture_source != "" ):
+                if (str(self.config.capture_source)[:3] == "COM"):
                     if (
                             self.serial_connection is None
                             or self.camera_status == CameraState.DISCONNECTED
@@ -114,7 +114,7 @@ class Camera:
             if should_push and not self.capture_event.wait(timeout=0.02):
                 continue
             if self.config.capture_source != None:
-                if (self.current_capture_source[:3] == "COM"):
+                if (str(self.current_capture_source)[:3] == "COM"):
                     self.get_serial_camera_picture(should_push)
                 else:
                     self.get_cv2_camera_picture(should_push)
