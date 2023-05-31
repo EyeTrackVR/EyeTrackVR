@@ -202,8 +202,18 @@ class Camera:
                     delta_time = current_frame_time - self.last_frame_time
                     self.last_frame_time = current_frame_time
                     if delta_time > 0:
-                        self.fps = 1 / delta_time
                         self.bps = len(jpeg) / delta_time
+                    self.fps = (self.fps + self.pf_fps) / 2
+                    self.newft = time.time()
+                    self.fps = 1 / (self.newft - self.prevft)
+                    self.prevft = self.newft
+                    self.fps = int(self.fps)
+                    if len(self.fl) < 60:
+                        self.fl.append(self.fps)
+                    else:
+                        self.fl.pop(0)
+                        self.fl.append(self.fps)
+                    self.fps = sum(self.fl) / len(self.fl)
                     self.frame_number = self.frame_number + 1
                     if should_push:
                         self.push_image_to_queue(image, self.frame_number, self.fps)
