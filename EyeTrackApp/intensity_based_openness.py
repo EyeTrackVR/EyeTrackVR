@@ -352,5 +352,5 @@ class IntensityBasedOpeness:
         #print(eyevec)
         if eyevec > 0.4:
             print("BLINK LCOK")
-        print(eyeopen)
+       # print(eyeopen)
         return eyeopen

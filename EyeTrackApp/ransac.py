@@ -27,7 +27,13 @@ Copyright (c) 2023 EyeTrackVR <3
 '''  
 import cv2
 import numpy as np
-from enums import EyeLR
+from enum import IntEnum
+
+class EyeId(IntEnum):
+    RIGHT = 0
+    LEFT = 1
+    BOTH = 2
+    SETTINGS = 3
 
 
 def ellipse_model(data, y, f):
@@ -135,15 +141,17 @@ def fit_rotated_ellipse(data, P):
     
     return (cx, cy, w, h, theta)
 
-
+cct = 300
 def circle_crop(self):
-    if self.cct == 0:
+    global cct
+    print(cct)
+    if cct == 0:
         try:
             ht, wd = self.current_image_gray.shape[:2]
             radius = int(float(self.lkg_projected_sphere["axes"][0]))
             self.xc = int(float(self.lkg_projected_sphere["center"][0]))
             self.yc = int(float(self.lkg_projected_sphere["center"][1]))
-            if radius < 8: #minimum size TODO: make shure this size is enough
+            if radius < 8: #minimum size
                 radius = 8
             # draw filled circle in white on black background as mask
             mask = np.zeros((ht, wd), dtype=np.uint8)
@@ -156,13 +164,18 @@ def circle_crop(self):
             masked_color = cv2.bitwise_and(color, color, mask=255 - mask)
             # combine the two masked images
             self.current_image_gray = cv2.add(masked_img, masked_color)
+            return self.current_image_gray
         except:
+            return self.current_image_gray
             pass
     else:
-        self.cct = self.cct - 1
+        cct = cct - 1
+        return self.current_image_gray
+
 
 def RANSAC3D(self): 
     f = False
+    global cct
     kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (3, 3))
     thresh_add = 10
     rng = np.random.default_rng()
@@ -176,15 +189,15 @@ def RANSAC3D(self):
     # crop the image earlier; it gives us less possible dark area to get confused about in the
     # next step.
 
-    if self.eye_id == EyeId.LEFT and self.config.gui_circular_crop_left == True: #TODO TEST function
-        circle_crop(self)
+    if self.eye_id in [EyeId.LEFT] and self.settings.gui_circular_crop_left:
+        self.current_image_gray = circle_crop(self)
     else:
-        self.cct = 300
+        pass
 
-    if self.eye_id == EyeId.RIGHT and self.config.gui_circular_crop_right == True:
-        circle_crop(self)
+    if self.eye_id in [EyeId.RIGHT] and self.settings.gui_circular_crop_right:
+        self.current_image_gray = circle_crop(self)
     else:
-        self.cct = 300
+        pass
     
     # Crop first to reduce the amount of data to process.
     newFrame2 = self.current_image_gray.copy()

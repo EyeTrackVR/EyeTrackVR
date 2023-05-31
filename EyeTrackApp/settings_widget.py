@@ -508,12 +508,12 @@ class SettingsWidget:
             self.config.gui_IBO = values[self.gui_IBO]
             changed = True
 
-        if self.config.gui_circular_crop_left  != values[self.gui_circular_crop_left]:
+        if self.config.gui_circular_crop_left != values[self.gui_circular_crop_left]:
             self.config.gui_circular_crop_left = values[self.gui_circular_crop_left]
             changed = True
         
         if self.config.gui_circular_crop_right != values[self.gui_circular_crop_right]:
-            self.gui_circular_crop_right = values[self.gui_circular_crop_right]
+            self.config.gui_circular_crop_right = values[self.gui_circular_crop_right]
             changed = True
 
         if self.config.gui_HSF_radius != int(values[self.gui_HSF_radius]):
