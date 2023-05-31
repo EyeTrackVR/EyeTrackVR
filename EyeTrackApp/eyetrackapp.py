@@ -10,6 +10,8 @@ from config import EyeTrackConfig
 from eye import EyeId
 from osc import VRChatOSCReceiver, VRChatOSC
 from settings_widget import SettingsWidget
+from algo_settings_widget import AlgoSettingsWidget
+
 from utils.misc_utils import is_nt
 
 
@@ -25,15 +27,16 @@ WINDOW_NAME = "EyeTrackApp"
 RIGHT_EYE_NAME = "-RIGHTEYEWIDGET-"
 LEFT_EYE_NAME = "-LEFTEYEWIDGET-"
 SETTINGS_NAME = "-SETTINGSWIDGET-"
+ALGO_SETTINGS_NAME = "-ALGOSETTINGSWIDGET-"
 
 LEFT_EYE_RADIO_NAME = "-LEFTEYERADIO-"
 RIGHT_EYE_RADIO_NAME = "-RIGHTEYERADIO-"
 BOTH_EYE_RADIO_NAME = "-BOTHEYERADIO-"
 SETTINGS_RADIO_NAME = "-SETTINGSRADIO-"
-
+ALGO_SETTINGS_RADIO_NAME = "-ALGOSETTINGSRADIO-"
 
 page_url = "https://github.com/RedHawk989/EyeTrackVR/releases/latest"
-appversion = "EyeTrackApp 0.2.0 BETA 4"
+appversion = "EyeTrackApp 0.2.0 BETA 5"
 
 
 def main():
@@ -93,6 +96,7 @@ def main():
 
     settings = [
         SettingsWidget(EyeId.SETTINGS, config, osc_queue),
+        AlgoSettingsWidget(EyeId.SETTINGS, config, osc_queue),
     ]
 
     layout = [
@@ -125,6 +129,13 @@ def main():
                 default=(config.eye_display_id == EyeId.SETTINGS),
                 key=SETTINGS_RADIO_NAME,
             ),
+            sg.Radio(
+                "Algo Settings",
+                "EYESELECTRADIO",
+                background_color="#292929",
+                default=(config.eye_display_id == EyeId.ALGOSETTINGS),
+                key=ALGO_SETTINGS_RADIO_NAME,
+            ),
         ],
         [
             sg.Column(
@@ -148,6 +159,13 @@ def main():
                 visible=(config.eye_display_id in [EyeId.SETTINGS]),
                 background_color="#424042",
             ),
+            sg.Column(
+                settings[1].widget_layout,
+                vertical_alignment="top",
+                key=ALGO_SETTINGS_NAME,
+                visible=(config.eye_display_id in [EyeId.ALGOSETTINGS]),
+                background_color="#424042",
+            ),
         ],
     ]
 
@@ -155,9 +173,10 @@ def main():
         eyes[1].start()
     if config.eye_display_id in [EyeId.RIGHT, EyeId.BOTH]:
         eyes[0].start()
-
-    if config.eye_display_id in [EyeId.SETTINGS, EyeId.BOTH]:
+    if config.eye_display_id in [EyeId.SETTINGS]:
         settings[0].start()
+    if config.eye_display_id in [EyeId.ALGOSETTINGS]:
+        settings[1].start()
         #self.main_config.eye_display_id
 
     # the eye's needs to be running before it is passed to the OSC
@@ -198,32 +217,38 @@ def main():
             eyes[0].start()
             eyes[1].stop()
             settings[0].stop()
+            settings[1].stop()
             window[RIGHT_EYE_NAME].update(visible=True)
             window[LEFT_EYE_NAME].update(visible=False)
             window[SETTINGS_NAME].update(visible=False)
+            window[ALGO_SETTINGS_NAME].update(visible=False)
             config.eye_display_id = EyeId.RIGHT
             config.settings.tracker_single_eye = 2
             config.save()
 
         elif values[LEFT_EYE_RADIO_NAME] and config.eye_display_id != EyeId.LEFT:
             settings[0].stop()
+            settings[1].stop()
             eyes[0].stop()
             eyes[1].start()
             window[RIGHT_EYE_NAME].update(visible=False)
             window[LEFT_EYE_NAME].update(visible=True)
             window[SETTINGS_NAME].update(visible=False)
+            window[ALGO_SETTINGS_NAME].update(visible=False)
             config.eye_display_id = EyeId.LEFT
             config.settings.tracker_single_eye = 1
             config.save()
 
         elif values[BOTH_EYE_RADIO_NAME] and config.eye_display_id != EyeId.BOTH:
             settings[0].stop()
+            settings[1].stop()
             eyes[0].stop()
             eyes[1].start()
             eyes[0].start()
             window[LEFT_EYE_NAME].update(visible=True)
             window[RIGHT_EYE_NAME].update(visible=True)
             window[SETTINGS_NAME].update(visible=False)
+            window[ALGO_SETTINGS_NAME].update(visible=False)
             config.eye_display_id = EyeId.BOTH
             config.settings.tracker_single_eye = 0
             config.save()
@@ -231,11 +256,25 @@ def main():
         elif values[SETTINGS_RADIO_NAME] and config.eye_display_id != EyeId.SETTINGS:
             eyes[0].stop()
             eyes[1].stop()
+            settings[1].stop()
             settings[0].start()
             window[RIGHT_EYE_NAME].update(visible=False)
             window[LEFT_EYE_NAME].update(visible=False)
             window[SETTINGS_NAME].update(visible=True)
+            window[ALGO_SETTINGS_NAME].update(visible=False)
             config.eye_display_id = EyeId.SETTINGS
+            config.save()
+
+        elif values[ALGO_SETTINGS_RADIO_NAME] and config.eye_display_id != EyeId.ALGOSETTINGS:
+            eyes[0].stop()
+            eyes[1].stop()
+            settings[0].stop()
+            settings[1].start()
+            window[RIGHT_EYE_NAME].update(visible=False)
+            window[LEFT_EYE_NAME].update(visible=False)
+            window[SETTINGS_NAME].update(visible=False)
+            window[ALGO_SETTINGS_NAME].update(visible=True)
+            config.eye_display_id = EyeId.ALGOSETTINGS
             config.save()
 
         # Otherwise, render all of our cameras

@@ -6,6 +6,7 @@ class EyeId(IntEnum):
     LEFT = 1
     BOTH = 2
     SETTINGS = 3
+    ALGOSETTINGS = 4
 
 
 class EyeInfoOrigin(Enum):
