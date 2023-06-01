@@ -147,31 +147,29 @@ def circle_crop(self):
     avg_color_per_row = np.average(self.current_image, axis=0)
     avg_color = np.average(avg_color_per_row, axis=0)
     ar, ag, ab = avg_color
-    print(cct)
     if cct == 0:
-      #  try:
-
-        ht, wd = self.current_image_gray.shape[:2]
-        radius = int(float(self.lkg_projected_sphere["axes"][0]))
-        self.xc = int(float(self.lkg_projected_sphere["center"][0]))
-        self.yc = int(float(self.lkg_projected_sphere["center"][1]))
-        if radius < 10: #minimum size
-            radius = 10
-        # draw filled circle in white on black background as mask
-        mask = np.zeros((ht, wd), dtype=np.uint8)
-        mask = cv2.circle(mask, (self.xc, self.yc), radius, 255, -1)
-        # create white colored background
-        color = np.full_like(self.current_image_gray, (ar))
-        # apply mask to image
-        masked_img = cv2.bitwise_and(self.current_image_gray, self.current_image_gray, mask=mask)
-        # apply inverse mask to colored image
-        masked_color = cv2.bitwise_and(color, color, mask=255 - mask)
-        # combine the two masked images
-        self.current_image_gray = cv2.add(masked_img, masked_color)
-        return self.current_image_gray
-      #  except:
-        #    return self.current_image_gray
-         #   pass
+        try:
+            ht, wd = self.current_image_gray.shape[:2]
+            radius = int(float(self.lkg_projected_sphere["axes"][0]))
+            self.xc = int(float(self.lkg_projected_sphere["center"][0]))
+            self.yc = int(float(self.lkg_projected_sphere["center"][1]))
+            if radius < 10: #minimum size
+                radius = 10
+            # draw filled circle in white on black background as mask
+            mask = np.zeros((ht, wd), dtype=np.uint8)
+            mask = cv2.circle(mask, (self.xc, self.yc), radius, 255, -1)
+            # create white colored background
+            color = np.full_like(self.current_image_gray, (ar))
+            # apply mask to image
+            masked_img = cv2.bitwise_and(self.current_image_gray, self.current_image_gray, mask=mask)
+            # apply inverse mask to colored image
+            masked_color = cv2.bitwise_and(color, color, mask=255 - mask)
+            # combine the two masked images
+            self.current_image_gray = cv2.add(masked_img, masked_color)
+            return self.current_image_gray
+        except:
+            return self.current_image_gray
+            pass
     else:
         cct = cct - 1
         return self.current_image_gray
