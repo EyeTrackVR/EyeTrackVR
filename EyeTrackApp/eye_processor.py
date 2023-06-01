@@ -334,8 +334,14 @@ class EyeProcessor:
         self.current_algorithm = EyeInfoOrigin.RANSAC
 
     def BLOBM(self):
-
-        print("LSKDGFHL")
+        if self.eye_id in [EyeId.LEFT] and self.settings.gui_circular_crop_left:
+            self.current_image_gray, self.cct = circle_crop(self.current_image_gray, self.xc, self.yc, self.cc_radius, self.cct)
+        else:
+            pass
+        if self.eye_id in [EyeId.RIGHT] and self.settings.gui_circular_crop_right:
+            self.current_image_gray, self.cct = circle_crop(self.current_image_gray, self.xc, self.yc, self.cc_radius, self.cct)
+        else:
+            pass
         self.rawx, self.rawy, self.thresh = BLOB(self)
 
         self.out_x, self.out_y = cal.cal_osc(self, self.rawx, self.rawy)
@@ -362,6 +368,8 @@ class EyeProcessor:
 
         if self.failed == 3 and self.fourthalgo != None:
             self.fourthalgo()
+        else:
+            self.failed = self.failed + 1
 
         if self.failed == 4 and self.fithalgo != None:
             self.fithalgo()

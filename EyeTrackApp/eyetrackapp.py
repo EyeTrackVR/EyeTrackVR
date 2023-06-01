@@ -263,7 +263,6 @@ def main():
             window[ALGO_SETTINGS_NAME].update(visible=False)
             config.eye_display_id = EyeId.SETTINGS
             config.save()
-            print("EE")
 
 
         elif values[ALGO_SETTINGS_RADIO_NAME] and config.eye_display_id != EyeId.ALGOSETTINGS:
@@ -277,7 +276,6 @@ def main():
             window[ALGO_SETTINGS_NAME].update(visible=True)
             config.eye_display_id = EyeId.ALGOSETTINGS
             config.save()
-            print("Easljghk")
 
         # Otherwise, render all
         for eye in eyes:
