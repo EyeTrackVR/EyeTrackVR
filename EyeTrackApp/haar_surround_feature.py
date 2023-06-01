@@ -634,8 +634,8 @@ class HSF_cls(object):
                         #            zip([1, 0, 1, 0], [lower_x, lower_y, upper_x, upper_y])]  # debug code
                         
             # if imshow_enable or save_video:
-            #    cv2.circle(frame, (orig_x, orig_y), 6, (0, 0, 255), -1)
-            #   cv2.circle(frame, (center_x, center_y), 3, (255, 0, 0), -1)
+                cv2.circle(frame, (orig_x, orig_y), 6, (0, 0, 255), -1)
+                cv2.circle(frame, (center_x, center_y), 3, (255, 0, 0), -1)
 
         # If you want to update response_max. it may be more cost-effective to rewrite response_list in the following way
         # https://stackoverflow.com/questions/42771110/fastest-way-to-left-cycle-a-numpy-array-like-pop-push-for-a-queue
@@ -672,7 +672,7 @@ class HSF_cls(object):
                 
         # debug code
         # return center_x,center_y,cropbox,frame
-        return center_x, center_y, frame
+        return center_x, center_y, frame, radius
 
 class External_Run_HSF(object):
     def __init__(self, skip_autoradius_flg=False, radius=20):
@@ -689,8 +689,8 @@ class External_Run_HSF(object):
         # debug code
         # center_x, center_y,cropbox, frame = self.algo.single_run()
         # return center_x, center_y,cropbox, frame
-        center_x, center_y, frame = self.algo.single_run()
-        return center_x, center_y, frame
+        center_x, center_y, frame, radius = self.algo.single_run()
+        return center_x, center_y, frame, radius
 
 
 

@@ -37,6 +37,8 @@ class EyeTrackSettingsConfig(BaseModel):
     gui_HSRAC: bool = True
     gui_DADDY: bool = False
     gui_HSF_radius: int = 15
+    gui_HSF_radius_left: int = 10
+    gui_HSF_radius_right: int = 10
     gui_min_cutoff: str = "0.0004"
     gui_speed_coefficient: str = "0.9"
     gui_osc_address: str = "127.0.0.1"

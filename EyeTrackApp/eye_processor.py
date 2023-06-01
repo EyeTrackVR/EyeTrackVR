@@ -56,12 +56,10 @@ from daddy import External_Run_DADDY
 from haar_surround_feature import External_Run_HSF
 from blob import *
 from ransac import *
-from hsrac import External_Run_HSRACS
 from blink import *
 
 from eye import EyeInfo, EyeInfoOrigin
 from intensity_based_openness import *
-
 
 def run_once(f):
     def wrapper(*args, **kwargs):
@@ -154,6 +152,8 @@ class EyeProcessor:
         self.min_int = 4000000000000
         self.frames = 0 
         self.blinkvalue = False
+        self.hasrac_en = False
+        self.radius = 10
         
         self.prev_x = None
         self.prev_y = None
@@ -268,17 +268,20 @@ class EyeProcessor:
     def DADDYM(self):
         # todo: We should have a proper variable for drawing.
         self.thresh = self.current_image_gray.copy()
-        self.rawx, self.rawy, self.eyeopen = self.er_daddy.run(self.current_image_gray)
+        self.rawx, self.rawy, self.eyeopen, self.radius = self.er_daddy.run(self.current_image_gray)
         # Daddy also uses a one euro filter, so I'll have to use it twice, but I'm not going to think too much about it.
         self.out_x, self.out_y = cal.cal_osc(self, self.rawx, self.rawy)
         self.current_algorithm = EyeInfoOrigin.DADDY
 
-    def HSRACM(self): 
+    def HSRACM(self):
+        self.hasrac_en = True
         # todo: add process to initialise er_hsrac when resolution changes
-        self.rawx, self.rawy, self.thresh, self.current_image_gray, self.bd_blink = self.er_hsrac.run(self.current_image_gray)
-        if self.prev_x is None:
-            self.prev_x = self.rawx
-            self.prev_y = self.rawy
+        self.rawx, self.rawy, self.thresh, self.radius = self.er_hsf.run(self.current_image_gray)
+        self.rawx, self.rawy, self.thresh = RANSAC3D(self)
+
+        #if self.prev_x is None:
+         #   self.prev_x = self.rawx
+          #  self.prev_y = self.rawy
         self.out_x, self.out_y = cal.cal_osc(self, self.rawx, self.rawy)
         self.current_algorithm = EyeInfoOrigin.HSRAC
 
@@ -345,7 +348,7 @@ class EyeProcessor:
         self.fithalgo = None
         algolist = [None, None, None, None, None, None]
 
-        self.er_hsrac = None #clear HSF values when page is opened to correctly reflect setting changes
+ #clear HSF values when page is opened to correctly reflect setting changes
         self.er_hsf = None
         
         #set algo priorities
@@ -358,12 +361,12 @@ class EyeProcessor:
                 self.er_hsf = None
         
         if self.settings.gui_HSRAC:
-            if self.er_hsrac is None:
-                self.er_hsrac = External_Run_HSRACS(self.settings.gui_skip_autoradius, self.settings.gui_HSF_radius, self.settings.gui_thresh_add)
+            if self.er_hsf is None:
+             self.er_hsf = External_Run_HSF(self.settings.gui_skip_autoradius, self.settings.gui_HSF_radius)
             algolist[self.settings.gui_HSRACP] = self.HSRACM
         else:
-            if self.er_hsrac is not None:
-                self.er_hsrac = None
+            if self.er_hsf is not None:
+                self.er_hsf = None
                 
         if self.settings.gui_DADDY:
             if self.er_daddy is None:

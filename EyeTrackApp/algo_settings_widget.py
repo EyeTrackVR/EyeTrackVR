@@ -43,6 +43,8 @@ class AlgoSettingsWidget:
         self.gui_circular_crop_right = f"-CIRCLECROPRIGHT{widget_id}-"
         self.gui_update_check = f"-UPDATECHECK{widget_id}-"
         self.gui_threshold_slider = f"-BLOBTHRESHOLD{widget_id}-"
+        self.gui_HSF_radius_left = f"-HSFRADIUSLEFT{widget_id}-"
+        self.gui_HSF_radius_right = f"-HSFRADIUSRIGHT{widget_id}-"
         self.main_config = main_config
         self.config = main_config.settings
         self.osc_queue = osc_queue
@@ -180,16 +182,29 @@ class AlgoSettingsWidget:
                     background_color='#424042',
                     tooltip = "To gain more control and possibly better tracking quality of HSF, please disable auto radius to enable manual adjustment.",
                 ),
-                
-                sg.Text("HSF Radius:", background_color='#424042'),
+            ],
+            [
+                sg.Text("Left HSF Radius:", background_color='#424042'),
                 sg.Slider(
                     range=(1, 50),
-                    default_value=self.config.gui_HSF_radius,
+                    default_value=self.config.gui_HSF_radius_left,
                     orientation="h",
-                    key=self.gui_HSF_radius,
+                    key=self.gui_HSF_radius_left,
                     background_color='#424042',
                     tooltip = "Adjusts the radius paramater for HSF. Only adjust if you are having tracking issues.",
                 ),
+            ],
+            [
+                sg.Text("Right HSF Radius:", background_color='#424042'),
+                sg.Slider(
+                    range=(1, 50),
+                    default_value=self.config.gui_HSF_radius_right,
+                    orientation="h",
+                    key=self.gui_HSF_radius_right,
+                    background_color='#424042',
+                    tooltip="Adjusts the radius paramater for HSF. Only adjust if you are having tracking issues.",
+                ),
+
             ],
             [sg.Text("RANSAC Thresh Add", background_color='#424042'),
                 sg.Slider(
@@ -323,8 +338,12 @@ class AlgoSettingsWidget:
             self.config.gui_circular_crop_right = values[self.gui_circular_crop_right]
             changed = True
 
-        if self.config.gui_HSF_radius != int(values[self.gui_HSF_radius]):
-            self.config.gui_HSF_radius = int(values[self.gui_HSF_radius])
+        if self.config.gui_HSF_radius_left != int(values[self.gui_HSF_radius_left]):
+            self.config.gui_HSF_radius_left = int(values[self.gui_HSF_radius_left])
+            changed = True
+
+        if self.config.gui_HSF_radius_right != int(values[self.gui_HSF_radius_right]):
+            self.config.gui_HSF_radius_right = int(values[self.gui_HSF_radius_right])
             changed = True
 
         if self.config.gui_BLOB != values[self.gui_BLOB]:
