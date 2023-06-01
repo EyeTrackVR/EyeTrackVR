@@ -288,7 +288,7 @@ class CameraWidget:
         elif self.camera.camera_status == CameraState.CONNECTING:
             window[self.gui_mode_readout].update("Camera Connecting")
         elif self.camera.camera_status == CameraState.DISCONNECTED:
-            window[self.gui_mode_readout].update("CAMERA DISCONNECTED")
+            window[self.gui_mode_readout].update("Camera Reconnecting...")
         elif needs_roi_set:
             window[self.gui_mode_readout].update("Awaiting Eye Crop")
         elif self.ransac.calibration_frame_counter != None:
@@ -351,9 +351,13 @@ class CameraWidget:
                             fill_color="black",
                             line_color="white",
                         )
+                    if not np.isnan(eye_info.blink):
+                        graph.draw_line((-100,eye_info.blink * 100), (-100,100),  color="black", width=10)
+                    else:
+                        graph.draw_line((-100, 0.0 * 100), (-100, 100), color="black", width=10)
 
-               # elif eye_info.blink:
-                #    graph.update(background_color="#6f4ca1")
+                    if eye_info.blink <= 0.0:
+                        graph.update(background_color="#6f4ca1")
                 elif eye_info.info_type == EyeInfoOrigin.FAILURE:
                     graph.update(background_color="red")
                 # Relay information to OSC

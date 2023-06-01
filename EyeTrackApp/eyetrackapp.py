@@ -9,15 +9,14 @@ from camera_widget import CameraWidget
 from config import EyeTrackConfig
 from eye import EyeId
 from osc import VRChatOSCReceiver, VRChatOSC
-from settings_widget import SettingsWidget
+from general_settings_widget import SettingsWidget
 from algo_settings_widget import AlgoSettingsWidget
 
 from utils.misc_utils import is_nt
 
-
 if is_nt:
     from winotify import Notification
-os.system('color') # init ANSI color
+os.system('color')  # init ANSI color
 
 # Random environment variable to speed up webcam opening on the MSMF backend.
 # https://github.com/opencv/opencv/issues/17687
@@ -55,7 +54,7 @@ def main():
         )
         latestversion = response.json()["name"]
         if (
-            appversion == latestversion
+                appversion == latestversion
         ):  # If what we scraped and hardcoded versions are same, assume we are up to date.
             print(f"\033[92m[INFO] App is the latest version! [{latestversion}]\033[0m")
         else:
@@ -96,12 +95,12 @@ def main():
 
     settings = [
         SettingsWidget(EyeId.SETTINGS, config, osc_queue),
-        AlgoSettingsWidget(EyeId.SETTINGS, config, osc_queue),
+        AlgoSettingsWidget(EyeId.ALGOSETTINGS, config, osc_queue),
     ]
 
     layout = [
         [
-             sg.Radio(
+            sg.Radio(
                 "Left Eye",
                 "EYESELECTRADIO",
                 background_color="#292929",
@@ -177,7 +176,7 @@ def main():
         settings[0].start()
     if config.eye_display_id in [EyeId.ALGOSETTINGS]:
         settings[1].start()
-        #self.main_config.eye_display_id
+        # self.main_config.eye_display_id
 
     # the eye's needs to be running before it is passed to the OSC
     if config.settings.gui_ROSC:
@@ -264,6 +263,8 @@ def main():
             window[ALGO_SETTINGS_NAME].update(visible=False)
             config.eye_display_id = EyeId.SETTINGS
             config.save()
+            print("EE")
+
 
         elif values[ALGO_SETTINGS_RADIO_NAME] and config.eye_display_id != EyeId.ALGOSETTINGS:
             eyes[0].stop()
@@ -276,12 +277,17 @@ def main():
             window[ALGO_SETTINGS_NAME].update(visible=True)
             config.eye_display_id = EyeId.ALGOSETTINGS
             config.save()
+            print("Easljghk")
 
-        # Otherwise, render all of our cameras
+        # Otherwise, render all
         for eye in eyes:
             if eye.started():
                 eye.render(window, event, values)
-        settings[0].render(window, event, values)
+        for setting in settings:
+            if setting.started():
+                setting.render(window, event, values)
+    #    settings[0].render(window, event, values)
+      #  settings[1].render(window, event, values)
 
 
 if __name__ == "__main__":

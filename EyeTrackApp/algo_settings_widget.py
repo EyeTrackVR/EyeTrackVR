@@ -49,61 +49,7 @@ class AlgoSettingsWidget:
 
         # Define the window's contents
         self.general_settings_layout = [
-           
-            [
-                sg.Checkbox(
-                    "Flip Left Eye X Axis",
-                    default=self.config.gui_flip_x_axis_left,
-                    key=self.gui_flip_x_axis_left,
-                    background_color='#424042',
-                    tooltip = "Flips the left eye's X axis.",
-                ),
-                sg.Checkbox(
-                    "Flip Right Eye X Axis",
-                    default=self.config.gui_flip_x_axis_right,
-                    key=self.gui_flip_x_axis_right,
-                    background_color='#424042',
-                    tooltip = "Flips the right eye's X axis.",
-                ),
 
-           # ],
-            #[
-            sg.Checkbox(
-                    "Flip Y Axis",
-                    default=self.config.gui_flip_y_axis,
-                    key=self.gui_flip_y_axis,
-                    background_color='#424042',
-                    tooltip = "Flips the eye's Y axis.",
-                ),
-            ],
-            [sg.Checkbox(
-                    "VRC Native Eyetracking",
-                    default=self.config.gui_vrc_native,
-                    key=self.gui_vrc_native,
-                    background_color='#424042',
-                    tooltip = "Toggle VRCFT output or VRC native",
-                ),
-                sg.Checkbox(
-                    "Dual Eye Falloff",
-                    default=self.config.gui_eye_falloff,
-                    key=self.gui_eye_falloff,
-                    background_color='#424042',
-                    tooltip = "If one eye stops tracking, we send tracking data from your other eye.",
-                ),
-            ],
-            [sg.Checkbox(
-                    "Check For Updates",
-                    default=self.config.gui_update_check,
-                    key=self.gui_update_check,
-                    background_color='#424042',
-                    tooltip = "Toggle update check on launch.",
-                ),
-            ],
-            
-
-            [
-                sg.Text("Tracking Algorithim Settings:", background_color='#242224'),
-            ],
 
             [sg.Checkbox(
                     "",
@@ -294,7 +240,7 @@ class AlgoSettingsWidget:
         
         self.widget_layout = [
             [   
-                sg.Text("General Settings:", background_color='#242224'),
+                sg.Text("Tracking Algorithm Settings:", background_color='#242224'),
             ],
             [
                 sg.Column(self.general_settings_layout, key=self.gui_general_settings_layout, background_color='#424042' ),
@@ -325,67 +271,12 @@ class AlgoSettingsWidget:
         # If anything has changed in our configuration settings, change/update those.
         changed = False
 
-        if self.config.gui_osc_port != int(values[self.gui_osc_port]):
-            print(self.config.gui_osc_port, values[self.gui_osc_port])
-            try: 
-                int(values[self.gui_osc_port])
-                if len(values[self.gui_osc_port]) <= 5:
-                    self.config.gui_osc_port = int(values[self.gui_osc_port])
-                    changed = True
-                else:
-                    print("\033[91m[ERROR] OSC port value must be an integer 0-65535\033[0m")
-            except:
-                print("\033[91m[ERROR] OSC port value must be an integer 0-65535\033[0m")
-
-        if self.config.gui_osc_receiver_port != int(values[self.gui_osc_receiver_port]):
-            try: 
-                int(values[self.gui_osc_receiver_port])
-                if len(values[self.gui_osc_receiver_port]) <= 5:
-                    self.config.gui_osc_receiver_port = int(values[self.gui_osc_receiver_port])
-                    changed = True
-                else:
-                    print("\033[91m[ERROR] OSC receive port value must be an integer 0-65535\033[0m")
-            except:
-                print("\033[91m[ERROR] OSC receive port value must be an integer 0-65535\033[0m")
-
-        if self.config.gui_osc_address != values[self.gui_osc_address]:
-            self.config.gui_osc_address = values[self.gui_osc_address]
-            changed = True
-
-        if self.config.gui_osc_recenter_address != values[self.gui_osc_recenter_address]:
-            self.config.gui_osc_recenter_address = values[self.gui_osc_recenter_address]
-            changed = True
-
-        if self.config.gui_osc_recalibrate_address != values[self.gui_osc_recalibrate_address]:
-            self.config.gui_osc_recalibrate_address = values[self.gui_osc_recalibrate_address]
-            changed = True
-
-        if self.config.gui_min_cutoff != values[self.gui_min_cutoff]:
-            self.config.gui_min_cutoff = values[self.gui_min_cutoff]
-            changed = True
-            
-        if self.config.gui_speed_coefficient != values[self.gui_speed_coefficient]:
-            self.config.gui_speed_coefficient = values[self.gui_speed_coefficient]
-            changed = True
-
-        if self.config.gui_flip_x_axis_right != values[self.gui_flip_x_axis_right]:
-            self.config.gui_flip_x_axis_right = values[self.gui_flip_x_axis_right]
-            changed = True
-
-        if self.config.gui_flip_x_axis_left != values[self.gui_flip_x_axis_left]:
-            self.config.gui_flip_x_axis_left = values[self.gui_flip_x_axis_left]
-            changed = True
-
         if self.config.gui_HSFP != int(values[self.gui_HSFP]):
             self.config.gui_HSFP = int(values[self.gui_HSFP])
             changed = True
 
         if self.config.gui_HSF != values[self.gui_HSF]:
             self.config.gui_HSF = values[self.gui_HSF]
-            changed = True
-
-        if self.config.gui_vrc_native != values[self.gui_vrc_native]:
-            self.config.gui_vrc_native = values[self.gui_vrc_native]
             changed = True
 
         if self.config.gui_DADDYP != int(values[self.gui_DADDYP]):
@@ -415,10 +306,6 @@ class AlgoSettingsWidget:
         if self.config.gui_skip_autoradius != values[self.gui_skip_autoradius]:
             self.config.gui_skip_autoradius = values[self.gui_skip_autoradius]
             changed = True
-        
-        if self.config.gui_update_check != values[self.gui_update_check]:
-            self.config.gui_update_check = values[self.gui_update_check]
-            changed = True
 
         if self.config.gui_BLINK != values[self.gui_BLINK]:
             self.config.gui_BLINK = values[self.gui_BLINK]
@@ -440,10 +327,6 @@ class AlgoSettingsWidget:
             self.config.gui_HSF_radius = int(values[self.gui_HSF_radius])
             changed = True
 
-        if self.config.gui_flip_y_axis != values[self.gui_flip_y_axis]:
-            self.config.gui_flip_y_axis = values[self.gui_flip_y_axis]
-            changed = True
-
         if self.config.gui_BLOB != values[self.gui_BLOB]:
             self.config.gui_BLOB = values[self.gui_BLOB]
             changed = True
@@ -459,22 +342,11 @@ class AlgoSettingsWidget:
         if self.config.gui_thresh_add != values[self.gui_thresh_add]:
             self.config.gui_thresh_add = int(values[self.gui_thresh_add])
             changed = True
-            
-        if self.config.gui_eye_falloff != values[self.gui_eye_falloff]:
-            self.config.gui_eye_falloff = values[self.gui_eye_falloff]
-            changed = True
 
         if self.config.gui_blob_maxsize != values[self.gui_blob_maxsize]:
             self.config.gui_blob_maxsize = values[self.gui_blob_maxsize]
             changed = True
 
-        if self.config.gui_ROSC != values[self.gui_ROSC]:
-            self.config.gui_ROSC = values[self.gui_ROSC]
-            changed = True
-
         if changed:
             self.main_config.save()
-      #  print(changed)
-       # changed = False
-       # print(changed)
-        self.osc_queue.put((EyeId.SETTINGS))
+        self.osc_queue.put(EyeId.ALGOSETTINGS)

@@ -70,6 +70,7 @@ class EyeTrackConfig(BaseModel):
     right_eye: EyeTrackCameraConfig = EyeTrackCameraConfig()
     left_eye: EyeTrackCameraConfig = EyeTrackCameraConfig()
     settings: EyeTrackSettingsConfig = EyeTrackSettingsConfig()
+  #  algo_settings: EyeTrackSettingsConfig = EyeTrackSettingsConfig()
     eye_display_id: EyeId = EyeId.RIGHT
 
     @staticmethod
@@ -91,7 +92,7 @@ class EyeTrackConfig(BaseModel):
                 except json.JSONDecodeError:
                     pass
             if load_config is None:
-                print("using base settings")
+                print("[INFO] using base settings")
                 load_config = EyeTrackConfig()
             return load_config
 
