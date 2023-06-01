@@ -352,9 +352,9 @@ class CameraWidget:
                             line_color="white",
                         )
                     if not np.isnan(eye_info.blink):
-                        graph.draw_line((-100,eye_info.blink * 100), (-100,100),  color="black", width=10)
+                        graph.draw_line((-100,eye_info.blink * 100), (-100,100),  color="#6f4ca1", width=10)
                     else:
-                        graph.draw_line((-100, 0.0 * 100), (-100, 100), color="black", width=10)
+                        graph.draw_line((-100, 0.0 * 200), (-100, 100), color="black", width=10)
 
                     if eye_info.blink <= 0.0:
                         graph.update(background_color="#6f4ca1")

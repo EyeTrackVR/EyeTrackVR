@@ -122,6 +122,9 @@ class IntensityBasedOpeness:
         self.color = []
         self.x = []
         self.fc = 0
+        self.filterlist = []
+
+        self.maxinten = 0
 
         self.tri_filter = []
       #  try:
@@ -202,24 +205,38 @@ class IntensityBasedOpeness:
         int_x, int_y = int(x), int(y)
         if int_x < 0 or int_y < 0:
             return self.prev_val
-        upper_x = min(int_x + 15, frame.shape[1]-1) #TODO make this a setting
-        lower_x = max(int_x - 15, 0)
-        upper_y = min(int_y + 15, frame.shape[0]-1)
-        lower_y = max(int_y - 15, 0)
+        upper_x = min(int_x + 25, frame.shape[1]-1) #TODO make this a setting
+        lower_x = max(int_x - 25, 0)
+        upper_y = min(int_y + 25, frame.shape[0]-1)
+        lower_y = max(int_y - 25, 0)
 
         # frame_crop = frame[lower_y:upper_y, lower_x:upper_x]
-        img = safe_crop(frame, lower_x, lower_y, upper_x, upper_y, 1)
+        #frame = safe_crop(frame, lower_x, lower_y, upper_x, upper_y, False)
         #ret_, th = cv2.threshold(frame_crop, 80, 1.0, cv2.THRESH_BINARY_INV, dst=frame_crop)
         frame_crop = frame
+
         #ret, f = cv2.threshold(frame, 80, 255, cv2.THRESH_BINARY)
       #  ret, frame_crop = cv2.threshold(frame_crop, 80, 255, cv2.THRESH_BINARY)
 
         # The same can be done with cv2.integral, but since there is only one area of the rectangle for which we want to know the total value, there is no advantage in terms of computational complexity.
         intensity = frame_crop.sum() + 1
-        self.tri_filter.append(intensity)
-        if len(self.tri_filter) > 3:
-            self.tri_filter.pop(0)
-            intensity = sum(self.tri_filter) / 3
+        #cv2.imshow('e', frame)
+       # if cv2.waitKey(10) == 27:
+        #    exit()
+        if len(self.filterlist) < 800:
+            self.filterlist.append(intensity)
+        else:
+            self.filterlist.pop()
+            self.filterlist.append(intensity)
+        print(len(str(intensity)))
+        if len(str(intensity)) >= 8: #filter abnormally high values
+            print('filter, assume blink')
+            intensity = self.maxval
+
+        #self.tri_filter.append(intensity)
+        #if len(self.tri_filter) > 3:
+         #   self.tri_filter.pop(0)
+          #  intensity = sum(self.tri_filter) / 3
         #avg_color_per_row = np.average(frame_crop, axis=0)
         #avg_color = np.average(avg_color_per_row, axis=0)
        # ar, ag, ab = avg_color
@@ -228,11 +245,6 @@ class IntensityBasedOpeness:
         #cv2.imshow("IBO", frame_crop)
         #if cv2.waitKey(1) & 0xFF == ord("q"):
          #   pass
-
-        #print(intensity)
-            # if our blob width/height are within suitable (yet arbitrary) boundaries, call that good.
-            #
-            # TODO This should be scaled based on camera resolution.
 
         # numpy:np.sum(),ndarray.sum()
         # opencv:cv2.sumElems()
@@ -301,7 +313,8 @@ class IntensityBasedOpeness:
 
 
             eyeopen = ((intensity - maxp) / (minp - maxp)) #for whatever reason when input and maxp are too close it outputs high
-
+         #   print(eyeopen, maxp, minp)
+         #   eyeopen = ((eyeopen - 0.3) / (1.0 - 0.3))
             eyeopen = 1 - eyeopen
           #  print(eyeopen, intensity, maxp, minp, x, y)
 
@@ -325,10 +338,10 @@ class IntensityBasedOpeness:
             print('BLINK')
 
         #intensityold = img.sum() + 1
-        avg_color_per_row = np.average(img, axis=0)
-        avg_color = np.average(avg_color_per_row, axis=0)
-        ar, ag, ab = avg_color
-        intensity = int(ar * 8)  # higher = closed
+      #  avg_color_per_row = np.average(img, axis=0)
+       # avg_color = np.average(avg_color_per_row, axis=0)
+        #ar, ag, ab = avg_color
+       # intensity = int(ar * 8)  # higher = closed
         #self.old.append(intensity)
         #self.color.append(intensity)
        # self.x.append(self.fc)
@@ -352,5 +365,5 @@ class IntensityBasedOpeness:
         #print(eyevec)
         if eyevec > 0.4:
             print("BLINK LCOK")
-       # print(eyeopen)
+      #  print(eyeopen)
         return eyeopen

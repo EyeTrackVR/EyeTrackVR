@@ -57,7 +57,7 @@ from haar_surround_feature import External_Run_HSF
 from blob import *
 from ransac import *
 from blink import *
-
+from utils.img_utils import circle_crop
 from eye import EyeInfo, EyeInfoOrigin
 from intensity_based_openness import *
 
@@ -89,6 +89,7 @@ class EyeProcessor:
         image_queue_outgoing: "queue.Queue",
         eye_id,
     ):
+        self.main_config = EyeTrackSettingsConfig
         self.config = config
         self.settings = settings
         self.eye_id = eye_id
@@ -101,8 +102,9 @@ class EyeProcessor:
 
         # Cross algo state
         self.lkg_projected_sphere = None
-        self.xc = None
-        self.yc = None
+        self.xc = 20
+        self.yc = 20
+        self.cc_radius = 40
 
         # Image state
         self.previous_image = None
@@ -124,7 +126,7 @@ class EyeProcessor:
         self.ymax = -69420
         self.ymin = 69420
         self.blink_clear = False
-        self.cct = 300
+        self.cct = 200
         self.cccs = False
         self.ts = 10
         self.previous_rotation = self.config.rotation_angle
@@ -230,7 +232,14 @@ class EyeProcessor:
                 rotation_matrix,
                 (cols, rows),
                 borderMode=cv2.BORDER_CONSTANT,
-                borderValue=(ar + 10, ag + 10, ab + 10),#(255, 255, 255),
+                borderValue=(ar, ag, ab),#(255, 255, 255),
+            )
+            self.current_image_white = cv2.warpAffine(
+                self.current_image,
+                rotation_matrix,
+                (cols, rows),
+                borderMode=cv2.BORDER_CONSTANT,
+                borderValue=(255, 255, 255),
             )
             return True
         except:
@@ -243,7 +252,7 @@ class EyeProcessor:
             self.eyeopen = BLINK(self)
 
         if self.settings.gui_IBO:
-            self.eyeopen = self.ibo.intense(self.rawx, self.rawy, self.current_image)
+            self.eyeopen = self.ibo.intense(self.rawx, self.rawy, self.current_image_white)
             if self.eyeopen < 0.35: #threshold so the eye fully closes #todo: make this a setting?
                 self.eyeopen = 0.0
             if self.bd_blink == True:
@@ -251,7 +260,7 @@ class EyeProcessor:
                # self.eyeopen = 0.0
 
         if self.settings.gui_IBO and self.settings.gui_BLINK:
-            ibo = self.ibo.intense(self.rawx, self.rawy, self.current_image)
+            ibo = self.ibo.intense(self.rawx, self.rawy, self.current_image_white)
             
             blink = BLINK(self)
             if blink == 0.0:
@@ -274,10 +283,19 @@ class EyeProcessor:
         self.current_algorithm = EyeInfoOrigin.DADDY
 
     def HSRACM(self):
+        if self.eye_id in [EyeId.LEFT] and self.settings.gui_circular_crop_left:
+            self.current_image_gray, self.cct = circle_crop(self.current_image_gray, self.xc, self.yc, self.cc_radius, self.cct)
+        else:
+            pass
+        if self.eye_id in [EyeId.RIGHT] and self.settings.gui_circular_crop_right:
+            self.current_image_gray, self.cct = circle_crop(self.current_image_gray, self.xc, self.yc, self.cc_radius, self.cct)
+        else:
+            pass
+
         self.hasrac_en = True
         # todo: add process to initialise er_hsrac when resolution changes
         self.rawx, self.rawy, self.thresh, self.radius = self.er_hsf.run(self.current_image_gray)
-        self.rawx, self.rawy, self.thresh = RANSAC3D(self)
+        self.rawx, self.rawy, self.thresh = RANSAC3D(self, True)
 
         #if self.prev_x is None:
          #   self.prev_x = self.rawx
@@ -285,19 +303,38 @@ class EyeProcessor:
         self.out_x, self.out_y = cal.cal_osc(self, self.rawx, self.rawy)
         self.current_algorithm = EyeInfoOrigin.HSRAC
 
+
     def HSFM(self):
+        if self.eye_id in [EyeId.LEFT] and self.settings.gui_circular_crop_left:
+            self.current_image_gray, self.cct = circle_crop(self.current_image_gray, self.xc, self.yc, self.cc_radius, self.cct)
+        else:
+            pass
+        if self.eye_id in [EyeId.RIGHT] and self.settings.gui_circular_crop_right:
+            self.current_image_gray, self.cct = circle_crop(self.current_image_gray, self.xc, self.yc, self.cc_radius, self.cct)
+        else:
+            pass
         # todo: add process to initialise er_hsf when resolution changes
         self.rawx, self.rawy, self.thresh = self.er_hsf.run(self.current_image_gray)
         self.out_x, self.out_y = cal.cal_osc(self, self.rawx, self.rawy)
         self.current_algorithm = EyeInfoOrigin.HSF
 
     def RANSAC3DM(self):
+        if self.eye_id in [EyeId.LEFT] and self.settings.gui_circular_crop_left:
+            self.current_image_gray, self.cct = circle_crop(self.current_image_gray, self.xc, self.yc, self.cc_radius, self.cct)
+        else:
+            pass
+        if self.eye_id in [EyeId.RIGHT] and self.settings.gui_circular_crop_right:
+            self.current_image_gray, self.cct = circle_crop(self.current_image_gray, self.xc, self.yc, self.cc_radius, self.cct)
+        else:
+            pass
+        self.hasrac_en = False
         current_image_gray_copy = self.current_image_gray.copy()  # Duplicate before overwriting in RANSAC3D.
-        self.rawx, self.rawy, self.thresh = RANSAC3D(self)
+        self.rawx, self.rawy, self.thresh = RANSAC3D(self, False)
         self.out_x, self.out_y = cal.cal_osc(self, self.rawx, self.rawy)
         self.current_algorithm = EyeInfoOrigin.RANSAC
 
     def BLOBM(self):
+
         print("LSKDGFHL")
         self.rawx, self.rawy, self.thresh = BLOB(self)
 

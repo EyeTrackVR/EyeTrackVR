@@ -368,4 +368,5 @@ class AlgoSettingsWidget:
 
         if changed:
             self.main_config.save()
+            #print(self.main_config)
         self.osc_queue.put(EyeId.ALGOSETTINGS)
