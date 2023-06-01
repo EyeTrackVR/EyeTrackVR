@@ -15,3 +15,7 @@ class EyeInfoOrigin(Enum):
     HSF = 4
     HSRAC = 5
     DADDY = 6
+
+
+RANSAC_CALIBRATION_STEPS_START: int = 300
+RANSAC_CALIBRATION_STEPS_STOP = 0

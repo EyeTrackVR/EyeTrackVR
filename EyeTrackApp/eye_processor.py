@@ -49,7 +49,8 @@ from blob import *
 from ransac import *
 from hsrac import External_Run_HSRACS
 from blink import *
-from EyeTrackApp.consts import EyeId, EyeInfoOrigin
+from EyeTrackApp.consts import EyeInfoOrigin
+from consts import RANSAC_CALIBRATION_STEPS_START
 from eye import EyeInfo
 
 from intensity_based_openness import *
@@ -68,8 +69,7 @@ def run_once(f):
 async def delayed_setting_change(setting, value):
     await asyncio.sleep(5)
     setting = value
-    PlaySound('Audio/completed.wav', SND_FILENAME | SND_ASYNC)
-
+    PlaySound("Audio/completed.wav", SND_FILENAME | SND_ASYNC)
 
 
 class EyeProcessor:
@@ -118,7 +118,7 @@ class EyeProcessor:
         self.ymax = -69420
         self.ymin = 69420
         self.blink_clear = False
-        self.cct = 300
+        self.cct = RANSAC_CALIBRATION_STEPS_START
         self.cccs = False
         self.ts = 10
         self.previous_rotation = self.config.rotation_angle

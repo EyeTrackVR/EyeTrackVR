@@ -1,6 +1,6 @@
 import numpy as np
 
-from EyeTrackApp.consts import EyeId
+from EyeTrackApp.consts import EyeId, RANSAC_CALIBRATION_STEPS_START
 from utils.misc_utils import PlaySound, SND_FILENAME, SND_ASYNC
 
 
@@ -15,7 +15,7 @@ class cal():
             self.config.calib_XOFF = cx
             self.config.calib_YOFF = cy
             PlaySound('Audio/completed.wav', SND_FILENAME | SND_ASYNC)
-        if self.calibration_frame_counter == 300:
+        if self.calibration_frame_counter == RANSAC_CALIBRATION_STEPS_START:
             self.config.calib_XMAX = -69420
             self.config.calib_XMIN = 69420
             self.config.calib_YMAX = -69420

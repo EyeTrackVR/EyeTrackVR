@@ -27,7 +27,7 @@ Copyright (c) 2023 EyeTrackVR <3
 '''  
 import cv2
 import numpy as np
-from EyeTrackApp.consts import EyeId
+from EyeTrackApp.consts import EyeId, RANSAC_CALIBRATION_STEPS_START
 
 
 def ellipse_model(data, y, f):
@@ -161,6 +161,7 @@ def circle_crop(self):
     else:
         self.cct = self.cct - 1
 
+
 def RANSAC3D(self): 
     f = False
     kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (3, 3))
@@ -176,15 +177,15 @@ def RANSAC3D(self):
     # crop the image earlier; it gives us less possible dark area to get confused about in the
     # next step.
 
-    if self.eye_id == EyeId.LEFT and self.config.gui_circular_crop_left == True: #TODO TEST function
+    if self.eye_id == EyeId.LEFT and self.config.gui_circular_crop_left == True:  # TODO TEST function
         circle_crop(self)
     else:
-        self.cct = 300
+        self.cct = RANSAC_CALIBRATION_STEPS_START
 
     if self.eye_id == EyeId.RIGHT and self.config.gui_circular_crop_right == True:
         circle_crop(self)
     else:
-        self.cct = 300
+        self.cct = RANSAC_CALIBRATION_STEPS_START
     
     # Crop first to reduce the amount of data to process.
     newFrame2 = self.current_image_gray.copy()

@@ -7,7 +7,8 @@ import threading
 from camera_widget import CameraWidget
 from config import EyeTrackConfig
 from EyeTrackApp.consts import EyeId
-from EyeTrackApp.oscManager.osc import VRChatOSCReceiver, VRChatOSC
+from EyeTrackApp.osc.osc import VRChatOSC
+from EyeTrackApp.osc.osc_input import VRChatOSCReceiver
 from eye import EyeInfo
 from settings_widget import SettingsWidget
 from utils.misc_utils import is_nt
@@ -15,7 +16,9 @@ from utils.misc_utils import is_nt
 
 if is_nt:
     from winotify import Notification
-os.system('color') # init ANSI color
+
+
+os.system('color')  # init ANSI color
 
 # Random environment variable to speed up webcam opening on the MSMF backend.
 # https://github.com/opencv/opencv/issues/17687
@@ -46,6 +49,7 @@ def main():
     # Check to see if we can connect to our video source first. If not, bring up camera finding
     # dialog.
 
+    # we should move this out to something else, a util, a manager, it doesn't fit here
     if config.settings.gui_update_check:
         response = requests.get(
             "https://api.github.com/repos/RedHawk989/EyeTrackVR/releases/latest"
