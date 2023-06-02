@@ -246,7 +246,6 @@ def RANSAC3D(self, hsrac_en):
             pass
 
         cx, cy, w, h, theta = ransac_data
-        print(int(cx), int(cy))
         # print(cx, cy)
         #cxi, cyi, wi, hi = int(cx), int(cy), int(w), int(h)
         

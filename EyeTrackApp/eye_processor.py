@@ -136,7 +136,7 @@ class EyeProcessor:
         self.er_hsf = None
         self.er_hsrac = None
         self.er_daddy = None
-        self.ibo = IntensityBasedOpeness(eyeside=EyeLR.LEFT if self.eye_id is EyeId.LEFT else EyeLR.RIGHT if eye_id is EyeId.RIGHT else -1)
+        self.ibo = IntensityBasedOpeness(self.eye_id)
         self.roi_include_set = {"rotation_angle", "roi_window_x", "roi_window_y"}
         
         self.failed = 0

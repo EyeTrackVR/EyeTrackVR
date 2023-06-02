@@ -32,7 +32,13 @@ import cv2
 from enums import EyeLR
 from one_euro_filter import OneEuroFilter
 from utils.img_utils import safe_crop
+from enum import IntEnum
 
+class EyeId(IntEnum):
+    RIGHT = 0
+    LEFT = 1
+    BOTH = 2
+    SETTINGS = 3
 
 import matplotlib.pyplot as plt
 #higher intensity means more closed/ more white/less pupil
@@ -105,9 +111,17 @@ def newdata(frameshape):
 
 
 class IntensityBasedOpeness:
-    def __init__(self, eyeside: EyeLR):
+    def __init__(self, eye_id):
         # todo: It is necessary to consider whether the filename can be changed in the configuration file, etc.
-        self.imgfile = "IBO_LEFT.png" if eyeside is EyeLR.LEFT else "IBO_RIGHT.png"
+        if eye_id in [EyeId.LEFT]:
+            self.imgfile = "IBO_LEFT.png"
+        else:
+            pass
+        if eye_id in [EyeId.RIGHT]:
+            self.imgfile = "IBO_RIGHT.png"
+        else:
+            pass
+       # self.imgfile = "IBO_LEFT.png" if eyeside is EyeLR.LEFT else "IBO_RIGHT.png"
         # self.data[0, -1] = maxval, [1, -1] = rotation, [2, -1] = x, [3, -1] = y
         self.data = None
         self.lct = None
@@ -230,7 +244,7 @@ class IntensityBasedOpeness:
             self.filterlist.append(intensity)
 
         if intensity >= np.percentile(self.filterlist, 99):  # filter abnormally high values
-            print('filter, assume blink')
+           # print('filter, assume blink')
             intensity = self.maxval
 
         #self.tri_filter.append(intensity)
