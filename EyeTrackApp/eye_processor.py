@@ -296,7 +296,7 @@ class EyeProcessor:
         # todo: add process to initialise er_hsrac when resolution changes
         self.rawx, self.rawy, self.thresh, self.radius = self.er_hsf.run(self.current_image_gray)
         self.rawx, self.rawy, self.thresh = RANSAC3D(self, True)
-        print(self.radius)
+        #print(self.radius)
         #if self.prev_x is None:
          #   self.prev_x = self.rawx
           #  self.prev_y = self.rawy
@@ -399,7 +399,15 @@ class EyeProcessor:
         #set algo priorities
         if self.settings.gui_HSF:
             if self.er_hsf is None:
-                self.er_hsf = External_Run_HSF(self.settings.gui_skip_autoradius, self.settings.gui_HSF_radius)
+                if self.eye_id in [EyeId.LEFT]:
+                    self.er_hsf = External_Run_HSF(self.settings.gui_skip_autoradius, self.settings.gui_HSF_radius_left)
+                else:
+                    pass
+                if self.eye_id in [EyeId.RIGHT]:
+                    self.er_hsf = External_Run_HSF(self.settings.gui_skip_autoradius,
+                                                   self.settings.gui_HSF_radius_right)
+                else:
+                    pass
             algolist[self.settings.gui_HSFP] = self.HSFM
         else:
             if self.er_hsf is not None:
@@ -407,7 +415,17 @@ class EyeProcessor:
         
         if self.settings.gui_HSRAC:
             if self.er_hsf is None:
-             self.er_hsf = External_Run_HSF(self.settings.gui_skip_autoradius, self.settings.gui_HSF_radius)
+                
+                if self.eye_id in [EyeId.LEFT]:
+
+                    self.er_hsf = External_Run_HSF(self.settings.gui_skip_autoradius, self.settings.gui_HSF_radius_left)
+                else:
+                    pass
+                if self.eye_id in [EyeId.RIGHT]:
+                    self.er_hsf = External_Run_HSF(self.settings.gui_skip_autoradius,
+                                                   self.settings.gui_HSF_radius_right)
+                else:
+                    pass
             algolist[self.settings.gui_HSRACP] = self.HSRACM
         else:
             if self.er_hsf is not None:
