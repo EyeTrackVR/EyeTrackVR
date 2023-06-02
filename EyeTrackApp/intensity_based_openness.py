@@ -229,7 +229,7 @@ class IntensityBasedOpeness:
             self.filterlist.pop()
             self.filterlist.append(intensity)
 
-        if len(str(intensity)) >= 8: #filter abnormally high values
+        if intensity >= np.percenile(self.filterlist, 99):  # filter abnormally high values
             print('filter, assume blink')
             intensity = self.maxval
 
