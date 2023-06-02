@@ -296,7 +296,7 @@ class EyeProcessor:
         # todo: add process to initialise er_hsrac when resolution changes
         self.rawx, self.rawy, self.thresh, self.radius = self.er_hsf.run(self.current_image_gray)
         self.rawx, self.rawy, self.thresh = RANSAC3D(self, True)
-
+        print(self.radius)
         #if self.prev_x is None:
          #   self.prev_x = self.rawx
           #  self.prev_y = self.rawy

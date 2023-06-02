@@ -5,6 +5,7 @@ def BLINK(self):
     if self.blink_clear == True:
         self.max_ints = []
         self.max_int = 0
+        self.frames = 0
 
     intensity = np.sum(self.current_image_gray_clean)
     self.frames = self.frames + 1
@@ -14,7 +15,7 @@ def BLINK(self):
 
     if intensity > self.max_int:
         self.max_int = intensity 
-        if self.frames > 200: #TODO: test this number more (make it a setting??)
+        if self.frames > 300: #TODO: test this number more (make it a setting??)
             self.max_ints.append(self.max_int)
     if intensity < self.min_int:
         self.min_int = intensity

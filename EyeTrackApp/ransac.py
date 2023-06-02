@@ -166,7 +166,7 @@ def RANSAC3D(self, hsrac_en):
         frame = self.current_image_gray_clean
 
     kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (3, 3))
-    thresh_add = 10
+
     rng = np.random.default_rng()
     newFrame2 = self.current_image_gray.copy()
     # Convert the image to grayscale, and set up thresholding. Thresholds here are basically a
@@ -199,7 +199,7 @@ def RANSAC3D(self, hsrac_en):
     # frame_gray = frame_gray[max_loc[1] - maxloc1_hf:max_loc[1] + maxloc1_hf,
         #               max_loc[0] - maxloc0_hf:max_loc[0] + maxloc0_hf]
     
-    threshold_value = min_val + thresh_add
+    threshold_value = min_val + self.settings.gui_thresh_add
     _, thresh = cv2.threshold(frame_gray, threshold_value, 255, cv2.THRESH_BINARY)
     try:
         opening = cv2.morphologyEx(thresh, cv2.MORPH_OPEN, kernel)
