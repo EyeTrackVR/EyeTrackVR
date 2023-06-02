@@ -232,7 +232,7 @@ class EyeProcessor:
                 rotation_matrix,
                 (cols, rows),
                 borderMode=cv2.BORDER_CONSTANT,
-                borderValue=(ar, ag, ab),#(255, 255, 255),
+                borderValue=(ar + 10, ag + 10, ab + 10),#(255, 255, 255),
             )
             self.current_image_white = cv2.warpAffine(
                 self.current_image,
