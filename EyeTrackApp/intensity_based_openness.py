@@ -348,8 +348,8 @@ class IntensityBasedOpeness:
          #   print(eyeopen, eyeopenx, eyeopeny)
         except:
             pass
-        if eyeopen - self.prev_val > 100:
-            print('BLINK')
+     #   if eyeopen - self.prev_val > 100:
+        #    print('BLINK')
 
         #intensityold = img.sum() + 1
       #  avg_color_per_row = np.average(img, axis=0)
@@ -377,7 +377,7 @@ class IntensityBasedOpeness:
 
         eyevec = abs(self.prev_val - eyeopen)
         #print(eyevec)
-        if eyevec > 0.4:
-            print("BLINK LCOK")
+      #  if eyevec > 0.4:
+      #      print("BLINK LCOK")
       #  print(eyeopen)
         return eyeopen
