@@ -7,7 +7,8 @@ from queue import Queue, Empty
 from camera import Camera, CameraState
 from EyeTrackApp.consts import EyeId
 import cv2
-from utils.misc_utils import PlaySound, SND_FILENAME, SND_ASYNC
+
+from utils.eye_utils import trigger_recalibration, stop_calibration, trigger_recenter
 import numpy as np
 
 
@@ -76,7 +77,7 @@ class CameraWidget:
 
         self.roi_layout = [
             [
-                sg.Graph( 
+                sg.Graph(
                     (640, 480),
                     (0, 480),
                     (640, 0),
@@ -89,6 +90,7 @@ class CameraWidget:
         ]
 
         # Define the window's contents
+        # TODO think about moving it to a separate file as it's only defining the layout, no logic
         self.tracking_layout = [
             [
                 sg.Text("Rotation", background_color='#424042'),
@@ -112,13 +114,6 @@ class CameraWidget:
                 sg.Text("Calibrating", key=self.gui_mode_readout, background_color='#424042'),
                 sg.Text("", key=self.gui_tracking_fps, background_color='#424042'),
                 sg.Text("", key=self.gui_tracking_bps, background_color='#424042'),
-            #    sg.Checkbox(
-            #        "Circle crop:",
-            #        default=self.config.gui_circular_crop,
-            #        key=self.gui_circular_crop,
-            #        background_color='#424042',
-            #        tooltip = "Circle crop only applies to RANSAC3D and Blob.",
-            #    ),
             ],
             [sg.Image(filename="", key=self.gui_tracking_image)],
             [
@@ -208,20 +203,14 @@ class CameraWidget:
                     self.config.capture_source = None
                 else:
                     if len(values[self.gui_camera_addr]) > 5 and "http" not in values[self.gui_camera_addr] and ".mp4" not in values[self.gui_camera_addr]: # If http is not in camera address, add it.
-                        self.config.capture_source = f"http://{values[self.gui_camera_addr]}/"   
+                        self.config.capture_source = f"http://{values[self.gui_camera_addr]}/"
                     else:
                         self.config.capture_source = values[self.gui_camera_addr]
             changed = True
 
-
-
         if self.config.rotation_angle != values[self.gui_rotation_slider]:
             self.config.rotation_angle = int(values[self.gui_rotation_slider])
             changed = True
-
-      # if self.config.gui_circular_crop != values[self.gui_circular_crop]:
-       #     self.config.gui_circular_crop = values[self.gui_circular_crop]
-        #    changed = True
 
         if changed:
             self.main_config.save()
@@ -246,14 +235,14 @@ class CameraWidget:
             if self.x1 < 0:
                     self.x1 = 0
             if self.y1 < 0:
-                    self.y1 = 0 
+                    self.y1 = 0
             if abs(self.x0 - self.x1) != 0 and abs(self.y0 - self.y1) != 0:
                 self.config.roi_window_x = min([self.x0, self.x1])
                 self.config.roi_window_y = min([self.y0, self.y1])
                 self.config.roi_window_w = abs(self.x0 - self.x1)
                 self.config.roi_window_h = abs(self.y0 - self.y1)
                 self.main_config.save()
-                
+
 
         if event == self.gui_roi_selection:
             # Event for mouse button down or mouse drag in ROI mode
@@ -263,14 +252,13 @@ class CameraWidget:
             self.x1, self.y1 = values[self.gui_roi_selection]
 
         if event == self.gui_restart_calibration:
-            self.ransac.calibration_frame_counter = 300
-            PlaySound('Audio/start.wav', SND_FILENAME | SND_ASYNC)
+            trigger_recalibration([self, ])
 
         if event == self.gui_stop_calibration:
-            self.ransac.calibration_frame_counter = 0
+            stop_calibration([self, ])
 
         if event == self.gui_recenter_eyes:
-            self.settings.gui_recenter_eyes = True
+            trigger_recenter([self, ])
 
         needs_roi_set = self.config.roi_window_h <= 0 or self.config.roi_window_w <= 0
 
@@ -334,7 +322,7 @@ class CameraWidget:
                 if eye_info.info_type != EyeInfoOrigin.FAILURE: #and not eye_info.blink:
                     graph.update(background_color="white")
                     if not np.isnan(eye_info.x) and not np.isnan(eye_info.y):
-                        
+
                         graph.draw_circle(
                             (eye_info.x * -100, eye_info.y * -100),
                             25,
