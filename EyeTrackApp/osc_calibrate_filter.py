@@ -5,6 +5,8 @@ from utils.misc_utils import PlaySound, SND_FILENAME, SND_ASYNC
 
 
 class cal():
+    # TODO move this entire code to eye_processor and refactor it further from there,
+    #  we should not be doing things like this
     def cal_osc(self, cx, cy):
         if self.eye_id == EyeId.RIGHT:
             flipx = self.settings.gui_flip_x_axis_right
