@@ -5,6 +5,8 @@ from EyeTrackApp.consts import EyeId
 from queue import Queue
 from threading import Event
 
+
+# TODO there used to be validation problems here, try to find them and fix them
 class SettingsWidget:
     def __init__(self, widget_id: EyeId, main_config: EyeTrackSettingsConfig, osc_queue: Queue):
 

@@ -24,7 +24,7 @@ class OSCOutputHandler:
         self.right_eye_blink = 0.7
 
     def handle_out(self, eye_info: EyeInfo, eye_id: int):
-        last_blink = time.time()  # TODO figure out if this is really needed
+        last_blink = time.time()   # TODO figure out if this is really needed
         if not self.settings.gui_vrc_native:
             self.osc_output_vrc_native(eye_info.blink, eye_info.x, eye_info.y, last_blink, eye_id)
         else:
