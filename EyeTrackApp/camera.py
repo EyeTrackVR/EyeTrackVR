@@ -68,39 +68,42 @@ class Camera:
         self.camera_output_outgoing = camera_output_outgoing
 
     def run(self):
+        input_source = ""
+        if (source := self.config.capture_source) is not None:
+            input_source = str(source)
+
         while True:
             if self.cancellation_event.is_set():
                 print(f"{Fore.CYAN}[INFO] Exiting Capture thread{Fore.RESET}")
                 return
             should_push = True
+
             # If things aren't open, retry until they are. Don't let read requests come in any earlier
             # than this, otherwise we can deadlock ourselves.
 
-            # this *will* break for input like a camera ID, I do not expect that to be passed here
-            # but we better handle it, what's here right now is but a dirty hack
-            if (self.config.capture_source is not None and self.config.capture_source != "" ):
-                if (str(self.config.capture_source)[:3] == "COM"):
+            # TODO extract this to a separate function and maybe clean it up a bit, strategy maybe?
+            if input_source != "" :
+                if input_source.startswith("COM"):
                     if (
                             self.serial_connection is None
                             or self.camera_status == CameraState.DISCONNECTED
-                            or self.config.capture_source != self.current_capture_source
+                            or input_source != self.current_capture_source
                     ):
-                        port = self.config.capture_source
-                        self.current_capture_source = port
-                        self.start_serial_connection(port)
+                        self.current_capture_source = input_source
+                        self.start_serial_connection(self.current_capture_source)
                 else:
                     if (
                             self.cv2_camera is None
                             or not self.cv2_camera.isOpened()
                             or self.camera_status == CameraState.DISCONNECTED
-                            or self.config.capture_source != self.current_capture_source
+                            or input_source != self.current_capture_source
                     ):
-                        print(self.error_message.format(self.config.capture_source))
+                        print(self.error_message.format(input_source))
                         # This requires a wait, otherwise we can error and possible screw up the camera
                         # firmware. Fickle things.
                         if self.cancellation_event.wait(WAIT_TIME):
                             return
-                        self.current_capture_source = self.config.capture_source
+                        self.current_capture_source = input_source
                         self.cv2_camera = cv2.VideoCapture(self.current_capture_source)
                         should_push = False
             else:
@@ -112,15 +115,17 @@ class Camera:
             # Cycle every so often to see if our cancellation token has fired. This basically uses a
             # python event as a context-less, resettable one-shot channel.
             if should_push and not self.capture_event.wait(timeout=0.02):
+                # TODO refactor this to raise an exception when we can't access the capture source
+                # TODO and then extract this to a separate function
                 continue
-            if self.config.capture_source != None:
-                if (str(self.current_capture_source)[:3] == "COM"):
-                    self.get_serial_camera_picture(should_push)
-                else:
-                    self.get_cv2_camera_picture(should_push)
-                if not should_push:
-                    # if we get all the way down here, consider ourselves connected
-                    self.camera_status = CameraState.CONNECTED
+
+            if self.current_capture_source.startswith("COM"):
+                self.get_serial_camera_picture(should_push)
+            else:
+                self.get_cv2_camera_picture(should_push)
+            if not should_push:
+                # if we get all the way down here, consider ourselves connected
+                self.camera_status = CameraState.CONNECTED
 
     def get_cv2_camera_picture(self, should_push):
         try:
@@ -215,8 +220,8 @@ class Camera:
             return
         try:
             conn = serial.Serial(
-                baudrate = 3000000,
-                port = port,
+                baudrate=3000000,
+                port=port,
                 xonxoff=False,
                 dsrdtr=False,
                 rtscts=False)
