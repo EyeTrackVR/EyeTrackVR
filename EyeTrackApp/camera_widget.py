@@ -1,18 +1,17 @@
-import PySimpleGUI as sg
-from config import EyeTrackConfig
-from config import EyeTrackSettingsConfig
 from collections import deque
-from threading import Event, Thread
-from eye_processor import EyeProcessor, EyeInfoOrigin
-from enum import Enum
 from queue import Queue, Empty
-from camera import Camera, CameraState
-from osc import EyeId
-import cv2
-import sys
-from utils.misc_utils import PlaySound,SND_FILENAME,SND_ASYNC
-import traceback
+from threading import Event, Thread
+
+import PySimpleGUI as sg
 import numpy as np
+
+import cv2
+from camera import Camera, CameraState
+from config import EyeTrackConfig
+from eye_processor import EyeProcessor, EyeInfoOrigin
+from osc import EyeId
+from utils.misc_utils import PlaySound, SND_FILENAME, SND_ASYNC
+
 
 class CameraWidget:
     def __init__(self, widget_id: EyeId, main_config: EyeTrackConfig, osc_queue: Queue):
@@ -79,7 +78,7 @@ class CameraWidget:
 
         self.roi_layout = [
             [
-                sg.Graph( 
+                sg.Graph(
                     (640, 480),
                     (0, 480),
                     (640, 0),
@@ -101,13 +100,16 @@ class CameraWidget:
                     orientation="h",
                     key=self.gui_rotation_slider,
                     background_color='#424042',
-                    tooltip = "Adjust the rotation of your cameras, make them level.",
+                    tooltip="Adjust the rotation of your cameras, make them level.",
                 ),
             ],
             [
-                sg.Button("Start Calibration", key=self.gui_restart_calibration, button_color='#6f4ca1', tooltip = "Start eye calibration. Look all arround to all extreams without blinking until sound is heard.",),
-                sg.Button("Stop Calibration", key=self.gui_stop_calibration, button_color='#6f4ca1', tooltip = "Stop eye calibration manualy.",),
-                sg.Button("Recenter Eyes", key=self.gui_recenter_eyes, button_color='#6f4ca1', tooltip = "Make your eyes center again.",),
+                sg.Button("Start Calibration", key=self.gui_restart_calibration, button_color='#6f4ca1',
+                          tooltip="Start eye calibration. Look all arround to all extreams without blinking until sound is heard.", ),
+                sg.Button("Stop Calibration", key=self.gui_stop_calibration, button_color='#6f4ca1',
+                          tooltip="Stop eye calibration manualy.", ),
+                sg.Button("Recenter Eyes", key=self.gui_recenter_eyes, button_color='#6f4ca1',
+                          tooltip="Make your eyes center again.", ),
 
             ],
             [
@@ -115,13 +117,13 @@ class CameraWidget:
                 sg.Text("Calibrating", key=self.gui_mode_readout, background_color='#424042'),
                 sg.Text("", key=self.gui_tracking_fps, background_color='#424042'),
                 sg.Text("", key=self.gui_tracking_bps, background_color='#424042'),
-            #    sg.Checkbox(
-            #        "Circle crop:",
-            #        default=self.config.gui_circular_crop,
-            #        key=self.gui_circular_crop,
-            #        background_color='#424042',
-            #        tooltip = "Circle crop only applies to RANSAC3D and Blob.",
-            #    ),
+                #    sg.Checkbox(
+                #        "Circle crop:",
+                #        default=self.config.gui_circular_crop,
+                #        key=self.gui_circular_crop,
+                #        background_color='#424042',
+                #        tooltip = "Circle crop only applies to RANSAC3D and Blob.",
+                #    ),
             ],
             [sg.Image(filename="", key=self.gui_tracking_image)],
             [
@@ -134,21 +136,25 @@ class CameraWidget:
                     drag_submits=True,
                     enable_events=True,
                 ),
-                sg.Text("Please set an Eye Cropping.", key=self.gui_roi_message, background_color='#424042', visible=False),
+                sg.Text("Please set an Eye Cropping.", key=self.gui_roi_message, background_color='#424042',
+                        visible=False),
             ],
         ]
 
         self.widget_layout = [
             [
                 sg.Text("Camera Address", background_color='#424042'),
-                sg.InputText(self.config.capture_source, key=self.gui_camera_addr, tooltip = "Enter the IP address or UVC port of your camera. (Include the 'http://')",),
+                sg.InputText(self.config.capture_source, key=self.gui_camera_addr,
+                             tooltip="Enter the IP address or UVC port of your camera. (Include the 'http://')", ),
             ],
             [
                 sg.Button("Save and Restart Tracking", key=self.gui_save_tracking_button, button_color='#6f4ca1'),
             ],
             [
-                sg.Button("Tracking Mode", key=self.gui_tracking_button, button_color='#6f4ca1', tooltip = "Go here to track your eye.",),
-                sg.Button("Cropping Mode", key=self.gui_roi_button, button_color='#6f4ca1', tooltip = "Go here to crop out your eye.",),
+                sg.Button("Tracking Mode", key=self.gui_tracking_button, button_color='#6f4ca1',
+                          tooltip="Go here to track your eye.", ),
+                sg.Button("Cropping Mode", key=self.gui_roi_button, button_color='#6f4ca1',
+                          tooltip="Go here to crop out your eye.", ),
             ],
             [
                 sg.Column(self.tracking_layout, key=self.gui_tracking_layout, background_color='#424042'),
@@ -199,8 +205,8 @@ class CameraWidget:
         changed = False
         # If anything has changed in our configuration settings, change/update those.
         if (
-            event == self.gui_save_tracking_button
-            and values[self.gui_camera_addr] != self.config.capture_source
+                event == self.gui_save_tracking_button
+                and values[self.gui_camera_addr] != self.config.capture_source
         ):
             print("\033[94m[INFO] New value: {}\033[0m".format(values[self.gui_camera_addr]))
             try:
@@ -210,20 +216,20 @@ class CameraWidget:
                 if values[self.gui_camera_addr] == "":
                     self.config.capture_source = None
                 else:
-                    if len(values[self.gui_camera_addr]) > 5 and "http" not in values[self.gui_camera_addr] and ".mp4" not in values[self.gui_camera_addr]: # If http is not in camera address, add it.
-                        self.config.capture_source = f"http://{values[self.gui_camera_addr]}/"   
+                    if len(values[self.gui_camera_addr]) > 5 and "http" not in values[
+                        self.gui_camera_addr] and ".mp4" not in values[
+                        self.gui_camera_addr]:  # If http is not in camera address, add it.
+                        self.config.capture_source = f"http://{values[self.gui_camera_addr]}/"
                     else:
                         self.config.capture_source = values[self.gui_camera_addr]
             changed = True
-
-
 
         if self.config.rotation_angle != values[self.gui_rotation_slider]:
             self.config.rotation_angle = int(values[self.gui_rotation_slider])
             changed = True
 
-      # if self.config.gui_circular_crop != values[self.gui_circular_crop]:
-       #     self.config.gui_circular_crop = values[self.gui_circular_crop]
+        # if self.config.gui_circular_crop != values[self.gui_circular_crop]:
+        #     self.config.gui_circular_crop = values[self.gui_circular_crop]
         #    changed = True
 
         if changed:
@@ -247,16 +253,15 @@ class CameraWidget:
             # Event for mouse button up in ROI mode
             self.is_mouse_up = True
             if self.x1 < 0:
-                    self.x1 = 0
+                self.x1 = 0
             if self.y1 < 0:
-                    self.y1 = 0 
+                self.y1 = 0
             if abs(self.x0 - self.x1) != 0 and abs(self.y0 - self.y1) != 0:
                 self.config.roi_window_x = min([self.x0, self.x1])
                 self.config.roi_window_y = min([self.y0, self.y1])
                 self.config.roi_window_w = abs(self.x0 - self.x1)
                 self.config.roi_window_h = abs(self.y0 - self.y1)
                 self.main_config.save()
-                
 
         if event == self.gui_roi_selection:
             # Event for mouse button down or mouse drag in ROI mode
@@ -291,7 +296,7 @@ class CameraWidget:
             window[self.gui_mode_readout].update("Camera Reconnecting...")
         elif needs_roi_set:
             window[self.gui_mode_readout].update("Awaiting Eye Crop")
-        elif self.ransac.calibration_frame_counter != None:
+        elif self.ransac.calibration_frame_counter is not None:
             window[self.gui_mode_readout].update("Calibration")
         else:
             window[self.gui_mode_readout].update("Tracking")
@@ -334,10 +339,10 @@ class CameraWidget:
                 graph = window[self.gui_output_graph]
                 graph.erase()
 
-                if eye_info.info_type != EyeInfoOrigin.FAILURE: #and not eye_info.blink:
+                if eye_info.info_type != EyeInfoOrigin.FAILURE:  # and not eye_info.blink:
                     graph.update(background_color="white")
                     if not np.isnan(eye_info.x) and not np.isnan(eye_info.y):
-                        
+
                         graph.draw_circle(
                             (eye_info.x * -100, eye_info.y * -100),
                             25,
@@ -352,7 +357,7 @@ class CameraWidget:
                             line_color="white",
                         )
                     if not np.isnan(eye_info.blink):
-                        graph.draw_line((-100,eye_info.blink * 200), (-100,100),  color="#6f4ca1", width=10)
+                        graph.draw_line((-100, eye_info.blink * 200), (-100, 100), color="#6f4ca1", width=10)
                     else:
                         graph.draw_line((-100, 0.0 * 200), (-100, 100), color="black", width=10)
 

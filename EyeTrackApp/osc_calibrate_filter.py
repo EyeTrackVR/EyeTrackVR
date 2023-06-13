@@ -1,7 +1,9 @@
+from enum import IntEnum
+
 import numpy as np
 
-from enum import IntEnum
 from utils.misc_utils import PlaySound, SND_FILENAME, SND_ASYNC
+
 
 class EyeId(IntEnum):
     RIGHT = 0
@@ -10,7 +12,15 @@ class EyeId(IntEnum):
     SETTINGS = 3
 
 
-class cal():
+class Calibrator:
+    def __init__(self):
+        self.ts = None
+        self.blink_clear = None
+        self.config = None
+        self.calibration_frame_counter = None
+        self.settings = None
+        self.eye_id = None
+
     def cal_osc(self, cx, cy):
         if self.eye_id == EyeId.RIGHT:
             flipx = self.settings.gui_flip_x_axis_right
@@ -28,7 +38,7 @@ class cal():
             self.config.calib_YMIN = 69420
             self.blink_clear = True
             self.calibration_frame_counter -= 1
-        elif self.calibration_frame_counter != None:
+        elif self.calibration_frame_counter is not None:
             self.blink_clear = False
             self.settings.gui_recenter_eyes = False
             if cx > self.config.calib_XMAX:
@@ -40,8 +50,7 @@ class cal():
             if cy < self.config.calib_YMIN:
                 self.config.calib_YMIN = cy
             self.calibration_frame_counter -= 1
-
-        if self.settings.gui_recenter_eyes == True:
+        if self.settings.gui_recenter_eyes:
             self.config.calib_XOFF = cx
             self.config.calib_YOFF = cy
             if self.ts == 0:
@@ -79,7 +88,7 @@ class cal():
                 if yu > 0:
                     out_y = max(0.0, min(1.0, yu))
 
-            if flipx:  
+            if flipx:
                 if xr >= 0:
                     out_x = -abs(max(0.0, min(1.0, xr)))
                 if xl > 0:
@@ -90,7 +99,6 @@ class cal():
                 if xl > 0:
                     out_x = -abs(max(0.0, min(1.0, xl)))
         except:
-          #  print("\033[91m[ERROR] Eye Calibration Invalid!\033[0m")
             self.config.calib_XOFF = 0
             self.config.calib_YOFF = 0
             self.config.calib_XMAX = 1
@@ -101,7 +109,8 @@ class cal():
             out_y = 0.5
         try:
             noisy_point = np.array([float(out_x), float(out_y)])  # fliter our values with a One Euro Filter
-            point_hat = self.one_euro_filter(noisy_point)
+            point_hat = self.one_euro_filter(
+                noisy_point)  # TODO: seems like this method needs to be put there instead of somewhere
             out_x = point_hat[0]
             out_y = point_hat[1]
         except:

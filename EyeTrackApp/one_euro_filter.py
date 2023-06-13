@@ -1,5 +1,7 @@
-import numpy as np
 from time import time
+
+import numpy as np
+
 
 def smoothing_factor(t_e, cutoff):
     r = 2 * np.pi * cutoff * t_e
@@ -30,7 +32,7 @@ class OneEuroFilter:
         try:
             t = time()
             t_e = t - self.t_prev
-            if t_e != 0.0: #occasionally when switching to HSF this becomes zero causing divide by zero errors crashing the filter.
+            if t_e != 0.0:  # occasionally when switching to HSF this becomes zero causing divide by zero errors crashing the filter.
                 t_e = np.full(x.shape, t_e)
 
                 # The filtered derivative of the signal.

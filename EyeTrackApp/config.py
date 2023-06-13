@@ -1,10 +1,11 @@
 import json
 import os.path
 import shutil
+from typing import Union
+
+from pydantic import BaseModel
 
 from eye import EyeId
-from pydantic import BaseModel
-from typing import Union
 
 CONFIG_FILE_NAME: str = "eyetrack_settings.json"
 BACKUP_CONFIG_FILE_NAME: str = "eyetrack_settings.backup"
@@ -72,7 +73,7 @@ class EyeTrackConfig(BaseModel):
     right_eye: EyeTrackCameraConfig = EyeTrackCameraConfig()
     left_eye: EyeTrackCameraConfig = EyeTrackCameraConfig()
     settings: EyeTrackSettingsConfig = EyeTrackSettingsConfig()
-  #  algo_settings: EyeTrackSettingsConfig = EyeTrackSettingsConfig()
+    #  algo_settings: EyeTrackSettingsConfig = EyeTrackSettingsConfig()
     eye_display_id: EyeId = EyeId.RIGHT
 
     @staticmethod
@@ -106,7 +107,6 @@ class EyeTrackConfig(BaseModel):
                 with open(CONFIG_FILE_NAME, "r") as settings_file:
                     EyeTrackConfig(**json.load(settings_file))
                 shutil.copy(CONFIG_FILE_NAME, BACKUP_CONFIG_FILE_NAME)
-                # print("Backed up settings files.") # Comment out because it's too loud.
             except json.JSONDecodeError:
                 # No backup because the saved settings file is broken.
                 pass

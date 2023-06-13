@@ -1,17 +1,16 @@
 import os
-import os
-import PySimpleGUI as sg
 import queue
-import requests
 import threading
 
+import PySimpleGUI as sg
+import requests
+
+from algo_settings_widget import AlgoSettingsWidget
 from camera_widget import CameraWidget
 from config import EyeTrackConfig
 from eye import EyeId
-from osc import VRChatOSCReceiver, VRChatOSC
 from general_settings_widget import SettingsWidget
-from algo_settings_widget import AlgoSettingsWidget
-
+from osc import VRChatOSCReceiver, VRChatOSC
 from utils.misc_utils import is_nt
 
 if is_nt:
@@ -264,7 +263,6 @@ def main():
             config.eye_display_id = EyeId.SETTINGS
             config.save()
 
-
         elif values[ALGO_SETTINGS_RADIO_NAME] and config.eye_display_id != EyeId.ALGOSETTINGS:
             eyes[0].stop()
             eyes[1].stop()
@@ -285,7 +283,7 @@ def main():
             if setting.started():
                 setting.render(window, event, values)
     #    settings[0].render(window, event, values)
-      #  settings[1].render(window, event, values)
+    #  settings[1].render(window, event, values)
 
 
 if __name__ == "__main__":

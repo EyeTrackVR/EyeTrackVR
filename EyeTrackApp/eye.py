@@ -1,6 +1,7 @@
 from dataclasses import dataclass
 from enum import Enum, IntEnum
 
+
 class EyeId(IntEnum):
     RIGHT = 0
     LEFT = 1

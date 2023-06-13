@@ -1,14 +1,15 @@
-import cv2
-import numpy as np
 import queue
-import serial
-import serial.tools.list_ports
 import threading
 import time
-
-from colorama import Fore
-from config import EyeTrackConfig
 from enum import Enum
+
+import numpy as np
+import serial
+import serial.tools.list_ports
+from colorama import Fore
+
+import cv2
+from config import EyeTrackConfig
 
 WAIT_TIME = 0.1
 
@@ -79,10 +80,10 @@ class Camera:
             # If things aren't open, retry until they are. Don't let read requests come in any earlier
             # than this, otherwise we can deadlock ourselves.
             if (
-                    self.config.capture_source != None and self.config.capture_source != ""
+                    self.config.capture_source is not None and self.config.capture_source != ""
             ):
 
-                if (self.config.capture_source[:3] == "COM"):
+                if self.config.capture_source[:3] == "COM":
                     if (
                             self.serial_connection is None
                             or self.camera_status == CameraState.DISCONNECTED
@@ -116,8 +117,8 @@ class Camera:
             # python event as a context-less, resettable one-shot channel.
             if should_push and not self.capture_event.wait(timeout=0.02):
                 continue
-            if self.config.capture_source != None:
-                if (self.current_capture_source[:3] == "COM"):
+            if self.config.capture_source is not None:
+                if self.current_capture_source[:3] == "COM":
                     self.get_serial_camera_picture(should_push)
                 else:
                     self.get_cv2_camera_picture(should_push)
@@ -150,11 +151,12 @@ class Camera:
                 self.fl.pop(0)
                 self.fl.append(self.fps)
             self.fps = sum(self.fl) / len(self.fl)
-            #self.bps = image.nbytes
+            # self.bps = image.nbytes
             if should_push:
                 self.push_image_to_queue(image, frame_number, self.fps)
         except:
-            print(f"{Fore.YELLOW}[WARN] Capture source problem, assuming camera disconnected, waiting for reconnect.{Fore.RESET}")
+            print(
+                f"{Fore.YELLOW}[WARN] Capture source problem, assuming camera disconnected, waiting for reconnect.{Fore.RESET}")
             self.camera_status = CameraState.DISCONNECTED
             pass
 
@@ -174,8 +176,8 @@ class Camera:
 
     def get_next_jpeg_frame(self):
         beg, end = self.get_next_packet_bounds()
-        jpeg = self.buffer[beg+ETVR_HEADER_LEN:end+ETVR_HEADER_LEN]
-        self.buffer = self.buffer[end+ETVR_HEADER_LEN:]
+        jpeg = self.buffer[beg + ETVR_HEADER_LEN:end + ETVR_HEADER_LEN]
+        self.buffer = self.buffer[end + ETVR_HEADER_LEN:]
         return jpeg
 
     def get_serial_camera_picture(self, should_push):
@@ -218,7 +220,8 @@ class Camera:
                     if should_push:
                         self.push_image_to_queue(image, self.frame_number, self.fps)
         except Exception:
-            print(f"{Fore.YELLOW}[WARN] Serial capture source problem, assuming camera disconnected, waiting for reconnect.{Fore.RESET}")
+            print(
+                f"{Fore.YELLOW}[WARN] Serial capture source problem, assuming camera disconnected, waiting for reconnect.{Fore.RESET}")
             conn.close()
             self.camera_status = CameraState.DISCONNECTED
             pass
@@ -236,13 +239,13 @@ class Camera:
             return
         try:
             conn = serial.Serial(
-                baudrate = 3000000,
-                port = port,
+                baudrate=3000000,
+                port=port,
                 xonxoff=False,
                 dsrdtr=False,
                 rtscts=False)
             # Set explicit buffer size for serial.
-            conn.set_buffer_size(rx_size = 32768, tx_size = 32768)
+            conn.set_buffer_size(rx_size=32768, tx_size=32768)
 
             print(f"{Fore.CYAN}[INFO] ETVR Serial Tracker device connected on {port}{Fore.RESET}")
             self.serial_connection = conn

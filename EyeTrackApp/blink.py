@@ -1,8 +1,8 @@
 import numpy as np
 
-def BLINK(self): 
 
-    if self.blink_clear == True:
+def BLINK(self):
+    if self.blink_clear:
         self.max_ints = []
         self.max_int = 0
         self.frames = 0
@@ -14,8 +14,8 @@ def BLINK(self):
         intensity = self.max_int + 1
 
     if intensity > self.max_int:
-        self.max_int = intensity 
-        if self.frames > 300: #TODO: test this number more (make it a setting??)
+        self.max_int = intensity
+        if self.frames > 300:  # TODO: test this number more (make it a setting??)
             self.max_ints.append(self.max_int)
     if intensity < self.min_int:
         self.min_int = intensity
@@ -29,4 +29,3 @@ def BLINK(self):
         return blinkvalue
     except:
         return 0.7
-   # print(self.blinkvalue, self.max_int, self.min_int, self.frames, intensity)

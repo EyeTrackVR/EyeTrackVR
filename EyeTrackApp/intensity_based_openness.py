@@ -1,38 +1,39 @@
-'''
-------------------------------------------------------------------------------------------------------                                                                                                    
-                                                                                                    
-                                               ,@@@@@@                                              
-                                            @@@@@@@@@@@            @@@                              
-                                          @@@@@@@@@@@@      @@@@@@@@@@@                             
-                                        @@@@@@@@@@@@@   @@@@@@@@@@@@@@                              
-                                      @@@@@@@/         ,@@@@@@@@@@@@@                               
-                                         /@@@@@@@@@@@@@@@  @@@@@@@@                                 
-                                    @@@@@@@@@@@@@@@@@@@@@@@@ @@@@@                                  
-                                @@@@@@@@                @@@@@                                       
-                              ,@@@                        @@@@&                                     
-                                             @@@@@@.       @@@@                                     
-                                   @@@     @@@@@@@@@/      @@@@@                                    
-                                   ,@@@.     @@@@@@((@     @@@@(                                    
-                                   //@@@        ,,  @@@@  @@@@@                                     
-                                   @@@(                @@@@@@@                                      
-                                   @@@  @          @@@@@@@@#                                        
-                                       @@@@@@@@@@@@@@@@@                                            
-                                      @@@@@@@@@@@@@(     
-                                      
+"""
+------------------------------------------------------------------------------------------------------
+
+                                               ,@@@@@@
+                                            @@@@@@@@@@@            @@@
+                                          @@@@@@@@@@@@      @@@@@@@@@@@
+                                        @@@@@@@@@@@@@   @@@@@@@@@@@@@@
+                                      @@@@@@@/         ,@@@@@@@@@@@@@
+                                         /@@@@@@@@@@@@@@@  @@@@@@@@
+                                    @@@@@@@@@@@@@@@@@@@@@@@@ @@@@@
+                                @@@@@@@@                @@@@@
+                              ,@@@                        @@@@&
+                                             @@@@@@.       @@@@
+                                   @@@     @@@@@@@@@/      @@@@@
+                                   ,@@@.     @@@@@@((@     @@@@(
+                                   //@@@        ,,  @@@@  @@@@@
+                                   @@@(                @@@@@@@
+                                   @@@  @          @@@@@@@@#
+                                       @@@@@@@@@@@@@@@@@
+                                      @@@@@@@@@@@@@(
+
 Intensity Based Openess By: Prohurtz, PallasNeko (Optimization)
 Algorithm App Implementations By: Prohurtz
 
 Copyright (c) 2023 EyeTrackVR <3
 ------------------------------------------------------------------------------------------------------
-'''  
-import numpy as np
-import time
+"""
 import os
-import cv2
-from enums import EyeLR
-from one_euro_filter import OneEuroFilter
-from utils.img_utils import safe_crop
+import time
 from enum import IntEnum
+
+import numpy as np
+
+import cv2
+from one_euro_filter import OneEuroFilter
+
 
 class EyeId(IntEnum):
     RIGHT = 0
@@ -40,27 +41,27 @@ class EyeId(IntEnum):
     BOTH = 2
     SETTINGS = 3
 
-import matplotlib.pyplot as plt
-#higher intensity means more closed/ more white/less pupil
 
-#Hm I need an acronym for this, any ideas?
-#IBO Intensity Based Openess
+# higher intensity means more closed/ more white/less pupil
 
-# HOW THIS WORKS: 
-# we get the intensity of pupil area from HSF crop, When the eyelid starts to close, the pupil starts being obstructed by skin which is generally lighter than the pupil. 
-# This causes the intensity to increase. We save all of the darkest intensities of each pupil position to calculate for pupil movement. 
-# ex. when you look up there is less pupil visible, which results in an uncalculated change in intensity even though the eyelid has not moved in a meaningful way. 
-# We compare the darkest intensity of that area, to the lightest (global) intensity to find the appropriate openness state via a float.
+# Hm I need an acronym for this, any ideas?
+# IBO Intensity Based Openness
+
+# HOW THIS WORKS: we get the intensity of pupil area from HSF crop, When the eyelid starts to close, the pupil starts
+# being obstructed by skin which is generally lighter than the pupil. This causes the intensity to increase. We save
+# all of the darkest intensities of each pupil position to calculate for pupil movement. ex. when you look up there
+# is less pupil visible, which results in an uncalculated change in intensity even though the eyelid has not moved in
+# a meaningful way. We compare the darkest intensity of that area, to the lightest (global) intensity to find the
+# appropriate openness state via a float.
 
 
-# Note.
-# OpenCV on Windows will generate an error if the file path contains non-ASCII characters when using cv2.imread(), cv2.imwrite(), etc.
-# https://stackoverflow.com/questions/43185605/how-do-i-read-an-image-from-a-path-with-unicode-characters
-# https://github.com/opencv/opencv/issues/18305
+# Note. OpenCV on Windows will generate an error if the file path contains non-ASCII characters when using
+# cv2.imread(), cv2.imwrite(), etc. https://stackoverflow.com/questions/43185605/how-do-i-read-an-image-from-a-path
+# -with-unicode-characters https://github.com/opencv/opencv/issues/18305
 
 def csv2data(frameshape, filepath):
     # For data checking
-    frameshape = (frameshape[0], frameshape[1]+1)
+    frameshape = (frameshape[0], frameshape[1] + 1)
     out = np.zeros(frameshape, dtype=np.uint32)
     xy_list = []
     val_list = []
@@ -79,7 +80,7 @@ def csv2data(frameshape, filepath):
 
 def data2csv(data_u32, filepath):
     # For data checking
-    nonzero_index = np.nonzero(data_u32) #(row,col)
+    nonzero_index = np.nonzero(data_u32)  # (row,col)
     data_list = data_u32[nonzero_index].tolist()
     datalines = ["{},{},{}\n".format(x, y, val) for y, x, val in zip(*nonzero_index, data_list)]
     with open(filepath, 'w', encoding="utf-8") as out_f:
@@ -94,14 +95,15 @@ def u32_1ch_to_u16_3ch(img):
     # https://stackoverflow.com/questions/52782511/why-is-numpy-slower-than-python-for-left-bit-shifts
     out[:, :, 0] = img & np.uint32(65535)
     out[:, :, 1] = (img >> np.uint32(16)) & np.uint32(65535)
-    
+
     return out
 
 
 def u16_3ch_to_u32_1ch(img):
-    # The image format with the most bits that can be displayed on Windows without additional software and that opencv can handle is PNG's uint16
+    # The image format with the most bits that can be displayed on Windows without additional software and that
+    # opencv can handle is PNG's uint16
     out = img[:, :, 0].astype(np.float64)  # float64 = max 2^53
-    cv2.add(out, img[:, :, 1].astype(np.float64)*np.float64(65536), dst=out)  # opencv did not have uint32 type
+    cv2.add(out, img[:, :, 1].astype(np.float64) * np.float64(65536), dst=out)  # opencv did not have uint32 type
     return out.astype(np.uint32)  # cast
 
 
@@ -121,7 +123,7 @@ class IntensityBasedOpeness:
             self.imgfile = "IBO_RIGHT.png"
         else:
             pass
-       # self.imgfile = "IBO_LEFT.png" if eyeside is EyeLR.LEFT else "IBO_RIGHT.png"
+        # self.imgfile = "IBO_LEFT.png" if eyeside is EyeLR.LEFT else "IBO_RIGHT.png"
         # self.data[0, -1] = maxval, [1, -1] = rotation, [2, -1] = x, [3, -1] = y
         self.data = None
         self.lct = None
@@ -130,7 +132,6 @@ class IntensityBasedOpeness:
         self.img_roi = np.zeros(3, dtype=np.int32)
         self.now_roi = np.zeros(3, dtype=np.int32)
         self.prev_val = 0.5
-
 
         self.old = []
         self.color = []
@@ -141,10 +142,10 @@ class IntensityBasedOpeness:
         self.maxinten = 0
 
         self.tri_filter = []
-      #  try:
-      #      min_cutoff = float(self.settings.gui_min_cutoff)  # 0.0004
-       #     beta = float(self.settings.gui_speed_coefficient)  # 0.9
-       # except:
+        #  try:
+        #      min_cutoff = float(self.settings.gui_min_cutoff)  # 0.0004
+        #     beta = float(self.settings.gui_speed_coefficient)  # 0.9
+        # except:
         print('\033[93m[WARN] OneEuroFilter values must be a legal number.\033[0m')
         min_cutoff = 0.0004
         beta = 0.9
@@ -155,7 +156,6 @@ class IntensityBasedOpeness:
             beta=beta
         )
 
-        
     def check(self, frameshape):
         # 0 in data is used as the initial value.
         # When assigning a value, +1 is added to the value to be assigned.
@@ -163,7 +163,7 @@ class IntensityBasedOpeness:
         # self.maxval = self.data[0, -1]
         if self.lct is None:
             self.lct = time.time()
-    
+
     def load(self, frameshape):
         req_newdata = False
         # Not very clever, but increase the width by 1px to save the maximum value.
@@ -193,49 +193,48 @@ class IntensityBasedOpeness:
                 req_newdata = True
         else:
             if self.data.shape != frameshape or not np.array_equal(self.img_roi, self.now_roi):
-                # If the ROI recorded in the image file differs from the current ROI
-                #todo: Using the previous and current frame sizes and centre positions from the original, etc., the data can be ported to some extent, but there may be many areas where code changes are required.
+                # If the ROI recorded in the image file differs from the current ROI todo: Using the previous and
+                #  current frame sizes and centre positions from the original, etc., the data can be ported to some
+                #  extent, but there may be many areas where code changes are required.
                 print("[INFO] \033[94mFrame size changed.\033[0m")
                 req_newdata = True
         if req_newdata:
             self.data = newdata(frameshape)
             self.maxval = 0
             self.img_roi = self.now_roi.copy()
-        # data2csv(self.data, "a.csv")
-        # csv2data(frameshape,"a.csv")
-        
+
     def save(self):
         self.data[0, -1] = self.maxval
         self.data[1:4, -1] = self.now_roi
         cv2.imwrite(self.imgfile, u32_1ch_to_u16_3ch(self.data))
-        #print("SAVED: {}".format(self.imgfile))
-        
+
     def change_roi(self, roiinfo: dict):
         self.now_roi[:] = [v for v in roiinfo.values()]
-    
+
     def intense(self, x, y, frame):
         # x,y = 0~(frame.shape[1 or 0]-1), frame = 1-channel frame cropped by ROI
         self.check(frame.shape)
         int_x, int_y = int(x), int(y)
         if int_x < 0 or int_y < 0:
             return self.prev_val
-        upper_x = min(int_x + 25, frame.shape[1]-1) #TODO make this a setting
+        upper_x = min(int_x + 25, frame.shape[1] - 1)  # TODO make this a setting
         lower_x = max(int_x - 25, 0)
-        upper_y = min(int_y + 25, frame.shape[0]-1)
+        upper_y = min(int_y + 25, frame.shape[0] - 1)
         lower_y = max(int_y - 25, 0)
 
         # frame_crop = frame[lower_y:upper_y, lower_x:upper_x]
-        #frame = safe_crop(frame, lower_x, lower_y, upper_x, upper_y, False)
-        #ret_, th = cv2.threshold(frame_crop, 80, 1.0, cv2.THRESH_BINARY_INV, dst=frame_crop)
+        # frame = safe_crop(frame, lower_x, lower_y, upper_x, upper_y, False)
+        # ret_, th = cv2.threshold(frame_crop, 80, 1.0, cv2.THRESH_BINARY_INV, dst=frame_crop)
         frame_crop = frame
 
-        #ret, f = cv2.threshold(frame, 80, 255, cv2.THRESH_BINARY)
-      #  ret, frame_crop = cv2.threshold(frame_crop, 80, 255, cv2.THRESH_BINARY)
+        # ret, f = cv2.threshold(frame, 80, 255, cv2.THRESH_BINARY)
+        #  ret, frame_crop = cv2.threshold(frame_crop, 80, 255, cv2.THRESH_BINARY)
 
-        # The same can be done with cv2.integral, but since there is only one area of the rectangle for which we want to know the total value, there is no advantage in terms of computational complexity.
+        # The same can be done with cv2.integral, but since there is only one area of the rectangle for which we want
+        # to know the total value, there is no advantage in terms of computational complexity.
         intensity = frame_crop.sum() + 1
-        #cv2.imshow('e', frame)
-       # if cv2.waitKey(10) == 27:
+        # cv2.imshow('e', frame)
+        # if cv2.waitKey(10) == 27:
         #    exit()
         if len(self.filterlist) < 800:
             self.filterlist.append(intensity)
@@ -244,21 +243,20 @@ class IntensityBasedOpeness:
             self.filterlist.append(intensity)
 
         if intensity >= np.percentile(self.filterlist, 99):  # filter abnormally high values
-           # print('filter, assume blink')
             intensity = self.maxval
 
-        #self.tri_filter.append(intensity)
-        #if len(self.tri_filter) > 3:
-         #   self.tri_filter.pop(0)
-          #  intensity = sum(self.tri_filter) / 3
-        #avg_color_per_row = np.average(frame_crop, axis=0)
-        #avg_color = np.average(avg_color_per_row, axis=0)
-       # ar, ag, ab = avg_color
-      #  intensity = int(ar * 8) #higher = closed
+        # self.tri_filter.append(intensity)
+        # if len(self.tri_filter) > 3:
+        #   self.tri_filter.pop(0)
+        #  intensity = sum(self.tri_filter) / 3
+        # avg_color_per_row = np.average(frame_crop, axis=0)
+        # avg_color = np.average(avg_color_per_row, axis=0)
+        # ar, ag, ab = avg_color
+        #  intensity = int(ar * 8) #higher = closed
 
-        #cv2.imshow("IBO", frame_crop)
-        #if cv2.waitKey(1) & 0xFF == ord("q"):
-         #   pass
+        # cv2.imshow("IBO", frame_crop)
+        # if cv2.waitKey(1) & 0xFF == ord("q"):
+        #   pass
 
         # numpy:np.sum(),ndarray.sum()
         # opencv:cv2.sumElems()
@@ -270,28 +268,23 @@ class IntensityBasedOpeness:
         if int_x >= frame.shape[1]:
             int_x = frame.shape[1] - 1
             oob = True
-          #  print('CAUGHT X OUT OF BOUNDS')
-    
+
         if int_x < 0:
             int_x = True
             oob = True
-          #  print('CAUGHT X UNDER BOUNDS')
 
         if int_y >= frame.shape[0]:
             int_y = frame.shape[0] - 1
             oob = True
-          #  print('CAUGHT Y OUT OF BOUNDS')
 
         if int_y < 0:
             int_y = 1
             oob = True
-          #  print('CAUGHT Y UNDER BOUNDS')
 
-        if oob != True:
+        if not oob:
             data_val = self.data[int_y, int_x]
         else:
             data_val = 0
-
 
         # max pupil per cord
         if data_val == 0:
@@ -307,7 +300,7 @@ class IntensityBasedOpeness:
                 intensitya = max(data_val + 0.001, 1)  # if current intensity value is not less use
                 self.data[int_y, int_x] = intensitya  # set value
                 changed = True
-        
+
         # min pupil global
         if self.maxval == 0:  # that value is not yet saved
             self.maxval = intensity  # set value at 0 index
@@ -315,69 +308,45 @@ class IntensityBasedOpeness:
             if intensity > self.maxval:  # if current intensity value is more (less pupil), save that NOTE: we have the
                 self.maxval = intensity - 5  # set value at 0 index
             else:
-                intensityd = max((self.maxval - 5), 1)  # continuously adjust closed intensity, will be set when user blink, used to allow eyes to close when lighting changes
+                intensityd = max((self.maxval - 5),
+                                 1)  # continuously adjust closed intensity, will be set when user blink, used to allow eyes to close when lighting changes
                 self.maxval = intensityd  # set value at 0 index
-           #     print(intensityd, intensity)
         if newval_flg:
             # Do the same thing as in the original version.
-            eyeopen = self.prev_val #0.9
+            eyeopen = self.prev_val  # 0.9
         else:
             maxp = self.data[int_y, int_x]
             minp = self.maxval
 
-
-            eyeopen = ((intensity - maxp) / (minp - maxp)) #for whatever reason when input and maxp are too close it outputs high
-         #   print(eyeopen, maxp, minp)
-         #   eyeopen = ((eyeopen - 0.3) / (1.0 - 0.3))
+            eyeopen = ((intensity - maxp) / (
+                        minp - maxp))  # for whatever reason when input and maxp are too close it outputs high
+            #   eyeopen = ((eyeopen - 0.3) / (1.0 - 0.3))
             eyeopen = 1 - eyeopen
-          #  print(eyeopen, intensity, maxp, minp, x, y)
 
         if changed and ((time.time() - self.lct) > 5):  # save every 5 seconds if something changed to save disk usage
             self.save()
             self.lct = time.time()
-      #  print(self.prev_val, eyeopen, intensity, self.maxval)
-        #@filter_eyeopen = (eyeopen + self.prev_val) / 2
+        # @filter_eyeopen = (eyeopen + self.prev_val) / 2
 
         self.prev_val = eyeopen
         try:
-            noisy_point = np.array([float(eyeopen), float(eyeopen)])  # fliter our values with a One Euro Filter
+            noisy_point = np.array([float(eyeopen), float(eyeopen)])  # filter our values with a One Euro Filter
             point_hat = self.one_euro_filter(noisy_point)
             eyeopenx = point_hat[0]
             eyeopeny = point_hat[1]
             eyeopen = (eyeopenx + eyeopeny) / 2
-         #   print(eyeopen, eyeopenx, eyeopeny)
         except:
             pass
-     #   if eyeopen - self.prev_val > 100:
-        #    print('BLINK')
 
-        #intensityold = img.sum() + 1
-      #  avg_color_per_row = np.average(img, axis=0)
-       # avg_color = np.average(avg_color_per_row, axis=0)
-        #ar, ag, ab = avg_color
-       # intensity = int(ar * 8)  # higher = closed
-        #self.old.append(intensity)
-        #self.color.append(intensity)
-       # self.x.append(self.fc)
+        # intensityold = img.sum() + 1
+        #  avg_color_per_row = np.average(img, axis=0)
+        # avg_color = np.average(avg_color_per_row, axis=0)
+        # ar, ag, ab = avg_color
+        # intensity = int(ar * 8)  # higher = closed
+        # self.old.append(intensity)
+        # self.color.append(intensity)
+        # self.x.append(self.fc)
 
-       # cv2.imshow("show_img.jpg", img)
-       # self.fc = self.fc + 1
-
-      #  if self.fc == 800:
-      #      plt.plot(self.x, self.color)
-      #      # beautify the x-labels
-      #      plt.gcf().autofmt_xdate()
-
-      #      plt.show()
-
-     #       plt.plot(self.x, self.old)
-      #      plt.gcf().autofmt_xdate()
-
-        #    plt.show()
-
-        eyevec = abs(self.prev_val - eyeopen)
-        #print(eyevec)
-      #  if eyevec > 0.4:
-      #      print("BLINK LCOK")
-      #  print(eyeopen)
+        # cv2.imshow("show_img.jpg", img)
+        # self.fc = self.fc + 1
         return eyeopen

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import types
 from collections import namedtuple
-from typing import Any, ClassVar, Dict, List, Optional, TYPE_CHECKING, Tuple, Type, TypeVar, Iterator, Mapping
+from typing import Any, ClassVar, Dict, List, TYPE_CHECKING, Tuple, Type, TypeVar, Iterator, Mapping
 
 __all__ = (
     'Enum',
@@ -130,6 +130,7 @@ else:
 
 E = TypeVar('E', bound='Enum')
 
+
 def create_unknown_value(cls: Type[E], val: Any) -> E:
     value_cls = cls._enum_value_cls_  # type: ignore # This is narrowed below
     name = f'unknown_{val}'
@@ -145,8 +146,8 @@ def try_enum(cls: Type[E], val: Any) -> E:
         return cls._enum_value_map_[val]  # type: ignore # All errors are caught below
     except (KeyError, TypeError, AttributeError):
         return create_unknown_value(cls, val)
-    
-    
+
+
 # The line above is based on the code in the following url
 # https://github.com/Rapptz/discord.py/blob/f7e97954950ffb0e34238d70813454caa6f1a3ae/discord/enums.py
 
@@ -164,7 +165,7 @@ def try_enum(cls: Type[E], val: Any) -> E:
 #
 #     def __int__(self) -> int:
 #         return self.value
-    
+
 class EyeLR(Enum):
     LEFT = 1
     RIGHT = 2

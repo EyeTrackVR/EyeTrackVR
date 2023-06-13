@@ -3,6 +3,7 @@ import math
 import sys
 import timeit
 
+
 def TimeitWrapper(*args, **kwargs):
     """
     This decorator @TimeitWrapper() prints the function name and execution time in seconds.
@@ -10,7 +11,7 @@ def TimeitWrapper(*args, **kwargs):
     :param kwargs:
     :return:
     """
-    
+
     def decorator(function):
         @functools.wraps(function)
         def wrapper(*args, **kwargs):
@@ -19,9 +20,9 @@ def TimeitWrapper(*args, **kwargs):
             end = timeit.default_timer()
             print('{} execution time: {:.10f} s'.format(function.__name__, end - start))
             return results
-        
+
         return wrapper
-    
+
     return decorator
 
 
@@ -36,7 +37,7 @@ class TimeitResult(object):
     best: (float) best execution time / number
     all_runs: (list of float) execution time of each run (in s)
     """
-    
+
     def __init__(self, loops, repeat, best, worst, all_runs, precision):
         self.loops = loops
         self.repeat = repeat
@@ -45,16 +46,16 @@ class TimeitResult(object):
         self.all_runs = all_runs
         self._precision = precision
         self.timings = [dt / self.loops for dt in all_runs]
-    
+
     @property
     def average(self):
         return math.fsum(self.timings) / len(self.timings)
-    
+
     @property
     def stdev(self):
         mean = self.average
         return (math.fsum([(x - mean) ** 2 for x in self.timings]) / len(self.timings)) ** 0.5
-    
+
     def __str__(self):
         pm = '+-'
         if hasattr(sys.stdout, 'encoding') and sys.stdout.encoding:
@@ -74,7 +75,7 @@ class TimeitResult(object):
             best=format_time(self.best, self._precision),
             worst=format_time(self.worst, self._precision),
         )
-    
+
     def _repr_pretty_(self, p, cycle):
         unic = self.__str__()
         p.text(u'<TimeitResult : ' + unic + u'>')
@@ -84,7 +85,7 @@ class FPSResult(object):
     """
     base https://github.com/ipython/ipython/blob/339c0d510a1f3cb2158dd8c6e7f4ac89aa4c89d8/IPython/core/magics/execution.py#L55
     """
-    
+
     def __init__(self, loops, repeat, best, worst, all_runs, precision):
         self.loops = loops
         self.repeat = repeat
@@ -94,16 +95,16 @@ class FPSResult(object):
         self._precision = precision
         self.fps = [1 / dt for dt in all_runs]
         self.unit = "fps"
-    
+
     @property
     def average(self):
         return math.fsum(self.fps) / len(self.fps)
-    
+
     @property
     def stdev(self):
         mean = self.average
         return (math.fsum([(x - mean) ** 2 for x in self.fps]) / len(self.fps)) ** 0.5
-    
+
     def __str__(self):
         pm = '+-'
         if hasattr(sys.stdout, 'encoding') and sys.stdout.encoding:
@@ -123,7 +124,7 @@ class FPSResult(object):
             best="%.*g%s" % (self._precision, self.best, self.unit),
             worst="%.*g%s" % (self._precision, self.worst, self.unit),
         )
-    
+
     def _repr_pretty_(self, p, cycle):
         unic = self.__str__()
         p.text(u'<FPSResult : ' + unic + u'>')
@@ -134,7 +135,7 @@ def format_time(timespan, precision=3):
     https://github.com/ipython/ipython/blob/339c0d510a1f3cb2158dd8c6e7f4ac89aa4c89d8/IPython/core/magics/execution.py#L1473
     Formats the timespan in a human readable form
     """
-    
+
     if timespan >= 60.0:
         # we have more than a minute, format that in a human readable form
         # Idea from http://snipplr.com/view/5713/
@@ -149,7 +150,7 @@ def format_time(timespan, precision=3):
             if leftover < 1:
                 break
         return " ".join(time)
-    
+
     # Unfortunately the unicode 'micro' symbol can cause problems in
     # certain terminals.
     # See bug: https://bugs.launchpad.net/ipython/+bug/348466
@@ -163,7 +164,7 @@ def format_time(timespan, precision=3):
         except:
             pass
     scaling = [1, 1e3, 1e6, 1e9]
-    
+
     if timespan > 0.0:
         order = min(-int(math.floor(math.log10(timespan)) // 3), 3)
     else:
