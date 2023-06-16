@@ -65,6 +65,11 @@ class EyeTrackSettingsConfig(BaseModel):
     gui_vrc_native: bool = True
     gui_circular_crop_right: bool = False
     gui_circular_crop_left: bool = False
+    ibo_filter_samples: int = 400
+    ibo_average_output_samples: int = 0
+    ibo_fully_close_eye_threshold: float = 0.3
+    calibration_samples: int = 600
+
 
 
 class EyeTrackConfig(BaseModel):

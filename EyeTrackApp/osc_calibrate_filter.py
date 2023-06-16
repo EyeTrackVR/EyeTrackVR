@@ -21,7 +21,7 @@ class cal():
             self.config.calib_XOFF = cx
             self.config.calib_YOFF = cy
             PlaySound('Audio/completed.wav', SND_FILENAME | SND_ASYNC)
-        if self.calibration_frame_counter == 300:
+        if self.calibration_frame_counter == self.settings.calibration_samples:
             self.config.calib_XMAX = -69420
             self.config.calib_XMIN = 69420
             self.config.calib_YMAX = -69420

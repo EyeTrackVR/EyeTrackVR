@@ -130,13 +130,16 @@ class IntensityBasedOpeness:
         self.img_roi = np.zeros(3, dtype=np.int32)
         self.now_roi = np.zeros(3, dtype=np.int32)
         self.prev_val = 0.5
-
+        self.avg_intensity  = 0.0
 
         self.old = []
         self.color = []
         self.x = []
         self.fc = 0
         self.filterlist = []
+        self.averageList = []
+        self.eye_id = eye_id
+        
 
         self.maxinten = 0
 
@@ -213,7 +216,14 @@ class IntensityBasedOpeness:
     def change_roi(self, roiinfo: dict):
         self.now_roi[:] = [v for v in roiinfo.values()]
     
-    def intense(self, x, y, frame):
+    def clear_filter(self):
+        self.data = None
+        self.filterlist.clear()
+        self.averageList.clear()
+        if os.path.exists(self.imgfile):
+            os.remove(self.imgfile)
+
+    def intense(self, x, y, frame,filterSamples,outputSamples):
         # x,y = 0~(frame.shape[1 or 0]-1), frame = 1-channel frame cropped by ROI
         self.check(frame.shape)
         int_x, int_y = int(x), int(y)
@@ -237,10 +247,10 @@ class IntensityBasedOpeness:
         #cv2.imshow('e', frame)
        # if cv2.waitKey(10) == 27:
         #    exit()
-        if len(self.filterlist) < 800:
+        if len(self.filterlist) < filterSamples:
             self.filterlist.append(intensity)
         else:
-            self.filterlist.pop()
+            self.filterlist.pop(0)
             self.filterlist.append(intensity)
 
         if intensity >= np.percentile(self.filterlist, 99):  # filter abnormally high values
@@ -287,7 +297,7 @@ class IntensityBasedOpeness:
             oob = True
           #  print('CAUGHT Y UNDER BOUNDS')
 
-        if oob != True:
+        if oob != True and self.data.any():
             data_val = self.data[int_y, int_x]
         else:
             data_val = 0
@@ -325,18 +335,22 @@ class IntensityBasedOpeness:
             maxp = self.data[int_y, int_x]
             minp = self.maxval
 
-
             eyeopen = ((intensity - maxp) / (minp - maxp)) #for whatever reason when input and maxp are too close it outputs high
-         #   print(eyeopen, maxp, minp)
-         #   eyeopen = ((eyeopen - 0.3) / (1.0 - 0.3))
             eyeopen = 1 - eyeopen
-          #  print(eyeopen, intensity, maxp, minp, x, y)
 
+            if outputSamples > 0:
+                if len(self.averageList) < outputSamples:
+                    self.averageList.append(eyeopen)
+                else:
+                    self.averageList.pop(0)
+                    self.averageList.append(eyeopen)
+                    eyeopen=np.average(self.averageList)
+
+            
         if changed and ((time.time() - self.lct) > 5):  # save every 5 seconds if something changed to save disk usage
             self.save()
             self.lct = time.time()
-      #  print(self.prev_val, eyeopen, intensity, self.maxval)
-        #@filter_eyeopen = (eyeopen + self.prev_val) / 2
+    
 
         self.prev_val = eyeopen
         try:

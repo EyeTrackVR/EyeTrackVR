@@ -97,6 +97,7 @@ def output_osc(eye_x, eye_y, eye_blink, last_blink, self):
                 self.l_eye_x = eye_x
                 self.l_eye_blink = eye_blink
                 self.left_y = eye_y
+                self.client.send_message("/avatar/parameters/RightClosed",float(1 - eye_blink))
 
                 if self.l_eye_blink == 0.0:
                     if last_blink > 0.7:  # when binary blink is on, blinks may be too fast for OSC so we repeat them.
@@ -118,6 +119,7 @@ def output_osc(eye_x, eye_y, eye_blink, last_blink, self):
                 self.r_eye_x = eye_x
                 self.r_eye_blink = eye_blink
                 self.right_y = eye_y
+                self.client.send_message("/avatar/parameters/RightClosed",float(1 - eye_blink))
 
                 if self.r_eye_blink == 0.0:
                     if last_blink > 0.7:  # when binary blink is on, blinks may be too fast for OSC so we repeat them.
@@ -149,7 +151,6 @@ def output_osc(eye_x, eye_y, eye_blink, last_blink, self):
                 eye_y = (self.right_y + self.left_y) / 2
 
             if not se:
-
                 self.client.send_message("/tracking/eye/LeftRightVec",
                                      [float(self.l_eye_x), float(eye_y), 0.8, float(self.r_eye_x), float(eye_y),
                                       0.8])  # vrc native ET (z values may need tweaking, they act like a scalar)
@@ -215,7 +216,8 @@ class VRChatOSCReceiver:
         if type(osc_value) != bool: return  # just incase we get anything other than bool
         if osc_value:
             for eye in self.eyes:
-                eye.ransac.calibration_frame_counter = 300
+                eye.ransac.ibo.clear_filter()
+                eye.ransac.calibration_frame_counter = self.settings.calibration_samples
                 PlaySound('Audio/start.wav', SND_FILENAME | SND_ASYNC)
 
     def run(self):
