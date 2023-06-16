@@ -7,7 +7,7 @@ import threading
 import time
 
 from colorama import Fore
-from config import EyeTrackCameraConfig
+from config import EyeTrackCameraConfig, CaptureSourceType
 from enum import Enum
 
 WAIT_TIME = 0.1
@@ -17,8 +17,8 @@ WAIT_TIME = 0.1
 # header-type (2 bytes)
 # packet-size (2 bytes)
 # packet (packet-size bytes)
-ETVR_HEADER = b'\xff\xa0'
-ETVR_HEADER_FRAME = b'\xff\xa1'
+ETVR_HEADER = b"\xff\xa0"
+ETVR_HEADER_FRAME = b"\xff\xa1"
 ETVR_HEADER_LEN = 6
 
 
@@ -30,13 +30,13 @@ class CameraState(Enum):
 
 class Camera:
     def __init__(
-            self,
-            config: EyeTrackCameraConfig,
-            camera_index: int,
-            cancellation_event: "threading.Event",
-            capture_event: "threading.Event",
-            camera_status_outgoing: "queue.Queue[CameraState]",
-            camera_output_outgoing: "queue.Queue",
+        self,
+        config: EyeTrackCameraConfig,
+        camera_index: int,
+        cancellation_event: "threading.Event",
+        capture_event: "threading.Event",
+        camera_status_outgoing: "queue.Queue[CameraState]",
+        camera_output_outgoing: "queue.Queue",
     ):
         self.camera_status = CameraState.CONNECTING
         self.config = config
@@ -55,7 +55,7 @@ class Camera:
         self.fps = 0
         self.bps = 0
         self.start = True
-        self.buffer = b''
+        self.buffer = b""
         self.pf_fps = 0
 
         self.error_message = f"{Fore.YELLOW}[WARN] Capture source {{}} not found, retrying...{Fore.RESET}"
@@ -68,10 +68,6 @@ class Camera:
         self.camera_output_outgoing = camera_output_outgoing
 
     def run(self):
-        input_source = ""
-        if (source := self.config.capture_source) is not None:
-            input_source = str(source)
-
         while True:
             if self.cancellation_event.is_set():
                 print(f"{Fore.CYAN}[INFO] Exiting Capture thread{Fore.RESET}")
@@ -80,52 +76,49 @@ class Camera:
 
             # If things aren't open, retry until they are. Don't let read requests come in any earlier
             # than this, otherwise we can deadlock ourselves.
-
-            # TODO extract this to a separate function and maybe clean it up a bit, strategy maybe?
-            if input_source != "" :
-                if input_source.startswith("COM"):
+            if self.config.capture_source:
+                if self.config.capture_source.type == CaptureSourceType.COM:
                     if (
-                            self.serial_connection is None
-                            or self.camera_status == CameraState.DISCONNECTED
-                            or input_source != self.current_capture_source
+                        self.serial_connection is None
+                        or self.camera_status == CameraState.DISCONNECTED
+                        or self.config.capture_source != self.current_capture_source
                     ):
-                        self.current_capture_source = input_source
-                        self.start_serial_connection(self.current_capture_source)
+                        self.current_capture_source = self.config.capture_source
+                        self.start_serial_connection(self.current_capture_source.source)
                 else:
                     if (
-                            self.cv2_camera is None
-                            or not self.cv2_camera.isOpened()
-                            or self.camera_status == CameraState.DISCONNECTED
-                            or input_source != self.current_capture_source
+                        self.cv2_camera is None
+                        or not self.cv2_camera.isOpened()
+                        or self.camera_status == CameraState.DISCONNECTED
+                        or self.config.capture_source != self.current_capture_source
                     ):
-                        print(self.error_message.format(input_source))
-                        # This requires a wait, otherwise we can error and possible screw up the camera
-                        # firmware. Fickle things.
+                        self.current_capture_source = self.config.capture_source
+                        print(self.error_message.format(self.current_capture_source.source))
+                        # Waiting for a bit for the firmware / cameras to get up and running
                         if self.cancellation_event.wait(WAIT_TIME):
                             return
-                        self.current_capture_source = input_source
-                        self.cv2_camera = cv2.VideoCapture(self.current_capture_source)
+
+                        self.cv2_camera = cv2.VideoCapture(self.current_capture_source.source)
                         should_push = False
             else:
-                # We don't have a capture source to try yet, wait for one to show up in the GUI.
                 if self.cancellation_event.wait(WAIT_TIME):
                     self.camera_status = CameraState.DISCONNECTED
                     return
+
             # Assuming we can access our capture source, wait for another thread to request a capture.
             # Cycle every so often to see if our cancellation token has fired. This basically uses a
             # python event as a context-less, resettable one-shot channel.
             if should_push and not self.capture_event.wait(timeout=0.02):
-                # TODO refactor this to raise an exception when we can't access the capture source
-                # TODO and then extract this to a separate function
                 continue
 
-            if self.current_capture_source.startswith("COM"):
-                self.get_serial_camera_picture(should_push)
-            else:
-                self.get_cv2_camera_picture(should_push)
-            if not should_push:
-                # if we get all the way down here, consider ourselves connected
-                self.camera_status = CameraState.CONNECTED
+            if self.current_capture_source:
+                if self.current_capture_source.type == CaptureSourceType.COM:
+                    self.get_serial_camera_picture(should_push)
+                else:
+                    self.get_cv2_camera_picture(should_push)
+                if not should_push:
+                    # if we get all the way down here, consider ourselves connected
+                    self.camera_status = CameraState.CONNECTED
 
     def get_cv2_camera_picture(self, should_push):
         try:
@@ -144,13 +137,14 @@ class Camera:
             self.frame_number = self.frame_number + 1
             self.fps = (self.fps + self.pf_fps) / 2
             self.pf_fps = self.fps
-            #self.bps = image.nbytes
+
             if should_push:
                 self.push_image_to_queue(image, frame_number, self.fps)
-        except:
-            print(f"{Fore.YELLOW}[WARN] Capture source problem, assuming camera disconnected, waiting for reconnect.{Fore.RESET}")
+        except RuntimeError:
+            print(
+                f"{Fore.YELLOW}[WARN] Capture source problem, assuming camera disconnected, waiting for reconnect.{Fore.RESET}"
+            )
             self.camera_status = CameraState.DISCONNECTED
-            pass
 
     def get_next_packet_bounds(self):
         beg = -1
@@ -168,8 +162,8 @@ class Camera:
 
     def get_next_jpeg_frame(self):
         beg, end = self.get_next_packet_bounds()
-        jpeg = self.buffer[beg+ETVR_HEADER_LEN:end+ETVR_HEADER_LEN]
-        self.buffer = self.buffer[end+ETVR_HEADER_LEN:]
+        jpeg = self.buffer[beg + ETVR_HEADER_LEN : end + ETVR_HEADER_LEN]
+        self.buffer = self.buffer[end + ETVR_HEADER_LEN :]
         return jpeg
 
     def get_serial_camera_picture(self, should_push):
@@ -190,7 +184,7 @@ class Camera:
                     if conn.in_waiting >= 32768:
                         print(f"{Fore.CYAN}[INFO] Discarding the serial buffer ({conn.in_waiting} bytes){Fore.RESET}")
                         conn.reset_input_buffer()
-                        self.buffer = b''
+                        self.buffer = b""
                     # Calculate the fps.
                     current_frame_time = time.time()
                     delta_time = current_frame_time - self.last_frame_time
@@ -202,10 +196,11 @@ class Camera:
                     if should_push:
                         self.push_image_to_queue(image, self.frame_number, self.fps)
         except Exception:
-            print(f"{Fore.YELLOW}[WARN] Serial capture source problem, assuming camera disconnected, waiting for reconnect.{Fore.RESET}")
+            print(
+                f"{Fore.YELLOW}[WARN] Serial capture source problem, assuming camera disconnected, waiting for reconnect.{Fore.RESET}"
+            )
             conn.close()
             self.camera_status = CameraState.DISCONNECTED
-            pass
 
     def start_serial_connection(self, port):
         if self.serial_connection is not None and self.serial_connection.is_open:
@@ -219,14 +214,9 @@ class Camera:
         if not any(p for p in com_ports if port in p):
             return
         try:
-            conn = serial.Serial(
-                baudrate=3000000,
-                port=port,
-                xonxoff=False,
-                dsrdtr=False,
-                rtscts=False)
+            conn = serial.Serial(baudrate=3000000, port=port, xonxoff=False, dsrdtr=False, rtscts=False)
             # Set explicit buffer size for serial.
-            conn.set_buffer_size(rx_size = 32768, tx_size = 32768)
+            conn.set_buffer_size(rx_size=32768, tx_size=32768)
 
             print(f"{Fore.CYAN}[INFO] ETVR Serial Tracker device connected on {port}{Fore.RESET}")
             self.serial_connection = conn
@@ -241,6 +231,7 @@ class Camera:
         qsize = self.camera_output_outgoing.qsize()
         if qsize > 1:
             print(
-                f"{Fore.YELLOW}[WARN] CAPTURE QUEUE BACKPRESSURE OF {qsize}. CHECK FOR CRASH OR TIMING ISSUES IN ALGORITHM.{Fore.RESET}")
+                f"{Fore.YELLOW}[WARN] CAPTURE QUEUE BACKPRESSURE OF {qsize}. CHECK FOR CRASH OR TIMING ISSUES IN ALGORITHM.{Fore.RESET}"
+            )
         self.camera_output_outgoing.put((image, frame_number, fps))
         self.capture_event.clear()

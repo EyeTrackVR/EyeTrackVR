@@ -1,15 +1,35 @@
+import re
+
 import PySimpleGUI as sg
-from config import EyeTrackConfig
+from config import EyeTrackConfig, CameraCaptureSource
 from collections import deque
 from threading import Event, Thread
 from eye_processor import EyeProcessor, EyeInfoOrigin
 from queue import Queue, Empty
 from camera import Camera, CameraState
-from EyeTrackApp.consts import EyeId
+from EyeTrackApp.consts import EyeId, CaptureSourceType, SUPPORTED_VIDEO_FORMATS
 import cv2
 
 from utils.eye_utils import trigger_recalibration, stop_calibration, trigger_recenter
 import numpy as np
+
+
+def sanitize_source(gui_camera_addr) -> CameraCaptureSource:
+    """Sanitizes the camera source provided by the user to a supported format"""
+    if gui_camera_addr == "" or not gui_camera_addr:
+        return CameraCaptureSource(type=CaptureSourceType.NONE, source=None)
+    if gui_camera_addr.isdigit():
+        return CameraCaptureSource(type=CaptureSourceType.INDEXED, source=int(gui_camera_addr))
+    if gui_camera_addr.startswith("COM"):
+        return CameraCaptureSource(type=CaptureSourceType.COM, source=gui_camera_addr)
+    if gui_camera_addr.split(".")[-1] in SUPPORTED_VIDEO_FORMATS:
+        return CameraCaptureSource(type=CaptureSourceType.TEST_VIDEO, source=gui_camera_addr)
+    # check if it's an IP address, optionally if it includes HTTP and PORT
+    if re.compile(r"^(?:http://)?((25[0-5]|(2[0-4]|1\d|[1-9]|)\d)\.?\b){4}(?:\:\d+)?").match(gui_camera_addr):
+        address = gui_camera_addr
+        if "http" not in gui_camera_addr:
+            address = f"http://{gui_camera_addr}"
+        return CameraCaptureSource(type=CaptureSourceType.HTTP, source=address)
 
 
 class CameraWidget:
@@ -133,7 +153,7 @@ class CameraWidget:
         self.widget_layout = [
             [
                 sg.Text("Camera Address", background_color='#424042'),
-                sg.InputText(self.config.capture_source, key=self.gui_camera_addr, tooltip = "Enter the IP address or UVC port of your camera. (Include the 'http://')",),
+                sg.InputText(self.config.gui_capture_source, key=self.gui_camera_addr, tooltip="Enter the IP address or UVC port of your camera. (Include the 'http://')",),
             ],
             [
                 sg.Button("Save and Restart Tracking", key=self.gui_save_tracking_button, button_color='#6f4ca1'),
@@ -192,20 +212,10 @@ class CameraWidget:
         # If anything has changed in our configuration settings, change/update those.
         if (
             event == self.gui_save_tracking_button
-            and values[self.gui_camera_addr] != self.config.capture_source
+            and values[self.gui_camera_addr] != str(self.config.gui_capture_source)
         ):
             print("\033[94m[INFO] New value: {}\033[0m".format(values[self.gui_camera_addr]))
-            try:
-                # Try storing ints as ints, for those using wired cameras.
-                self.config.capture_source = int(values[self.gui_camera_addr])
-            except ValueError:
-                if values[self.gui_camera_addr] == "":
-                    self.config.capture_source = None
-                else:
-                    if len(values[self.gui_camera_addr]) > 5 and "http" not in values[self.gui_camera_addr] and ".mp4" not in values[self.gui_camera_addr]: # If http is not in camera address, add it.
-                        self.config.capture_source = f"http://{values[self.gui_camera_addr]}/"
-                    else:
-                        self.config.capture_source = values[self.gui_camera_addr]
+            self.config.capture_source = sanitize_source(values[self.gui_camera_addr])
             changed = True
 
         if self.config.rotation_angle != values[self.gui_rotation_slider]:
@@ -243,7 +253,6 @@ class CameraWidget:
                 self.config.roi_window_h = abs(self.y0 - self.y1)
                 self.main_config.save()
 
-
         if event == self.gui_roi_selection:
             # Event for mouse button down or mouse drag in ROI mode
             if self.is_mouse_up:
@@ -266,7 +275,7 @@ class CameraWidget:
         window[self.gui_tracking_fps].update('')
         window[self.gui_tracking_bps].update('')
 
-        if self.config.capture_source is None or self.config.capture_source == "":
+        if self.config.capture_source is None or str(self.config.capture_source.source) == "":
             window[self.gui_mode_readout].update("Waiting for camera address")
             window[self.gui_roi_message].update(visible=False)
             window[self.gui_output_graph].update(visible=False)

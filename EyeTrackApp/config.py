@@ -2,12 +2,16 @@ import json
 import os.path
 import shutil
 
-from EyeTrackApp.consts import EyeId
+from EyeTrackApp.consts import EyeId, CaptureSourceType
 from pydantic import BaseModel
-from typing import Union
 
 CONFIG_FILE_NAME: str = "eyetrack_settings.json"
 BACKUP_CONFIG_FILE_NAME: str = "eyetrack_settings.backup"
+
+
+class CameraCaptureSource(BaseModel):
+    type: CaptureSourceType = CaptureSourceType.NONE
+    source: int | str | None = 0
 
 
 class EyeTrackCameraConfig(BaseModel):
@@ -17,7 +21,8 @@ class EyeTrackCameraConfig(BaseModel):
     roi_window_w: int = 0
     roi_window_h: int = 0
     focal_length: int = 30
-    capture_source: Union[int, str, None] = None
+    gui_capture_source:  str | None = None
+    capture_source: CameraCaptureSource | None = None
     calib_XMAX: int = None
     calib_XMIN: int = None
     calib_YMAX: int = None
