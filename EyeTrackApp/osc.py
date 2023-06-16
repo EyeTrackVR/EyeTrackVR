@@ -97,7 +97,7 @@ def output_osc(eye_x, eye_y, eye_blink, last_blink, self):
                 self.l_eye_x = eye_x
                 self.l_eye_blink = eye_blink
                 self.left_y = eye_y
-                self.client.send_message("/avatar/parameters/RightClosed",float(1 - eye_blink))
+                self.client.send_message("/avatar/parameters/LeftClosed",float(1 - eye_blink))
 
                 if self.l_eye_blink == 0.0:
                     if last_blink > 0.7:  # when binary blink is on, blinks may be too fast for OSC so we repeat them.
