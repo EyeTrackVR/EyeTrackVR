@@ -74,7 +74,6 @@ class EyeTrackSettingsConfig(BaseModel):
     osc_invert_eye_close: bool = False
 
 
-
 class EyeTrackConfig(BaseModel):
     version: int = 1
     right_eye: EyeTrackCameraConfig = EyeTrackCameraConfig()

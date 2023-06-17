@@ -45,6 +45,9 @@ class AlgoSettingsWidget:
         self.gui_threshold_slider = f"-BLOBTHRESHOLD{widget_id}-"
         self.gui_HSF_radius_left = f"-HSFRADIUSLEFT{widget_id}-"
         self.gui_HSF_radius_right = f"-HSFRADIUSRIGHT{widget_id}-"
+        self.ibo_filter_samples = f"-IBOFILTERSAMPLE{widget_id}-"
+        self.calibration_samples = f"-CALIBRATIONSAMPLES{widget_id}-"
+        self.ibo_fully_close_eye_threshold = f"-CLOSETHRESH{widget_id}-"
         self.main_config = main_config
         self.config = main_config.settings
         self.osc_queue = osc_queue
@@ -147,6 +150,9 @@ class AlgoSettingsWidget:
                 sg.Text("Blob", background_color='#424042'),
             ],
             [
+            sg.Text("Blink Algo Settings:", background_color='#242224')
+            ],
+            [
                 sg.Checkbox(
                     "Intensity Based Openness",
                     default=self.config.gui_IBO,
@@ -158,6 +164,29 @@ class AlgoSettingsWidget:
                     default=self.config.gui_BLINK,
                     key=self.gui_BLINK,
                     background_color='#424042',
+                ),
+
+                
+            ],
+            [
+                sg.Text("IBO Filter Sample Size", background_color='#424042'),
+                sg.InputText(
+                    self.config.ibo_filter_samples,
+                    key=self.ibo_filter_samples,
+                    size=(0,10),
+                ),
+                sg.Text("Calibration Samples", background_color='#424042'),
+                sg.InputText(
+                    self.config.calibration_samples,
+                    key=self.calibration_samples,
+                    size=(0,10),
+                ),
+
+                sg.Text("IBO Close Threshold", background_color='#424042'),
+                sg.InputText(
+                    self.config.ibo_fully_close_eye_threshold,
+                    key=self.ibo_fully_close_eye_threshold,
+                    size=(0,10),
                 ),
             ],
                         [
@@ -174,7 +203,9 @@ class AlgoSettingsWidget:
                     background_color='#424042',
                 ),
             ],
-        
+            [
+            sg.Text("Advanced Tracking Algorithim Settings:", background_color='#242224')
+            ],
             [sg.Checkbox(
                     "HSF: Skip Auto Radius",
                     default=self.config.gui_skip_autoradius,
@@ -255,7 +286,7 @@ class AlgoSettingsWidget:
         
         self.widget_layout = [
             [   
-                sg.Text("Tracking Algorithm Settings:", background_color='#242224'),
+                sg.Text("Tracking Algorithm Order Settings:", background_color='#242224'),
             ],
             [
                 sg.Column(self.general_settings_layout, key=self.gui_general_settings_layout, background_color='#424042' ),
@@ -364,6 +395,18 @@ class AlgoSettingsWidget:
 
         if self.config.gui_blob_maxsize != values[self.gui_blob_maxsize]:
             self.config.gui_blob_maxsize = values[self.gui_blob_maxsize]
+            changed = True
+
+        if self.config.ibo_filter_samples != int(values[self.ibo_filter_samples]):
+            self.config.ibo_filter_samples = int(values[self.ibo_filter_samples])
+            changed = True
+
+        if self.config.ibo_fully_close_eye_threshold != float(values[self.ibo_fully_close_eye_threshold]):
+            self.config.ibo_fully_close_eye_threshold = float(values[self.ibo_fully_close_eye_threshold])
+            changed = True
+
+        if self.config.calibration_samples != int(values[self.calibration_samples]):
+            self.config.calibration_samples = int(values[self.calibration_samples])
             changed = True
 
         if changed:
