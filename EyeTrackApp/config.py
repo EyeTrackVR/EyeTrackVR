@@ -69,6 +69,9 @@ class EyeTrackSettingsConfig(BaseModel):
     ibo_average_output_samples: int = 0
     ibo_fully_close_eye_threshold: float = 0.3
     calibration_samples: int = 600
+    osc_right_eye_close_address: str = "/avatar/parameters/RightEyeLidExpandedSqueeze"
+    osc_left_eye_close_address: str = "/avatar/parameters/LeftEyeLidExpandedSqueeze"
+    osc_invert_eye_close: bool = False
 
 
 
