@@ -110,7 +110,6 @@ class CameraWidget:
         ]
 
         # Define the window's contents
-        # TODO think about moving it to a separate file as it's only defining the layout, no logic
         self.tracking_layout = [
             [
                 sg.Text("Rotation", background_color='#424042'),

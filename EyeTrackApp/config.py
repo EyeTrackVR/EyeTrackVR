@@ -5,6 +5,8 @@ import shutil
 from EyeTrackApp.consts import EyeId, CaptureSourceType
 from pydantic import BaseModel
 
+from exceptions import ConfigFileDoesNotExist, ConfigFileInvalid
+
 CONFIG_FILE_NAME: str = "eyetrack_settings.json"
 BACKUP_CONFIG_FILE_NAME: str = "eyetrack_settings.backup"
 
@@ -79,39 +81,49 @@ class EyeTrackConfig(BaseModel):
 
     @staticmethod
     def load():
-        if not os.path.exists(CONFIG_FILE_NAME):
-            print("No settings file, using base settings")
-            return EyeTrackConfig()
         try:
-            with open(CONFIG_FILE_NAME, "r") as settings_file:
-                return EyeTrackConfig(**json.load(settings_file))
-        except json.JSONDecodeError:
-            print("[INFO] Failed to load settings file")
-            load_config = None
+            EyeTrackConfig.verify_config()
+        except ConfigFileDoesNotExist:
+            print("[INFO] No settings file, using base settings")
+            return EyeTrackConfig()
+        except ConfigFileInvalid:
+            # let's try to load the backup, if it exists
             if os.path.exists(BACKUP_CONFIG_FILE_NAME):
                 try:
                     with open(BACKUP_CONFIG_FILE_NAME, "r") as settings_file:
-                        load_config = EyeTrackConfig(**json.load(settings_file))
-                    print("[INFO] Using backup settings")
+                        print("[INFO] Error occured while loading saved settings. Using backup settings")
+                        return EyeTrackConfig(**json.load(settings_file))
                 except json.JSONDecodeError:
-                    pass
-            if load_config is None:
-                print("using base settings")
-                load_config = EyeTrackConfig()
-            return load_config
+                    print("Parsing backup failed, using base config")
+                    return EyeTrackConfig()
+        else:
+            with open(CONFIG_FILE_NAME, "r") as settings_file:
+                print("[INFO] Loading saved settings")
+                return EyeTrackConfig(**json.load(settings_file))
 
     def save(self):
         # make sure this is only called if there is a change
-        if os.path.exists(CONFIG_FILE_NAME):
-            try:
-                # Verify existing configuration files.
-                with open(CONFIG_FILE_NAME, "r") as settings_file:
-                    EyeTrackConfig(**json.load(settings_file))
-                shutil.copy(CONFIG_FILE_NAME, BACKUP_CONFIG_FILE_NAME)
-                # print("Backed up settings files.") # Comment out because it's too loud.
-            except json.JSONDecodeError:
-                # No backup because the saved settings file is broken.
-                pass
+        try:
+            self.verify_config()
+        except (ConfigFileDoesNotExist, ConfigFileInvalid):
+            pass
+        else:
+            # make a copy only if the config is valid
+            print("[INFO] Saving, making a copy of the config")
+            shutil.copy(CONFIG_FILE_NAME, BACKUP_CONFIG_FILE_NAME)
+
         with open(CONFIG_FILE_NAME, "w") as settings_file:
             json.dump(obj=self.dict(), fp=settings_file)
         print("[INFO] Config Saved Successfully")
+
+    @staticmethod
+    def verify_config():
+        """verify if the configuration exists and if so, whether it is correct"""
+        if not os.path.exists(CONFIG_FILE_NAME):
+            raise ConfigFileDoesNotExist()
+
+        try:
+            with open(CONFIG_FILE_NAME, "r") as settings_file:
+                EyeTrackConfig(**json.load(settings_file))
+        except json.JSONDecodeError:
+            raise ConfigFileInvalid()

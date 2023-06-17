@@ -143,7 +143,7 @@ def circle_crop(self):
             radius = int(float(self.lkg_projected_sphere["axes"][0]))
             self.xc = int(float(self.lkg_projected_sphere["center"][0]))
             self.yc = int(float(self.lkg_projected_sphere["center"][1]))
-            if radius < 8: #minimum size TODO: make shure this size is enough
+            if radius < 8:  # minimum size TODO: make sure this size is enough
                 radius = 8
             # draw filled circle in white on black background as mask
             mask = np.zeros((ht, wd), dtype=np.uint8)
