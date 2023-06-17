@@ -311,6 +311,7 @@ def RANSAC3D(self, hsrac_en):
             cy = int(clamp(cy + ransac_lower_y, 0, csy))
 
 
+
     try:
         cv2.drawContours(self.current_image_gray, contours, -1, (255, 0, 0), 1) # TODO: fix visualizations with HSRAC
         cv2.circle(self.current_image_gray, (int(cx), int(cy)), 2, (0, 0, 255), -1)
