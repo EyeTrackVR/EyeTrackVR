@@ -16,6 +16,13 @@ class EyeId(IntEnum):
     ALGOSETTINGS = 4
 from config import EyeTrackConfig
 
+def eyelid_transformer(self,eye_blink):
+    if self.config.osc_invert_eye_close:
+        return float(1 - eye_blink)
+    else:
+        return float(eye_blink)
+
+
 se = False
 def output_osc(eye_x, eye_y, eye_blink, last_blink, self):
         global se
@@ -28,9 +35,11 @@ def output_osc(eye_x, eye_y, eye_blink, last_blink, self):
                 self.client.send_message("/avatar/parameters/LeftEyeX", eye_x)
                 self.client.send_message("/avatar/parameters/RightEyeX", eye_x)
                 self.client.send_message("/avatar/parameters/EyesY", eye_y)
-
-                self.client.send_message("/avatar/parameters/RightEyeLidExpandedSqueeze", float(eye_blink))
-                self.client.send_message("/avatar/parameters/LeftEyeLidExpandedSqueeze", float(eye_blink))
+                
+                self.config.osc_left_eye_close_address
+                
+                self.client.send_message(self.config.osc_right_eye_close_address, eyelid_transformer(self,eye_blink))
+                self.client.send_message(self.config.osc_left_eye_close_address, eyelid_transformer(self,eye_blink))
             else:
                 se = False
 
@@ -41,18 +50,18 @@ def output_osc(eye_x, eye_y, eye_blink, last_blink, self):
                 if self.l_eye_blink == 0.0:
                     if last_blink > 0.7: #when binary blink is on, blinks may be too fast for OSC so we repeat them.
                         for i in range(5):
-                            self.client.send_message("/avatar/parameters/LeftEyeLidExpandedSqueeze", float(self.l_eye_blink))
+                            self.client.send_message(self.config.osc_left_eye_close_address, eyelid_transformer(self,self.l_eye_blink))
                         last_blink = time.time() - last_blink
                     if self.config.gui_eye_falloff:
                         if self.r_eye_blink == 0.0: #if both eyes closed and DEF is enables, blink
-                            self.client.send_message("/avatar/parameters/LeftEyeLidExpandedSqueeze", float(self.l_eye_blink))
-                            self.client.send_message("/avatar/parameters/RightEyeLidExpandedSqueeze", float(self.l_eye_blink))
+                            self.client.send_message(self.config.osc_left_eye_close_address, eyelid_transformer(self,self.l_eye_blink))
+                            self.client.send_message(self.config.osc_right_eye_close_address, eyelid_transformer(self,self.l_eye_blink))
                     self.l_eye_x = self.r_eye_x
 
                 self.client.send_message("/avatar/parameters/LeftEyeX", self.l_eye_x)
                 self.left_y = eye_y
 
-                self.client.send_message("/avatar/parameters/LeftEyeLidExpandedSqueeze", float(self.l_eye_blink))
+                self.client.send_message(self.config.osc_left_eye_close_address, eyelid_transformer(self,self.l_eye_blink))
 
 
             elif self.eye_id in [EyeId.RIGHT] and not se: #Right eye, send data to right
@@ -62,19 +71,19 @@ def output_osc(eye_x, eye_y, eye_blink, last_blink, self):
                 if self.r_eye_blink == 0.0:
                     if last_blink > 0.7: #when binary blink is on, blinks may be too fast for OSC so we repeat them.
                         for i in range(5):
-                            self.client.send_message("/avatar/parameters/LeftEyeLidExpandedSqueeze", float(self.r_eye_blink))
+                            self.client.send_message(self.config.osc_right_eye_close_address, eyelid_transformer(self,self.r_eye_blink))
                         last_blink = time.time() - last_blink
                     if self.config.gui_eye_falloff:
                         if self.l_eye_blink == 0.0: #if both eyes closed and DEF is enables, blink
-                            self.client.send_message("/avatar/parameters/LeftEyeLidExpandedSqueeze", float(self.r_eye_blink))
-                            self.client.send_message("/avatar/parameters/RightEyeLidExpandedSqueeze", float(self.r_eye_blink))
+                            self.client.send_message(self.config.osc_left_eye_close_address, eyelid_transformer(self,self.r_eye_blink))
+                            self.client.send_message(self.config.osc_right_eye_close_address, eyelid_transformer(self,self.r_eye_blink))
 
                     self.r_eye_x = self.l_eye_x
-
+                
                 self.client.send_message("/avatar/parameters/RightEyeX", eye_x)
                 self.right_y = eye_y
 
-                self.client.send_message("/avatar/parameters/RightEyeLidExpandedSqueeze", float(self.r_eye_blink))
+                self.client.send_message(self.config.osc_right_eye_close_address, eyelid_transformer(self,self.r_eye_blink))
 
             if self.main_config.eye_display_id in [EyeId.BOTH] and self.right_y != 621 and self.left_y != 621:
                 y = (self.right_y + self.left_y) / 2
@@ -97,6 +106,7 @@ def output_osc(eye_x, eye_y, eye_blink, last_blink, self):
                 self.l_eye_x = eye_x
                 self.l_eye_blink = eye_blink
                 self.left_y = eye_y
+                self.client.send_message(self.config.osc_left_eye_close_address,eyelid_transformer(self,eye_blink))
 
                 if self.l_eye_blink == 0.0:
                     if last_blink > 0.7:  # when binary blink is on, blinks may be too fast for OSC so we repeat them.
@@ -118,6 +128,7 @@ def output_osc(eye_x, eye_y, eye_blink, last_blink, self):
                 self.r_eye_x = eye_x
                 self.r_eye_blink = eye_blink
                 self.right_y = eye_y
+                self.client.send_message(self.config.osc_right_eye_close_address,eyelid_transformer(self,eye_blink))
 
                 if self.r_eye_blink == 0.0:
                     if last_blink > 0.7:  # when binary blink is on, blinks may be too fast for OSC so we repeat them.
@@ -149,7 +160,6 @@ def output_osc(eye_x, eye_y, eye_blink, last_blink, self):
                 eye_y = (self.right_y + self.left_y) / 2
 
             if not se:
-
                 self.client.send_message("/tracking/eye/LeftRightVec",
                                      [float(self.l_eye_x), float(eye_y), 0.8, float(self.r_eye_x), float(eye_y),
                                       0.8])  # vrc native ET (z values may need tweaking, they act like a scalar)
@@ -215,7 +225,8 @@ class VRChatOSCReceiver:
         if type(osc_value) != bool: return  # just incase we get anything other than bool
         if osc_value:
             for eye in self.eyes:
-                eye.ransac.calibration_frame_counter = 300
+                eye.ransac.ibo.clear_filter()
+                eye.ransac.calibration_frame_counter = self.config.calibration_samples
                 PlaySound('Audio/start.wav', SND_FILENAME | SND_ASYNC)
 
     def run(self):

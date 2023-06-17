@@ -160,17 +160,10 @@ def get_center_noclamp(center_xy, radius):
 
 
 cct = 300
-ransac_lower_x = 100
-ransac_lower_y = 100
-cx = 0
-cy = 0
-
 
 def RANSAC3D(self, hsrac_en):
     f = False
     ranf = False
-    global cct, ransac_lower_y, ransac_lower_x, cx, cy
-
 
     if hsrac_en:
         center_x, center_y, upper_x, lower_x, upper_y, lower_y, ransac_lower_x, ransac_lower_y, ransac_upper_x, ransac_upper_y, ransac_xy_offset = get_center_noclamp(

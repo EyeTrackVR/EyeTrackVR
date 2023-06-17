@@ -34,6 +34,7 @@ class CameraWidget:
         self.gui_mode_readout = f"-APPMODE{widget_id}-"
         self.gui_roi_message = f"-ROIMESSAGE{widget_id}-"
 
+        self.last_eye_info = None
         self.osc_queue = osc_queue
         self.main_config = main_config
         self.eye_id = widget_id
@@ -266,7 +267,8 @@ class CameraWidget:
             self.x1, self.y1 = values[self.gui_roi_selection]
 
         if event == self.gui_restart_calibration:
-            self.ransac.calibration_frame_counter = 300
+            self.ransac.calibration_frame_counter = self.settings.calibration_samples
+            self.ransac.ibo.clear_filter()
             PlaySound('Audio/start.wav', SND_FILENAME | SND_ASYNC)
 
         if event == self.gui_stop_calibration:

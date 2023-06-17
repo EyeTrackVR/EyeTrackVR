@@ -241,7 +241,6 @@ def main():
         elif values[BOTH_EYE_RADIO_NAME] and config.eye_display_id != EyeId.BOTH:
             settings[0].stop()
             settings[1].stop()
-            eyes[0].stop()
             eyes[1].start()
             eyes[0].start()
             window[LEFT_EYE_NAME].update(visible=True)
@@ -277,15 +276,15 @@ def main():
             config.eye_display_id = EyeId.ALGOSETTINGS
             config.save()
 
-        # Otherwise, render all
-        for eye in eyes:
-            if eye.started():
-                eye.render(window, event, values)
-        for setting in settings:
-            if setting.started():
-                setting.render(window, event, values)
-    #    settings[0].render(window, event, values)
-      #  settings[1].render(window, event, values)
+        else:
+            # Otherwise, render all
+            for eye in eyes:
+                if eye.started():
+                    eye.render(window, event, values)
+            for setting in settings:
+                if setting.started():
+                    setting.render(window, event, values)
+
 
 
 if __name__ == "__main__":

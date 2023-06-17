@@ -247,20 +247,18 @@ class EyeProcessor:
 
 
     def UPDATE(self):
-       # print(self.blink_clear)
         if self.settings.gui_BLINK:
             self.eyeopen = BLINK(self)
 
         if self.settings.gui_IBO:
-            self.eyeopen = self.ibo.intense(self.rawx, self.rawy, self.current_image_white)
-            if self.eyeopen < 0.35: #threshold so the eye fully closes #todo: make this a setting?
+            self.eyeopen = self.ibo.intense(self.rawx, self.rawy, self.current_image_white,self.settings.ibo_filter_samples,self.settings.ibo_average_output_samples)
+            if self.eyeopen < self.settings.ibo_fully_close_eye_threshold: #threshold so the eye fully closes
                 self.eyeopen = 0.0
             if self.bd_blink == True:
                 pass
-               # self.eyeopen = 0.0
 
         if self.settings.gui_IBO and self.settings.gui_BLINK:
-            ibo = self.ibo.intense(self.rawx, self.rawy, self.current_image_white)
+            ibo = self.ibo.intense(self.rawx, self.rawy, self.current_image_white,self.settings.ibo_filter_samples,self.settings.ibo_average_output_samples)
             
             blink = BLINK(self)
             if blink == 0.0:

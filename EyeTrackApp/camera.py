@@ -82,7 +82,7 @@ class Camera:
                     self.config.capture_source != None and self.config.capture_source != ""
             ):
 
-                if (self.config.capture_source[:3] == "COM"):
+                if "COM" in str(self.current_capture_source):
                     if (
                             self.serial_connection is None
                             or self.camera_status == CameraState.DISCONNECTED
@@ -117,7 +117,7 @@ class Camera:
             if should_push and not self.capture_event.wait(timeout=0.02):
                 continue
             if self.config.capture_source != None:
-                if (self.current_capture_source[:3] == "COM"):
+                if "COM" in str(self.current_capture_source):
                     self.get_serial_camera_picture(should_push)
                 else:
                     self.get_cv2_camera_picture(should_push)
