@@ -226,7 +226,7 @@ class VRChatOSCReceiver:
         if osc_value:
             for eye in self.eyes:
                 eye.ransac.ibo.clear_filter()
-                eye.ransac.calibration_frame_counter = self.settings.calibration_samples
+                eye.ransac.calibration_frame_counter = self.config.calibration_samples
                 PlaySound('Audio/start.wav', SND_FILENAME | SND_ASYNC)
 
     def run(self):
