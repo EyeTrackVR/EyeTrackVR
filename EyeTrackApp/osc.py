@@ -62,7 +62,7 @@ def output_osc(eye_x, eye_y, eye_blink, last_blink, self):
                 if self.r_eye_blink == 0.0:
                     if last_blink > 0.7: #when binary blink is on, blinks may be too fast for OSC so we repeat them.
                         for i in range(5):
-                            self.client.send_message("/avatar/parameters/LeftEyeLidExpandedSqueeze", float(self.r_eye_blink))
+                            self.client.send_message("/avatar/parameters/RightEyeLidExpandedSqueeze", float(self.r_eye_blink))
                         last_blink = time.time() - last_blink
                     if self.config.gui_eye_falloff:
                         if self.l_eye_blink == 0.0: #if both eyes closed and DEF is enables, blink
