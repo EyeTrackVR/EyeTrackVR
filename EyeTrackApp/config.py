@@ -2,7 +2,7 @@ import json
 import os.path
 import shutil
 
-from EyeTrackApp.consts import EyeId, CaptureSourceType
+from EyeTrackApp.consts import PageType, CaptureSourceType
 from pydantic import BaseModel
 
 from exceptions import ConfigFileDoesNotExist, ConfigFileInvalid
@@ -77,7 +77,7 @@ class EyeTrackConfig(BaseModel):
     right_eye: EyeTrackCameraConfig = EyeTrackCameraConfig()
     left_eye: EyeTrackCameraConfig = EyeTrackCameraConfig()
     settings: EyeTrackSettingsConfig = EyeTrackSettingsConfig()
-    eye_display_id: EyeId = EyeId.RIGHT
+    eye_display_id: PageType = PageType.RIGHT
 
     @staticmethod
     def load():

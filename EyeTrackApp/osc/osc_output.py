@@ -1,7 +1,7 @@
 import time
 
 from pythonosc import udp_client
-from EyeTrackApp.consts import EyeId
+from EyeTrackApp.consts import PageType
 from config import EyeTrackConfig
 from eye import EyeInfo
 
@@ -32,7 +32,7 @@ class OSCOutputHandler:
 
     def osc_output_vrc_native(self, eye_blink, eye_x, eye_y, last_blink, eye_id):
         # single eye mode
-        if self.app_config.eye_display_id in [EyeId.RIGHT, EyeId.LEFT]:
+        if self.app_config.eye_display_id in [PageType.RIGHT, PageType.LEFT]:
             self.single_eye = True
             self.client.send_message("/tracking/eye/EyesClosedAmount", float(1 - eye_blink))
             self.client.send_message(
@@ -49,7 +49,7 @@ class OSCOutputHandler:
         else:
             self.single_eye = False
 
-        if eye_id in [EyeId.LEFT] and not self.single_eye:
+        if eye_id in [PageType.LEFT] and not self.single_eye:
             self.left_eye_x = eye_x
             self.left_eye_blink = eye_blink
             self.left_eye_y = eye_y
@@ -65,7 +65,7 @@ class OSCOutputHandler:
                         self.client.send_message("/tracking/eye/EyesClosedAmount", float(1 - eye_blink))
                 self.left_eye_x = self.right_eye_x
 
-        elif eye_id in [EyeId.RIGHT] and not self.single_eye:
+        elif eye_id in [PageType.RIGHT] and not self.single_eye:
             self.right_eye_x = eye_x
             self.right_eye_blink = eye_blink
             self.right_eye_y = eye_y
@@ -81,7 +81,7 @@ class OSCOutputHandler:
 
                 self.right_eye_x = self.left_eye_x
         if (
-            self.app_config.eye_display_id in [EyeId.BOTH]
+            self.app_config.eye_display_id in [PageType.BOTH]
             and self.right_eye_blink != 621
             and self.left_eye_blink != 621
         ):
@@ -93,7 +93,7 @@ class OSCOutputHandler:
             eye_blink = (self.right_eye_blink + self.left_eye_blink) / 2
             self.client.send_message("/tracking/eye/EyesClosedAmount", float(1 - eye_blink))
 
-        if self.app_config.eye_display_id in [EyeId.BOTH] and self.right_eye_y != 621 and self.left_eye_y != 621:
+        if self.app_config.eye_display_id in [PageType.BOTH] and self.right_eye_y != 621 and self.left_eye_y != 621:
             eye_y = (self.right_eye_y + self.left_eye_y) / 2
 
         if not self.single_eye:
@@ -112,8 +112,8 @@ class OSCOutputHandler:
     def osc_output_legacy(self, eye_blink, eye_x, eye_y, last_blink, eye_id):
 
         if self.app_config.eye_display_id in [
-            EyeId.RIGHT,
-            EyeId.LEFT,
+            PageType.RIGHT,
+            PageType.LEFT,
         ]:  # we are in single eye mode
             se = True
 
@@ -126,7 +126,7 @@ class OSCOutputHandler:
         else:
             se = False
 
-        if eye_id in [EyeId.LEFT] and not se:  # left eye, send data to left
+        if eye_id in [PageType.LEFT] and not se:  # left eye, send data to left
             self.left_eye_x = eye_x
             self.left_eye_x = eye_blink
 
@@ -156,7 +156,7 @@ class OSCOutputHandler:
             self.client.send_message("/avatar/parameters/LeftEyeLidExpandedSqueeze", float(self.left_eye_x))
 
         # Right eye, send data to right
-        elif eye_id in [EyeId.RIGHT] and not se:
+        elif eye_id in [PageType.RIGHT] and not se:
             self.right_eye_x = eye_x
             self.right_eye_blink = eye_blink
 
@@ -189,6 +189,6 @@ class OSCOutputHandler:
                 float(self.right_eye_blink),
             )
 
-        if self.app_config.eye_display_id in [EyeId.BOTH] and self.right_eye_y != 621 and self.left_eye_y != 621:
+        if self.app_config.eye_display_id in [PageType.BOTH] and self.right_eye_y != 621 and self.left_eye_y != 621:
             y = (self.right_eye_y + self.left_eye_y) / 2
             self.client.send_message("/avatar/parameters/EyesY", y)

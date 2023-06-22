@@ -6,7 +6,7 @@ import threading
 
 from camera_widget import CameraWidget
 from config import EyeTrackConfig
-from EyeTrackApp.consts import EyeId
+from EyeTrackApp.consts import PageType
 from EyeTrackApp.osc.osc import VRChatOSC
 from EyeTrackApp.osc.osc_input import VRChatOSCReceiver
 from eye import EyeInfo
@@ -91,12 +91,12 @@ def main():
     osc_thread.start()
 
     eyes = [
-        CameraWidget(EyeId.RIGHT, config, osc_queue),
-        CameraWidget(EyeId.LEFT, config, osc_queue),
+        CameraWidget(PageType.RIGHT, config, osc_queue),
+        CameraWidget(PageType.LEFT, config, osc_queue),
     ]
 
     settings = [
-        SettingsWidget(EyeId.SETTINGS, config, osc_queue),
+        SettingsWidget(PageType.SETTINGS, config, osc_queue),
     ]
 
     layout = [
@@ -105,28 +105,28 @@ def main():
                 "Left Eye",
                 "EYESELECTRADIO",
                 background_color="#292929",
-                default=(config.eye_display_id == EyeId.LEFT),
+                default=(config.eye_display_id == PageType.LEFT),
                 key=LEFT_EYE_RADIO_NAME,
             ),
             sg.Radio(
                 "Right Eye",
                 "EYESELECTRADIO",
                 background_color="#292929",
-                default=(config.eye_display_id == EyeId.RIGHT),
+                default=(config.eye_display_id == PageType.RIGHT),
                 key=RIGHT_EYE_RADIO_NAME,
             ),
             sg.Radio(
                 "Both Eyes",
                 "EYESELECTRADIO",
                 background_color="#292929",
-                default=(config.eye_display_id == EyeId.BOTH),
+                default=(config.eye_display_id == PageType.BOTH),
                 key=BOTH_EYE_RADIO_NAME,
             ),
             sg.Radio(
                 "Settings",
                 "EYESELECTRADIO",
                 background_color="#292929",
-                default=(config.eye_display_id == EyeId.SETTINGS),
+                default=(config.eye_display_id == PageType.SETTINGS),
                 key=SETTINGS_RADIO_NAME,
             ),
         ],
@@ -135,32 +135,32 @@ def main():
                 eyes[1].widget_layout,
                 vertical_alignment="top",
                 key=LEFT_EYE_NAME,
-                visible=(config.eye_display_id in [EyeId.LEFT, EyeId.BOTH]),
+                visible=(config.eye_display_id in [PageType.LEFT, PageType.BOTH]),
                 background_color="#424042",
             ),
             sg.Column(
                 eyes[0].widget_layout,
                 vertical_alignment="top",
                 key=RIGHT_EYE_NAME,
-                visible=(config.eye_display_id in [EyeId.RIGHT, EyeId.BOTH]),
+                visible=(config.eye_display_id in [PageType.RIGHT, PageType.BOTH]),
                 background_color="#424042",
             ),
             sg.Column(
                 settings[0].widget_layout,
                 vertical_alignment="top",
                 key=SETTINGS_NAME,
-                visible=(config.eye_display_id in [EyeId.SETTINGS]),
+                visible=(config.eye_display_id in [PageType.SETTINGS]),
                 background_color="#424042",
             ),
         ],
     ]
 
-    if config.eye_display_id in [EyeId.LEFT, EyeId.BOTH]:
+    if config.eye_display_id in [PageType.LEFT, PageType.BOTH]:
         eyes[1].start()
-    if config.eye_display_id in [EyeId.RIGHT, EyeId.BOTH]:
+    if config.eye_display_id in [PageType.RIGHT, PageType.BOTH]:
         eyes[0].start()
 
-    if config.eye_display_id in [EyeId.SETTINGS, EyeId.BOTH]:
+    if config.eye_display_id in [PageType.SETTINGS, PageType.BOTH]:
         settings[0].start()
         #self.main_config.eye_display_id
 
@@ -198,29 +198,29 @@ def main():
             print("\033[94m[INFO] Exiting EyeTrackApp\033[0m")
             return
 
-        if values[RIGHT_EYE_RADIO_NAME] and config.eye_display_id != EyeId.RIGHT:
+        if values[RIGHT_EYE_RADIO_NAME] and config.eye_display_id != PageType.RIGHT:
             eyes[0].start()
             eyes[1].stop()
             settings[0].stop()
             window[RIGHT_EYE_NAME].update(visible=True)
             window[LEFT_EYE_NAME].update(visible=False)
             window[SETTINGS_NAME].update(visible=False)
-            config.eye_display_id = EyeId.RIGHT
+            config.eye_display_id = PageType.RIGHT
             config.settings.tracker_single_eye = 2
             config.save()
 
-        elif values[LEFT_EYE_RADIO_NAME] and config.eye_display_id != EyeId.LEFT:
+        elif values[LEFT_EYE_RADIO_NAME] and config.eye_display_id != PageType.LEFT:
             settings[0].stop()
             eyes[0].stop()
             eyes[1].start()
             window[RIGHT_EYE_NAME].update(visible=False)
             window[LEFT_EYE_NAME].update(visible=True)
             window[SETTINGS_NAME].update(visible=False)
-            config.eye_display_id = EyeId.LEFT
+            config.eye_display_id = PageType.LEFT
             config.settings.tracker_single_eye = 1
             config.save()
 
-        elif values[BOTH_EYE_RADIO_NAME] and config.eye_display_id != EyeId.BOTH:
+        elif values[BOTH_EYE_RADIO_NAME] and config.eye_display_id != PageType.BOTH:
             settings[0].stop()
             eyes[0].stop()
             eyes[1].start()
@@ -228,18 +228,18 @@ def main():
             window[LEFT_EYE_NAME].update(visible=True)
             window[RIGHT_EYE_NAME].update(visible=True)
             window[SETTINGS_NAME].update(visible=False)
-            config.eye_display_id = EyeId.BOTH
+            config.eye_display_id = PageType.BOTH
             config.settings.tracker_single_eye = 0
             config.save()
 
-        elif values[SETTINGS_RADIO_NAME] and config.eye_display_id != EyeId.SETTINGS:
+        elif values[SETTINGS_RADIO_NAME] and config.eye_display_id != PageType.SETTINGS:
             eyes[0].stop()
             eyes[1].stop()
             settings[0].start()
             window[RIGHT_EYE_NAME].update(visible=False)
             window[LEFT_EYE_NAME].update(visible=False)
             window[SETTINGS_NAME].update(visible=True)
-            config.eye_display_id = EyeId.SETTINGS
+            config.eye_display_id = PageType.SETTINGS
             config.save()
 
         # Otherwise, render all of our cameras

@@ -1,14 +1,14 @@
 import PySimpleGUI as sg
 
 from config import EyeTrackConfig
-from EyeTrackApp.consts import EyeId
+from EyeTrackApp.consts import PageType
 from queue import Queue
 from threading import Event
 
 
 # TODO there used to be validation problems here, try to find them and fix them
 class SettingsWidget:
-    def __init__(self, widget_id: EyeId, main_config: EyeTrackConfig, osc_queue: Queue):
+    def __init__(self, widget_id: PageType, main_config: EyeTrackConfig, osc_queue: Queue):
 
         self.gui_flip_x_axis_left = f"-FLIPXAXISLEFT{widget_id}-"
         self.gui_flip_x_axis_right = f"-FLIPXAXISRIGHT{widget_id}-"
@@ -554,4 +554,4 @@ class SettingsWidget:
 
         if changed:
             self.main_config.save()
-        self.osc_queue.put((EyeId.SETTINGS, ))
+        self.osc_queue.put((PageType.SETTINGS,))

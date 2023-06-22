@@ -7,7 +7,7 @@ from threading import Event, Thread
 from eye_processor import EyeProcessor, EyeInfoOrigin
 from queue import Queue, Empty
 from camera import Camera, CameraState
-from EyeTrackApp.consts import EyeId, CaptureSourceType, SUPPORTED_VIDEO_FORMATS
+from EyeTrackApp.consts import PageType, CaptureSourceType, SUPPORTED_VIDEO_FORMATS
 import cv2
 
 from utils.eye_utils import trigger_recalibration, stop_calibration, trigger_recenter
@@ -33,7 +33,7 @@ def sanitize_source(gui_camera_addr) -> CameraCaptureSource:
 
 
 class CameraWidget:
-    def __init__(self, widget_id: EyeId, main_config: EyeTrackConfig, osc_queue: Queue):
+    def __init__(self, widget_id: PageType, main_config: EyeTrackConfig, osc_queue: Queue):
         self.gui_camera_addr = f"-CAMERAADDR{widget_id}-"
         self.gui_rotation_slider = f"-ROTATIONSLIDER{widget_id}-"
         self.gui_roi_button = f"-ROIMODE{widget_id}-"
@@ -59,9 +59,9 @@ class CameraWidget:
         self.configl = main_config.left_eye
         self.configr = main_config.right_eye
         self.settings = main_config.settings
-        if self.eye_id == EyeId.RIGHT:
+        if self.eye_id == PageType.RIGHT:
             self.config = main_config.right_eye
-        elif self.eye_id == EyeId.LEFT:
+        elif self.eye_id == PageType.LEFT:
             self.config = main_config.left_eye
         else:
             raise RuntimeError("\033[91m[WARN] Cannot have a camera widget represent both eyes!\033[0m")

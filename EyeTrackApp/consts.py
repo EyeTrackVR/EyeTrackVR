@@ -9,7 +9,7 @@ class CaptureSourceType(IntEnum):
     TEST_VIDEO = 4
 
 
-class EyeId(IntEnum):
+class PageType(IntEnum):
     RIGHT = 0
     LEFT = 1
     BOTH = 2
@@ -31,3 +31,5 @@ RANSAC_CALIBRATION_STEPS_STOP = 0
 SUPPORTED_VIDEO_FORMATS = [
     "mp4",
 ]
+
+calibration_max_axis_value = 69420

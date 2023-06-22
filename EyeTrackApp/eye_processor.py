@@ -42,14 +42,14 @@ from pye3d.camera import CameraModel
 from pye3d.detector_3d import Detector3D, DetectorMode
 import queue
 import threading
-from osc_calibrate_filter import *
+from utils.misc_utils import PlaySound, SND_FILENAME, SND_ASYNC
 from daddy import External_Run_DADDY
 from haar_surround_feature import External_Run_HSF
 from blob import *
 from ransac import *
 from hsrac import External_Run_HSRACS
 from blink import *
-from EyeTrackApp.consts import EyeInfoOrigin
+from EyeTrackApp.consts import EyeInfoOrigin, calibration_max_axis_value
 from consts import RANSAC_CALIBRATION_STEPS_START
 from eye import EyeInfo
 
@@ -113,10 +113,10 @@ class EyeProcessor:
         self.calibration_frame_counter = None
         self.eyeoffx = 1
 
-        self.xmax = -69420
-        self.xmin = 69420
-        self.ymax = -69420
-        self.ymin = 69420
+        self.xmax = -calibration_max_axis_value
+        self.xmin = calibration_max_axis_value
+        self.ymax = -calibration_max_axis_value
+        self.ymin = calibration_max_axis_value
         self.blink_clear = False
         self.cct = RANSAC_CALIBRATION_STEPS_START
         self.cccs = False
@@ -129,13 +129,7 @@ class EyeProcessor:
         self.er_hsrac = None
         self.er_daddy = None
 
-        # TODO I'm sure this can be done cleaner, find out later
-        eye_side_map = {
-            1: EyeLR.LEFT,
-            2: EyeLR.RIGHT,
-        }
-
-        self.ibo = IntensityBasedOpeness(eyeside=eye_side_map.get(self.eye_id, -1))
+        self.ibo = IntensityBasedOpeness(eye_side=self.eye_id)
         self.roi_include_set = {"rotation_angle", "roi_window_x", "roi_window_y"}
 
         self.failed = 0
@@ -259,7 +253,7 @@ class EyeProcessor:
         self.thresh = self.current_image_gray.copy()
         self.rawx, self.rawy, self.eyeopen = self.er_daddy.run(self.current_image_gray)
         # Daddy also uses a one euro filter, so I'll have to use it twice, but I'm not going to think too much about it.
-        self.out_x, self.out_y = cal.cal_osc(self, self.rawx, self.rawy)
+        self.out_x, self.out_y = self.calibrate_osc_output(self.rawx, self.rawy)
         self.current_algorithm = EyeInfoOrigin.DADDY
 
     def HSRACM(self):
@@ -274,27 +268,26 @@ class EyeProcessor:
         if self.prev_x is None:
             self.prev_x = self.rawx
             self.prev_y = self.rawy
-        self.out_x, self.out_y = cal.cal_osc(self, self.rawx, self.rawy)  # TODO we should NOT be doing it this way
+        self.out_x, self.out_y = self.calibrate_osc_output(self.rawx, self.rawy)
         self.current_algorithm = EyeInfoOrigin.HSRAC
 
     def HSFM(self):
         # todo: add process to initialise er_hsf when resolution changes
         self.rawx, self.rawy, self.thresh = self.er_hsf.run(self.current_image_gray)
-        self.out_x, self.out_y = cal.cal_osc(self, self.rawx, self.rawy)
+        self.out_x, self.out_y = self.calibrate_osc_output(self.rawx, self.rawy)
         self.current_algorithm = EyeInfoOrigin.HSF
 
     def RANSAC3DM(self):
         current_image_gray_copy = self.current_image_gray.copy()  # Duplicate before overwriting in RANSAC3D.
         self.rawx, self.rawy, self.thresh = RANSAC3D(self)
-        self.out_x, self.out_y = cal.cal_osc(self, self.rawx, self.rawy)
+        self.out_x, self.out_y = self.calibrate_osc_output(self.rawx, self.rawy)
         self.current_algorithm = EyeInfoOrigin.RANSAC
 
     def BLOBM(self):
         self.rawx, self.rawy, self.thresh = BLOB(self)
-        self.out_x, self.out_y = cal.cal_osc(self, self.rawx, self.rawy)
+        self.out_x, self.out_y = self.calibrate_osc_output(self.rawx, self.rawy)
         self.current_algorithm = EyeInfoOrigin.BLOB
 
-    # TODO refactor this into strategy pattern
     def ALGOSELECT(self):
         # self.DADDYM()
         if self.failed == 0 and self.firstalgo != None:
@@ -430,3 +423,105 @@ class EyeProcessor:
 
             self.ALGOSELECT()  # run our algos in priority order set in settings
             self.UPDATE()
+
+    def _should_flip_x_output(self):
+        if self.eye_id == PageType.RIGHT:
+            return self.settings.gui_flip_x_axis_right
+        return self.settings.gui_flip_x_axis_left
+
+    # TODO break it up
+    def calibrate_osc_output(self, cx, cy):
+        if cx == 0:
+            cx = 1
+        if cy == 0:
+            cy = 1
+
+        if self.calibration_frame_counter == 0:
+            self.calibration_frame_counter = None
+            self.config.calib_XOFF = cx
+            self.config.calib_YOFF = cy
+            PlaySound("Audio/completed.wav", SND_FILENAME | SND_ASYNC)
+        if self.calibration_frame_counter == RANSAC_CALIBRATION_STEPS_START:
+            self.config.calib_XMAX = -calibration_max_axis_value
+            self.config.calib_XMIN = calibration_max_axis_value
+            self.config.calib_YMAX = -calibration_max_axis_value
+            self.config.calib_YMIN = calibration_max_axis_value
+            self.eye_processor.blink_clear = True
+            self.calibration_frame_counter -= 1
+        elif self.calibration_frame_counter is not None:
+            self.eye_processor.blink_clear = False
+            self.settings.gui_recenter_eyes = False
+            if cx > self.config.calib_XMAX:
+                self.config.calib_XMAX = cx
+            if cx < self.config.calib_XMIN:
+                self.config.calib_XMIN = cx
+            if cy > self.config.calib_YMAX:
+                self.config.calib_YMAX = cy
+            if cy < self.config.calib_YMIN:
+                self.config.calib_YMIN = cy
+            self.calibration_frame_counter -= 1
+
+        if self.settings.gui_recenter_eyes:
+            self.config.calib_XOFF = cx
+            self.config.calib_YOFF = cy
+            if self.ts == 0:
+                self.settings.gui_recenter_eyes = False
+                PlaySound("Audio/completed.wav", SND_FILENAME | SND_ASYNC)
+            else:
+                self.ts = self.ts - 1
+        else:
+            self.ts = 10
+
+        out_x = 0.5
+        out_y = 0.5
+
+        calib_diff_x_MAX = self.config.calib_XMAX - self.config.calib_XOFF
+        if calib_diff_x_MAX == 0:
+            calib_diff_x_MAX = 1
+
+        calib_diff_x_MIN = self.config.calib_XMIN - self.config.calib_XOFF
+        if calib_diff_x_MIN == 0:
+            calib_diff_x_MIN = 1
+
+        calib_diff_y_MAX = self.config.calib_YMAX - self.config.calib_YOFF
+        if calib_diff_y_MAX == 0:
+            calib_diff_y_MAX = 1
+
+        calib_diff_y_MIN = self.config.calib_YMIN - self.config.calib_YOFF
+        if calib_diff_y_MIN == 0:
+            calib_diff_y_MIN = 1
+
+        xl = float((cx - self.config.calib_XOFF) / calib_diff_x_MAX)
+        xr = float((cx - self.config.calib_XOFF) / calib_diff_x_MIN)
+        yu = float((cy - self.config.calib_YOFF) / calib_diff_y_MIN)
+        yd = float((cy - self.config.calib_YOFF) / calib_diff_y_MAX)
+
+        if self.settings.gui_flip_y_axis:  # check config on flipped values settings and apply accordingly
+            if yd >= 0:
+                out_y = max(0.0, min(1.0, yd))
+            if yu > 0:
+                out_y = -abs(max(0.0, min(1.0, yu)))
+        else:
+            if yd >= 0:
+                out_y = -abs(max(0.0, min(1.0, yd)))
+            if yu > 0:
+                out_y = max(0.0, min(1.0, yu))
+
+        if self._should_flip_x_output():
+            if xr >= 0:
+                out_x = -abs(max(0.0, min(1.0, xr)))
+            if xl > 0:
+                out_x = max(0.0, min(1.0, xl))
+        else:
+            if xr >= 0:
+                out_x = max(0.0, min(1.0, xr))
+            if xl > 0:
+                out_x = -abs(max(0.0, min(1.0, xl)))
+        try:
+            noisy_point = np.array([float(out_x), float(out_y)])  # fliter our values with a One Euro Filter
+            point_hat = self.one_euro_filter(noisy_point)
+            out_x = point_hat[0]
+            out_y = point_hat[1]
+        except:
+            pass
+        return out_x, out_y

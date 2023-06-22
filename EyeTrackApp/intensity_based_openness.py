@@ -29,7 +29,8 @@ import numpy as np
 import time
 import os
 import cv2
-from enums import EyeLR
+
+from consts import PageType
 from one_euro_filter import OneEuroFilter
 from utils.img_utils import safe_crop
 #higher intensity means more closed/ more white/less pupil
@@ -102,9 +103,9 @@ def newdata(frameshape):
 
 
 class IntensityBasedOpeness:
-    def __init__(self, eyeside: EyeLR):
+    def __init__(self, eye_side: PageType):
         # todo: It is necessary to consider whether the filename can be changed in the configuration file, etc.
-        self.imgfile = "IBO_LEFT.png" if eyeside is EyeLR.LEFT else "IBO_RIGHT.png"
+        self.imgfile = "IBO_LEFT.png" if eye_side is PageType.LEFT else "IBO_RIGHT.png"
         # self.data[0, -1] = maxval, [1, -1] = rotation, [2, -1] = x, [3, -1] = y
         self.data = None
         self.lct = None
