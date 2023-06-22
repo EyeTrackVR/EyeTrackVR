@@ -401,31 +401,36 @@ class SettingsWidget:
             return
         self.cancellation_event.set()
 
+    # TODO rewrite the config validation, somehow
     def render(self, window, event, values):
         # If anything has changed in our configuration settings, change/update those.
         changed = False
+        osc_port = 9000
+        osc_receiver_port = 9001
 
-        if self.config.gui_osc_port != int(values[self.gui_osc_port]):
-            print(self.config.gui_osc_port, values[self.gui_osc_port])
-            try: 
-                int(values[self.gui_osc_port])
-                if len(values[self.gui_osc_port]) <= 5:
-                    self.config.gui_osc_port = int(values[self.gui_osc_port])
-                    changed = True
-                else:
-                    print("\033[91m[ERROR] OSC port value must be an integer 0-65535\033[0m")
-            except:
+        try:
+            osc_port = int(values[self.gui_osc_port])
+        except ValueError:
+            print("\033[91m[ERROR] OSC port value must be an integer 0-65535\033[0m")
+
+        try:
+            osc_receiver_port = int(values[self.gui_osc_receiver_port])
+        except ValueError:
+            print("\033[91m[ERROR] OSC receive port value must be an integer 0-65535\033[0m")
+
+        if self.config.gui_osc_port != osc_port:
+            print(self.config.gui_osc_port, osc_port)
+            if len(values[self.gui_osc_port]) <= 5:
+                self.config.gui_osc_port = osc_port
+                changed = True
+            else:
                 print("\033[91m[ERROR] OSC port value must be an integer 0-65535\033[0m")
 
-        if self.config.gui_osc_receiver_port != int(values[self.gui_osc_receiver_port]):
-            try: 
-                int(values[self.gui_osc_receiver_port])
-                if len(values[self.gui_osc_receiver_port]) <= 5:
-                    self.config.gui_osc_receiver_port = int(values[self.gui_osc_receiver_port])
-                    changed = True
-                else:
-                    print("\033[91m[ERROR] OSC receive port value must be an integer 0-65535\033[0m")
-            except:
+        if self.config.gui_osc_receiver_port != osc_receiver_port:
+            if len(values[self.gui_osc_receiver_port]) <= 5:
+                self.config.gui_osc_receiver_port = osc_receiver_port
+                changed = True
+            else:
                 print("\033[91m[ERROR] OSC receive port value must be an integer 0-65535\033[0m")
 
         if self.config.gui_osc_address != values[self.gui_osc_address]:
@@ -476,7 +481,7 @@ class SettingsWidget:
             self.config.gui_DADDY = values[self.gui_DADDY]
             changed = True
         
-        if self.config.gui_RANSAC3DP != int(values[self.gui_RANSAC3DP]): #TODO check that priority order is unique/auto fix it.
+        if self.config.gui_RANSAC3DP != int(values[self.gui_RANSAC3DP]):  # TODO check that priority order is unique/auto fix it.
             self.config.gui_RANSAC3DP = int(values[self.gui_RANSAC3DP])
             changed = True
 
