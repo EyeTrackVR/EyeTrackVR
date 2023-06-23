@@ -36,6 +36,7 @@ class EyeTrackSettingsConfig(BaseModel):
     gui_BLINK: bool = False
     gui_HSRAC: bool = True
     gui_DADDY: bool = False
+    gui_MOMMY: bool = False
     gui_HSF_radius: int = 15
     gui_HSF_radius_left: int = 10
     gui_HSF_radius_right: int = 10
@@ -57,6 +58,7 @@ class EyeTrackSettingsConfig(BaseModel):
     gui_DADDYP: int = 3
     gui_RANSAC3DP: int = 4
     gui_BLOBP: int = 5
+    gui_MOMMYP: int = 6
     gui_IBO: bool = True
     gui_skip_autoradius: bool = False
     gui_thresh_add: int = 11

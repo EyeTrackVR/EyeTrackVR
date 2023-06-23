@@ -52,6 +52,7 @@ import importlib
 from osc import EyeId
 from osc_calibrate_filter import *
 from daddy import External_Run_DADDY
+from mommy import External_Run_MOMMY
 from haar_surround_feature import External_Run_HSF
 from blob import *
 from ransac import *
@@ -135,6 +136,7 @@ class EyeProcessor:
         self.er_hsf = None
         self.er_hsrac = None
         self.er_daddy = None
+        self.er_mommy = None
         self.ibo = IntensityBasedOpeness(self.eye_id)
         self.roi_include_set = {"rotation_angle", "roi_window_x", "roi_window_y"}
 
@@ -286,10 +288,18 @@ class EyeProcessor:
     def BLINKM(self):
         self.eyeopen = BLINK(self)
 
+    def MOMMYM(self):
+        self.thresh = self.current_image_gray.copy()
+        self.current_image_gray, self.rawx, self.rawy, self.eyeopen = self.er_mommy.run(self.current_image_gray)
+        self.thresh = self.current_image_gray.copy()
+        self.out_x, self.out_y = cal.cal_osc(self, self.rawx, self.rawy)
+        self.current_algorithm = EyeInfoOrigin.MOMMY
+
     def DADDYM(self):
         # todo: We should have a proper variable for drawing.
+        #self.thresh = self.current_image_gray.copy()
         self.thresh = self.current_image_gray.copy()
-        self.rawx, self.rawy, self.eyeopen, self.radius = self.er_daddy.run(
+        self.rawx, self.rawy, self.radius = self.er_daddy.run(
             self.current_image_gray
         )
         # Daddy also uses a one euro filter, so I'll have to use it twice, but I'm not going to think too much about it.
@@ -406,6 +416,11 @@ class EyeProcessor:
 
         if self.failed == 4 and self.fithalgo != None:
             self.fithalgo()
+        else:
+            self.failed = self.failed + 1
+
+        if self.failed == 5 and self.sixthalgo != None:
+            self.sixthalgo()
 
         else:
             self.failed = 0  # we have reached last possible algo and it is disabled, move to first algo
@@ -419,7 +434,8 @@ class EyeProcessor:
         self.thirdalgo = None
         self.fourthalgo = None
         self.fithalgo = None
-        algolist = [None, None, None, None, None, None]
+        self.sixthalgo = None
+        algolist = [None, None, None, None, None, None, None]
 
         # clear HSF values when page is opened to correctly reflect setting changes
         self.er_hsf = None
@@ -477,6 +493,14 @@ class EyeProcessor:
             if self.er_daddy is not None:
                 self.er_daddy = None
 
+        if self.settings.gui_MOMMY:
+            if self.er_mommy is None:
+                self.er_mommy = External_Run_MOMMY()
+            algolist[self.settings.gui_MOMMY] = self.MOMMYM
+        else:
+            if self.er_mommy is not None:
+                self.er_mommy = None
+
         if self.settings.gui_RANSAC3D:
             algolist[self.settings.gui_RANSAC3DP] = self.RANSAC3DM
 
@@ -490,6 +514,7 @@ class EyeProcessor:
             self.thirdalgo,
             self.fourthalgo,
             self.fithalgo,
+            self.sixthalgo,
         ) = algolist
 
         f = True
@@ -506,7 +531,6 @@ class EyeProcessor:
                 if self.cancellation_event.wait(0.1):
                     return
                 continue
-
             # If our ROI configuration has changed, reset our model and detector
             if (
                 self.camera_model is None

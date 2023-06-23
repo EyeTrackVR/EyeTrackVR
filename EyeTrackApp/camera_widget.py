@@ -282,7 +282,6 @@ class CameraWidget:
         # TODO: Refactor if statements below...
         window[self.gui_tracking_fps].update('')
         window[self.gui_tracking_bps].update('')
-
         if self.config.capture_source is None or self.config.capture_source == "":
             window[self.gui_mode_readout].update("Waiting for camera address")
             window[self.gui_roi_message].update(visible=False)
@@ -291,6 +290,7 @@ class CameraWidget:
             window[self.gui_mode_readout].update("Camera Connecting")
         elif self.camera.camera_status == CameraState.DISCONNECTED:
             window[self.gui_mode_readout].update("Camera Reconnecting...")
+
         elif needs_roi_set:
             window[self.gui_mode_readout].update("Awaiting Eye Crop")
         elif self.ransac.calibration_frame_counter != None:
