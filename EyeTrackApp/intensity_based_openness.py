@@ -42,8 +42,6 @@ class EyeId(IntEnum):
     SETTINGS = 3
 
 
-import matplotlib.pyplot as plt
-
 # higher intensity means more closed/ more white/less pupil
 
 # Hm I need an acronym for this, any ideas?
