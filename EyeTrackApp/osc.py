@@ -160,9 +160,8 @@ def output_osc(eye_x, eye_y, eye_blink, last_blink, self):
                 eye_y = (self.right_y + self.left_y) / 2
 
             if not se:
-                self.client.send_message("/tracking/eye/LeftRightVec",
-                                     [float(self.l_eye_x), float(eye_y), 0.8, float(self.r_eye_x), float(eye_y),
-                                      0.8])  # vrc native ET (z values may need tweaking, they act like a scalar)
+                # vrc native ET (z values may need tweaking, they act like a scalar)
+                self.client.send_message("/tracking/eye/LeftRightVec",[float(self.l_eye_x), float(self.left_y), 0.8, float(self.r_eye_x), float(self.right_y),0.8])
 
 
 class VRChatOSC:
