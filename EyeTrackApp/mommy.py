@@ -38,9 +38,8 @@ import math
 from queue import Queue
 import threading
 from one_euro_filter import OneEuroFilter
-frame_count = 0
-start_time = time.time()
-
+import psutil, os
+import sys
 
 
 
@@ -70,13 +69,43 @@ def run_model(input_queue, output_queue, session):
 class MOMMY_C(object):
     def __init__(self):
         onnxruntime.disable_telemetry_events()
-        opts = onnxruntime.SessionOptions()
-        opts.inter_op_num_threads = 4
-        opts.intra_op_num_threads = 1  # 1 = 30fps 2 =60 fps #TODO: add to settings page
+        # Config variables
+        self.num_threads = 2  # Number of python threads to use (using ~1 more than needed to acheive wanted fps yeilds lower cpu usage)
+        self.queue_max_size = self.num_threads + 4  # Optimize for best CPU usage, Memory, and Latency. A maxsize is needed to not create a potential memory leak.
+        self.model_path = 'C:/Users/beaul/PycharmProjects/EyeTrackVR/EyeTrackApp/Models/mommy062023.onnx'
+        self.interval = 1  # FPS print update rate
+        self.low_priority = True  # set process priority to low
+        self.print_fps = True
+        # Init variables
+        self.frames = 0
+        self.queues = []
+        self.threads = []
+        self.model_output = np.zeros((22, 2))
+        self.output_queue = Queue(maxsize=self.queue_max_size)
+        self.start_time = time.time()
 
-        # ort_session = onnxruntime.InferenceSession("pfld.onnx")
+        for _ in range(self.num_threads):
+            self.queue = Queue(maxsize=self.queue_max_size)
+            self.queues.append(self.queue)
+
+        opts = onnxruntime.SessionOptions()
+        opts.inter_op_num_threads = 1
+        opts.intra_op_num_threads = 1
         opts.graph_optimization_level = onnxruntime.GraphOptimizationLevel.ORT_ENABLE_ALL
-        self.ort_session = onnxruntime.InferenceSession("Models/mommy062023.onnx", opts, providers=['CPUExecutionProvider'])
+        opts.optimized_model_filepath = ''
+        self.ort_session = onnxruntime.InferenceSession(self.model_path, opts, providers=['CPUExecutionProvider'])
+
+        if self.low_priority:
+            process = psutil.Process(os.getpid())  # set process priority to low
+            try:
+                sys.getwindowsversion()
+            except AttributeError:
+                process.nice(0)  # UNIX: 0 low 10 high
+                process.nice()
+            else:
+                process.nice(psutil.BELOW_NORMAL_PRIORITY_CLASS)  # Windows
+                process.nice()
+                # See https://learn.microsoft.com/en-us/windows/win32/api/processthreadsapi/nf-processthreadsapi-getpriorityclass#return-value for values
         min_cutoff = 0.04
         beta = 0.9
         # print(np.random.rand(22, 2))
@@ -90,22 +119,8 @@ class MOMMY_C(object):
         self.dmin = 0
         self.x = 0
         self.y = 0
-        self.num_threads = 2
-        self.output_queue = Queue(maxsize=self.num_threads + 4)  # can be adjusted
-        self.queues = []
 
-        self.num_threads = 2
-        self.output_queue = Queue(maxsize=self.num_threads + 4)  # can be adjusted
 
-        for _ in range(self.num_threads):
-            self.queue = Queue(maxsize=self.num_threads + 4)
-            self.queues.append(self.queue)
-
-        opts = onnxruntime.SessionOptions()
-        opts.inter_op_num_threads = 1
-        opts.intra_op_num_threads = 1
-        opts.graph_optimization_level = onnxruntime.GraphOptimizationLevel.ORT_ENABLE_ALL
-        opts.optimized_model_filepath = ''
         self.ort_session1 = onnxruntime.InferenceSession(
             "Models/mommy062023.onnx", opts,
             providers=['CPUExecutionProvider'])
@@ -116,11 +131,6 @@ class MOMMY_C(object):
                                       name=f"Thread {i}")
             threads.append(thread)
             thread.start()
-
-        cap = cv2.VideoCapture('DikablisSA_2_1.mp4')
-        frames = 0
-        start_time = time.time()
-        interval = 1  # Time interval in seconds
 
     def to_numpy(self, tensor):
         return tensor.detach().cpu().numpy() if tensor.requires_grad else tensor.cpu().numpy()
@@ -147,8 +157,6 @@ class MOMMY_C(object):
 
             frame, pre_landmark = self.output_queue.get()
             # frame = cv2.resize(frame, (112, 112))
-
-
 
             for point in pre_landmark:
                 x, y = point

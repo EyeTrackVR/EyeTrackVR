@@ -18,12 +18,12 @@ class EyeTrackCameraConfig(BaseModel):
     roi_window_h: int = 0
     focal_length: int = 30
     capture_source: Union[int, str, None] = None
-    calib_XMAX: int = None
-    calib_XMIN: int = None
-    calib_YMAX: int = None
-    calib_YMIN: int = None
-    calib_XOFF: int = None
-    calib_YOFF: int = None
+    calib_XMAX: Union[int, None] = None
+    calib_XMIN: Union[int, None] = None
+    calib_YMAX: Union[int, None] = None
+    calib_YMIN: Union[int, None] = None
+    calib_XOFF: Union[int, None] = None
+    calib_YOFF: Union[int, None] = None
 
 
 class EyeTrackSettingsConfig(BaseModel):
