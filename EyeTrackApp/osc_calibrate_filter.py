@@ -12,6 +12,8 @@ class EyeId(IntEnum):
 
 class cal():
     def cal_osc(self, cx, cy):
+        if cx == None or cy == None:
+            return 0, 0
         if cx == 0:
             cx = 1
         if cy == 0:
@@ -62,63 +64,66 @@ class cal():
         out_y = 0.5
         
 
+        if self.config.calib_XMAX != None and self.config.calib_XOFF != None:
+            calib_diff_x_MAX = self.config.calib_XMAX - self.config.calib_XOFF
+            if calib_diff_x_MAX == 0:
+                calib_diff_x_MAX = 1
 
-        calib_diff_x_MAX = self.config.calib_XMAX - self.config.calib_XOFF
-        if calib_diff_x_MAX == 0:
-            calib_diff_x_MAX = 1
+            calib_diff_x_MIN = self.config.calib_XMIN - self.config.calib_XOFF
+            if calib_diff_x_MIN == 0:
+                calib_diff_x_MIN = 1
 
-        calib_diff_x_MIN = self.config.calib_XMIN - self.config.calib_XOFF
-        if calib_diff_x_MIN == 0:
-            calib_diff_x_MIN = 1
+            calib_diff_y_MAX = self.config.calib_YMAX - self.config.calib_YOFF
+            if calib_diff_y_MAX == 0:
+                calib_diff_y_MAX = 1
 
-        calib_diff_y_MAX = self.config.calib_YMAX - self.config.calib_YOFF
-        if calib_diff_y_MAX == 0:
-            calib_diff_y_MAX = 1
+            calib_diff_y_MIN = self.config.calib_YMIN - self.config.calib_YOFF
+            if calib_diff_y_MIN == 0:
+                calib_diff_y_MIN = 1
 
-        calib_diff_y_MIN = self.config.calib_YMIN - self.config.calib_YOFF
-        if calib_diff_y_MIN == 0:
-            calib_diff_y_MIN = 1
+            xl = float(
+                (cx - self.config.calib_XOFF) / calib_diff_x_MAX
+            )
+            xr = float(
+                (cx - self.config.calib_XOFF) / calib_diff_x_MIN
+            )
+            yu = float(
+                (cy - self.config.calib_YOFF) / calib_diff_y_MIN
+            )
+            yd = float(
+                (cy - self.config.calib_YOFF) / calib_diff_y_MAX
+            )
 
-        xl = float(
-            (cx - self.config.calib_XOFF) / calib_diff_x_MAX
-        )
-        xr = float(
-            (cx - self.config.calib_XOFF) / calib_diff_x_MIN
-        )
-        yu = float(
-            (cy - self.config.calib_YOFF) / calib_diff_y_MIN
-        )
-        yd = float(
-            (cy - self.config.calib_YOFF) / calib_diff_y_MAX
-        )
+            if self.settings.gui_flip_y_axis:  # check config on flipped values settings and apply accordingly
+                if yd >= 0:
+                    out_y = max(0.0, min(1.0, yd))
+                if yu > 0:
+                    out_y = -abs(max(0.0, min(1.0, yu)))
+            else:
+                if yd >= 0:
+                    out_y = -abs(max(0.0, min(1.0, yd)))
+                if yu > 0:
+                    out_y = max(0.0, min(1.0, yu))
 
-        if self.settings.gui_flip_y_axis:  # check config on flipped values settings and apply accordingly
-            if yd >= 0:
-                out_y = max(0.0, min(1.0, yd))
-            if yu > 0:
-                out_y = -abs(max(0.0, min(1.0, yu)))
+            if flipx:
+                if xr >= 0:
+                    out_x = -abs(max(0.0, min(1.0, xr)))
+                if xl > 0:
+                    out_x = max(0.0, min(1.0, xl))
+            else:
+                if xr >= 0:
+                    out_x = max(0.0, min(1.0, xr))
+                if xl > 0:
+                    out_x = -abs(max(0.0, min(1.0, xl)))
+
+            try:
+                noisy_point = np.array([float(out_x), float(out_y)])  # fliter our values with a One Euro Filter
+                point_hat = self.one_euro_filter(noisy_point)
+                out_x = point_hat[0]
+                out_y = point_hat[1]
+            except:
+                pass
+            return out_x, out_y
         else:
-            if yd >= 0:
-                out_y = -abs(max(0.0, min(1.0, yd)))
-            if yu > 0:
-                out_y = max(0.0, min(1.0, yu))
-
-        if flipx:  
-            if xr >= 0:
-                out_x = -abs(max(0.0, min(1.0, xr)))
-            if xl > 0:
-                out_x = max(0.0, min(1.0, xl))
-        else:
-            if xr >= 0:
-                out_x = max(0.0, min(1.0, xr))
-            if xl > 0:
-                out_x = -abs(max(0.0, min(1.0, xl)))
-
-        try:
-            noisy_point = np.array([float(out_x), float(out_y)])  # fliter our values with a One Euro Filter
-            point_hat = self.one_euro_filter(noisy_point)
-            out_x = point_hat[0]
-            out_y = point_hat[1]
-        except:
-            pass
-        return out_x, out_y
+            print("[INFO] Please Calibrate Eyes")
+        return 0, 0
