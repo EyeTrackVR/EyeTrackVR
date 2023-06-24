@@ -61,6 +61,7 @@ class CameraWidget:
         self.ransac = EyeProcessor(
             self.config,
             self.settings_config,
+            main_config,
             self.cancellation_event,
             self.capture_event,
             self.capture_queue,

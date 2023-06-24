@@ -83,6 +83,7 @@ class EyeProcessor:
         self,
         config: "EyeTrackCameraConfig",
         settings: "EyeTrackSettingsConfig",
+        baseconfig: "EyetrackConfig",
         cancellation_event: "threading.Event",
         capture_event: "threading.Event",
         capture_queue_incoming: "queue.Queue",
@@ -99,6 +100,7 @@ class EyeProcessor:
         self.cancellation_event = cancellation_event
         self.capture_event = capture_event
         self.eye_id = eye_id
+        self.baseconfig = baseconfig
 
         # Cross algo state
         self.lkg_projected_sphere = None
@@ -120,6 +122,7 @@ class EyeProcessor:
         # Keep large in order to recenter correctly
         self.calibration_frame_counter = None
         self.eyeoffx = 1
+        self.printcal = True
 
         self.xmax = -69420
         self.xmin = 69420

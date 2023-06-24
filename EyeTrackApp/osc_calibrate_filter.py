@@ -18,7 +18,6 @@ class cal():
             cx = 1
         if cy == 0:
             cy = 1
-
         if self.eye_id == EyeId.RIGHT:
             flipx = self.settings.gui_flip_x_axis_right
         else:
@@ -27,6 +26,7 @@ class cal():
             self.calibration_frame_counter = None
             self.config.calib_XOFF = cx
             self.config.calib_YOFF = cy
+            self.baseconfig.save()
             PlaySound('Audio/completed.wav', SND_FILENAME | SND_ASYNC)
         if self.calibration_frame_counter == self.settings.calibration_samples:
             self.config.calib_XMAX = -69420
@@ -46,7 +46,7 @@ class cal():
                 self.config.calib_YMAX = cy
             if cy < self.config.calib_YMIN:
                 self.config.calib_YMIN = cy
-            
+
             self.calibration_frame_counter -= 1
 
         if self.settings.gui_recenter_eyes == True:
@@ -62,9 +62,9 @@ class cal():
 
         out_x = 0.5
         out_y = 0.5
-        
 
         if self.config.calib_XMAX != None and self.config.calib_XOFF != None:
+
             calib_diff_x_MAX = self.config.calib_XMAX - self.config.calib_XOFF
             if calib_diff_x_MAX == 0:
                 calib_diff_x_MAX = 1
@@ -125,5 +125,7 @@ class cal():
                 pass
             return out_x, out_y
         else:
-            print("[INFO] Please Calibrate Eyes")
+            if self.printcal:
+                print("\033[91m[ERROR] Please Calibrate Eye(s).\033[0m")
+                self.printcal = False
         return 0, 0
