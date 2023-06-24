@@ -71,19 +71,6 @@ class Camera:
     def set_output_queue(self, camera_output_outgoing: "queue.Queue"):
         self.camera_output_outgoing = camera_output_outgoing
 
-    async def async_open_capture_source(self):
-        try:
-            capture_source = self.current_capture_source
-            capture = cv2.VideoCapture(capture_source)
-            await asyncio.sleep(0)  # Allow event loop to run other tasks
-            if capture.isOpened():
-                return capture
-            else:
-                return None
-        except Exception as e:
-            print(f"Failed to open capture source: {str(e)}")
-            return None
-
     def init_camera(self):
         if self.cv2_camera == None:
           #  time.sleep(0.5)  # Very important wait
@@ -93,17 +80,23 @@ class Camera:
             future.add_done_callback(self.done_callback)
         else:
             pass
+
     def done_callback(self, future):
         try:
-            time.sleep(0.1) # Very important wait
+            time.sleep(0.1)  # Very important wait
             self.cv2_camera = future.result()
         except Exception:
             # Set cv2_camera to None if an exception occurred
             self.cv2_camera = None
+        if future == "stop":
+            # Release the camera resource
+            if self.cv2_camera is not None:
+                self.cv2_camera.release()
     def run(self):
         while True:
             if self.cancellation_event.is_set():
                 print(f"{Fore.CYAN}[INFO] Exiting Capture thread{Fore.RESET}")
+                self.done_callback("stop")
                 return
             should_push = True
             # If things aren't open, retry until they are. Don't let read requests come in any earlier
