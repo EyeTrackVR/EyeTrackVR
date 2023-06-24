@@ -30,8 +30,6 @@ import os
 os.environ["OMP_NUM_THREADS"] = "1"
 import onnxruntime
 import numpy as np
-from PIL import Image
-import torchvision.transforms as transforms
 import cv2
 import time
 import math
@@ -52,10 +50,20 @@ def run_model(input_queue, output_queue, session):
         if frame is None:
             break
 
-        to_tensor = transforms.ToTensor()
-        img_tensor = to_tensor(frame)
-        img_tensor.unsqueeze_(0)
-        img_np = img_tensor.numpy()
+       # to_tensor = transforms.ToTensor()
+       # img_tensor = to_tensor(frame)
+       # img_tensor.unsqueeze_(0)
+       # img_np = img_tensor.numpy()
+        img_np = np.array(frame)
+
+        # Normalize the pixel values to [0, 1] and convert the data type to float32
+        img_np = img_np.astype(np.float32) / 255.0
+
+        # Transpose the dimensions from (height, width, channels) to (channels, height, width)
+        img_np = np.transpose(img_np, (2, 0, 1))
+
+        # Add a batch dimension
+        img_np = np.expand_dims(img_np, axis=0)
         ort_inputs = {session.get_inputs()[0].name: img_np}
         pre_landmark = session.run(None, ort_inputs)
 
@@ -180,7 +188,7 @@ class MOMMY_C(object):
             x = pre_landmark[17][0]
             y = pre_landmark[17][1]
             frame = cv2.cvtColor(img, cv2.COLOR_RGB2GRAY)
-            return frame, x, y, per
+            return frame, float(x), float(y), per
 
 
         frame = cv2.cvtColor(img, cv2.COLOR_RGB2GRAY)
