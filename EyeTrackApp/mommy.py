@@ -80,7 +80,7 @@ class MOMMY_C(object):
         # Config variables
         self.num_threads = 2  # Number of python threads to use (using ~1 more than needed to acheive wanted fps yeilds lower cpu usage)
         self.queue_max_size = self.num_threads + 4  # Optimize for best CPU usage, Memory, and Latency. A maxsize is needed to not create a potential memory leak.
-        self.model_path = 'C:/Users/beaul/PycharmProjects/EyeTrackVR/EyeTrackApp/Models/mommy062023.onnx'
+        self.model_path = 'Models/mommy062023.onnx'
         self.interval = 1  # FPS print update rate
         self.low_priority = True  # set process priority to low
         self.print_fps = True

@@ -94,9 +94,10 @@ class Camera:
                 self.cv2_camera.release()
     def run(self):
         while True:
-            if self.cancellation_event.is_set():
+            if self.cancellation_event.is_set(): #TODO: fix stall when app closes and cam not found
                 print(f"{Fore.CYAN}[INFO] Exiting Capture thread{Fore.RESET}")
                 self.done_callback("stop")
+            #    print('close')
                 return
             should_push = True
             # If things aren't open, retry until they are. Don't let read requests come in any earlier
@@ -151,6 +152,10 @@ class Camera:
                 if not should_push:
                     # if we get all the way down here, consider ourselves connected
                     self.camera_status = CameraState.CONNECTED
+            if self.cancellation_event.is_set(): #TODO: fix stall when app closes and cam not found
+                print(f"{Fore.CYAN}[INFO] Exiting Capture thread{Fore.RESET}")
+                self.done_callback("stop")
+            #    print('close')
     def get_cv2_camera_picture(self, should_push):
         try:
             ret, image = self.cv2_camera.read()
