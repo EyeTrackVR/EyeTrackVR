@@ -39,10 +39,7 @@ from one_euro_filter import OneEuroFilter
 import psutil, os
 import sys
 
-
-
 frames = 0
-
 
 def run_model(input_queue, output_queue, session):
     while True:
