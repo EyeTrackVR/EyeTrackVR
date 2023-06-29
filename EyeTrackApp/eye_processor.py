@@ -52,7 +52,7 @@ import importlib
 from osc import EyeId
 from osc_calibrate_filter import *
 from daddy import External_Run_DADDY
-from mommy import External_Run_MOMMY
+from leap import External_Run_LEAP
 from haar_surround_feature import External_Run_HSF
 from blob import *
 from ransac import *
@@ -101,6 +101,7 @@ class EyeProcessor:
         self.capture_event = capture_event
         self.eye_id = eye_id
         self.baseconfig = baseconfig
+        self.filterlist = []
 
         # Cross algo state
         self.lkg_projected_sphere = None
@@ -139,7 +140,7 @@ class EyeProcessor:
         self.er_hsf = None
         self.er_hsrac = None
         self.er_daddy = None
-        self.er_mommy = None
+        self.er_leap = None
         self.ibo = IntensityBasedOpeness(self.eye_id)
         self.roi_include_set = {"rotation_angle", "roi_window_x", "roi_window_y"}
 
@@ -291,12 +292,12 @@ class EyeProcessor:
     def BLINKM(self):
         self.eyeopen = BLINK(self)
 
-    def MOMMYM(self):
+    def LEAPM(self):
         self.thresh = self.current_image_gray.copy()
-        self.current_image_gray, self.rawx, self.rawy, self.eyeopen = self.er_mommy.run(self.current_image_gray)
+        self.current_image_gray, self.rawx, self.rawy, self.eyeopen = self.er_leap.run(self.current_image_gray)
         self.thresh = self.current_image_gray.copy()
         self.out_x, self.out_y = cal.cal_osc(self, self.rawx, self.rawy)
-        self.current_algorithm = EyeInfoOrigin.MOMMY
+        self.current_algorithm = EyeInfoOrigin.LEAP
 
     def DADDYM(self):
         # todo: We should have a proper variable for drawing.
@@ -496,13 +497,13 @@ class EyeProcessor:
             if self.er_daddy is not None:
                 self.er_daddy = None
 
-        if self.settings.gui_MOMMY:
-            if self.er_mommy is None:
-                self.er_mommy = External_Run_MOMMY()
-            algolist[self.settings.gui_MOMMY] = self.MOMMYM
+        if self.settings.gui_LEAP:
+            if self.er_leap is None:
+                self.er_leap = External_Run_LEAP()
+            algolist[self.settings.gui_LEAP] = self.LEAPM
         else:
-            if self.er_mommy is not None:
-                self.er_mommy = None
+            if self.er_leap is not None:
+                self.er_leap = None
 
         if self.settings.gui_RANSAC3D:
             algolist[self.settings.gui_RANSAC3DP] = self.RANSAC3DM

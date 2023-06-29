@@ -154,7 +154,7 @@ class Camera:
                     self.camera_status = CameraState.CONNECTED
             if self.cancellation_event.is_set(): #TODO: fix stall when app closes and cam not found
                 print(f"{Fore.CYAN}[INFO] Exiting Capture thread{Fore.RESET}")
-                self.done_callback("stop")
+             #   self.done_callback("stop")
             #    print('close')
     def get_cv2_camera_picture(self, should_push):
         try:

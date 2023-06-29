@@ -238,7 +238,7 @@ class IntensityBasedOpeness:
         upper_y = min(int_y + 25, frame.shape[0] - 1)
         lower_y = max(int_y - 25, 0)
 
-        # frame_crop = frame[lower_y:upper_y, lower_x:upper_x]
+     #   frame_crop = frame[lower_y:upper_y, lower_x:upper_x]
         # frame = safe_crop(frame, lower_x, lower_y, upper_x, upper_y, False)
         # ret_, th = cv2.threshold(frame_crop, 80, 1.0, cv2.THRESH_BINARY_INV, dst=frame_crop)
         frame_crop = frame

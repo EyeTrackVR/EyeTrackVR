@@ -21,8 +21,8 @@ class AlgoSettingsWidget:
         self.gui_HSF = f"-HSF{widget_id}-"
         self.gui_DADDY = f"-DADDY{widget_id}-"
         self.gui_DADDYP = f"-DADDYP{widget_id}-"
-        self.gui_MOMMYP = f"-MOMMYP{widget_id}-"
-        self.gui_MOMMY = f"-MOMMY{widget_id}-"
+        self.gui_LEAPP = f"-LEAPP{widget_id}-"
+        self.gui_LEAP = f"-LEAP{widget_id}-"
         self.gui_RANSAC3D = f"-RANSAC3D{widget_id}-"
         self.gui_BLINK = f"-BLINK{widget_id}-"
         self.gui_IBO = f"-IBO{widget_id}-"
@@ -135,21 +135,21 @@ class AlgoSettingsWidget:
             [
                 sg.Checkbox(
                     "",
-                    default=self.config.gui_MOMMY,
-                    key=self.gui_MOMMY,
+                    default=self.config.gui_LEAP,
+                    key=self.gui_LEAP,
                     background_color='#424042',
-                    tooltip="MOMMY Uses a lightweight Deep learning algorithm.",
+                    tooltip="LEAP Uses a lightweight deep learning algorithm.",
                 ),
                     sg.Combo(['1', '2', '3', '4', '5'],
-                             default_value=self.config.gui_MOMMYP,
-                             key=self.gui_MOMMYP,
+                             default_value=self.config.gui_LEAPP,
+                             key=self.gui_LEAPP,
                              background_color='#424042',
                              text_color='white',
                              button_arrow_color="black",
                              button_background_color="#6f4ca1",
                              tooltip="Select the priority of eyetracking algorithims.",
                              ),
-                    sg.Text("MOMMY", background_color='#424042'),
+                    sg.Text("LEAP", background_color='#424042'),
 
                 sg.Checkbox(
                     "",
@@ -369,12 +369,12 @@ class AlgoSettingsWidget:
             self.config.gui_HSRAC = values[self.gui_HSRAC]
             changed = True
 
-        if self.config.gui_MOMMYP != int(values[self.gui_MOMMYP]):
-            self.config.gui_MOMMYP = int(values[self.gui_MOMMYP])
+        if self.config.gui_LEAPP != int(values[self.gui_LEAPP]):
+            self.config.gui_LEAPP = int(values[self.gui_LEAPP])
             changed = True
 
-        if self.config.gui_MOMMY != values[self.gui_MOMMY]:
-            self.config.gui_MOMMY = values[self.gui_MOMMY]
+        if self.config.gui_LEAP != values[self.gui_LEAP]:
+            self.config.gui_LEAP = values[self.gui_LEAP]
             changed = True
 
 

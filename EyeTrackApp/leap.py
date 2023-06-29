@@ -19,13 +19,13 @@
                                        @@@@@@@@@@@@@@@@@
                                       @@@@@@@@@@@@@(
 
-MOMMY by: Prohurtz
+LEAP by: Prohurtz
 Algorithm App Implementation By: Prohurtz
 
 Copyright (c) 2023 EyeTrackVR <3
 ------------------------------------------------------------------------------------------------------
 """
-#  MOMMY = Model for Observing Mindful Movement of Your Eyes
+#  LEAP = Lightweight Eyelid And Pupil
 import os
 os.environ["OMP_NUM_THREADS"] = "1"
 import onnxruntime
@@ -55,7 +55,6 @@ def run_model(input_queue, output_queue, session):
        # img_tensor.unsqueeze_(0)
        # img_np = img_tensor.numpy()
         img_np = np.array(frame)
-
         # Normalize the pixel values to [0, 1] and convert the data type to float32
         img_np = img_np.astype(np.float32) / 255.0
 
@@ -74,12 +73,12 @@ def run_model(input_queue, output_queue, session):
 
 
 
-class MOMMY_C(object):
+class LEAP_C(object):
     def __init__(self):
         onnxruntime.disable_telemetry_events()
         # Config variables
         self.num_threads = 2  # Number of python threads to use (using ~1 more than needed to acheive wanted fps yeilds lower cpu usage)
-        self.queue_max_size = self.num_threads + 4  # Optimize for best CPU usage, Memory, and Latency. A maxsize is needed to not create a potential memory leak.
+        self.queue_max_size = 3  # Optimize for best CPU usage, Memory, and Latency. A maxsize is needed to not create a potential memory leak.
         self.model_path = 'Models/mommy062023.onnx'
         self.interval = 1  # FPS print update rate
         self.low_priority = True  # set process priority to low
@@ -150,7 +149,7 @@ class MOMMY_C(object):
             if not queues[i].full():
                 queues[i].put(frame)
                 break
-    def mommy_run(self):
+    def leap_run(self):
 
         img = self.current_image_gray.copy()
         img = cv2.cvtColor(img, cv2.COLOR_GRAY2RGB)
@@ -194,11 +193,11 @@ class MOMMY_C(object):
         frame = cv2.cvtColor(img, cv2.COLOR_RGB2GRAY)
         return frame, 0, 0, 0
 
-class External_Run_MOMMY(object):
+class External_Run_LEAP(object):
     def __init__(self):
-        self.algo = MOMMY_C()
+        self.algo = LEAP_C()
 
     def run(self, current_image_gray):
         self.algo.current_image_gray = current_image_gray
-        img, x, y, per = self.algo.mommy_run()
+        img, x, y, per = self.algo.leap_run()
         return img, x, y, per

@@ -16,7 +16,7 @@ class EyeInfoOrigin(Enum):
     HSF = 4
     HSRAC = 5
     DADDY = 6
-    MOMMY = 7
+    LEAP = 7
 
 
 @dataclass
