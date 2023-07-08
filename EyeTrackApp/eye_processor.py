@@ -30,30 +30,32 @@ Copyright (c) 2023 EyeTrackVR <3
 ------------------------------------------------------------------------------------------------------
 """
 
-
 import asyncio
-
 import sys
-sys.path.append(".")  # TODO is this necessary?
 
-from config import EyeTrackCameraConfig
-from config import EyeTrackSettingsConfig
-from pye3d.camera import CameraModel
-from pye3d.detector_3d import Detector3D, DetectorMode
+sys.path.append(".")
+
 import queue
 import threading
-from utils.misc_utils import PlaySound, SND_FILENAME, SND_ASYNC
-from daddy import External_Run_DADDY
-from haar_surround_feature import External_Run_HSF
-from blob import *
-from ransac import *
-from hsrac import External_Run_HSRACS
-from blink import *
-from EyeTrackApp.consts import EyeInfoOrigin, calibration_max_axis_value
-from consts import RANSAC_CALIBRATION_STEPS_START
-from eye import EyeInfo
 
-from intensity_based_openness import *
+import cv2
+import numpy as np
+from blink import BLINK
+from blob import BLOB
+from config import EyeTrackCameraConfig, EyeTrackSettingsConfig
+from consts import RANSAC_CALIBRATION_STEPS_START, PageType
+from daddy import External_Run_DADDY
+from eye import EyeInfo
+from haar_surround_feature import External_Run_HSF
+from hsrac import External_Run_HSRACS
+from intensity_based_openness import IntensityBasedOpeness
+from one_euro_filter import OneEuroFilter
+from pye3d.camera import CameraModel
+from pye3d.detector_3d import Detector3D, DetectorMode
+from ransac import RANSAC3D
+from utils.misc_utils import SND_ASYNC, SND_FILENAME, PlaySound
+
+from EyeTrackApp.consts import EyeInfoOrigin, calibration_max_axis_value
 
 
 def run_once(f):
@@ -161,7 +163,11 @@ class EyeProcessor:
             min_cutoff = 0.0004
             beta = 0.9
         noisy_point = np.array([1, 1])
-        self.one_euro_filter = OneEuroFilter(noisy_point, min_cutoff=min_cutoff, beta=beta)
+        self.one_euro_filter = OneEuroFilter(
+            noisy_point,
+            min_cutoff=min_cutoff,
+            beta=beta,
+        )
 
     def output_images_and_update(self, threshold_image, output_information: EyeInfo):
         try:
@@ -176,7 +182,9 @@ class EyeProcessor:
             self.previous_image = self.current_image
             self.previous_rotation = self.config.rotation_angle
         except:  # If this fails it likely means that the images are not the same size for some reason.
-            print("\033[91m[ERROR] Size of frames to display are of unequal sizes.\033[0m")
+            print(
+                "\033[91m[ERROR] Size of frames to display are of unequal sizes.\033[0m"
+            )
 
             pass
 
@@ -186,8 +194,12 @@ class EyeProcessor:
         try:
             # Get frame from capture source, crop to ROI
             self.current_image = self.current_image[
-                int(self.config.roi_window_y) : int(self.config.roi_window_y + self.config.roi_window_h),
-                int(self.config.roi_window_x) : int(self.config.roi_window_x + self.config.roi_window_w),
+                int(self.config.roi_window_y) : int(
+                    self.config.roi_window_y + self.config.roi_window_h
+                ),
+                int(self.config.roi_window_x) : int(
+                    self.config.roi_window_x + self.config.roi_window_w
+                ),
             ]
             self.ibo.change_roi(self.config.dict(include=self.roi_include_set))
 
@@ -204,7 +216,11 @@ class EyeProcessor:
             except:
                 rows, cols, _ = self.previous_image.shape
             img_center = (cols / 2, rows / 2)
-            rotation_matrix = cv2.getRotationMatrix2D(img_center, self.config.rotation_angle, 1)
+            rotation_matrix = cv2.getRotationMatrix2D(
+                img_center,
+                self.config.rotation_angle,
+                1,
+            )
             avg_color_per_row = np.average(self.current_image, axis=0)
             avg_color = np.average(avg_color_per_row, axis=0)
             ar, ag, ab = avg_color
@@ -278,7 +294,8 @@ class EyeProcessor:
         self.current_algorithm = EyeInfoOrigin.HSF
 
     def RANSAC3DM(self):
-        current_image_gray_copy = self.current_image_gray.copy()  # Duplicate before overwriting in RANSAC3D.
+        # Duplicate before overwriting in RANSAC3D.  # TODO find if this is necessary
+        current_image_gray_copy = self.current_image_gray.copy()
         self.rawx, self.rawy, self.thresh = RANSAC3D(self)
         self.out_x, self.out_y = self.calibrate_osc_output(self.rawx, self.rawy)
         self.current_algorithm = EyeInfoOrigin.RANSAC
@@ -331,7 +348,10 @@ class EyeProcessor:
         # set algo priorities
         if self.settings.gui_HSF:
             if self.er_hsf is None:
-                self.er_hsf = External_Run_HSF(self.settings.gui_skip_autoradius, self.settings.gui_HSF_radius)
+                self.er_hsf = External_Run_HSF(
+                    self.settings.gui_skip_autoradius,
+                    self.settings.gui_HSF_radius,
+                )
             algolist[self.settings.gui_HSFP] = self.HSFM
         else:
             if self.er_hsf is not None:
@@ -399,7 +419,10 @@ class EyeProcessor:
                     focal_length=self.config.focal_length,
                     resolution=(self.config.roi_window_w, self.config.roi_window_h),
                 )
-                self.detector_3d = Detector3D(camera=self.camera_model, long_term_mode=DetectorMode.blocking)
+                self.detector_3d = Detector3D(
+                    camera=self.camera_model,
+                    long_term_mode=DetectorMode.blocking,
+                )
 
             try:
                 if self.capture_queue_incoming.empty():
@@ -417,7 +440,10 @@ class EyeProcessor:
             if not self.capture_crop_rotate_image():
                 continue
 
-            self.current_image_gray = cv2.cvtColor(self.current_image, cv2.COLOR_BGR2GRAY)
+            self.current_image_gray = cv2.cvtColor(
+                self.current_image,
+                cv2.COLOR_BGR2GRAY,
+            )
             # copy this frame to have a clean image for blink algo
             self.current_image_gray_clean = self.current_image_gray.copy()
 
@@ -495,8 +521,8 @@ class EyeProcessor:
         xr = float((cx - self.config.calib_XOFF) / calib_diff_x_MIN)
         yu = float((cy - self.config.calib_YOFF) / calib_diff_y_MIN)
         yd = float((cy - self.config.calib_YOFF) / calib_diff_y_MAX)
-
-        if self.settings.gui_flip_y_axis:  # check config on flipped values settings and apply accordingly
+        # check config on flipped values settings and apply accordingly
+        if self.settings.gui_flip_y_axis:
             if yd >= 0:
                 out_y = max(0.0, min(1.0, yd))
             if yu > 0:
@@ -518,7 +544,8 @@ class EyeProcessor:
             if xl > 0:
                 out_x = -abs(max(0.0, min(1.0, xl)))
         try:
-            noisy_point = np.array([float(out_x), float(out_y)])  # fliter our values with a One Euro Filter
+            # fliter our values with a One Euro Filter
+            noisy_point = np.array([float(out_x), float(out_y)])
             point_hat = self.one_euro_filter(noisy_point)
             out_x = point_hat[0]
             out_y = point_hat[1]
