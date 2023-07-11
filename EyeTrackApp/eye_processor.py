@@ -152,7 +152,7 @@ class EyeProcessor:
         self.out_x = 0.0
         self.rawx = 0.0
         self.rawy = 0.0
-        self.eyeopen = 0.7
+        self.eyeopen = 0.9
         # blink
         self.max_ints = []
         self.max_int = 0
@@ -351,7 +351,7 @@ class EyeProcessor:
         else:
             pass
         # todo: add process to initialise er_hsf when resolution changes
-        self.rawx, self.rawy, self.thresh = self.er_hsf.run(self.current_image_gray)
+        self.rawx, self.rawy, self.thresh, self.radius = self.er_hsf.run(self.current_image_gray)
         self.out_x, self.out_y = cal.cal_osc(self, self.rawx, self.rawy)
         self.current_algorithm = EyeInfoOrigin.HSF
 
@@ -446,7 +446,9 @@ class EyeProcessor:
 
         # set algo priorities
         if self.settings.gui_HSF:
+            print('yes hsf')
             if self.er_hsf is None:
+                print('yes none')
                 if self.eye_id in [EyeId.LEFT]:
                     self.er_hsf = External_Run_HSF(
                         self.settings.gui_skip_autoradius,
@@ -486,7 +488,7 @@ class EyeProcessor:
                     pass
             algolist[self.settings.gui_HSRACP] = self.HSRACM
         else:
-            if self.er_hsf is not None:
+            if not self.settings.gui_HSF and self.er_hsf is not None:
                 self.er_hsf = None
 
         if self.settings.gui_DADDY:

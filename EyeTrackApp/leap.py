@@ -75,7 +75,7 @@ class LEAP_C(object):
         onnxruntime.disable_telemetry_events()
         # Config variables
         self.num_threads = 2  # Number of python threads to use (using ~1 more than needed to acheive wanted fps yeilds lower cpu usage)
-        self.queue_max_size = 3  # Optimize for best CPU usage, Memory, and Latency. A maxsize is needed to not create a potential memory leak.
+        self.queue_max_size = 2  # Optimize for best CPU usage, Memory, and Latency. A maxsize is needed to not create a potential memory leak.
         self.model_path = 'Models/mommy062023.onnx'
         self.interval = 1  # FPS print update rate
         self.low_priority = True  # set process priority to low
@@ -121,6 +121,7 @@ class LEAP_C(object):
         )
         self.dmax = 0
         self.dmin = 0
+        self.openlist = []
         self.x = 0
         self.y = 0
 
@@ -171,13 +172,20 @@ class LEAP_C(object):
         #    print(pre_landmark)
             d = math.dist(pre_landmark[4], pre_landmark[12])
 
-            if d > self.dmax:
-                self.dmax = d
-            if d < self.dmin:
-                self.dmin = d
+
+
+            if len(self.openlist) < 1000: # TODO expose as setting?
+                self.openlist.append(d)
+            else:
+                if d >= np.percentile(self.openlist, 99) or d <= np.percentile(self.openlist, 1):
+                    pass
+                else:
+                    self.openlist.pop(0)
+                    self.openlist.append(d)
+
 
             try:
-                per = (((d - self.dmax)) / (self.dmin - self.dmax))
+                per = ((d - max(self.openlist)) / (min(self.openlist) - max(self.openlist)))
                 per = 1 - per
             except:
                 pass

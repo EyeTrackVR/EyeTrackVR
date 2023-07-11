@@ -144,6 +144,8 @@ class IntensityBasedOpeness:
         self.fc = 0
         self.filterlist = []
         self.averageList = []
+        self.openlist = []
+
         self.eye_id = eye_id
 
         self.maxinten = 0
@@ -263,6 +265,12 @@ class IntensityBasedOpeness:
             # print('filter, assume blink')
             intensity = self.maxval
 
+       # if intensity <= np.percentile( # TODO test this
+        #    self.filterlist, 1
+       # ):  # filter abnormally low values
+            # print('filter, assume blink')
+        #    intensity = self.maxval
+
         # self.tri_filter.append(intensity)
         # if len(self.tri_filter) > 3:
         #   self.tri_filter.pop(0)
@@ -353,6 +361,24 @@ class IntensityBasedOpeness:
             )  # for whatever reason when input and maxp are too close it outputs high
             eyeopen = 1 - eyeopen
 
+
+            if len(self.openlist) < 1000: # TODO expose as setting?
+                self.openlist.append(eyeopen)
+            else:
+                if eyeopen >= np.percentile(self.openlist, 99) or eyeopen <= np.percentile(self.openlist, 1):
+                    pass
+                else:
+                    self.openlist.pop(0)
+                    self.openlist.append(eyeopen)
+
+
+            try:
+                per = ((eyeopen - max(self.openlist)) / (min(self.openlist) - max(self.openlist)))
+                eyeopen = 1 - per
+            except:
+                pass
+
+
             if outputSamples > 0:
                 if len(self.averageList) < outputSamples:
                     self.averageList.append(eyeopen)
@@ -360,6 +386,10 @@ class IntensityBasedOpeness:
                     self.averageList.pop(0)
                     self.averageList.append(eyeopen)
                     eyeopen = np.average(self.averageList)
+
+
+
+
 
         if changed and (
             (time.time() - self.lct) > 5
