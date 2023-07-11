@@ -153,7 +153,6 @@ class EyeProcessor:
         self.rawx = 0.0
         self.rawy = 0.0
         self.eyeopen = 0.9
-        # blink
         self.max_ints = []
         self.max_int = 0
         self.min_int = 4000000000000
