@@ -253,7 +253,7 @@ class EyeProcessor:
         if self.settings.gui_BLINK:
             self.eyeopen = BLINK(self)
 
-        if self.settings.gui_IBO:
+        if self.settings.gui_IBO and self.eyeopen != 0.0:
             self.eyeopen = self.ibo.intense(
                 self.rawx,
                 self.rawy,
@@ -268,7 +268,7 @@ class EyeProcessor:
             if self.bd_blink == True:
                 pass
 
-        if self.settings.gui_IBO and self.settings.gui_BLINK:
+        if self.settings.gui_IBO and self.settings.gui_BLINK and self.eyeopen != 0.0:
             ibo = self.ibo.intense(
                 self.rawx,
                 self.rawy,
@@ -282,7 +282,7 @@ class EyeProcessor:
                 self.eyeopen = 0.0
             else:
                 self.eyeopen = ibo
-
+        print(self.eyeopen)
         self.output_images_and_update(
             self.thresh,
             EyeInfo(self.current_algo, self.out_x, self.out_y, 0, self.eyeopen),
@@ -293,7 +293,7 @@ class EyeProcessor:
 
     def LEAPM(self):
         self.thresh = self.current_image_gray.copy()
-        self.current_image_gray, self.rawx, self.rawy, self.eyeopen = self.er_leap.run(self.current_image_gray)
+        self.current_image_gray, self.rawx, self.rawy, self.eyeopen = self.er_leap.run(self.current_image_gray, True)
         self.thresh = self.current_image_gray.copy()
         self.out_x, self.out_y = cal.cal_osc(self, self.rawx, self.rawy)
         self.current_algorithm = EyeInfoOrigin.LEAP
@@ -328,7 +328,7 @@ class EyeProcessor:
         self.rawx, self.rawy, self.thresh, self.radius = self.er_hsf.run(
             self.current_image_gray
         )
-        self.rawx, self.rawy, self.thresh = RANSAC3D(self, True)
+        self.rawx, self.rawy, self.thresh, self.eyeopen = RANSAC3D(self, True)
         # print(self.radius)
         # if self.prev_x is None:
         #   self.prev_x = self.rawx
@@ -371,7 +371,7 @@ class EyeProcessor:
         current_image_gray_copy = (
             self.current_image_gray.copy()
         )  # Duplicate before overwriting in RANSAC3D.
-        self.rawx, self.rawy, self.thresh = RANSAC3D(self, False)
+        self.rawx, self.rawy, self.thresh, self.eyeopen = RANSAC3D(self, False)
         self.out_x, self.out_y = cal.cal_osc(self, self.rawx, self.rawy)
         self.current_algorithm = EyeInfoOrigin.RANSAC
 

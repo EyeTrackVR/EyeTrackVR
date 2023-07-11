@@ -124,6 +124,8 @@ class LEAP_C(object):
         self.openlist = []
         self.x = 0
         self.y = 0
+        self.frame_lim_count = 0
+        self.last_lid = 0.7
 
 
         self.ort_session1 = onnxruntime.InferenceSession(
@@ -148,6 +150,14 @@ class LEAP_C(object):
                 queues[i].put(frame)
                 break
     def leap_run(self):
+
+        if self.lid_only == True:
+            if self.frame_lim_count > 0:
+                self.frame_lim_count = 0
+                return self.current_image_gray, float(0), float(0), self.last_lid,
+            else:
+                self.frame_lim_count += 1
+                pass
 
         img = self.current_image_gray.copy()
         img = cv2.cvtColor(img, cv2.COLOR_GRAY2RGB)
@@ -188,10 +198,14 @@ class LEAP_C(object):
                 per = ((d - max(self.openlist)) / (min(self.openlist) - max(self.openlist)))
                 per = 1 - per
             except:
+                per = 0.7
                 pass
             x = pre_landmark[17][0]
             y = pre_landmark[17][1]
             frame = cv2.cvtColor(img, cv2.COLOR_RGB2GRAY)
+
+            self.last_lid = per
+
             return frame, float(x), float(y), per
 
 
@@ -202,7 +216,8 @@ class External_Run_LEAP(object):
     def __init__(self):
         self.algo = LEAP_C()
 
-    def run(self, current_image_gray):
+    def run(self, current_image_gray, trackmode):
+        self.algo.lid_only = trackmode
         self.algo.current_image_gray = current_image_gray
         img, x, y, per = self.algo.leap_run()
         return img, x, y, per

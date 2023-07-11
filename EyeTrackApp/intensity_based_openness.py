@@ -260,16 +260,16 @@ class IntensityBasedOpeness:
             self.filterlist.append(intensity)
 
         if intensity >= np.percentile(
-            self.filterlist, 99
+            self.filterlist, 98
         ):  # filter abnormally high values
             # print('filter, assume blink')
             intensity = self.maxval
 
-       # if intensity <= np.percentile( # TODO test this
-        #    self.filterlist, 1
-       # ):  # filter abnormally low values
+        if intensity <= np.percentile( # TODO test this
+            self.filterlist, 0.3
+        ):  # filter abnormally low values
             # print('filter, assume blink')
-        #    intensity = self.maxval
+            intensity = self.data[int_y, int_x]
 
         # self.tri_filter.append(intensity)
         # if len(self.tri_filter) > 3:
@@ -330,10 +330,11 @@ class IntensityBasedOpeness:
                 changed = True
             else:
                 intensitya = max(
-                    data_val + 0.001, 1
-                )  # if current intensity value is not less use
-                self.data[int_y, int_x] = intensitya  # set value
+                    data_val + 5000, 1
+                )  # if current intensity value is not less use  this is an agressive adjust, test
+                self.data[int_y, int_x] = intensitya # set value
                 changed = True
+
 
         # min pupil global
         if self.maxval == 0:  # that value is not yet saved
@@ -353,30 +354,13 @@ class IntensityBasedOpeness:
             # Do the same thing as in the original version.
             eyeopen = self.prev_val  # 0.9
         else:
-            maxp = self.data[int_y, int_x]
-            minp = self.maxval
+            maxp = float(self.data[int_y, int_x])
+            minp = float(self.maxval)
 
             eyeopen = (intensity - maxp) / (
                 minp - maxp
             )  # for whatever reason when input and maxp are too close it outputs high
             eyeopen = 1 - eyeopen
-
-
-            if len(self.openlist) < 1000: # TODO expose as setting?
-                self.openlist.append(eyeopen)
-            else:
-                if eyeopen >= np.percentile(self.openlist, 99) or eyeopen <= np.percentile(self.openlist, 1):
-                    pass
-                else:
-                    self.openlist.pop(0)
-                    self.openlist.append(eyeopen)
-
-
-            try:
-                per = ((eyeopen - max(self.openlist)) / (min(self.openlist) - max(self.openlist)))
-                eyeopen = 1 - per
-            except:
-                pass
 
 
             if outputSamples > 0:
@@ -387,7 +371,11 @@ class IntensityBasedOpeness:
                     self.averageList.append(eyeopen)
                     eyeopen = np.average(self.averageList)
 
+            if eyeopen > 1:  # clamp values
+                eyeopen = 1.0
 
+            if eyeopen < 0:
+                eyeopen = 0.0
 
 
 

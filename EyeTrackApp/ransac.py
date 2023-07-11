@@ -164,6 +164,7 @@ cct = 300
 def RANSAC3D(self, hsrac_en):
     f = False
     ranf = False
+    blink = 0.7
 
     if hsrac_en:
         center_x, center_y, upper_x, lower_x, upper_y, lower_y, ransac_lower_x, ransac_lower_y, ransac_upper_x, ransac_upper_y, ransac_xy_offset = get_center_noclamp(
@@ -311,6 +312,15 @@ def RANSAC3D(self, hsrac_en):
             cy = int(clamp(cy + ransac_lower_y, 0, csy))
 
 
+    #print(contours)
+    for cnt in contours:
+        (x, y, w, h) = cv2.boundingRect(cnt)
+        perscalarw = w / csx
+        perscalarh = h / csy
+      #  print(abs(perscalarw-perscalarh))
+        if abs(perscalarw-perscalarh) >= 0.26: # TODO setting
+            blink = 0.0
+
 
     try:
         cv2.drawContours(self.current_image_gray, contours, -1, (255, 0, 0), 1) # TODO: fix visualizations with HSRAC
@@ -363,7 +373,7 @@ def RANSAC3D(self, hsrac_en):
     thresh = cv2.resize(thresh, (x,y))
     try:   
         self.failed = 0 # we have succeded, continue with this
-        return cx, cy, thresh
+        return cx, cy, thresh, blink
     except:
         self.failed = self.failed + 1 #we have failed, move onto next algo
-        return 0, 0, thresh
+        return 0, 0, thresh, blink

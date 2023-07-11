@@ -83,7 +83,7 @@ class Camera:
 
     def done_callback(self, future):
         try:
-            time.sleep(0.1)  # Very important wait
+            time.sleep(0.5)  # Very important wait
             self.cv2_camera = future.result()
         except Exception:
             # Set cv2_camera to None if an exception occurred

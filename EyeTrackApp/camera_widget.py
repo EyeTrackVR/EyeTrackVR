@@ -343,21 +343,23 @@ class CameraWidget:
                         
                         graph.draw_circle(
                             (eye_info.x * -100, eye_info.y * -100),
-                            25,
+                            20,
                             fill_color="black",
                             line_color="white",
                         )
                     else:
                         graph.draw_circle(
                             (0.0 * -100, 0.0 * -100),
-                            25,
+                            20,
                             fill_color="black",
                             line_color="white",
                         )
+
                     if not np.isnan(eye_info.blink):
-                        graph.draw_line((-100,eye_info.blink * 200), (-100,100),  color="#6f4ca1", width=10)
+
+                        graph.draw_line((-100, eye_info.blink * 200), (-100, 100),  color="#6f4ca1", width=10)
                     else:
-                        graph.draw_line((-100, 0.0 * 200), (-100, 100), color="black", width=10)
+                        graph.draw_line((-100, 0.5 * 200), (-100, 100), color="#6f4ca1", width=10)
 
                     if eye_info.blink <= 0.0:
                         graph.update(background_color="#6f4ca1")
