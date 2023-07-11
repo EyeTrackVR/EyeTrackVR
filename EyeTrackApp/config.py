@@ -70,6 +70,8 @@ class EyeTrackSettingsConfig(BaseModel):
     gui_vrc_native: bool = True
     gui_circular_crop_right: bool = False
     gui_circular_crop_left: bool = False
+    reset_shortcut: str = "<ctrl>+<alt>+h"
+    recenter_shortcut: str = "<ctrl>+<alt>+i"
 
 
 class EyeTrackConfig(BaseModel):
