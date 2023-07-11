@@ -102,7 +102,7 @@ def newdata(frameshape):
     return np.zeros(frameshape, dtype=np.uint32)
 
 
-class IntensityBasedOpeness:
+class IntensityBasedOpenness:
     def __init__(self, eye_side: PageType):
         # todo: It is necessary to consider whether the filename can be changed in the configuration file, etc.
         self.imgfile = "IBO_LEFT.png" if eye_side is PageType.LEFT else "IBO_RIGHT.png"

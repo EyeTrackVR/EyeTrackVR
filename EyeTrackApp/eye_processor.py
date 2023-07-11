@@ -32,7 +32,6 @@ Copyright (c) 2023 EyeTrackVR <3
 
 import asyncio
 import sys
-
 sys.path.append(".")
 
 import queue
@@ -48,12 +47,12 @@ from daddy import External_Run_DADDY
 from eye import EyeInfo
 from haar_surround_feature import External_Run_HSF
 from hsrac import External_Run_HSRACS
-from intensity_based_openness import IntensityBasedOpeness
+from intensity_based_openness import IntensityBasedOpenness
 from one_euro_filter import OneEuroFilter
 from pye3d.camera import CameraModel
 from pye3d.detector_3d import Detector3D, DetectorMode
 from ransac import RANSAC3D
-from utils.misc_utils import SND_ASYNC, SND_FILENAME, PlaySound
+from utils.eye_utils import play_on_complete
 
 from EyeTrackApp.consts import EyeInfoOrigin, calibration_max_axis_value
 
@@ -66,12 +65,6 @@ def run_once(f):
 
     wrapper.has_run = False
     return wrapper
-
-
-async def delayed_setting_change(setting, value):
-    await asyncio.sleep(5)
-    setting = value
-    PlaySound("Audio/completed.wav", SND_FILENAME | SND_ASYNC)
 
 
 class EyeProcessor:
@@ -131,7 +124,7 @@ class EyeProcessor:
         self.er_hsrac = None
         self.er_daddy = None
 
-        self.ibo = IntensityBasedOpeness(eye_side=self.eye_id)
+        self.ibo = IntensityBasedOpenness(eye_side=self.eye_id)
         self.roi_include_set = {"rotation_angle", "roi_window_x", "roi_window_y"}
 
         self.failed = 0
@@ -332,9 +325,6 @@ class EyeProcessor:
             self.failed = 0  # we have reached last possible algo, and it is disabled, move to first algo
 
     def run(self):
-        # Run the following somewhere
-        # self.daddy = External_Run_DADDY()
-
         self.firstalgo = None
         self.secondalgo = None
         self.thirdalgo = None
@@ -466,7 +456,7 @@ class EyeProcessor:
             self.calibration_frame_counter = None
             self.config.calib_XOFF = cx
             self.config.calib_YOFF = cy
-            PlaySound("Audio/completed.wav", SND_FILENAME | SND_ASYNC)
+            play_on_complete()
         if self.calibration_frame_counter == RANSAC_CALIBRATION_STEPS_START:
             self.config.calib_XMAX = -calibration_max_axis_value
             self.config.calib_XMIN = calibration_max_axis_value
@@ -492,7 +482,7 @@ class EyeProcessor:
             self.config.calib_YOFF = cy
             if self.ts == 0:
                 self.settings.gui_recenter_eyes = False
-                PlaySound("Audio/completed.wav", SND_FILENAME | SND_ASYNC)
+                play_on_complete()
             else:
                 self.ts = self.ts - 1
         else:

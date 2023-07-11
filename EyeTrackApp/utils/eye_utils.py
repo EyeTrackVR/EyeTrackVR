@@ -16,3 +16,7 @@ def trigger_recalibration(eyes):
 def stop_calibration(eyes):
     for eye in eyes:
         eye.ransac.calibration_frame_counter = RANSAC_CALIBRATION_STEPS_STOP
+
+
+def play_on_complete():
+    PlaySound("Audio/completed.wav", SND_FILENAME | SND_ASYNC)
