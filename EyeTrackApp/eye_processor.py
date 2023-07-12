@@ -282,7 +282,6 @@ class EyeProcessor:
                 self.eyeopen = 0.0
             else:
                 self.eyeopen = ibo
-        print(self.eyeopen)
         self.output_images_and_update(
             self.thresh,
             EyeInfo(self.current_algo, self.out_x, self.out_y, 0, self.eyeopen),
@@ -293,7 +292,7 @@ class EyeProcessor:
 
     def LEAPM(self):
         self.thresh = self.current_image_gray.copy()
-        self.current_image_gray, self.rawx, self.rawy, self.eyeopen = self.er_leap.run(self.current_image_gray, True)
+        self.current_image_gray, self.rawx, self.rawy, self.eyeopen = self.er_leap.run(self.current_image_gray)
         self.thresh = self.current_image_gray.copy()
         self.out_x, self.out_y = cal.cal_osc(self, self.rawx, self.rawy)
         self.current_algorithm = EyeInfoOrigin.LEAP
