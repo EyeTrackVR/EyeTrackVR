@@ -166,6 +166,7 @@ def RANSAC3D(self, hsrac_en):
     ranf = False
     blink = 0.7
 
+
     if hsrac_en:
         center_x, center_y, upper_x, lower_x, upper_y, lower_y, ransac_lower_x, ransac_lower_y, ransac_upper_x, ransac_upper_y, ransac_xy_offset = get_center_noclamp(
             (self.rawx, self.rawy), self.radius)
@@ -318,9 +319,25 @@ def RANSAC3D(self, hsrac_en):
         perscalarw = w / csx
         perscalarh = h / csy
       #  print(abs(perscalarw-perscalarh))
-        if abs(perscalarw-perscalarh) >= 0.26: # TODO setting
-            blink = 0.0
+       # if abs(perscalarw-perscalarh) >= 0.2: # TODO setting
+        #    blink = 0.0
 
+        if len(self.blink_list) >= 10000: # self calibrate ransac blink IN TESTING
+            self.blink_list.pop(0)
+            self.blink_list.append(abs(perscalarw-perscalarh))
+
+        else:
+        #   print('app')
+            self.blink_list.append(abs(perscalarw-perscalarh))
+
+           # print(np.percentile(blink_list, 80), abs(perscalarw-perscalarh))
+       # print(len(self.blink_list))
+
+        if abs(perscalarw-perscalarh) >= np.percentile(
+                self.blink_list, 94
+        ):
+            blink = 0.0
+            print('blink')
 
     try:
         cv2.drawContours(self.current_image_gray, contours, -1, (255, 0, 0), 1) # TODO: fix visualizations with HSRAC

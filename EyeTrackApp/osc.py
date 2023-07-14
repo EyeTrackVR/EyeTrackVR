@@ -48,7 +48,7 @@ def output_osc(eye_x, eye_y, eye_blink, last_blink, self):
                 self.l_eye_blink = eye_blink
 
                 if self.l_eye_blink == 0.0:
-                    if last_blink > 0.7: #when binary blink is on, blinks may be too fast for OSC so we repeat them.
+                    if last_blink > 0.2: #when binary blink is on, blinks may be too fast for OSC so we repeat them.
                         for i in range(5):
                             self.client.send_message(self.config.osc_left_eye_close_address, eyelid_transformer(self,self.l_eye_blink))
                         last_blink = time.time() - last_blink
@@ -69,7 +69,7 @@ def output_osc(eye_x, eye_y, eye_blink, last_blink, self):
                 self.r_eye_blink = eye_blink
 
                 if self.r_eye_blink == 0.0:
-                    if last_blink > 0.7: #when binary blink is on, blinks may be too fast for OSC so we repeat them.
+                    if last_blink > 0.2: #when binary blink is on, blinks may be too fast for OSC so we repeat them.
                         for i in range(5):
                             self.client.send_message(self.config.osc_right_eye_close_address, eyelid_transformer(self,self.r_eye_blink))
                         last_blink = time.time() - last_blink
@@ -95,8 +95,16 @@ def output_osc(eye_x, eye_y, eye_blink, last_blink, self):
 
             if self.main_config.eye_display_id in [EyeId.RIGHT, EyeId.LEFT]:  # we are in single eye mode
                 se = True
-
-                self.client.send_message("/tracking/eye/EyesClosedAmount", float(1 - eye_blink))
+                if eye_blink == 0.0:
+                    if last_blink > 0.2:  # when binary blink is on, blinks may be too fast for OSC so we repeat them.
+                        for i in range(5):
+                            self.client.send_message("/tracking/eye/EyesClosedAmount",
+                                                     float(1 - eye_blink))
+                            eye_blink += 0.02 #TODO finish tuning value
+                            print(eye_blink)
+                        last_blink = time.time() - last_blink
+                else:
+                    self.client.send_message("/tracking/eye/EyesClosedAmount", float(1 - eye_blink))
                 self.client.send_message("/tracking/eye/LeftRightVec", [float(eye_x), float(eye_y), 1.0, float(eye_x), float(eye_y), 1.0])  # vrc native ET
 
             else:
@@ -109,7 +117,7 @@ def output_osc(eye_x, eye_y, eye_blink, last_blink, self):
                 self.client.send_message(self.config.osc_left_eye_close_address,eyelid_transformer(self,eye_blink))
 
                 if self.l_eye_blink == 0.0:
-                    if last_blink > 0.7:  # when binary blink is on, blinks may be too fast for OSC so we repeat them.
+                    if last_blink > 0.2:  # when binary blink is on, blinks may be too fast for OSC so we repeat them.
                         for i in range(5):
                             self.client.send_message("/tracking/eye/EyesClosedAmount",
                                                      float(1 - eye_blink))
@@ -131,7 +139,7 @@ def output_osc(eye_x, eye_y, eye_blink, last_blink, self):
                 self.client.send_message(self.config.osc_right_eye_close_address,eyelid_transformer(self,eye_blink))
 
                 if self.r_eye_blink == 0.0:
-                    if last_blink > 0.7:  # when binary blink is on, blinks may be too fast for OSC so we repeat them.
+                    if last_blink > 0.2:  # when binary blink is on, blinks may be too fast for OSC so we repeat them.
                         for i in range(5):
                             self.client.send_message("/tracking/eye/EyesClosedAmount",
                                                      float(1 - eye_blink))
@@ -146,7 +154,7 @@ def output_osc(eye_x, eye_y, eye_blink, last_blink, self):
 
             if self.main_config.eye_display_id in [EyeId.BOTH] and self.r_eye_blink != 621 and self.r_eye_blink != 621:
                 if self.r_eye_blink == 0.0 or self.l_eye_blink == 0.0:
-                    if last_blink > 0.7:  # when binary blink is on, blinks may be too fast for OSC so we repeat them.
+                    if last_blink > 0.2:  # when binary blink is on, blinks may be too fast for OSC so we repeat them.
                         for i in range(5):
                             self.client.send_message("/tracking/eye/EyesClosedAmount",
                                                      float(1))

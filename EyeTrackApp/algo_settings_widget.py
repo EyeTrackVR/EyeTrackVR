@@ -40,6 +40,7 @@ class AlgoSettingsWidget:
         self.gui_BLOBP = f"-BLOBP{widget_id}-"
         self.gui_thresh_add = f"-THRESHADD{widget_id}-"
         self.gui_ROSC = f"-ROSC{widget_id}-"
+        self.gui_RANSACBLINK = f"-RANSACBLINK{widget_id}-"
         self.gui_vrc_native = f"-VRCNATIVE{widget_id}-"
         self.gui_circular_crop_left = f"-CIRCLECROPLEFT{widget_id}-"
         self.gui_circular_crop_right = f"-CIRCLECROPRIGHT{widget_id}-"
@@ -50,6 +51,7 @@ class AlgoSettingsWidget:
         self.ibo_filter_samples = f"-IBOFILTERSAMPLE{widget_id}-"
         self.calibration_samples = f"-CALIBRATIONSAMPLES{widget_id}-"
         self.ibo_fully_close_eye_threshold = f"-CLOSETHRESH{widget_id}-"
+
         self.main_config = main_config
         self.config = main_config.settings
         self.osc_queue = osc_queue
@@ -180,7 +182,13 @@ class AlgoSettingsWidget:
                     background_color='#424042',
                 ),
                 sg.Checkbox(
-                    "Bianary Blink Algo",
+                    "RANSAC Quick Blink Algo",
+                    default=self.config.gui_RANSACBLINK,
+                    key=self.gui_RANSACBLINK,
+                    background_color='#424042',
+                ),
+                sg.Checkbox(
+                    "Binary Blink Algo",
                     default=self.config.gui_BLINK,
                     key=self.gui_BLINK,
                     background_color='#424042',
@@ -388,6 +396,10 @@ class AlgoSettingsWidget:
         
         if self.config.gui_IBO != values[self.gui_IBO]:
             self.config.gui_IBO = values[self.gui_IBO]
+            changed = True
+
+        if self.config.gui_RANSACBLINK != values[self.gui_RANSACBLINK]:
+            self.config.gui_RANSACBLINK = values[self.gui_RANSACBLINK]
             changed = True
 
         if self.config.gui_circular_crop_left != values[self.gui_circular_crop_left]:

@@ -259,18 +259,20 @@ class IntensityBasedOpeness:
             self.filterlist.pop(0)
             self.filterlist.append(intensity)
 
-        if intensity >= np.percentile(
-            self.filterlist, 98
-        ):  # filter abnormally high values
-            # print('filter, assume blink')
-            intensity = self.maxval
+        try:
+            if intensity >= np.percentile(
+                self.filterlist, 98
+            ):  # filter abnormally high values
+                # print('filter, assume blink')
+                intensity = self.maxval
 
-        if intensity <= np.percentile( # TODO test this
-            self.filterlist, 0.3
-        ):  # filter abnormally low values
-            # print('filter, assume blink')
-            intensity = self.data[int_y, int_x]
-
+        #    if intensity <= np.percentile( # TODO test this
+         #       self.filterlist, 0.3
+          #  ):  # filter abnormally low values
+                # print('filter, assume blink')
+            #    intensity = self.data[int_y, int_x]
+        except:
+            pass
         # self.tri_filter.append(intensity)
         # if len(self.tri_filter) > 3:
         #   self.tri_filter.pop(0)

@@ -160,9 +160,12 @@ class EyeProcessor:
         self.blinkvalue = False
         self.hasrac_en = False
         self.radius = 10
-
+        self.past_blink = 0.7
         self.prev_x = None
-        self.prev_y = None
+        self.prev_y = 0.1
+        self.prev_x_list = []
+        self.prev_y_list = []
+        self.blink_list = []
         self.bd_blink = False
         self.current_algo = EyeInfoOrigin.HSRAC
 
@@ -282,10 +285,31 @@ class EyeProcessor:
                 self.eyeopen = 0.0
             else:
                 self.eyeopen = ibo
+
+
+        if len(self.prev_y_list) >= 200: # "lock" eye when close/blink IN TESTING
+            self.prev_y_list.pop(0)
+            self.prev_y_list.append(self.out_y)
+        else:
+            self.prev_y_list.append(self.out_y)
+
+       # print(abs(self.eyeopen - self.past_blink))
+        blink_vec = min(abs(self.eyeopen - self.past_blink), 1) #clamp to 1
+
+        if blink_vec >= 0.1 or blink_vec == 0.0 and (self.out_y - self.prev_y) < 0.0:
+           # self.out_x = sum(self.prev_x_list) / len(self.prev_x_list)
+            self.out_y = sum(self.prev_y_list) / len(self.prev_y_list)
+         #   print('AVG', self.out_y, len(self.prev_y_list))
+        self.past_blink = self.eyeopen
+        self.prev_x = self.out_x
+        self.prev_y = self.out_y
+
         self.output_images_and_update(
             self.thresh,
             EyeInfo(self.current_algo, self.out_x, self.out_y, 0, self.eyeopen),
         )
+
+
 
     def BLINKM(self):
         self.eyeopen = BLINK(self)
@@ -327,7 +351,10 @@ class EyeProcessor:
         self.rawx, self.rawy, self.thresh, self.radius = self.er_hsf.run(
             self.current_image_gray
         )
-        self.rawx, self.rawy, self.thresh, self.eyeopen = RANSAC3D(self, True)
+        self.rawx, self.rawy, self.thresh, ranblink = RANSAC3D(self, True)
+        if self.settings.gui_RANSACBLINK:
+         #   print("yes", ranblink)
+            self.eyeopen = ranblink
         # print(self.radius)
         # if self.prev_x is None:
         #   self.prev_x = self.rawx
@@ -370,7 +397,9 @@ class EyeProcessor:
         current_image_gray_copy = (
             self.current_image_gray.copy()
         )  # Duplicate before overwriting in RANSAC3D.
-        self.rawx, self.rawy, self.thresh, self.eyeopen = RANSAC3D(self, False)
+        self.rawx, self.rawy, self.thresh, ranblink = RANSAC3D(self, False)
+        if self.settings.gui_RANSACBLINK:
+            self.eyeopen = ranblink
         self.out_x, self.out_y = cal.cal_osc(self, self.rawx, self.rawy)
         self.current_algorithm = EyeInfoOrigin.RANSAC
 

@@ -74,6 +74,7 @@ class EyeTrackSettingsConfig(BaseModel):
     osc_right_eye_close_address: str = "/avatar/parameters/RightEyeLidExpandedSqueeze"
     osc_left_eye_close_address: str = "/avatar/parameters/LeftEyeLidExpandedSqueeze"
     osc_invert_eye_close: bool = False
+    gui_RANSACBLINK: bool = True
 
 
 class EyeTrackConfig(BaseModel):
