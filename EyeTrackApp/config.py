@@ -118,6 +118,10 @@ class EyeTrackConfig(BaseModel):
             json.dump(obj=self.dict(), fp=settings_file)
         print("[INFO] Config Saved Successfully")
 
+    def update(self, data):
+        # TODO add updating of the config
+        raise NotImplementedError
+
     @staticmethod
     def verify_config():
         """verify if the configuration exists and if so, whether it is correct"""

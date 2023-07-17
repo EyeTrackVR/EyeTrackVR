@@ -4,6 +4,7 @@ from utils.eye_utils import trigger_recalibration, trigger_recenter
 
 class KeyboardHandler:
 
+    # TODO inherit after the GlobalHotkeys and setup your own threads with thread handling
     def __init__(self, eye_widgets):
         # since we're modifying the eye widgets settings directly
         self.eye_widgets = eye_widgets

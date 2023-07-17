@@ -10,7 +10,7 @@ from EyeTrackApp.consts import PageType
 from EyeTrackApp.osc.osc import VRChatOSC
 from EyeTrackApp.osc.osc_input import VRChatOSCReceiver
 from eye import EyeInfo
-from settings_widget import SettingsWidget
+from settings.settings_widget import SettingsWidget
 from utils.misc_utils import is_nt
 
 
@@ -96,7 +96,7 @@ def main():
     ]
 
     settings = [
-        SettingsWidget(PageType.SETTINGS, config, osc_queue),
+        SettingsWidget(PageType.SETTINGS, config),
     ]
 
     layout = [
@@ -160,10 +160,6 @@ def main():
     if config.eye_display_id in [PageType.RIGHT, PageType.BOTH]:
         eyes[0].start()
 
-    if config.eye_display_id in [PageType.SETTINGS, PageType.BOTH]:
-        settings[0].start()
-        #self.main_config.eye_display_id
-
     # the eye's needs to be running before it is passed to the OSC
     if config.settings.gui_ROSC:
         osc_receiver = VRChatOSCReceiver(cancellation_event, config, eyes)
@@ -201,7 +197,6 @@ def main():
         if values[RIGHT_EYE_RADIO_NAME] and config.eye_display_id != PageType.RIGHT:
             eyes[0].start()
             eyes[1].stop()
-            settings[0].stop()
             window[RIGHT_EYE_NAME].update(visible=True)
             window[LEFT_EYE_NAME].update(visible=False)
             window[SETTINGS_NAME].update(visible=False)
@@ -210,7 +205,6 @@ def main():
             config.save()
 
         elif values[LEFT_EYE_RADIO_NAME] and config.eye_display_id != PageType.LEFT:
-            settings[0].stop()
             eyes[0].stop()
             eyes[1].start()
             window[RIGHT_EYE_NAME].update(visible=False)
@@ -221,7 +215,6 @@ def main():
             config.save()
 
         elif values[BOTH_EYE_RADIO_NAME] and config.eye_display_id != PageType.BOTH:
-            settings[0].stop()
             eyes[0].stop()
             eyes[1].start()
             eyes[0].start()
@@ -235,7 +228,6 @@ def main():
         elif values[SETTINGS_RADIO_NAME] and config.eye_display_id != PageType.SETTINGS:
             eyes[0].stop()
             eyes[1].stop()
-            settings[0].start()
             window[RIGHT_EYE_NAME].update(visible=False)
             window[LEFT_EYE_NAME].update(visible=False)
             window[SETTINGS_NAME].update(visible=True)
