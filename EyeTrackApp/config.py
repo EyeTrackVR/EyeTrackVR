@@ -120,7 +120,7 @@ class EyeTrackConfig(BaseModel):
 
     def update(self, data):
         # TODO add updating of the config
-        raise NotImplementedError
+        print(data)
 
     @staticmethod
     def verify_config():

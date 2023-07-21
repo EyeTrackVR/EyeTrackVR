@@ -1,4 +1,5 @@
 import copy
+from typing import Any
 
 import pydantic
 
@@ -9,12 +10,12 @@ from settings.modules.base_module import SettingsModule, ValidationBaseSettingsD
 
 
 class OSCValidationModel(ValidationBaseSettingsDataModel):
-    osc_port: int
-    osc_address: str
-    osc_should_receive: bool
-    osc_receive_port: int
-    osc_recenter_address: str
-    osc_recalibrate_address: str
+    gui_osc_port: int
+    gui_osc_address: str
+    gui_ROSC: bool
+    gui_osc_receiver_port: int
+    gui_osc_recenter_address: str
+    gui_osc_recalibrate_address: str
 
 
 class OSCSettingsModule(SettingsModule):
@@ -28,20 +29,23 @@ class OSCSettingsModule(SettingsModule):
         self.gui_osc_recenter_address = f"OSCRECENTERADDRESS{widget_id}-"
         self.gui_osc_recalibrate_address = f"OSCRECALIBRATEADDRESS{widget_id}-"
 
-    def validate(self, values) -> dict[str, str]:
+    def validate(self, values) -> (dict[str, Any], dict[str, str]):
         try:
-            # return only the changed values
+            changes = {}
             validated_model = OSCValidationModel(
-                osc_port=values["gui_osc_port"],
-                osc_address=values["gui_osc_address"],
-                osc_should_receive=values["gui_ROSC"],
-                osc_receive_port=values["gui_osc_receiver_port"],
-                osc_recenter_address=values["gui_osc_recenter_address"],
-                osc_recalibrate_address=values["gui_osc_recalibrate_address"],
+                gui_osc_port=values[self.gui_osc_port],
+                gui_osc_address=values[self.gui_osc_address],
+                gui_ROSC=values[self.gui_ROSC],
+                gui_osc_receiver_port=values[self.gui_osc_receiver_port],
+                gui_osc_recenter_address=values[self.gui_osc_recenter_address],
+                gui_osc_recalibrate_address=values[self.gui_osc_recalibrate_address],
             )
-            return validated_model.dict()
+            for field, value in validated_model.dict().items():
+                if getattr(self.config, field) != value:
+                    changes[field] = value
+            return changes, {},
         except pydantic.ValidationError as e:
-            return e.errors()
+            return {}, e.errors()
 
     def get_layout(self):
         return [

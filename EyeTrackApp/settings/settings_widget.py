@@ -69,11 +69,13 @@ class SettingsWidget:
         return initialized_modules
 
     def render(self, window, event, values):
-        validated_data, errors = [], []
+        validated_data, errors = {}, []
         for module in self.initialized_modules:
             module_validated_data, module_errors = module.validate(values)
-            validated_data.extend(module_validated_data)
-            errors.extend(module_errors)
+            if module_validated_data:
+                validated_data.update(module_validated_data)
+            if errors:
+                errors.extend(module_errors)
 
         if not errors and validated_data:
             self.main_config.update(validated_data)
