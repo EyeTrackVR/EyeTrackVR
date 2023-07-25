@@ -28,7 +28,7 @@ class SettingsWidget:
         self.validation_errors = []
 
         settings_modules: Callable = [
-            # GeneralSettingsModule,
+            GeneralSettingsModule,
             # TrackingAlgorithmsModule,
             # KeyboardShortcutsModule,
             OSCSettingsModule,
@@ -82,62 +82,6 @@ class SettingsWidget:
             self.main_config.save()
 
 
-        # If anything has changed in our configuration settings, change/update those.
-        # changed = False
-        # osc_port = 9000
-        # osc_receiver_port = 9001
-        #
-        # try:
-        #     osc_port = int(values[self.gui_osc_port])
-        # except ValueError:
-        #     print("\033[91m[ERROR] OSC port value must be an integer 0-65535\033[0m")
-        #
-        # try:
-        #     osc_receiver_port = int(values[self.gui_osc_receiver_port])
-        # except ValueError:
-        #     print(
-        #         "\033[91m[ERROR] OSC receive port value must be an integer 0-65535\033[0m"
-        #     )
-        #
-        # if self.config.gui_osc_port != osc_port:
-        #     print(self.config.gui_osc_port, osc_port)
-        #     if len(values[self.gui_osc_port]) <= 5:
-        #         self.config.gui_osc_port = osc_port
-        #         changed = True
-        #     else:
-        #         print(
-        #             "\033[91m[ERROR] OSC port value must be an integer 0-65535\033[0m"
-        #         )
-        #
-        # if self.config.gui_osc_receiver_port != osc_receiver_port:
-        #     if len(values[self.gui_osc_receiver_port]) <= 5:
-        #         self.config.gui_osc_receiver_port = osc_receiver_port
-        #         changed = True
-        #     else:
-        #         print(
-        #             "\033[91m[ERROR] OSC receive port value must be an integer 0-65535\033[0m"
-        #         )
-        #
-        # if self.config.gui_osc_address != values[self.gui_osc_address]:
-        #     self.config.gui_osc_address = values[self.gui_osc_address]
-        #     changed = True
-        #
-        # if (
-        #     self.config.gui_osc_recenter_address
-        #     != values[self.gui_osc_recenter_address]
-        # ):
-        #     self.config.gui_osc_recenter_address = values[self.gui_osc_recenter_address]
-        #     changed = True
-        #
-        # if (
-        #     self.config.gui_osc_recalibrate_address
-        #     != values[self.gui_osc_recalibrate_address]
-        # ):
-        #     self.config.gui_osc_recalibrate_address = values[
-        #         self.gui_osc_recalibrate_address
-        #     ]
-        #     changed = True
-        #
         # if self.config.gui_min_cutoff != values[self.gui_min_cutoff]:
         #     self.config.gui_min_cutoff = values[self.gui_min_cutoff]
         #     changed = True
@@ -146,24 +90,12 @@ class SettingsWidget:
         #     self.config.gui_speed_coefficient = values[self.gui_speed_coefficient]
         #     changed = True
         #
-        # if self.config.gui_flip_x_axis_right != values[self.gui_flip_x_axis_right]:
-        #     self.config.gui_flip_x_axis_right = values[self.gui_flip_x_axis_right]
-        #     changed = True
-        #
-        # if self.config.gui_flip_x_axis_left != values[self.gui_flip_x_axis_left]:
-        #     self.config.gui_flip_x_axis_left = values[self.gui_flip_x_axis_left]
-        #     changed = True
-        #
         # if self.config.gui_HSFP != int(values[self.gui_HSFP]):
         #     self.config.gui_HSFP = int(values[self.gui_HSFP])
         #     changed = True
         #
         # if self.config.gui_HSF != values[self.gui_HSF]:
         #     self.config.gui_HSF = values[self.gui_HSF]
-        #     changed = True
-        #
-        # if self.config.gui_vrc_native != values[self.gui_vrc_native]:
-        #     self.config.gui_vrc_native = values[self.gui_vrc_native]
         #     changed = True
         #
         # if self.config.gui_DADDYP != int(values[self.gui_DADDYP]):
@@ -196,10 +128,6 @@ class SettingsWidget:
         #     self.config.gui_skip_autoradius = values[self.gui_skip_autoradius]
         #     changed = True
         #
-        # if self.config.gui_update_check != values[self.gui_update_check]:
-        #     self.config.gui_update_check = values[self.gui_update_check]
-        #     changed = True
-        #
         # if self.config.gui_BLINK != values[self.gui_BLINK]:
         #     self.config.gui_BLINK = values[self.gui_BLINK]
         #     changed = True
@@ -218,10 +146,6 @@ class SettingsWidget:
         #
         # if self.config.gui_HSF_radius != int(values[self.gui_HSF_radius]):
         #     self.config.gui_HSF_radius = int(values[self.gui_HSF_radius])
-        #     changed = True
-        #
-        # if self.config.gui_flip_y_axis != values[self.gui_flip_y_axis]:
-        #     self.config.gui_flip_y_axis = values[self.gui_flip_y_axis]
         #     changed = True
         #
         # if self.config.gui_BLOB != values[self.gui_BLOB]:
@@ -247,10 +171,3 @@ class SettingsWidget:
         # if self.config.gui_blob_maxsize != values[self.gui_blob_maxsize]:
         #     self.config.gui_blob_maxsize = values[self.gui_blob_maxsize]
         #     changed = True
-        #
-        # if self.config.gui_ROSC != values[self.gui_ROSC]:
-        #     self.config.gui_ROSC = values[self.gui_ROSC]
-        #     changed = True
-        #
-        # if changed:
-        #     self.main_config.save()

@@ -104,23 +104,18 @@ class EyeTrackConfig(BaseModel):
                 return EyeTrackConfig(**json.load(settings_file))
 
     def save(self):
-        # make sure this is only called if there is a change
-        try:
-            self.verify_config()
-        except (ConfigFileDoesNotExist, ConfigFileInvalid):
-            pass
-        else:
-            # make a copy only if the config is valid
-            print("[INFO] Saving, making a copy of the config")
-            shutil.copy(CONFIG_FILE_NAME, BACKUP_CONFIG_FILE_NAME)
+        # config correctness is guaranteed by pydantic
+        print("[INFO] Saving, making a copy of the config")
+        shutil.copy(CONFIG_FILE_NAME, BACKUP_CONFIG_FILE_NAME)
 
         with open(CONFIG_FILE_NAME, "w") as settings_file:
             json.dump(obj=self.dict(), fp=settings_file)
         print("[INFO] Config Saved Successfully")
 
     def update(self, data):
-        # TODO add updating of the config
-        print(data)
+        for field, value in data.items():
+            setattr(self.settings, field, value)
+        self.save()
 
     @staticmethod
     def verify_config():

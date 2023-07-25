@@ -1,5 +1,4 @@
-import copy
-from typing import Any
+from typing import Any, Optional
 
 import pydantic
 
@@ -29,7 +28,7 @@ class OSCSettingsModule(SettingsModule):
         self.gui_osc_recenter_address = f"OSCRECENTERADDRESS{widget_id}-"
         self.gui_osc_recalibrate_address = f"OSCRECALIBRATEADDRESS{widget_id}-"
 
-    def validate(self, values) -> (dict[str, Any], dict[str, str]):
+    def validate(self, values) -> (Optional[dict[str, Any]], Optional[dict[str, str]]):
         try:
             changes = {}
             validated_model = OSCValidationModel(
@@ -43,9 +42,9 @@ class OSCSettingsModule(SettingsModule):
             for field, value in validated_model.dict().items():
                 if getattr(self.config, field) != value:
                     changes[field] = value
-            return changes, {},
+            return changes, None
         except pydantic.ValidationError as e:
-            return {}, e.errors()
+            return None, e.errors()
 
     def get_layout(self):
         return [
