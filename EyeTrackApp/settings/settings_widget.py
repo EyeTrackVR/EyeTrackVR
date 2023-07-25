@@ -30,7 +30,7 @@ class SettingsWidget:
         settings_modules: Callable = [
             GeneralSettingsModule,
             # TrackingAlgorithmsModule,
-            # KeyboardShortcutsModule,
+            KeyboardShortcutsModule,
             OSCSettingsModule,
         ]
         self.initialized_modules = self._initialize_modules(settings_modules, widget_id=widget_id)
