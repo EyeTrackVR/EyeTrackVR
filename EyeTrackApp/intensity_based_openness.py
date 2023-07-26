@@ -156,11 +156,8 @@ class IntensityBasedOpeness:
         self.filterlist = []
         self.averageList = []
         self.openlist = []
-
         self.eye_id = eye_id
-
         self.maxinten = 0
-
         self.tri_filter = []
         #  try:
         #      min_cutoff = float(self.settings.gui_min_cutoff)  # 0.0004
