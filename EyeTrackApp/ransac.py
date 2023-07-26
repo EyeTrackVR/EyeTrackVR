@@ -30,13 +30,25 @@ import numpy as np
 from enum import IntEnum
 from utils.img_utils import safe_crop
 from utils.misc_utils import clamp
+import os
+import psutil
+import sys
+
+process = psutil.Process(os.getpid())  # set process priority to low
+try: # medium chance this does absolutely nothing but eh
+    sys.getwindowsversion()
+except AttributeError:
+    process.nice(0)  # UNIX: 0 low 10 high
+    process.nice()
+else:
+    process.nice(psutil.BELOW_NORMAL_PRIORITY_CLASS)  # Windows
+    process.nice()
+
 class EyeId(IntEnum):
     RIGHT = 0
     LEFT = 1
     BOTH = 2
     SETTINGS = 3
-
-
 def ellipse_model(data, y, f):
     """
     There is no need to make this process a function, since making the process a function will slow it down a little by calling it.
@@ -300,9 +312,11 @@ def RANSAC3D(self, hsrac_en):
 
     except:
         f = True
+
+    csy = newFrame2.shape[0]
+    csx = newFrame2.shape[1]
     if hsrac_en:
-        csy = newFrame2.shape[0]
-        csx = newFrame2.shape[1]
+
 
         if ranf:
             cx = self.rawx
@@ -322,22 +336,49 @@ def RANSAC3D(self, hsrac_en):
        # if abs(perscalarw-perscalarh) >= 0.2: # TODO setting
         #    blink = 0.0
 
-        if len(self.blink_list) >= 10000: # self calibrate ransac blink IN TESTING
-            self.blink_list.pop(0)
-            self.blink_list.append(abs(perscalarw-perscalarh))
+        if self.settings.gui_RANSACBLINK:
 
-        else:
-        #   print('app')
-            self.blink_list.append(abs(perscalarw-perscalarh))
+            if self.ran_blink_check_for_file:
+                if self.eye_id in [EyeId.LEFT]:
+                    file_path = 'RANSAC_blink_LEFT.cfg'
+                if self.eye_id in [EyeId.RIGHT]:
+                    file_path = 'RANSAC_blink_RIGHT.cfg'
+                else:
+                    file_path = 'RANSAC_blink_RIGHT.cfg'
 
-           # print(np.percentile(blink_list, 80), abs(perscalarw-perscalarh))
-       # print(len(self.blink_list))
+                if os.path.exists(file_path):
+                    with open(file_path, 'r') as file:
+                        self.blink_list = [float(line.strip()) for line in file]
+                else:
+                    print(f"\033[93m[INFO] RANSAC Blink Config '{file_path}' not found. Waiting for calibration.\033[0m")
+                self.ran_blink_check_for_file = False
 
-        if abs(perscalarw-perscalarh) >= np.percentile(
-                self.blink_list, 94
-        ):
-            blink = 0.0
-            print('blink')
+
+            if len(self.blink_list) == 10000: # self calibrate ransac blink IN TESTING
+                if self.eye_id in [EyeId.LEFT]:
+                    with open("RANSAC_BLINK_LEFT.cfg", 'w') as file:
+                        for item in self.blink_list:
+                            file.write(str(item) + '\n')
+
+                if self.eye_id in [EyeId.RIGHT]:
+                    with open("RANSAC_BLINK_RIGHT.cfg", 'w') as file:
+                        for item in self.blink_list:
+                            file.write(str(item) + '\n')
+                print('SAVE')
+
+               # self.blink_list.pop(0)
+                self.blink_list.append(abs(perscalarw-perscalarh))
+
+            elif len(self.blink_list) < 10000:
+                self.blink_list.append(abs(perscalarw-perscalarh))
+
+
+            if abs(perscalarw-perscalarh) >= np.percentile(
+                    self.blink_list, 94
+            ):
+                blink = 0.0
+
+
 
     try:
         cv2.drawContours(self.current_image_gray, contours, -1, (255, 0, 0), 1) # TODO: fix visualizations with HSRAC

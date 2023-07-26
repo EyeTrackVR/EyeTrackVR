@@ -96,13 +96,16 @@ def output_osc(eye_x, eye_y, eye_blink, last_blink, self):
             if self.main_config.eye_display_id in [EyeId.RIGHT, EyeId.LEFT]:  # we are in single eye mode
                 se = True
                 if eye_blink == 0.0:
+              #      print("WE ARE BLINKIN")
                     if last_blink > 0.2:  # when binary blink is on, blinks may be too fast for OSC so we repeat them.
                         for i in range(5):
                             self.client.send_message("/tracking/eye/EyesClosedAmount",
                                                      float(1 - eye_blink))
                             eye_blink += 0.02 #TODO finish tuning value
-                            print(eye_blink)
+                         #   print(eye_blink, 'osc')
+                  #          print(last_blink, time.time(), float(time.time() - last_blink))
                         last_blink = time.time() - last_blink
+
                 else:
                     self.client.send_message("/tracking/eye/EyesClosedAmount", float(1 - eye_blink))
                 self.client.send_message("/tracking/eye/LeftRightVec", [float(eye_x), float(eye_y), 1.0, float(eye_x), float(eye_y), 1.0])  # vrc native ET
@@ -169,7 +172,7 @@ def output_osc(eye_x, eye_y, eye_blink, last_blink, self):
 
             if not se:
                 # vrc native ET (z values may need tweaking, they act like a scalar)
-                self.client.send_message("/tracking/eye/LeftRightVec",[float(self.l_eye_x), float(self.left_y), 0.8, float(self.r_eye_x), float(self.right_y),0.8])
+                self.client.send_message("/tracking/eye/LeftRightVec",[float(self.l_eye_x), float(self.left_y), 1.0, float(self.r_eye_x), float(self.right_y), 1.0])
 
 
 class VRChatOSC:

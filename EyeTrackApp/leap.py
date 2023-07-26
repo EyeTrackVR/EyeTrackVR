@@ -74,8 +74,8 @@ class LEAP_C(object):
     def __init__(self):
         onnxruntime.disable_telemetry_events()
         # Config variables
-        self.num_threads = 2  # Number of python threads to use (using ~1 more than needed to acheive wanted fps yeilds lower cpu usage)
-        self.queue_max_size = 2  # Optimize for best CPU usage, Memory, and Latency. A maxsize is needed to not create a potential memory leak.
+        self.num_threads = 3  # Number of python threads to use (using ~1 more than needed to acheive wanted fps yeilds lower cpu usage)
+        self.queue_max_size = 1  # Optimize for best CPU usage, Memory, and Latency. A maxsize is needed to not create a potential memory leak.
         self.model_path = 'Models/mommy062023.onnx'
         self.interval = 1  # FPS print update rate
         self.low_priority = True  # set process priority to low

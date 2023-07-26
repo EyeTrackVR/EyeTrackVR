@@ -6,7 +6,19 @@ import numpy as np
 from utils.misc_utils import clamp
 from utils.img_utils import safe_crop
 from enum import IntEnum
+import psutil
+import sys
+import os
 
+process = psutil.Process(os.getpid())  # set process priority to low
+try: # medium chance this does absolutely nothing but eh
+    sys.getwindowsversion()
+except AttributeError:
+    process.nice(0)  # UNIX: 0 low 10 high
+    process.nice()
+else:
+    process.nice(psutil.BELOW_NORMAL_PRIORITY_CLASS)  # Windows
+    process.nice()
 
 class EyeId(IntEnum):
     RIGHT = 0
