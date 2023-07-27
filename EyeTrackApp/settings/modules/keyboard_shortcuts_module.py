@@ -5,12 +5,10 @@ import pydantic
 from settings.constants import BACKGROUND_COLOR
 import PySimpleGUI as sg
 
-from settings.modules.base_module import SettingsModule, ValidationBaseSettingsDataModel
+from settings.modules.base_module import SettingsModule, BaseValidationModel
 
 
-class KeyboardShortcutsValidationModel(ValidationBaseSettingsDataModel):
-    # TODO add shortcut validation
-    # Idea: check for special keys and if they are surrounded by <>, check if there's no ", ' or , and if there are +. There must be a + and a singular letter or special <>
+class KeyboardShortcutsValidationModel(BaseValidationModel):
     gui_reset_calibration_shortcut: str
     gui_recenter_shortcut: str
 

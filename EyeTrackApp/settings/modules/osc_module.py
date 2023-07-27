@@ -5,10 +5,10 @@ import pydantic
 from settings.constants import BACKGROUND_COLOR
 import PySimpleGUI as sg
 
-from settings.modules.base_module import SettingsModule, ValidationBaseSettingsDataModel
+from settings.modules.base_module import SettingsModule, BaseValidationModel
 
 
-class OSCValidationModel(ValidationBaseSettingsDataModel):
+class OSCValidationModel(BaseValidationModel):
     gui_osc_port: int
     gui_osc_address: str
     gui_ROSC: bool

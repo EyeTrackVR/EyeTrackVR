@@ -3,15 +3,15 @@ from typing import Iterable
 from pydantic import BaseModel
 
 
-class ValidationBaseSettingsDataModel(BaseModel):
+class BaseValidationModel(BaseModel):
     pass
 
 
 class SettingsModule:
 
     def __init__(self, settings, widget_id, **kwargs):
-        self.initial_model: ValidationBaseSettingsDataModel = None
-        self.modified_model: ValidationBaseSettingsDataModel = None
+        self.initial_model: BaseValidationModel = None
+        self.modified_model: BaseValidationModel = None
 
         self.settings = settings
         self.widget_id = widget_id

@@ -5,10 +5,10 @@ import pydantic
 from settings.constants import BACKGROUND_COLOR
 import PySimpleGUI as sg
 
-from settings.modules.base_module import SettingsModule, ValidationBaseSettingsDataModel
+from settings.modules.base_module import SettingsModule, BaseValidationModel
 
 
-class GeneralSettingsValidationModel(ValidationBaseSettingsDataModel):
+class GeneralSettingsValidationModel(BaseValidationModel):
     gui_flip_x_axis_left: bool
     gui_flip_x_axis_right: bool
     gui_flip_y_axis: bool

@@ -1,7 +1,39 @@
+from typing import Optional, Any
+
+import pydantic
+
 from settings.constants import BACKGROUND_COLOR
 import PySimpleGUI as sg
 
-from settings.modules.base_module import SettingsModule
+from settings.modules.base_module import SettingsModule, BaseValidationModel
+
+
+class TrackingAlgorithmsValidationModel(BaseValidationModel):
+    gui_BLOB: bool
+    gui_HSF: bool
+    gui_DADDY: bool
+    gui_RANSAC3D: bool
+    gui_BLINK: bool
+    gui_IBO: bool
+    gui_HSRAC: bool
+
+    gui_HSF_radius: int
+    gui_blob_maxsize: int
+    gui_blob_minsize: int
+    gui_speed_coefficient: str  # GUI lib does not support doubles ;-;
+    gui_min_cutoff: str  # or floats ;-;
+
+    gui_skip_autoradius: int
+    gui_DADDYP: int
+    gui_HSRACP: int
+    gui_RANSAC3DP: int
+    gui_HSFP: int
+    gui_BLOBP: int
+
+    gui_thresh_add: int
+    gui_circular_crop_left: bool
+    gui_circular_crop_right: bool
+    gui_threshold: int
 
 
 class TrackingAlgorithmsModule(SettingsModule):
@@ -29,11 +61,46 @@ class TrackingAlgorithmsModule(SettingsModule):
         self.gui_HSFP = f"-HSFP{widget_id}-"
         self.gui_BLOBP = f"-BLOBP{widget_id}-"
         self.gui_thresh_add = f"-THRESHADD{widget_id}-"
-        self.gui_ROSC = f"-ROSC{widget_id}-"
 
         self.gui_circular_crop_left = f"-CIRCLECROPLEFT{widget_id}-"
         self.gui_circular_crop_right = f"-CIRCLECROPRIGHT{widget_id}-"
         self.gui_threshold_slider = f"-BLOBTHRESHOLD{widget_id}-"
+
+    def validate(self, values) -> (Optional[dict[str, Any]], Optional[dict[str, str]]):
+        try:
+            changes = {}
+            validated_model = TrackingAlgorithmsValidationModel(
+                gui_BLOB=values[self.gui_BLOB],
+                gui_HSF=values[self.gui_HSF],
+                gui_DADDY=values[self.gui_DADDY],
+                gui_RANSAC3D=values[self.gui_RANSAC3D],
+                gui_BLINK=values[self.gui_BLINK],
+                gui_IBO=values[self.gui_IBO],
+                gui_HSRAC=values[self.gui_HSRAC],
+                gui_HSF_radius=values[self.gui_HSF_radius],
+                gui_blob_maxsize=values[self.gui_blob_maxsize],
+                gui_blob_minsize=values[self.gui_blob_minsize],
+                gui_speed_coefficient=values[self.gui_speed_coefficient],
+                gui_min_cutoff=values[self.gui_min_cutoff],
+                gui_skip_autoradius=values[self.gui_skip_autoradius],
+                gui_DADDYP=values[self.gui_DADDYP],
+                gui_HSRACP=values[self.gui_HSRACP],
+                gui_RANSAC3DP=values[self.gui_RANSAC3DP],
+                gui_HSFP=values[self.gui_HSFP],
+                gui_BLOBP=values[self.gui_BLOBP],
+                gui_thresh_add=values[self.gui_thresh_add],
+                gui_circular_crop_left=values[self.gui_circular_crop_left],
+                gui_circular_crop_right=values[self.gui_circular_crop_right],
+                gui_threshold=values[self.gui_threshold_slider],
+            )
+
+            for field, value in validated_model.dict().items():
+                if getattr(self.config, field) != value:
+                    changes[field] = value
+            return changes, None
+        except pydantic.ValidationError as e:
+            errors = e.errors()
+            return None, errors
 
     def get_layout(self):
         return [
