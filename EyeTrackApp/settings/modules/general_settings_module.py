@@ -20,6 +20,7 @@ class GeneralSettingsValidationModel(BaseValidationModel):
 class GeneralSettingsModule(SettingsModule):
     def __init__(self, settings, widget_id, **kwargs):
         super().__init__(settings, widget_id, **kwargs)
+        self.validation_model = GeneralSettingsValidationModel
         self.config = kwargs.get('config')
         self.gui_flip_x_axis_left = f"-FLIPXAXISLEFT{widget_id}-"
         self.gui_flip_x_axis_right = f"-FLIPXAXISRIGHT{widget_id}-"
@@ -27,26 +28,6 @@ class GeneralSettingsModule(SettingsModule):
         self.gui_vrc_native = f"-VRCNATIVE{widget_id}-"
         self.gui_eye_falloff = f"-EYEFALLOFF{widget_id}-"
         self.gui_update_check = f"-UPDATECHECK{widget_id}-"
-
-    def validate(self, values) -> (Optional[dict[str, Any]], Optional[dict[str, str]]):
-        # TODO think of a way to magically get class params and automagically handle it
-        try:
-            changes = {}
-            validated_model = GeneralSettingsValidationModel(
-                gui_flip_x_axis_left=values[self.gui_flip_x_axis_left],
-                gui_flip_x_axis_right=values[self.gui_flip_x_axis_right],
-                gui_flip_y_axis=values[self.gui_flip_y_axis],
-                gui_vrc_native=values[self.gui_vrc_native],
-                gui_eye_falloff=values[self.gui_eye_falloff],
-                gui_update_check=values[self.gui_update_check],
-            )
-
-            for field, value in validated_model.dict().items():
-                if getattr(self.config, field) != value:
-                    changes[field] = value
-            return changes, None
-        except pydantic.ValidationError as e:
-            return None, e.errors()
 
     def get_layout(self):
         return [

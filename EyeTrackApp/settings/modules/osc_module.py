@@ -20,6 +20,8 @@ class OSCValidationModel(BaseValidationModel):
 class OSCSettingsModule(SettingsModule):
     def __init__(self, settings, widget_id, **kwargs):
         super().__init__(settings, widget_id, **kwargs)
+        self.validation_model = OSCValidationModel
+
         self.config = kwargs.get('config')
         self.gui_osc_address = f"-OSCADDRESS{widget_id}-"
         self.gui_osc_port = f"-OSCPORT{widget_id}-"
@@ -27,24 +29,6 @@ class OSCSettingsModule(SettingsModule):
         self.gui_osc_receiver_port = f"OSCRECEIVERPORT{widget_id}-"
         self.gui_osc_recenter_address = f"OSCRECENTERADDRESS{widget_id}-"
         self.gui_osc_recalibrate_address = f"OSCRECALIBRATEADDRESS{widget_id}-"
-
-    def validate(self, values) -> (Optional[dict[str, Any]], Optional[dict[str, str]]):
-        try:
-            changes = {}
-            validated_model = OSCValidationModel(
-                gui_osc_port=values[self.gui_osc_port],
-                gui_osc_address=values[self.gui_osc_address],
-                gui_ROSC=values[self.gui_ROSC],
-                gui_osc_receiver_port=values[self.gui_osc_receiver_port],
-                gui_osc_recenter_address=values[self.gui_osc_recenter_address],
-                gui_osc_recalibrate_address=values[self.gui_osc_recalibrate_address],
-            )
-            for field, value in validated_model.dict().items():
-                if getattr(self.config, field) != value:
-                    changes[field] = value
-            return changes, None
-        except pydantic.ValidationError as e:
-            return None, e.errors()
 
     def get_layout(self):
         return [

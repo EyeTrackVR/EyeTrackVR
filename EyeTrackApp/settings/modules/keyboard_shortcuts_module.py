@@ -16,23 +16,12 @@ class KeyboardShortcutsValidationModel(BaseValidationModel):
 class KeyboardShortcutsModule(SettingsModule):
     def __init__(self, settings, widget_id, **kwargs):
         super().__init__(settings, widget_id, **kwargs)
+        self.validation_model = KeyboardShortcutsValidationModel
+
         self.config = kwargs.get('config')
         self.gui_reset_calibration_shortcut = f"-RESETCALIBRATION{widget_id}-"
         self.gui_recenter_shortcut = f"-RECENTER{widget_id}-"
 
-    def validate(self, values) -> (Optional[dict[str, Any]], Optional[dict[str, str]]):
-        try:
-            changes = {}
-            validated_model = KeyboardShortcutsValidationModel(
-                gui_reset_calibration_shortcut=values[self.gui_reset_calibration_shortcut],
-                gui_recenter_shortcut=values[self.gui_recenter_shortcut],
-            )
-            for field, value in validated_model.dict().items():
-                if getattr(self.config, field) != value:
-                    changes[field] = value
-            return changes, None
-        except pydantic.ValidationError as e:
-            return None, e.errors()
 
     def get_layout(self):
         return [
