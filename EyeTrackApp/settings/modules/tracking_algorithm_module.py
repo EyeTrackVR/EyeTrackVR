@@ -88,7 +88,7 @@ class TrackingAlgorithmsModule(SettingsModule):
                     tooltip="Our flagship algoritim, utilizing both HSF and RANSAC for best tracking quality and lighting resistance.",
                 ),
                 sg.Combo(
-                    ["1", "2", "3", "4"],
+                    ["1", "2", "3", "4", "5"],
                     default_value=self.config.gui_HSRACP,
                     key=self.gui_HSRACP,
                     background_color=BACKGROUND_COLOR,

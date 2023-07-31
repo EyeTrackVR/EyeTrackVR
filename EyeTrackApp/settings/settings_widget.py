@@ -10,6 +10,7 @@ from settings.modules.general_settings_module import GeneralSettingsModule
 from settings.modules.keyboard_shortcuts_module import KeyboardShortcutsModule
 from settings.modules.osc_module import OSCSettingsModule
 from settings.modules.tracking_algorithm_module import TrackingAlgorithmsModule
+from utils.debounce import debounce
 
 
 class SettingsWidget:
@@ -67,6 +68,15 @@ class SettingsWidget:
             )
         return initialized_modules
 
+    @debounce(wait_seconds=1)
+    def _update_and_save_config(self, validated_data):
+        self.main_config.update(validated_data)
+        self.main_config.save()
+
+    @debounce(wait_seconds=1)
+    def _print_errors(self, errors):
+        print(errors)
+
     def render(self, window, event, values):
         validated_data, errors = {}, []
         for module in self.initialized_modules:
@@ -77,10 +87,7 @@ class SettingsWidget:
                 errors.extend(module_errors)
 
         if not errors and validated_data:
-            # TODO add debounce for saving
-            self.main_config.update(validated_data)
-            self.main_config.save()
+            self._update_and_save_config(validated_data)
 
         if errors:
-            # TODO add debounce for printing errors
-            print(event)
+            self._print_errors(errors)
