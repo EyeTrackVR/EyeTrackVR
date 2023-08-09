@@ -64,7 +64,7 @@ def run_model(input_queue, output_queue, session):
         pre_landmark = session.run(None, ort_inputs)
 
         pre_landmark = pre_landmark[1]
-        pre_landmark = np.reshape(pre_landmark, (22, 2))
+        pre_landmark = np.reshape(pre_landmark, (7, 2))
         output_queue.put((frame, pre_landmark))
 
 
@@ -76,7 +76,7 @@ class LEAP_C(object):
         # Config variables
         self.num_threads = 3  # Number of python threads to use (using ~1 more than needed to acheive wanted fps yeilds lower cpu usage)
         self.queue_max_size = 1  # Optimize for best CPU usage, Memory, and Latency. A maxsize is needed to not create a potential memory leak.
-        self.model_path = 'Models/mommy062023.onnx'
+        self.model_path = 'Models/mommy072623.onnx'
         self.interval = 1  # FPS print update rate
         self.low_priority = True  # set process priority to low
         self.print_fps = True
@@ -84,7 +84,7 @@ class LEAP_C(object):
         self.frames = 0
         self.queues = []
         self.threads = []
-        self.model_output = np.zeros((22, 2))
+        self.model_output = np.zeros((7, 2))
         self.output_queue = Queue(maxsize=self.queue_max_size)
         self.start_time = time.time()
 
@@ -115,7 +115,7 @@ class LEAP_C(object):
         # print(np.random.rand(22, 2))
         # noisy_point = np.array([1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1])
         one_euro_filter = OneEuroFilter(
-            np.random.rand(22, 2),
+            np.random.rand(7, 2),
             min_cutoff=min_cutoff,
             beta=beta
         )
@@ -127,7 +127,7 @@ class LEAP_C(object):
 
 
         self.ort_session1 = onnxruntime.InferenceSession(
-            "Models/mommy062023.onnx", opts,
+            self.model_path, opts,
             providers=['CPUExecutionProvider'])
         # ort_session1 = onnxruntime.InferenceSession("C:/Users/beaul/PycharmProjects/EyeTrackVR/EyeTrackApp/Models/mommy062023.onnx", opts, providers=['DmlExecutionProvider'])
         threads = []
@@ -167,18 +167,37 @@ class LEAP_C(object):
             for point in pre_landmark:
                 x, y = point
                 cv2.circle(img, (int(x * img_width), int(y * img_height)), 2, (0, 0, 50), -1)
-            cv2.circle(img, tuple(int(x*112) for x in pre_landmark[4]), 1, (255, 255, 0), -1)
-            cv2.circle(img, tuple(int(x*112) for x in pre_landmark[12]), 1, (255, 255, 0), -1)
-            cv2.circle(img, tuple(int(x*112) for x in pre_landmark[17]), 1, (255, 255, 255), -1)
+            cv2.circle(img, tuple(int(x*img_width) for x in pre_landmark[2]), 1, (255, 255, 0), -1)
+         #   cv2.circle(img, tuple(int(x*112) for x in pre_landmark[2]), 1, (255, 255, 0), -1)
+            cv2.circle(img, tuple(int(x*img_width) for x in pre_landmark[4]), 1, (255, 255, 255), -1)
+         #   cv2.circle(img, tuple(int(x * 112) for x in pre_landmark[4]), 1, (255, 255, 255), -1)
         #    print(pre_landmark)
-            d = math.dist(pre_landmark[4], pre_landmark[12])
 
+            x1, y1 = pre_landmark[0]
+            x2, y2 = pre_landmark[6]
+            euclidean_dist_width = math.sqrt((x2 - x1) ** 2 + (y2 - y1) ** 2)
 
+            x1, y1 = pre_landmark[1]
+            x2, y2 = pre_landmark[3]
 
-            if len(self.openlist) < 1000: # TODO expose as setting?
+            x3, y3 = pre_landmark[4]
+            x4, y4 = pre_landmark[2]
+            euclidean_dist_open = math.sqrt((x2 - x1) ** 2 + (y2 - y1) ** 2)
+
+           # d = area / euclidean_dist_width
+          #  print(area)
+            eyesize_dist = math.dist(pre_landmark[0], pre_landmark[6])
+            distance = math.dist(pre_landmark[1], pre_landmark[3])
+          #  d = distance / eyesize_dist
+
+            d = math.dist(pre_landmark[1], pre_landmark[3])
+        #    d2 = math.dist(pre_landmark[2], pre_landmark[4])
+         #   d = d + d2
+
+            if len(self.openlist) < 3000: # TODO expose as setting?
                 self.openlist.append(d)
             else:
-                if d >= np.percentile(self.openlist, 99) or d <= np.percentile(self.openlist, 1):
+                if d >= np.percentile(self.openlist, 96) or d <= np.percentile(self.openlist, 1):
                     pass
                 else:
                     self.openlist.pop(0)
@@ -191,12 +210,13 @@ class LEAP_C(object):
             except:
                 per = 0.7
                 pass
-            x = pre_landmark[17][0]
-            y = pre_landmark[17][1]
+            x = pre_landmark[6][0]
+            y = pre_landmark[6][1]
             frame = cv2.cvtColor(img, cv2.COLOR_RGB2GRAY)
 
+            per = d - 0.1
             self.last_lid = per
-
+         #   print(per)
             return frame, float(x), float(y), per
 
 

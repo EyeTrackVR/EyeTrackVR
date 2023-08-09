@@ -254,10 +254,7 @@ class EyeProcessor:
             pass
 
     def UPDATE(self):
-        if self.settings.gui_RANSACBLINK and self.eyeopen == 0.0:
-            pass
-        else:
-            self.eyeopen = 0.9
+
 
         if self.settings.gui_BLINK:
             self.eyeopen = BLINK(self)
@@ -319,7 +316,10 @@ class EyeProcessor:
             self.thresh,
             EyeInfo(self.current_algo, self.out_x, self.out_y, 0, self.eyeopen),
         )
-
+        if self.settings.gui_RANSACBLINK and self.eyeopen == 0.0:
+            pass
+        else:
+            self.eyeopen = 0.9
 
 
     def BLINKM(self):

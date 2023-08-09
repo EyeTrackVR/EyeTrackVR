@@ -148,7 +148,6 @@ class IntensityBasedOpeness:
         self.now_roi = np.zeros(3, dtype=np.int32)
         self.prev_val = 0.5
         self.avg_intensity = 0.0
-
         self.old = []
         self.color = []
         self.x = []
