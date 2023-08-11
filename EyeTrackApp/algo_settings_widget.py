@@ -5,6 +5,7 @@ from osc import EyeId
 from queue import Queue
 from threading import Event
 
+
 class AlgoSettingsWidget:
     def __init__(self, widget_id: EyeId, main_config: EyeTrackSettingsConfig, osc_queue: Queue):
 
@@ -59,79 +60,78 @@ class AlgoSettingsWidget:
         # Define the window's contents
         self.general_settings_layout = [
 
-
             [sg.Checkbox(
-                    "",
-                    default=self.config.gui_HSRAC,
-                    key=self.gui_HSRAC,
-                    background_color='#424042',
-                    tooltip = "Our flagship algoritim, utilizing both HSF and RANSAC for best tracking quality and lighting resistance.",
-                ),
-                sg.Combo(['1','2','3','4'],
-                default_value=self.config.gui_HSRACP,
-                key=self.gui_HSRACP,
+                "",
+                default=self.config.gui_HSRAC,
+                key=self.gui_HSRAC,
                 background_color='#424042',
-                text_color='white',
-                button_arrow_color= "black",
-                button_background_color = "#6f4ca1",
-                tooltip = "Select the priority of eyetracking algorithims.",
-                ),
+                tooltip="Our flagship algoritim, utilizing both HSF and RANSAC for best tracking quality and lighting resistance.",
+            ),
+                sg.Combo(['1', '2', '3', '4', '5', '6'],
+                         default_value=self.config.gui_HSRACP,
+                         key=self.gui_HSRACP,
+                         background_color='#424042',
+                         text_color='white',
+                         button_arrow_color="black",
+                         button_background_color="#6f4ca1",
+                         tooltip="Select the priority of eyetracking algorithims.",
+                         ),
                 sg.Text("HSRAC", background_color='#424042'),
-           # ],
-           # [
+                # ],
+                # [
                 sg.Checkbox(
                     "",
                     default=self.config.gui_HSF,
                     key=self.gui_HSF,
                     background_color='#424042',
-                    tooltip = "HSF Is a new, lower resolution tracking algorithim that provides excelent resilancy to lighting conditions and great speed.",
+                    tooltip="HSF Is a new, lower resolution tracking algorithim that provides excelent resilancy to lighting conditions and great speed.",
                 ),
-                sg.Combo(['1','2','3','4','5'],
-                default_value=self.config.gui_HSFP,
-                key=self.gui_HSFP,
-                background_color='#424042',
-                text_color='white',
-                button_arrow_color= "black",
-                button_background_color = "#6f4ca1",
-                tooltip = "Select the priority of eyetracking algorithims.",
-                ),
+                sg.Combo(['1', '2', '3', '4', '5', '6'],
+                         default_value=self.config.gui_HSFP,
+                         key=self.gui_HSFP,
+                         background_color='#424042',
+                         text_color='white',
+                         button_arrow_color="black",
+                         button_background_color="#6f4ca1",
+                         tooltip="Select the priority of eyetracking algorithims.",
+                         ),
                 sg.Text("Haar Surround Feature", background_color='#424042'),
             ],
             [sg.Checkbox(
-                    "",
-                    default=self.config.gui_DADDY,
-                    key=self.gui_DADDY,
-                    background_color='#424042',
-                    tooltip = "DADDY Uses a Deep learning algorithm. This has a big CPU usage impact.",
-                ),
-                sg.Combo(['1','2','3','4','5'],
-                default_value=self.config.gui_DADDYP,
-                key=self.gui_DADDYP,
+                "",
+                default=self.config.gui_DADDY,
+                key=self.gui_DADDY,
                 background_color='#424042',
-                text_color='white',
-                button_arrow_color= "black",
-                button_background_color = "#6f4ca1",
-                tooltip = "Select the priority of eyetracking algorithims.",
-                ),
+                tooltip="DADDY Uses a Deep learning algorithm. This has a big CPU usage impact.",
+            ),
+                sg.Combo(['1', '2', '3', '4', '5', '6'],
+                         default_value=self.config.gui_DADDYP,
+                         key=self.gui_DADDYP,
+                         background_color='#424042',
+                         text_color='white',
+                         button_arrow_color="black",
+                         button_background_color="#6f4ca1",
+                         tooltip="Select the priority of eyetracking algorithims.",
+                         ),
                 sg.Text("DADDY", background_color='#424042'),
-         #   ],
-         #   [
+                #   ],
+                #   [
                 sg.Checkbox(
                     "",
                     default=self.config.gui_RANSAC3D,
                     key=self.gui_RANSAC3D,
                     background_color='#424042',
-                    tooltip = "RANSAC3D provides good tracking quality, however does not do well in bad lighting conditions.",
+                    tooltip="RANSAC3D provides good tracking quality, however does not do well in bad lighting conditions.",
                 ),
-                sg.Combo(['1','2','3','4','5'],
-                default_value=self.config.gui_RANSAC3DP,
-                key=self.gui_RANSAC3DP,
-                background_color='#424042',
-                text_color='white',
-                button_arrow_color= "black",
-                button_background_color = "#6f4ca1",
-                tooltip = "Select the priority of eyetracking algorithims.",
-                ),
+                sg.Combo(['1', '2', '3', '4', '5', '6'],
+                         default_value=self.config.gui_RANSAC3DP,
+                         key=self.gui_RANSAC3DP,
+                         background_color='#424042',
+                         text_color='white',
+                         button_arrow_color="black",
+                         button_background_color="#6f4ca1",
+                         tooltip="Select the priority of eyetracking algorithims.",
+                         ),
                 sg.Text("RANSAC 3D", background_color='#424042'),
             ],
             [
@@ -142,37 +142,37 @@ class AlgoSettingsWidget:
                     background_color='#424042',
                     tooltip="LEAP Uses a lightweight deep learning algorithm.",
                 ),
-                    sg.Combo(['1', '2', '3', '4', '5'],
-                             default_value=self.config.gui_LEAPP,
-                             key=self.gui_LEAPP,
-                             background_color='#424042',
-                             text_color='white',
-                             button_arrow_color="black",
-                             button_background_color="#6f4ca1",
-                             tooltip="Select the priority of eyetracking algorithims.",
-                             ),
-                    sg.Text("LEAP", background_color='#424042'),
+                sg.Combo(['1', '2', '3', '4', '5', '6'],
+                         default_value=self.config.gui_LEAPP,
+                         key=self.gui_LEAPP,
+                         background_color='#424042',
+                         text_color='white',
+                         button_arrow_color="black",
+                         button_background_color="#6f4ca1",
+                         tooltip="Select the priority of eyetracking algorithims.",
+                         ),
+                sg.Text("LEAP", background_color='#424042'),
 
                 sg.Checkbox(
                     "",
                     default=self.config.gui_BLOB,
                     key=self.gui_BLOB,
                     background_color='#424042',
-                    tooltip = "Blob tracking is the oldest and worst tracking algorithm, it provides fast, though sometimes innaccurate tracking.",
+                    tooltip="Blob tracking is the oldest and worst tracking algorithm, it provides fast, though sometimes innaccurate tracking.",
                 ),
-                sg.Combo(['1','2','3','4','5'],
-                default_value=self.config.gui_BLOBP,
-                key=self.gui_BLOBP,
-                background_color='#424042',
-                text_color='white',
-                button_arrow_color= "black",
-                button_background_color = "#6f4ca1",
-                tooltip = "Select the priority of eyetracking algorithims.",
-                ),
+                sg.Combo(['1', '2', '3', '4', '5', '6'],
+                         default_value=self.config.gui_BLOBP,
+                         key=self.gui_BLOBP,
+                         background_color='#424042',
+                         text_color='white',
+                         button_arrow_color="black",
+                         button_background_color="#6f4ca1",
+                         tooltip="Select the priority of eyetracking algorithims.",
+                         ),
                 sg.Text("Blob", background_color='#424042'),
             ],
             [
-            sg.Text("Blink Algo Settings:", background_color='#242224')
+                sg.Text("Blink Algo Settings:", background_color='#242224')
             ],
             [
                 sg.Checkbox(
@@ -194,30 +194,29 @@ class AlgoSettingsWidget:
                     background_color='#424042',
                 ),
 
-                
             ],
             [
                 sg.Text("IBO Filter Sample Size", background_color='#424042'),
                 sg.InputText(
                     self.config.ibo_filter_samples,
                     key=self.ibo_filter_samples,
-                    size=(0,10),
+                    size=(0, 10),
                 ),
                 sg.Text("Calibration Samples", background_color='#424042'),
                 sg.InputText(
                     self.config.calibration_samples,
                     key=self.calibration_samples,
-                    size=(0,10),
+                    size=(0, 10),
                 ),
 
                 sg.Text("IBO Close Threshold", background_color='#424042'),
                 sg.InputText(
                     self.config.ibo_fully_close_eye_threshold,
                     key=self.ibo_fully_close_eye_threshold,
-                    size=(0,10),
+                    size=(0, 10),
                 ),
             ],
-                        [
+            [
                 sg.Checkbox(
                     "Left Eye Circle crop",
                     default=self.config.gui_circular_crop_left,
@@ -232,15 +231,15 @@ class AlgoSettingsWidget:
                 ),
             ],
             [
-            sg.Text("Advanced Tracking Algorithim Settings:", background_color='#242224')
+                sg.Text("Advanced Tracking Algorithim Settings:", background_color='#242224')
             ],
             [sg.Checkbox(
-                    "HSF: Skip Auto Radius",
-                    default=self.config.gui_skip_autoradius,
-                    key=self.gui_skip_autoradius,
-                    background_color='#424042',
-                    tooltip = "To gain more control and possibly better tracking quality of HSF, please disable auto radius to enable manual adjustment.",
-                ),
+                "HSF: Skip Auto Radius",
+                default=self.config.gui_skip_autoradius,
+                key=self.gui_skip_autoradius,
+                background_color='#424042',
+                tooltip="To gain more control and possibly better tracking quality of HSF, please disable auto radius to enable manual adjustment.",
+            ),
             ],
             [
                 sg.Text("Left HSF Radius:", background_color='#424042'),
@@ -250,10 +249,8 @@ class AlgoSettingsWidget:
                     orientation="h",
                     key=self.gui_HSF_radius_left,
                     background_color='#424042',
-                    tooltip = "Adjusts the radius paramater for HSF. Only adjust if you are having tracking issues.",
+                    tooltip="Adjusts the radius paramater for HSF. Only adjust if you are having tracking issues.",
                 ),
-            ],
-            [
                 sg.Text("Right HSF Radius:", background_color='#424042'),
                 sg.Slider(
                     range=(1, 50),
@@ -266,65 +263,62 @@ class AlgoSettingsWidget:
 
             ],
             [sg.Text("RANSAC Thresh Add", background_color='#424042'),
-                sg.Slider(
-                    range=(1, 50),
-                    default_value=self.config.gui_thresh_add,
-                    orientation="h",
-                    key=self.gui_thresh_add,
-                    background_color='#424042',
-                    tooltip = "Adjusts the ammount of threshold to add to RANSAC. Usefull for fine tuning your setup.",
-                ),
-          #  ],
-           # [
-                sg.Text("Blob Threshold", background_color='#424042'), #TODO make this for right and left eyes? I dont know how vital that is..
-                sg.Slider(
-                    range=(0, 110),
-                    default_value=self.config.gui_threshold,
-                    orientation="h",
-                    key=self.gui_threshold_slider,
-                    background_color='#424042',
-                    tooltip = "Adjusts the threshold for blob tracking.",
-                ),
-            ],
+             sg.Slider(
+                 range=(1, 50),
+                 default_value=self.config.gui_thresh_add,
+                 orientation="h",
+                 key=self.gui_thresh_add,
+                 background_color='#424042',
+                 tooltip="Adjusts the ammount of threshold to add to RANSAC. Usefull for fine tuning your setup.",
+             ),
+             sg.Text("Blob Threshold", background_color='#424042'),
+             # TODO make this for right and left eyes? I dont know how vital that is..
+             sg.Slider(
+                 range=(0, 110),
+                 default_value=self.config.gui_threshold,
+                 orientation="h",
+                 key=self.gui_threshold_slider,
+                 background_color='#424042',
+                 tooltip="Adjusts the threshold for blob tracking.",
+             ),
+             ],
             [sg.Text("Min Blob Size:", background_color='#424042'),
-                sg.Slider(
-                    range=(1, 50),
-                    default_value=self.config.gui_blob_minsize,
-                    orientation="h",
-                    key=self.gui_blob_minsize,
-                    background_color='#424042',
-                    tooltip = "Minimun size a blob has to be for blob tracking.",
-                ),
-                
-                sg.Text("Max Blob Size:", background_color='#424042'),
-                sg.Slider(
-                    range=(1, 50),
-                    default_value=self.config.gui_blob_maxsize,
-                    orientation="h",
-                    key=self.gui_blob_maxsize,
-                    background_color='#424042',
-                    tooltip = "Maximum size a blob can be for blob tracking.",
-                ),
+             sg.Slider(
+                 range=(1, 50),
+                 default_value=self.config.gui_blob_minsize,
+                 orientation="h",
+                 key=self.gui_blob_minsize,
+                 background_color='#424042',
+                 tooltip="Minimun size a blob has to be for blob tracking.",
+             ),
 
-   
-            ],
+             sg.Text("Max Blob Size:", background_color='#424042'),
+             sg.Slider(
+                 range=(1, 50),
+                 default_value=self.config.gui_blob_maxsize,
+                 orientation="h",
+                 key=self.gui_blob_maxsize,
+                 background_color='#424042',
+                 tooltip="Maximum size a blob can be for blob tracking.",
+             ),
+
+             ],
 
         ]
 
-        
         self.widget_layout = [
-            [   
+            [
                 sg.Text("Tracking Algorithm Order Settings:", background_color='#242224'),
             ],
             [
-                sg.Column(self.general_settings_layout, key=self.gui_general_settings_layout, background_color='#424042' ),
+                sg.Column(self.general_settings_layout, key=self.gui_general_settings_layout,
+                          background_color='#424042'),
             ],
         ]
 
-        self.cancellation_event = Event() # Set the event until start is called, otherwise we can block if shutdown is called.
+        self.cancellation_event = Event()  # Set the event until start is called, otherwise we can block if shutdown is called.
         self.cancellation_event.set()
         self.image_queue = Queue()
-
 
     def started(self):
         return not self.cancellation_event.is_set()
@@ -360,8 +354,9 @@ class AlgoSettingsWidget:
         if self.config.gui_DADDY != values[self.gui_DADDY]:
             self.config.gui_DADDY = values[self.gui_DADDY]
             changed = True
-        
-        if self.config.gui_RANSAC3DP != int(values[self.gui_RANSAC3DP]): #TODO check that priority order is unique/auto fix it.
+
+        if self.config.gui_RANSAC3DP != int(
+                values[self.gui_RANSAC3DP]):  # TODO check that priority order is unique/auto fix it.
             self.config.gui_RANSAC3DP = int(values[self.gui_RANSAC3DP])
             changed = True
 
@@ -385,7 +380,6 @@ class AlgoSettingsWidget:
             self.config.gui_LEAP = values[self.gui_LEAP]
             changed = True
 
-
         if self.config.gui_skip_autoradius != values[self.gui_skip_autoradius]:
             self.config.gui_skip_autoradius = values[self.gui_skip_autoradius]
             changed = True
@@ -393,7 +387,7 @@ class AlgoSettingsWidget:
         if self.config.gui_BLINK != values[self.gui_BLINK]:
             self.config.gui_BLINK = values[self.gui_BLINK]
             changed = True
-        
+
         if self.config.gui_IBO != values[self.gui_IBO]:
             self.config.gui_IBO = values[self.gui_IBO]
             changed = True
@@ -405,7 +399,7 @@ class AlgoSettingsWidget:
         if self.config.gui_circular_crop_left != values[self.gui_circular_crop_left]:
             self.config.gui_circular_crop_left = values[self.gui_circular_crop_left]
             changed = True
-        
+
         if self.config.gui_circular_crop_right != values[self.gui_circular_crop_right]:
             self.config.gui_circular_crop_right = values[self.gui_circular_crop_right]
             changed = True
@@ -452,5 +446,5 @@ class AlgoSettingsWidget:
 
         if changed:
             self.main_config.save()
-            #print(self.main_config)
+            # print(self.main_config)
         self.osc_queue.put(EyeId.ALGOSETTINGS)
