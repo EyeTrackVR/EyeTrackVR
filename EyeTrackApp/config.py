@@ -81,6 +81,8 @@ class EyeTrackConfig(BaseModel):
     settings: EyeTrackSettingsConfig = EyeTrackSettingsConfig()
     eye_display_id: PageType = PageType.RIGHT
 
+    __listeners = []
+
     @staticmethod
     def load():
         try:
@@ -112,10 +114,12 @@ class EyeTrackConfig(BaseModel):
             json.dump(obj=self.dict(), fp=settings_file)
         print("[INFO] Config Saved Successfully")
 
-    def update(self, data):
+    def update(self, data, save=True):
         for field, value in data.items():
             setattr(self.settings, field, value)
-        self.save()
+        self.__notify_listeners()
+        if save:
+            self.save()
 
     @staticmethod
     def verify_config():
@@ -128,3 +132,11 @@ class EyeTrackConfig(BaseModel):
                 EyeTrackConfig(**json.load(settings_file))
         except json.JSONDecodeError:
             raise ConfigFileInvalid()
+
+    def register_listener_callback(self, callback):
+        print(f"[DEBUG] Registering listener {callback}")
+        self.__listeners.append(callback)
+
+    def __notify_listeners(self):
+        for listener in self.__listeners:
+            listener()

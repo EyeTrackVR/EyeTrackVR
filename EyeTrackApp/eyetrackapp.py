@@ -10,6 +10,7 @@ from EyeTrackApp.consts import PageType
 from EyeTrackApp.osc.osc import VRChatOSC
 from EyeTrackApp.osc.osc_input import VRChatOSCReceiver
 from eye import EyeInfo
+from keyboardHandler import KeyboardHandler
 from settings.settings_widget import SettingsWidget
 from utils.misc_utils import is_nt
 
@@ -94,6 +95,10 @@ def main():
         CameraWidget(PageType.RIGHT, config, osc_queue),
         CameraWidget(PageType.LEFT, config, osc_queue),
     ]
+
+    keyboard_handler = KeyboardHandler(eye_widgets=eyes, settings=config, event=cancellation_event)
+    keyboard_listener_thread = threading.Thread(target=keyboard_handler.run)
+    keyboard_listener_thread.start()
 
     settings = [
         SettingsWidget(PageType.SETTINGS, config),

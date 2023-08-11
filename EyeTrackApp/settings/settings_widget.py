@@ -70,8 +70,7 @@ class SettingsWidget:
 
     @debounce(wait_seconds=1)
     def _update_and_save_config(self, validated_data):
-        self.main_config.update(validated_data)
-        self.main_config.save()
+        self.main_config.update(validated_data, save=True)
 
     @debounce(wait_seconds=1)
     def _print_errors(self, errors):
