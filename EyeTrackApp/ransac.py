@@ -28,7 +28,22 @@ Copyright (c) 2023 EyeTrackVR <3
 import cv2
 import numpy as np
 from EyeTrackApp.consts import PageType, RANSAC_CALIBRATION_STEPS_START
+from enum import IntEnum
+from utils.img_utils import safe_crop
+from utils.misc_utils import clamp
+import os
+import psutil
+import sys
 
+process = psutil.Process(os.getpid())  # set process priority to low
+try: # medium chance this does absolutely nothing but eh
+    sys.getwindowsversion()
+except AttributeError:
+    process.nice(0)  # UNIX: 0 low 10 high
+    process.nice()
+else:
+    process.nice(psutil.BELOW_NORMAL_PRIORITY_CLASS)  # Windows
+    process.nice()
 
 def ellipse_model(data, y, f):
     """
@@ -136,60 +151,57 @@ def fit_rotated_ellipse(data, P):
     return (cx, cy, w, h, theta)
 
 
-def circle_crop(self):
-    if self.cct == 0:
-        try:
-            ht, wd = self.current_image_gray.shape[:2]
-            radius = int(float(self.lkg_projected_sphere["axes"][0]))
-            self.xc = int(float(self.lkg_projected_sphere["center"][0]))
-            self.yc = int(float(self.lkg_projected_sphere["center"][1]))
-            if radius < 8:  # minimum size TODO: make sure this size is enough
-                radius = 8
-            # draw filled circle in white on black background as mask
-            mask = np.zeros((ht, wd), dtype=np.uint8)
-            mask = cv2.circle(mask, (self.xc, self.yc), radius, 255, -1)
-            # create white colored background
-            color = np.full_like(self.current_image_gray, (255))
-            # apply mask to image
-            masked_img = cv2.bitwise_and(self.current_image_gray, self.current_image_gray, mask=mask)
-            # apply inverse mask to colored image
-            masked_color = cv2.bitwise_and(color, color, mask=255 - mask)
-            # combine the two masked images
-            self.current_image_gray = cv2.add(masked_img, masked_color)
-        except:
-            pass
-    else:
-        self.cct = self.cct - 1
+
+def get_center_noclamp(center_xy, radius):
+    center_x, center_y = center_xy
+    upper_x = center_x + radius
+    lower_x = center_x - radius
+    upper_y = center_y + radius
+    lower_y = center_y - radius
+
+    ransac_upper_x = center_x + max(20, radius)
+    ransac_lower_x = center_x - max(20, radius)
+    ransac_upper_y = center_y + max(20, radius)
+    ransac_lower_y = center_y - max(20, radius)
+    ransac_xy_offset = (ransac_lower_x, ransac_lower_y)
+    return center_x, center_y, upper_x, lower_x, upper_y, lower_y, ransac_lower_x, ransac_lower_y, ransac_upper_x, ransac_upper_y, ransac_xy_offset
 
 
-def RANSAC3D(self): 
+cct = 300
+
+def RANSAC3D(self, hsrac_en):
     f = False
-    kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (3, 3))
-    thresh_add = 10
-    rng = np.random.default_rng()
+    ranf = False
+    blink = 0.7
 
+
+    if hsrac_en:
+        center_x, center_y, upper_x, lower_x, upper_y, lower_y, ransac_lower_x, ransac_lower_y, ransac_upper_x, ransac_upper_y, ransac_xy_offset = get_center_noclamp(
+            (self.rawx, self.rawy), self.radius)
+
+        frame = safe_crop(self.current_image_gray_clean, ransac_lower_x, ransac_lower_y, ransac_upper_x, ransac_upper_y, 1)
+
+    else:
+        frame = self.current_image_gray_clean
+
+    kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (3, 3))
+
+    rng = np.random.default_rng()
+    newFrame2 = self.current_image_gray.copy()
     # Convert the image to grayscale, and set up thresholding. Thresholds here are basically a
     # low-pass filter that will set any pixel < the threshold value to 0. Thresholding is user
     # configurable in this utility as we're dealing with variable lighting amounts/placement, as
-    # well as camera positioning and lensing. Therefore everyone's cutoff may be different.
+    # well as camera positioning and lensing. Therefore, everyone's cutoff may be different.
     #
     # The goal of thresholding settings is to make sure we can ONLY see the pupil. This is why we
     # crop the image earlier; it gives us less possible dark area to get confused about in the
     # next step.
 
-    if self.eye_id == PageType.LEFT and self.config.gui_circular_crop_left == True:  # TODO TEST function
-        circle_crop(self)
-    else:
-        self.cct = RANSAC_CALIBRATION_STEPS_START
 
-    if self.eye_id == PageType.RIGHT and self.config.gui_circular_crop_right == True:
-        circle_crop(self)
-    else:
-        self.cct = RANSAC_CALIBRATION_STEPS_START
     
     # Crop first to reduce the amount of data to process.
-    newFrame2 = self.current_image_gray.copy()
-    frame = self.current_image_gray
+
+   # frame = self.current_image_gray
     # For measuring processing time of image processing
     # Crop first to reduce the amount of data to process.
     # frame = frame[0:len(frame) - 5, :]
@@ -206,7 +218,7 @@ def RANSAC3D(self):
     # frame_gray = frame_gray[max_loc[1] - maxloc1_hf:max_loc[1] + maxloc1_hf,
         #               max_loc[0] - maxloc0_hf:max_loc[0] + maxloc0_hf]
     
-    threshold_value = min_val + thresh_add
+    threshold_value = min_val + self.settings.gui_thresh_add
     _, thresh = cv2.threshold(frame_gray, threshold_value, 255, cv2.THRESH_BINARY)
     try:
         opening = cv2.morphologyEx(thresh, cv2.MORPH_OPEN, kernel)
@@ -240,14 +252,14 @@ def RANSAC3D(self):
         # print(cx, cy)
         #cxi, cyi, wi, hi = int(cx), int(cy), int(w), int(h)
         
-        cv2.drawContours(self.current_image_gray, contours, -1, (255, 0, 0), 1)
-        cv2.circle(self.current_image_gray, (cx, cy), 2, (0, 0, 255), -1)
+        #cv2.drawContours(self.current_image_gray, contours, -1, (255, 0, 0), 1)
+       # cv2.circle(self.current_image_gray, (cx, cy), 2, (0, 0, 255), -1)
         # cx1, cy1, w1, h1, theta1 = fit_rotated_ellipse(maxcnt.reshape(-1, 2))
-        cv2.ellipse(self.current_image_gray, (cx, cy), (w, h), theta * 180.0 / np.pi, 0.0, 360.0, (50, 250, 200), 1, )
+       # cv2.ellipse(self.current_image_gray, (cx, cy), (w, h), theta * 180.0 / np.pi, 0.0, 360.0, (50, 250, 200), 1, )
 
     #img = newImage2[y1:y2, x1:x2]
     except:
-        pass
+        ranf = True
 
     self.current_image_gray = frame
     cv2.circle(self.current_image_gray, min_loc, 2, (0, 0, 255),
@@ -289,12 +301,82 @@ def RANSAC3D(self):
         eym = ellipse_3d["center"][1]
 
         d = result_3d["diameter_3d"]
+        self.cc_radius = int(float(self.lkg_projected_sphere["axes"][0]))
+        self.xc = int(float(self.lkg_projected_sphere["center"][0]))
+        self.yc = int(float(self.lkg_projected_sphere["center"][1]))
 
     except:
         f = True
-    # Draw our image and stack it for visual output
+
+    csy = newFrame2.shape[0]
+    csx = newFrame2.shape[1]
+    if hsrac_en:
+
+
+        if ranf:
+            cx = self.rawx
+            cy = self.rawy
+        else:
+      #  print(int(cx), int(clamp(cx + ransac_lower_x, 0, csx)), ransac_lower_x, csx, "y", int(cy), int(clamp(cy + ransac_lower_y, 0, csy)), ransac_lower_y, csy)
+            cx = int(clamp(cx + ransac_lower_x, 0, csx)) #dunno why this is being weird
+            cy = int(clamp(cy + ransac_lower_y, 0, csy))
+
+
+    #print(contours)
+    for cnt in contours:
+        (x, y, w, h) = cv2.boundingRect(cnt)
+        perscalarw = w / csx
+        perscalarh = h / csy
+      #  print(abs(perscalarw-perscalarh))
+       # if abs(perscalarw-perscalarh) >= 0.2: # TODO setting
+        #    blink = 0.0
+
+        if self.settings.gui_RANSACBLINK:
+
+            if self.ran_blink_check_for_file:
+                if self.eye_id in [PageType.LEFT]:
+                    file_path = 'RANSAC_blink_LEFT.cfg'
+                if self.eye_id in [PageType.RIGHT]:
+                    file_path = 'RANSAC_blink_RIGHT.cfg'
+                else:
+                    file_path = 'RANSAC_blink_RIGHT.cfg'
+
+                if os.path.exists(file_path):
+                    with open(file_path, 'r') as file:
+                        self.blink_list = [float(line.strip()) for line in file]
+                else:
+                    print(f"\033[93m[INFO] RANSAC Blink Config '{file_path}' not found. Waiting for calibration.\033[0m")
+                self.ran_blink_check_for_file = False
+
+
+            if len(self.blink_list) == 10000: # self calibrate ransac blink IN TESTING
+                if self.eye_id in [PageType.LEFT]:
+                    with open("RANSAC_BLINK_LEFT.cfg", 'w') as file:
+                        for item in self.blink_list:
+                            file.write(str(item) + '\n')
+
+                if self.eye_id in [PageType.RIGHT]:
+                    with open("RANSAC_BLINK_RIGHT.cfg", 'w') as file:
+                        for item in self.blink_list:
+                            file.write(str(item) + '\n')
+                print('SAVE')
+
+               # self.blink_list.pop(0)
+                self.blink_list.append(abs(perscalarw-perscalarh))
+
+            elif len(self.blink_list) < 10000:
+                self.blink_list.append(abs(perscalarw-perscalarh))
+
+
+            if abs(perscalarw-perscalarh) >= np.percentile(
+                    self.blink_list, 94
+            ):
+                blink = 0.0
+
+
+
     try:
-        cv2.drawContours(self.current_image_gray, contours, -1, (255, 0, 0), 1)
+        cv2.drawContours(self.current_image_gray, contours, -1, (255, 0, 0), 1) # TODO: fix visualizations with HSRAC
         cv2.circle(self.current_image_gray, (int(cx), int(cy)), 2, (0, 0, 255), -1)
     except:
         pass
@@ -317,7 +399,7 @@ def RANSAC3D(self):
     try:
         # print(self.lkg_projected_sphere["angle"], self.lkg_projected_sphere["axes"], self.lkg_projected_sphere["center"])
         cv2.ellipse(
-            self.current_image_gray,
+            newFrame2,
             tuple(int(v) for v in self.lkg_projected_sphere["center"]),
             tuple(int(v) for v in self.lkg_projected_sphere["axes"]),
             self.lkg_projected_sphere["angle"],
@@ -333,13 +415,16 @@ def RANSAC3D(self):
             #   tuple(int(v) for v in ellipse_3d["center"]),
             #  (0, 255, 0),  # color (BGR): red
         # )
-    
+
     except:
         pass
-    
+
+    self.current_image_gray = newFrame2
+    y, x = self.current_image_gray.shape
+    thresh = cv2.resize(thresh, (x,y))
     try:   
         self.failed = 0 # we have succeded, continue with this
-        return cx, cy, thresh
+        return cx, cy, thresh, blink
     except:
         self.failed = self.failed + 1 #we have failed, move onto next algo
-        return 0, 0, thresh
+        return 0, 0, thresh, blink

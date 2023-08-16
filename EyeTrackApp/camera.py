@@ -57,6 +57,9 @@ class Camera:
         self.start = True
         self.buffer = b""
         self.pf_fps = 0
+        self.prevft = 0
+        self.newft = 0
+        self.fl = [0]
 
         self.error_message = f"{Fore.YELLOW}[WARN] Capture source {{}} not found, retrying...{Fore.RESET}"
 
@@ -68,6 +71,10 @@ class Camera:
         self.camera_output_outgoing = camera_output_outgoing
 
     def run(self):
+        OPENCV_PARAMS = [
+            cv2.CAP_PROP_OPEN_TIMEOUT_MSEC, 5000,
+            cv2.CAP_PROP_READ_TIMEOUT_MSEC, 5000,
+        ]
         while True:
             if self.cancellation_event.is_set():
                 print(f"{Fore.CYAN}[INFO] Exiting Capture thread{Fore.RESET}")
@@ -98,7 +105,11 @@ class Camera:
                         if self.cancellation_event.wait(WAIT_TIME):
                             return
 
-                        self.cv2_camera = cv2.VideoCapture(self.current_capture_source.source)
+                        self.current_capture_source = self.config.capture_source
+                        self.cv2_camera = cv2.VideoCapture()
+                        self.cv2_camera.setExceptionMode(True)
+                        # https://github.com/opencv/opencv/blob/4.8.0/modules/videoio/include/opencv2/videoio.hpp#L803
+                        self.cv2_camera.open(self.current_capture_source.source, cv2.CAP_FFMPEG, params=OPENCV_PARAMS)
                         should_push = False
             else:
                 if self.cancellation_event.wait(WAIT_TIME):
@@ -132,11 +143,19 @@ class Camera:
             delta_time = current_frame_time - self.last_frame_time
             self.last_frame_time = current_frame_time
             if delta_time > 0:
-                self.fps = 1 / delta_time
                 self.bps = len(image) / delta_time
             self.frame_number = self.frame_number + 1
             self.fps = (self.fps + self.pf_fps) / 2
-            self.pf_fps = self.fps
+            self.newft = time.time()
+            self.fps = 1 / (self.newft - self.prevft)
+            self.prevft = self.newft
+            self.fps = int(self.fps)
+            if len(self.fl) < 60:
+                self.fl.append(self.fps)
+            else:
+                self.fl.pop(0)
+                self.fl.append(self.fps)
+            self.fps = sum(self.fl) / len(self.fl)
 
             if should_push:
                 self.push_image_to_queue(image, frame_number, self.fps)
@@ -190,8 +209,18 @@ class Camera:
                     delta_time = current_frame_time - self.last_frame_time
                     self.last_frame_time = current_frame_time
                     if delta_time > 0:
-                        self.fps = 1 / delta_time
                         self.bps = len(jpeg) / delta_time
+                    self.fps = (self.fps + self.pf_fps) / 2
+                    self.newft = time.time()
+                    self.fps = 1 / (self.newft - self.prevft)
+                    self.prevft = self.newft
+                    self.fps = int(self.fps)
+                    if len(self.fl) < 60:
+                        self.fl.append(self.fps)
+                    else:
+                        self.fl.pop(0)
+                        self.fl.append(self.fps)
+                    self.fps = sum(self.fl) / len(self.fl)
                     self.frame_number = self.frame_number + 1
                     if should_push:
                         self.push_image_to_queue(image, self.frame_number, self.fps)

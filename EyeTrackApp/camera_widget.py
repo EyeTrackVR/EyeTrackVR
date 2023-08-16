@@ -52,6 +52,7 @@ class CameraWidget:
         self.gui_mode_readout = f"-APPMODE{widget_id}-"
         self.gui_roi_message = f"-ROIMESSAGE{widget_id}-"
 
+        self.last_eye_info = None
         self.osc_queue = osc_queue
         self.main_config = main_config
         self.eye_id = widget_id
@@ -78,6 +79,7 @@ class CameraWidget:
         self.ransac = EyeProcessor(
             self.config,
             self.settings_config,
+            main_config,
             self.cancellation_event,
             self.capture_event,
             self.capture_queue,
@@ -260,6 +262,7 @@ class CameraWidget:
             self.x1, self.y1 = values[self.gui_roi_selection]
 
         if event == self.gui_restart_calibration:
+            # TODO ADD self.ransac.ibo.clear_filter() to trigger recalibration
             trigger_recalibration([self, ])
 
         if event == self.gui_stop_calibration:
@@ -281,7 +284,8 @@ class CameraWidget:
         elif self.camera.camera_status == CameraState.CONNECTING:
             window[self.gui_mode_readout].update("Camera Connecting")
         elif self.camera.camera_status == CameraState.DISCONNECTED:
-            window[self.gui_mode_readout].update("CAMERA DISCONNECTED")
+            window[self.gui_mode_readout].update("Camera Reconnecting...")
+
         elif needs_roi_set:
             window[self.gui_mode_readout].update("Awaiting Eye Crop")
         elif self.ransac.calibration_frame_counter != None:
@@ -333,20 +337,25 @@ class CameraWidget:
 
                         graph.draw_circle(
                             (eye_info.x * -100, eye_info.y * -100),
-                            25,
+                            20,
                             fill_color="black",
                             line_color="white",
                         )
                     else:
                         graph.draw_circle(
                             (0.0 * -100, 0.0 * -100),
-                            25,
+                            20,
                             fill_color="black",
                             line_color="white",
                         )
 
-               # elif eye_info.blink:
-                #    graph.update(background_color="#6f4ca1")
+                    if not np.isnan(eye_info.blink):
+                        graph.draw_line((-100, eye_info.blink * 2 * 200), (-100, 100),  color="#6f4ca1", width=10)
+                    else:
+                        graph.draw_line((-100, 0.5 * 200), (-100, 100), color="#6f4ca1", width=10)
+
+                    if eye_info.blink <= 0.0:
+                        graph.update(background_color="#6f4ca1")
                 elif eye_info.info_type == EyeInfoOrigin.FAILURE:
                     graph.update(background_color="red")
                 # Relay information to OSC

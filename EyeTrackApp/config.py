@@ -23,14 +23,14 @@ class EyeTrackCameraConfig(BaseModel):
     roi_window_w: int = 0
     roi_window_h: int = 0
     focal_length: int = 30
-    gui_capture_source:  str | None = None
-    capture_source: CameraCaptureSource | None = None
-    calib_XMAX: int = None
-    calib_XMIN: int = None
-    calib_YMAX: int = None
-    calib_YMIN: int = None
-    calib_XOFF: int = None
-    calib_YOFF: int = None
+    gui_capture_source:  Union[str, None] = None
+    capture_source: Union[CameraCaptureSource, None] = None
+    calib_XMAX: Union[int, None] = None
+    calib_XMIN: Union[int, None] = None
+    calib_YMAX: Union[int, None] = None
+    calib_YMIN: Union[int, None] = None
+    calib_XOFF: Union[int, None] = None
+    calib_YOFF: Union[int, None] = None
 
 
 class EyeTrackSettingsConfig(BaseModel):
@@ -43,7 +43,10 @@ class EyeTrackSettingsConfig(BaseModel):
     gui_BLINK: bool = False
     gui_HSRAC: bool = True
     gui_DADDY: bool = False
+    gui_LEAP: bool = False
     gui_HSF_radius: int = 15
+    gui_HSF_radius_left: int = 10
+    gui_HSF_radius_right: int = 10
     gui_min_cutoff: str = "0.0004"
     gui_speed_coefficient: str = "0.9"
     gui_osc_address: str = "127.0.0.1"
@@ -62,6 +65,7 @@ class EyeTrackSettingsConfig(BaseModel):
     gui_DADDYP: int = 3
     gui_RANSAC3DP: int = 4
     gui_BLOBP: int = 5
+    gui_LEAPP: int = 6
     gui_IBO: bool = True
     gui_skip_autoradius: bool = False
     gui_thresh_add: int = 11
@@ -72,6 +76,14 @@ class EyeTrackSettingsConfig(BaseModel):
     gui_circular_crop_left: bool = False
     gui_reset_calibration_shortcut: str = "<ctrl>+<alt>+h"
     gui_recenter_shortcut: str = "<ctrl>+<alt>+i"
+    ibo_filter_samples: int = 400
+    ibo_average_output_samples: int = 0
+    ibo_fully_close_eye_threshold: float = 0.3
+    calibration_samples: int = 600
+    osc_right_eye_close_address: str = "/avatar/parameters/RightEyeLidExpandedSqueeze"
+    osc_left_eye_close_address: str = "/avatar/parameters/LeftEyeLidExpandedSqueeze"
+    osc_invert_eye_close: bool = False
+    gui_RANSACBLINK: bool = True
 
 
 class EyeTrackConfig(BaseModel):
