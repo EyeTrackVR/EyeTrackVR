@@ -38,11 +38,9 @@ class KeyboardHandler:
         self.listener.start()
 
     def _restart(self):
-        print("Config changed, restarting keyboard listener")
         self.should_restart = False
         self._stop()
         self.listener = None
-
         self._start()
 
     def _stop(self):

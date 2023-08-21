@@ -14,6 +14,7 @@ class PageType(IntEnum):
     LEFT = 1
     BOTH = 2
     SETTINGS = 3
+    ALGO_SETTINGS = 4
 
 
 class EyeInfoOrigin(Enum):
@@ -23,9 +24,10 @@ class EyeInfoOrigin(Enum):
     HSF = 4
     HSRAC = 5
     DADDY = 6
+    LEAP = 7
 
 
-RANSAC_CALIBRATION_STEPS_START: int = 300
+RANSAC_CALIBRATION_STEPS_START: int = 200
 RANSAC_CALIBRATION_STEPS_STOP = 0
 
 SUPPORTED_VIDEO_FORMATS = [

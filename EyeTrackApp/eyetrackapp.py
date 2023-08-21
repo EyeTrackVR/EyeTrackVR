@@ -10,7 +10,7 @@ from EyeTrackApp.consts import PageType
 from EyeTrackApp.osc.osc import VRChatOSC
 from EyeTrackApp.osc.osc_input import VRChatOSCReceiver
 from settings.settings_widget import SettingsWidget
-from algo_settings_widget import AlgoSettingsWidget
+from settings.algo_settings_widget import AlgoSettingsWidget
 from keyboardHandler import KeyboardHandler
 from eye import EyeInfo
 
@@ -105,7 +105,7 @@ def main():
 
     settings = [
         SettingsWidget(PageType.SETTINGS, config),
-        AlgoSettingsWidget(PageType.ALGOSETTINGS, config, osc_queue),
+        AlgoSettingsWidget(PageType.ALGO_SETTINGS, config),
     ]
 
     layout = [
@@ -142,7 +142,7 @@ def main():
                 "Algo Settings",
                 "EYESELECTRADIO",
                 background_color="#292929",
-                default=(config.eye_display_id == PageType.ALGOSETTINGS),
+                default=(config.eye_display_id == PageType.ALGO_SETTINGS),
                 key=ALGO_SETTINGS_RADIO_NAME,
             ),
         ],
@@ -172,7 +172,7 @@ def main():
                 settings[1].widget_layout,
                 vertical_alignment="top",
                 key=ALGO_SETTINGS_NAME,
-                visible=(config.eye_display_id in [PageType.ALGOSETTINGS]),
+                visible=(config.eye_display_id in [PageType.ALGO_SETTINGS]),
                 background_color="#424042",
             ),
         ],
@@ -182,13 +182,6 @@ def main():
         eyes[1].start()
     if config.eye_display_id in [PageType.RIGHT, PageType.BOTH]:
         eyes[0].start()
-    # TODO veryfi if this makes any sense
-    if config.eye_display_id in [EyeId.SETTINGS]:
-        settings[0].start()
-    if config.eye_display_id in [EyeId.ALGOSETTINGS]:
-        settings[1].start()
-        # self.main_config.eye_display_id
-
     # the eye's needs to be running before it is passed to the OSC
     if config.settings.gui_ROSC:
         osc_receiver = VRChatOSCReceiver(cancellation_event, config, eyes)
@@ -224,11 +217,10 @@ def main():
             return
 
         if values[RIGHT_EYE_RADIO_NAME] and config.eye_display_id != PageType.RIGHT:
-            eyes[0].start()
-            eyes[1].stop()
-            # TODO verify this
             settings[0].stop()
             settings[1].stop()
+            eyes[0].start()
+            eyes[1].stop()
             window[RIGHT_EYE_NAME].update(visible=True)
             window[LEFT_EYE_NAME].update(visible=False)
             window[SETTINGS_NAME].update(visible=False)
@@ -238,7 +230,6 @@ def main():
             config.save()
 
         elif values[LEFT_EYE_RADIO_NAME] and config.eye_display_id != PageType.LEFT:
-            # TODO verify this
             settings[0].stop()
             settings[1].stop()
             eyes[0].stop()
@@ -252,7 +243,6 @@ def main():
             config.save()
 
         elif values[BOTH_EYE_RADIO_NAME] and config.eye_display_id != PageType.BOTH:
-            # TODO verify this
             settings[0].stop()
             settings[1].stop()
             eyes[1].start()
@@ -277,8 +267,7 @@ def main():
             config.eye_display_id = PageType.SETTINGS
             config.save()
 
-
-        elif values[ALGO_SETTINGS_RADIO_NAME] and config.eye_display_id != EyeId.ALGOSETTINGS:
+        elif values[ALGO_SETTINGS_RADIO_NAME] and config.eye_display_id != PageType.ALGO_SETTINGS:
             eyes[0].stop()
             eyes[1].stop()
             settings[0].stop()
@@ -287,7 +276,7 @@ def main():
             window[LEFT_EYE_NAME].update(visible=False)
             window[SETTINGS_NAME].update(visible=False)
             window[ALGO_SETTINGS_NAME].update(visible=True)
-            config.eye_display_id = EyeId.ALGOSETTINGS
+            config.eye_display_id = PageType.ALGO_SETTINGS
             config.save()
 
         else:
@@ -298,7 +287,6 @@ def main():
             for setting in settings:
                 if setting.started():
                     setting.render(window, event, values)
-
 
 
 if __name__ == "__main__":

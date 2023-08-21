@@ -1,7 +1,3 @@
-from typing import Optional, Any
-
-import pydantic
-
 from settings.constants import BACKGROUND_COLOR
 import PySimpleGUI as sg
 

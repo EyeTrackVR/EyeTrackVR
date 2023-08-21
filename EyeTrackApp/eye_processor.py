@@ -30,9 +30,9 @@ Copyright (c) 2023 EyeTrackVR <3
 ------------------------------------------------------------------------------------------------------
 """
 
-import asyncio
 import sys
 
+from utils.img_utils import circle_crop
 
 sys.path.append(".")
 
@@ -43,14 +43,13 @@ import cv2
 import numpy as np
 from blink import BLINK
 from blob import BLOB
-from config import EyeTrackCameraConfig, EyeTrackSettingsConfig
+from config import EyeTrackCameraConfig, EyeTrackSettingsConfig, EyeTrackConfig
 from consts import RANSAC_CALIBRATION_STEPS_START, PageType
 from daddy import External_Run_DADDY
 from leap import External_Run_LEAP
 from eye import EyeInfo
 from haar_surround_feature import External_Run_HSF
-from hsrac import External_Run_HSRACS
-from intensity_based_openness import IntensityBasedOpenness
+from intensity_based_openness import IntensityBasedOpeness
 from one_euro_filter import OneEuroFilter
 from pye3d.camera import CameraModel
 from pye3d.detector_3d import Detector3D, DetectorMode
@@ -75,13 +74,16 @@ class EyeProcessor:
         self,
         config: EyeTrackCameraConfig,
         settings: EyeTrackSettingsConfig,
-        baseconfig: EyetrackConfig,
+        baseconfig: EyeTrackConfig,
         cancellation_event: threading.Event,
         capture_event: threading.Event,
         capture_queue_incoming: queue.Queue,
         image_queue_outgoing: queue.Queue,
         eye_id: int,
     ):
+        self.current_image_white = None
+        self.current_algorithm = None
+
         self.main_config = EyeTrackSettingsConfig
         self.config = config
         self.settings = settings
@@ -133,7 +135,7 @@ class EyeProcessor:
         self.er_hsrac = None
         self.er_daddy = None
         self.er_leap = None
-        self.ibo = IntensityBasedOpeness(eye_side=self.eye_id)
+        self.ibo = IntensityBasedOpeness(eye_id=self.eye_id)
         self.roi_include_set = {"rotation_angle", "roi_window_x", "roi_window_y"}
 
         self.failed = 0
@@ -165,7 +167,7 @@ class EyeProcessor:
         try:
             min_cutoff = float(self.settings.gui_min_cutoff)  # 0.0004
             beta = float(self.settings.gui_speed_coefficient)  # 0.9
-        except:
+        except ValueError:
             print("\033[93m[WARN] OneEuroFilter values must be a legal number.\033[0m")
             min_cutoff = 0.0004
             beta = 0.9
@@ -193,8 +195,6 @@ class EyeProcessor:
                 "\033[91m[ERROR] Size of frames to display are of unequal sizes.\033[0m"
             )
 
-            pass
-
     def capture_crop_rotate_image(self):
         # Get our current frame
 
@@ -209,7 +209,6 @@ class EyeProcessor:
                 ),
             ]
             self.ibo.change_roi(self.config.dict(include=self.roi_include_set))
-
         except:
             # Failure to process frame, reuse previous frame.
             self.current_image = self.previous_image
@@ -251,12 +250,11 @@ class EyeProcessor:
 
     def UPDATE(self):
 
-
         if self.settings.gui_BLINK:
             self.eyeopen = BLINK(self)
 
-
-        if self.settings.gui_IBO and self.eyeopen != 0.0: #TODO make ransac blink it's pwn self var to rid of this non-sense
+        # TODO make ransac blink it's own self var to rid of this non-sense
+        if self.settings.gui_IBO and self.eyeopen != 0.0:
             self.eyeopen = self.ibo.intense(
                 self.rawx,
                 self.rawy,
@@ -268,10 +266,6 @@ class EyeProcessor:
                 self.eyeopen < self.settings.ibo_fully_close_eye_threshold
             ):  # threshold so the eye fully closes
                 self.eyeopen = 0.0
-
-            if self.bd_blink == True:
-                pass
-
 
         if self.settings.gui_IBO and self.settings.gui_BLINK and self.eyeopen != 0.0:
             ibo = self.ibo.intense(
@@ -288,15 +282,15 @@ class EyeProcessor:
             else:
                 self.eyeopen = ibo
 
-
-        if len(self.prev_y_list) >= 200: # "lock" eye when close/blink IN TESTING, kinda broke
+        # "lock" eye when close/blink IN TESTING, kinda broke
+        if len(self.prev_y_list) >= 200:
             self.prev_y_list.pop(0)
             self.prev_y_list.append(self.out_y)
         else:
             self.prev_y_list.append(self.out_y)
 
-       # print(abs(self.eyeopen - self.past_blink))
-        blink_vec = min(abs(self.eyeopen - self.past_blink), 1) #clamp to 1
+        # clamp to 1
+        blink_vec = min(abs(self.eyeopen - self.past_blink), 1)
 
         if blink_vec >= 0.1 or blink_vec == 0.0 and (self.out_y - self.prev_y) < 0.0:
             #if blink_vec >= 0.1 or blink_vec == 0.0 and (self.out_y - self.prev_y) < 0.0:
@@ -340,18 +334,14 @@ class EyeProcessor:
         self.current_algorithm = EyeInfoOrigin.DADDY
 
     def HSRACM(self):
-        if self.eye_id in [EyeId.LEFT] and self.settings.gui_circular_crop_left:
+        if self.eye_id in [PageType.LEFT] and self.settings.gui_circular_crop_left:
             self.current_image_gray, self.cct = circle_crop(
                 self.current_image_gray, self.xc, self.yc, self.cc_radius, self.cct
             )
-        else:
-            pass
-        if self.eye_id in [EyeId.RIGHT] and self.settings.gui_circular_crop_right:
+        if self.eye_id in [PageType.RIGHT] and self.settings.gui_circular_crop_right:
             self.current_image_gray, self.cct = circle_crop(
                 self.current_image_gray, self.xc, self.yc, self.cc_radius, self.cct
             )
-        else:
-            pass
 
         self.hasrac_en = True
         # todo: add process to initialise er_hsrac when resolution changes
@@ -362,44 +352,32 @@ class EyeProcessor:
         if self.settings.gui_RANSACBLINK: #might be redundant
             self.eyeopen = ranblink
 
-        # print(self.radius)
-        # if self.prev_x is None:
-        #   self.prev_x = self.rawx
-        #  self.prev_y = self.rawy
         self.out_x, self.out_y = self.calibrate_osc_output(self.rawx, self.rawy)
         self.current_algorithm = EyeInfoOrigin.HSRAC
 
     def HSFM(self):
-        if self.eye_id in [EyeId.LEFT] and self.settings.gui_circular_crop_left:
+        if self.eye_id in [PageType.LEFT] and self.settings.gui_circular_crop_left:
             self.current_image_gray, self.cct = circle_crop(
                 self.current_image_gray, self.xc, self.yc, self.cc_radius, self.cct
             )
-        else:
-            pass
-        if self.eye_id in [EyeId.RIGHT] and self.settings.gui_circular_crop_right:
+        if self.eye_id in [PageType.RIGHT] and self.settings.gui_circular_crop_right:
             self.current_image_gray, self.cct = circle_crop(
                 self.current_image_gray, self.xc, self.yc, self.cc_radius, self.cct
             )
-        else:
-            pass
         # todo: add process to initialise er_hsf when resolution changes
         self.rawx, self.rawy, self.thresh, self.radius = self.er_hsf.run(self.current_image_gray)
         self.out_x, self.out_y = self.calibrate_osc_output(self.rawx, self.rawy)
         self.current_algorithm = EyeInfoOrigin.HSF
 
     def RANSAC3DM(self):
-        if self.eye_id in [EyeId.LEFT] and self.settings.gui_circular_crop_left:
+        if self.eye_id in [PageType.LEFT] and self.settings.gui_circular_crop_left:
             self.current_image_gray, self.cct = circle_crop(
                 self.current_image_gray, self.xc, self.yc, self.cc_radius, self.cct
             )
-        else:
-            pass
-        if self.eye_id in [EyeId.RIGHT] and self.settings.gui_circular_crop_right:
+        if self.eye_id in [PageType.RIGHT] and self.settings.gui_circular_crop_right:
             self.current_image_gray, self.cct = circle_crop(
                 self.current_image_gray, self.xc, self.yc, self.cc_radius, self.cct
             )
-        else:
-            pass
         self.hasrac_en = False
         current_image_gray_copy = (
             self.current_image_gray.copy()
@@ -411,18 +389,14 @@ class EyeProcessor:
         self.current_algorithm = EyeInfoOrigin.RANSAC
 
     def BLOBM(self):
-        if self.eye_id in [EyeId.LEFT] and self.settings.gui_circular_crop_left:
+        if self.eye_id in [PageType.LEFT] and self.settings.gui_circular_crop_left:
             self.current_image_gray, self.cct = circle_crop(
                 self.current_image_gray, self.xc, self.yc, self.cc_radius, self.cct
             )
-        else:
-            pass
-        if self.eye_id in [EyeId.RIGHT] and self.settings.gui_circular_crop_right:
+        if self.eye_id in [PageType.RIGHT] and self.settings.gui_circular_crop_right:
             self.current_image_gray, self.cct = circle_crop(
                 self.current_image_gray, self.xc, self.yc, self.cc_radius, self.cct
             )
-        else:
-            pass
         self.rawx, self.rawy, self.thresh = BLOB(self)
 
         self.out_x, self.out_y = self.calibrate_osc_output(self.rawx, self.rawy)
@@ -483,20 +457,16 @@ class EyeProcessor:
             print('yes hsf')
             if self.er_hsf is None:
                 print('yes none')
-                if self.eye_id in [EyeId.LEFT]:
+                if self.eye_id in [PageType.LEFT]:
                     self.er_hsf = External_Run_HSF(
                         self.settings.gui_skip_autoradius,
                         self.settings.gui_HSF_radius_left,
                     )
-                else:
-                    pass
-                if self.eye_id in [EyeId.RIGHT]:
+                if self.eye_id in [PageType.RIGHT]:
                     self.er_hsf = External_Run_HSF(
                         self.settings.gui_skip_autoradius,
                         self.settings.gui_HSF_radius_right,
                     )
-                else:
-                    pass
             algolist[self.settings.gui_HSFP] = self.HSFM
         else:
             if self.er_hsf is not None:
@@ -504,12 +474,12 @@ class EyeProcessor:
 
         if self.settings.gui_HSRAC:
             if self.er_hsf is None:
-                if self.eye_id in [EyeId.LEFT]:
+                if self.eye_id in [PageType.LEFT]:
                     self.er_hsf = External_Run_HSF(
                         self.settings.gui_skip_autoradius,
                         self.settings.gui_HSF_radius_left,
                     )
-                if self.eye_id in [EyeId.RIGHT]:
+                if self.eye_id in [PageType.RIGHT]:
                     self.er_hsf = External_Run_HSF(
                         self.settings.gui_skip_autoradius,
                         self.settings.gui_HSF_radius_right,
