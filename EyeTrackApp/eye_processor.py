@@ -601,10 +601,10 @@ class EyeProcessor:
             self.config.calib_XMIN = calibration_max_axis_value
             self.config.calib_YMAX = -calibration_max_axis_value
             self.config.calib_YMIN = calibration_max_axis_value
-            self.eye_processor.blink_clear = True
+            self.blink_clear = True
             self.calibration_frame_counter -= 1
         elif self.calibration_frame_counter is not None:
-            self.eye_processor.blink_clear = False
+            self.blink_clear = False
             self.settings.gui_recenter_eyes = False
             if cx > self.config.calib_XMAX:
                 self.config.calib_XMAX = cx

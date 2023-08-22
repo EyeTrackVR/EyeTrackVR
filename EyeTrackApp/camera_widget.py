@@ -216,6 +216,7 @@ class CameraWidget:
             and values[self.gui_camera_addr] != str(self.config.gui_capture_source)
         ):
             print("\033[94m[INFO] New value: {}\033[0m".format(values[self.gui_camera_addr]))
+            self.config.gui_capture_source = values[self.gui_camera_addr]  # TODO make this backwards compatible
             self.config.capture_source = sanitize_source(values[self.gui_camera_addr])
             changed = True
 
@@ -262,7 +263,9 @@ class CameraWidget:
             self.x1, self.y1 = values[self.gui_roi_selection]
 
         if event == self.gui_restart_calibration:
-            # TODO ADD self.ransac.ibo.clear_filter() to trigger recalibration
+            # TODO ADD this below to trigger recalibration
+            #self.ransac.calibration_frame_counter = self.settings.calibration_samples
+            # self.ransac.ibo.clear_filter()
             trigger_recalibration([self, ])
 
         if event == self.gui_stop_calibration:

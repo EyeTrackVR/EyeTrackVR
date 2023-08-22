@@ -26,12 +26,12 @@ class EyeTrackCameraConfig(BaseModel):
     focal_length: int = 30
     gui_capture_source:  Union[str, None] = None
     capture_source: Union[CameraCaptureSource, None] = None
-    calib_XMAX: Union[int, None] = None
-    calib_XMIN: Union[int, None] = None
-    calib_YMAX: Union[int, None] = None
-    calib_YMIN: Union[int, None] = None
-    calib_XOFF: Union[int, None] = None
-    calib_YOFF: Union[int, None] = None
+    calib_XMAX: Union[int, None] = 0
+    calib_XMIN: Union[int, None] = 0
+    calib_YMAX: Union[int, None] = 0
+    calib_YMIN: Union[int, None] = 0
+    calib_XOFF: Union[int, None] = 0
+    calib_YOFF: Union[int, None] = 0
 
 
 class EyeTrackSettingsConfig(BaseModel):
@@ -121,7 +121,11 @@ class EyeTrackConfig(BaseModel):
     def save(self):
         # config correctness is guaranteed by pydantic
         print("[INFO] Saving, making a copy of the config")
-        shutil.copy(CONFIG_FILE_NAME, BACKUP_CONFIG_FILE_NAME)
+        try:
+            shutil.copy(CONFIG_FILE_NAME, BACKUP_CONFIG_FILE_NAME)
+        except FileNotFoundError:
+            # It's the first run of the app, we don't have anything to backup
+            pass
 
         with open(CONFIG_FILE_NAME, "w") as settings_file:
             json.dump(obj=self.dict(), fp=settings_file)
