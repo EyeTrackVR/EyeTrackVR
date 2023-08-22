@@ -102,10 +102,10 @@ class OSCOutputHandler:
                 [
                     float(self.left_eye_x),
                     float(eye_y),
-                    0.8,
+                    1.0,
                     float(self.right_eye_x),
                     float(eye_y),
-                    0.8,
+                    1.0,
                 ],
             )  # vrc native ET (z values may need tweaking, they act like a scalar)
 
