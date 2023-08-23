@@ -81,6 +81,7 @@ class EyeProcessor:
         image_queue_outgoing: queue.Queue,
         eye_id: int,
     ):
+        self.current_image_gray_clean = None
         self.current_image_white = None
         self.current_algorithm = None
 

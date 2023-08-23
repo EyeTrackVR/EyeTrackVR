@@ -22,15 +22,15 @@ class OSCOutputHandler:
         self.right_eye_x = 0
         self.right_eye_y = 0
         self.right_eye_blink = 0.7
+        self.blink_last_time = None
 
     def handle_out(self, eye_info: EyeInfo, eye_id: int):
-        last_blink = time.time()   # TODO figure out if this is really needed
-        if not self.settings.gui_vrc_native:
-            self.osc_output_vrc_native(eye_info.blink, eye_info.x, eye_info.y, last_blink, eye_id)
+        if self.settings.gui_vrc_native:
+            self.osc_output_vrc_native(eye_info.blink, eye_info.x, eye_info.y, eye_id)
         else:
-            self.osc_output_legacy(eye_info.blink, eye_info.x, eye_info.y, last_blink, eye_id)
+            self.osc_output_legacy(eye_info.blink, eye_info.x, eye_info.y, eye_id)
 
-    def osc_output_vrc_native(self, eye_blink, eye_x, eye_y, last_blink, eye_id):
+    def osc_output_vrc_native(self, eye_blink, eye_x, eye_y, eye_id):
         # single eye mode
         if self.app_config.eye_display_id in [PageType.RIGHT, PageType.LEFT]:
             self.single_eye = True
@@ -56,13 +56,12 @@ class OSCOutputHandler:
 
             if self.left_eye_blink == 0.0:
                 # when binary blink is on, blinks may be too fast for OSC, so we repeat them.
-                if last_blink > 0.7:
-                    for i in range(5):
+                if self.blink_last_time and self.blink_last_time > 0.7:
+                    for _ in range(5):
                         self.client.send_message("/tracking/eye/EyesClosedAmount", float(1 - eye_blink))
-                    last_blink = time.time() - last_blink
-                if self.settings.gui_eye_falloff:
-                    if self.right_eye_blink == 0.0:  # if both eyes closed and DEF is enables, blink
-                        self.client.send_message("/tracking/eye/EyesClosedAmount", float(1 - eye_blink))
+                    self.blink_last_time = time.time() - self.blink_last_time if self.blink_last_time else time.time()
+                if self.settings.gui_eye_falloff and self.right_eye_blink == 0.0:
+                    self.client.send_message("/tracking/eye/EyesClosedAmount", float(1 - eye_blink))
                 self.left_eye_x = self.right_eye_x
 
         elif eye_id in [PageType.RIGHT] and not self.single_eye:
@@ -71,13 +70,12 @@ class OSCOutputHandler:
             self.right_eye_y = eye_y
 
             if self.right_eye_blink == 0.0:
-                if last_blink > 0.7:  # when binary blink is on, blinks may be too fast for OSC so we repeat them.
-                    for i in range(5):
+                if self.blink_last_time and self.blink_last_time > 0.7:  # when binary blink is on, blinks may be too fast for OSC so we repeat them.
+                    for _ in range(5):
                         self.client.send_message("/tracking/eye/EyesClosedAmount", float(1 - eye_blink))
-                    last_blink = time.time() - last_blink
-                if self.settings.gui_eye_falloff:
-                    if self.left_eye_blink == 0.0:  # if both eyes closed and DEF is enables, blink
-                        self.client.send_message("/tracking/eye/EyesClosedAmount", float(0))
+                    self.blink_last_time = time.time() - self.blink_last_time if self.blink_last_time else time.time()
+                if self.settings.gui_eye_falloff and self.left_eye_blink == 0.0:
+                    self.client.send_message("/tracking/eye/EyesClosedAmount", float(0))
 
                 self.right_eye_x = self.left_eye_x
         if (
@@ -86,10 +84,10 @@ class OSCOutputHandler:
             and self.left_eye_blink != 621
         ):
             if self.right_eye_blink == 0.0 or self.left_eye_blink == 0.0:
-                if last_blink > 0.7:  # when binary blink is on, blinks may be too fast for OSC so we repeat them.
-                    for i in range(5):
+                if self.blink_last_time and self.blink_last_time > 0.7:  # when binary blink is on, blinks may be too fast for OSC so we repeat them.
+                    for _ in range(5):
                         self.client.send_message("/tracking/eye/EyesClosedAmount", float(1))
-                    last_blink = time.time() - last_blink  # this might be borked now
+                    self.blink_last_time = time.time() - self.blink_last_time if self.blink_last_time else time.time()
             eye_blink = (self.right_eye_blink + self.left_eye_blink) / 2
             self.client.send_message("/tracking/eye/EyesClosedAmount", float(1 - eye_blink))
 
@@ -109,8 +107,7 @@ class OSCOutputHandler:
                 ],
             )  # vrc native ET (z values may need tweaking, they act like a scalar)
 
-    def osc_output_legacy(self, eye_blink, eye_x, eye_y, last_blink, eye_id):
-
+    def osc_output_legacy(self, eye_blink, eye_x, eye_y, eye_id):
         if self.app_config.eye_display_id in [
             PageType.RIGHT,
             PageType.LEFT,
@@ -131,23 +128,22 @@ class OSCOutputHandler:
             self.left_eye_x = eye_blink
 
             if self.left_eye_x == 0.0:
-                if last_blink > 0.7:  # when binary blink is on, blinks may be too fast for OSC so we repeat them.
-                    for i in range(5):
+                if self.blink_last_time and self.blink_last_time > 0.7:  # when binary blink is on, blinks may be too fast for OSC so we repeat them.
+                    for _ in range(5):
                         self.client.send_message(
                             "/avatar/parameters/LeftEyeLidExpandedSqueeze",
                             float(self.left_eye_x),
                         )
-                    last_blink = time.time() - last_blink
-                if self.settings.gui_eye_falloff:
-                    if self.right_eye_blink == 0.0:  # if both eyes closed and DEF is enables, blink
-                        self.client.send_message(
-                            "/avatar/parameters/LeftEyeLidExpandedSqueeze",
-                            float(self.left_eye_x),
-                        )
-                        self.client.send_message(
-                            "/avatar/parameters/RightEyeLidExpandedSqueeze",
-                            float(self.left_eye_x),
-                        )
+                    self.blink_last_time = time.time() - self.blink_last_time if self.blink_last_time else time.time()
+                if self.settings.gui_eye_falloff and self.right_eye_blink == 0.0:  # if both eyes closed and DEF is enables, blink
+                    self.client.send_message(
+                        "/avatar/parameters/LeftEyeLidExpandedSqueeze",
+                        float(self.left_eye_x),
+                    )
+                    self.client.send_message(
+                        "/avatar/parameters/RightEyeLidExpandedSqueeze",
+                        float(self.left_eye_x),
+                    )
                 self.left_eye_x = self.right_eye_x
 
             self.client.send_message("/avatar/parameters/LeftEyeX", self.left_eye_x)
@@ -161,23 +157,22 @@ class OSCOutputHandler:
             self.right_eye_blink = eye_blink
 
             if self.right_eye_blink == 0.0:
-                if last_blink > 0.7:  # when binary blink is on, blinks may be too fast for OSC so we repeat them.
-                    for i in range(5):
+                if self.blink_last_time and self.blink_last_time > 0.7:  # when binary blink is on, blinks may be too fast for OSC so we repeat them.
+                    for _ in range(5):
                         self.client.send_message(
                             "/avatar/parameters/LeftEyeLidExpandedSqueeze",
                             float(self.right_eye_blink),
                         )
-                    last_blink = time.time() - last_blink
-                if self.settings.gui_eye_falloff:
-                    if self.left_eye_x == 0.0:  # if both eyes closed and DEF is enables, blink
-                        self.client.send_message(
-                            "/avatar/parameters/LeftEyeLidExpandedSqueeze",
-                            float(self.right_eye_blink),
-                        )
-                        self.client.send_message(
-                            "/avatar/parameters/RightEyeLidExpandedSqueeze",
-                            float(self.right_eye_blink),
-                        )
+                    self.blink_last_time = time.time() - self.blink_last_time if self.blink_last_time else time.time()
+                if self.settings.gui_eye_falloff and self.left_eye_x == 0.0:  # if both eyes closed and DEF is enables, blink
+                    self.client.send_message(
+                        "/avatar/parameters/LeftEyeLidExpandedSqueeze",
+                        float(self.right_eye_blink),
+                    )
+                    self.client.send_message(
+                        "/avatar/parameters/RightEyeLidExpandedSqueeze",
+                        float(self.right_eye_blink),
+                    )
 
                 self.right_eye_x = self.left_eye_x
 

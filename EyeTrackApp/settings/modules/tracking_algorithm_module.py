@@ -208,7 +208,7 @@ class TrackingAlgorithmsModule(SettingsModule):
                     background_color=BACKGROUND_COLOR,
                 ),
                 sg.Checkbox(
-                    "Bianary Blink Algo",
+                    "Binary Blink Algo",
                     default=self.config.gui_BLINK,
                     key=self.gui_BLINK,
                     background_color=BACKGROUND_COLOR,
