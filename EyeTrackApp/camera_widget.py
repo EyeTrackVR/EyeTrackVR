@@ -10,7 +10,7 @@ from camera import Camera, CameraState
 from osc import EyeId
 import cv2
 import sys
-from utils.misc_utils import PlaySound,SND_FILENAME,SND_ASYNC, resource_path
+from utils.misc_utils import PlaySound, SND_FILENAME,SND_ASYNC, resource_path
 import traceback
 import numpy as np
 class CameraWidget:

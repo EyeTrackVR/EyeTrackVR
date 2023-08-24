@@ -37,7 +37,8 @@ from queue import Queue
 import threading
 from one_euro_filter import OneEuroFilter
 import psutil, os
-import sys from utils.misc_utils import resource_path
+import sys 
+from utils.misc_utils import resource_path
 
 frames = 0
 
