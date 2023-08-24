@@ -34,6 +34,8 @@ def sanitize_source(gui_camera_addr) -> CameraCaptureSource:
 
 class CameraWidget:
     def __init__(self, widget_id: PageType, main_config: EyeTrackConfig, osc_queue: Queue):
+        self.camera_thread = None
+        self.ransac_thread = None
         self.gui_camera_addr = f"-CAMERAADDR{widget_id}-"
         self.gui_rotation_slider = f"-ROTATIONSLIDER{widget_id}-"
         self.gui_roi_button = f"-ROIMODE{widget_id}-"

@@ -20,7 +20,6 @@ class VRChatOSC:
         self.output_handler = OSCOutputHandler(main_config)
         self.cancellation_event = cancellation_event
         self.message_queue = message_queue
-        # self.eye_id = EyeId.RIGHT  # I dunno if we need that
 
     def run(self):
         while True:

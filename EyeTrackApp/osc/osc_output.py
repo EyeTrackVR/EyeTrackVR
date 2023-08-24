@@ -51,8 +51,8 @@ class OSCOutputHandler:
 
         if eye_id in [PageType.LEFT] and not self.single_eye:
             self.left_eye_x = eye_x
-            self.left_eye_blink = eye_blink
             self.left_eye_y = eye_y
+            self.left_eye_blink = eye_blink
 
             if self.left_eye_blink == 0.0:
                 # when binary blink is on, blinks may be too fast for OSC, so we repeat them.
@@ -66,8 +66,8 @@ class OSCOutputHandler:
 
         elif eye_id in [PageType.RIGHT] and not self.single_eye:
             self.right_eye_x = eye_x
-            self.right_eye_blink = eye_blink
             self.right_eye_y = eye_y
+            self.right_eye_blink = eye_blink
 
             if self.right_eye_blink == 0.0:
                 if self.blink_last_time and self.blink_last_time > 0.7:  # when binary blink is on, blinks may be too fast for OSC so we repeat them.

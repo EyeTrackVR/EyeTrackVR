@@ -47,7 +47,7 @@ class Camera:
         self.capture_event = capture_event
         self.cancellation_event = cancellation_event
         self.current_capture_source = config.capture_source
-        self.cv2_camera: "cv2.VideoCapture" = None
+        self.cv2_camera: cv2.VideoCapture = None
 
         self.serial_connection = None
         self.last_frame_time = time.time()
@@ -78,6 +78,10 @@ class Camera:
         while True:
             if self.cancellation_event.is_set():
                 print(f"{Fore.CYAN}[INFO] Exiting Capture thread{Fore.RESET}")
+                # in order to avoid the "can't connect to the stream" errors
+                # we need to release the capturing device, otherwise
+                # the time it takes for the camera to do it by itself might not be enough
+                self.cv2_camera.release()
                 return
             should_push = True
 
