@@ -170,7 +170,9 @@
           {
             "path": "./dist/**/*.{msi,deb,rpm,AppImage,dmg,sha256sum,bin,exe}"
           }
-        ]
+        ],
+        "successComment": false,
+        "failTitle": false
       }
     ],
     [
