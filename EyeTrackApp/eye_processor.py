@@ -47,7 +47,7 @@ import numpy as np
 import cv2
 from enum import Enum
 from one_euro_filter import OneEuroFilter
-from utils.misc_utils import PlaySound, SND_FILENAME, SND_ASYNC
+from utils.misc_utils import PlaySound, SND_FILENAME, SND_ASYNC, resource_path
 import importlib
 from osc import EyeId
 from osc_calibrate_filter import *
@@ -75,7 +75,7 @@ def run_once(f):
 async def delayed_setting_change(setting, value):
     await asyncio.sleep(5)
     setting = value
-    PlaySound("Audio/completed.wav", SND_FILENAME | SND_ASYNC)
+    PlaySound(resource_path("Audio/completed.wav"), SND_FILENAME | SND_ASYNC)
 
 
 class EyeProcessor:

@@ -10,10 +10,9 @@ from camera import Camera, CameraState
 from osc import EyeId
 import cv2
 import sys
-from utils.misc_utils import PlaySound,SND_FILENAME,SND_ASYNC
+from utils.misc_utils import PlaySound,SND_FILENAME,SND_ASYNC, resource_path
 import traceback
 import numpy as np
-
 class CameraWidget:
     def __init__(self, widget_id: EyeId, main_config: EyeTrackConfig, osc_queue: Queue):
         self.gui_camera_addr = f"-CAMERAADDR{widget_id}-"
@@ -270,7 +269,7 @@ class CameraWidget:
         if event == self.gui_restart_calibration:
             self.ransac.calibration_frame_counter = self.settings.calibration_samples
             self.ransac.ibo.clear_filter()
-            PlaySound('Audio/start.wav', SND_FILENAME | SND_ASYNC)
+            PlaySound(resource_path('Audio/start.wav'), SND_FILENAME | SND_ASYNC)
 
         if event == self.gui_stop_calibration:
             self.ransac.calibration_frame_counter = 0

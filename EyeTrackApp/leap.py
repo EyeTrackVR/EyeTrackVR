@@ -37,7 +37,7 @@ from queue import Queue
 import threading
 from one_euro_filter import OneEuroFilter
 import psutil, os
-import sys
+import sysfrom utils.misc_utils import resource_path
 
 frames = 0
 
@@ -76,7 +76,7 @@ class LEAP_C(object):
         # Config variables
         self.num_threads = 3  # Number of python threads to use (using ~1 more than needed to acheive wanted fps yeilds lower cpu usage)
         self.queue_max_size = 1  # Optimize for best CPU usage, Memory, and Latency. A maxsize is needed to not create a potential memory leak.
-        self.model_path = 'Models/mommy072623.onnx'
+        self.model_path = resource_path('Models/mommy072623.onnx')
         self.interval = 1  # FPS print update rate
         self.low_priority = True  # set process priority to low
         self.print_fps = True

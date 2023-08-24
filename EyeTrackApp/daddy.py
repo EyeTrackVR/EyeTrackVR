@@ -34,7 +34,7 @@ import cv2
 import onnxruntime
 
 from one_euro_filter import OneEuroFilter
-from utils.misc_utils import FastMedian
+from utils.misc_utils import FastMedian, resource_path
 
 # DADDY
 # Please change the name of this script and the name of the method if you have something better.
@@ -211,7 +211,7 @@ class DADDY_cls(object):
         options.execution_mode = onnxruntime.ExecutionMode.ORT_SEQUENTIAL
         options.graph_optimization_level = onnxruntime.GraphOptimizationLevel.ORT_ENABLE_ALL
         
-        ort_session = onnxruntime.InferenceSession(model_file, sess_options=options, providers=["CPUExecutionProvider"])
+        ort_session = onnxruntime.InferenceSession(resource_path(model_file), sess_options=options, providers=["CPUExecutionProvider"])
         ort_session.set_providers(['CPUExecutionProvider'])  # only cpu mode
         
         self.ort_session = ort_session

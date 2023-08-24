@@ -78,12 +78,12 @@ jobs:
         #mv ./dist/ETVR ./dist/ETVR.bin
         run: |
           ls -a build
-          mv ./build/eyetrackapp ./build/eyetrackapp.bin
+          mv ./dist/eyetrackapp ./dist/eyetrackapp.bin
 
       - uses: actions/upload-artifact@v2
         with:
           name: production-files
-          path: build
+          path: dist
   deploy:
     runs-on: ubuntu-latest
     name: Deploy

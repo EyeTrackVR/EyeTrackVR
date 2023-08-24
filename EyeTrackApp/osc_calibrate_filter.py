@@ -1,7 +1,7 @@
 import numpy as np
 
 from enum import IntEnum
-from utils.misc_utils import PlaySound, SND_FILENAME, SND_ASYNC
+from utils.misc_utils import PlaySound, SND_FILENAME, SND_ASYNC, resource_path
 
 class EyeId(IntEnum):
     RIGHT = 0
@@ -27,7 +27,7 @@ class cal():
             self.config.calib_XOFF = cx
             self.config.calib_YOFF = cy
             self.baseconfig.save()
-            PlaySound('Audio/completed.wav', SND_FILENAME | SND_ASYNC)
+            PlaySound(resource_path('Audio/completed.wav'), SND_FILENAME | SND_ASYNC)
         if self.calibration_frame_counter == self.settings.calibration_samples:
             self.config.calib_XMAX = -69420
             self.config.calib_XMIN = 69420
@@ -54,7 +54,7 @@ class cal():
             self.config.calib_YOFF = cy
             if self.ts == 0:
                 self.settings.gui_recenter_eyes = False
-                PlaySound('Audio/completed.wav', SND_FILENAME | SND_ASYNC)
+                PlaySound(resource_path('Audio/completed.wav'), SND_FILENAME | SND_ASYNC)
             else:
                 self.ts = self.ts - 1
         else:

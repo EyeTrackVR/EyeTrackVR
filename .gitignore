@@ -4,10 +4,13 @@
 **/*.pyc
 *.cfg
 *.log
+EyeTrackApp/venv
 EyeTrackApp/eyetrack_settings.json
 EyeTrackApp/eyetrack_settings.backup
 EyeTrackApp/build
 EyeTrackApp/dist
+build
+dist
 EyeTrackApp/IBO_LEFT.png
 EyeTrackApp/IBO_RIGHT.png
 
