@@ -33,8 +33,8 @@ jobs:
         with:
           token: ${{ env.GITHUB_TOKEN }}
       - name: Set up Python
-        uses: actions/setup-python@v4	
-        with:	
+        uses: actions/setup-python@v4
+        with:
           python-version: 3.10.11
       - name: Setup Poetry
         uses: snok/install-poetry@v1
@@ -59,7 +59,7 @@ jobs:
         with:
           path: .venv
           key: venv-${{ runner.os }}-${{ steps.setup-python.outputs.python-version }}-${{ hashFiles('**/poetry.lock') }}
-      
+
       - name: Install python dependencies
         if: steps.cached-poetry-dependencies.outputs.cache-hit != 'true'
         run: poetry install
@@ -69,7 +69,7 @@ jobs:
         run: sudo apt install build-essential curl wget libssl-dev
 
       - run: source $VENV
-      
+
       - name: Build Backend
         run: poetry run pyinstaller --noconfirm EyeTrackApp/eyetrackapp.spec EyeTrackApp/eyetrackapp.py
 
@@ -77,8 +77,9 @@ jobs:
         if: ${{ matrix.os == 'ubuntu-latest' }}
         #mv ./dist/ETVR ./dist/ETVR.bin
         run: |
-          ls -a dist
-          mv ./dist/eyetrackapp ./dist/eyetrackapp.bin
+          ls -a build
+          ls -a  eyetrackapp
+          mv ./build/eyetrackapp/eyetrackapp ./build/eyetrackapp/eyetrackapp.bin
 
       - uses: actions/upload-artifact@v2
         with:
