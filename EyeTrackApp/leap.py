@@ -37,7 +37,7 @@ from queue import Queue
 import threading
 from one_euro_filter import OneEuroFilter
 import psutil, os
-import sysfrom utils.misc_utils import resource_path
+import sys from utils.misc_utils import resource_path
 
 frames = 0
 
@@ -74,7 +74,7 @@ class LEAP_C(object):
     def __init__(self):
         onnxruntime.disable_telemetry_events()
         # Config variables
-        self.num_threads = 3  # Number of python threads to use (using ~1 more than needed to acheive wanted fps yeilds lower cpu usage)
+        self.num_threads = 3  # Number of python threads to use (using ~1 more than needed to achieve wanted fps yields lower cpu usage)
         self.queue_max_size = 1  # Optimize for best CPU usage, Memory, and Latency. A maxsize is needed to not create a potential memory leak.
         self.model_path = resource_path('Models/mommy072623.onnx')
         self.interval = 1  # FPS print update rate
