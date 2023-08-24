@@ -83,7 +83,7 @@ jobs:
       - uses: actions/upload-artifact@v2
         with:
           name: production-files
-          path: dist
+          path: build
   deploy:
     runs-on: ubuntu-latest
     name: Deploy
