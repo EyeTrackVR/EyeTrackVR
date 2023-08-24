@@ -78,8 +78,7 @@ jobs:
         #mv ./dist/ETVR ./dist/ETVR.bin
         run: |
           ls -a build
-          ls -a  eyetrackapp
-          mv ./build/eyetrackapp/eyetrackapp ./build/eyetrackapp/eyetrackapp.bin
+          mv ./build/eyetrackapp ./build/eyetrackapp.bin
 
       - uses: actions/upload-artifact@v2
         with:
