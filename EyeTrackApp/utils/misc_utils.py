@@ -53,12 +53,13 @@ class FastMedian:
     #  If there is a next list, ask its median. Else, work it out locally.
     def median(self):
         return self.more.median() if self.more else self.__medianPrim(self.all)
-    
+
     # Only recompute median if we do not know it already.
     def __medianPrim(self, all):
         if self.__median is None:
             self.__median = lst_median(all, ordered=False)
         return self.__median
+
 
 def resource_path(relative_path):
     """ Get absolute path to resource, works for dev and for PyInstaller """

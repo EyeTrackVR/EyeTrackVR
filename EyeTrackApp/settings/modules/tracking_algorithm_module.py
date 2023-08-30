@@ -84,7 +84,7 @@ class TrackingAlgorithmsModule(SettingsModule):
                     default=self.config.gui_HSRAC,
                     key=self.gui_HSRAC,
                     background_color=BACKGROUND_COLOR,
-                    tooltip="Our flagship algoritim, utilizing both HSF and RANSAC for best tracking quality and lighting resistance.",
+                    tooltip="Our flagship algorithm, utilizing both HSF and RANSAC for best tracking quality and lighting resistance.",
                 ),
                 sg.Combo(
                     ["1", "2", "3", "4", "5", "6"],
@@ -102,7 +102,7 @@ class TrackingAlgorithmsModule(SettingsModule):
                     default=self.config.gui_HSF,
                     key=self.gui_HSF,
                     background_color=BACKGROUND_COLOR,
-                    tooltip="HSF Is a new, lower resolution tracking algorithim that provides excelent resilancy to lighting conditions and great speed.",
+                    tooltip="HSF Is a new, lower resolution tracking algorithm that provides excelent resiliancy to lighting conditions and great speed.",
                 ),
                 sg.Combo(
                     ["1", "2", "3", "4", "5", "6"],
@@ -112,7 +112,7 @@ class TrackingAlgorithmsModule(SettingsModule):
                     text_color="white",
                     button_arrow_color="black",
                     button_background_color="#6f4ca1",
-                    tooltip="Select the priority of eyetracking algorithims.",
+                    tooltip="Select the priority of eyetracking algorithms.",
                 ),
                 sg.Text("Haar Surround Feature", background_color=BACKGROUND_COLOR),
             ],
@@ -132,7 +132,7 @@ class TrackingAlgorithmsModule(SettingsModule):
                     text_color="white",
                     button_arrow_color="black",
                     button_background_color="#6f4ca1",
-                    tooltip="Select the priority of eyetracking algorithims.",
+                    tooltip="Select the priority of eyetracking algorithms.",
                 ),
                 sg.Text("DADDY", background_color=BACKGROUND_COLOR),
                 sg.Checkbox(
@@ -150,7 +150,7 @@ class TrackingAlgorithmsModule(SettingsModule):
                     text_color="white",
                     button_arrow_color="black",
                     button_background_color="#6f4ca1",
-                    tooltip="Select the priority of eyetracking algorithims.",
+                    tooltip="Select the priority of eyetracking algorithms.",
                 ),
                 sg.Text("RANSAC 3D", background_color=BACKGROUND_COLOR),
             ],
@@ -169,7 +169,7 @@ class TrackingAlgorithmsModule(SettingsModule):
                          text_color='white',
                          button_arrow_color="black",
                          button_background_color="#6f4ca1",
-                         tooltip="Select the priority of eyetracking algorithims.",
+                         tooltip="Select the priority of eyetracking algorithms.",
                          ),
                 sg.Text("LEAP", background_color=BACKGROUND_COLOR),
                 sg.Checkbox(
@@ -187,7 +187,7 @@ class TrackingAlgorithmsModule(SettingsModule):
                     text_color="white",
                     button_arrow_color="black",
                     button_background_color="#6f4ca1",
-                    tooltip="Select the priority of eyetracking algorithims.",
+                    tooltip="Select the priority of eyetracking algorithms.",
                 ),
                 sg.Text("Blob", background_color=BACKGROUND_COLOR),
             ],
@@ -278,7 +278,7 @@ class TrackingAlgorithmsModule(SettingsModule):
                     orientation="h",
                     key=self.gui_HSF_radius_left,
                     background_color=BACKGROUND_COLOR,
-                    tooltip="Adjusts the radius paramater for HSF. Only adjust if you are having tracking issues.",
+                    tooltip="Adjusts the radius parameter for HSF. Only adjust if you are having tracking issues.",
                 ),
                 sg.Text("Right HSF Radius:", background_color=BACKGROUND_COLOR),
                 sg.Slider(
@@ -287,7 +287,7 @@ class TrackingAlgorithmsModule(SettingsModule):
                     orientation="h",
                     key=self.gui_HSF_radius_right,
                     background_color=BACKGROUND_COLOR,
-                    tooltip="Adjusts the radius paramater for HSF. Only adjust if you are having tracking issues.",
+                    tooltip="Adjusts the radius parameter for HSF. Only adjust if you are having tracking issues.",
                 ),
             ],
             [
@@ -298,7 +298,7 @@ class TrackingAlgorithmsModule(SettingsModule):
                     orientation="h",
                     key=self.gui_thresh_add,
                     background_color=BACKGROUND_COLOR,
-                    tooltip="Adjusts the ammount of threshold to add to RANSAC. Usefull for fine tuning your setup.",
+                    tooltip="Adjusts the amount of threshold to add to RANSAC. Useful for fine tuning your setup.",
                 ),
                 #  ],
                 # [
@@ -322,7 +322,7 @@ class TrackingAlgorithmsModule(SettingsModule):
                     orientation="h",
                     key=self.gui_blob_minsize,
                     background_color=BACKGROUND_COLOR,
-                    tooltip="Minimun size a blob has to be for blob tracking.",
+                    tooltip="Minimum size a blob has to be for blob tracking.",
                 ),
                 sg.Text("Max Blob Size:", background_color=BACKGROUND_COLOR),
                 sg.Slider(
