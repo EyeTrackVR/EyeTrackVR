@@ -1,5 +1,6 @@
 import os
 import typing
+import sys
 
 is_nt = True if os.name == "nt" else False
 
@@ -58,3 +59,13 @@ class FastMedian:
         if self.__median is None:
             self.__median = lst_median(all, ordered=False)
         return self.__median
+
+def resource_path(relative_path):
+    """ Get absolute path to resource, works for dev and for PyInstaller """
+    try:
+        # PyInstaller creates a temp folder and stores path in _MEIPASS
+        base_path = sys._MEIPASS
+    except AttributeError:
+        base_path = os.path.abspath(".")
+
+    return os.path.join(base_path, relative_path)

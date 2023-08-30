@@ -14,7 +14,7 @@ from settings.algo_settings_widget import AlgoSettingsWidget
 from keyboardHandler import KeyboardHandler
 from eye import EyeInfo
 
-from utils.misc_utils import is_nt
+from utils.misc_utils import is_nt, resource_path
 
 
 if is_nt:
@@ -41,6 +41,7 @@ ALGO_SETTINGS_RADIO_NAME = "-ALGOSETTINGSRADIO-"
 
 page_url = "https://github.com/RedHawk989/EyeTrackVR/releases/latest"
 appversion = "EyeTrackApp 0.2.0 BETA 7"
+
 
 
 def main():
@@ -70,7 +71,8 @@ def main():
             try:
                 if is_nt:
                     cwd = os.getcwd()
-                    icon = cwd + "\Images\logo.ico"
+                    #icon = cwd + "\Images\logo.ico"
+                    icon = resource_path("Images/logo.ico")
                     toast = Notification(
                         app_id="EyeTrackApp",
                         title="New Update Available!",
@@ -191,7 +193,7 @@ def main():
 
     # Create the window
     window = sg.Window(
-        f"{appversion}", layout, icon="Images/logo.ico", background_color="#292929"
+        f"{appversion}", layout, icon=resource_path("Images/logo.ico"), background_color="#292929"
     )
 
     # GUI Render loop
