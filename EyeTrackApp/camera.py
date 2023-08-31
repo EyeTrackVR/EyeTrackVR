@@ -41,12 +41,11 @@ class Camera:
         self.camera_status = CameraState.CONNECTING
         self.config = config
         self.camera_index = camera_index
-        self.camera_address = config.capture_source
         self.camera_status_outgoing = camera_status_outgoing
         self.camera_output_outgoing = camera_output_outgoing
         self.capture_event = capture_event
         self.cancellation_event = cancellation_event
-        self.current_capture_source = config.capture_source
+        self.current_capture_source = config.sanitized_capture_source
         self.cv2_camera: cv2.VideoCapture = None
 
         self.serial_connection = None
@@ -81,35 +80,37 @@ class Camera:
                 # in order to avoid the "can't connect to the stream" errors
                 # we need to release the capturing device, otherwise
                 # the time it takes for the camera to do it by itself might not be enough
-                self.cv2_camera.release()
+                # camera could be none, for example when user switches tab around with a source connected
+                if self.cv2_camera:
+                    self.cv2_camera.release()
                 return
             should_push = True
 
             # If things aren't open, retry until they are. Don't let read requests come in any earlier
             # than this, otherwise we can deadlock ourselves.
-            if self.config.capture_source:
-                if self.config.capture_source.type == CaptureSourceType.COM:
+            if self.config.sanitized_capture_source:
+                if self.config.sanitized_capture_source.type == CaptureSourceType.COM:
                     if (
                         self.serial_connection is None
                         or self.camera_status == CameraState.DISCONNECTED
-                        or self.config.capture_source != self.current_capture_source
+                        or self.config.sanitized_capture_source != self.current_capture_source
                     ):
-                        self.current_capture_source = self.config.capture_source
+                        self.current_capture_source = self.config.sanitized_capture_source
                         self.start_serial_connection(self.current_capture_source.source)
                 else:
                     if (
                         self.cv2_camera is None
                         or not self.cv2_camera.isOpened()
                         or self.camera_status == CameraState.DISCONNECTED
-                        or self.config.capture_source != self.current_capture_source
+                        or self.config.sanitized_capture_source != self.current_capture_source
                     ):
-                        self.current_capture_source = self.config.capture_source
+                        self.current_capture_source = self.config.sanitized_capture_source
                         print(self.error_message.format(self.current_capture_source.source))
                         # Waiting for a bit for the firmware / cameras to get up and running
                         if self.cancellation_event.wait(WAIT_TIME):
                             return
 
-                        self.current_capture_source = self.config.capture_source
+                        self.current_capture_source = self.config.sanitized_capture_source
                         self.cv2_camera = cv2.VideoCapture()
                         self.cv2_camera.setExceptionMode(True)
                         # https://github.com/opencv/opencv/blob/4.8.0/modules/videoio/include/opencv2/videoio.hpp#L803

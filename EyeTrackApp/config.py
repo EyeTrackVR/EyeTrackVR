@@ -24,8 +24,8 @@ class EyeTrackCameraConfig(BaseModel):
     roi_window_w: int = 0
     roi_window_h: int = 0
     focal_length: int = 30
-    gui_capture_source:  Union[str, None] = None
-    capture_source: Union[CameraCaptureSource, None] = None
+    capture_source:  Union[str, None] = None
+    sanitized_capture_source: Union[CameraCaptureSource, None] = None
     calib_XMAX: Union[int, None] = 0
     calib_XMIN: Union[int, None] = 0
     calib_YMAX: Union[int, None] = 0

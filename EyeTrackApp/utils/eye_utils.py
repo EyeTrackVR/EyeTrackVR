@@ -10,6 +10,7 @@ def trigger_recenter(eyes):
 def trigger_recalibration(eyes):
     for eye in eyes:
         eye.ransac.calibration_frame_counter = RANSAC_CALIBRATION_STEPS_START
+        eye.ransac.ibo.clear_filter()
     PlaySound(resource_path("Audio/start.wav"), SND_FILENAME | SND_ASYNC)
 
 

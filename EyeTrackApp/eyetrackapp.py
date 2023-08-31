@@ -43,7 +43,6 @@ page_url = "https://github.com/RedHawk989/EyeTrackVR/releases/latest"
 appversion = "EyeTrackApp 0.2.0 BETA 7"
 
 
-
 def main():
     # Get Configuration
     config: EyeTrackConfig = EyeTrackConfig.load()

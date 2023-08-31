@@ -133,13 +133,8 @@ class IntensityBasedOpeness:
         # todo: It is necessary to consider whether the filename can be changed in the configuration file, etc.
         if eye_id in [PageType.LEFT]:
             self.imgfile = "IBO_LEFT.png"
-        # TODO this is not needed
-        else:
-            pass
         if eye_id in [PageType.RIGHT]:
             self.imgfile = "IBO_RIGHT.png"
-        else:
-            pass
         # self.imgfile = "IBO_LEFT.png" if eyeside is EyeLR.LEFT else "IBO_RIGHT.png"
         # self.data[0, -1] = maxval, [1, -1] = rotation, [2, -1] = x, [3, -1] = y
         self.data = None
