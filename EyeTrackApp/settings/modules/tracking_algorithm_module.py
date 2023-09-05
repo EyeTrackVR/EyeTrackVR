@@ -16,6 +16,7 @@ class TrackingAlgorithmsValidationModel(BaseValidationModel):
     gui_BLINK: bool
     gui_IBO: bool
     gui_HSRAC: bool
+    gui_LEAP: bool
 
     gui_HSF_radius: int
     gui_blob_maxsize: int
@@ -27,6 +28,7 @@ class TrackingAlgorithmsValidationModel(BaseValidationModel):
     gui_RANSAC3DP: int
     gui_HSFP: int
     gui_BLOBP: int
+    gui_LEAPP: int
 
     gui_thresh_add: int
     gui_circular_crop_left: bool
