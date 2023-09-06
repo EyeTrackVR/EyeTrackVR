@@ -218,7 +218,7 @@ class CameraWidget:
             and values[self.gui_camera_addr] != str(self.config.capture_source)
         ):
             print("\033[94m[INFO] New value: {}\033[0m".format(values[self.gui_camera_addr]))
-            self.config.capture_source = values[self.gui_camera_addr]  # TODO make this backwards compatible
+            self.config.capture_source = values[self.gui_camera_addr]
             self.config.sanitized_capture_source = sanitize_source(values[self.gui_camera_addr])
             changed = True
 

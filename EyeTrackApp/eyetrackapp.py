@@ -207,6 +207,7 @@ def main():
             cancellation_event.set()
             # shut down worker threads
             osc_thread.join()
+            keyboard_listener_thread.join()
             # TODO: find a way to have this function run on join maybe??
             # threading.Event() wont work because pythonosc spawns its own thread.
             # only way i can see to get around this is an ugly while loop that only checks if a threading event is triggered

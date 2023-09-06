@@ -53,7 +53,9 @@ class KeyboardHandler:
         self._start()
         while True:
             if self.event.is_set():
+                print("\033[94m[INFO] Exiting Keyboard handler thread\033[0m")
                 self._stop()
+                return
             if self.should_restart:
                 self._restart()
             # we gotta let other threads run
