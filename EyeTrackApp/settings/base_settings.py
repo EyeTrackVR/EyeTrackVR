@@ -24,6 +24,7 @@ class BaseSettings:
         self.validation_errors = []
 
         self.initialized_modules = self._initialize_modules(settings_modules, widget_id=widget_id)
+        self.is_saving = False
         self.settings_layout = []
         for module in self.initialized_modules:
             self.settings_layout.extend(
@@ -73,11 +74,12 @@ class BaseSettings:
             )
         return initialized_modules
 
-    @debounce(wait_seconds=1)
+    @debounce(wait_seconds=0.3)
     def _update_and_save_config(self, validated_data):
         self.main_config.update(validated_data, save=True)
+        self.is_saving = False
 
-    @debounce(wait_seconds=1)
+    @debounce(wait_seconds=0.3)
     def _print_errors(self, errors):
         print(errors)
 
@@ -90,7 +92,8 @@ class BaseSettings:
             if errors:
                 errors.extend(module_errors)
 
-        if not errors and validated_data:
+        if not errors and validated_data and not self.is_saving:
+            self.is_saving = True
             self._update_and_save_config(validated_data)
 
         if errors:

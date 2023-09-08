@@ -35,6 +35,13 @@ class TrackingAlgorithmsValidationModel(BaseValidationModel):
     gui_circular_crop_right: bool
     gui_threshold: int
 
+    ibo_filter_samples: int
+    calibration_samples: int
+    ibo_fully_close_eye_threshold: str
+
+    gui_HSF_radius_left: int
+    gui_HSF_radius_right: int
+
 
 class TrackingAlgorithmsModule(SettingsModule):
     def __init__(self, settings, widget_id, **kwargs):

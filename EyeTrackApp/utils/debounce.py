@@ -12,7 +12,7 @@ def debounce(wait_seconds):
                 _debounce.timer.cancel()
 
             # we reset the timer for each call, no matter the arguments
-            _debounce.timer = threading.Timer(wait_seconds/60, call_function)
+            _debounce.timer = threading.Timer(wait_seconds, call_function)
             _debounce.timer.start()
 
         _debounce.timer = None

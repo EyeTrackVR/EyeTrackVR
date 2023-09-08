@@ -264,7 +264,7 @@ class EyeProcessor:
                 self.settings.ibo_average_output_samples,
             )
             if (
-                self.eyeopen < self.settings.ibo_fully_close_eye_threshold
+                self.eyeopen < float(self.settings.ibo_fully_close_eye_threshold)
             ):  # threshold so the eye fully closes
                 self.eyeopen = 0.0
 
@@ -439,9 +439,6 @@ class EyeProcessor:
             self.failed = 0  # we have reached last possible algo and it is disabled, move to first algo
 
     def run(self):
-        # Run the following somewhere
-        # self.daddy = External_Run_DADDY()
-
         self.firstalgo = None
         self.secondalgo = None
         self.thirdalgo = None
@@ -455,9 +452,7 @@ class EyeProcessor:
 
         # set algo priorities
         if self.settings.gui_HSF:
-            print('yes hsf')
             if self.er_hsf is None:
-                print('yes none')
                 if self.eye_id in [PageType.LEFT]:
                     self.er_hsf = External_Run_HSF(
                         self.settings.gui_skip_autoradius,
