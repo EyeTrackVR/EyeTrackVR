@@ -52,7 +52,9 @@ class AlgoSettingsWidget:
         self.ibo_filter_samples = f"-IBOFILTERSAMPLE{widget_id}-"
         self.calibration_samples = f"-CALIBRATIONSAMPLES{widget_id}-"
         self.ibo_fully_close_eye_threshold = f"-CLOSETHRESH{widget_id}-"
-
+        self.gui_legacy_ransac = f"-LEGACYRANSACTHRESH{widget_id}-"
+        self.gui_legacy_ransac_thresh_right = f"-THRESHRIGHT{widget_id}-"
+        self.gui_legacy_ransac_thresh_left = f"-THRESHLEFT{widget_id}-"
         self.main_config = main_config
         self.config = main_config.settings
         self.osc_queue = osc_queue
@@ -133,6 +135,12 @@ class AlgoSettingsWidget:
                          tooltip="Select the priority of eyetracking algorithms.",
                          ),
                 sg.Text("RANSAC 3D", background_color='#424042'),
+                sg.Checkbox(
+                    "Legacy RANSAC Thresh",
+                    default=self.config.gui_legacy_ransac,
+                    key=self.gui_legacy_ransac,
+                    background_color='#424042',
+                ),
             ],
             [
                 sg.Checkbox(
@@ -301,8 +309,27 @@ class AlgoSettingsWidget:
                  background_color='#424042',
                  tooltip="Maximum size a blob can be for blob tracking.",
              ),
-
              ],
+             [
+             sg.Text("Right Eye Thresh:", background_color='#424042'),
+             sg.Slider(
+                 range=(1, 120),
+                 default_value=self.config.gui_legacy_ransac_thresh_right,
+                 orientation="h",
+                 key=self.gui_legacy_ransac_thresh_right,
+                 background_color='#424042',
+                 tooltip="Threshold for right eye, legacy RANSAC only",
+             ),
+             sg.Text("Left Eye Thresh:", background_color='#424042'),
+             sg.Slider(
+                 range=(1, 120),
+                 default_value=self.config.gui_legacy_ransac_thresh_left,
+                 orientation="h",
+                 key=self.gui_legacy_ransac_thresh_left,
+                 background_color='#424042',
+                 tooltip="Threshold for left eye, legacy RANSAC only",
+             ),
+            ],
 
         ]
 
@@ -362,6 +389,10 @@ class AlgoSettingsWidget:
 
         if self.config.gui_RANSAC3D != values[self.gui_RANSAC3D]:
             self.config.gui_RANSAC3D = values[self.gui_RANSAC3D]
+            changed = True
+
+        if self.config.gui_legacy_ransac != values[self.gui_legacy_ransac]:
+            self.config.gui_legacy_ransac = values[self.gui_legacy_ransac]
             changed = True
 
         if self.config.gui_HSRACP != int(values[self.gui_HSRACP]):
@@ -442,6 +473,14 @@ class AlgoSettingsWidget:
 
         if self.config.calibration_samples != int(values[self.calibration_samples]):
             self.config.calibration_samples = int(values[self.calibration_samples])
+            changed = True
+
+        if self.config.gui_legacy_ransac_thresh_left != int(values[self.gui_legacy_ransac_thresh_left]):
+            self.config.gui_legacy_ransac_thresh_left = int(values[self.gui_legacy_ransac_thresh_left])
+            changed = True
+
+        if self.config.gui_legacy_ransac_thresh_right != int(values[self.gui_legacy_ransac_thresh_right]):
+            self.config.gui_legacy_ransac_thresh_right = int(values[self.gui_legacy_ransac_thresh_right])
             changed = True
 
         if changed:

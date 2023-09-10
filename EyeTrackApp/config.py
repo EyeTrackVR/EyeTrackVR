@@ -75,6 +75,10 @@ class EyeTrackSettingsConfig(BaseModel):
     osc_left_eye_close_address: str = "/avatar/parameters/LeftEyeLidExpandedSqueeze"
     osc_invert_eye_close: bool = False
     gui_RANSACBLINK: bool = True
+    gui_legacy_ransac: bool = False
+    gui_legacy_ransac_thresh_right: int = 80
+    gui_legacy_ransac_thresh_left: int = 80
+
 
 
 class EyeTrackConfig(BaseModel):

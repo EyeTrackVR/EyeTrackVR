@@ -221,8 +221,14 @@ def RANSAC3D(self, hsrac_en):
     # crop 15% sqare around min_loc
     # frame_gray = frame_gray[max_loc[1] - maxloc1_hf:max_loc[1] + maxloc1_hf,
         #               max_loc[0] - maxloc0_hf:max_loc[0] + maxloc0_hf]
-    
-    threshold_value = min_val + self.settings.gui_thresh_add
+    if self.settings.gui_legacy_ransac:
+        if self.eye_id in [EyeId.LEFT]:
+            threshold_value =  self.settings.gui_legacy_ransac_thresh_right
+        else:
+            threshold_value = self.settings.gui_legacy_ransac_thresh_right
+    else:
+        threshold_value = min_val + self.settings.gui_thresh_add
+
     _, thresh = cv2.threshold(frame_gray, threshold_value, 255, cv2.THRESH_BINARY)
     try:
         opening = cv2.morphologyEx(thresh, cv2.MORPH_OPEN, kernel)
