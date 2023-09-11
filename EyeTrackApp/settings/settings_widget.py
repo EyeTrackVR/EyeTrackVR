@@ -1,5 +1,5 @@
 from config import EyeTrackConfig
-from EyeTrackApp.consts import PageType
+from consts import PageType
 from settings.base_settings import BaseSettings
 
 from settings.modules.general_settings_module import GeneralSettingsModule

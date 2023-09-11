@@ -7,7 +7,7 @@ from threading import Event, Thread
 from eye_processor import EyeProcessor, EyeInfoOrigin
 from queue import Queue, Empty
 from camera import Camera, CameraState
-from EyeTrackApp.consts import PageType, CaptureSourceType, SUPPORTED_VIDEO_FORMATS
+from consts import PageType, CaptureSourceType, SUPPORTED_VIDEO_FORMATS
 import cv2
 
 from utils.eye_utils import trigger_recalibration, stop_calibration, trigger_recenter

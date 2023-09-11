@@ -3,7 +3,7 @@ import os.path
 import shutil
 from typing import Union
 
-from EyeTrackApp.consts import PageType, CaptureSourceType
+from consts import PageType, CaptureSourceType
 from pydantic import BaseModel
 
 from exceptions import ConfigFileDoesNotExist, ConfigFileInvalid

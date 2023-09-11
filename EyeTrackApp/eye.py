@@ -1,6 +1,6 @@
 from dataclasses import dataclass
 
-from EyeTrackApp.consts import EyeInfoOrigin
+from consts import EyeInfoOrigin
 
 
 @dataclass

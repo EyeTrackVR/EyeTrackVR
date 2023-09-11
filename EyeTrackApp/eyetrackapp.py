@@ -6,9 +6,9 @@ import threading
 
 from camera_widget import CameraWidget
 from config import EyeTrackConfig
-from EyeTrackApp.consts import PageType
-from EyeTrackApp.osc.osc import VRChatOSC
-from EyeTrackApp.osc.osc_input import VRChatOSCReceiver
+from consts import PageType
+from osc.osc import VRChatOSC
+from osc.osc_input import VRChatOSCReceiver
 from settings.settings_widget import SettingsWidget
 from settings.algo_settings_widget import AlgoSettingsWidget
 from keyboardHandler import KeyboardHandler

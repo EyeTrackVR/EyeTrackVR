@@ -1,7 +1,7 @@
 import time
 
 from pythonosc import udp_client
-from EyeTrackApp.consts import PageType
+from consts import PageType
 from config import EyeTrackConfig
 from eye import EyeInfo
 

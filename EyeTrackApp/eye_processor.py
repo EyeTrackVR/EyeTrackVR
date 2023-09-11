@@ -56,7 +56,7 @@ from pye3d.detector_3d import Detector3D, DetectorMode
 from ransac import RANSAC3D
 from utils.eye_utils import play_on_complete
 
-from EyeTrackApp.consts import EyeInfoOrigin, calibration_max_axis_value
+from consts import EyeInfoOrigin, calibration_max_axis_value
 
 
 def run_once(f):

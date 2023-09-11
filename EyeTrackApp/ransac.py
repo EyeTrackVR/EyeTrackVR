@@ -27,7 +27,7 @@ Copyright (c) 2023 EyeTrackVR <3
 '''  
 import cv2
 import numpy as np
-from EyeTrackApp.consts import PageType, RANSAC_CALIBRATION_STEPS_START
+from consts import PageType, RANSAC_CALIBRATION_STEPS_START
 from enum import IntEnum
 from utils.img_utils import safe_crop
 from utils.misc_utils import clamp
