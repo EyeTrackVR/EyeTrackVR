@@ -42,6 +42,10 @@ class TrackingAlgorithmsValidationModel(BaseValidationModel):
     gui_HSF_radius_left: int
     gui_HSF_radius_right: int
 
+    gui_legacy_ransac: bool
+    gui_legacy_ransac_thresh_right: int
+    gui_legacy_ransac_thresh_left: int
+
 
 class TrackingAlgorithmsModule(SettingsModule):
     def __init__(self, settings, widget_id, **kwargs):
@@ -81,6 +85,10 @@ class TrackingAlgorithmsModule(SettingsModule):
         self.ibo_filter_samples = f"-IBOFILTERSAMPLE{widget_id}-"
         self.calibration_samples = f"-CALIBRATIONSAMPLES{widget_id}-"
         self.ibo_fully_close_eye_threshold = f"-CLOSETHRESH{widget_id}-"
+
+        self.gui_legacy_ransac = f"-LEGACYRANSACTHRESH{widget_id}-"
+        self.gui_legacy_ransac_thresh_right = f"-THRESHRIGHT{widget_id}-"
+        self.gui_legacy_ransac_thresh_left = f"-THRESHLEFT{widget_id}-"
 
     def get_layout(self):
         return [
@@ -162,6 +170,12 @@ class TrackingAlgorithmsModule(SettingsModule):
                     tooltip="Select the priority of eyetracking algorithms.",
                 ),
                 sg.Text("RANSAC 3D", background_color=BACKGROUND_COLOR),
+                sg.Checkbox(
+                    "Legacy RANSAC Thresh",
+                    default=self.config.gui_legacy_ransac,
+                    key=self.gui_legacy_ransac,
+                    background_color='#424042',
+                ),
             ],
             [
                 sg.Checkbox(
@@ -341,6 +355,26 @@ class TrackingAlgorithmsModule(SettingsModule):
                     key=self.gui_blob_maxsize,
                     background_color=BACKGROUND_COLOR,
                     tooltip="Maximum size a blob can be for blob tracking.",
+                ),
+            ],
+            [
+                sg.Text("Right Eye Thresh:", background_color='#424042'),
+                sg.Slider(
+                    range=(1, 120),
+                    default_value=self.config.gui_legacy_ransac_thresh_right,
+                    orientation="h",
+                    key=self.gui_legacy_ransac_thresh_right,
+                    background_color='#424042',
+                    tooltip="Threshold for right eye, legacy RANSAC only",
+                ),
+                sg.Text("Left Eye Thresh:", background_color='#424042'),
+                sg.Slider(
+                    range=(1, 120),
+                    default_value=self.config.gui_legacy_ransac_thresh_left,
+                    orientation="h",
+                    key=self.gui_legacy_ransac_thresh_left,
+                    background_color='#424042',
+                    tooltip="Threshold for left eye, legacy RANSAC only",
                 ),
             ],
         ]
