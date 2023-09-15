@@ -582,6 +582,8 @@ class EyeProcessor:
 
     # TODO break it up
     def calibrate_osc_output(self, cx, cy):
+        if None in [cx, cy]:
+            return 0, 0
         if cx == 0:
             cx = 1
         if cy == 0:
@@ -591,6 +593,8 @@ class EyeProcessor:
             self.calibration_frame_counter = None
             self.config.calib_XOFF = cx
             self.config.calib_YOFF = cy
+            # we're saving the calibration values
+            self.baseconfig.save()
             play_on_complete()
         if self.calibration_frame_counter == RANSAC_CALIBRATION_STEPS_START:
             self.config.calib_XMAX = -calibration_max_axis_value
@@ -610,6 +614,7 @@ class EyeProcessor:
                 self.config.calib_YMAX = cy
             if cy < self.config.calib_YMIN:
                 self.config.calib_YMIN = cy
+
             self.calibration_frame_counter -= 1
 
         if self.settings.gui_recenter_eyes:
@@ -626,54 +631,56 @@ class EyeProcessor:
         out_x = 0.5
         out_y = 0.5
 
-        calib_diff_x_MAX = self.config.calib_XMAX - self.config.calib_XOFF
-        if calib_diff_x_MAX == 0:
-            calib_diff_x_MAX = 1
+        if self.config.calib_XMAX and self.config.calib_XOFF:
+            calib_diff_x_MAX = self.config.calib_XMAX - self.config.calib_XOFF
+            if calib_diff_x_MAX == 0:
+                calib_diff_x_MAX = 1
 
-        calib_diff_x_MIN = self.config.calib_XMIN - self.config.calib_XOFF
-        if calib_diff_x_MIN == 0:
-            calib_diff_x_MIN = 1
+            calib_diff_x_MIN = self.config.calib_XMIN - self.config.calib_XOFF
+            if calib_diff_x_MIN == 0:
+                calib_diff_x_MIN = 1
 
-        calib_diff_y_MAX = self.config.calib_YMAX - self.config.calib_YOFF
-        if calib_diff_y_MAX == 0:
-            calib_diff_y_MAX = 1
+            calib_diff_y_MAX = self.config.calib_YMAX - self.config.calib_YOFF
+            if calib_diff_y_MAX == 0:
+                calib_diff_y_MAX = 1
 
-        calib_diff_y_MIN = self.config.calib_YMIN - self.config.calib_YOFF
-        if calib_diff_y_MIN == 0:
-            calib_diff_y_MIN = 1
+            calib_diff_y_MIN = self.config.calib_YMIN - self.config.calib_YOFF
+            if calib_diff_y_MIN == 0:
+                calib_diff_y_MIN = 1
 
-        xl = float((cx - self.config.calib_XOFF) / calib_diff_x_MAX)
-        xr = float((cx - self.config.calib_XOFF) / calib_diff_x_MIN)
-        yu = float((cy - self.config.calib_YOFF) / calib_diff_y_MIN)
-        yd = float((cy - self.config.calib_YOFF) / calib_diff_y_MAX)
-        # check config on flipped values settings and apply accordingly
-        if self.settings.gui_flip_y_axis:
-            if yd >= 0:
-                out_y = max(0.0, min(1.0, yd))
-            if yu > 0:
-                out_y = -abs(max(0.0, min(1.0, yu)))
-        else:
-            if yd >= 0:
-                out_y = -abs(max(0.0, min(1.0, yd)))
-            if yu > 0:
-                out_y = max(0.0, min(1.0, yu))
+            xl = float((cx - self.config.calib_XOFF) / calib_diff_x_MAX)
+            xr = float((cx - self.config.calib_XOFF) / calib_diff_x_MIN)
+            yu = float((cy - self.config.calib_YOFF) / calib_diff_y_MIN)
+            yd = float((cy - self.config.calib_YOFF) / calib_diff_y_MAX)
+            # check config on flipped values settings and apply accordingly
+            if self.settings.gui_flip_y_axis:
+                if yd >= 0:
+                    out_y = max(0.0, min(1.0, yd))
+                if yu > 0:
+                    out_y = -abs(max(0.0, min(1.0, yu)))
+            else:
+                if yd >= 0:
+                    out_y = -abs(max(0.0, min(1.0, yd)))
+                if yu > 0:
+                    out_y = max(0.0, min(1.0, yu))
 
-        if self._should_flip_x_output():
-            if xr >= 0:
-                out_x = -abs(max(0.0, min(1.0, xr)))
-            if xl > 0:
-                out_x = max(0.0, min(1.0, xl))
-        else:
-            if xr >= 0:
-                out_x = max(0.0, min(1.0, xr))
-            if xl > 0:
-                out_x = -abs(max(0.0, min(1.0, xl)))
-        try:
-            # fliter our values with a One Euro Filter
-            noisy_point = np.array([float(out_x), float(out_y)])
-            point_hat = self.one_euro_filter(noisy_point)
-            out_x = point_hat[0]
-            out_y = point_hat[1]
-        except:
-            pass
-        return out_x, out_y
+            if self._should_flip_x_output():
+                if xr >= 0:
+                    out_x = -abs(max(0.0, min(1.0, xr)))
+                if xl > 0:
+                    out_x = max(0.0, min(1.0, xl))
+            else:
+                if xr >= 0:
+                    out_x = max(0.0, min(1.0, xr))
+                if xl > 0:
+                    out_x = -abs(max(0.0, min(1.0, xl)))
+            try:
+                # fliter our values with a One Euro Filter
+                noisy_point = np.array([float(out_x), float(out_y)])
+                point_hat = self.one_euro_filter(noisy_point)
+                out_x = point_hat[0]
+                out_y = point_hat[1]
+            except:
+                pass
+            return out_x, out_y
+        return 0, 0
