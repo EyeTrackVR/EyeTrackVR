@@ -110,7 +110,6 @@ class Camera:
                         if self.cancellation_event.wait(WAIT_TIME):
                             return
 
-                        self.current_capture_source = self.config.sanitized_capture_source
                         self.cv2_camera = cv2.VideoCapture()
                         self.cv2_camera.setExceptionMode(True)
                         # https://github.com/opencv/opencv/blob/4.8.0/modules/videoio/include/opencv2/videoio.hpp#L803

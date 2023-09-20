@@ -1,5 +1,4 @@
 import numpy as np
-import cv2
 
 from consts import RANSAC_CALIBRATION_STEPS_START
 
