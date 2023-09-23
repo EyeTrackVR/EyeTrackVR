@@ -11,7 +11,6 @@ from config import EyeTrackConfig
 from enum import Enum
 
 WAIT_TIME = 0.1
-
 # Serial communication protocol:
 # header-begin (2 bytes)
 # header-type (2 bytes)
