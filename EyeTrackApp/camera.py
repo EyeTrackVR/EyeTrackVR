@@ -27,7 +27,6 @@ class CameraState(Enum):
     CONNECTED = 1
     DISCONNECTED = 2
 
-
 class Camera:
     def __init__(
             self,
