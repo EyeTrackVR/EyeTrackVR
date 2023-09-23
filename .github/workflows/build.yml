@@ -70,12 +70,11 @@ jobs:
 
       - run: source $VENV
 
-      - name: Build Backend
+      - name: Build App
         run: poetry run pyinstaller --noconfirm EyeTrackApp/eyetrackapp.spec EyeTrackApp/eyetrackapp.py
 
       - name: Rename Linux Binary
         if: ${{ matrix.os == 'ubuntu-latest' }}
-        #mv ./dist/ETVR ./dist/ETVR.bin
         run: |
           ls -a build
           mv ./dist/eyetrackapp ./dist/eyetrackapp.bin
@@ -104,7 +103,7 @@ jobs:
         uses: actions/setup-node@v3
         with:
           node-version: 18
-      - run: npm install -g conventional-changelog-conventionalcommits
+      - run: npm install -g conventional-changelog-conventionalcommits@6
       - run: npm install -g semantic-release@v19.0.5
       - run: npm install -g @semantic-release/exec
       - run: npm install -g @semantic-release/git
