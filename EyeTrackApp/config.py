@@ -14,8 +14,8 @@ class EyeTrackCameraConfig(BaseModel):
     rotation_angle: int = 0
     roi_window_x: int = 0
     roi_window_y: int = 0
-    roi_window_w: int = 0
-    roi_window_h: int = 0
+    roi_window_w: int = 240
+    roi_window_h: int = 240
     focal_length: int = 30
     capture_source: Union[int, str, None] = None
     calib_XMAX: Union[int, None] = None
