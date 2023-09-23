@@ -3,6 +3,30 @@
 [![semantic versioning](https://img.shields.io/badge/semantic%20versioning-2.0.0-green.svg)](https://semver.org)
 > All notable changes to this project will be documented in this file
 
+## [1.0.0-HSF-and-new-algos-feature-branch.2](https://github.com/EyeTrackVR/EyeTrackVR/compare/v1.0.0-HSF-and-new-algos-feature-branch.1...v1.0.0-HSF-and-new-algos-feature-branch.2) (2023-09-23)
+
+
+### 🍕 Features
+
+* ready for new beta ([ac6f8b9](https://github.com/EyeTrackVR/EyeTrackVR/commit/ac6f8b98d2aeb48a5a91b8a361d4836022f18678))
+
+
+### 🐛 Bug Fixes
+
+* BETA 7 ([0cd9f46](https://github.com/EyeTrackVR/EyeTrackVR/commit/0cd9f46a02a18457fa4aa15d53fb391e50c23540))
+* Merge pull request [#91](https://github.com/EyeTrackVR/EyeTrackVR/issues/91) from ShyAssassin/ci-cd-fix ([2a7dd65](https://github.com/EyeTrackVR/EyeTrackVR/commit/2a7dd65e08b7b9ef949cec8a8eeb7b1dc1e150a7))
+
+
+### 🧑‍💻 Code Refactoring
+
+* BETA 7 ([1d79445](https://github.com/EyeTrackVR/EyeTrackVR/commit/1d79445889f6ae4e9f8301356319e3ca78031b44))
+
+
+### 🤖 Build System
+
+* BETA 7 ([1e94577](https://github.com/EyeTrackVR/EyeTrackVR/commit/1e94577d900f41f2cb54b24568907f2aa1059fe1))
+* fixed github action to early exit ([9562d4d](https://github.com/EyeTrackVR/EyeTrackVR/commit/9562d4de6fcf74f1a218f1f89bb111c53e18c431))
+
 ## 1.0.0-HSF-and-new-algos-feature-branch.1 (2023-08-24)
 
 
