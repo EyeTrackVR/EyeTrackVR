@@ -48,6 +48,11 @@ class EyeTrackSettingsConfig(BaseModel):
     gui_osc_receiver_port: int = 9001
     gui_osc_recenter_address: str = "/avatar/parameters/etvr_recenter"
     gui_osc_recalibrate_address: str = "/avatar/parameters/etvr_recalibrate"
+    gui_osc_output_multiplier_left_x: str = "1.0"
+    gui_osc_output_multiplier_left_y: str = "1.0"
+    gui_osc_output_multiplier_right_x: str = "1.0"
+    gui_osc_output_multiplier_right_y: str = "1.0"
+    gui_osc_mirror_left_eye_multiplier: bool = True
     gui_blob_maxsize: float = 25
     gui_blob_minsize: float = 10
     gui_recenter_eyes: bool = False

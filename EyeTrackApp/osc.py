@@ -412,7 +412,7 @@ class VRChatOSC:
                 return
             try:
                 (self.eye_id, eye_info) = self.msg_queue.get(block=True, timeout=0.1)
-            except:
+            except (queue.Empty, TypeError):
                 continue
 
             output_osc(

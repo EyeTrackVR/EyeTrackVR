@@ -1,18 +1,20 @@
 import PySimpleGUI as sg
+
 from config import EyeTrackConfig
-from config import EyeTrackSettingsConfig
 from collections import deque
 from threading import Event, Thread
+
+from eye import EyeInfo
 from eye_processor import EyeProcessor, EyeInfoOrigin
-from enum import Enum
 from queue import Queue, Empty
 from camera import Camera, CameraState
 from osc import EyeId
 import cv2
-import sys
-from utils.misc_utils import PlaySound, SND_FILENAME, SND_ASYNC, resource_path
-import traceback
+from utils.misc_utils import PlaySound, SND_FILENAME,SND_ASYNC, resource_path
 import numpy as np
+
+
+dual_eye_error = RuntimeError("\033[91m[WARN] Cannot have a camera widget represent both eyes!\033[0m")
 
 
 class CameraWidget:
@@ -50,9 +52,10 @@ class CameraWidget:
         elif self.eye_id == EyeId.LEFT:
             self.config = main_config.left_eye
         else:
-            raise RuntimeError(
-                "\033[91m[WARN] Cannot have a camera widget represent both eyes!\033[0m"
-            )
+            raise dual_eye_error
+
+        self.output_multiplier_x = 1.0
+        self.output_multiplier_y = 1.0
 
         self.cancellation_event = Event()
         # Set the event until start is called, otherwise we can block if shutdown is called.
@@ -251,6 +254,8 @@ class CameraWidget:
         if not self.cancellation_event.is_set():
             return
         self.cancellation_event.clear()
+        self.setup_output_multiplier()
+
         self.ransac_thread = Thread(target=self.ransac.run)
         self.ransac_thread.start()
         self.camera_thread = Thread(target=self.camera.run)
@@ -430,19 +435,20 @@ class CameraWidget:
                 imgbytes = cv2.imencode(".ppm", maybe_image)[1].tobytes()
                 window[self.gui_tracking_image].update(data=imgbytes)
 
+                # amplify the tracking info
+                amplified_eye_info = self.amplify_results(eye_info)
+
                 # Update the GUI
                 graph = window[self.gui_output_graph]
                 graph.erase()
 
-                if (
-                    eye_info.info_type != EyeInfoOrigin.FAILURE
-                ):  # and not eye_info.blink:
+                if amplified_eye_info.info_type != EyeInfoOrigin.FAILURE: #and not amplified_eye_info.blink:
                     graph.update(background_color="white")
-                    if not np.isnan(eye_info.x) and not np.isnan(eye_info.y):
-
+                    if not np.isnan(amplified_eye_info.x) and not np.isnan(amplified_eye_info.y):
+                        # TODO clamp the circle to the borders lmao
                         graph.draw_circle(
-                            (eye_info.x * -100, eye_info.y * -100),
-                            eye_info.pupil_dilation * 25,
+                            (amplified_eye_info.x * -100, amplified_eye_info.y * -100),
+                            20,
                             fill_color="black",
                             line_color="white",
                         )
@@ -454,10 +460,10 @@ class CameraWidget:
                             line_color="white",
                         )
 
-                    if not np.isnan(eye_info.blink):
+                    if not np.isnan(amplified_eye_info.blink):
 
                         graph.draw_line(
-                            (-100, abs(eye_info.blink) * 2 * 200),
+                            (-100, abs(amplified_eye_info.blink) * 2 * 200),
                             (-100, 100),
                             color="#6f4ca1",
                             width=10,
@@ -467,13 +473,27 @@ class CameraWidget:
                             (-100, 0.5 * 200), (-100, 100), color="#6f4ca1", width=10
                         )
 
-                    if eye_info.blink <= 0.0:
+                    if amplified_eye_info.blink <= 0.0:
                         graph.update(background_color="#6f4ca1")
-
-                elif eye_info.info_type == EyeInfoOrigin.FAILURE:
+                elif amplified_eye_info.info_type == EyeInfoOrigin.FAILURE:
                     graph.update(background_color="red")
                 # Relay information to OSC
-                if eye_info.info_type != EyeInfoOrigin.FAILURE:
-                    self.osc_queue.put((self.eye_id, eye_info))
+                if amplified_eye_info.info_type != EyeInfoOrigin.FAILURE:
+                    self.osc_queue.put((self.eye_id, amplified_eye_info))
             except Empty:
                 pass
+
+    def amplify_results(self, eye_info: EyeInfo):
+        eye_info.x = eye_info.x * self.output_multiplier_x
+        eye_info.y = eye_info.y * self.output_multiplier_y
+        return eye_info
+
+    def setup_output_multiplier(self):
+        if self.eye_id == EyeId.LEFT or self.settings_config.gui_osc_mirror_left_eye_multiplier:
+            self.output_multiplier_x = float(self.settings_config.gui_osc_output_multiplier_left_x)
+            self.output_multiplier_y = float(self.settings_config.gui_osc_output_multiplier_left_x)
+        elif self.eye_id == EyeId.RIGHT:
+            self.output_multiplier_x = float(self.settings_config.gui_osc_output_multiplier_right_x)
+            self.output_multiplier_y = float(self.settings_config.gui_osc_output_multiplier_right_x)
+        else:
+            raise dual_eye_error
