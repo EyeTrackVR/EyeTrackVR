@@ -39,7 +39,7 @@ from one_euro_filter import OneEuroFilter
 import psutil, os
 import sys 
 from utils.misc_utils import resource_path
-
+import platform
 frames = 0
 
 def run_model(input_queue, output_queue, session):
@@ -77,7 +77,10 @@ class LEAP_C(object):
         # Config variables
         self.num_threads = 3  # Number of python threads to use (using ~1 more than needed to achieve wanted fps yields lower cpu usage)
         self.queue_max_size = 1  # Optimize for best CPU usage, Memory, and Latency. A maxsize is needed to not create a potential memory leak.
-        self.model_path = resource_path('Models/mommy072623.onnx')
+        if platform.system() == "Darwin":
+            self.model_path = resource_path('EyeTrackApp/Models/mommy072623.onnx') # funny MacOS files issues :P
+        else:
+            self.model_path = resource_path('Models/mommy072623.onnx')
         self.interval = 1  # FPS print update rate
         self.low_priority = True  # set process priority to low
         self.print_fps = True

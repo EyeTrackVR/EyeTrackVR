@@ -5,7 +5,7 @@ import serial
 import serial.tools.list_ports
 import threading
 import time
-
+import platform
 from colorama import Fore
 from config import EyeTrackConfig
 from enum import Enum
@@ -113,7 +113,10 @@ class Camera:
                         self.cv2_camera = cv2.VideoCapture()
                         self.cv2_camera.setExceptionMode(True)
                         # https://github.com/opencv/opencv/blob/4.8.0/modules/videoio/include/opencv2/videoio.hpp#L803
-                        self.cv2_camera.open(self.current_capture_source, cv2.CAP_FFMPEG, params=OPENCV_PARAMS)
+                        if platform.system() == "Darwin":
+                            self.cv2_camera.open(self.current_capture_source) #MacOS
+                        else:
+                            self.cv2_camera.open(self.current_capture_source, cv2.CAP_FFMPEG, params=OPENCV_PARAMS)
                         should_push = False
             else:
                 # We don't have a capture source to try yet, wait for one to show up in the GUI.
@@ -137,6 +140,11 @@ class Camera:
     def get_cv2_camera_picture(self, should_push):
         try:
             ret, image = self.cv2_camera.read()
+            height, width = image.shape[:2]  # Calculate the aspect ratio
+            aspect_ratio = float(width) / float(height)  # Determine the new height based on the desired maximum width
+            new_height = int(680 / aspect_ratio)
+            image = cv2.resize(image, (680, new_height))
+           # image = cv2.resize(image, (480, 480))
             if not ret:
                 self.cv2_camera.set(cv2.CAP_PROP_POS_FRAMES, 0)
                 raise RuntimeError("Problem while getting frame")
