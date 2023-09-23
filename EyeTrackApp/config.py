@@ -1,7 +1,6 @@
 import json
 import os.path
 import shutil
-
 from eye import EyeId
 from pydantic import BaseModel
 from typing import Union

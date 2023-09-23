@@ -34,8 +34,6 @@ from operator import truth
 from dataclasses import dataclass
 import sys
 import asyncio
-
-
 sys.path.append(".")
 from config import EyeTrackCameraConfig
 from config import EyeTrackSettingsConfig
@@ -136,18 +134,14 @@ class EyeProcessor:
         self.previous_rotation = self.config.rotation_angle
         self.camera_model = None
         self.detector_3d = None
-
         self.er_hsf = None
         self.er_hsrac = None
         self.er_daddy = None
         self.er_leap = None
         self.ibo = IntensityBasedOpeness(self.eye_id)
         self.roi_include_set = {"rotation_angle", "roi_window_x", "roi_window_y"}
-
         self.failed = 0
-
         self.skip_blink_detect = False
-
         self.out_y = 0.0
         self.out_x = 0.0
         self.rawx = 0.0
@@ -255,10 +249,8 @@ class EyeProcessor:
 
     def UPDATE(self):
 
-
         if self.settings.gui_BLINK:
             self.eyeopen = BLINK(self)
-
 
         if self.settings.gui_IBO and self.eyeopen != 0.0: #TODO make ransac blink it's pwn self var to rid of this non-sense
             self.eyeopen = self.ibo.intense(

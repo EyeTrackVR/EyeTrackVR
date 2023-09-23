@@ -1,17 +1,14 @@
 import os
-import os
 import PySimpleGUI as sg
 import queue
 import requests
 import threading
-
 from camera_widget import CameraWidget
 from config import EyeTrackConfig
 from eye import EyeId
 from osc import VRChatOSCReceiver, VRChatOSC
 from general_settings_widget import SettingsWidget
 from algo_settings_widget import AlgoSettingsWidget
-
 from utils.misc_utils import is_nt, resource_path
 
 if is_nt:
@@ -21,13 +18,11 @@ os.system('color')  # init ANSI color
 # Random environment variable to speed up webcam opening on the MSMF backend.
 # https://github.com/opencv/opencv/issues/17687
 os.environ["OPENCV_VIDEOIO_MSMF_ENABLE_HW_TRANSFORMS"] = "0"
-
 WINDOW_NAME = "EyeTrackApp"
 RIGHT_EYE_NAME = "-RIGHTEYEWIDGET-"
 LEFT_EYE_NAME = "-LEFTEYEWIDGET-"
 SETTINGS_NAME = "-SETTINGSWIDGET-"
 ALGO_SETTINGS_NAME = "-ALGOSETTINGSWIDGET-"
-
 LEFT_EYE_RADIO_NAME = "-LEFTEYERADIO-"
 RIGHT_EYE_RADIO_NAME = "-RIGHTEYERADIO-"
 BOTH_EYE_RADIO_NAME = "-BOTHEYERADIO-"
