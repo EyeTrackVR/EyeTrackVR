@@ -139,10 +139,10 @@ class Camera:
         try:
             ret, image = self.cv2_camera.read()
             height, width = image.shape[:2]  # Calculate the aspect ratio
-            aspect_ratio = float(width) / float(height)  # Determine the new height based on the desired maximum width
-            new_height = int(680 / aspect_ratio)
-            image = cv2.resize(image, (680, new_height))
-           # image = cv2.resize(image, (480, 480))
+            if int(width) > 680:
+                aspect_ratio = float(width) / float(height)  # Determine the new height based on the desired maximum width
+                new_height = int(680 / aspect_ratio)
+                image = cv2.resize(image, (680, new_height))
             if not ret:
                 self.cv2_camera.set(cv2.CAP_PROP_POS_FRAMES, 0)
                 raise RuntimeError("Problem while getting frame")
