@@ -111,10 +111,7 @@ class Camera:
                         self.cv2_camera = cv2.VideoCapture()
                         self.cv2_camera.setExceptionMode(True)
                         # https://github.com/opencv/opencv/blob/4.8.0/modules/videoio/include/opencv2/videoio.hpp#L803
-                        if platform.system() == "Darwin":
-                            self.cv2_camera.open(self.current_capture_source) #MacOS
-                        else:
-                            self.cv2_camera.open(self.current_capture_source, cv2.CAP_FFMPEG, params=OPENCV_PARAMS)
+                        self.cv2_camera.open(self.current_capture_source, cv2.CAP_FFMPEG, params=OPENCV_PARAMS)
                         should_push = False
             else:
                 # We don't have a capture source to try yet, wait for one to show up in the GUI.
