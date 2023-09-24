@@ -10,7 +10,7 @@ from queue import Queue, Empty
 from camera import Camera, CameraState
 from osc import EyeId
 import cv2
-from utils.misc_utils import PlaySound, SND_FILENAME,SND_ASYNC, resource_path
+from utils.misc_utils import PlaySound, SND_FILENAME, SND_ASYNC, resource_path, clamp
 import numpy as np
 
 
@@ -445,9 +445,11 @@ class CameraWidget:
                 if amplified_eye_info.info_type != EyeInfoOrigin.FAILURE: #and not amplified_eye_info.blink:
                     graph.update(background_color="white")
                     if not np.isnan(amplified_eye_info.x) and not np.isnan(amplified_eye_info.y):
-                        # TODO clamp the circle to the borders lmao
                         graph.draw_circle(
-                            (amplified_eye_info.x * -100, amplified_eye_info.y * -100),
+                            (
+                                clamp(amplified_eye_info.x, -1, 1) * -100,
+                                clamp(amplified_eye_info.y, -1, 1) * -100,
+                            ),
                             20,
                             fill_color="black",
                             line_color="white",
