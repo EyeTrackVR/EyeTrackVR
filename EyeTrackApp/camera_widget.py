@@ -54,8 +54,13 @@ class CameraWidget:
         else:
             raise dual_eye_error
 
-        self.output_multiplier_x = 1.0
-        self.output_multiplier_y = 1.0
+        self.output_multiplier_positive_x = 1.0
+        self.output_multiplier_negative_x = 1.0
+        self.output_multiplier_positive_y = 1.0
+        self.output_multiplier_negative_y = 1.0
+
+        self.output_multiplier_combine_x = True
+        self.output_multiplier_combine_y = True
 
         self.cancellation_event = Event()
         # Set the event until start is called, otherwise we can block if shutdown is called.
@@ -486,16 +491,30 @@ class CameraWidget:
                 pass
 
     def amplify_results(self, eye_info: EyeInfo):
-        eye_info.x = eye_info.x * self.output_multiplier_x
-        eye_info.y = eye_info.y * self.output_multiplier_y
+        if self.output_multiplier_combine_x:
+            eye_info.x = eye_info.x * self.output_multiplier_positive_x
+        else:
+            raise NotImplementedError()
+
+        if self.output_multiplier_combine_y:
+            eye_info.y = eye_info.y * self.output_multiplier_positive_y
+        else:
+            raise NotImplementedError()
+
         return eye_info
 
     def setup_output_multiplier(self):
-        if self.eye_id == EyeId.LEFT or self.settings_config.gui_osc_mirror_left_eye_multiplier:
-            self.output_multiplier_x = float(self.settings_config.gui_osc_output_multiplier_left_x)
-            self.output_multiplier_y = float(self.settings_config.gui_osc_output_multiplier_left_x)
-        elif self.eye_id == EyeId.RIGHT:
-            self.output_multiplier_x = float(self.settings_config.gui_osc_output_multiplier_right_x)
-            self.output_multiplier_y = float(self.settings_config.gui_osc_output_multiplier_right_x)
-        else:
+        direction_indicator = {
+            EyeId.LEFT: "left",
+            EyeId.RIGHT: "right"
+        }
+        direction = direction_indicator.get(self.eye_id, None)
+        if not direction:
             raise dual_eye_error
+
+        self.output_multiplier_positive_x = float(getattr(self.settings_config, f"gui_osc_output_multiplier_positive_{direction}_x", 1.0))
+        self.output_multiplier_negative_x = float(getattr(self.settings_config, f"gui_osc_output_multiplier_negative_{direction}_x", 1.0))
+        self.output_multiplier_positive_y = float(getattr(self.settings_config, f"gui_osc_output_multiplier_positive_{direction}_y", 1.0))
+        self.output_multiplier_negative_y = float(getattr(self.settings_config, f"gui_osc_output_multiplier_negative_{direction}_y", 1.0))
+        self.output_multiplier_combine_x = getattr(self.settings_config, f"gui_osc_output_multiplier_combine_{direction}_x", True)
+        self.output_multiplier_combine_y = getattr(self.settings_config, f"gui_osc_output_multiplier_combine_{direction}_y", True)
