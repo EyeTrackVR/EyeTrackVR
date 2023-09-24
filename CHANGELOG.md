@@ -3,6 +3,13 @@
 [![semantic versioning](https://img.shields.io/badge/semantic%20versioning-2.0.0-green.svg)](https://semver.org)
 > All notable changes to this project will be documented in this file
 
+## [1.0.0-HSF-and-new-algos-feature-branch.4](https://github.com/EyeTrackVR/EyeTrackVR/compare/v1.0.0-HSF-and-new-algos-feature-branch.3...v1.0.0-HSF-and-new-algos-feature-branch.4) (2023-09-24)
+
+
+### 🐛 Bug Fixes
+
+* LEAP full closed thresh ([4ad1eaf](https://github.com/EyeTrackVR/EyeTrackVR/commit/4ad1eaffc4f2f3600d2442f0a5c3939cf6381258))
+
 ## [1.0.0-HSF-and-new-algos-feature-branch.3](https://github.com/EyeTrackVR/EyeTrackVR/compare/v1.0.0-HSF-and-new-algos-feature-branch.2...v1.0.0-HSF-and-new-algos-feature-branch.3) (2023-09-24)
 
 
