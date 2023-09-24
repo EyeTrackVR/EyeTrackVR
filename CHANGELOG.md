@@ -3,6 +3,14 @@
 [![semantic versioning](https://img.shields.io/badge/semantic%20versioning-2.0.0-green.svg)](https://semver.org)
 > All notable changes to this project will be documented in this file
 
+## [1.0.0-HSF-and-new-algos-feature-branch.3](https://github.com/EyeTrackVR/EyeTrackVR/compare/v1.0.0-HSF-and-new-algos-feature-branch.2...v1.0.0-HSF-and-new-algos-feature-branch.3) (2023-09-24)
+
+
+### 🐛 Bug Fixes
+
+* UVC cameras not working ([5e28ee3](https://github.com/EyeTrackVR/EyeTrackVR/commit/5e28ee34e58719d30f41b9a70fe94d3f8995dcac))
+* UVC cameras not working2 ([5209a44](https://github.com/EyeTrackVR/EyeTrackVR/commit/5209a441b6cc603db00c463c1704f94172baa3a2))
+
 ## [1.0.0-HSF-and-new-algos-feature-branch.2](https://github.com/EyeTrackVR/EyeTrackVR/compare/v1.0.0-HSF-and-new-algos-feature-branch.1...v1.0.0-HSF-and-new-algos-feature-branch.2) (2023-09-23)
 
 
