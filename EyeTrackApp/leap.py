@@ -207,7 +207,6 @@ class LEAP_C(object):
                     self.openlist.pop(0)
                     self.openlist.append(d)
 
-
             try:
                 per = ((d - max(self.openlist)) / (min(self.openlist) - max(self.openlist)))
                 per = 1 - per
@@ -220,6 +219,8 @@ class LEAP_C(object):
 
             per = d - 0.1
             self.last_lid = per
+            if per <= 0.1:
+                per == 0.0
          #   print(per)
             return frame, float(x), float(y), per
 
