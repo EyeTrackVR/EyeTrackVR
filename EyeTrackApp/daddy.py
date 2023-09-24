@@ -28,21 +28,25 @@ Copyright (c) 2023 EyeTrackVR <3
 import sys
 from typing import Tuple
 import math
-
+import platform
 import numpy as np
 import cv2
 import onnxruntime
-
 from one_euro_filter import OneEuroFilter
 from utils.misc_utils import FastMedian, resource_path
-
+import os
+os.environ["OMP_NUM_THREADS"] = "1"
 # DADDY
 # Please change the name of this script and the name of the method if you have something better.
 video_path = "ezgif.com-gif-maker.avi"
 input_size = 192  # Do not change this number.
 heatmap_size = 48  # Do not change this number.
 kernel_size = 7
-model_file = "Models/daddy230210.onnx"  # The model file name will be changed when performance stabilises.
+if platform.system() == "Darwin":
+    model_file = "EyeTrackApp/Models/daddy230210.onnx"  # The model file name will be changed when performance stabilises.  # funny MacOS files issues :P
+else:
+    model_file = "Models/daddy230210.onnx"  # The model file name will be changed when performance stabilises.
+
 # SHA256 for model version verification
 # daddy230210.onnx = 59e59aa2a21024884200dd3acbd5e6a2e8d7209c46555fbdc727d4fe3adb68d3
 imshow_enable = False
@@ -207,7 +211,7 @@ class DADDY_cls(object):
         onnxruntime.disable_telemetry_events()
         options = onnxruntime.SessionOptions()
         options.inter_op_num_threads = 1  # This number should be changed accordingly
-        options.intra_op_num_threads = 4  # This number should be changed accordingly
+        options.intra_op_num_threads = 1  # This number should be changed accordingly
         options.execution_mode = onnxruntime.ExecutionMode.ORT_SEQUENTIAL
         options.graph_optimization_level = onnxruntime.GraphOptimizationLevel.ORT_ENABLE_ALL
         
