@@ -476,9 +476,7 @@ class EyeProcessor:
 
         # set algo priorities
         if self.settings.gui_HSF:
-            print('yes hsf')
             if self.er_hsf is None:
-                print('yes none')
                 if self.eye_id in [EyeId.LEFT]:
                     self.er_hsf = External_Run_HSF(
                         self.settings.gui_skip_autoradius,
