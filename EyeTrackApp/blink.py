@@ -3,7 +3,6 @@ import numpy as np
 def BLINK(self): 
 
     if self.blink_clear == True:
-        print('CLEARRR')
         self.max_ints = []
         self.max_int = 0
         self.frames = 0

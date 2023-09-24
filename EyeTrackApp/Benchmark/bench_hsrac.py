@@ -135,7 +135,6 @@ class HaarSurroundFeature:
     def __init__(self, r_inner, r_outer=None, val=None):
         if r_outer is None:
             r_outer = r_inner * 3
-        # print(r_outer)
         r_inner2 = r_inner * r_inner
         count_inner = r_inner2
         count_outer = r_outer * r_outer - r_inner2
@@ -834,15 +833,13 @@ class HSRAC_cls(object):
             if self.blink_detector.enable_detect_flg and self.blink_detector.detect(
                     cv2.mean(safe_crop(gray_frame, lower_x, lower_y, upper_x, upper_y, 1))[0]):
                 # If the average value of cropped_image is greater than response_max
-                # (i.e., if the cropimage is whitish
-                # blink
-                print("BLINK BD")
+                # (i.e., if the cropimage is whitish blink
                 blink_bd = True
     
         # if imshow_enable or save_video:
         #    cv2.circle(frame, (orig_x, orig_y), 6, (0, 0, 255), -1)
         # cv2.circle(ori_frame, (center_x, center_y), 7, (255, 0, 0), -1)
-    
+
         # If you want to update response_max. it may be more cost-effective to rewrite response_list in the following way
         # https://stackoverflow.com/questions/42771110/fastest-way-to-left-cycle-a-numpy-array-like-pop-push-for-a-queue
     
@@ -976,8 +973,8 @@ class HSRAC_cls(object):
         # crop_start_time = timeit.default_timer()
         cx, cy, w, h, theta = ransac_data
         #  print(cx, cy)
-        if w >= 2.1 * h:  # new blink detection algo lmao this works pretty good actually
-            print("RAN BLINK")
+   #     if w >= 2.1 * h:  # new blink detection algo lmao this works pretty good actually
+   #         pass
             # return center_x, center_y, frame, frame, True
     
         # cx = center_x - (csx - cx) # we find the difference between the crop size and ransac point, and subtract from the center point from HSF

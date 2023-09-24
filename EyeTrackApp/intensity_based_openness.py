@@ -189,7 +189,7 @@ class IntensityBasedOpeness:
                     img = cv2.imread(self.imgfile, flags=cv2.IMREAD_UNCHANGED)
                     # check code: cv2.absdiff(img,u32_1ch_to_u16_3ch(u16_3ch_to_u32_1ch(img)))
                     if img.shape[:2] != frameshape:
-                        print("size does not match the input frame.")
+                        print("[WARN] Size does not match the input frame.")
                         req_newdata = True
                     else:
                         self.data = u16_3ch_to_u32_1ch(img)

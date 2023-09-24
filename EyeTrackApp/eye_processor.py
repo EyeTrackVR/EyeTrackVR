@@ -470,7 +470,6 @@ class EyeProcessor:
         self.fithalgo = None
         self.sixthalgo = None
         algolist = [None, None, None, None, None, None, None]
-
         # clear HSF values when page is opened to correctly reflect setting changes
         self.er_hsf = None
 
