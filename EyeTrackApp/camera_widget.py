@@ -59,6 +59,9 @@ class CameraWidget:
         self.output_multiplier_positive_y = 1.0
         self.output_multiplier_negative_y = 1.0
 
+        self.flip_x = 1
+        self.flip_y = 1
+
         self.output_multiplier_combine_x = True
         self.output_multiplier_combine_y = True
 
@@ -491,16 +494,19 @@ class CameraWidget:
                 pass
 
     def amplify_results(self, eye_info: EyeInfo):
-        if self.output_multiplier_combine_x:
-            eye_info.x = eye_info.x * self.output_multiplier_positive_x
-        else:
-            raise NotImplementedError()
+        x_multiplier = (
+            self.output_multiplier_negative_x
+            if eye_info.x < 0 or self.output_multiplier_combine_x
+            else self.output_multiplier_positive_x
+        )
+        y_multiplier = (
+            self.output_multiplier_negative_y
+            if eye_info.y < 0 or self.output_multiplier_combine_y
+            else self.output_multiplier_positive_y
+        )
 
-        if self.output_multiplier_combine_y:
-            eye_info.y = eye_info.y * self.output_multiplier_positive_y
-        else:
-            raise NotImplementedError()
-
+        eye_info.x = eye_info.x * x_multiplier * self.flip_x
+        eye_info.y = eye_info.y * y_multiplier * self.flip_y
         return eye_info
 
     def setup_output_multiplier(self):
@@ -527,3 +533,6 @@ class CameraWidget:
         self.output_multiplier_combine_y = getattr(
             self.settings_config, f"gui_osc_output_multiplier_combine_{direction}_y", True
         )
+
+        self.flip_x = -1 if getattr(self.settings_config, f"gui_flip_x_axis_{direction}") else 1
+        self.flip_y = -1 if self.settings_config.gui_flip_y_axis else 1
