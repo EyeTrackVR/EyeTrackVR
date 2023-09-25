@@ -447,7 +447,7 @@ class CameraWidget:
                 graph = window[self.gui_output_graph]
                 graph.erase()
 
-                if amplified_eye_info.info_type != EyeInfoOrigin.FAILURE: #and not amplified_eye_info.blink:
+                if amplified_eye_info.info_type != EyeInfoOrigin.FAILURE:  # and not amplified_eye_info.blink:
                     graph.update(background_color="white")
                     if not np.isnan(amplified_eye_info.x) and not np.isnan(amplified_eye_info.y):
                         graph.draw_circle(
@@ -504,17 +504,26 @@ class CameraWidget:
         return eye_info
 
     def setup_output_multiplier(self):
-        direction_indicator = {
-            EyeId.LEFT: "left",
-            EyeId.RIGHT: "right"
-        }
+        direction_indicator = {EyeId.LEFT: "left", EyeId.RIGHT: "right"}
         direction = direction_indicator.get(self.eye_id, None)
         if not direction:
             raise dual_eye_error
 
-        self.output_multiplier_positive_x = float(getattr(self.settings_config, f"gui_osc_output_multiplier_positive_{direction}_x", 1.0))
-        self.output_multiplier_negative_x = float(getattr(self.settings_config, f"gui_osc_output_multiplier_negative_{direction}_x", 1.0))
-        self.output_multiplier_positive_y = float(getattr(self.settings_config, f"gui_osc_output_multiplier_positive_{direction}_y", 1.0))
-        self.output_multiplier_negative_y = float(getattr(self.settings_config, f"gui_osc_output_multiplier_negative_{direction}_y", 1.0))
-        self.output_multiplier_combine_x = getattr(self.settings_config, f"gui_osc_output_multiplier_combine_{direction}_x", True)
-        self.output_multiplier_combine_y = getattr(self.settings_config, f"gui_osc_output_multiplier_combine_{direction}_y", True)
+        self.output_multiplier_positive_x = float(
+            getattr(self.settings_config, f"gui_osc_output_multiplier_positive_{direction}_x", 1.0)
+        )
+        self.output_multiplier_negative_x = float(
+            getattr(self.settings_config, f"gui_osc_output_multiplier_negative_{direction}_x", 1.0)
+        )
+        self.output_multiplier_positive_y = float(
+            getattr(self.settings_config, f"gui_osc_output_multiplier_positive_{direction}_y", 1.0)
+        )
+        self.output_multiplier_negative_y = float(
+            getattr(self.settings_config, f"gui_osc_output_multiplier_negative_{direction}_y", 1.0)
+        )
+        self.output_multiplier_combine_x = getattr(
+            self.settings_config, f"gui_osc_output_multiplier_combine_{direction}_x", True
+        )
+        self.output_multiplier_combine_y = getattr(
+            self.settings_config, f"gui_osc_output_multiplier_combine_{direction}_y", True
+        )
