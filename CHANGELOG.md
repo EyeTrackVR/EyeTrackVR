@@ -3,6 +3,18 @@
 [![semantic versioning](https://img.shields.io/badge/semantic%20versioning-2.0.0-green.svg)](https://semver.org)
 > All notable changes to this project will be documented in this file
 
+## [1.0.0-HSF-and-new-algos-feature-branch.5](https://github.com/EyeTrackVR/EyeTrackVR/compare/v1.0.0-HSF-and-new-algos-feature-branch.4...v1.0.0-HSF-and-new-algos-feature-branch.5) (2023-09-26)
+
+
+### 🍕 Features
+
+* LEAP Lid blink algo ([ab631fa](https://github.com/EyeTrackVR/EyeTrackVR/commit/ab631fad198c23528cfee2376fa7f5af0d0b5818))
+
+
+### 🐛 Bug Fixes
+
+* small DADDY optimizations (test for FPS limit) ([6297ce3](https://github.com/EyeTrackVR/EyeTrackVR/commit/6297ce327cbd0efd286fdc03ec1dfe7507a437ae))
+
 ## [1.0.0-HSF-and-new-algos-feature-branch.4](https://github.com/EyeTrackVR/EyeTrackVR/compare/v1.0.0-HSF-and-new-algos-feature-branch.3...v1.0.0-HSF-and-new-algos-feature-branch.4) (2023-09-24)
 
 
