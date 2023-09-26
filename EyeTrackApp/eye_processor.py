@@ -34,6 +34,7 @@ from operator import truth
 from dataclasses import dataclass
 import sys
 import asyncio
+
 sys.path.append(".")
 from config import EyeTrackCameraConfig
 from config import EyeTrackSettingsConfig
@@ -252,7 +253,9 @@ class EyeProcessor:
         if self.settings.gui_BLINK:
             self.eyeopen = BLINK(self)
 
-        if self.settings.gui_IBO and self.eyeopen != 0.0: #TODO make ransac blink it's pwn self var to rid of this non-sense
+        if (
+            self.settings.gui_IBO and self.eyeopen != 0.0
+        ):  # TODO make ransac blink it's pwn self var to rid of this non-sense
             self.eyeopen = self.ibo.intense(
                 self.rawx,
                 self.rawy,
@@ -268,8 +271,7 @@ class EyeProcessor:
             if self.bd_blink == True:
                 pass
 
-
-        if self.settings.gui_IBO and self.settings.gui_BLINK and self.eyeopen != 0.0:
+        if self.settings.gui_IBO and self.eyeopen != 0.0:
             ibo = self.ibo.intense(
                 self.rawx,
                 self.rawy,
@@ -278,27 +280,30 @@ class EyeProcessor:
                 self.settings.ibo_average_output_samples,
             )
 
-            blink = BLINK(self)
-            if blink == 0.0:
-                self.eyeopen = 0.0
-            else:
-                self.eyeopen = ibo
+        if self.settings.gui_LEAP_lid:
+            (
+                self.current_image_gray,
+                self.rawx,
+                self.rawy,
+                self.eyeopen,
+            ) = self.er_leap.run(self.current_image_gray)
 
-
-        if len(self.prev_y_list) >= 200: # "lock" eye when close/blink IN TESTING, kinda broke
+        if (
+            len(self.prev_y_list) >= 200
+        ):  # "lock" eye when close/blink IN TESTING, kinda broke
             self.prev_y_list.pop(0)
             self.prev_y_list.append(self.out_y)
         else:
             self.prev_y_list.append(self.out_y)
 
-       # print(abs(self.eyeopen - self.past_blink))
-        blink_vec = min(abs(self.eyeopen - self.past_blink), 1) #clamp to 1
+        # print(abs(self.eyeopen - self.past_blink))
+        blink_vec = min(abs(self.eyeopen - self.past_blink), 1)  # clamp to 1
 
         if blink_vec >= 0.1 or blink_vec == 0.0 and (self.out_y - self.prev_y) < 0.0:
-            #if blink_vec >= 0.1 or blink_vec == 0.0 and (self.out_y - self.prev_y) < 0.0:
-           # self.out_x = sum(self.prev_x_list) / len(self.prev_x_list)
+            # if blink_vec >= 0.1 or blink_vec == 0.0 and (self.out_y - self.prev_y) < 0.0:
+            # self.out_x = sum(self.prev_x_list) / len(self.prev_x_list)
             self.out_y = sum(self.prev_y_list) / len(self.prev_y_list)
-         #   print('AVG', self.out_y, len(self.prev_y_list))
+        #   print('AVG', self.out_y, len(self.prev_y_list))
 
         self.past_blink = self.eyeopen
         self.prev_x = self.out_x
@@ -313,24 +318,23 @@ class EyeProcessor:
         else:
             self.eyeopen = 0.9
 
-
     def BLINKM(self):
         self.eyeopen = BLINK(self)
 
     def LEAPM(self):
         self.thresh = self.current_image_gray.copy()
-        self.current_image_gray, self.rawx, self.rawy, self.eyeopen = self.er_leap.run(self.current_image_gray) #TODO: make own self var and LEAP toggle
+        self.current_image_gray, self.rawx, self.rawy, self.eyeopen = self.er_leap.run(
+            self.current_image_gray
+        )  # TODO: make own self var and LEAP toggle
         self.thresh = self.current_image_gray.copy()
         self.out_x, self.out_y = cal.cal_osc(self, self.rawx, self.rawy)
         self.current_algorithm = EyeInfoOrigin.LEAP
 
     def DADDYM(self):
         # todo: We should have a proper variable for drawing.
-        #self.thresh = self.current_image_gray.copy()
+        # self.thresh = self.current_image_gray.copy()
         self.thresh = self.current_image_gray.copy()
-        self.rawx, self.rawy, self.radius = self.er_daddy.run(
-            self.current_image_gray
-        )
+        self.rawx, self.rawy, self.radius = self.er_daddy.run(self.current_image_gray)
         # Daddy also uses a one euro filter, so I'll have to use it twice, but I'm not going to think too much about it.
         self.out_x, self.out_y = cal.cal_osc(self, self.rawx, self.rawy)
         self.current_algorithm = EyeInfoOrigin.DADDY
@@ -355,7 +359,7 @@ class EyeProcessor:
             self.current_image_gray
         )
         self.rawx, self.rawy, self.thresh, ranblink = RANSAC3D(self, True)
-        if self.settings.gui_RANSACBLINK: #might be redundant
+        if self.settings.gui_RANSACBLINK:  # might be redundant
             self.eyeopen = ranblink
 
         # print(self.radius)
@@ -379,7 +383,9 @@ class EyeProcessor:
         else:
             pass
         # todo: add process to initialise er_hsf when resolution changes
-        self.rawx, self.rawy, self.thresh, self.radius = self.er_hsf.run(self.current_image_gray)
+        self.rawx, self.rawy, self.thresh, self.radius = self.er_hsf.run(
+            self.current_image_gray
+        )
         self.out_x, self.out_y = cal.cal_osc(self, self.rawx, self.rawy)
         self.current_algorithm = EyeInfoOrigin.HSF
 
@@ -526,7 +532,7 @@ class EyeProcessor:
             if self.er_daddy is not None:
                 self.er_daddy = None
 
-        if self.settings.gui_LEAP:
+        if self.settings.gui_LEAP or self.settings.gui_LEAP_lid:
             if self.er_leap is None:
                 self.er_leap = External_Run_LEAP()
             algolist[self.settings.gui_LEAP] = self.LEAPM

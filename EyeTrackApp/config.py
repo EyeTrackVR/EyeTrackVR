@@ -77,7 +77,7 @@ class EyeTrackSettingsConfig(BaseModel):
     gui_legacy_ransac: bool = False
     gui_legacy_ransac_thresh_right: int = 80
     gui_legacy_ransac_thresh_left: int = 80
-
+    gui_LEAP_lid: bool = False
 
 
 class EyeTrackConfig(BaseModel):
@@ -85,7 +85,7 @@ class EyeTrackConfig(BaseModel):
     right_eye: EyeTrackCameraConfig = EyeTrackCameraConfig()
     left_eye: EyeTrackCameraConfig = EyeTrackCameraConfig()
     settings: EyeTrackSettingsConfig = EyeTrackSettingsConfig()
-  #  algo_settings: EyeTrackSettingsConfig = EyeTrackSettingsConfig()
+    #  algo_settings: EyeTrackSettingsConfig = EyeTrackSettingsConfig()
     eye_display_id: EyeId = EyeId.RIGHT
 
     @staticmethod
