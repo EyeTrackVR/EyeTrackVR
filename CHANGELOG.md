@@ -3,6 +3,14 @@
 [![semantic versioning](https://img.shields.io/badge/semantic%20versioning-2.0.0-green.svg)](https://semver.org)
 > All notable changes to this project will be documented in this file
 
+## [1.0.0-HSF-and-new-algos-feature-branch.6](https://github.com/EyeTrackVR/EyeTrackVR/compare/v1.0.0-HSF-and-new-algos-feature-branch.5...v1.0.0-HSF-and-new-algos-feature-branch.6) (2023-09-27)
+
+
+### 🐛 Bug Fixes
+
+* remove y axis lock (temp) ([2ec7d2d](https://github.com/EyeTrackVR/EyeTrackVR/commit/2ec7d2d4eeed06a7bee0aad31497f55d70749751))
+* tighten blink vec (needs testing/re-write, just minor fix) ([1c2760b](https://github.com/EyeTrackVR/EyeTrackVR/commit/1c2760b382efd52d368a18434f0684ba0383db3e))
+
 ## [1.0.0-HSF-and-new-algos-feature-branch.5](https://github.com/EyeTrackVR/EyeTrackVR/compare/v1.0.0-HSF-and-new-algos-feature-branch.4...v1.0.0-HSF-and-new-algos-feature-branch.5) (2023-09-26)
 
 
