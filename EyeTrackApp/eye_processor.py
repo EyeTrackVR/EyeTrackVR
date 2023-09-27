@@ -300,10 +300,10 @@ class EyeProcessor:
         # print(abs(self.eyeopen - self.past_blink))
         blink_vec = min(abs(self.eyeopen - self.past_blink), 1)  # clamp to 1
 
-        if blink_vec >= 0.17:
+      #  if blink_vec >= 0.17:
             # if blink_vec >= 0.1 or blink_vec == 0.0 and (self.out_y - self.prev_y) < 0.0:
             # self.out_x = sum(self.prev_x_list) / len(self.prev_x_list)
-            self.out_y = sum(self.prev_y_list) / len(self.prev_y_list)
+      #      self.out_y = sum(self.prev_y_list) / len(self.prev_y_list)
         #   print('AVG', self.out_y, len(self.prev_y_list))
 
         self.past_blink = self.eyeopen
@@ -330,6 +330,7 @@ class EyeProcessor:
         self.thresh = self.current_image_gray.copy()
         self.out_x, self.out_y = cal.cal_osc(self, self.rawx, self.rawy)
         self.current_algorithm = EyeInfoOrigin.LEAP
+        print(self.eyeopen)
 
     def DADDYM(self):
         # todo: We should have a proper variable for drawing.
