@@ -223,7 +223,7 @@ def RANSAC3D(self, hsrac_en):
         #               max_loc[0] - maxloc0_hf:max_loc[0] + maxloc0_hf]
     if self.settings.gui_legacy_ransac:
         if self.eye_id in [EyeId.LEFT]:
-            threshold_value =  self.settings.gui_legacy_ransac_thresh_right
+            threshold_value =  self.settings.gui_legacy_ransac_thresh_left
         else:
             threshold_value = self.settings.gui_legacy_ransac_thresh_right
     else:
