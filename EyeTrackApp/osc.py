@@ -48,8 +48,8 @@ def output_osc(eye_x, eye_y, eye_blink, last_blink, self):
                 self.l_eye_blink = eye_blink
 
                 if self.l_eye_blink == 0.0:
-                    if last_blink > 0.2: #when binary blink is on, blinks may be too fast for OSC so we repeat them.
-                        for i in range(5):
+                    if last_blink > 0.15: #when binary blink is on, blinks may be too fast for OSC so we repeat them.
+                        for i in range(4):
                             self.client.send_message(self.config.osc_left_eye_close_address, eyelid_transformer(self,self.l_eye_blink))
                         last_blink = time.time() - last_blink
                     if self.config.gui_eye_falloff:
@@ -69,8 +69,9 @@ def output_osc(eye_x, eye_y, eye_blink, last_blink, self):
                 self.r_eye_blink = eye_blink
 
                 if self.r_eye_blink == 0.0:
-                    if last_blink > 0.2: #when binary blink is on, blinks may be too fast for OSC so we repeat them.
-                        for i in range(5):
+                    if last_blink > 0.15: #when binary blink is on, blinks may be too fast for OSC so we repeat them.
+                        print("REPEATING R BLINK")
+                        for i in range(4):
                             self.client.send_message(self.config.osc_right_eye_close_address, eyelid_transformer(self,self.r_eye_blink))
                         last_blink = time.time() - last_blink
                     if self.config.gui_eye_falloff:

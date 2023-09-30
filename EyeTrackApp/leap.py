@@ -121,13 +121,16 @@ class LEAP_C(object):
                 process.nice(psutil.BELOW_NORMAL_PRIORITY_CLASS)  # Windows
                 process.nice()
                 # See https://learn.microsoft.com/en-us/windows/win32/api/processthreadsapi/nf-processthreadsapi-getpriorityclass#return-value for values
-        min_cutoff = 0.04
-        beta = 0.9
+        min_cutoff = 0.9
+        beta = 5.0
         # print(np.random.rand(22, 2))
         # noisy_point = np.array([1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1])
-        one_euro_filter = OneEuroFilter(
+        self.one_euro_filter = OneEuroFilter(
             np.random.rand(7, 2), min_cutoff=min_cutoff, beta=beta
         )
+        #self.one_euro_filter_open = OneEuroFilter(
+         #   np.random.rand(1, 2), min_cutoff=0.01, beta=0.04
+        #)
         self.dmax = 0
         self.dmin = 0
         self.openlist = []
@@ -174,6 +177,7 @@ class LEAP_C(object):
         if not self.output_queue.empty():
 
             frame, pre_landmark = self.output_queue.get()
+            pre_landmark = self.one_euro_filter(pre_landmark)
             # frame = cv2.resize(frame, (112, 112))
 
             for point in pre_landmark:
@@ -220,16 +224,16 @@ class LEAP_C(object):
             #    d2 = math.dist(pre_landmark[2], pre_landmark[4])
             #   d = d + d2
 
-            if len(self.openlist) < 2000:  # TODO expose as setting?
+            if len(self.openlist) < 5000:  # TODO expose as setting?
                 self.openlist.append(d)
             else:
-                if d >= np.percentile(self.openlist, 99) or d <= np.percentile(
-                    self.openlist, 1
-                ):
-                    pass
-                else:
-                    self.openlist.pop(0)
-                    self.openlist.append(d)
+              #  if d >= np.percentile(self.openlist, 99) or d <= np.percentile(
+                #    self.openlist, 1
+               # ):
+                #    pass
+            #else:
+                self.openlist.pop(0)
+                self.openlist.append(d)
 
             try:
                 per = (d - max(self.openlist)) / (
@@ -239,15 +243,18 @@ class LEAP_C(object):
             except:
                 per = 0.7
                 pass
+        #    print(d, per)
             x = pre_landmark[6][0]
             y = pre_landmark[6][1]
             frame = cv2.cvtColor(img, cv2.COLOR_RGB2GRAY)
 
-            per = d - 0.1
+          #  per = d - 0.1
             self.last_lid = per
-            if per <= 0.1:
+           # pera = np.array([per, per])
+            #self.one_euro_filter_open(pera)
+            if per <= 0.2: #TODO: EXPOSE AS SETTING
                 per == 0.0
-            #   print(per)
+           # print(per)
             return frame, float(x), float(y), per
 
         frame = cv2.cvtColor(img, cv2.COLOR_RGB2GRAY)

@@ -249,7 +249,7 @@ class EyeProcessor:
             pass
 
     def UPDATE(self):
-
+       # print(self.eyeopen)
         if self.settings.gui_BLINK:
             self.eyeopen = BLINK(self)
 
@@ -269,6 +269,7 @@ class EyeProcessor:
                 self.eyeopen = 0.0
 
             if self.bd_blink == True:
+                prin("blinks")
                 pass
 
         if self.settings.gui_IBO and self.eyeopen != 0.0:
@@ -280,17 +281,17 @@ class EyeProcessor:
                 self.settings.ibo_average_output_samples,
             )
 
-        if self.settings.gui_LEAP_lid:
+        if self.settings.gui_LEAP_lid and self.eyeopen != 0.0:
             (
                 self.current_image_gray,
                 self.rawx,
                 self.rawy,
                 self.eyeopen,
             ) = self.er_leap.run(self.current_image_gray)
-            print(self.eyeopen)
+          #  print(self.eyeopen)
 
         if (
-            len(self.prev_y_list) >= 200
+            len(self.prev_y_list) >= 100
         ):  # "lock" eye when close/blink IN TESTING, kinda broke
             self.prev_y_list.pop(0)
             self.prev_y_list.append(self.out_y)
@@ -300,10 +301,10 @@ class EyeProcessor:
         # print(abs(self.eyeopen - self.past_blink))
         blink_vec = min(abs(self.eyeopen - self.past_blink), 1)  # clamp to 1
 
-        #  if blink_vec >= 0.17:
-        # if blink_vec >= 0.1 or blink_vec == 0.0 and (self.out_y - self.prev_y) < 0.0:
-        # self.out_x = sum(self.prev_x_list) / len(self.prev_x_list)
-        #      self.out_y = sum(self.prev_y_list) / len(self.prev_y_list)
+        #if blink_vec >= 0.2:
+        if blink_vec >= 0.15 or blink_vec == 0.0 and (self.out_y - self.prev_y) < 0.0:
+            #self.out_x = sum(self.prev_x_list) / len(self.prev_x_list)
+            self.out_y = sum(self.prev_y_list) / len(self.prev_y_list)
         #   print('AVG', self.out_y, len(self.prev_y_list))
 
         self.past_blink = self.eyeopen
@@ -317,7 +318,7 @@ class EyeProcessor:
         if self.settings.gui_RANSACBLINK and self.eyeopen == 0.0:
             pass
         else:
-            self.eyeopen = 0.9
+            self.eyeopen = 0.8
 
     def BLINKM(self):
         self.eyeopen = BLINK(self)
@@ -330,7 +331,7 @@ class EyeProcessor:
         self.thresh = self.current_image_gray.copy()
         self.out_x, self.out_y = cal.cal_osc(self, self.rawx, self.rawy)
         self.current_algorithm = EyeInfoOrigin.LEAP
-        print(self.eyeopen)
+       # print(self.eyeopen)
 
     def DADDYM(self):
         # todo: We should have a proper variable for drawing.
@@ -363,6 +364,7 @@ class EyeProcessor:
         self.rawx, self.rawy, self.thresh, ranblink = RANSAC3D(self, True)
         if self.settings.gui_RANSACBLINK:  # might be redundant
             self.eyeopen = ranblink
+         #   print("RANBLINK", ranblink)
 
         # print(self.radius)
         # if self.prev_x is None:

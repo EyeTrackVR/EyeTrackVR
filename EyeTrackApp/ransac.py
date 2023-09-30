@@ -435,8 +435,9 @@ def RANSAC3D(self, hsrac_en):
             elif len(self.blink_list) < 10000:
                 self.blink_list.append(abs(perscalarw - perscalarh))
 
-            if abs(perscalarw - perscalarh) >= np.percentile(self.blink_list, 94):
+            if abs(perscalarw - perscalarh) >= np.percentile(self.blink_list, 92):
                 blink = 0.0
+                print("RANSAC BLINK")
 
     try:
         cv2.drawContours(
