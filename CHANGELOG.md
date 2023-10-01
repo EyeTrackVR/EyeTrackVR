@@ -3,6 +3,14 @@
 [![semantic versioning](https://img.shields.io/badge/semantic%20versioning-2.0.0-green.svg)](https://semver.org)
 > All notable changes to this project will be documented in this file
 
+## [1.0.0-HSF-and-new-algos-feature-branch.8](https://github.com/EyeTrackVR/EyeTrackVR/compare/v1.0.0-HSF-and-new-algos-feature-branch.7...v1.0.0-HSF-and-new-algos-feature-branch.8) (2023-10-01)
+
+
+### 🐛 Bug Fixes
+
+* LEAP Eyelid, tune RANSAC BLINK ([5a6248b](https://github.com/EyeTrackVR/EyeTrackVR/commit/5a6248b897cf37a857148c099bd3336f3dc7f5cd))
+* remove prints ([46427e3](https://github.com/EyeTrackVR/EyeTrackVR/commit/46427e35330e7a15501ecc9fe668a30572a82832))
+
 ## [1.0.0-HSF-and-new-algos-feature-branch.7](https://github.com/EyeTrackVR/EyeTrackVR/compare/v1.0.0-HSF-and-new-algos-feature-branch.6...v1.0.0-HSF-and-new-algos-feature-branch.7) (2023-09-28)
 
 
