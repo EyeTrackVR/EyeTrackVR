@@ -427,7 +427,7 @@ def RANSAC3D(self, hsrac_en):
                     with open("RANSAC_BLINK_RIGHT.cfg", "w") as file:
                         for item in self.blink_list:
                             file.write(str(item) + "\n")
-                print("SAVE")
+               # print("SAVE")
 
                 # self.blink_list.pop(0)
                 self.blink_list.append(abs(perscalarw - perscalarh))
@@ -437,7 +437,7 @@ def RANSAC3D(self, hsrac_en):
 
             if abs(perscalarw - perscalarh) >= np.percentile(self.blink_list, 92):
                 blink = 0.0
-                print("RANSAC BLINK")
+
 
     try:
         cv2.drawContours(
