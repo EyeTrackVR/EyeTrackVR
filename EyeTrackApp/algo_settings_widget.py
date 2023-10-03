@@ -1,6 +1,6 @@
 import PySimpleGUI as sg
 
-from config import EyeTrackSettingsConfig
+from config import EyeTrackConfig
 from osc import EyeId
 from queue import Queue
 from threading import Event
@@ -8,7 +8,7 @@ from threading import Event
 
 class AlgoSettingsWidget:
     def __init__(
-        self, widget_id: EyeId, main_config: EyeTrackSettingsConfig, osc_queue: Queue
+        self, widget_id: EyeId, main_config: EyeTrackConfig, osc_queue: Queue
     ):
 
         self.gui_flip_x_axis_left = f"-FLIPXAXISLEFT{widget_id}-"
@@ -522,5 +522,4 @@ class AlgoSettingsWidget:
 
         if changed:
             self.main_config.save()
-            # print(self.main_config)
         self.osc_queue.put(EyeId.ALGOSETTINGS)

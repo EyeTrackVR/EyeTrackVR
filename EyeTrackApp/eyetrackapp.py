@@ -90,7 +90,7 @@ def main():
     ]
 
     settings = [
-        SettingsWidget(EyeId.SETTINGS, config, osc_queue),
+        SettingsWidget(EyeId.SETTINGS, config),
         AlgoSettingsWidget(EyeId.ALGOSETTINGS, config, osc_queue),
     ]
 
@@ -280,7 +280,6 @@ def main():
             for setting in settings:
                 if setting.started():
                     setting.render(window, event, values)
-
 
 
 if __name__ == "__main__":
