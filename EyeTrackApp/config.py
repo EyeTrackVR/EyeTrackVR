@@ -72,6 +72,9 @@ class EyeTrackSettingsConfig(BaseModel):
     calibration_samples: int = 600
     osc_right_eye_close_address: str = "/avatar/parameters/RightEyeLidExpandedSqueeze"
     osc_left_eye_close_address: str = "/avatar/parameters/LeftEyeLidExpandedSqueeze"
+    osc_left_eye_x_address: str = "/avatar/parameters/LeftEyeX"
+    osc_right_eye_x_address: str = "/avatar/parameters/RightEyeX"
+    osc_eyes_y_address: str = "/avatar/parameters/EyesY"
     osc_invert_eye_close: bool = False
     gui_RANSACBLINK: bool = True
     gui_legacy_ransac: bool = False

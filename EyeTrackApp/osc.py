@@ -32,9 +32,9 @@ def output_osc(eye_x, eye_y, eye_blink, last_blink, self):
             if self.main_config.eye_display_id in [EyeId.RIGHT, EyeId.LEFT]: #we are in single eye mode
                 se = True
 
-                self.client.send_message("/avatar/parameters/LeftEyeX", eye_x)
-                self.client.send_message("/avatar/parameters/RightEyeX", eye_x)
-                self.client.send_message("/avatar/parameters/EyesY", eye_y)
+                self.client.send_message(self.config.osc_left_eye_x_address, eye_x)
+                self.client.send_message(self.config.osc_right_eye_x_address, eye_x)
+                self.client.send_message(self.config.osc_eyes_y_address, eye_y)
                 
                 self.config.osc_left_eye_close_address
                 
@@ -58,7 +58,7 @@ def output_osc(eye_x, eye_y, eye_blink, last_blink, self):
                             self.client.send_message(self.config.osc_right_eye_close_address, eyelid_transformer(self,self.l_eye_blink))
                     self.l_eye_x = self.r_eye_x
 
-                self.client.send_message("/avatar/parameters/LeftEyeX", self.l_eye_x)
+                self.client.send_message(self.config.osc_left_eye_x_address, self.l_eye_x)
                 self.left_y = eye_y
 
                 self.client.send_message(self.config.osc_left_eye_close_address, eyelid_transformer(self,self.l_eye_blink))
@@ -81,14 +81,14 @@ def output_osc(eye_x, eye_y, eye_blink, last_blink, self):
 
                     self.r_eye_x = self.l_eye_x
                 
-                self.client.send_message("/avatar/parameters/RightEyeX", eye_x)
+                self.client.send_message(self.config.osc_right_eye_x_address, eye_x)
                 self.right_y = eye_y
 
                 self.client.send_message(self.config.osc_right_eye_close_address, eyelid_transformer(self,self.r_eye_blink))
 
             if self.main_config.eye_display_id in [EyeId.BOTH] and self.right_y != 621 and self.left_y != 621:
                 y = (self.right_y + self.left_y) / 2
-                self.client.send_message("/avatar/parameters/EyesY", y)
+                self.client.send_message(self.config.osc_eyes_y_address, y)
 
 
 
