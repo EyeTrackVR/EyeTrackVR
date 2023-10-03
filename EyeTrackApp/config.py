@@ -63,7 +63,6 @@ class EyeTrackSettingsConfig(BaseModel):
     gui_thresh_add: int = 11
     gui_update_check: bool = False
     gui_ROSC: bool = False
-    gui_vrc_native: bool = True
     gui_circular_crop_right: bool = False
     gui_circular_crop_left: bool = False
     ibo_filter_samples: int = 400
@@ -81,6 +80,9 @@ class EyeTrackSettingsConfig(BaseModel):
     gui_legacy_ransac_thresh_right: int = 80
     gui_legacy_ransac_thresh_left: int = 80
     gui_LEAP_lid: bool = False
+    gui_osc_vrcft_v1: bool = False
+    gui_osc_vrcft_v2: bool = False
+    gui_vrc_native: bool = True
 
 
 class EyeTrackConfig(BaseModel):

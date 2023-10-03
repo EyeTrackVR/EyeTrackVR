@@ -85,7 +85,7 @@ class LEAP_C(object):
         else:
             self.model_path = resource_path("Models/mommy072623.onnx")
         self.interval = 1  # FPS print update rate
-        self.low_priority = True  # set process priority to low
+        self.low_priority = True  # set process priority to low may cause issues
         self.print_fps = True
         # Init variables
         self.frames = 0
@@ -106,9 +106,6 @@ class LEAP_C(object):
             onnxruntime.GraphOptimizationLevel.ORT_ENABLE_ALL
         )
         opts.optimized_model_filepath = ""
-        self.ort_session = onnxruntime.InferenceSession(
-            self.model_path, opts, providers=["CPUExecutionProvider"]
-        )
 
         if self.low_priority:
             process = psutil.Process(os.getpid())  # set process priority to low
@@ -128,9 +125,9 @@ class LEAP_C(object):
         self.one_euro_filter = OneEuroFilter(
             np.random.rand(7, 2), min_cutoff=min_cutoff, beta=beta
         )
-        #self.one_euro_filter_open = OneEuroFilter(
-         #   np.random.rand(1, 2), min_cutoff=0.01, beta=0.04
-        #)
+        # self.one_euro_filter_open = OneEuroFilter(
+        #   np.random.rand(1, 2), min_cutoff=0.01, beta=0.04
+        # )
         self.dmax = 0
         self.dmin = 0
         self.openlist = []
@@ -227,11 +224,11 @@ class LEAP_C(object):
             if len(self.openlist) < 5000:  # TODO expose as setting?
                 self.openlist.append(d)
             else:
-              #  if d >= np.percentile(self.openlist, 99) or d <= np.percentile(
+                #  if d >= np.percentile(self.openlist, 99) or d <= np.percentile(
                 #    self.openlist, 1
-               # ):
+                # ):
                 #    pass
-            #else:
+                # else:
                 self.openlist.pop(0)
                 self.openlist.append(d)
 
@@ -243,18 +240,18 @@ class LEAP_C(object):
             except:
                 per = 0.7
                 pass
-        #    print(d, per)
+            #    print(d, per)
             x = pre_landmark[6][0]
             y = pre_landmark[6][1]
             frame = cv2.cvtColor(img, cv2.COLOR_RGB2GRAY)
 
-          #  per = d - 0.1
+            #  per = d - 0.1
             self.last_lid = per
-           # pera = np.array([per, per])
-            #self.one_euro_filter_open(pera)
-            if per <= 0.2: #TODO: EXPOSE AS SETTING
+            # pera = np.array([per, per])
+            # self.one_euro_filter_open(pera)
+            if per <= 0.2:  # TODO: EXPOSE AS SETTING
                 per == 0.0
-           # print(per)
+            # print(per)
             return frame, float(x), float(y), per
 
         frame = cv2.cvtColor(img, cv2.COLOR_RGB2GRAY)

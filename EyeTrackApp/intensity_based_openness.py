@@ -37,7 +37,7 @@ import psutil
 import sys
 
 process = psutil.Process(os.getpid())  # set process priority to low
-try: # medium chance this does absolutely nothing but eh
+try:  # medium chance this does absolutely nothing but eh
     sys.getwindowsversion()
 except AttributeError:
     process.nice(0)  # UNIX: 0 low 10 high
@@ -45,6 +45,7 @@ except AttributeError:
 else:
     process.nice(psutil.BELOW_NORMAL_PRIORITY_CLASS)  # Windows
     process.nice()
+
 
 class EyeId(IntEnum):
     RIGHT = 0
@@ -247,7 +248,7 @@ class IntensityBasedOpeness:
         upper_y = min(int_y + 25, frame.shape[0] - 1)
         lower_y = max(int_y - 25, 0)
 
-     #   frame_crop = frame[lower_y:upper_y, lower_x:upper_x]
+        #   frame_crop = frame[lower_y:upper_y, lower_x:upper_x]
         # frame = safe_crop(frame, lower_x, lower_y, upper_x, upper_y, False)
         # ret_, th = cv2.threshold(frame_crop, 80, 1.0, cv2.THRESH_BINARY_INV, dst=frame_crop)
         frame_crop = frame
@@ -274,10 +275,10 @@ class IntensityBasedOpeness:
                 intensity = self.maxval
 
         #    if intensity <= np.percentile( # TODO test this
-         #       self.filterlist, 0.3
-          #  ):  # filter abnormally low values
-                # print('filter, assume blink')
-            #    intensity = self.data[int_y, int_x]
+        #       self.filterlist, 0.3
+        #  ):  # filter abnormally low values
+        # print('filter, assume blink')
+        #    intensity = self.data[int_y, int_x]
         except:
             pass
         # self.tri_filter.append(intensity)
@@ -341,9 +342,8 @@ class IntensityBasedOpeness:
                 intensitya = max(
                     data_val + 5000, 1
                 )  # if current intensity value is not less use  this is an agressive adjust, test
-                self.data[int_y, int_x] = intensitya # set value
+                self.data[int_y, int_x] = intensitya  # set value
                 changed = True
-
 
         # min pupil global
         if self.maxval == 0:  # that value is not yet saved
@@ -371,7 +371,6 @@ class IntensityBasedOpeness:
             )  # for whatever reason when input and maxp are too close it outputs high
             eyeopen = 1 - eyeopen
 
-
             if outputSamples > 0:
                 if len(self.averageList) < outputSamples:
                     self.averageList.append(eyeopen)
@@ -385,8 +384,6 @@ class IntensityBasedOpeness:
 
             if eyeopen < 0:
                 eyeopen = 0.0
-
-
 
         if changed and (
             (time.time() - self.lct) > 5
