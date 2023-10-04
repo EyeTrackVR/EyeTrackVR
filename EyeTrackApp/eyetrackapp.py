@@ -91,7 +91,7 @@ def main():
 
     settings = [
         SettingsWidget(EyeId.SETTINGS, config),
-        AlgoSettingsWidget(EyeId.ALGOSETTINGS, config, osc_queue),
+        AlgoSettingsWidget(EyeId.ALGOSETTINGS, config),
     ]
 
     layout = [
