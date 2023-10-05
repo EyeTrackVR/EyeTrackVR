@@ -85,8 +85,8 @@ class LEAP_C(object):
         else:
             self.model_path = resource_path("Models/mommy072623.onnx")
         self.interval = 1  # FPS print update rate
-        self.low_priority = False  # set process priority to low may cause issues
-        self.print_fps = True
+        self.low_priority = True  # set process priority to low (may cause issues when unfocusing? reported by one, not reproducable)
+        self.print_fps = False
         # Init variables
         self.frames = 0
         self.queues = []

@@ -13,7 +13,7 @@ from utils.misc_utils import is_nt, resource_path
 
 if is_nt:
     from winotify import Notification
-os.system('color')  # init ANSI color
+os.system("color")  # init ANSI color
 
 # Random environment variable to speed up webcam opening on the MSMF backend.
 # https://github.com/opencv/opencv/issues/17687
@@ -30,7 +30,7 @@ SETTINGS_RADIO_NAME = "-SETTINGSRADIO-"
 ALGO_SETTINGS_RADIO_NAME = "-ALGOSETTINGSRADIO-"
 
 page_url = "https://github.com/RedHawk989/EyeTrackVR/releases/latest"
-appversion = "EyeTrackApp 0.2.0 BETA 7"
+appversion = "EyeTrackApp 0.2.0 BETA 8"
 
 
 def main():
@@ -49,7 +49,7 @@ def main():
         )
         latestversion = response.json()["name"]
         if (
-                appversion == latestversion
+            appversion == latestversion
         ):  # If what we scraped and hardcoded versions are same, assume we are up to date.
             print(f"\033[92m[INFO] App is the latest version! [{latestversion}]\033[0m")
         else:
@@ -59,7 +59,7 @@ def main():
             try:
                 if is_nt:
                     cwd = os.getcwd()
-                    #icon = cwd + "\Images\logo.ico"
+                    # icon = cwd + "\Images\logo.ico"
                     icon = resource_path("Images/logo.ico")
                     toast = Notification(
                         app_id="EyeTrackApp",
@@ -183,7 +183,10 @@ def main():
 
     # Create the window
     window = sg.Window(
-        f"{appversion}", layout, icon=resource_path("Images/logo.ico"), background_color="#292929"
+        f"{appversion}",
+        layout,
+        icon=resource_path("Images/logo.ico"),
+        background_color="#292929",
     )
 
     # GUI Render loop
@@ -259,8 +262,10 @@ def main():
             config.eye_display_id = EyeId.SETTINGS
             config.save()
 
-
-        elif values[ALGO_SETTINGS_RADIO_NAME] and config.eye_display_id != EyeId.ALGOSETTINGS:
+        elif (
+            values[ALGO_SETTINGS_RADIO_NAME]
+            and config.eye_display_id != EyeId.ALGOSETTINGS
+        ):
             eyes[0].stop()
             eyes[1].stop()
             settings[0].stop()
@@ -280,7 +285,6 @@ def main():
             for setting in settings:
                 if setting.started():
                     setting.render(window, event, values)
-
 
 
 if __name__ == "__main__":

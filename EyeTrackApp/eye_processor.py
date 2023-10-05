@@ -59,6 +59,7 @@ from blink import *
 from utils.img_utils import circle_crop
 from eye import EyeInfo, EyeInfoOrigin
 from intensity_based_openness import *
+from ellipse_based_pupil_dilation import *
 
 
 def run_once(f):
@@ -140,6 +141,7 @@ class EyeProcessor:
         self.er_daddy = None
         self.er_leap = None
         self.ibo = IntensityBasedOpeness(self.eye_id)
+        self.ebpd = EllipseBasedPupilDilation(self.eye_id)
         self.roi_include_set = {"rotation_angle", "roi_window_x", "roi_window_y"}
         self.failed = 0
         self.skip_blink_detect = False
@@ -164,6 +166,8 @@ class EyeProcessor:
         self.ran_blink_check_for_file = True
         self.bd_blink = False
         self.current_algo = EyeInfoOrigin.HSRAC
+        self.puipil_width = 0.0
+        self.pupil_height = 0.0
 
         try:
             min_cutoff = float(self.settings.gui_min_cutoff)  # 0.0004
@@ -249,7 +253,18 @@ class EyeProcessor:
             pass
 
     def UPDATE(self):
-       # print(self.eyeopen)
+        # print(self.eyeopen)
+        self.pupil_dilation = self.ebpd.intense(
+            self.pupil_width,
+            self.pupil_height,
+            self.rawx,
+            self.rawy,
+            self.current_image_white,
+            self.settings.ibo_filter_samples,
+            self.settings.ibo_average_output_samples,
+        )
+        print(self.pupil_dilation)
+
         if self.settings.gui_BLINK:
             self.eyeopen = BLINK(self)
 
@@ -288,7 +303,7 @@ class EyeProcessor:
                 self.rawy,
                 self.eyeopen,
             ) = self.er_leap.run(self.current_image_gray)
-          #  print(self.eyeopen)
+        #  print(self.eyeopen)
 
         if (
             len(self.prev_y_list) >= 100
@@ -301,9 +316,9 @@ class EyeProcessor:
         # print(abs(self.eyeopen - self.past_blink))
         blink_vec = min(abs(self.eyeopen - self.past_blink), 1)  # clamp to 1
 
-        #if blink_vec >= 0.2:
+        # if blink_vec >= 0.2:
         if blink_vec >= 0.15 or blink_vec == 0.0 and (self.out_y - self.prev_y) < 0.0:
-            #self.out_x = sum(self.prev_x_list) / len(self.prev_x_list)
+            # self.out_x = sum(self.prev_x_list) / len(self.prev_x_list)
             self.out_y = sum(self.prev_y_list) / len(self.prev_y_list)
         #   print('AVG', self.out_y, len(self.prev_y_list))
 
@@ -313,7 +328,13 @@ class EyeProcessor:
 
         self.output_images_and_update(
             self.thresh,
-            EyeInfo(self.current_algo, self.out_x, self.out_y, 0, self.eyeopen),
+            EyeInfo(
+                self.current_algo,
+                self.out_x,
+                self.out_y,
+                self.pupil_dilation,
+                self.eyeopen,
+            ),
         )
         if self.settings.gui_RANSACBLINK and self.eyeopen == 0.0:
             pass
@@ -331,7 +352,8 @@ class EyeProcessor:
         self.thresh = self.current_image_gray.copy()
         self.out_x, self.out_y = cal.cal_osc(self, self.rawx, self.rawy)
         self.current_algorithm = EyeInfoOrigin.LEAP
-       # print(self.eyeopen)
+
+    # print(self.eyeopen)
 
     def DADDYM(self):
         # todo: We should have a proper variable for drawing.
@@ -361,10 +383,17 @@ class EyeProcessor:
         self.rawx, self.rawy, self.thresh, self.radius = self.er_hsf.run(
             self.current_image_gray
         )
-        self.rawx, self.rawy, self.thresh, ranblink = RANSAC3D(self, True)
+        (
+            self.rawx,
+            self.rawy,
+            self.thresh,
+            ranblink,
+            self.pupil_width,
+            self.pupil_height,
+        ) = RANSAC3D(self, True)
         if self.settings.gui_RANSACBLINK:  # might be redundant
             self.eyeopen = ranblink
-         #   print("RANBLINK", ranblink)
+        #   print("RANBLINK", ranblink)
 
         # print(self.radius)
         # if self.prev_x is None:
