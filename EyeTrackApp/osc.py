@@ -29,7 +29,8 @@ def eyelid_transformer(self, eye_blink):
 se = False
 
 
-def output_osc(eye_x, eye_y, eye_blink, last_blink, self):
+def output_osc(eye_x, eye_y, eye_blink, last_blink, pupil_dilation, self):
+    print(pupil_dilation)
     global se
     # self.config.gui_osc_vrcft_v2
     # self.config.gui_osc_vrcft_v1
@@ -303,7 +304,14 @@ class VRChatOSC:
             except:
                 continue
 
-            output_osc(eye_info.x, eye_info.y, eye_info.blink, last_blink, self)
+            output_osc(
+                eye_info.x,
+                eye_info.y,
+                eye_info.blink,
+                last_blink,
+                eye_info.pupil_dilation,
+                self,
+            )
 
 
 class VRChatOSCReceiver:

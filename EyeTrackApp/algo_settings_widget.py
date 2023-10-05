@@ -57,6 +57,7 @@ class AlgoSettingsWidget:
         self.gui_legacy_ransac = f"-LEGACYRANSACTHRESH{widget_id}-"
         self.gui_legacy_ransac_thresh_right = f"-THRESHRIGHT{widget_id}-"
         self.gui_legacy_ransac_thresh_left = f"-THRESHLEFT{widget_id}-"
+        self.gui_pupil_dilation = f"-EBPD{widget_id}-"
         self.gui_LEAP_lid = f"-LEAPLID{widget_id}-"
         self.main_config = main_config
         self.config = main_config.settings
@@ -188,7 +189,7 @@ class AlgoSettingsWidget:
                 ),
                 sg.Text("Blob", background_color="#424042"),
             ],
-            [sg.Text("Blink Algo Settings:", background_color="#242224")],
+            [sg.Text("Eyelid Algo Settings:", background_color="#242224")],
             [
                 sg.Checkbox(
                     "Intensity Based Openness",
@@ -248,6 +249,15 @@ class AlgoSettingsWidget:
                     key=self.gui_circular_crop_right,
                     background_color="#424042",
                 ),
+            ],
+            [sg.Text("Pupil Dilation Algo Settings:", background_color="#242224")],
+            [
+                sg.Checkbox(
+                    "Ellipse Based Pupil Dilation",
+                    default=self.config.gui_pupil_dilation,
+                    key=self.gui_pupil_dilation,
+                    background_color="#424042",
+                )
             ],
             [
                 sg.Text(
@@ -442,6 +452,10 @@ class AlgoSettingsWidget:
 
         if self.config.gui_IBO != values[self.gui_IBO]:
             self.config.gui_IBO = values[self.gui_IBO]
+            changed = True
+
+        if self.config.gui_pupil_dilation != values[self.gui_pupil_dilation]:
+            self.config.gui_pupil_dilation = values[self.gui_pupil_dilation]
             changed = True
 
         if self.config.gui_RANSACBLINK != values[self.gui_RANSACBLINK]:

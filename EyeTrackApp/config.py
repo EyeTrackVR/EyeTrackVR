@@ -83,6 +83,7 @@ class EyeTrackSettingsConfig(BaseModel):
     gui_osc_vrcft_v1: bool = False
     gui_osc_vrcft_v2: bool = False
     gui_vrc_native: bool = True
+    gui_pupil_dilation: bool = True
 
 
 class EyeTrackConfig(BaseModel):

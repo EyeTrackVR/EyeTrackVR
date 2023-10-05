@@ -404,7 +404,7 @@ class CameraWidget:
 
                         graph.draw_circle(
                             (eye_info.x * -100, eye_info.y * -100),
-                            15],
+                            eye_info.pupil_dilation * 25,
                             fill_color="black",
                             line_color="white",
                         )

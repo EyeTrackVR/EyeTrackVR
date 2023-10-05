@@ -1,6 +1,7 @@
 from dataclasses import dataclass
 from enum import Enum, IntEnum
 
+
 class EyeId(IntEnum):
     RIGHT = 0
     LEFT = 1
@@ -24,5 +25,5 @@ class EyeInfo:
     info_type: EyeInfoOrigin
     x: float
     y: float
-    pupil_dialation: float
+    pupil_dilation: float
     blink: float

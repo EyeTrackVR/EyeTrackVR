@@ -254,16 +254,18 @@ class EyeProcessor:
 
     def UPDATE(self):
         # print(self.eyeopen)
-        self.pupil_dilation = self.ebpd.intense(
-            self.pupil_width,
-            self.pupil_height,
-            self.rawx,
-            self.rawy,
-            self.current_image_white,
-            self.settings.ibo_filter_samples,
-            self.settings.ibo_average_output_samples,
-        )
-        print(self.pupil_dilation)
+        if self.settings.gui_pupil_dilation:
+            self.pupil_dilation = self.ebpd.intense(
+                self.pupil_width,
+                self.pupil_height,
+                self.rawx,
+                self.rawy,
+                self.current_image_white,
+                self.settings.ibo_filter_samples,
+                self.settings.ibo_average_output_samples,
+            )
+        else:
+            self.pupil_dilation = 0.5
 
         if self.settings.gui_BLINK:
             self.eyeopen = BLINK(self)
