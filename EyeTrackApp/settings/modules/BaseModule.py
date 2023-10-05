@@ -24,10 +24,9 @@ class ValidationResult(NamedTuple):
 
 
 class BaseSettingsModule:
-    def __init__(self, config: EyeTrackSettingsConfig, settings_base_class, widget_id, **kwargs):
+    def __init__(self, config: EyeTrackSettingsConfig, widget_id, **kwargs):
         self.validation_model: BaseValidationModel = BaseValidationModel  # noqa
         self.config = config
-        self.settings_base_class = settings_base_class
         self.widget_id = widget_id
 
     def get_validation_model(self):
@@ -66,8 +65,5 @@ class BaseSettingsModule:
     def get_layout(self) -> Iterable:
         raise NotImplementedError
 
-    def get_defaults(self) -> dict:
-        defaults = {}
-        for field in self.validation_model.schema().keys():
-            defaults[field] = getattr(self.settings_base_class, field)
-        return defaults
+    def get_key_for_panel_defaults(self) -> dict:
+        return self.validation_model.schema().get("properties").keys()

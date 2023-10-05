@@ -15,6 +15,7 @@ class BaseSettingsWidget:
         settings_modules: Iterable,
     ):
         self.gui_general_settings_layout = f"-GENERALSETTINGSLAYOUT{widget_id}-"
+        self.reset_button_key = f"RESET_SETTINGS{widget_id}"
         self.is_saving = False
         self.main_config = main_config
         self.config = main_config.settings
@@ -35,6 +36,7 @@ class BaseSettingsWidget:
                     background_color="#424042",
                 ),
             ],
+            [sg.Button("Reset settings to default", key=self.reset_button_key)],
         ]
 
         self.cancellation_event = (
@@ -82,12 +84,13 @@ class BaseSettingsWidget:
         if errors:
             self._handle_errors(errors)
 
+        self.handle_events(event, window)
+
     def _initialize_modules(self, settings_modules, widget_id):
         return [
             module(
                 config=self.config,
                 settings=self.main_config,
-                settings_base_class=EyeTrackSettingsConfig,
                 widget_id=widget_id,
             )
             for module in settings_modules
@@ -95,3 +98,26 @@ class BaseSettingsWidget:
 
     def get_layout(self) -> Iterable:
         return self.widget_layout
+
+    def handle_events(self, event, window):
+        if event == "__TIMEOUT__":
+            return
+
+        if event == self.reset_button_key:
+            self.reset_config(window)
+
+    def reset_config(self, window):
+
+        default_values = {}
+        base_settings = EyeTrackSettingsConfig()
+
+        print(f"\033[92m[INFO] Resetting config to defaults\033[0m")
+        for module in self.initialized_modules:
+            for key in module.get_key_for_panel_defaults():
+                default_val = getattr(base_settings, key)
+                widget_key = getattr(module, key)
+                default_values[key] = default_val
+                window[widget_key].update(default_val)
+        print(f"\033[92m[INFO] Config reset, saving\033[0m")
+
+        self._update_and_save_config(default_values)

@@ -15,8 +15,8 @@ class BlinkAlgoSettingsValidationModel(BaseValidationModel):
 
 
 class BlinkAlgoSettingsModule(BaseSettingsModule):
-    def __init__(self, config, widget_id, settings_base_class, **kwargs):
-        super().__init__(config, widget_id, settings_base_class, **kwargs)
+    def __init__(self, config, widget_id, **kwargs):
+        super().__init__(config=config, widget_id=widget_id, **kwargs)
         self.validation_model = BlinkAlgoSettingsValidationModel
 
         self.gui_IBO = f"-IBO{widget_id}-"

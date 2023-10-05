@@ -9,8 +9,8 @@ class OneEuroFilterValidationModel(BaseValidationModel):
 
 
 class OneEuroSettingsModule(BaseSettingsModule):
-    def __init__(self, config, widget_id, settings_base_class, **kwargs):
-        super().__init__(config, widget_id, settings_base_class, **kwargs)
+    def __init__(self, config, widget_id, **kwargs):
+        super().__init__(config=config, widget_id=widget_id, **kwargs)
         self.gui_speed_coefficient = f"-SPEEDCOEFFICIENT{widget_id}-"
         self.gui_min_cutoff = f"-MINCUTOFF{widget_id}-"
         self.validation_model = OneEuroFilterValidationModel

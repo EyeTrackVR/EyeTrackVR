@@ -13,8 +13,8 @@ class GeneralSettingsValidationModel(BaseValidationModel):
 
 
 class GeneralSettingsModule(BaseSettingsModule):
-    def __init__(self, config, widget_id, settings_base_class, **kwargs):
-        super().__init__(config, widget_id, settings_base_class, **kwargs)
+    def __init__(self, config, widget_id, **kwargs):
+        super().__init__(config=config, widget_id=widget_id, **kwargs)
         self.validation_model = GeneralSettingsValidationModel
         self.gui_flip_x_axis_left = f"-FLIPXAXISLEFT{widget_id}-"
         self.gui_flip_x_axis_right = f"-FLIPXAXISRIGHT{widget_id}-"

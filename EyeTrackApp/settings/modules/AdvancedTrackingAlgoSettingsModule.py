@@ -15,8 +15,8 @@ class AdvancedTrackingAlgoSettingsValidationModel(BaseValidationModel):
 
 
 class AdvancedTrackingAlgoSettingsModule(BaseSettingsModule):
-    def __init__(self, config, widget_id, settings_base_class, **kwargs):
-        super().__init__(config, widget_id, settings_base_class, **kwargs)
+    def __init__(self, config, widget_id, **kwargs):
+        super().__init__(config=config, widget_id=widget_id, **kwargs)
         self.validation_model = AdvancedTrackingAlgoSettingsValidationModel
 
         self.gui_blob_maxsize = f"-BLOBMAXSIZE{widget_id}-"
