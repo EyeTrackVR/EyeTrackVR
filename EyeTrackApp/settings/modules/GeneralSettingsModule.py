@@ -26,6 +26,9 @@ class GeneralSettingsModule(BaseSettingsModule):
     def get_layout(self):
         return [
             [
+                sg.Text("General Settings:", background_color="#242224"),
+            ],
+            [
                 sg.Checkbox(
                     "Flip Left Eye X Axis",
                     default=self.config.gui_flip_x_axis_left,

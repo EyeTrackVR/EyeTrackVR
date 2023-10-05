@@ -19,7 +19,7 @@ class TrackingAlgorithmValidationModel(BaseValidationModel):
     gui_RANSAC3DP: int
 
 
-class GeneralSettingsModule(BaseSettingsModule):
+class TrackingAlgorithmModule(BaseSettingsModule):
     def __init__(self, config, widget_id, settings_base_class, **kwargs):
         super().__init__(config, widget_id, settings_base_class, **kwargs)
         self.algo_count = ["1", "2", "3", "4", "5", "6"]

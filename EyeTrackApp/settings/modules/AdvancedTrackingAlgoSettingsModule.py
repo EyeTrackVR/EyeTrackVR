@@ -3,7 +3,6 @@ import PySimpleGUI as sg
 
 
 class AdvancedTrackingAlgoSettingsValidationModel(BaseValidationModel):
-    gui_HSF_radius: int
     gui_HSF_radius_left: int
     gui_HSF_radius_right: int
     gui_blob_maxsize: int
@@ -12,22 +11,19 @@ class AdvancedTrackingAlgoSettingsValidationModel(BaseValidationModel):
     gui_legacy_ransac_thresh_right: int
     gui_skip_autoradius: bool
     gui_thresh_add: int
-    gui_threshold_slider: int
-    gui_update_check: int
+    gui_threshold: int
 
 
-class GeneralSettingsModule(BaseSettingsModule):
+class AdvancedTrackingAlgoSettingsModule(BaseSettingsModule):
     def __init__(self, config, widget_id, settings_base_class, **kwargs):
         super().__init__(config, widget_id, settings_base_class, **kwargs)
         self.validation_model = AdvancedTrackingAlgoSettingsValidationModel
 
-        self.gui_HSF_radius = f"-HSFRADIUS{widget_id}-"
         self.gui_blob_maxsize = f"-BLOBMAXSIZE{widget_id}-"
         self.gui_blob_minsize = f"-BLOBMINSIZE{widget_id}-"
         self.gui_skip_autoradius = f"-SKIPAUTORADIUS{widget_id}-"
         self.gui_thresh_add = f"-THRESHADD{widget_id}-"
-        self.gui_update_check = f"-UPDATECHECK{widget_id}-"
-        self.gui_threshold_slider = f"-BLOBTHRESHOLD{widget_id}-"
+        self.gui_threshold = f"-BLOBTHRESHOLD{widget_id}-"
         self.gui_HSF_radius_left = f"-HSFRADIUSLEFT{widget_id}-"
         self.gui_HSF_radius_right = f"-HSFRADIUSRIGHT{widget_id}-"
 
@@ -36,6 +32,7 @@ class GeneralSettingsModule(BaseSettingsModule):
 
     def get_layout(self):
         return [
+            [sg.Text("Advanced Tracking Algorithm Settings:", background_color="#242224")],
             [
                 sg.Checkbox(
                     "HSF: Skip Auto Radius",
@@ -81,7 +78,7 @@ class GeneralSettingsModule(BaseSettingsModule):
                     range=(0, 110),
                     default_value=self.config.gui_threshold,
                     orientation="h",
-                    key=self.gui_threshold_slider,
+                    key=self.gui_threshold,
                     background_color="#424042",
                     tooltip="Adjusts the threshold for blob tracking.",
                 ),

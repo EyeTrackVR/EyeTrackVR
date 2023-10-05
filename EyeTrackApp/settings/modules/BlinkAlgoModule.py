@@ -14,7 +14,7 @@ class BlinkAlgoSettingsValidationModel(BaseValidationModel):
     gui_circular_crop_right: bool
 
 
-class GeneralSettingsModule(BaseSettingsModule):
+class BlinkAlgoSettingsModule(BaseSettingsModule):
     def __init__(self, config, widget_id, settings_base_class, **kwargs):
         super().__init__(config, widget_id, settings_base_class, **kwargs)
         self.validation_model = BlinkAlgoSettingsValidationModel
@@ -31,12 +31,6 @@ class GeneralSettingsModule(BaseSettingsModule):
 
     def get_layout(self):
         return [
-            [
-                sg.Text(
-                    "Blink Algo Settings:",
-                    background_color="#242224",
-                )
-            ],
             [sg.Text("Blink Algo Settings:", background_color="#242224")],
             [
                 sg.Checkbox(
