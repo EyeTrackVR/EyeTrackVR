@@ -7,7 +7,6 @@ class GeneralSettingsValidationModel(BaseValidationModel):
     gui_flip_x_axis_left: bool
     gui_flip_x_axis_right: bool
     gui_flip_y_axis: bool
-    gui_vrc_native: bool
     gui_eye_falloff: bool
     gui_update_check: bool
 
@@ -20,7 +19,6 @@ class GeneralSettingsModule(BaseSettingsModule):
         self.gui_flip_x_axis_right = f"-FLIPXAXISRIGHT{widget_id}-"
         self.gui_flip_y_axis = f"-FLIPYAXIS{widget_id}-"
         self.gui_eye_falloff = f"-EYEFALLOFF{widget_id}-"
-        self.gui_vrc_native = f"-VRCNATIVE{widget_id}-"
         self.gui_update_check = f"-UPDATECHECK{widget_id}-"
 
     def get_layout(self):
@@ -52,13 +50,6 @@ class GeneralSettingsModule(BaseSettingsModule):
                 ),
             ],
             [
-                sg.Checkbox(
-                    "VRC Native Eyetracking",
-                    default=self.config.gui_vrc_native,
-                    key=self.gui_vrc_native,
-                    background_color="#424042",
-                    tooltip="Toggle VRCFT output or VRC native",
-                ),
                 sg.Checkbox(
                     "Dual Eye Falloff",
                     default=self.config.gui_eye_falloff,

@@ -10,6 +10,9 @@ class OSCValidationModel(BaseValidationModel):
     gui_osc_receiver_port: int
     gui_osc_recenter_address: str
     gui_osc_recalibrate_address: str
+    gui_vrc_native: bool
+    gui_osc_vrcft_v1: bool
+    gui_osc_vrcft_v2: bool
 
 
 class OSCSettingsModule(BaseSettingsModule):
@@ -22,11 +25,37 @@ class OSCSettingsModule(BaseSettingsModule):
         self.gui_osc_receiver_port = f"OSCRECEIVERPORT{widget_id}-"
         self.gui_osc_recenter_address = f"OSCRECENTERADDRESS{widget_id}-"
         self.gui_osc_recalibrate_address = f"OSCRECALIBRATEADDRESS{widget_id}-"
+        self.gui_vrc_native = f"-VRCNATIVE{widget_id}-"
+        self.gui_osc_vrcft_v1 = f"-OSCVRCFTV1{widget_id}-"
+        self.gui_osc_vrcft_v2 = f"-OSCVRCFTV2{widget_id}-"
 
     def get_layout(self):
         return [
             [
                 sg.Text("OSC Settings:", background_color="#242224"),
+            ],
+            [
+                sg.Checkbox(
+                    "VRC Native Eyetracking",
+                    default=self.config.gui_vrc_native,
+                    key=self.gui_vrc_native,
+                    background_color="#424042",
+                    tooltip="Toggle VRCFT output or VRC native",
+                ),
+                sg.Checkbox(
+                    "VRCFT v1",
+                    default=self.config.gui_osc_vrcft_v1,
+                    key=self.gui_osc_vrcft_v1,
+                    background_color="#424042",
+                    tooltip="Toggle VRCFT's v1 Eyetracking format.",
+                ),
+                sg.Checkbox(
+                    "VRCFT v2 (UE)",
+                    default=self.config.gui_osc_vrcft_v2,
+                    key=self.gui_osc_vrcft_v2,
+                    background_color="#424042",
+                    tooltip="Toggle VRCFT's v2 (UE) Eyetracking format.",
+                ),
             ],
             [
                 sg.Text("Address:", background_color=BACKGROUND_COLOR),

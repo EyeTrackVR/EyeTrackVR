@@ -12,6 +12,7 @@ class AdvancedTrackingAlgoSettingsValidationModel(BaseValidationModel):
     gui_skip_autoradius: bool
     gui_thresh_add: int
     gui_threshold: int
+    gui_pupil_dilation: bool
 
 
 class AdvancedTrackingAlgoSettingsModule(BaseSettingsModule):
@@ -29,9 +30,19 @@ class AdvancedTrackingAlgoSettingsModule(BaseSettingsModule):
 
         self.gui_legacy_ransac_thresh_right = f"-THRESHRIGHT{widget_id}-"
         self.gui_legacy_ransac_thresh_left = f"-THRESHLEFT{widget_id}-"
+        self.gui_pupil_dilation = f"-EBPD{widget_id}-"
 
     def get_layout(self):
         return [
+            [sg.Text("Pupil Dilation Algo Settings:", background_color="#242224")],
+            [
+                sg.Checkbox(
+                    "Ellipse Based Pupil Dilation",
+                    default=self.config.gui_pupil_dilation,
+                    key=self.gui_pupil_dilation,
+                    background_color="#424042",
+                )
+            ],
             [sg.Text("Advanced Tracking Algorithm Settings:", background_color="#242224")],
             [
                 sg.Checkbox(
