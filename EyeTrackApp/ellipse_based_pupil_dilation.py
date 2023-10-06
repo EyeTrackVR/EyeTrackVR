@@ -1,30 +1,31 @@
 """
-------------------------------------------------------------------------------------------------------                                                                                                    
-                                                                                                    
-                                               ,@@@@@@                                              
-                                            @@@@@@@@@@@            @@@                              
-                                          @@@@@@@@@@@@      @@@@@@@@@@@                             
-                                        @@@@@@@@@@@@@   @@@@@@@@@@@@@@                              
-                                      @@@@@@@/         ,@@@@@@@@@@@@@                               
-                                         /@@@@@@@@@@@@@@@  @@@@@@@@                                 
-                                    @@@@@@@@@@@@@@@@@@@@@@@@ @@@@@                                  
-                                @@@@@@@@                @@@@@                                       
-                              ,@@@                        @@@@&                                     
-                                             @@@@@@.       @@@@                                     
-                                   @@@     @@@@@@@@@/      @@@@@                                    
-                                   ,@@@.     @@@@@@((@     @@@@(                                    
-                                   //@@@        ,,  @@@@  @@@@@                                     
-                                   @@@(                @@@@@@@                                      
-                                   @@@  @          @@@@@@@@#                                        
-                                       @@@@@@@@@@@@@@@@@                                            
-                                      @@@@@@@@@@@@@(     
-                                      
-Intensity Based Openess By: Prohurtz, PallasNeko (Optimization)
+------------------------------------------------------------------------------------------------------
+
+                                               ,@@@@@@
+                                            @@@@@@@@@@@            @@@
+                                          @@@@@@@@@@@@      @@@@@@@@@@@
+                                        @@@@@@@@@@@@@   @@@@@@@@@@@@@@
+                                      @@@@@@@/         ,@@@@@@@@@@@@@
+                                         /@@@@@@@@@@@@@@@  @@@@@@@@
+                                    @@@@@@@@@@@@@@@@@@@@@@@@ @@@@@
+                                @@@@@@@@                @@@@@
+                              ,@@@                        @@@@&
+                                             @@@@@@.       @@@@
+                                   @@@     @@@@@@@@@/      @@@@@
+                                   ,@@@.     @@@@@@((@     @@@@(
+                                   //@@@        ,,  @@@@  @@@@@
+                                   @@@(                @@@@@@@
+                                   @@@  @          @@@@@@@@#
+                                       @@@@@@@@@@@@@@@@@
+                                      @@@@@@@@@@@@@(
+
+Ellipse Based Pupil Dilation By: Prohurtz, PallasNeko (Optimization)
 Algorithm App Implementations By: Prohurtz
 
 Copyright (c) 2023 EyeTrackVR <3
 ------------------------------------------------------------------------------------------------------
 """
+import numpy
 import numpy as np
 import time
 import os
@@ -52,18 +53,6 @@ class EyeId(IntEnum):
     LEFT = 1
     BOTH = 2
     SETTINGS = 3
-
-
-# higher intensity means more closed/ more white/less pupil
-
-# Hm I need an acronym for this, any ideas?
-# IBO Intensity Based Openess
-
-# HOW THIS WORKS:
-# we get the intensity of pupil area from HSF crop, When the eyelid starts to close, the pupil starts being obstructed by skin which is generally lighter than the pupil.
-# This causes the intensity to increase. We save all of the darkest intensities of each pupil position to calculate for pupil movement.
-# ex. when you look up there is less pupil visible, which results in an uncalculated change in intensity even though the eyelid has not moved in a meaningful way.
-# We compare the darkest intensity of that area, to the lightest (global) intensity to find the appropriate openness state via a float.
 
 
 # Note.
@@ -99,7 +88,7 @@ def data2csv(data_u32, filepath):
         "{},{},{}\n".format(x, y, val) for y, x, val in zip(*nonzero_index, data_list)
     ]
     with open(filepath, "w", encoding="utf-8") as out_f:
-        out_f.write("x,y,intensity\n")
+        out_f.write("x,y,eyedilation\n")
         out_f.writelines(datalines)
     return
 
@@ -124,22 +113,22 @@ def u16_3ch_to_u32_1ch(img):
 
 
 def newdata(frameshape):
-    print("\033[94m[INFO] Initialise data for blinking.\033[0m")
+    print("\033[94m[INFO] Initialise data for dilation.\033[0m")
     return np.zeros(frameshape, dtype=np.uint32)
 
 
-class IntensityBasedOpeness:
+# EBPD
+class EllipseBasedPupilDilation:
     def __init__(self, eye_id):
         # todo: It is necessary to consider whether the filename can be changed in the configuration file, etc.
         if eye_id in [EyeId.LEFT]:
-            self.imgfile = "IBO_LEFT.png"
+            self.imgfile = "EBPD_LEFT.png"
         else:
             pass
         if eye_id in [EyeId.RIGHT]:
-            self.imgfile = "IBO_RIGHT.png"
+            self.imgfile = "EBPD_RIGHT.png"
         else:
             pass
-        # self.imgfile = "IBO_LEFT.png" if eyeside is EyeLR.LEFT else "IBO_RIGHT.png"
         # self.data[0, -1] = maxval, [1, -1] = rotation, [2, -1] = x, [3, -1] = y
         self.data = None
         self.lct = None
@@ -148,7 +137,7 @@ class IntensityBasedOpeness:
         self.img_roi = np.zeros(3, dtype=np.int32)
         self.now_roi = np.zeros(3, dtype=np.int32)
         self.prev_val = 0.5
-        self.avg_intensity = 0.0
+        self.avg_dilation = 0.0
         self.old = []
         self.color = []
         self.x = []
@@ -184,7 +173,9 @@ class IntensityBasedOpeness:
         # Not very clever, but increase the width by 1px to save the maximum value.
         frameshape = (frameshape[0], frameshape[1] + 1)
         if self.data is None:
-            print(f"\033[92m[INFO] Loaded data for blinking: {self.imgfile}\033[0m")
+            print(
+                f"\033[92m[INFO] Loaded data for pupil dilation: {self.imgfile}\033[0m"
+            )
             if os.path.isfile(self.imgfile):
                 try:
                     img = cv2.imread(self.imgfile, flags=cv2.IMREAD_UNCHANGED)
@@ -237,13 +228,15 @@ class IntensityBasedOpeness:
         if os.path.exists(self.imgfile):
             os.remove(self.imgfile)
 
-    def intense(self, x, y, frame, filterSamples, outputSamples):
+    def intense(self, w, h, x, y, frame, filterSamples, outputSamples):
         # x,y = 0~(frame.shape[1 or 0]-1), frame = 1-channel frame cropped by ROI
         self.check(frame.shape)
         int_x, int_y = int(x), int(y)
         if int_x < 0 or int_y < 0:
             return self.prev_val
-        upper_x = min(int_x + 25, frame.shape[1] - 1)  # TODO make this a setting
+        upper_x = min(
+            int_x + 25, frame.shape[1] - 1
+        )  # TODO make this a setting NEEDS TO BE BASED ON HSF RADIUS if possible
         lower_x = max(int_x - 25, 0)
         upper_y = min(int_y + 25, frame.shape[0] - 1)
         lower_y = max(int_y - 25, 0)
@@ -257,22 +250,22 @@ class IntensityBasedOpeness:
         #  ret, frame_crop = cv2.threshold(frame_crop, 80, 255, cv2.THRESH_BINARY)
 
         # The same can be done with cv2.integral, but since there is only one area of the rectangle for which we want to know the total value, there is no advantage in terms of computational complexity.
-        intensity = frame_crop.sum() + 1
+        pupil_area = numpy.pi * (w / 2) * (h / 2)
         # cv2.imshow('e', frame)
         # if cv2.waitKey(10) == 27:
         #    exit()
         if len(self.filterlist) < filterSamples:
-            self.filterlist.append(intensity)
+            self.filterlist.append(pupil_area)
         else:
             self.filterlist.pop(0)
-            self.filterlist.append(intensity)
+            self.filterlist.append(pupil_area)
 
         try:
-            if intensity >= np.percentile(
+            if pupil_area >= np.percentile(
                 self.filterlist, 98
             ):  # filter abnormally high values
                 # print('filter, assume blink')
-                intensity = self.maxval
+                pupil_area = self.maxval
 
         #    if intensity <= np.percentile( # TODO test this
         #       self.filterlist, 0.3
@@ -290,7 +283,6 @@ class IntensityBasedOpeness:
         # ar, ag, ab = avg_color
         #  intensity = int(ar * 8) #higher = closed
 
-        # cv2.imshow("IBO", frame_crop)
         # if cv2.waitKey(1) & 0xFF == ord("q"):
         #   pass
 
@@ -329,61 +321,61 @@ class IntensityBasedOpeness:
         # max pupil per cord
         if data_val == 0:
             # The value of the specified coordinates has not yet been recorded.
-            self.data[int_y, int_x] = intensity
+            self.data[int_y, int_x] = pupil_area
             changed = True
             newval_flg = True
         else:
             if (
-                intensity < data_val
+                pupil_area < data_val
             ):  # if current intensity value is less (more pupil), save that
-                self.data[int_y, int_x] = intensity  # set value
+                self.data[int_y, int_x] = pupil_area  # set value
                 changed = True
             else:
-                intensitya = max(
+                pupil_areaa = max(
                     data_val + 5000, 1
                 )  # if current intensity value is not less use  this is an agressive adjust, test
-                self.data[int_y, int_x] = intensitya  # set value
+                self.data[int_y, int_x] = pupil_areaa  # set value
                 changed = True
 
         # min pupil global
         if self.maxval == 0:  # that value is not yet saved
-            self.maxval = intensity  # set value at 0 index
+            self.maxval = pupil_area  # set value at 0 index
         else:
             if (
-                intensity > self.maxval
+                pupil_area > self.maxval
             ):  # if current intensity value is more (less pupil), save that NOTE: we have the
-                self.maxval = intensity - 5  # set value at 0 index
+                self.maxval = pupil_area - 5  # set value at 0 index
             else:
-                intensityd = max(
+                pupil_aread = max(
                     (self.maxval - 5), 1
                 )  # continuously adjust closed intensity, will be set when user blink, used to allow eyes to close when lighting changes
-                self.maxval = intensityd  # set value at 0 index
+                self.maxval = pupil_aread  # set value at 0 index
         #     print(intensityd, intensity)
         if newval_flg:
             # Do the same thing as in the original version.
-            eyeopen = self.prev_val  # 0.9
+            eyedilation = self.prev_val  # 0.9
         else:
             maxp = float(self.data[int_y, int_x])
             minp = float(self.maxval)
 
-            eyeopen = (intensity - maxp) / (
+            eyedilation = (pupil_area - maxp) / (
                 minp - maxp
             )  # for whatever reason when input and maxp are too close it outputs high
-            eyeopen = 1 - eyeopen
+            eyedilation = 1 - eyedilation
 
             if outputSamples > 0:
                 if len(self.averageList) < outputSamples:
-                    self.averageList.append(eyeopen)
+                    self.averageList.append(eyedilation)
                 else:
                     self.averageList.pop(0)
-                    self.averageList.append(eyeopen)
-                    eyeopen = np.average(self.averageList)
+                    self.averageList.append(eyedilation)
+                    eyedilation = np.average(self.averageList)
 
-            if eyeopen > 1:  # clamp values
-                eyeopen = 1.0
+            if eyedilation > 1:  # clamp values
+                eyedilation = 1.0
 
-            if eyeopen < 0:
-                eyeopen = 0.0
+            if eyedilation < 0:
+                eyedilation = 0.0
 
         if changed and (
             (time.time() - self.lct) > 5
@@ -391,22 +383,17 @@ class IntensityBasedOpeness:
             self.save()
             self.lct = time.time()
 
-        self.prev_val = eyeopen
+        self.prev_val = eyedilation
         try:
             noisy_point = np.array(
-                [float(eyeopen), float(eyeopen)]
+                [float(eyedilation), float(eyedilation)]
             )  # fliter our values with a One Euro Filter
             point_hat = self.one_euro_filter(noisy_point)
-            eyeopenx = point_hat[0]
-            eyeopeny = point_hat[1]
-            eyeopen = (eyeopenx + eyeopeny) / 2
-        #   print(eyeopen, eyeopenx, eyeopeny)
+            eyedilationx = point_hat[0]
+            eyedilationy = point_hat[1]
+            eyedilation = (eyedilationx + eyedilationy) / 2
+
         except:
             pass
 
-        eyevec = abs(self.prev_val - eyeopen)
-        # print(eyevec)
-        #  if eyevec > 0.4:
-        #      print("BLINK LCOK")
-
-        return eyeopen
+        return eyedilation

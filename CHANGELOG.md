@@ -3,6 +3,26 @@
 [![semantic versioning](https://img.shields.io/badge/semantic%20versioning-2.0.0-green.svg)](https://semver.org)
 > All notable changes to this project will be documented in this file
 
+## [1.0.0-HSF-and-new-algos-feature-branch.10](https://github.com/EyeTrackVR/EyeTrackVR/compare/v1.0.0-HSF-and-new-algos-feature-branch.9...v1.0.0-HSF-and-new-algos-feature-branch.10) (2023-10-05)
+
+
+### 🍕 Features
+
+* pupil dilation initial imp ([6200ddf](https://github.com/EyeTrackVR/EyeTrackVR/commit/6200ddfcab2297e59c689edfa72ddb47fbd8faa1))
+* pupil dilation work start ([e694054](https://github.com/EyeTrackVR/EyeTrackVR/commit/e694054cb43d72977cdae746576bf45f02c4fc14))
+
+## [1.0.0-HSF-and-new-algos-feature-branch.9](https://github.com/EyeTrackVR/EyeTrackVR/compare/v1.0.0-HSF-and-new-algos-feature-branch.8...v1.0.0-HSF-and-new-algos-feature-branch.9) (2023-10-03)
+
+
+### 🍕 Features
+
+* stage one of new output formats ([8e28092](https://github.com/EyeTrackVR/EyeTrackVR/commit/8e2809260180f7e091ceba97c19eb52f883a3b91))
+
+
+### 🐛 Bug Fixes
+
+* temp disable leap low priority for MetalCanyon ([9bab5b4](https://github.com/EyeTrackVR/EyeTrackVR/commit/9bab5b45551f4744e79ee9a715221b4f2719e08f))
+
 ## [1.0.0-HSF-and-new-algos-feature-branch.8](https://github.com/EyeTrackVR/EyeTrackVR/compare/v1.0.0-HSF-and-new-algos-feature-branch.7...v1.0.0-HSF-and-new-algos-feature-branch.8) (2023-10-01)
 
 
