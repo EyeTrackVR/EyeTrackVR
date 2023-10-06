@@ -36,7 +36,8 @@ class BaseSettingsWidget:
                     background_color="#424042",
                 ),
             ],
-            [sg.Button("Reset settings to default", key=self.reset_button_key)],
+            [sg.Text("", background_color="#424042"), ],
+            [sg.Button("Reset settings to default", key=self.reset_button_key, button_color="#c40e23")],
         ]
 
         self.cancellation_event = (
