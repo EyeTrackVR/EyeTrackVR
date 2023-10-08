@@ -137,7 +137,7 @@ class EyeTrackConfig(BaseModel):
                 # No backup because the saved settings file is broken.
                 pass
         with open(CONFIG_FILE_NAME, "w") as settings_file:
-            json.dump(obj=self.dict(), fp=settings_file)
+            json.dump(obj=self.model_dump(warnings=False), fp=settings_file)
         print(f"\033[92m[INFO] Config Saved Successfully\033[0m")
 
     def register_listener_callback(self, callback):

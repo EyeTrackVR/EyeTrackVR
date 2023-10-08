@@ -1,3 +1,5 @@
+from pydantic import model_validator
+
 from settings.modules.BaseModule import BaseSettingsModule, BaseValidationModel
 import PySimpleGUI as sg
 
@@ -17,6 +19,21 @@ class TrackingAlgorithmValidationModel(BaseValidationModel):
     gui_HSRACP: int
     gui_LEAPP: int
     gui_RANSAC3DP: int
+
+    @model_validator(mode="after")
+    def check_algorith_order(self):
+        algos_list = [
+            self.gui_BLOBP,
+            self.gui_DADDYP,
+            self.gui_HSFP,
+            self.gui_HSRACP,
+            self.gui_LEAPP,
+            self.gui_RANSAC3DP,
+        ]
+        algos_set = set(algos_list)
+        if len(algos_set) != len(algos_list):
+            raise ValueError("Please fixup the algorithm order, some algos are doubled")
+        return self
 
 
 class TrackingAlgorithmModule(BaseSettingsModule):
@@ -38,7 +55,6 @@ class TrackingAlgorithmModule(BaseSettingsModule):
         self.gui_HSRACP = f"-HSRACP{widget_id}-"
         self.gui_LEAPP = f"-LEAPP{widget_id}-"
         self.gui_RANSAC3DP = f"-RANSAC3DP{widget_id}-"
-
 
     # TODO custom validation, make a set of values, count if there's less than overall, if yeah we have a problem
     def get_layout(self):

@@ -39,7 +39,7 @@ class BaseSettingsModule:
             raise MissingValidationModelException()
 
         field_mapping = {}
-        for field in self.validation_model.schema().get("properties"):
+        for field in self.validation_model.model_fields.keys():
             field_mapping[field] = values[getattr(self, field)]
 
         return validation_model(**field_mapping)
@@ -51,8 +51,7 @@ class BaseSettingsModule:
         try:
             changes = {}
             validated_model = self.initialize_validation_model(values)
-            # this is empty
-            for field, value in validated_model.dict().items():
+            for field, value in validated_model.model_dump().items():
                 if getattr(self.config, field) != value:
                     changes[field] = value
 

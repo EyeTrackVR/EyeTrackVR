@@ -1,3 +1,5 @@
+from pydantic import model_validator
+
 from settings.modules.BaseModule import BaseSettingsModule, BaseValidationModel
 from settings.constants import BACKGROUND_COLOR
 import PySimpleGUI as sg
@@ -13,6 +15,18 @@ class OSCValidationModel(BaseValidationModel):
     gui_vrc_native: bool
     gui_osc_vrcft_v1: bool
     gui_osc_vrcft_v2: bool
+
+    @model_validator(mode="after")
+    def check_osc_vrcft_versions(self):
+        if self.gui_osc_vrcft_v1 and self.gui_osc_vrcft_v2:
+            raise ValueError("Only one version of VRCFT params can be turned on")
+        return self
+
+    @model_validator(mode="after")
+    def check_osc_output_mode(self):
+        if self.gui_vrc_native and any([self.gui_osc_vrcft_v1, self.gui_osc_vrcft_v2]):
+            raise ValueError("Either VRCNative or VRCFT output can be active at a time")
+        return self
 
 
 class OSCSettingsModule(BaseSettingsModule):

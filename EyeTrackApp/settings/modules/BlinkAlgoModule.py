@@ -1,5 +1,10 @@
+from pydantic import AfterValidator
+from typing_extensions import Annotated
+
 from settings.modules.BaseModule import BaseSettingsModule, BaseValidationModel
 import PySimpleGUI as sg
+
+from settings.modules.CommonFieldValidators import check_is_float_convertible
 
 
 class BlinkAlgoSettingsValidationModel(BaseValidationModel):
@@ -9,7 +14,7 @@ class BlinkAlgoSettingsValidationModel(BaseValidationModel):
     gui_LEAP_lid: bool
     ibo_filter_samples: int
     calibration_samples: int
-    ibo_fully_close_eye_threshold: str
+    ibo_fully_close_eye_threshold: Annotated[str, AfterValidator(check_is_float_convertible)]
     gui_circular_crop_left: bool
     gui_circular_crop_right: bool
 

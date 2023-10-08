@@ -1,11 +1,16 @@
+from pydantic import AfterValidator
+from typing_extensions import Annotated
+
 from settings.modules.BaseModule import BaseSettingsModule, BaseValidationModel
 from settings.constants import BACKGROUND_COLOR
 import PySimpleGUI as sg
 
+from settings.modules.CommonFieldValidators import check_is_float_convertible
+
 
 class OneEuroFilterValidationModel(BaseValidationModel):
-    gui_speed_coefficient: str  # GUI lib does not support doubles ;-;
-    gui_min_cutoff: str  # or floats ;-;
+    gui_speed_coefficient: Annotated[str, AfterValidator(check_is_float_convertible)]
+    gui_min_cutoff: Annotated[str, AfterValidator(check_is_float_convertible)]
 
 
 class OneEuroSettingsModule(BaseSettingsModule):

@@ -1,6 +1,8 @@
-from typing import Iterable, Optional
+from datetime import datetime, timedelta
+from typing import Iterable
 
 import PySimpleGUI as sg
+from colorama import Fore
 
 from config import EyeTrackConfig, EyeTrackSettingsConfig
 from threading import Event
@@ -14,6 +16,9 @@ class BaseSettingsWidget:
         main_config: EyeTrackConfig,
         settings_modules: Iterable,
     ):
+        # we put the last time an error was printed in the past so whenever a newone appears
+        self.last_error_printout = datetime.now() - timedelta(seconds=20)
+        self.error_printout_timeout = 2
         self.gui_general_settings_layout = f"-GENERALSETTINGSLAYOUT{widget_id}-"
         self.reset_button_key = f"RESET_SETTINGS{widget_id}"
         self.is_saving = False
@@ -65,7 +70,16 @@ class BaseSettingsWidget:
         self.is_saving = False
 
     def _handle_errors(self, errors):
-        print(errors)
+        now = datetime.now()
+        elapsed_seconds = (datetime.now() - self.last_error_printout).seconds
+        if elapsed_seconds > self.error_printout_timeout:
+            self.last_error_printout = now
+
+            messages = []
+            for module_errors in errors:
+                for error in module_errors:
+                    messages.append(f"{Fore.RED}[ERROR]{Fore.RESET} {error['msg']} \n")
+            print("".join(messages))
 
     def render(self, window, event, values):
         validated_data, errors = {}, []
