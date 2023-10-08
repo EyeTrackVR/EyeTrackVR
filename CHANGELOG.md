@@ -3,6 +3,13 @@
 [![semantic versioning](https://img.shields.io/badge/semantic%20versioning-2.0.0-green.svg)](https://semver.org)
 > All notable changes to this project will be documented in this file
 
+## [1.0.0-HSF-and-new-algos-feature-branch.11](https://github.com/EyeTrackVR/EyeTrackVR/compare/v1.0.0-HSF-and-new-algos-feature-branch.10...v1.0.0-HSF-and-new-algos-feature-branch.11) (2023-10-08)
+
+
+### 🍕 Features
+
+* Merge pull request [#94](https://github.com/EyeTrackVR/EyeTrackVR/issues/94) from DeltaNeverUsed/HSF-and-new-algos-feature-branch ([e1203aa](https://github.com/EyeTrackVR/EyeTrackVR/commit/e1203aa9a73b62684aa17e04fa424e68b2ddcb3c))
+
 ## [1.0.0-HSF-and-new-algos-feature-branch.10](https://github.com/EyeTrackVR/EyeTrackVR/compare/v1.0.0-HSF-and-new-algos-feature-branch.9...v1.0.0-HSF-and-new-algos-feature-branch.10) (2023-10-05)
 
 
