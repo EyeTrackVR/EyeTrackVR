@@ -1,6 +1,7 @@
 from pythonosc import udp_client
 from pythonosc import osc_server
 from pythonosc import dispatcher
+from config import EyeTrackConfig
 from utils.misc_utils import PlaySound, SND_FILENAME, SND_ASYNC
 import queue
 import threading
@@ -16,7 +17,6 @@ class EyeId(IntEnum):
     ALGOSETTINGS = 4
 
 
-from config import EyeTrackConfig
 
 
 def eyelid_transformer(self, eye_blink):

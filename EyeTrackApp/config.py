@@ -91,8 +91,8 @@ class EyeTrackConfig(BaseModel):
     right_eye: EyeTrackCameraConfig = EyeTrackCameraConfig()
     left_eye: EyeTrackCameraConfig = EyeTrackCameraConfig()
     settings: EyeTrackSettingsConfig = EyeTrackSettingsConfig()
-    #  algo_settings: EyeTrackSettingsConfig = EyeTrackSettingsConfig()
     eye_display_id: EyeId = EyeId.RIGHT
+    __listeners = []
 
     @staticmethod
     def load():
@@ -117,6 +117,13 @@ class EyeTrackConfig(BaseModel):
                 load_config = EyeTrackConfig()
             return load_config
 
+    def update(self, data, save=False):
+        for field, value in data.items():
+            setattr(self.settings, field, value)
+        self.__notify_listeners()
+        if save:
+            self.save()
+
     def save(self):
         # make sure this is only called if there is a change
         if os.path.exists(CONFIG_FILE_NAME):
@@ -130,5 +137,13 @@ class EyeTrackConfig(BaseModel):
                 # No backup because the saved settings file is broken.
                 pass
         with open(CONFIG_FILE_NAME, "w") as settings_file:
-            json.dump(obj=self.dict(), fp=settings_file)
+            json.dump(obj=self.model_dump(warnings=False), fp=settings_file)
         print(f"\033[92m[INFO] Config Saved Successfully\033[0m")
+
+    def register_listener_callback(self, callback):
+        print(f"[DEBUG] Registering listener {callback}")
+        self.__listeners.append(callback)
+
+    def __notify_listeners(self):
+        for listener in self.__listeners:
+            listener()

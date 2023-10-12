@@ -90,8 +90,8 @@ def main():
     ]
 
     settings = [
-        SettingsWidget(EyeId.SETTINGS, config, osc_queue),
-        AlgoSettingsWidget(EyeId.ALGOSETTINGS, config, osc_queue),
+        SettingsWidget(EyeId.SETTINGS, config),
+        AlgoSettingsWidget(EyeId.ALGOSETTINGS, config),
     ]
 
     layout = [
@@ -148,14 +148,14 @@ def main():
                 background_color="#424042",
             ),
             sg.Column(
-                settings[0].widget_layout,
+                settings[0].get_layout(),
                 vertical_alignment="top",
                 key=SETTINGS_NAME,
                 visible=(config.eye_display_id in [EyeId.SETTINGS]),
                 background_color="#424042",
             ),
             sg.Column(
-                settings[1].widget_layout,
+                settings[1].get_layout(),
                 vertical_alignment="top",
                 key=ALGO_SETTINGS_NAME,
                 visible=(config.eye_display_id in [EyeId.ALGOSETTINGS]),
