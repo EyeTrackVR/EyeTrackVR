@@ -54,7 +54,8 @@ Please *exercise extreme caution* when messing around with IR emitters.
 The safety measures were put in place to REDUCE the potential failure risk. All further safety responsibilities are on the user.
 This includes visually checking with an IR camera that the brightness is correct and making sure you do not feel warmth.
 
-> **Warning**: Make sure you are using **NON-focused** emitters and at around ***5ma-8ma total power per eye***.
+> **Warning**: Make sure you are using **NON-focused** emitters and at power less than ***8mW cm^2 total per eye***.
+Please read our LED safety page for a breakdown of math for out V3 and V4 LED kits [here](https://docs.eyetrackvr.dev/getting_started/led_safety)
 
 [Effect of infrared radiation on the lens](https://docs.eyetrackvr.dev/saftey/effect_of_ir_on_the_lens.pdf)
 
