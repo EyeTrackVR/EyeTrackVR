@@ -153,8 +153,8 @@ class EllipseBasedPupilDilation:
         #     beta = float(self.settings.gui_speed_coefficient)  # 0.9
         # except:
         print("\033[93m[WARN] OneEuroFilter values must be a legal number.\033[0m")
-        min_cutoff = 0.0004
-        beta = 0.9
+        min_cutoff = 0.00001
+        beta = 0.05
         noisy_point = np.array([1, 1])
         self.one_euro_filter = OneEuroFilter(
             noisy_point, min_cutoff=min_cutoff, beta=beta

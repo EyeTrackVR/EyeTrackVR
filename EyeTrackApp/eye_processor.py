@@ -254,18 +254,6 @@ class EyeProcessor:
 
     def UPDATE(self):
         # print(self.eyeopen)
-        if self.settings.gui_pupil_dilation:
-            self.pupil_dilation = self.ebpd.intense(
-                self.pupil_width,
-                self.pupil_height,
-                self.rawx,
-                self.rawy,
-                self.current_image_white,
-                self.settings.ibo_filter_samples,
-                self.settings.ibo_average_output_samples,
-            )
-        else:
-            self.pupil_dilation = 0.5
 
         if self.settings.gui_BLINK:
             self.eyeopen = BLINK(self)
@@ -280,8 +268,8 @@ class EyeProcessor:
                 self.settings.ibo_filter_samples,
                 self.settings.ibo_average_output_samples,
             )
-            if (
-                self.eyeopen < float(self.settings.ibo_fully_close_eye_threshold)
+            if self.eyeopen < float(
+                self.settings.ibo_fully_close_eye_threshold
             ):  # threshold so the eye fully closes
                 self.eyeopen = 0.0
 
@@ -319,10 +307,23 @@ class EyeProcessor:
         blink_vec = min(abs(self.eyeopen - self.past_blink), 1)  # clamp to 1
 
         # if blink_vec >= 0.2:
-        if blink_vec >= 0.15 or blink_vec == 0.0 and (self.out_y - self.prev_y) < 0.0:
+        if blink_vec >= 0.18:
             # self.out_x = sum(self.prev_x_list) / len(self.prev_x_list)
             self.out_y = sum(self.prev_y_list) / len(self.prev_y_list)
         #   print('AVG', self.out_y, len(self.prev_y_list))
+
+        if self.settings.gui_pupil_dilation and self.eyeopen > 0.2:
+            self.pupil_dilation = self.ebpd.intense(
+                self.pupil_width,
+                self.pupil_height,
+                self.rawx,
+                self.rawy,
+                self.current_image_white,
+                self.settings.ibo_filter_samples,
+                self.settings.ibo_average_output_samples,
+            )
+        else:
+            self.pupil_dilation = 0.5
 
         self.past_blink = self.eyeopen
         self.prev_x = self.out_x
@@ -441,7 +442,14 @@ class EyeProcessor:
         current_image_gray_copy = (
             self.current_image_gray.copy()
         )  # Duplicate before overwriting in RANSAC3D.
-        self.rawx, self.rawy, self.thresh, ranblink = RANSAC3D(self, False)
+        (
+            self.rawx,
+            self.rawy,
+            self.thresh,
+            ranblink,
+            self.pupil_width,
+            self.pupil_height,
+        ) = RANSAC3D(self, True)
         if self.settings.gui_RANSACBLINK:
             self.eyeopen = ranblink
         self.out_x, self.out_y = cal.cal_osc(self, self.rawx, self.rawy)
