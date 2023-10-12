@@ -235,7 +235,6 @@ def RANSAC3D(self, hsrac_en):
             ransac_xy_offset,
         ) = get_center_noclamp((self.rawx, self.rawy), self.radius)
 
-        print(self.current_image_gray_clean.size, ransac_lower_x, ransac_upper_y)
         frame = safe_crop(
             self.current_image_gray_clean,
             int(ransac_lower_x),

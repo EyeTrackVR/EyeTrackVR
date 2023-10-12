@@ -358,9 +358,12 @@ class EllipseBasedPupilDilation:
             maxp = float(self.data[int_y, int_x])
             minp = float(self.maxval)
 
-            eyedilation = (pupil_area - maxp) / (
-                minp - maxp
-            )  # for whatever reason when input and maxp are too close it outputs high
+            try:
+                eyedilation = (pupil_area - maxp) / (
+                    minp - maxp
+                )  # for whatever reason when input and maxp are too close it outputs high
+            except:
+                eyedilation = 0.5
             eyedilation = 1 - eyedilation
 
             if outputSamples > 0:

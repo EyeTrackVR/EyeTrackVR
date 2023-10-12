@@ -75,11 +75,11 @@ class EyeTrackSettingsConfig(BaseModel):
     osc_right_eye_x_address: str = "/avatar/parameters/RightEyeX"
     osc_eyes_y_address: str = "/avatar/parameters/EyesY"
     osc_invert_eye_close: bool = False
-    gui_RANSACBLINK: bool = True
+    gui_RANSACBLINK: bool = False
     gui_legacy_ransac: bool = False
     gui_legacy_ransac_thresh_right: int = 80
     gui_legacy_ransac_thresh_left: int = 80
-    gui_LEAP_lid: bool = False
+    gui_LEAP_lid: bool = True
     gui_osc_vrcft_v1: bool = False
     gui_osc_vrcft_v2: bool = False
     gui_vrc_native: bool = True

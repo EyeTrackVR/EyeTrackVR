@@ -118,8 +118,8 @@ class LEAP_C(object):
                 process.nice(psutil.BELOW_NORMAL_PRIORITY_CLASS)  # Windows
                 process.nice()
                 # See https://learn.microsoft.com/en-us/windows/win32/api/processthreadsapi/nf-processthreadsapi-getpriorityclass#return-value for values
-        min_cutoff = 0.9
-        beta = 5.0
+        min_cutoff = 0.1
+        beta = 10.0
         # print(np.random.rand(22, 2))
         # noisy_point = np.array([1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1])
         self.one_euro_filter = OneEuroFilter(
