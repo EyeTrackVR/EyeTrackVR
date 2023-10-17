@@ -17,8 +17,6 @@ class EyeId(IntEnum):
     ALGOSETTINGS = 4
 
 
-
-
 def eyelid_transformer(self, eye_blink):
     if self.config.osc_invert_eye_close:
         return float(1 - eye_blink)
@@ -151,15 +149,14 @@ def output_osc(eye_x, eye_y, eye_blink, last_blink, pupil_dilation, self):
         ]:  # we are in single eye mode
             se = True
 
-            self.client.send_message("/avatar/parameters/FT/v2/EyeX", eye_x)
+            self.client.send_message("/avatar/parameters/v2/EyeX", eye_x)
 
-            self.client.send_message("/avatar/parameters/FT/v2/EyeLeftX", eye_x)
-            self.client.send_message("/avatar/parameters/FT/v2/EyeRightX", eye_x)
-            self.client.send_message("/avatar/parameters/FT/v2/EyeLeftY", eye_y)
-            self.client.send_message("/avatar/parameters/FT/v2/EyeRightY", eye_y)
-
+            self.client.send_message("/avatar/parameters/v2/EyeLeftX", eye_x)
+            self.client.send_message("/avatar/parameters/v2/EyeRightX", eye_x)
+            self.client.send_message("/avatar/parameters/v2/EyeLeftY", eye_y)
+            self.client.send_message("/avatar/parameters/v2/EyeRightY", eye_y)
             self.client.send_message(
-                "/avatar/parameters/FT/v2/EyeLid",
+                "/avatar/parameters/v2/EyeLid",
                 eyelid_transformer(self, eye_blink),
             )
         else:
@@ -175,7 +172,7 @@ def output_osc(eye_x, eye_y, eye_blink, last_blink, pupil_dilation, self):
                 ):  # when binary blink is on, blinks may be too fast for OSC so we repeat them.
                     for i in range(4):
                         self.client.send_message(
-                            "/avatar/parameters/FT/v2/EyeLidLeft",
+                            "/avatar/parameters/v2/EyeLidLeft",
                             eyelid_transformer(self, self.l_eye_blink),
                         )
                     last_blink = time.time() - last_blink
@@ -184,21 +181,22 @@ def output_osc(eye_x, eye_y, eye_blink, last_blink, pupil_dilation, self):
                         self.r_eye_blink == 0.0
                     ):  # if both eyes closed and DEF is enables, blink
                         self.client.send_message(
-                            "/avatar/parameters/FT/v2/EyeLidLeft",
+                            "/avatar/parameters/v2/EyeLidLeft",
                             eyelid_transformer(self, self.l_eye_blink),
                         )
                         self.client.send_message(
-                            "/avatar/parameters/FT/v2/EyeLidRight",
+                            "/avatar/parameters/v2/EyeLidRight",
                             eyelid_transformer(self, self.l_eye_blink),
                         )
                 self.l_eye_x = self.r_eye_x
 
-            self.client.send_message("/avatar/parameters/FT/v2/EyeLeftX", self.l_eye_x)
+            self.client.send_message("/avatar/parameters/v2/EyeLeftX", self.l_eye_x)
             self.left_y = eye_y
 
             if self.left_y != 621:
-                self.client.send_message("/avatar/parameters/FT/v2/EyeLeftY", self.left_y)
-
+                self.client.send_message(
+                    "/avatar/parameters/FT/v2/EyeLeftY", self.left_y
+                )
 
             self.client.send_message(
                 "/avatar/parameters/FT/v2/EyeLidLeft",
@@ -216,7 +214,7 @@ def output_osc(eye_x, eye_y, eye_blink, last_blink, pupil_dilation, self):
                     print("REPEATING R BLINK")
                     for i in range(4):
                         self.client.send_message(
-                            "/avatar/parameters/FT/v2/EyeLidRight",
+                            "/avatar/parameters/v2/EyeLidRight",
                             eyelid_transformer(self, self.r_eye_blink),
                         )
                     last_blink = time.time() - last_blink
@@ -225,24 +223,26 @@ def output_osc(eye_x, eye_y, eye_blink, last_blink, pupil_dilation, self):
                         self.l_eye_blink == 0.0
                     ):  # if both eyes closed and DEF is enables, blink
                         self.client.send_message(
-                            "/avatar/parameters/FT/v2/EyeLidLeft",
+                            "/avatar/parameters/v2/EyeLidLeft",
                             eyelid_transformer(self, self.r_eye_blink),
                         )
                         self.client.send_message(
-                            "/avatar/parameters/FT/v2/EyeLidRight",
+                            "/avatar/parameters/v2/EyeLidRight",
                             eyelid_transformer(self, self.r_eye_blink),
                         )
 
                 self.r_eye_x = self.l_eye_x
 
-            self.client.send_message("/avatar/parameters/FT/v2/EyeRightX", self.r_eye_x)
+            self.client.send_message("/avatar/parameters/v2/EyeRightX", self.r_eye_x)
             self.right_y = eye_y
 
             if self.right_y != 621:
-                self.client.send_message("/avatar/parameters/FT/v2/EyeRightY", self.right_y)
+                self.client.send_message(
+                    "/avatar/parameters/v2/EyeRightY", self.right_y
+                )
 
             self.client.send_message(
-                "/avatar/parameters/FT/v2/EyeLidRight",
+                "/avatar/parameters/v2/EyeLidRight",
                 eyelid_transformer(self, self.r_eye_blink),
             )
 
@@ -252,7 +252,7 @@ def output_osc(eye_x, eye_y, eye_blink, last_blink, pupil_dilation, self):
             and self.left_y != 621
         ):
             y = (self.right_y + self.left_y) / 2
-            self.client.send_message("/avatar/parameters/FT/v2/EyeY", y)
+            self.client.send_message("/avatar/parameters/v2/EyeY", y)
 
     if self.config.gui_vrc_native:  # VRC NATIVE
 
