@@ -1,7 +1,8 @@
 import numpy as np
-
+import time
 from enum import IntEnum
 from utils.misc_utils import PlaySound, SND_FILENAME, SND_ASYNC, resource_path
+
 
 class EyeId(IntEnum):
     RIGHT = 0
@@ -10,7 +11,15 @@ class EyeId(IntEnum):
     SETTINGS = 3
 
 
-class cal():
+class var:
+    average_velocity = 0
+    velocity_rolling_list = []
+    past_x = 0
+    past_y = 0
+    start_time = time.time()
+
+
+class cal:
     def cal_osc(self, cx, cy):
         if cx == None or cy == None:
             return 0, 0
@@ -27,7 +36,7 @@ class cal():
             self.config.calib_XOFF = cx
             self.config.calib_YOFF = cy
             self.baseconfig.save()
-            PlaySound(resource_path('Audio/completed.wav'), SND_FILENAME | SND_ASYNC)
+            PlaySound(resource_path("Audio/completed.wav"), SND_FILENAME | SND_ASYNC)
         if self.calibration_frame_counter == self.settings.calibration_samples:
             self.config.calib_XMAX = -69420
             self.config.calib_XMIN = 69420
@@ -54,7 +63,9 @@ class cal():
             self.config.calib_YOFF = cy
             if self.ts == 0:
                 self.settings.gui_recenter_eyes = False
-                PlaySound(resource_path('Audio/completed.wav'), SND_FILENAME | SND_ASYNC)
+                PlaySound(
+                    resource_path("Audio/completed.wav"), SND_FILENAME | SND_ASYNC
+                )
             else:
                 self.ts = self.ts - 1
         else:
@@ -81,20 +92,14 @@ class cal():
             if calib_diff_y_MIN == 0:
                 calib_diff_y_MIN = 1
 
-            xl = float(
-                (cx - self.config.calib_XOFF) / calib_diff_x_MAX
-            )
-            xr = float(
-                (cx - self.config.calib_XOFF) / calib_diff_x_MIN
-            )
-            yu = float(
-                (cy - self.config.calib_YOFF) / calib_diff_y_MIN
-            )
-            yd = float(
-                (cy - self.config.calib_YOFF) / calib_diff_y_MAX
-            )
+            xl = float((cx - self.config.calib_XOFF) / calib_diff_x_MAX)
+            xr = float((cx - self.config.calib_XOFF) / calib_diff_x_MIN)
+            yu = float((cy - self.config.calib_YOFF) / calib_diff_y_MIN)
+            yd = float((cy - self.config.calib_YOFF) / calib_diff_y_MAX)
 
-            if self.settings.gui_flip_y_axis:  # check config on flipped values settings and apply accordingly
+            if (
+                self.settings.gui_flip_y_axis
+            ):  # check config on flipped values settings and apply accordingly
                 if yd >= 0:
                     out_y = max(0.0, min(1.0, yd))
                 if yu > 0:
@@ -116,16 +121,43 @@ class cal():
                 if xl > 0:
                     out_x = -abs(max(0.0, min(1.0, xl)))
 
+            if self.settings.gui_outer_side_falloff:
+                run_time = time.time()
+                out_x_mult = out_x * 100
+                out_y_mult = out_y * 100
+                velocity = abs(
+                    np.sqrt(
+                        abs(
+                            np.square(out_x_mult - var.past_x)
+                            - np.square(out_y_mult - var.past_y)
+                        )
+                    )
+                    / ((var.start_time - run_time) * 10)
+                )
+                if len(var.velocity_rolling_list) < 30:
+                    var.velocity_rolling_list.append(float(velocity))
+                else:
+                    var.velocity_rolling_list.pop(0)
+                    var.velocity_rolling_list.append(float(velocity))
+                var.average_velocity = sum(var.velocity_rolling_list) / len(
+                    var.velocity_rolling_list
+                )
+                var.past_x = out_x_mult
+                var.past_y = out_y_mult
+
             try:
-                noisy_point = np.array([float(out_x), float(out_y)])  # fliter our values with a One Euro Filter
+                noisy_point = np.array(
+                    [float(out_x), float(out_y)]
+                )  # fliter our values with a One Euro Filter
                 point_hat = self.one_euro_filter(noisy_point)
                 out_x = point_hat[0]
                 out_y = point_hat[1]
             except:
                 pass
-            return out_x, out_y
+
+            return out_x, out_y, var.average_velocity
         else:
             if self.printcal:
                 print("\033[91m[ERROR] Please Calibrate Eye(s).\033[0m")
                 self.printcal = False
-        return 0, 0
+        return 0, 0, 0

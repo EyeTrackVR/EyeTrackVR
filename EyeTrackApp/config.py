@@ -49,7 +49,6 @@ class EyeTrackSettingsConfig(BaseModel):
     gui_blob_maxsize: float = 25
     gui_blob_minsize: float = 10
     gui_recenter_eyes: bool = False
-    gui_eye_falloff: bool = False
     tracker_single_eye: int = 0
     gui_threshold: int = 65
     gui_HSRACP: int = 1
@@ -76,6 +75,12 @@ class EyeTrackSettingsConfig(BaseModel):
     osc_eyes_y_address: str = "/avatar/parameters/EyesY"
     osc_invert_eye_close: bool = False
     gui_RANSACBLINK: bool = False
+
+    gui_right_eye_dominant: bool = False
+    gui_left_eye_dominant: bool = False
+    gui_outer_side_falloff: bool = True
+    gui_eye_dominant_diff_thresh: float = 0.3
+
     gui_legacy_ransac: bool = False
     gui_legacy_ransac_thresh_right: int = 80
     gui_legacy_ransac_thresh_left: int = 80

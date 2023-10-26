@@ -168,6 +168,7 @@ class EyeProcessor:
         self.current_algo = EyeInfoOrigin.HSRAC
         self.puipil_width = 0.0
         self.pupil_height = 0.0
+        self.avg_velocity = 0.0
 
         try:
             min_cutoff = float(self.settings.gui_min_cutoff)  # 0.0004
@@ -337,6 +338,7 @@ class EyeProcessor:
                 self.out_y,
                 self.pupil_dilation,
                 self.eyeopen,
+                self.avg_velocity,
             ),
         )
         if self.settings.gui_RANSACBLINK and self.eyeopen == 0.0:
@@ -349,11 +351,18 @@ class EyeProcessor:
 
     def LEAPM(self):
         self.thresh = self.current_image_gray.copy()
-        self.current_image_gray, self.rawx, self.rawy, self.eyeopen = self.er_leap.run(
+        (
+            self.current_image_gray,
+            self.rawx,
+            self.rawy,
+            self.eyeopen,
+        ) = self.er_leap.run(
             self.current_image_gray
         )  # TODO: make own self var and LEAP toggle
         self.thresh = self.current_image_gray.copy()
-        self.out_x, self.out_y = cal.cal_osc(self, self.rawx, self.rawy)
+        self.out_x, self.out_y, self.avg_velocity = cal.cal_osc(
+            self, self.rawx, self.rawy
+        )
         self.current_algorithm = EyeInfoOrigin.LEAP
 
     # print(self.eyeopen)
@@ -364,7 +373,9 @@ class EyeProcessor:
         self.thresh = self.current_image_gray.copy()
         self.rawx, self.rawy, self.radius = self.er_daddy.run(self.current_image_gray)
         # Daddy also uses a one euro filter, so I'll have to use it twice, but I'm not going to think too much about it.
-        self.out_x, self.out_y = cal.cal_osc(self, self.rawx, self.rawy)
+        self.out_x, self.out_y, self.avg_velocity = cal.cal_osc(
+            self, self.rawx, self.rawy
+        )
         self.current_algorithm = EyeInfoOrigin.DADDY
 
     def HSRACM(self):
@@ -402,7 +413,9 @@ class EyeProcessor:
         # if self.prev_x is None:
         #   self.prev_x = self.rawx
         #  self.prev_y = self.rawy
-        self.out_x, self.out_y = cal.cal_osc(self, self.rawx, self.rawy)
+        self.out_x, self.out_y, self.avg_velocity = cal.cal_osc(
+            self, self.rawx, self.rawy
+        )
         self.current_algorithm = EyeInfoOrigin.HSRAC
 
     def HSFM(self):
@@ -422,7 +435,9 @@ class EyeProcessor:
         self.rawx, self.rawy, self.thresh, self.radius = self.er_hsf.run(
             self.current_image_gray
         )
-        self.out_x, self.out_y = cal.cal_osc(self, self.rawx, self.rawy)
+        self.out_x, self.out_y, self.avg_velocity = cal.cal_osc(
+            self, self.rawx, self.rawy
+        )
         self.current_algorithm = EyeInfoOrigin.HSF
 
     def RANSAC3DM(self):
@@ -452,7 +467,9 @@ class EyeProcessor:
         ) = RANSAC3D(self, True)
         if self.settings.gui_RANSACBLINK:
             self.eyeopen = ranblink
-        self.out_x, self.out_y = cal.cal_osc(self, self.rawx, self.rawy)
+        self.out_x, self.out_y, self.avg_velocity = cal.cal_osc(
+            self, self.rawx, self.rawy
+        )
         self.current_algorithm = EyeInfoOrigin.RANSAC
 
     def BLOBM(self):

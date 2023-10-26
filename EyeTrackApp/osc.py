@@ -27,9 +27,14 @@ def eyelid_transformer(self, eye_blink):
 se = False
 
 
-def output_osc(eye_x, eye_y, eye_blink, last_blink, pupil_dilation, self):
-    print(pupil_dilation)
+def output_osc(eye_x, eye_y, eye_blink, last_blink, pupil_dilation, avg_velocity, self):
+    # print(pupil_dilation)
     global se
+
+    if self.eye_id in [EyeId.LEFT]:
+        # avg_velocity
+        pass
+
     # self.config.gui_osc_vrcft_v2
     # self.config.gui_osc_vrcft_v1
     # self.config.gui_vrc_native
@@ -73,18 +78,7 @@ def output_osc(eye_x, eye_y, eye_blink, last_blink, pupil_dilation, self):
                             eyelid_transformer(self, self.l_eye_blink),
                         )
                     last_blink = time.time() - last_blink
-                if self.config.gui_eye_falloff:
-                    if (
-                        self.r_eye_blink == 0.0
-                    ):  # if both eyes closed and DEF is enables, blink
-                        self.client.send_message(
-                            self.config.osc_left_eye_close_address,
-                            eyelid_transformer(self, self.l_eye_blink),
-                        )
-                        self.client.send_message(
-                            self.config.osc_right_eye_close_address,
-                            eyelid_transformer(self, self.l_eye_blink),
-                        )
+
                 self.l_eye_x = self.r_eye_x
 
             self.client.send_message(self.config.osc_left_eye_x_address, self.l_eye_x)
@@ -421,6 +415,7 @@ class VRChatOSC:
                 eye_info.blink,
                 last_blink,
                 eye_info.pupil_dilation,
+                eye_info.avg_velocity,
                 self,
             )
 

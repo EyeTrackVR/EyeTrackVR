@@ -377,6 +377,7 @@ class CameraWidget:
                     self.figure = graph.draw_rectangle(
                         (self.x0, self.y0), (self.x1, self.y1), line_color="#6f4ca1"
                     )
+
             except Empty:
                 pass
         else:

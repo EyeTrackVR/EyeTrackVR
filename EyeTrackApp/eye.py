@@ -27,3 +27,4 @@ class EyeInfo:
     y: float
     pupil_dilation: float
     blink: float
+    avg_velocity: float
