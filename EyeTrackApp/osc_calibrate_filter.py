@@ -2,6 +2,7 @@ import numpy as np
 import time
 from enum import IntEnum
 from utils.misc_utils import PlaySound, SND_FILENAME, SND_ASYNC, resource_path
+from utils.eye_falloff import velocity_falloff
 
 
 class EyeId(IntEnum):
@@ -17,6 +18,12 @@ class var:
     past_x = 0
     past_y = 0
     start_time = time.time()
+    r_eye_x = 0.0
+    l_eye_x = 0.0
+    left_y = 0.0
+    right_y = 0.0
+    l_eye_velocity = 0.0
+    r_eye_velocity = 0.0
 
 
 class cal:
@@ -31,6 +38,7 @@ class cal:
             flipx = self.settings.gui_flip_x_axis_right
         else:
             flipx = self.settings.gui_flip_x_axis_left
+
         if self.calibration_frame_counter == 0:
             self.calibration_frame_counter = None
             self.config.calib_XOFF = cx
@@ -134,7 +142,7 @@ class cal:
                     )
                     / ((var.start_time - run_time) * 10)
                 )
-                if len(var.velocity_rolling_list) < 30:
+                if len(var.velocity_rolling_list) < 15:
                     var.velocity_rolling_list.append(float(velocity))
                 else:
                     var.velocity_rolling_list.pop(0)
@@ -154,6 +162,8 @@ class cal:
                 out_y = point_hat[1]
             except:
                 pass
+
+            out_x, out_y = velocity_falloff(self, var, out_x, out_y)
 
             return out_x, out_y, var.average_velocity
         else:

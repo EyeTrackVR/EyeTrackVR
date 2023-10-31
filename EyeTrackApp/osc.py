@@ -7,6 +7,7 @@ import queue
 import threading
 from enum import IntEnum
 import time
+import numpy as np
 
 
 class EyeId(IntEnum):
@@ -25,15 +26,12 @@ def eyelid_transformer(self, eye_blink):
 
 
 se = False
+falloff = False
 
 
 def output_osc(eye_x, eye_y, eye_blink, last_blink, pupil_dilation, avg_velocity, self):
     # print(pupil_dilation)
-    global se
-
-    if self.eye_id in [EyeId.LEFT]:
-        # avg_velocity
-        pass
+    global se, falloff
 
     # self.config.gui_osc_vrcft_v2
     # self.config.gui_osc_vrcft_v1
@@ -67,6 +65,7 @@ def output_osc(eye_x, eye_y, eye_blink, last_blink, pupil_dilation, avg_velocity
         if self.eye_id in [EyeId.LEFT] and not se:  # left eye, send data to left
             self.l_eye_x = eye_x
             self.l_eye_blink = eye_blink
+            self.l_eye_velocity = avg_velocity
 
             if self.l_eye_blink == 0.0:
                 if (
@@ -92,19 +91,20 @@ def output_osc(eye_x, eye_y, eye_blink, last_blink, pupil_dilation, avg_velocity
         elif self.eye_id in [EyeId.RIGHT] and not se:  # Right eye, send data to right
             self.r_eye_x = eye_x
             self.r_eye_blink = eye_blink
+            self.l_eye_velocity = avg_velocity
 
             if self.r_eye_blink == 0.0:
                 if (
                     last_blink > 0.15
                 ):  # when binary blink is on, blinks may be too fast for OSC so we repeat them.
-                    print("REPEATING R BLINK")
+                    # print("REPEATING R BLINK")
                     for i in range(4):
                         self.client.send_message(
                             self.config.osc_right_eye_close_address,
                             eyelid_transformer(self, self.r_eye_blink),
                         )
                     last_blink = time.time() - last_blink
-                if self.config.gui_eye_falloff:
+                if self.config.gui_outer_side_falloff:
                     if (
                         self.l_eye_blink == 0.0
                     ):  # if both eyes closed and DEF is enables, blink
@@ -159,6 +159,7 @@ def output_osc(eye_x, eye_y, eye_blink, last_blink, pupil_dilation, avg_velocity
         if self.eye_id in [EyeId.LEFT] and not se:  # left eye, send data to left
             self.l_eye_x = eye_x
             self.l_eye_blink = eye_blink
+            self.r_eye_velocity = avg_velocity
 
             if self.l_eye_blink == 0.0:
                 if (
@@ -170,7 +171,7 @@ def output_osc(eye_x, eye_y, eye_blink, last_blink, pupil_dilation, avg_velocity
                             eyelid_transformer(self, self.l_eye_blink),
                         )
                     last_blink = time.time() - last_blink
-                if self.config.gui_eye_falloff:
+                if self.config.gui_outer_side_falloff:
                     if (
                         self.r_eye_blink == 0.0
                     ):  # if both eyes closed and DEF is enables, blink
@@ -200,19 +201,20 @@ def output_osc(eye_x, eye_y, eye_blink, last_blink, pupil_dilation, avg_velocity
         elif self.eye_id in [EyeId.RIGHT] and not se:  # Right eye, send data to right
             self.r_eye_x = eye_x
             self.r_eye_blink = eye_blink
+            self.r_eye_velocity = avg_velocity
 
             if self.r_eye_blink == 0.0:
                 if (
                     last_blink > 0.15
                 ):  # when binary blink is on, blinks may be too fast for OSC so we repeat them.
-                    print("REPEATING R BLINK")
+                    #   print("REPEATING R BLINK")
                     for i in range(4):
                         self.client.send_message(
                             "/avatar/parameters/v2/EyeLidRight",
                             eyelid_transformer(self, self.r_eye_blink),
                         )
                     last_blink = time.time() - last_blink
-                if self.config.gui_eye_falloff:
+                if self.config.gui_outer_side_falloff:
                     if (
                         self.l_eye_blink == 0.0
                     ):  # if both eyes closed and DEF is enables, blink
@@ -282,6 +284,7 @@ def output_osc(eye_x, eye_y, eye_blink, last_blink, pupil_dilation, avg_velocity
             self.l_eye_x = eye_x
             self.l_eye_blink = eye_blink
             self.left_y = eye_y
+            self.l_eye_velocity = avg_velocity
             self.client.send_message(
                 self.config.osc_left_eye_close_address,
                 eyelid_transformer(self, eye_blink),
@@ -296,7 +299,7 @@ def output_osc(eye_x, eye_y, eye_blink, last_blink, pupil_dilation, avg_velocity
                             "/tracking/eye/EyesClosedAmount", float(1 - eye_blink)
                         )
                     last_blink = time.time() - last_blink
-                if self.config.gui_eye_falloff:
+                if self.config.gui_outer_side_falloff:
                     if (
                         self.r_eye_blink == 0.0
                     ):  # if both eyes closed and DEF is enables, blink
@@ -309,6 +312,7 @@ def output_osc(eye_x, eye_y, eye_blink, last_blink, pupil_dilation, avg_velocity
             self.r_eye_x = eye_x
             self.r_eye_blink = eye_blink
             self.right_y = eye_y
+            self.r_eye_velocity = avg_velocity
             self.client.send_message(
                 self.config.osc_right_eye_close_address,
                 eyelid_transformer(self, eye_blink),
@@ -323,7 +327,7 @@ def output_osc(eye_x, eye_y, eye_blink, last_blink, pupil_dilation, avg_velocity
                             "/tracking/eye/EyesClosedAmount", float(1 - eye_blink)
                         )
                     last_blink = time.time() - last_blink
-                if self.config.gui_eye_falloff:
+                if self.config.gui_outer_side_falloff:
                     if (
                         self.l_eye_blink == 0.0
                     ):  # if both eyes closed and DEF is enables, blink
@@ -396,6 +400,8 @@ class VRChatOSC:
         self.l_eye_x = 0
         self.r_eye_blink = 0.7
         self.l_eye_blink = 0.7
+        self.l_eye_velocity = 0
+        self.r_eye_velocity = 1
 
     def run(self):
         start = time.time()
