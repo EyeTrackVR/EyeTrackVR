@@ -32,6 +32,10 @@ def velocity_falloff(self, var, out_x, out_y):
                     else:
                         eye_x = var.l_eye_x
                         eye_y = var.left_y
+                elif self.settings.gui_left_eye_dominant:
+                    var.l_eye_x = out_x
+                    var.left_y = out_y
+                    falloff = False
             else:
                 var.l_eye_x = out_x
                 var.left_y = out_y
@@ -58,6 +62,11 @@ def velocity_falloff(self, var, out_x, out_y):
                     else:
                         var.l_eye_x = out_x
                         var.left_y = out_y  # need to make sure we send these values... might re think the whole file
+                elif self.settings.gui_right_eye_dominant:
+                    var.r_eye_x = out_x
+                    var.right_y = out_y
+                    falloff = False
+
             else:
                 falloff = False
                 var.r_eye_x = out_x
