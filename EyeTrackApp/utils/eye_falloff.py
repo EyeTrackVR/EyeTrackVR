@@ -11,6 +11,7 @@ class EyeId(IntEnum):
 
 def velocity_falloff(self, var, out_x, out_y):
 
+    falloff = False
     if self.eye_id in [EyeId.LEFT]:
         var.l_eye_velocity = var.average_velocity
         if self.settings.gui_outer_side_falloff:
