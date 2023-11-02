@@ -34,6 +34,8 @@ class CameraWidget:
         self.gui_recenter_eyes = f"-RECENTEREYES{widget_id}-"
         self.gui_mode_readout = f"-APPMODE{widget_id}-"
         self.gui_roi_message = f"-ROIMESSAGE{widget_id}-"
+        self.gui_mask_markup = f"-MARKUP{widget_id}-"
+        self.gui_mask_lighten = f"-LIGHTEN{widget_id}-"
 
         self.last_eye_info = None
         self.osc_queue = osc_queue
@@ -84,6 +86,20 @@ class CameraWidget:
 
         self.roi_layout = [
             [
+                sg.Button(
+                    "Mark Out",
+                    key=self.gui_mask_markup,
+                    button_color="#6f4ca1",
+                    tooltip="Mark out stuff that is not your eye.",
+                ),
+                sg.Button(
+                    "Lighten",
+                    key=self.gui_mask_lighten,
+                    button_color="#6f4ca1",
+                    tooltip="Lighten shadowed areas.",
+                ),
+            ],
+            [
                 sg.Graph(
                     (640, 480),
                     (0, 480),
@@ -92,8 +108,8 @@ class CameraWidget:
                     drag_submits=True,
                     enable_events=True,
                     background_color="#424042",
-                )
-            ]
+                ),
+            ],
         ]
 
         # Define the window's contents
@@ -250,6 +266,13 @@ class CameraWidget:
 
     def render(self, window, event, values):
         changed = False
+
+        if event == self.gui_mask_lighten:
+            print("lighen")
+
+        if event == self.gui_mask_markup:
+            print("markup")
+
         # If anything has changed in our configuration settings, change/update those.
         if (
             event == self.gui_save_tracking_button
@@ -307,6 +330,7 @@ class CameraWidget:
         if event == "{}+UP".format(self.gui_roi_selection):
             # Event for mouse button up in ROI mode
             self.is_mouse_up = True
+            print("UP")
             if self.x1 < 0:
                 self.x1 = 0
             if self.y1 < 0:
@@ -323,6 +347,7 @@ class CameraWidget:
             if self.is_mouse_up:
                 self.is_mouse_up = False
                 self.x0, self.y0 = values[self.gui_roi_selection]
+
             self.x1, self.y1 = values[self.gui_roi_selection]
 
         if event == self.gui_restart_calibration:
@@ -374,6 +399,7 @@ class CameraWidget:
                 graph.erase()
                 graph.draw_image(data=imgbytes, location=(0, 0))
                 if None not in (self.x0, self.y0, self.x1, self.y1):
+
                     self.figure = graph.draw_rectangle(
                         (self.x0, self.y0), (self.x1, self.y1), line_color="#6f4ca1"
                     )
