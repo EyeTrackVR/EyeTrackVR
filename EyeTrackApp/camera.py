@@ -9,6 +9,7 @@ import platform
 from colorama import Fore
 from config import EyeTrackConfig
 from enum import Enum
+from utils.misc_utils import is_serial
 
 WAIT_TIME = 0.1
 # Serial communication protocol:
@@ -85,7 +86,7 @@ class Camera:
             # than this, otherwise we can deadlock ourselves.
             if self.config.capture_source != None and self.config.capture_source != "":
 
-                if "COM" in str(self.current_capture_source):
+                if is_serial(self.current_capture_source):
                     if (
                         self.serial_connection is None
                         or self.camera_status == CameraState.DISCONNECTED
@@ -125,7 +126,7 @@ class Camera:
             if should_push and not self.capture_event.wait(timeout=0.02):
                 continue
             if self.config.capture_source != None:
-                if "COM" in str(self.current_capture_source):
+                if is_serial(self.current_capture_source):
                     self.get_serial_camera_picture(should_push)
                 else:
                     self.get_cv2_camera_picture(should_push)

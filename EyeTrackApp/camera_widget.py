@@ -10,7 +10,7 @@ from camera import Camera, CameraState
 from osc import EyeId
 import cv2
 import sys
-from utils.misc_utils import PlaySound, SND_FILENAME, SND_ASYNC, resource_path
+from utils.misc_utils import is_serial, PlaySound, SND_FILENAME, SND_ASYNC, resource_path
 import traceback
 import numpy as np
 
@@ -291,7 +291,7 @@ class CameraWidget:
                     self.config.capture_source = None
                 else:
                     if (
-                        len(values[self.gui_camera_addr]) > 5
+                        not is_serial(values[self.gui_camera_addr])
                         and "http" not in values[self.gui_camera_addr]
                         and ".mp4" not in values[self.gui_camera_addr]
                     ):  # If http is not in camera address, add it.
