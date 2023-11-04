@@ -9,7 +9,7 @@ import platform
 from colorama import Fore
 from config import EyeTrackConfig
 from enum import Enum
-from utils.misc_utils import is_serial
+from utils.misc_utils import is_nt, is_serial
 
 WAIT_TIME = 0.1
 # Serial communication protocol:
@@ -264,8 +264,9 @@ class Camera:
             conn = serial.Serial(
                 baudrate=3000000, port=port, xonxoff=False, dsrdtr=False, rtscts=False
             )
-            # Set explicit buffer size for serial.
-            conn.set_buffer_size(rx_size=32768, tx_size=32768)
+            # Set explicit buffer size for serial. Only available on Windows.
+            if is_nt:
+                conn.set_buffer_size(rx_size=32768, tx_size=32768)
 
             print(
                 f"{Fore.CYAN}[INFO] ETVR Serial Tracker device connected on {port}{Fore.RESET}"
