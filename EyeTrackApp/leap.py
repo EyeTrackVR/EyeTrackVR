@@ -27,7 +27,6 @@ Copyright (c) 2023 EyeTrackVR <3
 """
 #  LEAP = Lightweight Eyelid And Pupil
 import os
-
 os.environ["OMP_NUM_THREADS"] = "1"
 import onnxruntime
 import numpy as np
