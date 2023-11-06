@@ -365,7 +365,11 @@ class CameraWidget:
             # Event for mouse button up in ROI mode
             self.is_mouse_up = True
             print("UP")
-            # TODO keep rect in bounds of rotated image
+            self.x0 = np.clip(self.x0, 0, self.pad_w)
+            self.y0 = np.clip(self.y0, 0, self.pad_h)
+            self.x1 = np.clip(self.x1, 0, self.pad_w)
+            self.y1 = np.clip(self.y1, 0, self.pad_h)
+            self._cartesian_to_polar()
             if abs(self.x0 - self.x1) != 0 and abs(self.y0 - self.y1) != 0:
                 (x0, y0), (x1, y1) = self._polar_to_cartesian_at_angle(0)
 
