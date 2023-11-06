@@ -108,6 +108,7 @@ class CameraWidget:
                     key=self.gui_roi_selection,
                     drag_submits=True,
                     enable_events=True,
+                    motion_events=True,
                     background_color="#424042",
                 ),
             ],
@@ -226,6 +227,8 @@ class CameraWidget:
             ],
         ]
 
+        self.hover_x, self.hover_y = None, None
+
         # cartesian co-ordinates in widget space are used during selection
         self.x0, self.y0 = None, None
         self.x1, self.y1 = None, None
@@ -237,7 +240,6 @@ class CameraWidget:
         self.pad_left, self.pad_top = None, None
         self.roi_image_center = (None, None)
 
-        self.figure = None
         self.is_mouse_up = True
         self.in_roi_mode = False
         self.movavg_fps_queue = deque(maxlen=120)
@@ -381,6 +383,8 @@ class CameraWidget:
 
         if event == self.gui_roi_selection:
             # Event for mouse button down or mouse drag in ROI mode
+            (self.hover_x, self.hover_y) = (None, None)
+
             if self.is_mouse_up:
                 self.is_mouse_up = False
                 self.x0, self.y0 = values[self.gui_roi_selection]
@@ -388,6 +392,13 @@ class CameraWidget:
             self.x1, self.y1 = values[self.gui_roi_selection]
 
             self._cartesian_to_polar()
+
+        if event == "{}+MOVE".format(self.gui_roi_selection):
+            if self.is_mouse_up:
+                (self.hover_x, self.hover_y) = values[self.gui_roi_selection]
+
+                if self.hover_x > self.pad_w or self.hover_y > self.pad_h:
+                    (self.hover_x, self.hover_y) = (None, None)
 
         if event == self.gui_restart_calibration:
             self.ransac.calibration_frame_counter = self.settings.calibration_samples
@@ -499,17 +510,22 @@ class CameraWidget:
 
                 imgbytes = cv2.imencode(".ppm", maybe_image[0])[1].tobytes()
                 graph = window[self.gui_roi_selection]
-                if self.figure:
-                    graph.delete_figure(self.figure)
                 # INCREDIBLY IMPORTANT ERASE. Drawing images does NOT overwrite the buffer, the fucking
                 # graph keeps every image fed in until you call this. Therefore we have to make sure we
                 # erase before we redraw, otherwise we'll leak memory *very* quickly.
                 graph.erase()
                 graph.draw_image(data=imgbytes, location=(0, 0))
                 if None not in (self.x0, self.y0, self.x1, self.y1):
-                    self.figure = graph.draw_rectangle(
+                    graph.draw_rectangle(
                         (self.x0, self.y0), (self.x1, self.y1), line_color="#6f4ca1"
                     )
+                if self.is_mouse_up and None not in (self.hover_x, self.hover_y):
+                        graph.draw_line(
+                            (self.hover_x, 0), (self.hover_x, self.pad_h), color="#6f4ca1"
+                        )
+                        graph.draw_line(
+                            (0, self.hover_y), (self.pad_w, self.hover_y), color="#6f4ca1"
+                        )
 
             except Empty:
                 pass
