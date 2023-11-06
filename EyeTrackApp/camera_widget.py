@@ -515,17 +515,27 @@ class CameraWidget:
                 # erase before we redraw, otherwise we'll leak memory *very* quickly.
                 graph.erase()
                 graph.draw_image(data=imgbytes, location=(0, 0))
+
+                def make_dashed(spawn_item, dark="#000000", light="#ffffff", duty=1):
+                    pixel_duty = math.floor(4 * duty)
+                    for (color, dashoffset) in [(dark, 0), (light, 4)]:
+                        item = spawn_item(color)
+                        graph._TKCanvas2.itemconfig(item, dash=(pixel_duty, 8 - pixel_duty), dashoffset=dashoffset)
+
                 if None not in (self.x0, self.y0, self.x1, self.y1):
-                    graph.draw_rectangle(
-                        (self.x0, self.y0), (self.x1, self.y1), line_color="#6f4ca1"
-                    )
+                    style = {}
+                    if self.is_mouse_up:
+                        style = {"dark": "#7f78ff", "light": "#d002ff", "duty": 0.5}
+                    make_dashed(lambda color: graph.draw_rectangle(
+                        (self.x0, self.y0), (self.x1, self.y1), line_color=color,
+                    ), **style)
                 if self.is_mouse_up and None not in (self.hover_x, self.hover_y):
-                        graph.draw_line(
-                            (self.hover_x, 0), (self.hover_x, self.pad_h), color="#6f4ca1"
-                        )
-                        graph.draw_line(
-                            (0, self.hover_y), (self.pad_w, self.hover_y), color="#6f4ca1"
-                        )
+                    make_dashed(lambda color: graph.draw_line(
+                        (self.hover_x, 0), (self.hover_x, self.pad_h), color=color
+                    ))
+                    make_dashed(lambda color: graph.draw_line(
+                        (0, self.hover_y), (self.pad_w, self.hover_y), color=color
+                    ))
 
             except Empty:
                 pass
