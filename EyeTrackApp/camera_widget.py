@@ -12,6 +12,7 @@ import cv2
 import sys
 from utils.misc_utils import PlaySound, SND_FILENAME, SND_ASYNC, resource_path
 import traceback
+import math
 import numpy as np
 
 
@@ -115,17 +116,6 @@ class CameraWidget:
         # Define the window's contents
         self.tracking_layout = [
             [
-                sg.Text("Rotation", background_color="#424042"),
-                sg.Slider(
-                    range=(0, 360),
-                    default_value=self.config.rotation_angle,
-                    orientation="h",
-                    key=self.gui_rotation_slider,
-                    background_color="#424042",
-                    tooltip="Adjust the rotation of your cameras, make them level.",
-                ),
-            ],
-            [
                 sg.Button(
                     "Start Calibration",
                     key=self.gui_restart_calibration,
@@ -211,6 +201,17 @@ class CameraWidget:
                 ),
             ],
             [
+                sg.Text("Rotation", background_color="#424042"),
+                sg.Slider(
+                    range=(0, 360),
+                    default_value=self.config.rotation_angle,
+                    orientation="h",
+                    key=self.gui_rotation_slider,
+                    background_color="#424042",
+                    tooltip="Adjust the rotation of your cameras, make them level.",
+                ),
+            ],
+            [
                 sg.Column(
                     self.tracking_layout,
                     key=self.gui_tracking_layout,
@@ -225,8 +226,16 @@ class CameraWidget:
             ],
         ]
 
+        # cartesian co-ordinates in widget space are used during selection
         self.x0, self.y0 = None, None
         self.x1, self.y1 = None, None
+        self.cartesian_needs_update = False
+        # polar co-ordinates from the image center are the canonical representation
+        self.cr, self.ca = None, None
+        self.w, self.h = None, None
+        self.pad_x, self.pad_y = None, None
+        self.roi_image_center = (None, None)
+
         self.figure = None
         self.is_mouse_up = True
         self.in_roi_mode = False
@@ -242,6 +251,35 @@ class CameraWidget:
     def _movavg_bps(self, next_bps):
         self.movavg_bps_queue.append(next_bps)
         return f"{sum(self.movavg_bps_queue) / len(self.movavg_bps_queue) * 0.001 * 0.001 * 8:.3f} Mbps"
+
+    def _cartesian_to_polar(self):
+        if None not in (self.x0, self.y0, self.x1, self.y1):
+            image_center_x, image_center_y = self.roi_image_center
+            roi_center_x = image_center_x - (self.x0 + self.x1) / 2.
+            roi_center_y = image_center_y - (self.y0 + self.y1) / 2.
+            self.cr = (roi_center_x**2 + roi_center_y**2)**0.5
+            self.ca = math.atan2(roi_center_x, roi_center_y) - \
+                math.radians(self.config.rotation_angle)
+            self.w = abs(self.x1 - self.x0)
+            self.h = abs(self.y1 - self.y0)
+
+    def _polar_to_cartesian_at_angle(self, rotation_angle_radians):
+        if None not in (self.cr, self.ca, self.w, self.h):
+            image_center_x, image_center_y = self.roi_image_center
+            ca = self.ca + rotation_angle_radians
+            cx = -math.sin(ca) * self.cr + image_center_x
+            cy = -math.cos(ca) * self.cr + image_center_y
+            return ((int(cx - self.w/2), int(cy - self.h/2)),
+                    (int(cx + self.w/2), int(cy + self.h/2)))
+        else:
+            return 4 * (None,)
+
+    def _polar_to_cartesian(self):
+        if None not in (self.cr, self.ca, self.w, self.h):
+            (self.x0, self.y0), (self.x1, self.y1) = \
+                self._polar_to_cartesian_at_angle(
+                    math.radians(self.config.rotation_angle))
+
 
     def started(self):
         return not self.cancellation_event.is_set()
@@ -296,9 +334,10 @@ class CameraWidget:
                         self.config.capture_source = values[self.gui_camera_addr]
             changed = True
 
-        if self.config.rotation_angle != values[self.gui_rotation_slider]:
+        if self.config.rotation_angle != int(values[self.gui_rotation_slider]):
             self.config.rotation_angle = int(values[self.gui_rotation_slider])
             changed = True
+            self.cartesian_needs_update = True
 
         # if self.config.gui_circular_crop != values[self.gui_circular_crop]:
         #     self.config.gui_circular_crop = values[self.gui_circular_crop]
@@ -325,15 +364,14 @@ class CameraWidget:
             # Event for mouse button up in ROI mode
             self.is_mouse_up = True
             print("UP")
-            if self.x1 < 0:
-                self.x1 = 0
-            if self.y1 < 0:
-                self.y1 = 0
+            # TODO keep rect in bounds of rotated image
             if abs(self.x0 - self.x1) != 0 and abs(self.y0 - self.y1) != 0:
-                self.config.roi_window_x = min([self.x0, self.x1])
-                self.config.roi_window_y = min([self.y0, self.y1])
-                self.config.roi_window_w = abs(self.x0 - self.x1)
-                self.config.roi_window_h = abs(self.y0 - self.y1)
+                (x0, y0), (x1, y1) = self._polar_to_cartesian_at_angle(0)
+
+                self.config.roi_window_x = min([x0, x1]) - self.pad_x
+                self.config.roi_window_y = min([y0, y1]) - self.pad_y
+                self.config.roi_window_w = abs(x0 - x1)
+                self.config.roi_window_h = abs(y0 - y1)
                 self.main_config.save()
 
         if event == self.gui_roi_selection:
@@ -343,6 +381,8 @@ class CameraWidget:
                 self.x0, self.y0 = values[self.gui_roi_selection]
 
             self.x1, self.y1 = values[self.gui_roi_selection]
+
+            self._cartesian_to_polar()
 
         if event == self.gui_restart_calibration:
             self.ransac.calibration_frame_counter = self.settings.calibration_samples
@@ -401,6 +441,41 @@ class CameraWidget:
                 if self.roi_queue.empty():
                     self.capture_event.set()
                 maybe_image = self.roi_queue.get(block=False)
+
+                if maybe_image:
+                    image = maybe_image[0]
+
+                    img_w, img_h, _ = image.shape
+
+                    # TODO: rotation matrix -> bounding box corners -> crop matrix
+                    hyp = math.ceil((img_w**2 + img_h**2)**0.5)
+                    self.pad_x = (hyp - img_w)/2
+                    self.pad_y = (hyp - img_h)/2
+                    self.roi_image_center = (hyp / 2, hyp / 2)
+
+                    # deferred to after roi_image_center is updated
+                    if self.cartesian_needs_update:
+                        self._polar_to_cartesian()
+                        self.cartesian_needs_update = False
+
+                    crop_matrix = np.float32([[1, 0, self.pad_x],
+                                              [0, 1, self.pad_y],
+                                              [0, 0, 1]])
+                    rotation_matrix = cv2.getRotationMatrix2D(
+                        self.roi_image_center, self.config.rotation_angle, 1
+                    )
+                    matrix = np.matmul(rotation_matrix, crop_matrix)
+
+                    image = cv2.warpAffine(
+                        image,
+                        matrix,
+                        (hyp, hyp),
+                        borderMode=cv2.BORDER_CONSTANT,
+                        borderValue=(128, 128, 128),
+                    )
+
+                    maybe_image = (image, *maybe_image[1:])
+
                 imgbytes = cv2.imencode(".ppm", maybe_image[0])[1].tobytes()
                 graph = window[self.gui_roi_selection]
                 if self.figure:
@@ -411,7 +486,6 @@ class CameraWidget:
                 graph.erase()
                 graph.draw_image(data=imgbytes, location=(0, 0))
                 if None not in (self.x0, self.y0, self.x1, self.y1):
-
                     self.figure = graph.draw_rectangle(
                         (self.x0, self.y0), (self.x1, self.y1), line_color="#6f4ca1"
                     )
