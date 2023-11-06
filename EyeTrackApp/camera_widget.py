@@ -20,6 +20,7 @@ class CameraWidget:
     def __init__(self, widget_id: EyeId, main_config: EyeTrackConfig, osc_queue: Queue):
         self.gui_camera_addr = f"-CAMERAADDR{widget_id}-"
         self.gui_rotation_slider = f"-ROTATIONSLIDER{widget_id}-"
+        self.gui_rotation_ui_padding = f"-ROTATIONUIPADDING{widget_id}-"
         self.gui_roi_button = f"-ROIMODE{widget_id}-"
         self.gui_roi_layout = f"-ROILAYOUT{widget_id}-"
         self.gui_roi_selection = f"-GRAPH{widget_id}-"
@@ -98,6 +99,13 @@ class CameraWidget:
                     key=self.gui_mask_lighten,
                     button_color="#6f4ca1",
                     tooltip="Lighten shadowed areas.",
+                ),
+                sg.Checkbox(
+                    "Camera Widget Padding",
+                    default=self.config.gui_rotation_ui_padding,
+                    tooltip="Pad the camera view widget enough to allow a full rotation.",
+                    key=self.gui_rotation_ui_padding,
+                    background_color="#424042",
                 ),
             ],
             [
@@ -236,6 +244,8 @@ class CameraWidget:
         # polar co-ordinates from the image center are the canonical representation
         self.cr, self.ca = None, None
         self.w, self.h = None, None
+        self.clip_w, self.clip_h = None, None
+        self.clip_left, self.clip_top = None, None
         self.pad_w, self.pad_h = None, None
         self.pad_left, self.pad_top = None, None
         self.roi_image_center = (None, None)
@@ -342,6 +352,12 @@ class CameraWidget:
             changed = True
             self.cartesian_needs_update = True
 
+        if self.config.gui_rotation_ui_padding != bool(values[self.gui_rotation_ui_padding]):
+            self.config.gui_rotation_ui_padding = bool(values[self.gui_rotation_ui_padding])
+            changed = True
+            self.cartesian_needs_update = True
+
+
         # if self.config.gui_circular_crop != values[self.gui_circular_crop]:
         #     self.config.gui_circular_crop = values[self.gui_circular_crop]
         #    changed = True
@@ -367,10 +383,10 @@ class CameraWidget:
             # Event for mouse button up in ROI mode
             self.is_mouse_up = True
             print("UP")
-            self.x0 = np.clip(self.x0, 0, self.pad_w)
-            self.y0 = np.clip(self.y0, 0, self.pad_h)
-            self.x1 = np.clip(self.x1, 0, self.pad_w)
-            self.y1 = np.clip(self.y1, 0, self.pad_h)
+            self.x0 = np.clip(self.x0, self.clip_left, self.clip_left + self.clip_w)
+            self.y0 = np.clip(self.y0, self.clip_top, self.clip_top + self.clip_h)
+            self.x1 = np.clip(self.x1, self.clip_left, self.clip_left + self.clip_w)
+            self.y1 = np.clip(self.y1, self.clip_top, self.clip_top + self.clip_h)
             self._cartesian_to_polar()
             if abs(self.x0 - self.x1) != 0 and abs(self.y0 - self.y1) != 0:
                 (x0, y0), (x1, y1) = self._polar_to_cartesian_at_angle(0)
@@ -463,6 +479,7 @@ class CameraWidget:
 
                     img_w, img_h, _ = image.shape
 
+                    hyp = math.ceil((img_w**2 + img_h**2)**0.5)
                     rotation_matrix = cv2.getRotationMatrix2D(
                         ((img_w/2), (img_h/2)), self.config.rotation_angle, 1
                     )
@@ -478,11 +495,23 @@ class CameraWidget:
                             [0,     img_h, 1],
                             [img_w, img_h, 1]]),
                     )
-                    self.pad_w = math.ceil(max(x_coords) - min(x_coords))
-                    self.pad_h = math.ceil(max(y_coords) - min(y_coords))
+
+                    self.clip_w = math.ceil(max(x_coords) - min(x_coords))
+                    self.clip_h = math.ceil(max(y_coords) - min(y_coords))
+                    if self.config.gui_rotation_ui_padding:
+                        self.pad_w = hyp
+                        self.pad_h = hyp
+                    else:
+                        self.pad_w = self.clip_w
+                        self.pad_h = self.clip_h
+
 
                     self.pad_left = round((self.pad_w - img_w)/2)
                     self.pad_top = round((self.pad_h - img_h)/2)
+
+                    self.clip_left = round((self.pad_w - self.clip_w)/2)
+                    self.clip_top = round((self.pad_h - self.clip_h)/2)
+
                     self.roi_image_center = (self.pad_w / 2, self.pad_h / 2)
 
                     # deferred to after roi_image_center is updated
