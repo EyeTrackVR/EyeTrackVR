@@ -233,7 +233,8 @@ class CameraWidget:
         # polar co-ordinates from the image center are the canonical representation
         self.cr, self.ca = None, None
         self.w, self.h = None, None
-        self.pad_x, self.pad_y = None, None
+        self.pad_w, self.pad_h = None, None
+        self.pad_left, self.pad_top = None, None
         self.roi_image_center = (None, None)
 
         self.figure = None
@@ -368,8 +369,8 @@ class CameraWidget:
             if abs(self.x0 - self.x1) != 0 and abs(self.y0 - self.y1) != 0:
                 (x0, y0), (x1, y1) = self._polar_to_cartesian_at_angle(0)
 
-                self.config.roi_window_x = min([x0, x1]) - self.pad_x
-                self.config.roi_window_y = min([y0, y1]) - self.pad_y
+                self.config.roi_window_x = min([x0, x1]) - self.pad_left
+                self.config.roi_window_y = min([y0, y1]) - self.pad_top
                 self.config.roi_window_w = abs(x0 - x1)
                 self.config.roi_window_h = abs(y0 - y1)
                 self.main_config.save()
@@ -447,29 +448,45 @@ class CameraWidget:
 
                     img_w, img_h, _ = image.shape
 
-                    # TODO: rotation matrix -> bounding box corners -> crop matrix
-                    hyp = math.ceil((img_w**2 + img_h**2)**0.5)
-                    self.pad_x = (hyp - img_w)/2
-                    self.pad_y = (hyp - img_h)/2
-                    self.roi_image_center = (hyp / 2, hyp / 2)
+                    rotation_matrix = cv2.getRotationMatrix2D(
+                        ((img_w/2), (img_h/2)), self.config.rotation_angle, 1
+                    )
+
+                    # calculate position of all four corners of image
+
+                    # calculate crop corner locations in original image space
+                    x_coords, y_coords = np.matmul(
+                        rotation_matrix,
+                        np.transpose([
+                            [0,     0,     1],
+                            [img_w, 0,     1],
+                            [0,     img_h, 1],
+                            [img_w, img_h, 1]]),
+                    )
+                    self.pad_w = math.ceil(max(x_coords) - min(x_coords))
+                    self.pad_h = math.ceil(max(y_coords) - min(y_coords))
+
+                    self.pad_left = round((self.pad_w - img_w)/2)
+                    self.pad_top = round((self.pad_h - img_h)/2)
+                    self.roi_image_center = (self.pad_w / 2, self.pad_h / 2)
 
                     # deferred to after roi_image_center is updated
                     if self.cartesian_needs_update:
                         self._polar_to_cartesian()
                         self.cartesian_needs_update = False
 
-                    crop_matrix = np.float32([[1, 0, self.pad_x],
-                                              [0, 1, self.pad_y],
-                                              [0, 0, 1]])
-                    rotation_matrix = cv2.getRotationMatrix2D(
+                    pad_matrix = np.float32([[1, 0, self.pad_left],
+                                             [0, 1, self.pad_top],
+                                             [0, 0, 1]])
+                    rotation_matrix_padded = cv2.getRotationMatrix2D(
                         self.roi_image_center, self.config.rotation_angle, 1
                     )
-                    matrix = np.matmul(rotation_matrix, crop_matrix)
+                    matrix = np.matmul(rotation_matrix_padded, pad_matrix)
 
                     image = cv2.warpAffine(
                         image,
                         matrix,
-                        (hyp, hyp),
+                        (self.pad_w, self.pad_h),
                         borderMode=cv2.BORDER_CONSTANT,
                         borderValue=(128, 128, 128),
                     )
