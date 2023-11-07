@@ -267,12 +267,6 @@ class CameraWidget:
     def render(self, window, event, values):
         changed = False
 
-        if event == self.gui_mask_lighten:
-            print("lighen")
-
-        if event == self.gui_mask_markup:
-            print("markup")
-
         # If anything has changed in our configuration settings, change/update those.
         if (
             event == self.gui_save_tracking_button
@@ -383,6 +377,24 @@ class CameraWidget:
             window[self.gui_mode_readout].update("Tracking")
             window[self.gui_tracking_fps].update(self._movavg_fps(self.camera.fps))
             window[self.gui_tracking_bps].update(self._movavg_bps(self.camera.bps))
+
+        if event == self.gui_mask_lighten:
+            while True:
+                try:
+                    maybe_image = self.roi_queue.get(block=False)
+                    imgbytes = cv2.imencode(".ppm", maybe_image[0])[1].tobytes()
+                    image = cv2.imdecode(
+                        np.frombuffer(imgbytes, np.uint8), cv2.IMREAD_COLOR
+                    )
+
+                    cv2.imshow("Image", image)
+                    cv2.waitKey(1)
+                    cv2.destroyAllWindows()
+                    print("lighen")
+                except Empty:
+                    pass
+        if event == self.gui_mask_markup:
+            print("markup")
 
         if self.in_roi_mode:
             try:
