@@ -271,17 +271,17 @@ class CameraWidget:
 
     def _cartesian_to_polar(self):
         if not (self.xy0 is None or self.xy1 is None):
-            roi_center = self.roi_image_center - (self.xy0 + self.xy1) / 2.
+            roi_center = (self.xy0 + self.xy1) / 2 - self.roi_image_center
             self.cr = np.linalg.norm(roi_center)
-            self.ca = math.atan2(roi_center[X], roi_center[Y]) - \
+            self.ca = math.atan2(roi_center[Y], roi_center[X]) + \
                 math.radians(self.config.rotation_angle)
             self.roi_size = np.abs(self.xy1 - self.xy0)
 
     def _polar_to_cartesian_at_angle(self, rotation_angle_radians):
         if not (self.cr is None or self.ca is None or self.roi_size is None):
-            ca = self.ca + rotation_angle_radians
-            cx = -math.sin(ca) * self.cr + self.roi_image_center[X]
-            cy = -math.cos(ca) * self.cr + self.roi_image_center[Y]
+            ca = self.ca - rotation_angle_radians
+            cx = math.cos(ca) * self.cr + self.roi_image_center[X]
+            cy = math.sin(ca) * self.cr + self.roi_image_center[Y]
             roi_pos = np.array((int(cx), int(cy))) - self.roi_size//2
             return (roi_pos, roi_pos + self.roi_size)
         else:
@@ -550,7 +550,7 @@ class CameraWidget:
                     self.xy0 = roi_window_pos + self.img_pos
                     self.xy1 = self.xy0 + roi_window_size
                     self._cartesian_to_polar()
-                    self.ca += math.radians(self.config.rotation_angle)
+                    self.ca -= math.radians(self.config.rotation_angle)
                     self._polar_to_cartesian()
 
                 style = {}
