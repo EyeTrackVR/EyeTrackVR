@@ -551,13 +551,23 @@ class CameraWidget:
                         item = spawn_item(color)
                         graph._TKCanvas2.itemconfig(item, dash=(pixel_duty, 8 - pixel_duty), dashoffset=dashoffset)
 
-                if None not in (self.x0, self.y0, self.x1, self.y1):
-                    style = {}
-                    if self.is_mouse_up:
-                        style = {"dark": "#7f78ff", "light": "#d002ff", "duty": 0.5}
-                    make_dashed(lambda color: graph.draw_rectangle(
-                        (self.x0, self.y0), (self.x1, self.y1), line_color=color,
-                    ), **style)
+                if None in (self.x0, self.y0, self.x1, self.y1):
+                    # roi_window rotates around roi center, we rotate around image center
+                    # TODO: it would be nice if they were more consistent
+                    self.x0 = self.config.roi_window_x + self.pad_left
+                    self.y0 = self.config.roi_window_y + self.pad_top
+                    self.x1 = self.x0 + self.config.roi_window_w
+                    self.y1 = self.y0 + self.config.roi_window_h
+                    self._cartesian_to_polar()
+                    self.ca += math.radians(self.config.rotation_angle)
+                    self._polar_to_cartesian()
+
+                style = {}
+                if self.is_mouse_up:
+                    style = {"dark": "#7f78ff", "light": "#d002ff", "duty": 0.5}
+                make_dashed(lambda color: graph.draw_rectangle(
+                    (self.x0, self.y0), (self.x1, self.y1), line_color=color,
+                ), **style)
                 if self.is_mouse_up and None not in (self.hover_x, self.hover_y):
                     make_dashed(lambda color: graph.draw_line(
                         (self.hover_x, 0), (self.hover_x, self.pad_h), color=color
