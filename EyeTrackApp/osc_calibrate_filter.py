@@ -3,6 +3,59 @@ import time
 from enum import IntEnum
 from utils.misc_utils import PlaySound, SND_FILENAME, SND_ASYNC, resource_path
 from utils.eye_falloff import velocity_falloff
+import socket
+import struct
+
+import threading
+
+
+class TimeoutError(RuntimeError):
+    pass
+
+
+class AsyncCall(object):
+    def __init__(self, fnc, callback=None):
+        self.Callable = fnc
+        self.Callback = callback
+
+    def __call__(self, *args, **kwargs):
+        self.Thread = threading.Thread(
+            target=self.run, name=self.Callable.__name__, args=args, kwargs=kwargs
+        )
+        self.Thread.start()
+        return self
+
+    def wait(self, timeout=None):
+        self.Thread.join(timeout)
+        if self.Thread.isAlive():
+            raise TimeoutError()
+        else:
+            return self.Result
+
+    def run(self, *args, **kwargs):
+        self.Result = self.Callable(*args, **kwargs)
+        if self.Callback:
+            self.Callback(self.Result)
+
+
+class AsyncMethod(object):
+    def __init__(self, fnc, callback=None):
+        self.Callable = fnc
+        self.Callback = callback
+
+    def __call__(self, *args, **kwargs):
+        return AsyncCall(self.Callable, self.Callback)(*args, **kwargs)
+
+
+def Async(fnc=None, callback=None):
+    if fnc == None:
+
+        def AddAsyncCallback(fnc):
+            return AsyncMethod(fnc, callback)
+
+        return AddAsyncCallback
+    else:
+        return AsyncMethod(fnc, callback)
 
 
 class EyeId(IntEnum):
@@ -24,6 +77,27 @@ class var:
     right_y = 0.0
     l_eye_velocity = 0.0
     r_eye_velocity = 0.0
+
+
+@Async
+def center_overlay_calibrate(self):
+    try:
+        os.startfile(
+            "Tools/ETVR_SteamVR_Calibration_Overlay.exe -center"
+        )  # i cant remember if this need the - for argument...
+        sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        server_address = ("localhost", 2112)
+        sock.bind(server_address)
+
+        data, address = sock.recvfrom(4096)
+        received_int = struct.unpack("!l", data)[0]
+        message = received_int
+        self.settings.gui_recenter_eyes = False
+        print(message)  # TODO: remove print after testing
+    except:
+        print("[WARN] Calibration overlay error. Make sure SteamVR is Running.")
+        self.settings.gui_recenter_eyes = False
+    return self.settings.gui_recenter_eyes
 
 
 class cal:
@@ -70,12 +144,14 @@ class cal:
             self.config.calib_XOFF = cx
             self.config.calib_YOFF = cy
             if self.ts == 0:
+                center_overlay_calibrate(self)  # TODO, only call on windows machines?
                 self.settings.gui_recenter_eyes = False
                 PlaySound(
                     resource_path("Audio/completed.wav"), SND_FILENAME | SND_ASYNC
                 )
             else:
                 self.ts = self.ts - 1
+
         else:
             self.ts = 10
 
