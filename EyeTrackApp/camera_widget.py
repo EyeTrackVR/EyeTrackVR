@@ -15,6 +15,9 @@ import traceback
 import math
 import numpy as np
 
+# for clarity when indexing
+X = 0
+Y = 1
 
 class CameraWidget:
     def __init__(self, widget_id: EyeId, main_config: EyeTrackConfig, osc_queue: Queue):
@@ -235,22 +238,23 @@ class CameraWidget:
             ],
         ]
 
-        self.hover_x, self.hover_y = None, None
+        self.hover = None
 
         # cartesian co-ordinates in widget space are used during selection
-        self.x0, self.y0 = None, None
-        self.x1, self.y1 = None, None
+        self.xy0 = None
+        self.xy1 = None
         self.cartesian_needs_update = False
         # polar co-ordinates from the image center are the canonical representation
         self.cr, self.ca = None, None
-        self.w, self.h = None, None
-        self.clip_w, self.clip_h = None, None
-        self.clip_left, self.clip_top = None, None
-        self.pad_w, self.pad_h = None, None
-        self.pad_left, self.pad_top = None, None
-        self.roi_image_center = (None, None)
+        self.roi_size = None
+        self.clip_size = None
+        self.clip_pos = None
+        self.padded_size = None
+        self.img_pos = None
+        self.roi_image_center = None
 
         self.is_mouse_up = True
+        self.hover_pos = None
         self.in_roi_mode = False
         self.movavg_fps_queue = deque(maxlen=120)
         self.movavg_bps_queue = deque(maxlen=120)
@@ -266,30 +270,26 @@ class CameraWidget:
         return f"{sum(self.movavg_bps_queue) / len(self.movavg_bps_queue) * 0.001 * 0.001 * 8:.3f} Mbps"
 
     def _cartesian_to_polar(self):
-        if None not in (self.x0, self.y0, self.x1, self.y1):
-            image_center_x, image_center_y = self.roi_image_center
-            roi_center_x = image_center_x - (self.x0 + self.x1) / 2.
-            roi_center_y = image_center_y - (self.y0 + self.y1) / 2.
-            self.cr = (roi_center_x**2 + roi_center_y**2)**0.5
-            self.ca = math.atan2(roi_center_x, roi_center_y) - \
+        if not (self.xy0 is None or self.xy1 is None):
+            roi_center = self.roi_image_center - (self.xy0 + self.xy1) / 2.
+            self.cr = np.linalg.norm(roi_center)
+            self.ca = math.atan2(roi_center[X], roi_center[Y]) - \
                 math.radians(self.config.rotation_angle)
-            self.w = abs(self.x1 - self.x0)
-            self.h = abs(self.y1 - self.y0)
+            self.roi_size = np.abs(self.xy1 - self.xy0)
 
     def _polar_to_cartesian_at_angle(self, rotation_angle_radians):
-        if None not in (self.cr, self.ca, self.w, self.h):
-            image_center_x, image_center_y = self.roi_image_center
+        if not (self.cr is None or self.ca is None or self.roi_size is None):
             ca = self.ca + rotation_angle_radians
-            cx = -math.sin(ca) * self.cr + image_center_x
-            cy = -math.cos(ca) * self.cr + image_center_y
-            return ((int(cx - self.w/2), int(cy - self.h/2)),
-                    (int(cx + self.w/2), int(cy + self.h/2)))
+            cx = -math.sin(ca) * self.cr + self.roi_image_center[X]
+            cy = -math.cos(ca) * self.cr + self.roi_image_center[Y]
+            roi_pos = np.array((int(cx), int(cy))) - self.roi_size//2
+            return (roi_pos, roi_pos + self.roi_size)
         else:
-            return 4 * (None,)
+            return (None, None)
 
     def _polar_to_cartesian(self):
-        if None not in (self.cr, self.ca, self.w, self.h):
-            (self.x0, self.y0), (self.x1, self.y1) = \
+        if not (self.cr is None or self.ca is None or self.roi_size is None):
+            (self.xy0), (self.xy1) = \
                 self._polar_to_cartesian_at_angle(
                     math.radians(self.config.rotation_angle))
 
@@ -383,38 +383,34 @@ class CameraWidget:
             # Event for mouse button up in ROI mode
             self.is_mouse_up = True
             print("UP")
-            self.x0 = np.clip(self.x0, self.clip_left, self.clip_left + self.clip_w)
-            self.y0 = np.clip(self.y0, self.clip_top, self.clip_top + self.clip_h)
-            self.x1 = np.clip(self.x1, self.clip_left, self.clip_left + self.clip_w)
-            self.y1 = np.clip(self.y1, self.clip_top, self.clip_top + self.clip_h)
+            self.xy0 = np.clip(self.xy0, self.clip_pos, self.clip_pos + self.clip_size)
+            self.xy1 = np.clip(self.xy1, self.clip_pos, self.clip_pos + self.clip_size)
             self._cartesian_to_polar()
-            if abs(self.x0 - self.x1) != 0 and abs(self.y0 - self.y1) != 0:
-                (x0, y0), (x1, y1) = self._polar_to_cartesian_at_angle(0)
+            if all(abs(self.xy0 - self.xy1) != 0):
+                xy0, xy1 = self._polar_to_cartesian_at_angle(0)
 
-                self.config.roi_window_x = min([x0, x1]) - self.pad_left
-                self.config.roi_window_y = min([y0, y1]) - self.pad_top
-                self.config.roi_window_w = abs(x0 - x1)
-                self.config.roi_window_h = abs(y0 - y1)
+                self.config.roi_window_x, self.config.roi_window_y = (np.minimum(xy0, xy1) - self.img_pos).tolist()
+                self.config.roi_window_w, self.config.roi_window_h = (np.abs(xy0 - xy1)).tolist()
                 self.main_config.save()
 
         if event == self.gui_roi_selection:
             # Event for mouse button down or mouse drag in ROI mode
-            (self.hover_x, self.hover_y) = (None, None)
+            self.hover_pos = None
 
             if self.is_mouse_up:
                 self.is_mouse_up = False
-                self.x0, self.y0 = values[self.gui_roi_selection]
+                self.xy0 = np.array(values[self.gui_roi_selection])
 
-            self.x1, self.y1 = values[self.gui_roi_selection]
+            self.xy1 = np.array(values[self.gui_roi_selection])
 
             self._cartesian_to_polar()
 
         if event == "{}+MOVE".format(self.gui_roi_selection):
             if self.is_mouse_up:
-                (self.hover_x, self.hover_y) = values[self.gui_roi_selection]
+                self.hover_pos = np.array(values[self.gui_roi_selection])
 
-                if self.hover_x > self.pad_w or self.hover_y > self.pad_h:
-                    (self.hover_x, self.hover_y) = (None, None)
+                if any(self.hover_pos > self.padded_size):
+                    self.hover_pos = None
 
         if event == self.gui_restart_calibration:
             self.ransac.calibration_frame_counter = self.settings.calibration_samples
@@ -496,31 +492,26 @@ class CameraWidget:
                             [img_w, img_h, 1]]),
                     )
 
-                    self.clip_w = math.ceil(max(x_coords) - min(x_coords))
-                    self.clip_h = math.ceil(max(y_coords) - min(y_coords))
+                    self.clip_size = np.array([math.ceil(max(x_coords) - min(x_coords)),
+                                               math.ceil(max(y_coords) - min(y_coords))])
                     if self.config.gui_rotation_ui_padding:
-                        self.pad_w = hyp
-                        self.pad_h = hyp
+                        self.padded_size = np.array([hyp, hyp])
                     else:
-                        self.pad_w = self.clip_w
-                        self.pad_h = self.clip_h
+                        self.padded_size = self.clip_size
 
+                    self.img_pos = ((self.padded_size - (img_w, img_h))/2).astype(np.int32)
 
-                    self.pad_left = round((self.pad_w - img_w)/2)
-                    self.pad_top = round((self.pad_h - img_h)/2)
+                    self.clip_pos = ((self.padded_size - self.clip_size)/2).astype(np.int32)
 
-                    self.clip_left = round((self.pad_w - self.clip_w)/2)
-                    self.clip_top = round((self.pad_h - self.clip_h)/2)
-
-                    self.roi_image_center = (self.pad_w / 2, self.pad_h / 2)
+                    self.roi_image_center = self.padded_size / 2
 
                     # deferred to after roi_image_center is updated
                     if self.cartesian_needs_update:
                         self._polar_to_cartesian()
                         self.cartesian_needs_update = False
 
-                    pad_matrix = np.float32([[1, 0, self.pad_left],
-                                             [0, 1, self.pad_top],
+                    pad_matrix = np.float32([[1, 0, self.img_pos[X]],
+                                             [0, 1, self.img_pos[Y]],
                                              [0, 0, 1]])
                     rotation_matrix_padded = cv2.getRotationMatrix2D(
                         self.roi_image_center, self.config.rotation_angle, 1
@@ -530,7 +521,7 @@ class CameraWidget:
                     image = cv2.warpAffine(
                         image,
                         matrix,
-                        (self.pad_w, self.pad_h),
+                        self.padded_size,
                         borderMode=cv2.BORDER_CONSTANT,
                         borderValue=(128, 128, 128),
                     )
@@ -551,13 +542,13 @@ class CameraWidget:
                         item = spawn_item(color)
                         graph._TKCanvas2.itemconfig(item, dash=(pixel_duty, 8 - pixel_duty), dashoffset=dashoffset)
 
-                if None in (self.x0, self.y0, self.x1, self.y1):
+                if (self.xy0 is None or self.xy1 is None):
                     # roi_window rotates around roi center, we rotate around image center
                     # TODO: it would be nice if they were more consistent
-                    self.x0 = self.config.roi_window_x + self.pad_left
-                    self.y0 = self.config.roi_window_y + self.pad_top
-                    self.x1 = self.x0 + self.config.roi_window_w
-                    self.y1 = self.y0 + self.config.roi_window_h
+                    roi_window_pos = (self.config.roi_window_x, self.config.roi_window_y)
+                    roi_window_size = (self.config.roi_window_w, self.config.roi_window_h)
+                    self.xy0 = roi_window_pos + self.img_pos
+                    self.xy1 = self.xy0 + roi_window_size
                     self._cartesian_to_polar()
                     self.ca += math.radians(self.config.rotation_angle)
                     self._polar_to_cartesian()
@@ -566,14 +557,14 @@ class CameraWidget:
                 if self.is_mouse_up:
                     style = {"dark": "#7f78ff", "light": "#d002ff", "duty": 0.5}
                 make_dashed(lambda color: graph.draw_rectangle(
-                    (self.x0, self.y0), (self.x1, self.y1), line_color=color,
+                    self.xy0, self.xy1, line_color=color,
                 ), **style)
-                if self.is_mouse_up and None not in (self.hover_x, self.hover_y):
+                if self.is_mouse_up and self.hover_pos is not None:
                     make_dashed(lambda color: graph.draw_line(
-                        (self.hover_x, 0), (self.hover_x, self.pad_h), color=color
+                        (self.hover_pos[X], 0), (self.hover_pos[X], self.padded_size[Y]), color=color
                     ))
                     make_dashed(lambda color: graph.draw_line(
-                        (0, self.hover_y), (self.pad_w, self.hover_y), color=color
+                        (0, self.hover_pos[Y]), (self.padded_size[X], self.hover_pos[Y]), color=color
                     ))
 
             except Empty:
