@@ -78,7 +78,7 @@ class var:
     right_y = 0.0
     l_eye_velocity = 0.0
     r_eye_velocity = 0.0
-    var.overlay_active = False
+    overlay_active = False
 
 
 @Async
