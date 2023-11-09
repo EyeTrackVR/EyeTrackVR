@@ -8,6 +8,7 @@ import struct
 import threading
 import os
 
+
 class TimeoutError(RuntimeError):
     pass
 
@@ -84,7 +85,7 @@ def center_overlay_calibrate(self):
     print(os.getcwd())
 
     dirname = os.path.dirname(__file__)
-    overlay_path = os.path.join(dirname, "Tools/ETVR_SteamVR_Calibration_Overlay.exe")
+    overlay_path = os.path.join(dirname, "Tools\\ETVR_SteamVR_Calibration_Overlay.exe")
     os.startfile(overlay_path + " center")  # check the file path.
     sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     server_address = ("localhost", 1234)
