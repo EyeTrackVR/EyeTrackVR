@@ -82,7 +82,7 @@ class var:
 def center_overlay_calibrate(self):
     try:
         os.startfile(
-            "Tools/ETVR_SteamVR_Calibration_Overlay.exe -center"
+            "Tools/ETVR_SteamVR_Calibration_Overlay.exe center"
         )  # i cant remember if this needs the - for argument... also check the file path.
         sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         server_address = ("localhost", 1234)
