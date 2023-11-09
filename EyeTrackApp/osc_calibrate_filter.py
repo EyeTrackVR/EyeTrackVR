@@ -5,7 +5,6 @@ from utils.misc_utils import PlaySound, SND_FILENAME, SND_ASYNC, resource_path
 from utils.eye_falloff import velocity_falloff
 import socket
 import struct
-
 import threading
 
 
@@ -84,9 +83,9 @@ def center_overlay_calibrate(self):
     try:
         os.startfile(
             "Tools/ETVR_SteamVR_Calibration_Overlay.exe -center"
-        )  # i cant remember if this need the - for argument...
+        )  # i cant remember if this needs the - for argument... also check the file path.
         sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        server_address = ("localhost", 2112)
+        server_address = ("localhost", 1234)
         sock.bind(server_address)
 
         data, address = sock.recvfrom(4096)
@@ -97,7 +96,6 @@ def center_overlay_calibrate(self):
     except:
         print("[WARN] Calibration overlay error. Make sure SteamVR is Running.")
         self.settings.gui_recenter_eyes = False
-    return self.settings.gui_recenter_eyes
 
 
 class cal:
