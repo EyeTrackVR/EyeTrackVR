@@ -80,23 +80,23 @@ class var:
 
 @Async
 def center_overlay_calibrate(self):
-    try:
-        print(os.getcwd())
-        os.startfile(
-            os.getcwd() + "/Tools/ETVR_SteamVR_Calibration_Overlay.exe center"
-        )  # i cant remember if this needs the - for argument... also check the file path.
-        sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        server_address = ("localhost", 1234)
-        sock.bind(server_address)
+    # try:
+    print(os.getcwd())
+    os.startfile(
+        os.getcwd() + "/Tools/ETVR_SteamVR_Calibration_Overlay.exe center"
+    )  # check the file path.
+    sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    server_address = ("localhost", 1234)
+    sock.bind(server_address)
 
-        data, address = sock.recvfrom(4096)
-        received_int = struct.unpack("!l", data)[0]
-        message = received_int
-        self.settings.gui_recenter_eyes = False
-        print(message)  # TODO: remove print after testing
-    except:
-        print("[WARN] Calibration overlay error. Make sure SteamVR is Running.")
-        self.settings.gui_recenter_eyes = False
+    data, address = sock.recvfrom(4096)
+    received_int = struct.unpack("!l", data)[0]
+    message = received_int
+    self.settings.gui_recenter_eyes = False
+    print(message)  # TODO: remove print after testing
+    # except:
+    #  print("[WARN] Calibration overlay error. Make sure SteamVR is Running.")
+    # self.settings.gui_recenter_eyes = False
 
 
 class cal:
