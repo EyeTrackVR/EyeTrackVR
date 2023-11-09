@@ -6,7 +6,7 @@ from utils.eye_falloff import velocity_falloff
 import socket
 import struct
 import threading
-
+import os
 
 class TimeoutError(RuntimeError):
     pass
