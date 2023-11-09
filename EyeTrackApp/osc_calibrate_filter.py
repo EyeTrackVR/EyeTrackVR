@@ -92,7 +92,7 @@ def center_overlay_calibrate(self):
             subprocess.run([overlay_path, "center"])
             var.overlay_active = True
             sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-            server_address = ("localhost", 1234)
+            server_address = ("localhost", 2112)
             sock.bind(server_address)
 
             data, address = sock.recvfrom(4096)
