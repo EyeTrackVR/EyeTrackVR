@@ -82,9 +82,10 @@ class var:
 def center_overlay_calibrate(self):
     # try:
     print(os.getcwd())
-    os.startfile(
-        os.getcwd() + "/Tools/ETVR_SteamVR_Calibration_Overlay.exe center"
-    )  # check the file path.
+
+    dirname = os.path.dirname(__file__)
+    overlay_path = os.path.join(dirname, "Tools/ETVR_SteamVR_Calibration_Overlay.exe")
+    os.startfile(overlay_path + " center")  # check the file path.
     sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     server_address = ("localhost", 1234)
     sock.bind(server_address)
