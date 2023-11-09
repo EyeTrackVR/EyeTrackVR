@@ -7,6 +7,7 @@ import socket
 import struct
 import threading
 import os
+import subprocess
 
 
 class TimeoutError(RuntimeError):
@@ -86,7 +87,8 @@ def center_overlay_calibrate(self):
 
     dirname = os.path.dirname(__file__)
     overlay_path = os.path.join(dirname, "Tools\\ETVR_SteamVR_Calibration_Overlay.exe")
-    os.startfile(overlay_path + " center")  # check the file path.
+
+    subprocess.run([overlay_path, "center"])
     sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     server_address = ("localhost", 1234)
     sock.bind(server_address)
