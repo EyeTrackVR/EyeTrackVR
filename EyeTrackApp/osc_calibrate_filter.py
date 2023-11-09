@@ -81,8 +81,9 @@ class var:
 @Async
 def center_overlay_calibrate(self):
     try:
+        print(os.getcwd())
         os.startfile(
-            "Tools/ETVR_SteamVR_Calibration_Overlay.exe center"
+            os.getcwd() + "/Tools/ETVR_SteamVR_Calibration_Overlay.exe center"
         )  # i cant remember if this needs the - for argument... also check the file path.
         sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         server_address = ("localhost", 1234)
