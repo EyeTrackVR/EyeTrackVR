@@ -50,8 +50,8 @@ alg_ver = "PallasNekoV3"  # memo: Created by PallasNeko on 230929
 
 ##############################
 save_logfile = False  # This setting is disabled when imshow_enable or save_img or save_video is true
-imshow_enable = True
-save_video = True
+imshow_enable = False
+save_video = False
 
 VideoCapture_SRC = "/Users/prohurtz/Desktop/t3c.mp4"  # "demo2.mp4"
 input_is_webcam = False

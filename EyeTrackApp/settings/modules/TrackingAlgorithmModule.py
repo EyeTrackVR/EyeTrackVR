@@ -45,7 +45,7 @@ class TrackingAlgorithmValidationModel(BaseValidationModel):
 class TrackingAlgorithmModule(BaseSettingsModule):
     def __init__(self, config, widget_id, **kwargs):
         super().__init__(config=config, widget_id=widget_id, **kwargs)
-        self.algo_count = ["1", "2", "3", "4", "5", "6", "7"]
+        self.algo_count = ["1", "2", "3", "4", "5", "6", "7", "8"]
         self.validation_model = TrackingAlgorithmValidationModel
         self.gui_BLOB = f"-BLOBFALLBACK{widget_id}-"
         self.gui_DADDY = f"-DADDY{widget_id}-"
