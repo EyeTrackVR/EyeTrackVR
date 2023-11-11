@@ -60,6 +60,7 @@ from utils.img_utils import circle_crop
 from eye import EyeInfo, EyeInfoOrigin
 from intensity_based_openness import *
 from ellipse_based_pupil_dilation import *
+from AHSF import *
 
 
 def run_once(f):
@@ -166,7 +167,7 @@ class EyeProcessor:
         self.ran_blink_check_for_file = True
         self.bd_blink = False
         self.current_algo = EyeInfoOrigin.HSRAC
-        self.puipil_width = 0.0
+        self.pupil_width = 0.0
         self.pupil_height = 0.0
         self.avg_velocity = 0.0
 
@@ -472,6 +473,28 @@ class EyeProcessor:
         )
         self.current_algorithm = EyeInfoOrigin.RANSAC
 
+    def AHSFM(self):
+        if self.eye_id in [EyeId.LEFT] and self.settings.gui_circular_crop_left:
+            self.current_image_gray, self.cct = circle_crop(
+                self.current_image_gray, self.xc, self.yc, self.cc_radius, self.cct
+            )
+        else:
+            pass
+        if self.eye_id in [EyeId.RIGHT] and self.settings.gui_circular_crop_right:
+            self.current_image_gray, self.cct = circle_crop(
+                self.current_image_gray, self.xc, self.yc, self.cc_radius, self.cct
+            )
+        else:
+            pass
+        self.current_image, self.rawx, self.rawy = External_Run_AHSF(
+            self.current_image_gray
+        )
+        self.thresh = self.current_image_gray
+        self.out_x, self.out_y, self.avg_velocity = cal.cal_osc(
+            self, self.rawx, self.rawy
+        )
+        self.current_algorithm = EyeInfoOrigin.HSF
+
     def BLOBM(self):
         if self.eye_id in [EyeId.LEFT] and self.settings.gui_circular_crop_left:
             self.current_image_gray, self.cct = circle_crop(
@@ -535,11 +558,18 @@ class EyeProcessor:
         self.fourthalgo = None
         self.fithalgo = None
         self.sixthalgo = None
+        self.seventhalgo = None
         algolist = [None, None, None, None, None, None, None]
         # clear HSF values when page is opened to correctly reflect setting changes
         self.er_hsf = None
 
+        # algolist[self.settings.gui_HSFP] = self.HSFM
+
         # set algo priorities
+        if self.settings.gui_AHSF:
+            print("yippee")
+            algolist[self.settings.gui_HSFP] = self.AHSFM
+
         if self.settings.gui_HSF:
             if self.er_hsf is None:
                 if self.eye_id in [EyeId.LEFT]:

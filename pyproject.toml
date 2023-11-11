@@ -15,6 +15,7 @@ numpy = "~1.23.5"
 pye3d = "^0.3.1.post1"
 pysimplegui = "^4.60.4"
 pydantic = "^2.4.2"
+scikit-image = "*"
 pyserial = "^3.5"
 winotify = [ 
     { version = "^1.1.0", platform = 'win32' }

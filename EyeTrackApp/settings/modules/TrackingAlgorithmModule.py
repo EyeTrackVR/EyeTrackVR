@@ -9,6 +9,7 @@ class TrackingAlgorithmValidationModel(BaseValidationModel):
     gui_DADDY: bool
     gui_HSF: bool
     gui_HSRAC: bool
+    gui_AHSF: bool
     gui_LEAP: bool
     gui_RANSAC3D: bool
     gui_legacy_ransac: bool
@@ -16,6 +17,7 @@ class TrackingAlgorithmValidationModel(BaseValidationModel):
     gui_BLOBP: int
     gui_DADDYP: int
     gui_HSFP: int
+    gui_AHSFP: int
     gui_HSRACP: int
     gui_LEAPP: int
     gui_RANSAC3DP: int
@@ -23,6 +25,7 @@ class TrackingAlgorithmValidationModel(BaseValidationModel):
     @model_validator(mode="after")
     def check_algorith_order(self):
         algos_list = [
+            self.gui_AHSFP,
             self.gui_BLOBP,
             self.gui_DADDYP,
             self.gui_HSFP,
@@ -39,13 +42,14 @@ class TrackingAlgorithmValidationModel(BaseValidationModel):
 class TrackingAlgorithmModule(BaseSettingsModule):
     def __init__(self, config, widget_id, **kwargs):
         super().__init__(config=config, widget_id=widget_id, **kwargs)
-        self.algo_count = ["1", "2", "3", "4", "5", "6"]
+        self.algo_count = ["1", "2", "3", "4", "5", "6", "7"]
         self.validation_model = TrackingAlgorithmValidationModel
         self.gui_BLOB = f"-BLOBFALLBACK{widget_id}-"
         self.gui_DADDY = f"-DADDY{widget_id}-"
         self.gui_HSF = f"-HSF{widget_id}-"
         self.gui_HSRAC = f"-HSRAC{widget_id}-"
         self.gui_LEAP = f"-LEAP{widget_id}-"
+        self.gui_AHSF = f"-AHSF{widget_id}-"
         self.gui_RANSAC3D = f"-RANSAC3D{widget_id}-"
         self.gui_legacy_ransac = f"-LEGACYRANSACTHRESH{widget_id}-"
 
@@ -54,6 +58,7 @@ class TrackingAlgorithmModule(BaseSettingsModule):
         self.gui_HSFP = f"-HSFP{widget_id}-"
         self.gui_HSRACP = f"-HSRACP{widget_id}-"
         self.gui_LEAPP = f"-LEAPP{widget_id}-"
+        self.gui_AHSFP = f"-AHSFP{widget_id}-"
         self.gui_RANSAC3DP = f"-RANSAC3DP{widget_id}-"
 
     # TODO custom validation, make a set of values, count if there's less than overall, if yeah we have a problem
@@ -64,6 +69,26 @@ class TrackingAlgorithmModule(BaseSettingsModule):
                     "Tracking Algorithm Order Settings:",
                     background_color="#242224",
                 )
+            ],
+            [
+                sg.Checkbox(
+                    "",
+                    default=self.config.gui_AHSF,
+                    key=self.gui_AHSF,
+                    background_color="#424042",
+                    tooltip="Newer version of HSF",
+                ),
+                sg.Combo(
+                    self.algo_count,
+                    default_value=self.config.gui_AHSFP,
+                    key=self.gui_AHSFP,
+                    background_color="#424042",
+                    text_color="white",
+                    button_arrow_color="black",
+                    button_background_color="#6f4ca1",
+                    tooltip="Select the priority of eyetracking algorithms.",
+                ),
+                sg.Text("ASHSF", background_color="#424042"),
             ],
             [
                 sg.Checkbox(
