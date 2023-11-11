@@ -473,7 +473,7 @@ class CameraWidget:
                 if maybe_image:
                     image = maybe_image[0]
 
-                    img_w, img_h, _ = image.shape
+                    img_h, img_w, _ = image.shape
 
                     hyp = math.ceil((img_w**2 + img_h**2)**0.5)
                     rotation_matrix = cv2.getRotationMatrix2D(
