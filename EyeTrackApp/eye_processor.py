@@ -379,6 +379,46 @@ class EyeProcessor:
         )
         self.current_algorithm = EyeInfoOrigin.DADDY
 
+    def AHSFRACM(self):
+        if self.eye_id in [EyeId.LEFT] and self.settings.gui_circular_crop_left:
+            self.current_image_gray, self.cct = circle_crop(
+                self.current_image_gray, self.xc, self.yc, self.cc_radius, self.cct
+            )
+        else:
+            pass
+        if self.eye_id in [EyeId.RIGHT] and self.settings.gui_circular_crop_right:
+            self.current_image_gray, self.cct = circle_crop(
+                self.current_image_gray, self.xc, self.yc, self.cc_radius, self.cct
+            )
+        else:
+            pass
+
+        self.hasrac_en = True
+        self.current_image, self.rawx, self.rawy, self.radius = External_Run_AHSF(
+            self.current_image_gray
+        )
+        self.thresh = self.current_image_gray
+        (
+            self.rawx,
+            self.rawy,
+            self.thresh,
+            ranblink,
+            self.pupil_width,
+            self.pupil_height,
+        ) = RANSAC3D(self, True)
+        if self.settings.gui_RANSACBLINK:  # might be redundant
+            self.eyeopen = ranblink
+        #   print("RANBLINK", ranblink)
+
+        # print(self.radius)
+        # if self.prev_x is None:
+        #   self.prev_x = self.rawx
+        #  self.prev_y = self.rawy
+        self.out_x, self.out_y, self.avg_velocity = cal.cal_osc(
+            self, self.rawx, self.rawy
+        )
+        self.current_algorithm = EyeInfoOrigin.HSRAC
+
     def HSRACM(self):
         if self.eye_id in [EyeId.LEFT] and self.settings.gui_circular_crop_left:
             self.current_image_gray, self.cct = circle_crop(
@@ -486,7 +526,7 @@ class EyeProcessor:
             )
         else:
             pass
-        self.current_image, self.rawx, self.rawy = External_Run_AHSF(
+        self.current_image, self.rawx, self.rawy, self.radius = External_Run_AHSF(
             self.current_image_gray
         )
         self.thresh = self.current_image_gray
@@ -545,6 +585,11 @@ class EyeProcessor:
         if self.failed == 5 and self.sixthalgo != None:
             self.sixthalgo()
 
+        if self.failed == 6 and self.seventhalgo != None:
+            self.seventhalgo()
+
+        if self.failed == 7 and self.eigth != None:
+            self.eigthalgo()
         else:
             self.failed = 0  # we have reached last possible algo and it is disabled, move to first algo
 
@@ -559,15 +604,18 @@ class EyeProcessor:
         self.fithalgo = None
         self.sixthalgo = None
         self.seventhalgo = None
-        algolist = [None, None, None, None, None, None, None]
+        self.eigthalgo = None
+        algolist = [None, None, None, None, None, None, None, None, None]
         # clear HSF values when page is opened to correctly reflect setting changes
         self.er_hsf = None
 
         # algolist[self.settings.gui_HSFP] = self.HSFM
 
         # set algo priorities
+        if self.settings.gui_AHSFRAC:
+            algolist[self.settings.gui_AHSFRACP] = self.AHSFRACM
+
         if self.settings.gui_AHSF:
-            print("yippee")
             algolist[self.settings.gui_HSFP] = self.AHSFM
 
         if self.settings.gui_HSF:
@@ -644,6 +692,8 @@ class EyeProcessor:
             self.fourthalgo,
             self.fithalgo,
             self.sixthalgo,
+            self.seventhalgo,
+            self.eighthalgo,
         ) = algolist
 
         f = True

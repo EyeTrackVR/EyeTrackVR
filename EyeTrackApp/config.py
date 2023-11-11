@@ -17,12 +17,12 @@ class EyeTrackCameraConfig(BaseModel):
     roi_window_h: int = 240
     focal_length: int = 30
     capture_source: Union[int, str, None] = None
-    calib_XMAX: Union[int, None] = None
-    calib_XMIN: Union[int, None] = None
-    calib_YMAX: Union[int, None] = None
-    calib_YMIN: Union[int, None] = None
-    calib_XOFF: Union[int, None] = None
-    calib_YOFF: Union[int, None] = None
+    calib_XMAX: Union[float, None] = None
+    calib_XMIN: Union[float, None] = None
+    calib_YMAX: Union[float, None] = None
+    calib_YMIN: Union[float, None] = None
+    calib_XOFF: Union[float, None] = None
+    calib_YOFF: Union[float, None] = None
 
 
 class EyeTrackSettingsConfig(BaseModel):
@@ -34,7 +34,8 @@ class EyeTrackSettingsConfig(BaseModel):
     gui_BLOB: bool = False
     gui_BLINK: bool = False
     gui_HSRAC: bool = False
-    gui_AHSF: bool = True
+    gui_AHSFRAC: bool = True
+    gui_AHSF: bool = False
     gui_DADDY: bool = False
     gui_LEAP: bool = False
     gui_HSF_radius: int = 15
@@ -52,13 +53,14 @@ class EyeTrackSettingsConfig(BaseModel):
     gui_recenter_eyes: bool = False
     tracker_single_eye: int = 0
     gui_threshold: int = 65
-    gui_AHSFP: int = 1
-    gui_HSRACP: int = 2
-    gui_HSFP: int = 3
-    gui_DADDYP: int = 4
-    gui_RANSAC3DP: int = 5
-    gui_BLOBP: int = 6
-    gui_LEAPP: int = 7
+    gui_AHSFRACP: int = 1
+    gui_AHSFP: int = 2
+    gui_HSRACP: int = 3
+    gui_HSFP: int = 4
+    gui_DADDYP: int = 5
+    gui_RANSAC3DP: int = 6
+    gui_BLOBP: int = 7
+    gui_LEAPP: int = 8
     gui_IBO: bool = True
     gui_skip_autoradius: bool = False
     gui_thresh_add: int = 11

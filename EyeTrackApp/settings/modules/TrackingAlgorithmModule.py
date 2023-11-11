@@ -12,10 +12,12 @@ class TrackingAlgorithmValidationModel(BaseValidationModel):
     gui_AHSF: bool
     gui_LEAP: bool
     gui_RANSAC3D: bool
+    gui_AHSFRAC: bool
     gui_legacy_ransac: bool
 
     gui_BLOBP: int
     gui_DADDYP: int
+    gui_AHSFRACP: int
     gui_HSFP: int
     gui_AHSFP: int
     gui_HSRACP: int
@@ -32,6 +34,7 @@ class TrackingAlgorithmValidationModel(BaseValidationModel):
             self.gui_HSRACP,
             self.gui_LEAPP,
             self.gui_RANSAC3DP,
+            self.gui_AHSFRACP,
         ]
         algos_set = set(algos_list)
         if len(algos_set) != len(algos_list):
@@ -50,6 +53,7 @@ class TrackingAlgorithmModule(BaseSettingsModule):
         self.gui_HSRAC = f"-HSRAC{widget_id}-"
         self.gui_LEAP = f"-LEAP{widget_id}-"
         self.gui_AHSF = f"-AHSF{widget_id}-"
+        self.gui_AHSFRAC = f"-gui_AHSFRAC{widget_id}-"
         self.gui_RANSAC3D = f"-RANSAC3D{widget_id}-"
         self.gui_legacy_ransac = f"-LEGACYRANSACTHRESH{widget_id}-"
 
@@ -60,6 +64,7 @@ class TrackingAlgorithmModule(BaseSettingsModule):
         self.gui_LEAPP = f"-LEAPP{widget_id}-"
         self.gui_AHSFP = f"-AHSFP{widget_id}-"
         self.gui_RANSAC3DP = f"-RANSAC3DP{widget_id}-"
+        self.gui_AHSFRACP = f"-gui_AHSFRACP{widget_id}-"
 
     # TODO custom validation, make a set of values, count if there's less than overall, if yeah we have a problem
     def get_layout(self):
@@ -71,6 +76,24 @@ class TrackingAlgorithmModule(BaseSettingsModule):
                 )
             ],
             [
+                sg.Checkbox(
+                    "",
+                    default=self.config.gui_AHSFRAC,
+                    key=self.gui_AHSFRAC,
+                    background_color="#424042",
+                    tooltip="Flagship hybrid algo",
+                ),
+                sg.Combo(
+                    self.algo_count,
+                    default_value=self.config.gui_AHSFRACP,
+                    key=self.gui_AHSFRACP,
+                    background_color="#424042",
+                    text_color="white",
+                    button_arrow_color="black",
+                    button_background_color="#6f4ca1",
+                    tooltip="Select the priority of eyetracking algorithms.",
+                ),
+                sg.Text("ASHSFRAC", background_color="#424042"),
                 sg.Checkbox(
                     "",
                     default=self.config.gui_AHSF,
