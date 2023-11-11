@@ -12,13 +12,18 @@ import cv2
 import sys
 from utils.misc_utils import PlaySound, SND_FILENAME, SND_ASYNC, resource_path
 import traceback
+import math
 import numpy as np
 
+# for clarity when indexing
+X = 0
+Y = 1
 
 class CameraWidget:
     def __init__(self, widget_id: EyeId, main_config: EyeTrackConfig, osc_queue: Queue):
         self.gui_camera_addr = f"-CAMERAADDR{widget_id}-"
         self.gui_rotation_slider = f"-ROTATIONSLIDER{widget_id}-"
+        self.gui_rotation_ui_padding = f"-ROTATIONUIPADDING{widget_id}-"
         self.gui_roi_button = f"-ROIMODE{widget_id}-"
         self.gui_roi_layout = f"-ROILAYOUT{widget_id}-"
         self.gui_roi_selection = f"-GRAPH{widget_id}-"
@@ -98,6 +103,13 @@ class CameraWidget:
                     button_color="#6f4ca1",
                     tooltip="Lighten shadowed areas.",
                 ),
+                sg.Checkbox(
+                    "Camera Widget Padding",
+                    default=self.config.gui_rotation_ui_padding,
+                    tooltip="Pad the camera view widget enough to allow a full rotation.",
+                    key=self.gui_rotation_ui_padding,
+                    background_color="#424042",
+                ),
             ],
             [
                 sg.Graph(
@@ -107,6 +119,7 @@ class CameraWidget:
                     key=self.gui_roi_selection,
                     drag_submits=True,
                     enable_events=True,
+                    motion_events=True,
                     background_color="#424042",
                 ),
             ],
@@ -114,17 +127,6 @@ class CameraWidget:
 
         # Define the window's contents
         self.tracking_layout = [
-            [
-                sg.Text("Rotation", background_color="#424042"),
-                sg.Slider(
-                    range=(0, 360),
-                    default_value=self.config.rotation_angle,
-                    orientation="h",
-                    key=self.gui_rotation_slider,
-                    background_color="#424042",
-                    tooltip="Adjust the rotation of your cameras, make them level.",
-                ),
-            ],
             [
                 sg.Button(
                     "Start Calibration",
@@ -211,6 +213,17 @@ class CameraWidget:
                 ),
             ],
             [
+                sg.Text("Rotation", background_color="#424042"),
+                sg.Slider(
+                    range=(0, 360),
+                    default_value=self.config.rotation_angle,
+                    orientation="h",
+                    key=self.gui_rotation_slider,
+                    background_color="#424042",
+                    tooltip="Adjust the rotation of your cameras, make them level.",
+                ),
+            ],
+            [
                 sg.Column(
                     self.tracking_layout,
                     key=self.gui_tracking_layout,
@@ -225,10 +238,23 @@ class CameraWidget:
             ],
         ]
 
-        self.x0, self.y0 = None, None
-        self.x1, self.y1 = None, None
-        self.figure = None
+        self.hover = None
+
+        # cartesian co-ordinates in widget space are used during selection
+        self.xy0 = None
+        self.xy1 = None
+        self.cartesian_needs_update = False
+        # polar co-ordinates from the image center are the canonical representation
+        self.cr, self.ca = None, None
+        self.roi_size = None
+        self.clip_size = None
+        self.clip_pos = None
+        self.padded_size = None
+        self.img_pos = None
+        self.roi_image_center = None
+
         self.is_mouse_up = True
+        self.hover_pos = None
         self.in_roi_mode = False
         self.movavg_fps_queue = deque(maxlen=120)
         self.movavg_bps_queue = deque(maxlen=120)
@@ -242,6 +268,31 @@ class CameraWidget:
     def _movavg_bps(self, next_bps):
         self.movavg_bps_queue.append(next_bps)
         return f"{sum(self.movavg_bps_queue) / len(self.movavg_bps_queue) * 0.001 * 0.001 * 8:.3f} Mbps"
+
+    def _cartesian_to_polar(self):
+        if not (self.xy0 is None or self.xy1 is None):
+            roi_center = (self.xy0 + self.xy1) / 2 - self.roi_image_center
+            self.cr = np.linalg.norm(roi_center)
+            self.ca = math.atan2(roi_center[Y], roi_center[X]) + \
+                math.radians(self.config.rotation_angle)
+            self.roi_size = np.abs(self.xy1 - self.xy0)
+
+    def _polar_to_cartesian_at_angle(self, rotation_angle_radians):
+        if not (self.cr is None or self.ca is None or self.roi_size is None):
+            ca = self.ca - rotation_angle_radians
+            cx = math.cos(ca) * self.cr + self.roi_image_center[X]
+            cy = math.sin(ca) * self.cr + self.roi_image_center[Y]
+            roi_pos = np.array((int(cx), int(cy))) - self.roi_size//2
+            return (roi_pos, roi_pos + self.roi_size)
+        else:
+            return (None, None)
+
+    def _polar_to_cartesian(self):
+        if not (self.cr is None or self.ca is None or self.roi_size is None):
+            (self.xy0), (self.xy1) = \
+                self._polar_to_cartesian_at_angle(
+                    math.radians(self.config.rotation_angle))
+
 
     def started(self):
         return not self.cancellation_event.is_set()
@@ -296,9 +347,16 @@ class CameraWidget:
                         self.config.capture_source = values[self.gui_camera_addr]
             changed = True
 
-        if self.config.rotation_angle != values[self.gui_rotation_slider]:
+        if self.config.rotation_angle != int(values[self.gui_rotation_slider]):
             self.config.rotation_angle = int(values[self.gui_rotation_slider])
             changed = True
+            self.cartesian_needs_update = True
+
+        if self.config.gui_rotation_ui_padding != bool(values[self.gui_rotation_ui_padding]):
+            self.config.gui_rotation_ui_padding = bool(values[self.gui_rotation_ui_padding])
+            changed = True
+            self.cartesian_needs_update = True
+
 
         # if self.config.gui_circular_crop != values[self.gui_circular_crop]:
         #     self.config.gui_circular_crop = values[self.gui_circular_crop]
@@ -325,24 +383,34 @@ class CameraWidget:
             # Event for mouse button up in ROI mode
             self.is_mouse_up = True
             print("UP")
-            if self.x1 < 0:
-                self.x1 = 0
-            if self.y1 < 0:
-                self.y1 = 0
-            if abs(self.x0 - self.x1) != 0 and abs(self.y0 - self.y1) != 0:
-                self.config.roi_window_x = min([self.x0, self.x1])
-                self.config.roi_window_y = min([self.y0, self.y1])
-                self.config.roi_window_w = abs(self.x0 - self.x1)
-                self.config.roi_window_h = abs(self.y0 - self.y1)
+            self.xy0 = np.clip(self.xy0, self.clip_pos, self.clip_pos + self.clip_size)
+            self.xy1 = np.clip(self.xy1, self.clip_pos, self.clip_pos + self.clip_size)
+            self._cartesian_to_polar()
+            if all(abs(self.xy0 - self.xy1) != 0):
+                xy0, xy1 = self._polar_to_cartesian_at_angle(0)
+
+                self.config.roi_window_x, self.config.roi_window_y = (np.minimum(xy0, xy1) - self.img_pos).tolist()
+                self.config.roi_window_w, self.config.roi_window_h = (np.abs(xy0 - xy1)).tolist()
                 self.main_config.save()
 
         if event == self.gui_roi_selection:
             # Event for mouse button down or mouse drag in ROI mode
+            self.hover_pos = None
+
             if self.is_mouse_up:
                 self.is_mouse_up = False
-                self.x0, self.y0 = values[self.gui_roi_selection]
+                self.xy0 = np.array(values[self.gui_roi_selection])
 
-            self.x1, self.y1 = values[self.gui_roi_selection]
+            self.xy1 = np.array(values[self.gui_roi_selection])
+
+            self._cartesian_to_polar()
+
+        if event == "{}+MOVE".format(self.gui_roi_selection):
+            if self.is_mouse_up:
+                self.hover_pos = np.array(values[self.gui_roi_selection])
+
+                if any(self.hover_pos > self.padded_size):
+                    self.hover_pos = None
 
         if event == self.gui_restart_calibration:
             self.ransac.calibration_frame_counter = self.settings.calibration_samples
@@ -401,20 +469,103 @@ class CameraWidget:
                 if self.roi_queue.empty():
                     self.capture_event.set()
                 maybe_image = self.roi_queue.get(block=False)
+
+                if maybe_image:
+                    image = maybe_image[0]
+
+                    img_h, img_w, _ = image.shape
+
+                    hyp = math.ceil((img_w**2 + img_h**2)**0.5)
+                    rotation_matrix = cv2.getRotationMatrix2D(
+                        ((img_w/2), (img_h/2)), self.config.rotation_angle, 1
+                    )
+
+                    # calculate position of all four corners of image
+
+                    # calculate crop corner locations in original image space
+                    x_coords, y_coords = np.matmul(
+                        rotation_matrix,
+                        np.transpose([
+                            [0,     0,     1],
+                            [img_w, 0,     1],
+                            [0,     img_h, 1],
+                            [img_w, img_h, 1]]),
+                    )
+
+                    self.clip_size = np.array([math.ceil(max(x_coords) - min(x_coords)),
+                                               math.ceil(max(y_coords) - min(y_coords))])
+                    if self.config.gui_rotation_ui_padding:
+                        self.padded_size = np.array([hyp, hyp])
+                    else:
+                        self.padded_size = self.clip_size
+
+                    self.img_pos = ((self.padded_size - (img_w, img_h))/2).astype(np.int32)
+
+                    self.clip_pos = ((self.padded_size - self.clip_size)/2).astype(np.int32)
+
+                    self.roi_image_center = self.padded_size / 2
+
+                    # deferred to after roi_image_center is updated
+                    if self.cartesian_needs_update:
+                        self._polar_to_cartesian()
+                        self.cartesian_needs_update = False
+
+                    pad_matrix = np.float32([[1, 0, self.img_pos[X]],
+                                             [0, 1, self.img_pos[Y]],
+                                             [0, 0, 1]])
+                    rotation_matrix_padded = cv2.getRotationMatrix2D(
+                        self.roi_image_center, self.config.rotation_angle, 1
+                    )
+                    matrix = np.matmul(rotation_matrix_padded, pad_matrix)
+
+                    image = cv2.warpAffine(
+                        image,
+                        matrix,
+                        self.padded_size,
+                        borderMode=cv2.BORDER_CONSTANT,
+                        borderValue=(128, 128, 128),
+                    )
+
+                    maybe_image = (image, *maybe_image[1:])
+
                 imgbytes = cv2.imencode(".ppm", maybe_image[0])[1].tobytes()
                 graph = window[self.gui_roi_selection]
-                if self.figure:
-                    graph.delete_figure(self.figure)
                 # INCREDIBLY IMPORTANT ERASE. Drawing images does NOT overwrite the buffer, the fucking
                 # graph keeps every image fed in until you call this. Therefore we have to make sure we
                 # erase before we redraw, otherwise we'll leak memory *very* quickly.
                 graph.erase()
                 graph.draw_image(data=imgbytes, location=(0, 0))
-                if None not in (self.x0, self.y0, self.x1, self.y1):
 
-                    self.figure = graph.draw_rectangle(
-                        (self.x0, self.y0), (self.x1, self.y1), line_color="#6f4ca1"
-                    )
+                def make_dashed(spawn_item, dark="#000000", light="#ffffff", duty=1):
+                    pixel_duty = math.floor(4 * duty)
+                    for (color, dashoffset) in [(dark, 0), (light, 4)]:
+                        item = spawn_item(color)
+                        graph._TKCanvas2.itemconfig(item, dash=(pixel_duty, 8 - pixel_duty), dashoffset=dashoffset)
+
+                if (self.xy0 is None or self.xy1 is None):
+                    # roi_window rotates around roi center, we rotate around image center
+                    # TODO: it would be nice if they were more consistent
+                    roi_window_pos = (self.config.roi_window_x, self.config.roi_window_y)
+                    roi_window_size = (self.config.roi_window_w, self.config.roi_window_h)
+                    self.xy0 = roi_window_pos + self.img_pos
+                    self.xy1 = self.xy0 + roi_window_size
+                    self._cartesian_to_polar()
+                    self.ca -= math.radians(self.config.rotation_angle)
+                    self._polar_to_cartesian()
+
+                style = {}
+                if self.is_mouse_up:
+                    style = {"dark": "#7f78ff", "light": "#d002ff", "duty": 0.5}
+                make_dashed(lambda color: graph.draw_rectangle(
+                    self.xy0, self.xy1, line_color=color,
+                ), **style)
+                if self.is_mouse_up and self.hover_pos is not None:
+                    make_dashed(lambda color: graph.draw_line(
+                        (self.hover_pos[X], 0), (self.hover_pos[X], self.padded_size[Y]), color=color
+                    ))
+                    make_dashed(lambda color: graph.draw_line(
+                        (0, self.hover_pos[Y]), (self.padded_size[X], self.hover_pos[Y]), color=color
+                    ))
 
             except Empty:
                 pass
