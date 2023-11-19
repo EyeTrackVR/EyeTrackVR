@@ -13,6 +13,11 @@ if is_nt:
     SND_FILENAME = winsound.SND_FILENAME
     SND_ASYNC = winsound.SND_ASYNC
 
+def is_serial(capture_source):
+    capture_source_str = str(capture_source)
+    serial_prefixes = ["COM", "/dev/tty"]
+    return any(capture_source_str.startswith(prefix) for prefix in serial_prefixes)
+
 def clamp(x, low, high):
     return max(low, min(x, high))
 
