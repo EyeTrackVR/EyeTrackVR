@@ -421,6 +421,8 @@ def get_empty_array(
 
     # memo: Unelegant code
     # memo: transposed version
+
+
     wh_in_arr = (
         np.hstack(
             [
@@ -963,6 +965,23 @@ if __name__ == "__main__":
 
 
 def External_Run_AHSF(frame_gray):
+    average_color = np.mean(frame_gray)
+
+    # Create a new image of the desired size (square) with the average color
+    new_image_size = max(frame_gray.shape[0], frame_gray.shape[1])
+    new_image = np.full((new_image_size, new_image_size), average_color, dtype=np.uint8)
+
+    # Calculate the padding needed on each side
+    top_padding = (new_image_size - frame_gray.shape[0]) // 2
+    bottom_padding = new_image_size - frame_gray.shape[0] - top_padding
+    left_padding = (new_image_size - frame_gray.shape[1]) // 2
+    right_padding = new_image_size - frame_gray.shape[1] - left_padding
+
+    # Add padding to the image
+    pframe_gray = cv2.copyMakeBorder(frame_gray, top_padding, bottom_padding, left_padding, right_padding,
+                                      cv2.BORDER_CONSTANT, value=average_color)
+
+
     #  while True:
     #     if not cap.isOpened():
     #        break
@@ -980,7 +999,6 @@ def External_Run_AHSF(frame_gray):
         (frame_gray.shape[1] * 0.3), 180
     )  # likes to crash, might need more tuning still
     wmin = min((frame_gray.shape[1] * 0.1), 180)
-    print(frame_gray.shape[1], wmax)
     params = {
         "ratio_downsample": 0.3,
         "use_init_rect": False,
@@ -1005,43 +1023,41 @@ def External_Run_AHSF(frame_gray):
     ) = coarse_detection(frame_gray, params)
     ellipse_rect, center_fitting = fine_detection(frame_gray, pupil_rect_coarse)
     # print(ellipse_rect)
-    if imshow_enable or save_video:
+   # Pupil_rect, Outer_rect, max_response, mu_inner, mu_outer = coarse_detection(frame_gray, params)
+    image_brg = frame_gray  # cv2.cvtColor(frame_gray, cv2.COLOR_GRAY2BGR)
+    # show
+    # cv2.rectangle(
+    #    image_brg,
+    #   (pupil_rect_coarse[0], pupil_rect_coarse[1]),
+    #  (
+    #     pupil_rect_coarse[0] + pupil_rect_coarse[2],
+    #    pupil_rect_coarse[1] + pupil_rect_coarse[3],
+    # ),
+    # (0, 255, 0),
+    # 2,
+    # )
+    cv2.rectangle(
+        image_brg,
+        (outer_rect_coarse[0], outer_rect_coarse[1]),
+        (
+            outer_rect_coarse[0] + outer_rect_coarse[2],
+            outer_rect_coarse[1] + outer_rect_coarse[3],
+        ),
+        (255, 0, 0),
+        2,
+    )
+    x_center = ellipse_rect[0] + ellipse_rect[2] / 2
+    y_center = ellipse_rect[1] + ellipse_rect[3] / 2
+    x, y, width, height = ellipse_rect
 
-        # draw a cicrle center_fitting = (x,y)
-        # cv2.circle(image_brg, center_fitting, 2, (0, 255, 255), 2)
-        # Pupil_rect, Outer_rect, max_response, mu_inner, mu_outer = coarse_detection(frame_gray, params)
-        image_brg = frame_gray  # cv2.cvtColor(frame_gray, cv2.COLOR_GRAY2BGR)
-        # show
-        # cv2.rectangle(
-        #    image_brg,
-        #   (pupil_rect_coarse[0], pupil_rect_coarse[1]),
-        #  (
-        #     pupil_rect_coarse[0] + pupil_rect_coarse[2],
-        #    pupil_rect_coarse[1] + pupil_rect_coarse[3],
-        # ),
-        # (0, 255, 0),
-        # 2,
-        # )
-        cv2.rectangle(
-            image_brg,
-            (outer_rect_coarse[0], outer_rect_coarse[1]),
-            (
-                outer_rect_coarse[0] + outer_rect_coarse[2],
-                outer_rect_coarse[1] + outer_rect_coarse[3],
-            ),
-            (255, 0, 0),
-            2,
-        )
-        x_center = ellipse_rect[0] + ellipse_rect[2] / 2
-        y_center = ellipse_rect[1] + ellipse_rect[3] / 2
-        x, y, width, height = ellipse_rect
-
-        # Calculate the major and minor diameters
-        major_diameter = math.sqrt(width**2 + height**2)
-        minor_diameter = min(width, height)
-        average_diameter = (major_diameter + minor_diameter) / 2
-    # print(x_center, y_center)
+    # Calculate the major and minor diameters
+    major_diameter = math.sqrt(width**2 + height**2)
+    minor_diameter = min(width, height)
+    average_diameter = (major_diameter + minor_diameter) / 2
+# print(x_center, y_center)
     return frame_gray, x_center, y_center, average_diameter
+
+ #   return frame_gray, 0.0, 0.0, 0.0
     # if imshow_enable:
     #   cv2.imshow("pppp", image_brg)
     #  if cv2.waitKey(1) & 0xFF == ord("q"):
