@@ -710,8 +710,10 @@ def fine_detection(img_gray, pupil_rect_coarse):
             )
     except:
         pass
-    return pupil_rect_fine, center_fitting
-
+    try:
+        return pupil_rect_fine, center_fitting
+    except:
+        pass
 
 def detect_edges(img_pupil_blur):
     tau1 = 1 - 20.0 / img_pupil_blur.shape[1]
@@ -965,6 +967,7 @@ if __name__ == "__main__":
 
 
 def External_Run_AHSF(frame_gray):
+
     average_color = np.mean(frame_gray)
 
     # Create a new image of the desired size (square) with the average color
@@ -978,9 +981,9 @@ def External_Run_AHSF(frame_gray):
     right_padding = new_image_size - frame_gray.shape[1] - left_padding
 
     # Add padding to the image
-    pframe_gray = cv2.copyMakeBorder(frame_gray, top_padding, bottom_padding, left_padding, right_padding,
+    frame_gray = cv2.copyMakeBorder(frame_gray, top_padding, bottom_padding, left_padding, right_padding,
                                       cv2.BORDER_CONSTANT, value=average_color)
-
+    frame_clear_resize = frame_gray.copy()
 
     #  while True:
     #     if not cap.isOpened():
@@ -995,10 +998,12 @@ def External_Run_AHSF(frame_gray):
 
     # frame_gray = cv2.resize(frame_gray, (100, 100))
 
+
+
     wmax = min(
-        (frame_gray.shape[1] * 0.3), 180
+        (frame_gray.shape[1] * 0.3), 240
     )  # likes to crash, might need more tuning still
-    wmin = min((frame_gray.shape[1] * 0.1), 180)
+    wmin = min((frame_gray.shape[1] * 0.1), 240)
     params = {
         "ratio_downsample": 0.3,
         "use_init_rect": False,
@@ -1025,6 +1030,8 @@ def External_Run_AHSF(frame_gray):
     # print(ellipse_rect)
    # Pupil_rect, Outer_rect, max_response, mu_inner, mu_outer = coarse_detection(frame_gray, params)
     image_brg = frame_gray  # cv2.cvtColor(frame_gray, cv2.COLOR_GRAY2BGR)
+
+
     # show
     # cv2.rectangle(
     #    image_brg,
@@ -1037,7 +1044,7 @@ def External_Run_AHSF(frame_gray):
     # 2,
     # )
     cv2.rectangle(
-        image_brg,
+        frame_gray,
         (outer_rect_coarse[0], outer_rect_coarse[1]),
         (
             outer_rect_coarse[0] + outer_rect_coarse[2],
@@ -1055,7 +1062,7 @@ def External_Run_AHSF(frame_gray):
     minor_diameter = min(width, height)
     average_diameter = (major_diameter + minor_diameter) / 2
 # print(x_center, y_center)
-    return frame_gray, x_center, y_center, average_diameter
+    return frame_gray, frame_clear_resize, x_center, y_center, average_diameter
 
  #   return frame_gray, 0.0, 0.0, 0.0
     # if imshow_enable:

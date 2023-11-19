@@ -267,6 +267,7 @@ def RANSAC3D(self, hsrac_en):
     # Crop first to reduce the amount of data to process.
     # frame = frame[0:len(frame) - 5, :]
     # To reduce the processing data, blur.
+
     frame_gray = cv2.GaussianBlur(frame, (5, 5), 0)
 
     # this will need to be adjusted everytime hardware is changed (brightness of IR, Camera postion, etc)m

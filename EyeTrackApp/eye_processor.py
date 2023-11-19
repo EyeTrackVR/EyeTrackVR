@@ -200,7 +200,7 @@ class EyeProcessor:
                 "\033[91m[ERROR] Size of frames to display are of unequal sizes.\033[0m"
             )
 
-            pass
+        #    pass
 
     def capture_crop_rotate_image(self):
         # Get our current frame
@@ -394,10 +394,12 @@ class EyeProcessor:
             pass
 
         self.hasrac_en = True
-        self.current_image, self.rawx, self.rawy, self.radius = External_Run_AHSF(
+        self.current_image_gray, resize_img, self.rawx, self.rawy, self.radius = External_Run_AHSF(
             self.current_image_gray
         )
-        self.thresh = self.current_image_gray
+        self.current_image_gray_clean = resize_img
+
+        self.thresh = resize_img
         (
             self.rawx,
             self.rawy,
@@ -526,7 +528,7 @@ class EyeProcessor:
             )
         else:
             pass
-        self.current_image, self.rawx, self.rawy, self.radius = External_Run_AHSF(
+        self.current_image_gray, resize_img, self.rawx, self.rawy, self.radius = External_Run_AHSF(
             self.current_image_gray
         )
         self.thresh = self.current_image_gray
