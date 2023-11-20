@@ -267,8 +267,12 @@ def RANSAC3D(self, hsrac_en):
     # Crop first to reduce the amount of data to process.
     # frame = frame[0:len(frame) - 5, :]
     # To reduce the processing data, blur.
-
-    frame_gray = cv2.GaussianBlur(frame, (5, 5), 0)
+    if frame is None:
+        print("[WARN] Frame is empty")
+        self.failed = self.failed + 1  # we have failed, move onto next algo
+        return 0, 0, frame, blink, 0, 0
+    else:
+        frame_gray = cv2.GaussianBlur(frame, (5, 5), 0)
 
     # this will need to be adjusted everytime hardware is changed (brightness of IR, Camera postion, etc)m
     min_val, max_val, min_loc, max_loc = cv2.minMaxLoc(frame_gray)
