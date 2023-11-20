@@ -45,13 +45,13 @@ def velocity_falloff(self, var, out_x, out_y):
     if self.eye_id == EyeId.RIGHT:
         var.r_eye_velocity = var.average_velocity
         if self.settings.gui_outer_side_falloff:
-            dist = abs(
-                np.sqrt(
-                    abs(np.square(var.l_eye_x - out_x) - np.square(var.left_y - out_y))
+            dist           abs(np.square(var.l_eye_x - out_x) - np.square(var.left_y - out_y))
                 )
             )
             #  print(dist, "r")  # TODO remove once testing is done
-            if dist > self.settings.gui_eye_dominant_diff_thresh:
+            if dist > self.s = abs(
+                np.sqrt(
+         ettings.gui_eye_dominant_diff_thresh:
                 falloff = True
                 if (
                     not self.settings.gui_left_eye_dominant

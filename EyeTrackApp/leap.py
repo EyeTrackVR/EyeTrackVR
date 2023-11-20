@@ -162,12 +162,14 @@ class LEAP_C(object):
 
     def leap_run(self):
 
-        img = self.current_image_gray.copy()
+        img = self.current_image_gray_clean.copy()
+
         img = cv2.cvtColor(img, cv2.COLOR_GRAY2RGB)
         # img = imutils.rotate(img, angle=320)
         img_height, img_width = img.shape[:2]  # Move outside the loop
 
         frame = cv2.resize(img, (112, 112))
+        imgvis = self.current_image_gray.copy()
         self.run_onnx_model(self.queues, self.ort_session1, frame)
 
         if not self.output_queue.empty():
@@ -179,10 +181,10 @@ class LEAP_C(object):
             for point in pre_landmark:
                 x, y = point
                 cv2.circle(
-                    img, (int(x * img_width), int(y * img_height)), 2, (0, 0, 50), -1
+                    imgvis, (int(x * img_width), int(y * img_height)), 2, (0, 0, 50), -1
                 )
             cv2.circle(
-                img,
+                imgvis,
                 tuple(int(x * img_width) for x in pre_landmark[2]),
                 1,
                 (255, 255, 0),
@@ -190,7 +192,7 @@ class LEAP_C(object):
             )
             #   cv2.circle(img, tuple(int(x*112) for x in pre_landmark[2]), 1, (255, 255, 0), -1)
             cv2.circle(
-                img,
+                imgvis,
                 tuple(int(x * img_width) for x in pre_landmark[4]),
                 1,
                 (255, 255, 255),
@@ -251,17 +253,18 @@ class LEAP_C(object):
             if per <= 0.2:  # TODO: EXPOSE AS SETTING
                 per == 0.0
             # print(per)
-            return frame, float(x), float(y), per
+            return imgvis, float(x), float(y), per
 
-        frame = cv2.cvtColor(img, cv2.COLOR_RGB2GRAY)
-        return frame, 0, 0, 0
+        imgvis = cv2.cvtColor(img, cv2.COLOR_RGB2GRAY)
+        return imgvis, 0, 0, 0
 
 
 class External_Run_LEAP(object):
     def __init__(self):
         self.algo = LEAP_C()
 
-    def run(self, current_image_gray):
+    def run(self, current_image_gray, current_image_gray_clean):
         self.algo.current_image_gray = current_image_gray
+        self.algo.current_image_gray_clean = current_image_gray_clean
         img, x, y, per = self.algo.leap_run()
         return img, x, y, per
