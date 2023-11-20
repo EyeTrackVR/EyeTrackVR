@@ -1035,6 +1035,7 @@ def External_Run_AHSF(frame_gray):
         ellipse_rect, center_fitting = fine_detection(frame_gray, pupil_rect_coarse)
     except TypeError:
         print("[WARN] AHSF NoneType Error")
+        return frame_gray, frame_clear_resize, 0, 0, 0
     # print(ellipse_rect)
     # Pupil_rect, Outer_rect, max_response, mu_inner, mu_outer = coarse_detection(frame_gray, params)
     image_brg = frame_gray  # cv2.cvtColor(frame_gray, cv2.COLOR_GRAY2BGR)
