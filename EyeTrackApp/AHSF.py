@@ -1069,7 +1069,7 @@ def External_Run_AHSF(frame_gray):
     major_diameter = math.sqrt(width**2 + height**2)
     minor_diameter = min(width, height)
     average_diameter = (major_diameter + minor_diameter) / 2
-    print(x_center, y_center)
+  #  print(x_center, y_center)
     return frame_gray, frame_clear_resize, x_center, y_center, average_diameter
 
 
