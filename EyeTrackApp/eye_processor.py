@@ -294,7 +294,7 @@ class EyeProcessor:
                 self.rawx,
                 self.rawy,
                 self.eyeopen,
-            ) = self.er_leap.run(self.current_image_gray)
+            ) = self.er_leap.run(self.current_image_gray_clean)
         #  print(self.eyeopen)
 
         if (
