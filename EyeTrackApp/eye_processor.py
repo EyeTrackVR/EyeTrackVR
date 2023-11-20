@@ -394,10 +394,14 @@ class EyeProcessor:
             pass
 
         self.hasrac_en = True
-        self.current_image_gray, resize_img, self.rawx, self.rawy, self.radius = External_Run_AHSF(
-            self.current_image_gray
-        )
-        self.current_image_gray_clean = resize_img
+        (
+            self.current_image_gray,
+            resize_img,
+            self.rawx,
+            self.rawy,
+            self.radius,
+        ) = External_Run_AHSF(self.current_image_gray)
+        self.current_image_gray_clean = resize_img.copy()
 
         self.thresh = resize_img
         (
@@ -436,7 +440,6 @@ class EyeProcessor:
             pass
 
         self.hasrac_en = True
-        # todo: add process to initialise er_hsrac when resolution changes
         self.rawx, self.rawy, self.thresh, self.radius = self.er_hsf.run(
             self.current_image_gray
         )
@@ -528,9 +531,13 @@ class EyeProcessor:
             )
         else:
             pass
-        self.current_image_gray, resize_img, self.rawx, self.rawy, self.radius = External_Run_AHSF(
-            self.current_image_gray
-        )
+        (
+            self.current_image_gray,
+            resize_img,
+            self.rawx,
+            self.rawy,
+            self.radius,
+        ) = External_Run_AHSF(self.current_image_gray)
         self.thresh = self.current_image_gray
         self.out_x, self.out_y, self.avg_velocity = cal.cal_osc(
             self, self.rawx, self.rawy

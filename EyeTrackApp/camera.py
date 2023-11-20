@@ -83,7 +83,7 @@ class Camera:
             should_push = True
             # If things aren't open, retry until they are. Don't let read requests come in any earlier
             # than this, otherwise we can deadlock ourselves.
-            if self.config.capture_source != None and self.config.capture_source != "" and len(self.config.capture_source) > 3:
+            if self.config.capture_source != None and self.config.capture_source != "":
                 self.current_capture_source = self.config.capture_source
                 if "COM" in str(self.current_capture_source):
                     if (

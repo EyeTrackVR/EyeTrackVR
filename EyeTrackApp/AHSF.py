@@ -422,7 +422,6 @@ def get_empty_array(
     # memo: Unelegant code
     # memo: transposed version
 
-
     wh_in_arr = (
         np.hstack(
             [
@@ -715,6 +714,7 @@ def fine_detection(img_gray, pupil_rect_coarse):
     except:
         pass
 
+
 def detect_edges(img_pupil_blur):
     tau1 = 1 - 20.0 / img_pupil_blur.shape[1]
     edges = cv2.Canny(img_pupil_blur, 64, 128)
@@ -981,8 +981,15 @@ def External_Run_AHSF(frame_gray):
     right_padding = new_image_size - frame_gray.shape[1] - left_padding
 
     # Add padding to the image
-    frame_gray = cv2.copyMakeBorder(frame_gray, top_padding, bottom_padding, left_padding, right_padding,
-                                      cv2.BORDER_CONSTANT, value=average_color)
+    frame_gray = cv2.copyMakeBorder(
+        frame_gray,
+        top_padding,
+        bottom_padding,
+        left_padding,
+        right_padding,
+        cv2.BORDER_CONSTANT,
+        value=average_color,
+    )
     frame_clear_resize = frame_gray.copy()
 
     #  while True:
@@ -997,8 +1004,6 @@ def External_Run_AHSF(frame_gray):
     # frame = cv2.GaussianBlur(frame, (11,11), 0)
 
     # frame_gray = cv2.resize(frame_gray, (100, 100))
-
-
 
     wmax = min(
         (frame_gray.shape[1] * 0.3), 240
@@ -1019,18 +1024,20 @@ def External_Run_AHSF(frame_gray):
         "init_rect_flag": False,
         "init_rect": (0, 0, frame_gray.shape[1], frame_gray.shape[0]),
     }
-    (
-        pupil_rect_coarse,
-        outer_rect_coarse,
-        max_response_coarse,
-        mu_inner,
-        mu_outer,
-    ) = coarse_detection(frame_gray, params)
-    ellipse_rect, center_fitting = fine_detection(frame_gray, pupil_rect_coarse)
+    try:
+        (
+            pupil_rect_coarse,
+            outer_rect_coarse,
+            max_response_coarse,
+            mu_inner,
+            mu_outer,
+        ) = coarse_detection(frame_gray, params)
+        ellipse_rect, center_fitting = fine_detection(frame_gray, pupil_rect_coarse)
+    except TypeError:
+        print("[WARN] AHSF NoneType Error")
     # print(ellipse_rect)
-   # Pupil_rect, Outer_rect, max_response, mu_inner, mu_outer = coarse_detection(frame_gray, params)
+    # Pupil_rect, Outer_rect, max_response, mu_inner, mu_outer = coarse_detection(frame_gray, params)
     image_brg = frame_gray  # cv2.cvtColor(frame_gray, cv2.COLOR_GRAY2BGR)
-
 
     # show
     # cv2.rectangle(
@@ -1061,23 +1068,24 @@ def External_Run_AHSF(frame_gray):
     major_diameter = math.sqrt(width**2 + height**2)
     minor_diameter = min(width, height)
     average_diameter = (major_diameter + minor_diameter) / 2
-# print(x_center, y_center)
+    print(x_center, y_center)
     return frame_gray, frame_clear_resize, x_center, y_center, average_diameter
 
- #   return frame_gray, 0.0, 0.0, 0.0
-    # if imshow_enable:
-    #   cv2.imshow("pppp", image_brg)
-    #  if cv2.waitKey(1) & 0xFF == ord("q"):
-    #     pass
-    # if save_video:
-    #   video_wr.write(image_brg)
 
-    # if save_video:
-    #   video_wr.release()
-    #  logger.info("video output: {}".format(output_video_path))
-    # cap.release()
-    # if imshow_enable:
-    #   cv2.destroyAllWindows()
+#   return frame_gray, 0.0, 0.0, 0.0
+# if imshow_enable:
+#   cv2.imshow("pppp", image_brg)
+#  if cv2.waitKey(1) & 0xFF == ord("q"):
+#     pass
+# if save_video:
+#   video_wr.write(image_brg)
+
+# if save_video:
+#   video_wr.release()
+#  logger.info("video output: {}".format(output_video_path))
+# cap.release()
+# if imshow_enable:
+#   cv2.destroyAllWindows()
 
 
 #  main_end_time = timeit.default_timer()
