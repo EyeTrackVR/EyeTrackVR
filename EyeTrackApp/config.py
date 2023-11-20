@@ -82,7 +82,7 @@ class EyeTrackSettingsConfig(BaseModel):
 
     gui_right_eye_dominant: bool = False
     gui_left_eye_dominant: bool = False
-    gui_outer_side_falloff: bool = True
+    gui_outer_side_falloff: bool = False
     gui_eye_dominant_diff_thresh: float = 0.3
 
     gui_legacy_ransac: bool = False

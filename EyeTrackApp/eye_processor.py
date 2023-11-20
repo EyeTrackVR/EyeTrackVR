@@ -358,7 +358,7 @@ class EyeProcessor:
             self.rawy,
             self.eyeopen,
         ) = self.er_leap.run(
-            self.current_image_gray
+            self.current_image_gray_clean
         )  # TODO: make own self var and LEAP toggle
         self.thresh = self.current_image_gray.copy()
         self.out_x, self.out_y, self.avg_velocity = cal.cal_osc(
