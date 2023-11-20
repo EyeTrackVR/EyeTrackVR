@@ -1005,13 +1005,13 @@ def External_Run_AHSF(frame_gray):
 
     # frame_gray = cv2.resize(frame_gray, (100, 100))
 
-    wmax = (frame_gray.shape[1] * 0.4)  # likes to crash, might need more tuning still
-    wmin = (frame_gray.shape[1] * 0.05)
+    wmax = (frame_gray.shape[1] * 0.5)  # likes to crash, might need more tuning still
+    wmin = (frame_gray.shape[1] * 0.1)
     params = {
         "ratio_downsample": 0.3,
         "use_init_rect": False,
-        "mu_outer": 200,  # aprroximatly how much pupil should be in the outer rect
-        "mu_inner": 20,  # aprroximatly how much pupil should be in the inner rect
+        "mu_outer": 220,  # aprroximatly how much pupil should be in the outer rect
+        "mu_inner": 40,  # aprroximatly how much pupil should be in the inner rect
         "ratio_outer": 1.0,  # rectangular ratio. 1 means square (LIKE REGULAR HSF)
         "kf": 2,  # noise filter. May lose tracking if too high (or even never start)
         "width_min": wmin,  # Minimum width of the pupil
