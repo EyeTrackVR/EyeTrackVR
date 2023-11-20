@@ -1006,7 +1006,7 @@ def External_Run_AHSF(frame_gray):
     # frame_gray = cv2.resize(frame_gray, (100, 100))
 
     wmax = (frame_gray.shape[1] * 0.4)  # likes to crash, might need more tuning still
-    wmin = (frame_gray.shape[1] * 0.1)
+    wmin = (frame_gray.shape[1] * 0.05)
     params = {
         "ratio_downsample": 0.3,
         "use_init_rect": False,
