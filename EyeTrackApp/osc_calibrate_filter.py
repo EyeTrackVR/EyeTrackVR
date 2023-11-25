@@ -83,26 +83,28 @@ class var:
 
 @Async
 def center_overlay_calibrate(self):
-    try:
-        if var.overlay_active != True:
-            dirname = os.path.dirname(__file__)
-            overlay_path = os.path.join(
-                dirname, "Tools\\ETVR_SteamVR_Calibration_Overlay.exe"
-            )
-            subprocess.run([overlay_path, "center"])
-            var.overlay_active = True
-            sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-            server_address = ("localhost", 2112)
-            sock.bind(server_address)
+   # try:
+    if var.overlay_active != True:
 
-            data, address = sock.recvfrom(4096)
-            received_int = struct.unpack("!l", data)[0]
-            message = received_int
-            self.settings.gui_recenter_eyes = False
-            print(message)  # TODO: remove print after testing
-            var.overlay_active = False
-    except:
-        print("[WARN] Calibration overlay error. Make sure SteamVR is Running.")
+        dirname = os.path.dirname(__file__)
+        overlay_path = os.path.join(dirname, "center.bat")
+        env = os.environ.copy()
+
+        # Set the working directory to the same directory as the command prompt
+        cwd = os.getcwd()
+        os.startfile(overlay_path)
+        var.overlay_active = True
+        sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        server_address = ("localhost", 2112)
+        sock.bind(server_address)
+        data, address = sock.recvfrom(4096)
+        received_int = struct.unpack("!l", data)[0]
+        message = received_int
+        self.settings.gui_recenter_eyes = False
+        self.calibration_frame_counter = 0
+        var.overlay_active = False
+   # except:
+    #    print("[WARN] Calibration overlay error. Make sure SteamVR is Running.")
     # self.settings.gui_recenter_eyes = False
 
 
