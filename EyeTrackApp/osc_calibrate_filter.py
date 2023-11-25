@@ -87,7 +87,7 @@ def center_overlay_calibrate(self):
         if var.overlay_active != True:
 
             dirname = os.getcwd()
-            overlay_path = os.path.join(dirname, "center.bat")
+            overlay_path = os.path.join(dirname, "Eyetrackapp/center.bat")
             os.startfile(overlay_path)
             var.overlay_active = True
             sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
