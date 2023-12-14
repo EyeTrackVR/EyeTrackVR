@@ -51,19 +51,19 @@ class EyeTrackSettingsConfig(BaseModel):
 
     gui_osc_output_multiplier_combine_left_x: bool = True
     gui_osc_output_multiplier_combine_left_y: bool = True
-    gui_osc_output_multiplier_positive_left_x: str = "1.0"
-    gui_osc_output_multiplier_negative_left_x: str = "1.0"
+    gui_osc_output_multiplier_positive_left_x: float = 1.0
+    gui_osc_output_multiplier_negative_left_x: float = 1.0
 
-    gui_osc_output_multiplier_positive_left_y: str = "1.0"
-    gui_osc_output_multiplier_negative_left_y: str = "1.0"
+    gui_osc_output_multiplier_positive_left_y: float = 1.0
+    gui_osc_output_multiplier_negative_left_y: float = 1.0
 
     gui_osc_output_multiplier_combine_right_x: bool = True
     gui_osc_output_multiplier_combine_right_y: bool = True
-    gui_osc_output_multiplier_positive_right_x: str = "1.0"
-    gui_osc_output_multiplier_negative_right_x: str = "1.0"
+    gui_osc_output_multiplier_positive_right_x: float = 1.0
+    gui_osc_output_multiplier_negative_right_x: float = 1.0
 
-    gui_osc_output_multiplier_positive_right_y: str = "1.0"
-    gui_osc_output_multiplier_negative_right_y: str = "1.0"
+    gui_osc_output_multiplier_positive_right_y: float = 1.0
+    gui_osc_output_multiplier_negative_right_y: float = 1.0
 
     gui_osc_mirror_left_eye_multiplier: bool = True
     gui_blob_maxsize: float = 25
