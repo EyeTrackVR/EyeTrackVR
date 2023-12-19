@@ -192,7 +192,7 @@ def main():
     # GUI Render loop
     while True:
         # First off, check for any events from the GUI
-        event, values = window.read(timeout=0.1)
+        event, values = window.read(timeout=2)
 
         # If we're in either mode and someone hits q, quit immediately
         if event == "Exit" or event == sg.WIN_CLOSED:
@@ -278,6 +278,7 @@ def main():
             config.save()
 
         else:
+        #    print('size of queue: ', osc_queue.qsize())
             # Otherwise, render all
             for eye in eyes:
                 if eye.started():

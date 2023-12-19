@@ -47,6 +47,7 @@ class CameraWidget:
         self.configl = main_config.left_eye
         self.configr = main_config.right_eye
         self.settings = main_config.settings
+        self.update_wait_count = 100
         if self.eye_id == EyeId.RIGHT:
             self.config = main_config.right_eye
         elif self.eye_id == EyeId.LEFT:
@@ -311,6 +312,7 @@ class CameraWidget:
 
         if event == self.gui_tracking_button:
             print("\033[94m[INFO] Moving to tracking mode\033[0m")
+            self.update_wait_count = 100
             self.in_roi_mode = False
             self.camera.set_output_queue(self.capture_queue)
             window[self.gui_roi_layout].update(visible=False)
@@ -318,6 +320,7 @@ class CameraWidget:
 
         if event == self.gui_roi_button:
             print("\033[94m[INFO] Move to roi mode\033[0m")
+            self.update_wait_count = 100
             self.in_roi_mode = True
             self.camera.set_output_queue(self.roi_queue)
             window[self.gui_roi_layout].update(visible=True)
@@ -425,6 +428,8 @@ class CameraWidget:
                 window[self.gui_output_graph].update(visible=False)
                 return
             try:
+                if self.update_wait_count >= 0:
+                    self.update_wait_count = self.update_wait_count - 1
                 window[self.gui_roi_message].update(visible=False)
                 window[self.gui_output_graph].update(visible=True)
                 (maybe_image, eye_info) = self.image_queue.get(block=False)
@@ -478,5 +483,4 @@ class CameraWidget:
                 if eye_info.info_type != EyeInfoOrigin.FAILURE:
                     self.osc_queue.put((self.eye_id, eye_info))
             except Empty:
-                time.sleep(0.01)
                 pass
