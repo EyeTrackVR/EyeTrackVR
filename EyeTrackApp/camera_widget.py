@@ -1,3 +1,5 @@
+import time
+
 import PySimpleGUI as sg
 from config import EyeTrackConfig
 from config import EyeTrackSettingsConfig
@@ -389,7 +391,7 @@ class CameraWidget:
                     cv2.imshow("Image", image)
                     cv2.waitKey(1)
                     cv2.destroyAllWindows()
-                    print("lighen")
+                    print("lighten")
                 except Empty:
                     pass
         if event == self.gui_mask_markup:
@@ -476,4 +478,5 @@ class CameraWidget:
                 if eye_info.info_type != EyeInfoOrigin.FAILURE:
                     self.osc_queue.put((self.eye_id, eye_info))
             except Empty:
+                time.sleep(0.01)
                 pass
