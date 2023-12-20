@@ -13,6 +13,7 @@ if is_nt:
     SND_FILENAME = winsound.SND_FILENAME
     SND_ASYNC = winsound.SND_ASYNC
 
+
 def clamp(x, low, high):
     return max(low, min(x, high))
 
