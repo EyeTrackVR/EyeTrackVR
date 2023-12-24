@@ -27,6 +27,7 @@ Copyright (c) 2023 EyeTrackVR <3
 """
 #  LEAP = Lightweight Eyelid And Pupil
 import os
+
 os.environ["OMP_NUM_THREADS"] = "1"
 import onnxruntime
 import numpy as np
@@ -70,7 +71,7 @@ class LEAP_C(object):
         self.queue_max_size = 1  # Optimize for best CPU usage, Memory, and Latency. A maxsize is needed to not create a potential memory leak.
         if platform.system() == "Darwin":
             self.model_path = resource_path(
-                "EyeTrackApp/Models/mommy072623.onnx"
+                "Models/mommy072623.onnx"
             )  # funny MacOS files issues :P
         else:
             self.model_path = resource_path("Models\mommy072623.onnx")

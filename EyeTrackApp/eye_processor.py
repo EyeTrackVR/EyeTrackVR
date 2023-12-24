@@ -465,6 +465,7 @@ class EyeProcessor:
         self.current_algorithm = EyeInfoOrigin.HSRAC
 
     def HSFM(self):
+        print("ee")
         if self.eye_id in [EyeId.LEFT] and self.settings.gui_circular_crop_left:
             self.current_image_gray, self.cct = circle_crop(
                 self.current_image_gray, self.xc, self.yc, self.cc_radius, self.cct
@@ -593,11 +594,15 @@ class EyeProcessor:
 
         if self.failed == 5 and self.sixthalgo != None:
             self.sixthalgo()
+        else:
+            self.failed = self.failed + 1
 
         if self.failed == 6 and self.seventhalgo != None:
             self.seventhalgo()
+        else:
+            self.failed = self.failed + 1
 
-        if self.failed == 7 and self.eigth != None:
+        if self.failed == 7 and self.eigthalgo != None:
             self.eigthalgo()
         else:
             self.failed = 0  # we have reached last possible algo and it is disabled, move to first algo
@@ -625,7 +630,7 @@ class EyeProcessor:
             algolist[self.settings.gui_AHSFRACP] = self.AHSFRACM
 
         if self.settings.gui_AHSF:
-            algolist[self.settings.gui_HSFP] = self.AHSFM
+            algolist[self.settings.gui_AHSFP] = self.AHSFM
 
         if self.settings.gui_HSF:
             if self.er_hsf is None:
