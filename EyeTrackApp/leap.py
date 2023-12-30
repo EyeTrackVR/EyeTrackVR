@@ -27,7 +27,6 @@ Copyright (c) 2023 EyeTrackVR <3
 """
 #  LEAP = Lightweight Eyelid And Pupil
 import os
-
 os.environ["OMP_NUM_THREADS"] = "1"
 import onnxruntime
 import numpy as np
@@ -59,7 +58,7 @@ def run_model(input_queue, output_queue, session):
         pre_landmark = session.run(None, ort_inputs)
 
         pre_landmark = pre_landmark[1]
-        pre_landmark = np.reshape(pre_landmark, (7, 2))
+        pre_landmark = np.reshape(pre_landmark, (12, 2))
         output_queue.put((frame, pre_landmark))
 
 
@@ -71,10 +70,10 @@ class LEAP_C(object):
         self.queue_max_size = 1  # Optimize for best CPU usage, Memory, and Latency. A maxsize is needed to not create a potential memory leak.
         if platform.system() == "Darwin":
             self.model_path = resource_path(
-                "Models/mommy072623.onnx"
+                "EyeTrackApp/Models/leap123023.onnx"
             )  # funny MacOS files issues :P
         else:
-            self.model_path = resource_path("Models\mommy072623.onnx")
+            self.model_path = resource_path("Models\leap123023.onnx")
         self.interval = 1  # FPS print update rate
         self.low_priority = True  # set process priority to low (may cause issues when unfocusing? reported by one, not reproducable)
         self.print_fps = False
@@ -82,7 +81,7 @@ class LEAP_C(object):
         self.frames = 0
         self.queues = []
         self.threads = []
-        self.model_output = np.zeros((7, 2))
+        self.model_output = np.zeros((12, 2))
         self.output_queue = Queue(maxsize=self.queue_max_size)
         self.start_time = time.time()
 
@@ -114,7 +113,7 @@ class LEAP_C(object):
         # print(np.random.rand(22, 2))
         # noisy_point = np.array([1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1])
         self.one_euro_filter = OneEuroFilter(
-            np.random.rand(7, 2), min_cutoff=min_cutoff, beta=beta
+            np.random.rand(12, 2), min_cutoff=min_cutoff, beta=beta
         )
         # self.one_euro_filter_open = OneEuroFilter(
         #   np.random.rand(1, 2), min_cutoff=0.01, beta=0.04

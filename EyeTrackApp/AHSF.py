@@ -1006,11 +1006,11 @@ def External_Run_AHSF(frame_gray):
     # frame_gray = cv2.resize(frame_gray, (100, 100))
 
     wmax = (frame_gray.shape[1] * 0.5)  # likes to crash, might need more tuning still
-    wmin = (frame_gray.shape[1] * 0.1)
+    wmin = (frame_gray.shape[1] * 0.08)
     params = {
         "ratio_downsample": 0.5,
         "use_init_rect": False,
-        "mu_outer": 200,  # aprroximatly how much pupil should be in the outer rect
+        "mu_outer": 250,  # aprroximatly how much pupil should be in the outer rect
         "mu_inner": 50,  # aprroximatly how much pupil should be in the inner rect
         "ratio_outer": 1.0,  # rectangular ratio. 1 means square (LIKE REGULAR HSF)
         "kf": 2,  # noise filter. May lose tracking if too high (or even never start)
@@ -1032,8 +1032,8 @@ def External_Run_AHSF(frame_gray):
         ) = coarse_detection(frame_gray, params)
         ellipse_rect, center_fitting = fine_detection(frame_gray, pupil_rect_coarse)
     except TypeError:
-        print("[WARN] AHSF NoneType Error")
-        return frame_gray, frame_clear_resize, 0, 0, 0
+       # print("[WARN] AHSF NoneType Error")
+        return frame_gray, frame_gray, 0, 0, 0
     # print(ellipse_rect)
     # Pupil_rect, Outer_rect, max_response, mu_inner, mu_outer = coarse_detection(frame_gray, params)
     image_brg = frame_gray  # cv2.cvtColor(frame_gray, cv2.COLOR_GRAY2BGR)
