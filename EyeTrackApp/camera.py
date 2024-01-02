@@ -9,6 +9,20 @@ import platform
 from colorama import Fore
 from config import EyeTrackConfig
 from enum import Enum
+import psutil, os
+import sys
+
+
+process = psutil.Process(os.getpid())  # set process priority to low
+try:
+    sys.getwindowsversion()
+except AttributeError:
+    process.nice(10)  # UNIX: 0 low 10 high
+    process.nice()
+else:
+    process.nice(psutil.HIGH_PRIORITY_CLASS)  # Windows
+    process.nice()
+    # See https://learn.microsoft.com/en-us/windows/win32/api/processthreadsapi/nf-processthreadsapi-getpriorityclass#return-value for values
 
 WAIT_TIME = 0.1
 # Serial communication protocol:

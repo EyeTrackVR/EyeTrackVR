@@ -12,6 +12,7 @@ import cv2
 from utils.misc_utils import PlaySound, SND_FILENAME, SND_ASYNC, resource_path
 import numpy as np
 
+
 class CameraWidget:
     def __init__(self, widget_id: EyeId, main_config: EyeTrackConfig, osc_queue: Queue):
         self.gui_camera_addr = f"-CAMERAADDR{widget_id}-"
@@ -55,10 +56,10 @@ class CameraWidget:
         # Set the event until start is called, otherwise we can block if shutdown is called.
         self.cancellation_event.set()
         self.capture_event = Event()
-        self.capture_queue = Queue()
-        self.roi_queue = Queue()
+        self.capture_queue = Queue(maxsize=1)
+        self.roi_queue = Queue(maxsize=1)
 
-        self.image_queue = Queue()
+        self.image_queue = Queue(maxsize=1)
 
         self.ransac = EyeProcessor(
             self.config,
@@ -377,7 +378,6 @@ class CameraWidget:
         if event == self.gui_mask_lighten:
             while True:
                 try:
-                    maybe_image = self.roi_queue.get(block=False)
                     imgbytes = cv2.imencode(".ppm", maybe_image[0])[1].tobytes()
                     image = cv2.imdecode(
                         np.frombuffer(imgbytes, np.uint8), cv2.IMREAD_COLOR
@@ -385,7 +385,7 @@ class CameraWidget:
 
                     cv2.imshow("Image", image)
                     cv2.waitKey(1)
-                    cv2.destroyAllWindows()
+                    #cv2.destroyAllWindows()
                     print("lighten")
                 except Empty:
                     pass
@@ -396,7 +396,7 @@ class CameraWidget:
             try:
                 if self.roi_queue.empty():
                     self.capture_event.set()
-                maybe_image = self.roi_queue.get(block=False)
+                maybe_image = self.roi_queue.get(block=True, timeout=0.1) # this makes the ROI GUI page load slower when there isnt a cam, but fixes bad esp frame drop/lag/stutter
                 imgbytes = cv2.imencode(".ppm", maybe_image[0])[1].tobytes()
                 graph = window[self.gui_roi_selection]
                 if self.figure:
@@ -423,6 +423,7 @@ class CameraWidget:
                 window[self.gui_roi_message].update(visible=False)
                 window[self.gui_output_graph].update(visible=True)
                 (maybe_image, eye_info) = self.image_queue.get(block=False)
+
 
                 imgbytes = cv2.imencode(".ppm", maybe_image)[1].tobytes()
                 window[self.gui_tracking_image].update(data=imgbytes)

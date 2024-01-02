@@ -30,7 +30,7 @@ SETTINGS_RADIO_NAME = "-SETTINGSRADIO-"
 ALGO_SETTINGS_RADIO_NAME = "-ALGOSETTINGSRADIO-"
 
 page_url = "https://github.com/RedHawk989/EyeTrackVR/releases/latest"
-appversion = "EyeTrackApp 0.2.0 BETA 9"
+appversion = "EyeTrackApp 0.2.0 BETA 10"
 
 
 def main():
@@ -263,8 +263,8 @@ def main():
             config.save()
 
         elif (
-            values[ALGO_SETTINGS_RADIO_NAME]
-            and config.eye_display_id != EyeId.ALGOSETTINGS
+                values[ALGO_SETTINGS_RADIO_NAME]
+                and config.eye_display_id != EyeId.ALGOSETTINGS
         ):
             eyes[0].stop()
             eyes[1].stop()
@@ -278,7 +278,7 @@ def main():
             config.save()
 
         else:
-        #    print('size of queue: ', osc_queue.qsize())
+            #    print('size of queue: ', osc_queue.qsize())
             # Otherwise, render all
             for eye in eyes:
                 if eye.started():
@@ -286,7 +286,6 @@ def main():
             for setting in settings:
                 if setting.started():
                     setting.render(window, event, values)
-
 
 if __name__ == "__main__":
     main()

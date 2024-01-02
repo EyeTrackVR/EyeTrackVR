@@ -37,7 +37,8 @@ from logging import FileHandler, Formatter, INFO, StreamHandler, getLogger
 from functools import lru_cache
 import cv2
 import numpy as np
-import dis
+
+
 
 # from line_profiler_pycharm import profile
 
@@ -1057,18 +1058,20 @@ def External_Run_AHSF(frame_gray):
             outer_rect_coarse[1] + outer_rect_coarse[3],
         ),
         (255, 0, 0),
-        2,
+        1,
     )
-    x_center = ellipse_rect[0] + ellipse_rect[2] / 2
-    y_center = ellipse_rect[1] + ellipse_rect[3] / 2
-    x, y, width, height = ellipse_rect
+    x_center = outer_rect_coarse[0] + outer_rect_coarse[2] / 2
+    y_center = outer_rect_coarse[1] + outer_rect_coarse[3] / 2
+    x, y, width, height = outer_rect_coarse
+
+    cv2.circle(frame_gray, (int(x_center), int(y_center)), 2, (255, 255, 255), -1)
 
     # Calculate the major and minor diameters
     major_diameter = math.sqrt(width**2 + height**2)
     minor_diameter = min(width, height)
     average_diameter = (major_diameter + minor_diameter) / 2
-  #  print(x_center, y_center)
-    return frame_gray, frame_clear_resize, x_center, y_center, average_diameter
+
+    return frame_gray, frame_clear_resize, x_center, y_center, (width + height)
 
 
 #   return frame_gray, 0.0, 0.0, 0.0

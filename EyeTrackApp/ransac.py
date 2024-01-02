@@ -237,15 +237,16 @@ def RANSAC3D(self, hsrac_en):
 
         frame = safe_crop(
             self.current_image_gray_clean,
-            int(ransac_lower_x),
-            int(ransac_lower_y),
-            int(ransac_upper_x),
-            int(ransac_upper_y),
+            int(ransac_lower_x - 5),
+            int(ransac_lower_y - 5),
+            int(ransac_upper_x - 5),
+            int(ransac_upper_y - 5),
             1,
         )
 
     else:
         frame = self.current_image_gray_clean
+    #print(self.radius)
 
     kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (3, 3))
 
@@ -326,7 +327,7 @@ def RANSAC3D(self, hsrac_en):
         # cv2.drawContours(self.current_image_gray, contours, -1, (255, 0, 0), 1)
     # cv2.circle(self.current_image_gray, (cx, cy), 2, (0, 0, 255), -1)
     # cx1, cy1, w1, h1, theta1 = fit_rotated_ellipse(maxcnt.reshape(-1, 2))
-    # cv2.ellipse(self.current_image_gray, (cx, cy), (w, h), theta * 180.0 / np.pi, 0.0, 360.0, (50, 250, 200), 1, )
+        #cv2.ellipse(self.current_image_gray, (cx, cy), (w, h), theta * 180.0 / np.pi, 0.0, 360.0, (50, 250, 200), 1, )
 
     # img = newImage2[y1:y2, x1:x2]
     except:
@@ -371,7 +372,7 @@ def RANSAC3D(self, hsrac_en):
         # Record our pupil center
         exm = ellipse_3d["center"][0]
         eym = ellipse_3d["center"][1]
-
+     #   print(result_2d["angle"], theta)
         d = result_3d["diameter_3d"]
         self.cc_radius = int(float(self.lkg_projected_sphere["axes"][0]))
         self.xc = int(float(self.lkg_projected_sphere["center"][0]))
@@ -479,12 +480,12 @@ def RANSAC3D(self, hsrac_en):
         )
 
         # draw line from center of eyeball to center of pupil
-        # cv2.line(
-        #   self.current_image_gray,
-        #    tuple(int(v) for v in self.lkg_projected_sphere["center"]),
-        #   tuple(int(v) for v in ellipse_3d["center"]),
-        #  (0, 255, 0),  # color (BGR): red
-        # )
+        cv2.line(
+        self.current_image_gray,
+        tuple(int(v) for v in self.lkg_projected_sphere["center"]),
+        tuple(int(v) for v in ellipse_3d["center"]),
+        (0, 255, 0),  # color (BGR): red
+        )
 
     except:
         pass

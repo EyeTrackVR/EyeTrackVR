@@ -76,6 +76,7 @@ class LEAP_C(object):
             self.model_path = resource_path("Models\leap123023.onnx")
         self.interval = 1  # FPS print update rate
         self.low_priority = True  # set process priority to low (may cause issues when unfocusing? reported by one, not reproducable)
+        self.low_priority = True  # set process priority to low (may cause issues when unfocusing? reported by one, not reproducable)
         self.print_fps = False
         # Init variables
         self.frames = 0
@@ -108,6 +109,16 @@ class LEAP_C(object):
                 process.nice(psutil.BELOW_NORMAL_PRIORITY_CLASS)  # Windows
                 process.nice()
                 # See https://learn.microsoft.com/en-us/windows/win32/api/processthreadsapi/nf-processthreadsapi-getpriorityclass#return-value for values
+        else:
+            process = psutil.Process(os.getpid())  # set process priority to low
+            try:
+                sys.getwindowsversion()
+            except AttributeError:
+                process.nice(10)  # UNIX: 0 low 10 high
+            else:
+                process.nice(psutil.HIGH_PRIORITY_CLASS)  # Windows
+                # See https://learn.microsoft.com/en-us/windows/win32/api/processthreadsapi/nf-processthreadsapi-getpriorityclass#return-value for values
+
         min_cutoff = 0.1
         beta = 15.0
         # print(np.random.rand(22, 2))

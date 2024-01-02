@@ -83,26 +83,26 @@ class var:
 
 @Async
 def center_overlay_calibrate(self):
-    try:
-        if var.overlay_active != True:
+   # try:
+    if var.overlay_active != True:
 
-            dirname = os.getcwd()
-            overlay_path = os.path.join(dirname, "Eyetrackapp/center.bat")
-            os.startfile(overlay_path)
-            var.overlay_active = True
-            sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-            server_address = ("localhost", 2112)
-            sock.bind(server_address)
-            data, address = sock.recvfrom(4096)
-            received_int = struct.unpack("!l", data)[0]
-            message = received_int
-            self.settings.gui_recenter_eyes = False
-            self.calibration_frame_counter = 0
-            var.overlay_active = False
-    except:
-        print("[WARN] Calibration overlay error. Make sure SteamVR is Running.")
+        dirname = os.getcwd()
+        overlay_path = os.path.join(dirname, "center.bat")
+        os.startfile(overlay_path)
+        var.overlay_active = True
+        sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        server_address = ("localhost", 2112)
+        sock.bind(server_address)
+        data, address = sock.recvfrom(4096)
+        received_int = struct.unpack("!l", data)[0]
+        message = received_int
         self.settings.gui_recenter_eyes = False
+        self.calibration_frame_counter = 0
         var.overlay_active = False
+  #  except:
+      #  print("[WARN] Calibration overlay error. Make sure SteamVR is Running.")
+     #   self.settings.gui_recenter_eyes = False
+     #   var.overlay_active = False
 
 
 class cal:
