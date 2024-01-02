@@ -246,8 +246,6 @@ def RANSAC3D(self, hsrac_en):
 
     else:
         frame = self.current_image_gray_clean
-    #print(self.radius)
-
     kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (3, 3))
 
     rng = np.random.default_rng()
