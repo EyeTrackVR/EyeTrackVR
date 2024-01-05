@@ -88,8 +88,8 @@ class EyeProcessor:
         baseconfig: "EyetrackConfig",
         cancellation_event: "threading.Event",
         capture_event: "threading.Event",
-        capture_queue_incoming: "queue.Queue",
-        image_queue_outgoing: "queue.Queue",
+        capture_queue_incoming: "queue.Queue(maxsize=2)",
+        image_queue_outgoing: "queue.Queue(maxsize=2)",
         eye_id,
     ):
         self.main_config = EyeTrackSettingsConfig
@@ -466,7 +466,6 @@ class EyeProcessor:
         self.current_algorithm = EyeInfoOrigin.HSRAC
 
     def HSFM(self):
-        print("ee")
         if self.eye_id in [EyeId.LEFT] and self.settings.gui_circular_crop_left:
             self.current_image_gray, self.cct = circle_crop(
                 self.current_image_gray, self.xc, self.yc, self.cc_radius, self.cct
