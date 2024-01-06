@@ -11,7 +11,7 @@ from osc import EyeId
 import cv2
 from utils.misc_utils import PlaySound, SND_FILENAME, SND_ASYNC, resource_path
 import numpy as np
-
+import time
 
 class CameraWidget:
     def __init__(self, widget_id: EyeId, main_config: EyeTrackConfig, osc_queue: Queue):
@@ -34,6 +34,7 @@ class CameraWidget:
         self.gui_roi_message = f"-ROIMESSAGE{widget_id}-"
         self.gui_mask_markup = f"-MARKUP{widget_id}-"
         self.gui_mask_lighten = f"-LIGHTEN{widget_id}-"
+        self.gui_restart_3d_calibration = f"-RESTART3DCALIBRATION{widget_id}-"
 
         self.last_eye_info = None
         self.osc_queue = osc_queue
@@ -58,8 +59,7 @@ class CameraWidget:
         self.capture_event = Event()
         self.capture_queue = Queue(maxsize=2)
         self.roi_queue = Queue(maxsize=2)
-
-        self.image_queue = Queue(maxsize=2)
+        self.image_queue = Queue(maxsize=500)
 
         self.ransac = EyeProcessor(
             self.config,
@@ -72,7 +72,7 @@ class CameraWidget:
             self.eye_id,
         )
 
-        self.camera_status_queue = Queue()
+        self.camera_status_queue = Queue(maxsize=2)
         self.camera = Camera(
             self.config,
             0,
@@ -125,10 +125,16 @@ class CameraWidget:
             ],
             [
                 sg.Button(
-                    "Start Calibration",
+                    "2D Calibration",
                     key=self.gui_restart_calibration,
                     button_color="#6f4ca1",
                     tooltip="Start eye calibration. Look all arround to all extreams without blinking until sound is heard.",
+                ),
+                sg.Button(
+                    "3D Calibration",
+                    key=self.gui_restart_3d_calibration,
+                    button_color="#6f4ca1",
+                    tooltip="Start 3d eye calibration, must have steamvr open and eyes in hmd",
                 ),
                 sg.Button(
                     "Stop Calibration",
@@ -246,6 +252,7 @@ class CameraWidget:
 
     def start(self):
         # If we're already running, bail
+
         if not self.cancellation_event.is_set():
             return
         self.cancellation_event.clear()
@@ -255,14 +262,22 @@ class CameraWidget:
         self.camera_thread.start()
 
     def stop(self):
+
         # If we're not running yet, bail
         if self.cancellation_event.is_set():
             return
+        with self.image_queue.mutex:
+            self.image_queue.queue.clear()
         self.cancellation_event.set()
         self.ransac_thread.join()
         self.camera_thread.join()
 
     def render(self, window, event, values):
+        if self.image_queue.qsize() > 2:
+            with self.image_queue.mutex:
+                self.image_queue.queue.clear()
+        else:
+            pass
         changed = False
 
         # If anything has changed in our configuration settings, change/update those.
@@ -305,6 +320,8 @@ class CameraWidget:
         if changed:
             self.main_config.save()
 
+
+
         if event == self.gui_tracking_button:
             print("\033[94m[INFO] Moving to tracking mode\033[0m")
             self.in_roi_mode = False
@@ -340,6 +357,11 @@ class CameraWidget:
                 self.x0, self.y0 = values[self.gui_roi_selection]
 
             self.x1, self.y1 = values[self.gui_roi_selection]
+
+        if event == self.gui_restart_3d_calibration:
+            self.ransac.calibration_3d_frame_counter = -621
+            self.ransac.ibo.clear_filter()
+            PlaySound(resource_path("Audio/start.wav"), SND_FILENAME | SND_ASYNC)
 
         if event == self.gui_restart_calibration:
             self.ransac.calibration_frame_counter = self.settings.calibration_samples
@@ -396,7 +418,7 @@ class CameraWidget:
             try:
                 if self.roi_queue.empty():
                     self.capture_event.set()
-                maybe_image = self.roi_queue.get(block=True, timeout=0.1) # this makes the ROI GUI page load slower when there isnt a cam, but fixes bad esp frame drop/lag/stutter
+                maybe_image = self.roi_queue.get(block=False, timeout=0.1) # this makes the ROI GUI page load slower when there isnt a cam, but fixes bad esp frame drop/lag/stutter
                 imgbytes = cv2.imencode(".ppm", maybe_image[0])[1].tobytes()
                 graph = window[self.gui_roi_selection]
                 if self.figure:

@@ -49,7 +49,7 @@ class Camera:
         cancellation_event: "threading.Event",
         capture_event: "threading.Event",
         camera_status_outgoing: "queue.Queue[CameraState]",
-        camera_output_outgoing: "queue.Queue(maxsize=2)",
+        camera_output_outgoing: "queue.Queue(maxsize=20)",
     ):
         self.camera_status = CameraState.CONNECTING
         self.config = config
@@ -93,6 +93,7 @@ class Camera:
         while True:
             if self.cancellation_event.is_set():
                 print(f"{Fore.CYAN}[INFO] Exiting Capture thread{Fore.RESET}")
+
                 return
             should_push = True
             # If things aren't open, retry until they are. Don't let read requests come in any earlier
@@ -136,7 +137,7 @@ class Camera:
             # Assuming we can access our capture source, wait for another thread to request a capture.
             # Cycle every so often to see if our cancellation token has fired. This basically uses a
             # python event as a context-less, resettable one-shot channel.
-            if should_push and not self.capture_event.wait(timeout=0.02):
+            if should_push and not self.capture_event.wait(timeout=0.001):
                 continue
             if self.config.capture_source != None:
                 if "COM" in str(self.current_capture_source):

@@ -124,9 +124,10 @@ class EyeProcessor:
         self.yoff = 1
         # Keep large in order to recenter correctly
         self.calibration_frame_counter = None
+        self.calibration_3d_frame_counter = None
         self.eyeoffx = 1
         self.printcal = True
-
+        self.grab_3d_point = False
         self.xmax = -69420
         self.xmin = 69420
         self.ymax = -69420
@@ -171,6 +172,7 @@ class EyeProcessor:
         self.pupil_width = 0.0
         self.pupil_height = 0.0
         self.avg_velocity = 0.0
+        self.angle = 621
 
         try:
             min_cutoff = float(self.settings.gui_min_cutoff)  # 0.0004
@@ -363,7 +365,7 @@ class EyeProcessor:
         )  # TODO: make own self var and LEAP toggle
         self.thresh = self.current_image_gray.copy()
         self.out_x, self.out_y, self.avg_velocity = cal.cal_osc(
-            self, self.rawx, self.rawy
+            self, self.rawx, self.rawy, self.angle
         )
         self.current_algorithm = EyeInfoOrigin.LEAP
 
@@ -376,7 +378,7 @@ class EyeProcessor:
         self.rawx, self.rawy, self.radius = self.er_daddy.run(self.current_image_gray)
         # Daddy also uses a one euro filter, so I'll have to use it twice, but I'm not going to think too much about it.
         self.out_x, self.out_y, self.avg_velocity = cal.cal_osc(
-            self, self.rawx, self.rawy
+            self, self.rawx, self.rawy, self.angle
         )
         self.current_algorithm = EyeInfoOrigin.DADDY
 
@@ -408,6 +410,7 @@ class EyeProcessor:
         (
             self.rawx,
             self.rawy,
+            self.angle,
             self.thresh,
             ranblink,
             self.pupil_width,
@@ -422,7 +425,7 @@ class EyeProcessor:
         #   self.prev_x = self.rawx
         #  self.prev_y = self.rawy
         self.out_x, self.out_y, self.avg_velocity = cal.cal_osc(
-            self, self.rawx, self.rawy
+            self, self.rawx, self.rawy, self.angle
         )
         self.current_algorithm = EyeInfoOrigin.HSRAC
 
@@ -447,6 +450,7 @@ class EyeProcessor:
         (
             self.rawx,
             self.rawy,
+            self.angle,
             self.thresh,
             ranblink,
             self.pupil_width,
@@ -461,7 +465,7 @@ class EyeProcessor:
         #   self.prev_x = self.rawx
         #  self.prev_y = self.rawy
         self.out_x, self.out_y, self.avg_velocity = cal.cal_osc(
-            self, self.rawx, self.rawy
+            self, self.rawx, self.rawy, self.angle
         )
         self.current_algorithm = EyeInfoOrigin.HSRAC
 
@@ -483,7 +487,7 @@ class EyeProcessor:
             self.current_image_gray
         )
         self.out_x, self.out_y, self.avg_velocity = cal.cal_osc(
-            self, self.rawx, self.rawy
+            self, self.rawx, self.rawy, self.angle
         )
         self.current_algorithm = EyeInfoOrigin.HSF
 
@@ -507,6 +511,7 @@ class EyeProcessor:
         (
             self.rawx,
             self.rawy,
+            self.angle,
             self.thresh,
             ranblink,
             self.pupil_width,
@@ -515,7 +520,7 @@ class EyeProcessor:
         if self.settings.gui_RANSACBLINK:
             self.eyeopen = ranblink
         self.out_x, self.out_y, self.avg_velocity = cal.cal_osc(
-            self, self.rawx, self.rawy
+            self, self.rawx, self.rawy, self.angle
         )
         self.current_algorithm = EyeInfoOrigin.RANSAC
 
@@ -541,7 +546,7 @@ class EyeProcessor:
         ) = External_Run_AHSF(self.current_image_gray)
         self.thresh = self.current_image_gray
         self.out_x, self.out_y, self.avg_velocity = cal.cal_osc(
-            self, self.rawx, self.rawy
+            self, self.rawx, self.rawy, self.angle
         )
         self.current_algorithm = EyeInfoOrigin.HSF
 
@@ -560,7 +565,7 @@ class EyeProcessor:
             pass
         self.rawx, self.rawy, self.thresh = BLOB(self)
 
-        self.out_x, self.out_y = cal.cal_osc(self, self.rawx, self.rawy)
+        self.out_x, self.out_y = cal.cal_osc(self, self.rawx, self.rawy, self.angle)
         self.current_algorithm = EyeInfoOrigin.BLOB
 
     def ALGOSELECT(self):
@@ -713,6 +718,7 @@ class EyeProcessor:
         f = True
         while True:
             # f = True
+            #print(self.capture_queue_incoming.qsize())
             # Check to make sure we haven't been requested to close
             if self.cancellation_event.is_set():
                 print("\033[94m[INFO] Exiting Tracking thread\033[0m")
@@ -750,9 +756,9 @@ class EyeProcessor:
                     self.current_image,
                     self.current_frame_number,
                     self.current_fps,
-                ) = self.capture_queue_incoming.get(block=True, timeout=0.2)
+                ) = self.capture_queue_incoming.get(block=True, timeout=0.1)
             except queue.Empty:
-                # print("No image available")
+                #print("No image available")
                 continue
 
             if not self.capture_crop_rotate_image():
@@ -765,5 +771,10 @@ class EyeProcessor:
                 self.current_image_gray.copy()
             )  # copy this frame to have a clean image for blink algo
 
-            self.ALGOSELECT()  # run our algos in priority order set in settings
-            self.UPDATE()
+
+            if self.cancellation_event.is_set():
+                print("\033[94m[INFO] Exiting Tracking thread\033[0m")
+                return
+            else:
+                self.ALGOSELECT()  # run our algos in priority order set in settings
+                self.UPDATE()

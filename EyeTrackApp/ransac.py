@@ -219,6 +219,7 @@ def RANSAC3D(self, hsrac_en):
     f = False
     ranf = False
     blink = 0.7
+    angle = 0
 
     if hsrac_en:
         (
@@ -269,7 +270,7 @@ def RANSAC3D(self, hsrac_en):
     if frame is None:
         print("[WARN] Frame is empty")
         self.failed = self.failed + 1  # we have failed, move onto next algo
-        return 0, 0, frame, blink, 0, 0
+        return 0, 0, 0, frame, blink, 0, 0
     else:
         frame_gray = cv2.GaussianBlur(frame, (5, 5), 0)
 
@@ -350,6 +351,7 @@ def RANSAC3D(self, hsrac_en):
         result_2d["center"] = (cx, cy)
         result_2d["axes"] = (w, h)
         result_2d["angle"] = theta * 180.0 / np.pi
+        angle = result_2d["angle"]
         result_2d_final["ellipse"] = result_2d
         result_2d_final["diameter"] = w
         result_2d_final["location"] = (cx, cy)
@@ -370,7 +372,7 @@ def RANSAC3D(self, hsrac_en):
         # Record our pupil center
         exm = ellipse_3d["center"][0]
         eym = ellipse_3d["center"][1]
-     #   print(result_2d["angle"], theta)
+    #  print(result_2d["angle"])
         d = result_3d["diameter_3d"]
         self.cc_radius = int(float(self.lkg_projected_sphere["axes"][0]))
         self.xc = int(float(self.lkg_projected_sphere["center"][0]))
@@ -493,7 +495,7 @@ def RANSAC3D(self, hsrac_en):
     thresh = cv2.resize(thresh, (x, y))
     try:
         self.failed = 0  # we have succeded, continue with this
-        return cx, cy, thresh, blink, w, h
+        return cx, cy, angle, thresh, blink, w, h
     except:
         self.failed = self.failed + 1  # we have failed, move onto next algo
-        return 0, 0, thresh, blink, 0, 0
+        return 0, 0, 0, thresh, blink, 0, 0

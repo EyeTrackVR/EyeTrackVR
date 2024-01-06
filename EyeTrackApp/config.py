@@ -3,7 +3,7 @@ import os.path
 import shutil
 from eye import EyeId
 from pydantic import BaseModel
-from typing import Union
+from typing import Union, List
 import psutil, os
 import sys
 
@@ -27,6 +27,8 @@ class EyeTrackCameraConfig(BaseModel):
     calib_YMIN: Union[float, None] = None
     calib_XOFF: Union[float, None] = None
     calib_YOFF: Union[float, None] = None
+    calibration_points: List[List[Union[float, None]]] = []
+
 
 
 class EyeTrackSettingsConfig(BaseModel):
