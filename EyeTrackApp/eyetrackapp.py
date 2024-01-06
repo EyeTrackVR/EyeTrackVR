@@ -286,6 +286,5 @@ def main():
                 if setting.started():
                     setting.render(window, event, values)
 
-
 if __name__ == "__main__":
     main()

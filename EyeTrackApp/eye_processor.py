@@ -227,25 +227,36 @@ class EyeProcessor:
 
         try:
             # Apply rotation to cropped area. For any rotation area outside of the bounds of the image,
-            # fill with white.
+            # fill with avg color + 10.
             try:
                 rows, cols, _ = self.current_image.shape
             except:
                 rows, cols, _ = self.previous_image.shape
-            img_center = (cols / 2, rows / 2)
-            rotation_matrix = cv2.getRotationMatrix2D(
-                img_center, self.config.rotation_angle, 1
-            )
+
             avg_color_per_row = np.average(self.current_image, axis=0)
             avg_color = np.average(avg_color_per_row, axis=0)
             ar, ag, ab = avg_color
+            avg_color = ar + 10
+
+            rows, cols = self.current_image.shape[:2]
+            rotation_matrix = cv2.getRotationMatrix2D((cols / 2, rows / 2), self.config.rotation_angle, 1)
+            cos_theta = np.abs(rotation_matrix[0, 0])
+            sin_theta = np.abs(rotation_matrix[0, 1])
+            new_cols = int((cols * cos_theta) + (rows * sin_theta))
+            new_rows = int((cols * sin_theta) + (rows * cos_theta))
+            rotation_matrix[0, 2] += (new_cols - cols) / 2
+            rotation_matrix[1, 2] += (new_rows - rows) / 2
+
+            # Perform the rotation without cropping
             self.current_image = cv2.warpAffine(
                 self.current_image,
                 rotation_matrix,
-                (cols, rows),
+                (new_cols, new_rows),
                 borderMode=cv2.BORDER_CONSTANT,
-                borderValue=(ar + 10, ag + 10, ab + 10),  # (255, 255, 255),
+                borderValue=(avg_color, avg_color, avg_color),
+                flags=cv2.INTER_LINEAR,
             )
+
             self.current_image_white = cv2.warpAffine(
                 self.current_image,
                 rotation_matrix,
@@ -253,6 +264,7 @@ class EyeProcessor:
                 borderMode=cv2.BORDER_CONSTANT,
                 borderValue=(255, 255, 255),
             )
+
             return True
         except:
             pass

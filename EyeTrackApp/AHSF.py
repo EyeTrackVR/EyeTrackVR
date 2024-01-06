@@ -968,29 +968,25 @@ if __name__ == "__main__":
 
 
 def External_Run_AHSF(frame_gray):
-
     average_color = np.mean(frame_gray)
 
-    # Create a new image of the desired size (square) with the average color
-    new_image_size = max(frame_gray.shape[0], frame_gray.shape[1])
-    new_image = np.full((new_image_size, new_image_size), average_color, dtype=np.uint8)
+    # Get the dimensions of the rotated image
+    height, width = frame_gray.shape
 
-    # Calculate the padding needed on each side
-    top_padding = (new_image_size - frame_gray.shape[0]) // 2
-    bottom_padding = new_image_size - frame_gray.shape[0] - top_padding
-    left_padding = (new_image_size - frame_gray.shape[1]) // 2
-    right_padding = new_image_size - frame_gray.shape[1] - left_padding
+    # Determine the size of the square background (choose the larger dimension)
+    max_dimension = max(height, width)
 
-    # Add padding to the image
-    frame_gray = cv2.copyMakeBorder(
-        frame_gray,
-        top_padding,
-        bottom_padding,
-        left_padding,
-        right_padding,
-        cv2.BORDER_CONSTANT,
-        value=average_color,
-    )
+    # Create a square background with the average color
+    square_background = np.full((max_dimension, max_dimension), average_color, dtype=np.uint8)
+
+    # Calculate the position to paste the rotated image onto the square background
+    x_offset = (max_dimension - width) // 2
+    y_offset = (max_dimension - height) // 2
+
+    # Paste the rotated image onto the square background
+    square_background[y_offset:y_offset + height, x_offset:x_offset + width] = frame_gray
+
+    frame_gray = square_background
     frame_clear_resize = frame_gray.copy()
 
     #  while True:
