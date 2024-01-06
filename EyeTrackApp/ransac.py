@@ -238,10 +238,10 @@ def RANSAC3D(self, hsrac_en):
 
         frame = safe_crop(
             self.current_image_gray_clean,
-            int(ransac_lower_x - 5),
-            int(ransac_lower_y - 5),
-            int(ransac_upper_x - 5),
-            int(ransac_upper_y - 5),
+            int(ransac_lower_x),
+            int(ransac_lower_y),
+            int(ransac_upper_x),
+            int(ransac_upper_y),
             1,
         )
 
