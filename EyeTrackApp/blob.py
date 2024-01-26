@@ -27,15 +27,6 @@ Copyright (c) 2023 EyeTrackVR <3
 """
 
 import cv2
-import numpy as np
-from enum import IntEnum
-
-
-class EyeId(IntEnum):
-    RIGHT = 0
-    LEFT = 1
-    BOTH = 2
-    SETTINGS = 3
 
 
 def BLOB(self):
