@@ -28,8 +28,6 @@ LICENSE: GNU GPLv3
 ------------------------------------------------------------------------------------------------------
 """
 
-from operator import truth
-from dataclasses import dataclass
 import sys
 import asyncio
 import os
@@ -41,14 +39,7 @@ from config import EyeTrackSettingsConfig
 from pye3d.camera import CameraModel
 from pye3d.detector_3d import Detector3D, DetectorMode
 import queue
-import threading
-import numpy as np
-import cv2
-from enum import Enum
-from one_euro_filter import OneEuroFilter
-from utils.misc_utils import PlaySound, SND_FILENAME, SND_ASYNC, resource_path
-import importlib
-from osc import EyeId
+from eye import EyeId
 from osc_calibrate_filter import *
 from daddy import External_Run_DADDY
 from leap import External_Run_LEAP
@@ -61,7 +52,6 @@ from eye import EyeInfo, EyeInfoOrigin
 from intensity_based_openness import *
 from ellipse_based_pupil_dilation import *
 from AHSF import *
-
 
 
 def run_once(f):
@@ -205,8 +195,6 @@ class EyeProcessor:
                 "\033[91m[ERROR] Size of frames to display are of unequal sizes.\033[0m"
             )
 
-        #    pass
-
     def capture_crop_rotate_image(self):
         # Get our current frame
 
@@ -241,7 +229,9 @@ class EyeProcessor:
             avg_color = ar + 10
 
             rows, cols = self.current_image.shape[:2]
-            rotation_matrix = cv2.getRotationMatrix2D((cols / 2, rows / 2), self.config.rotation_angle, 1)
+            rotation_matrix = cv2.getRotationMatrix2D(
+                (cols / 2, rows / 2), self.config.rotation_angle, 1
+            )
             cos_theta = np.abs(rotation_matrix[0, 0])
             sin_theta = np.abs(rotation_matrix[0, 1])
             new_cols = int((cols * cos_theta) + (rows * sin_theta))
@@ -727,7 +717,7 @@ class EyeProcessor:
         f = True
         while True:
             # f = True
-            #print(self.capture_queue_incoming.qsize())
+            # print(self.capture_queue_incoming.qsize())
             # Check to make sure we haven't been requested to close
             if self.cancellation_event.is_set():
                 print("\033[94m[INFO] Exiting Tracking thread\033[0m")
@@ -767,7 +757,7 @@ class EyeProcessor:
                     self.current_fps,
                 ) = self.capture_queue_incoming.get(block=True, timeout=0.1)
             except queue.Empty:
-                #print("No image available")
+                # print("No image available")
                 continue
 
             if not self.capture_crop_rotate_image():
@@ -779,7 +769,6 @@ class EyeProcessor:
             self.current_image_gray_clean = (
                 self.current_image_gray.copy()
             )  # copy this frame to have a clean image for blink algo
-
 
             if self.cancellation_event.is_set():
                 print("\033[94m[INFO] Exiting Tracking thread\033[0m")

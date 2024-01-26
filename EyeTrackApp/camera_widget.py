@@ -26,16 +26,18 @@ LICENSE: GNU GPLv3
 
 import PySimpleGUI as sg
 from config import EyeTrackConfig
-from config import EyeTrackSettingsConfig
 from collections import deque
 from threading import Event, Thread
+
+from eye import EyeId
 from eye_processor import EyeProcessor, EyeInfoOrigin
-from enum import Enum
 from queue import Queue, Empty
 from camera import Camera, CameraState
-from osc import EyeId
 import cv2
+
+from osc.OSCMessage import OSCMessageType, OSCMessage
 from utils.misc_utils import PlaySound, SND_FILENAME, SND_ASYNC, resource_path
+import traceback
 import numpy as np
 import time
 
@@ -502,6 +504,9 @@ class CameraWidget:
                     graph.update(background_color="red")
                 # Relay information to OSC
                 if eye_info.info_type != EyeInfoOrigin.FAILURE:
-                    self.osc_queue.put((self.eye_id, eye_info))
+                    osc_message = OSCMessage(
+                        type=OSCMessageType.EYE_INFO, data=(self.eye_id, eye_info)
+                    )
+                    self.osc_queue.put(osc_message)
             except Empty:
                 pass

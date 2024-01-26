@@ -25,7 +25,7 @@ LICENSE: GNU GPLv3
 """
 
 from config import EyeTrackConfig
-from osc import EyeId
+from eye import EyeId
 
 from settings.BaseSettings import BaseSettingsWidget
 from settings.modules.GeneralSettingsModule import GeneralSettingsModule
@@ -41,4 +41,3 @@ class SettingsWidget(BaseSettingsWidget):
             OSCSettingsModule,
         ]
         super().__init__(widget_id, main_config, settings_modules)
-

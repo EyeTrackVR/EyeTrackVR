@@ -6,7 +6,7 @@ from colorama import Fore
 
 from config import EyeTrackConfig, EyeTrackSettingsConfig
 from threading import Event
-from osc import EyeId  # TODO this is bad, fix this
+from eye import EyeId
 
 
 class BaseSettingsWidget:
@@ -41,8 +41,16 @@ class BaseSettingsWidget:
                     background_color="#424042",
                 ),
             ],
-            [sg.Text("", background_color="#424042"), ],
-            [sg.Button("Reset settings to default", key=self.reset_button_key, button_color="#c40e23")],
+            [
+                sg.Text("", background_color="#424042"),
+            ],
+            [
+                sg.Button(
+                    "Reset settings to default",
+                    key=self.reset_button_key,
+                    button_color="#c40e23",
+                )
+            ],
         ]
 
         self.cancellation_event = (
