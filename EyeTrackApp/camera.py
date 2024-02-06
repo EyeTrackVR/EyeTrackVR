@@ -31,9 +31,8 @@ import serial
 import serial.tools.list_ports
 import threading
 import time
-import platform
 from colorama import Fore
-from config import EyeTrackConfig
+from config import EyeTrackCameraConfig
 from enum import Enum
 import psutil, os
 import sys
@@ -80,7 +79,7 @@ def is_serial_capture_source(addr: str) -> bool:
 class Camera:
     def __init__(
         self,
-        config: EyeTrackConfig,
+        config: EyeTrackCameraConfig,
         camera_index: int,
         cancellation_event: "threading.Event",
         capture_event: "threading.Event",

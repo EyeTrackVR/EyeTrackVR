@@ -31,7 +31,7 @@ from pydantic import BaseModel
 from typing import Union, List
 import os
 
-from eye import EyeId
+from EyeTrackApp.eye import EyeId
 
 CONFIG_FILE_NAME: str = "eyetrack_settings.json"
 BACKUP_CONFIG_FILE_NAME: str = "eyetrack_settings.backup"

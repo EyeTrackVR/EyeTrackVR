@@ -32,10 +32,10 @@ import threading
 from camera_widget import CameraWidget
 from config import EyeTrackConfig
 from eye import EyeId
-from osc.osc import VRChatOSCReceiver, VRChatOSC
 from general_settings_widget import SettingsWidget
 from algo_settings_widget import AlgoSettingsWidget
-from osc.OSCMessage import OSCMessage
+from EyeTrackApp.osc.osc import OSCManager
+from osc.OSCMessage import OSCMessage, OSCMessageType
 from utils.misc_utils import is_nt, resource_path
 
 if is_nt:
@@ -66,7 +66,6 @@ def main():
     config.save()
 
     cancellation_event = threading.Event()
-    ROSC = False
     # Check to see if we can connect to our video source first. If not, bring up camera finding
     # dialog.
 
@@ -105,14 +104,7 @@ def main():
     except:
         print("\033[91m[INFO] Could not check for updates. Please try again later.\033[0m")
 
-    # Check to see if we have an ROI. If not, bring up ROI finder GUI.
-
-    # Spawn worker threads
     osc_queue: queue.Queue[OSCMessage] = queue.Queue()
-    osc = VRChatOSC(cancellation_event, osc_queue, config)
-    osc_thread = threading.Thread(target=osc.run)
-    # start worker threads
-    osc_thread.start()
 
     eyes = [
         CameraWidget(EyeId.RIGHT, config, osc_queue),
@@ -123,6 +115,28 @@ def main():
         SettingsWidget(EyeId.SETTINGS, config),
         AlgoSettingsWidget(EyeId.ALGOSETTINGS, config),
     ]
+
+    osc_manager = OSCManager(
+        osc_message_in_queue=osc_queue,
+        config=config,
+    )
+
+    osc_manager.register_listeners(
+        config.settings.gui_osc_recenter_address,
+        [
+            eyes[1].recenter_eyes,
+            eyes[1].recenter_eyes,
+        ],
+    )
+    osc_manager.register_listeners(
+        config.settings.gui_osc_recalibrate_address,
+        [
+            eyes[0].recalibrate_eyes,
+            eyes[0].recalibrate_eyes,
+        ],
+    )
+
+    osc_manager.start()
 
     layout = [
         [
@@ -202,15 +216,8 @@ def main():
         settings[0].start()
     if config.eye_display_id in [EyeId.ALGOSETTINGS]:
         settings[1].start()
-        # self.main_config.eye_display_id
 
     # the eye's needs to be running before it is passed to the OSC
-    if config.settings.gui_ROSC:
-        osc_receiver = VRChatOSCReceiver(cancellation_event, config, eyes)
-        osc_receiver_thread = threading.Thread(target=osc_receiver.run)
-        osc_receiver_thread.start()
-        ROSC = True
-
     # Create the window
     window = sg.Window(
         f"{appversion}",
@@ -229,15 +236,7 @@ def main():
             for eye in eyes:
                 eye.stop()
             cancellation_event.set()
-            # shut down worker threads
-            osc_thread.join()
-            # TODO: find a way to have this function run on join maybe??
-            # threading.Event() wont work because pythonosc spawns its own thread.
-            # only way i can see to get around this is an ugly while loop that only checks if a threading event is triggered
-            # and then call the pythonosc shutdown function
-            if ROSC:
-                osc_receiver.shutdown()
-                osc_receiver_thread.join()
+            osc_manager.shutdown()
             print("\033[94m[INFO] Exiting EyeTrackApp\033[0m")
             return
 
@@ -292,10 +291,7 @@ def main():
             config.eye_display_id = EyeId.SETTINGS
             config.save()
 
-        elif (
-            values[ALGO_SETTINGS_RADIO_NAME]
-            and config.eye_display_id != EyeId.ALGOSETTINGS
-        ):
+        elif values[ALGO_SETTINGS_RADIO_NAME] and config.eye_display_id != EyeId.ALGOSETTINGS:
             eyes[0].stop()
             eyes[1].stop()
             settings[0].stop()
@@ -315,6 +311,7 @@ def main():
             for setting in settings:
                 if setting.started():
                     setting.render(window, event, values)
+
 
 if __name__ == "__main__":
     main()

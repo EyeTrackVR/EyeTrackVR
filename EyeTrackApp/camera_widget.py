@@ -37,9 +37,7 @@ import cv2
 
 from osc.OSCMessage import OSCMessageType, OSCMessage
 from utils.misc_utils import PlaySound, SND_FILENAME, SND_ASYNC, resource_path
-import traceback
 import numpy as np
-import time
 
 
 class CameraWidget:
@@ -278,9 +276,9 @@ class CameraWidget:
 
     def start(self):
         # If we're already running, bail
-
         if not self.cancellation_event.is_set():
             return
+
         self.cancellation_event.clear()
         self.ransac_thread = Thread(target=self.ransac.run)
         self.ransac_thread.start()
@@ -288,7 +286,6 @@ class CameraWidget:
         self.camera_thread.start()
 
     def stop(self):
-
         # If we're not running yet, bail
         if self.cancellation_event.is_set():
             return
@@ -504,9 +501,23 @@ class CameraWidget:
                     graph.update(background_color="red")
                 # Relay information to OSC
                 if eye_info.info_type != EyeInfoOrigin.FAILURE:
-                    osc_message = OSCMessage(
-                        type=OSCMessageType.EYE_INFO, data=(self.eye_id, eye_info)
-                    )
+                    osc_message = OSCMessage(type=OSCMessageType.EYE_INFO, data=(self.eye_id, eye_info))
                     self.osc_queue.put(osc_message)
             except Empty:
                 pass
+
+    def recenter_eyes(self, osc_message: OSCMessage):
+        if osc_message.data is not bool:
+            return  # just incase we get anything other than bool
+
+        if osc_message.data:
+            self.settings.gui_recenter_eyes = True
+
+    def recalibrate_eyes(self, osc_message: OSCMessage):
+        if osc_message.data is not bool:
+            return  # just incase we get anything other than bool
+
+        if osc_message.data:
+            self.ransac.ibo.clear_filter()
+            self.ransac.calibration_frame_counter = self.config.calibration_samples
+            PlaySound("Audio/start.wav", SND_FILENAME | SND_ASYNC)
