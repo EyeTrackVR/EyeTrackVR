@@ -1,12 +1,10 @@
 import json
 import os.path
 import shutil
-from eye import EyeId
+from EyeTrackApp.eye import EyeId
 from pydantic import BaseModel
 from typing import Union, List
-import psutil, os
-import sys
-
+import os
 
 
 CONFIG_FILE_NAME: str = "eyetrack_settings.json"
@@ -28,7 +26,6 @@ class EyeTrackCameraConfig(BaseModel):
     calib_XOFF: Union[float, None] = None
     calib_YOFF: Union[float, None] = None
     calibration_points: List[List[Union[float, None]]] = []
-
 
 
 class EyeTrackSettingsConfig(BaseModel):

@@ -23,6 +23,7 @@ winotify = [
 onnxruntime = "^1.13.1"
 colorama = "^0.4.6"
 taskipy = "^1.10.4"
+pytest = "^8.0.0"
 [tool.poetry.group.dev.dependencies]
 black = "^22.10.0"
 pyinstaller = "^5.6.2"
@@ -31,6 +32,16 @@ flake8 = "^5.0.4"
 [tool.taskipy.tasks]
 dev = "python eyetrackapp.py"
 
+[tool.black]
+line-length = 120
+
 [build-system]
 requires = ["poetry-core>=1.0.0"]
 build-backend = "poetry.core.masonry.api"
+
+[tool.pytest.ini_options]
+addopts = "-ra -q"
+pythonpath = "."
+python_files = [
+    "test_*.py"
+]
