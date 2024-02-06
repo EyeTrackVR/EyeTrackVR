@@ -58,7 +58,7 @@ class VRChatOSCSender:
                 avg_velocity,
             )
 
-        if config.gui_vrc_native:  # VRC NATIVE
+        if config.gui_vrc_native:
             return self.output_native(
                 main_config,
                 config,
@@ -86,17 +86,13 @@ class VRChatOSCSender:
             # when binary blink is on, blinks may be too fast for OSC, so we repeat them.
             if self.last_blink > 0.2:
                 for _ in range(5):
-                    client.send_message(
-                        "/tracking/eye/EyesClosedAmount", float(1 - eye_blink)
-                    )
+                    client.send_message("/tracking/eye/EyesClosedAmount", float(1 - eye_blink))
                     eye_blink += 0.02  # TODO finish tuning value
                 self.last_blink = time.time() - self.last_blink
         else:
             client.send_message("/tracking/eye/EyesClosedAmount", float(1 - eye_blink))
 
-    def output_native(
-        self, main_config, config, client, eye_x, eye_y, eye_blink, avg_velocity
-    ):
+    def output_native(self, main_config, config, client, eye_x, eye_y, eye_blink, avg_velocity):
         single_eye_mode = self.get_is_single_eye_mode(config.eye_display_id)
 
         if single_eye_mode:
@@ -106,78 +102,50 @@ class VRChatOSCSender:
                 [float(eye_x), float(eye_y), 1.0, float(eye_x), float(eye_y), 1.0],
             )
 
-        if (
-            self.eye_id in [EyeId.LEFT] and not single_eye_mode
-        ):  # left eye, send data to left
+        if self.eye_id in [EyeId.LEFT] and not single_eye_mode:  # left eye, send data to left
             self.l_eye_x = eye_x
             self.l_eye_blink = eye_blink
             self.left_y = eye_y
             self.l_eye_velocity = avg_velocity
             client.send_message(
                 config.osc_left_eye_close_address,
-                self.eyelid_transformer(
-                    eye_blink, osc_invert_eye_close=config.osc_invert_eye_close
-                ),
+                self.eyelid_transformer(eye_blink, osc_invert_eye_close=config.osc_invert_eye_close),
             )
 
             if self.l_eye_blink == 0.0:
-                if (
-                    self.last_blink > 0.2
-                ):  # when binary blink is on, blinks may be too fast for OSC, so we repeat them.
+                if self.last_blink > 0.2:  # when binary blink is on, blinks may be too fast for OSC, so we repeat them.
                     for _ in range(5):
-                        client.send_message(
-                            "/tracking/eye/EyesClosedAmount", float(1 - eye_blink)
-                        )
+                        client.send_message("/tracking/eye/EyesClosedAmount", float(1 - eye_blink))
                     self.last_blink = time.time() - self.last_blink
                 if config.gui_outer_side_falloff:
-                    if (
-                        self.r_eye_blink == 0.0
-                    ):  # if both eyes closed and DEF is enabled, blink
-                        client.send_message(
-                            "/tracking/eye/EyesClosedAmount", float(1 - eye_blink)
-                        )
+                    if self.r_eye_blink == 0.0:  # if both eyes closed and DEF is enabled, blink
+                        client.send_message("/tracking/eye/EyesClosedAmount", float(1 - eye_blink))
                 self.l_eye_x = self.r_eye_x
 
-        elif (
-            self.eye_id in [EyeId.RIGHT] and not single_eye_mode
-        ):  # Right eye, send data to right
+        elif self.eye_id in [EyeId.RIGHT] and not single_eye_mode:  # Right eye, send data to right
             self.r_eye_x = eye_x
             self.r_eye_blink = eye_blink
             self.right_y = eye_y
             self.r_eye_velocity = avg_velocity
             client.send_message(
                 config.osc_right_eye_close_address,
-                self.eyelid_transformer(
-                    eye_blink, osc_invert_eye_close=config.osc_invert_eye_close
-                ),
+                self.eyelid_transformer(eye_blink, osc_invert_eye_close=config.osc_invert_eye_close),
             )
 
             if self.r_eye_blink == 0.0:
-                if (
-                    self.last_blink > 0.2
-                ):  # when binary blink is on, blinks may be too fast for OSC so we repeat them.
+                if self.last_blink > 0.2:  # when binary blink is on, blinks may be too fast for OSC so we repeat them.
                     for i in range(5):
-                        client.send_message(
-                            "/tracking/eye/EyesClosedAmount", float(1 - eye_blink)
-                        )
+                        client.send_message("/tracking/eye/EyesClosedAmount", float(1 - eye_blink))
                     self.last_blink = time.time() - self.last_blink
                 if config.gui_outer_side_falloff:
-                    if (
-                        self.l_eye_blink == 0.0
-                    ):  # if both eyes closed and DEF is enabled, blink
+                    if self.l_eye_blink == 0.0:  # if both eyes closed and DEF is enabled, blink
                         client.send_message("/tracking/eye/EyesClosedAmount", float(0))
 
                 self.r_eye_x = self.l_eye_x
 
-        if (
-            main_config.eye_display_id in [EyeId.BOTH]
-            and self.r_eye_blink != 621
-            and self.r_eye_blink != 621
-        ):
+        if main_config.eye_display_id in [EyeId.BOTH] and self.r_eye_blink != 621 and self.r_eye_blink != 621:
             if self.r_eye_blink == 0.0 or self.l_eye_blink == 0.0:
-                if (
-                    self.last_blink > 0.2
-                ):  # when binary blink is on, blinks may be too fast for OSC, so we repeat them.
+                if self.last_blink > 0.2:  # when binary blink is on, blinks may be too fast for OSC, so we repeat them.
                     for _ in range(5):
                         client.send_message("/tracking/eye/EyesClosedAmount", float(1))
                     self.last_blink = time.time() - self.last_blink
@@ -185,11 +153,7 @@ class VRChatOSCSender:
             client.send_message("/tracking/eye/EyesClosedAmount", float(1 - eye_blink))
 
         # is this used?
-        if (
-            main_config.eye_display_id in [EyeId.BOTH]
-            and self.right_y != 621
-            and self.left_y != 621
-        ):
+        if main_config.eye_display_id in [EyeId.BOTH] and self.right_y != 621 and self.left_y != 621:
             eye_y = (self.right_y + self.left_y) / 2
 
         if not single_eye_mode:
@@ -239,9 +203,7 @@ class VRChatOSCSender:
                 ),
             )
 
-        if (
-            self.eye_id in [EyeId.LEFT] and not single_eye_mode
-        ):  # left eye, send data to left
+        if self.eye_id in [EyeId.LEFT] and not single_eye_mode:  # left eye, send data to left
             self.l_eye_x = eye_x
             self.l_eye_blink = eye_blink
             self.l_eye_velocity = avg_velocity
@@ -273,17 +235,13 @@ class VRChatOSCSender:
                 ),
             )
 
-        elif (
-            self.eye_id in [EyeId.RIGHT] and not single_eye_mode
-        ):  # Right eye, send data to right
+        elif self.eye_id in [EyeId.RIGHT] and not single_eye_mode:  # Right eye, send data to right
             self.r_eye_x = eye_x
             self.r_eye_blink = eye_blink
             self.l_eye_velocity = avg_velocity
 
             if self.r_eye_blink == 0.0:
-                if (
-                    self.last_blink > 0.15
-                ):  # when binary blink is on, blinks may be too fast for OSC so we repeat them.
+                if self.last_blink > 0.15:  # when binary blink is on, blinks may be too fast for OSC so we repeat them.
                     # print("REPEATING R BLINK")
                     for _ in range(4):
                         client.send_message(
@@ -295,9 +253,7 @@ class VRChatOSCSender:
                         )
                     self.last_blink = time.time() - self.last_blink
                 if config.gui_outer_side_falloff:
-                    if (
-                        self.l_eye_blink == 0.0
-                    ):  # if both eyes closed and DEF is enabled, blink
+                    if self.l_eye_blink == 0.0:  # if both eyes closed and DEF is enabled, blink
                         client.send_message(
                             config.osc_left_eye_close_address,
                             self.eyelid_transformer(
@@ -326,11 +282,7 @@ class VRChatOSCSender:
                 ),
             )
 
-        if (
-            main_config.eye_display_id in [EyeId.BOTH]
-            and self.right_y != 621
-            and self.left_y != 621
-        ):
+        if main_config.eye_display_id in [EyeId.BOTH] and self.right_y != 621 and self.left_y != 621:
             y = (self.right_y + self.left_y) / 2
             client.send_message(config.osc_eyes_y_address, y)
 
@@ -361,17 +313,13 @@ class VRChatOSCSender:
                 ),
             )
 
-        if (
-            self.eye_id in [EyeId.LEFT] and not single_eye_mode
-        ):  # left eye, send data to left
+        if self.eye_id in [EyeId.LEFT] and not single_eye_mode:  # left eye, send data to left
             self.l_eye_x = eye_x
             self.l_eye_blink = eye_blink
             self.r_eye_velocity = avg_velocity
 
             if self.l_eye_blink == 0.0:
-                if (
-                    self.last_blink > 0.15
-                ):  # when binary blink is on, blinks may be too fast for OSC so we repeat them.
+                if self.last_blink > 0.15:  # when binary blink is on, blinks may be too fast for OSC so we repeat them.
                     for i in range(4):
                         client.send_message(
                             "/avatar/parameters/v2/EyeLidLeft",
@@ -382,9 +330,7 @@ class VRChatOSCSender:
                         )
                     self.last_blink = time.time() - self.last_blink
                 if config.gui_outer_side_falloff:
-                    if (
-                        self.r_eye_blink == 0.0
-                    ):  # if both eyes closed and DEF is enables, blink
+                    if self.r_eye_blink == 0.0:  # if both eyes closed and DEF is enables, blink
                         client.send_message(
                             "/avatar/parameters/v2/EyeLidLeft",
                             self.eyelid_transformer(
@@ -415,17 +361,13 @@ class VRChatOSCSender:
                 ),
             )
 
-        elif (
-            self.eye_id in [EyeId.RIGHT] and not single_eye_mode
-        ):  # Right eye, send data to right
+        elif self.eye_id in [EyeId.RIGHT] and not single_eye_mode:  # Right eye, send data to right
             self.r_eye_x = eye_x
             self.r_eye_blink = eye_blink
             self.r_eye_velocity = avg_velocity
 
             if self.r_eye_blink == 0.0:
-                if (
-                    self.last_blink > 0.15
-                ):  # when binary blink is on, blinks may be too fast for OSC so we repeat them.
+                if self.last_blink > 0.15:  # when binary blink is on, blinks may be too fast for OSC so we repeat them.
                     #   print("REPEATING R BLINK")
                     for i in range(4):
                         client.send_message(
@@ -437,9 +379,7 @@ class VRChatOSCSender:
                         )
                     self.last_blink = time.time() - self.last_blink
                 if config.gui_outer_side_falloff:
-                    if (
-                        self.l_eye_blink == 0.0
-                    ):  # if both eyes closed and DEF is enabled, blink
+                    if self.l_eye_blink == 0.0:  # if both eyes closed and DEF is enabled, blink
                         client.send_message(
                             "/avatar/parameters/v2/EyeLidLeft",
                             self.eyelid_transformer(
@@ -471,10 +411,6 @@ class VRChatOSCSender:
                 ),
             )
 
-        if (
-            main_config.eye_display_id in [EyeId.BOTH]
-            and self.right_y != 621
-            and self.left_y != 621
-        ):
+        if main_config.eye_display_id in [EyeId.BOTH] and self.right_y != 621 and self.left_y != 621:
             y = (self.right_y + self.left_y) / 2
             client.send_message("/avatar/parameters/v2/EyeY", y)
