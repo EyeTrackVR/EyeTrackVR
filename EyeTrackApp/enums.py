@@ -56,7 +56,7 @@ class EnumMeta(type):
         attrs: Dict[str, Any],
         *,
         comparable: bool = False,
-    ) -> Self:
+    ):
         value_mapping = {}
         member_mapping = {}
         member_names = []
