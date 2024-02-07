@@ -162,10 +162,10 @@ def output_osc(eye_x, eye_y, eye_blink, last_blink, pupil_dilation, avg_velocity
             self.left_y = eye_y
 
             if self.left_y != 621:
-                self.client.send_message("/avatar/parameters/FT/v2/EyeLeftY", self.left_y)
+                self.client.send_message("/avatar/parameters/v2/EyeLeftY", self.left_y)
 
             self.client.send_message(
-                "/avatar/parameters/FT/v2/EyeLidLeft",
+                "/avatar/parameters/v2/EyeLidLeft",
                 eyelid_transformer(self, self.l_eye_blink),
             )
 
