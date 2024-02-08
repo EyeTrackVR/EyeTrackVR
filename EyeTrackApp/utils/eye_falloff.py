@@ -31,8 +31,8 @@ def velocity_falloff(self, var, out_x, out_y):
                         var.r_eye_x = out_x
                         var.right_y = out_y
                     else:
-                        eye_x = var.l_eye_x
-                        eye_y = var.left_y
+                        out_x = var.l_eye_x
+                        out_y = var.left_y
                 elif self.settings.gui_left_eye_dominant:
                     var.r_eye_x = out_x
                     var.right_y = out_y

@@ -258,9 +258,7 @@ class IntensityBasedOpeness:
 
         # The same can be done with cv2.integral, but since there is only one area of the rectangle for which we want to know the total value, there is no advantage in terms of computational complexity.
         intensity = frame_crop.sum() + 1
-        # cv2.imshow('e', frame)
-        # if cv2.waitKey(10) == 27:
-        #    exit()
+
         if len(self.filterlist) < filterSamples:
             self.filterlist.append(intensity)
         else:
@@ -269,7 +267,7 @@ class IntensityBasedOpeness:
 
         try:
             if intensity >= np.percentile(
-                self.filterlist, 98
+                self.filterlist, 99
             ):  # filter abnormally high values
                 # print('filter, assume blink')
                 intensity = self.maxval
@@ -404,7 +402,7 @@ class IntensityBasedOpeness:
         except:
             pass
 
-        eyevec = abs(self.prev_val - eyeopen)
+        #  eyevec = abs(self.prev_val - eyeopen)
         # print(eyevec)
         #  if eyevec > 0.4:
         #      print("BLINK LCOK")

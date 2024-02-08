@@ -581,44 +581,35 @@ class EyeProcessor:
         self.current_algorithm = EyeInfoOrigin.BLOB
 
     def ALGOSELECT(self):
-        # self.DADDYM()
+        # send the tracking algos previous fail number, in algo if we pass set to 0, if fail, + 1
         if self.failed == 0 and self.firstalgo != None:
             self.firstalgo()
         else:
             self.failed = self.failed + 1
-
-        if (
-            self.failed == 1 and self.secondalgo != None
-        ):  # send the tracking algos previous fail number, in algo if we pass set to 0, if fail, + 1
+        if self.failed == 1 and self.secondalgo != None:
             self.secondalgo()
         else:
             self.failed = self.failed + 1
-
         if self.failed == 2 and self.thirdalgo != None:
             self.thirdalgo()
         else:
             self.failed = self.failed + 1
-
         if self.failed == 3 and self.fourthalgo != None:
             self.fourthalgo()
         else:
             self.failed = self.failed + 1
-
         if self.failed == 4 and self.fithalgo != None:
             self.fithalgo()
         else:
             self.failed = self.failed + 1
-
         if self.failed == 5 and self.sixthalgo != None:
             self.sixthalgo()
         else:
             self.failed = self.failed + 1
-
         if self.failed == 6 and self.seventhalgo != None:
             self.seventhalgo()
         else:
             self.failed = self.failed + 1
-
         if self.failed == 7 and self.eigthalgo != None:
             self.eigthalgo()
         else:
@@ -637,6 +628,7 @@ class EyeProcessor:
         self.seventhalgo = None
         self.eigthalgo = None
         algolist = [None, None, None, None, None, None, None, None, None]
+
         # clear HSF values when page is opened to correctly reflect setting changes
         self.er_hsf = None
 
@@ -665,7 +657,9 @@ class EyeProcessor:
                     )
                 else:
                     pass
+
             algolist[self.settings.gui_HSFP] = self.HSFM
+
         else:
             if self.er_hsf is not None:
                 self.er_hsf = None
@@ -688,6 +682,7 @@ class EyeProcessor:
                     )
                 else:
                     pass
+
             algolist[self.settings.gui_HSRACP] = self.HSRACM
         else:
             if not self.settings.gui_HSF and self.er_hsf is not None:
@@ -724,7 +719,7 @@ class EyeProcessor:
             self.fithalgo,
             self.sixthalgo,
             self.seventhalgo,
-            self.eighthalgo,
+            self.eigthalgo,
         ) = algolist
 
         f = True

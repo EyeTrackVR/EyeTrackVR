@@ -144,7 +144,6 @@ def output_osc(eye_x, eye_y, eye_blink, last_blink, pupil_dilation, avg_velocity
             se = True
 
             self.client.send_message("/avatar/parameters/v2/EyeX", eye_x)
-
             self.client.send_message("/avatar/parameters/v2/EyeLeftX", eye_x)
             self.client.send_message("/avatar/parameters/v2/EyeRightX", eye_x)
             self.client.send_message("/avatar/parameters/v2/EyeLeftY", eye_y)
