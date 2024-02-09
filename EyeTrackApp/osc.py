@@ -176,7 +176,6 @@ def output_osc(eye_x, eye_y, eye_blink, last_blink, pupil_dilation, avg_velocity
 
             if self.r_eye_blink == 0.0:
                 if last_blink > 0.15:  # when binary blink is on, blinks may be too fast for OSC so we repeat them.
-                    #   print("REPEATING R BLINK")
                     for i in range(4):
                         self.client.send_message(
                             "/avatar/parameters/v2/EyeLidRight",
