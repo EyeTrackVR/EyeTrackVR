@@ -13,8 +13,7 @@ import threading
 
 
 # TODO
-# implement vrcft module thing
-# write tests
+# make gui
 
 
 class OSCManager:
@@ -28,17 +27,19 @@ class OSCManager:
         self.osc_message_in_queue = osc_message_in_queue
         self.config = config
         self.settings = config.settings
+        self.osc_sender: OSCSender = None
+        self.osc_receiver = None
         self.osc_sender_thread: Optional[threading.Thread] = None
         self.osc_receiver_thread: Optional[threading.Thread] = None
 
     def start(self):
-        osc_sender = OSCSender(self.cancellation_event, self.osc_message_in_queue, self.config)
-        self.osc_sender_thread = threading.Thread(target=osc_sender.run)
+        self.osc_sender = OSCSender(self.cancellation_event, self.osc_message_in_queue, self.config)
+        self.osc_sender_thread = threading.Thread(target=self.osc_sender.run)
         self.osc_sender_thread.start()
 
         if self.settings.gui_ROSC:
-            osc_receiver = OSCReceiver(self.cancellation_event, self.config, self.listeners)
-            self.osc_receiver_thread = threading.Thread(target=osc_receiver.run)
+            self.osc_receiver = OSCReceiver(self.cancellation_event, self.config, self.listeners)
+            self.osc_receiver_thread = threading.Thread(target=self.osc_receiver.run)
             self.osc_receiver_thread.start()
 
     def register_listeners(self, osc_address: str, callbacks: Iterable[Callable]):
@@ -70,32 +71,29 @@ class OSCSender:
 
         # idea is, we will use a single port.
         # if, the user selects in the settings that they want to use the module
-        # we swap the port and we gucci
+        # we swap the port, and we're good
         # if they don't, we just output stuff as we'd normally
         # handlers are only here to handle different payloads pretty much
         self.client = udp_client.SimpleUDPClient(self.config.gui_osc_address, int(self.config.gui_osc_port))
 
-        self.message_strategies = {
-            OSCMessageType.EYE_INFO: self.output_osc_info_vrc,
-            OSCMessageType.VRCFT_MODULE_INFO: self.output_osc_info_module,
-        }
-
     def run(self):
         while not self.cancellation_event.is_set():
             try:
-                osc_message = self.msg_queue.get(block=True, timeout=0.1)
-                handler = self.message_strategies.get(osc_message.type)
-                if not handler:
-                    raise Exception("Encountered message without a handler %s", osc_message.type)
-                handler(osc_message)
+                osc_message: OSCMessage = self.msg_queue.get(block=True, timeout=0.1)
+                match osc_message.type:
+                    case OSCMessageType.EYE_INFO:
+                        self.vrc_sender.output_osc_info(
+                            osc_message=osc_message,
+                            client=self.client,
+                            main_config=self.main_config,
+                            config=self.config,
+                        )
+                    case OSCMessageType.VRCFT_MODULE_INFO:
+                        self.module_sender.send(osc_message=osc_message, client=self.client)
+                    case _:
+                        raise Exception("Encountered message without a handler %s", osc_message.type)
             except queue.Empty:
                 continue
-
-    def output_osc_info_vrc(self, osc_message: OSCMessage):
-        self.vrc_sender.output_osc_info(osc_message, self.client, self.main_config, self.config)
-
-    def output_osc_info_module(self, osc_message: OSCMessage):
-        pass
 
 
 class OSCReceiver:
