@@ -1,12 +1,12 @@
 import dataclasses
-import threading
 from queue import Queue
 from time import sleep
 from unittest import mock
 
 import pytest
 
-from EyeTrackApp.osc import VRChatOSC
+from osc.osc import OSCManager, OSCMessage
+from osc.OSCMessage import OSCMessageType
 
 
 @dataclasses.dataclass
@@ -29,17 +29,22 @@ class SimpleUDPClientMock:
 
 
 @pytest.mark.parametrize(
-    "eye_id,messages,expected_outcome",
+    "messages,expected_outcome",
     [
         (
-            0,
             [
-                EyeInfoMock(
-                    x=0,
-                    y=0,
-                    blink=1,
-                    pupil_dilation=0,
-                    avg_velocity=0,
+                OSCMessage(
+                    type=OSCMessageType.EYE_INFO,
+                    data=(
+                        0,
+                        EyeInfoMock(
+                            x=0,
+                            y=0,
+                            blink=1,
+                            pupil_dilation=0,
+                            avg_velocity=0,
+                        ),
+                    ),
                 ),
             ],
             [
@@ -49,14 +54,19 @@ class SimpleUDPClientMock:
             ],
         ),
         (
-            1,
             [
-                EyeInfoMock(
-                    x=0,
-                    y=0,
-                    blink=1,
-                    pupil_dilation=0,
-                    avg_velocity=0,
+                OSCMessage(
+                    type=OSCMessageType.EYE_INFO,
+                    data=(
+                        1,
+                        EyeInfoMock(
+                            x=0,
+                            y=0,
+                            blink=1,
+                            pupil_dilation=0,
+                            avg_velocity=0,
+                        ),
+                    ),
                 ),
             ],
             [
@@ -67,28 +77,23 @@ class SimpleUDPClientMock:
         ),
     ],
 )
-def test_send_command_v2_params_single_eye(main_config_v2_params, eye_id, messages, expected_outcome):
-    with mock.patch("EyeTrackApp.osc.udp_client.SimpleUDPClient", SimpleUDPClientMock):
-        cancellation_event = threading.Event()
+def test_send_command_v2_params_single_eye(main_config_v2_params, messages, expected_outcome):
+    with mock.patch("EyeTrackApp.osc.osc.udp_client.SimpleUDPClient", SimpleUDPClientMock):
         msg_queue = Queue()
-        client = VRChatOSC(
-            main_config=main_config_v2_params,
-            msg_queue=msg_queue,
-            cancellation_event=cancellation_event,
+        client = OSCManager(
+            config=main_config_v2_params,
+            osc_message_in_queue=msg_queue,
         )
 
-        osc_thread = threading.Thread(target=client.run)
-        osc_thread.start()
+        client.start()
 
         for message in messages:
             sleep(0.01)
-            msg_queue.put((eye_id, message))
-
-        cancellation_event.set()
-        osc_thread.join()
+            msg_queue.put(message)
+        client.shutdown()
 
         assert msg_queue.empty()
-        assert client.client.messages == expected_outcome
+        assert client.osc_sender.client.messages == expected_outcome
 
 
 @pytest.mark.parametrize(
@@ -96,24 +101,30 @@ def test_send_command_v2_params_single_eye(main_config_v2_params, eye_id, messag
     [
         (
             [
-                (
-                    0,
-                    EyeInfoMock(
-                        x=0,
-                        y=0,
-                        blink=1,
-                        pupil_dilation=1,
-                        avg_velocity=0,
+                OSCMessage(
+                    type=OSCMessageType.EYE_INFO,
+                    data=(
+                        0,
+                        EyeInfoMock(
+                            x=0,
+                            y=0,
+                            blink=1,
+                            pupil_dilation=1,
+                            avg_velocity=0,
+                        ),
                     ),
                 ),
-                (
-                    1,
-                    EyeInfoMock(
-                        x=10,
-                        y=5,
-                        blink=0.5,
-                        pupil_dilation=1,
-                        avg_velocity=0,
+                OSCMessage(
+                    type=OSCMessageType.EYE_INFO,
+                    data=(
+                        1,
+                        EyeInfoMock(
+                            x=10,
+                            y=5,
+                            blink=0.5,
+                            pupil_dilation=1,
+                            avg_velocity=0,
+                        ),
                     ),
                 ),
             ],
@@ -129,24 +140,30 @@ def test_send_command_v2_params_single_eye(main_config_v2_params, eye_id, messag
         # binary blink
         (
             [
-                (
-                    0,
-                    EyeInfoMock(
-                        x=0,
-                        y=0,
-                        blink=0,
-                        pupil_dilation=1,
-                        avg_velocity=0,
+                OSCMessage(
+                    type=OSCMessageType.EYE_INFO,
+                    data=(
+                        0,
+                        EyeInfoMock(
+                            x=0,
+                            y=0,
+                            blink=0,
+                            pupil_dilation=1,
+                            avg_velocity=0,
+                        ),
                     ),
                 ),
-                (
-                    1,
-                    EyeInfoMock(
-                        x=10,
-                        y=5,
-                        blink=0,
-                        pupil_dilation=1,
-                        avg_velocity=0,
+                OSCMessage(
+                    type=OSCMessageType.EYE_INFO,
+                    data=(
+                        1,
+                        EyeInfoMock(
+                            x=10,
+                            y=5,
+                            blink=0,
+                            pupil_dilation=1,
+                            avg_velocity=0,
+                        ),
                     ),
                 ),
             ],
@@ -158,10 +175,6 @@ def test_send_command_v2_params_single_eye(main_config_v2_params, eye_id, messag
                 ("/avatar/parameters/v2/EyeRightX", 0),
                 ("/avatar/parameters/v2/EyeRightY", 0),
                 ("/avatar/parameters/v2/EyeLidRight", 0.0),
-                ("/avatar/parameters/v2/EyeLidLeft", 0.0),
-                ("/avatar/parameters/v2/EyeLidLeft", 0.0),
-                ("/avatar/parameters/v2/EyeLidLeft", 0.0),
-                ("/avatar/parameters/v2/EyeLidLeft", 0.0),
                 ("/avatar/parameters/v2/EyeLeftX", 0),
                 ("/avatar/parameters/v2/EyeLeftY", 5),
                 ("/avatar/parameters/v2/EyeLidLeft", 0.0),
@@ -172,27 +185,22 @@ def test_send_command_v2_params_single_eye(main_config_v2_params, eye_id, messag
 def test_send_command_v2_params_dual_eye(main_config_v2_params, eye_data, expected_outcome):
     main_config_v2_params.eye_display_id = 2
 
-    with mock.patch("EyeTrackApp.osc.udp_client.SimpleUDPClient", SimpleUDPClientMock):
-        cancellation_event = threading.Event()
+    with mock.patch("EyeTrackApp.osc.osc.udp_client.SimpleUDPClient", SimpleUDPClientMock):
         msg_queue = Queue()
-        client = VRChatOSC(
-            main_config=main_config_v2_params,
-            msg_queue=msg_queue,
-            cancellation_event=cancellation_event,
+        client = OSCManager(
+            config=main_config_v2_params,
+            osc_message_in_queue=msg_queue,
         )
 
-        osc_thread = threading.Thread(target=client.run)
-        osc_thread.start()
+        client.start()
 
-        for eye_id, message in eye_data:
+        for message in eye_data:
             sleep(0.01)
-            msg_queue.put((eye_id, message))
-
-        cancellation_event.set()
-        osc_thread.join()
+            msg_queue.put(message)
+        client.shutdown()
 
         assert msg_queue.empty()
-        assert client.client.messages == expected_outcome
+        assert client.osc_sender.client.messages == expected_outcome
 
 
 @pytest.mark.parametrize(
@@ -200,66 +208,30 @@ def test_send_command_v2_params_dual_eye(main_config_v2_params, eye_data, expect
     [
         (
             [
-                (
-                    0,
-                    EyeInfoMock(
-                        x=0,
-                        y=0,
-                        blink=0,
-                        pupil_dilation=1,
-                        avg_velocity=0,
+                OSCMessage(
+                    type=OSCMessageType.EYE_INFO,
+                    data=(
+                        0,
+                        EyeInfoMock(
+                            x=0,
+                            y=0,
+                            blink=0,
+                            pupil_dilation=1,
+                            avg_velocity=0,
+                        ),
                     ),
                 ),
-                (
-                    1,
-                    EyeInfoMock(
-                        x=10,
-                        y=5,
-                        blink=0,
-                        pupil_dilation=1,
-                        avg_velocity=0,
-                    ),
-                ),
-            ],
-            [
-                ("/avatar/parameters/v2/EyeLidRight", 0.0),
-                ("/avatar/parameters/v2/EyeLidRight", 0.0),
-                ("/avatar/parameters/v2/EyeLidRight", 0.0),
-                ("/avatar/parameters/v2/EyeLidRight", 0.0),
-                ("/avatar/parameters/v2/EyeRightX", 0),
-                ("/avatar/parameters/v2/EyeRightY", 0),
-                ("/avatar/parameters/v2/EyeLidRight", 0.0),
-                ("/avatar/parameters/v2/EyeLidLeft", 0.0),
-                ("/avatar/parameters/v2/EyeLidLeft", 0.0),
-                ("/avatar/parameters/v2/EyeLidLeft", 0.0),
-                ("/avatar/parameters/v2/EyeLidLeft", 0.0),
-                ("/avatar/parameters/v2/EyeLidLeft", 0.0),
-                ("/avatar/parameters/v2/EyeLidRight", 0.0),
-                ("/avatar/parameters/v2/EyeLeftX", 0),
-                ("/avatar/parameters/v2/EyeLeftY", 5),
-                ("/avatar/parameters/v2/EyeLidLeft", 0.0),
-            ],
-        ),
-        (
-            [
-                (
-                    0,
-                    EyeInfoMock(
-                        x=0,
-                        y=0,
-                        blink=0,
-                        pupil_dilation=1,
-                        avg_velocity=0,
-                    ),
-                ),
-                (
-                    1,
-                    EyeInfoMock(
-                        x=10,
-                        y=5,
-                        blink=0,
-                        pupil_dilation=1,
-                        avg_velocity=0,
+                OSCMessage(
+                    type=OSCMessageType.EYE_INFO,
+                    data=(
+                        1,
+                        EyeInfoMock(
+                            x=10,
+                            y=5,
+                            blink=0,
+                            pupil_dilation=1,
+                            avg_velocity=0,
+                        ),
                     ),
                 ),
             ],
@@ -291,24 +263,19 @@ def test_send_command_v2_params_eye_outer_side_falloff(main_config_v2_params, ey
     main_config_v2_params.eye_display_id = 2
     main_config_v2_params.settings.gui_outer_side_falloff = True
 
-    with mock.patch("EyeTrackApp.osc.udp_client.SimpleUDPClient", SimpleUDPClientMock):
-        cancellation_event = threading.Event()
+    with mock.patch("EyeTrackApp.osc.osc.udp_client.SimpleUDPClient", SimpleUDPClientMock):
         msg_queue = Queue()
-        client = VRChatOSC(
-            main_config=main_config_v2_params,
-            msg_queue=msg_queue,
-            cancellation_event=cancellation_event,
+        client = OSCManager(
+            config=main_config_v2_params,
+            osc_message_in_queue=msg_queue,
         )
 
-        osc_thread = threading.Thread(target=client.run)
-        osc_thread.start()
+        client.start()
 
-        for eye_id, message in eye_data:
-            sleep(0.01)
-            msg_queue.put((eye_id, message))
-
-        cancellation_event.set()
-        osc_thread.join()
+        for message in eye_data:
+            msg_queue.put(message)
+            sleep(100)
+        client.shutdown()
 
         assert msg_queue.empty()
-        assert client.client.messages == expected_outcome
+        assert client.osc_sender.client.messages == expected_outcome

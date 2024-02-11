@@ -32,10 +32,11 @@ import threading
 from camera_widget import CameraWidget
 from config import EyeTrackConfig
 from eye import EyeId
-from general_settings_widget import SettingsWidget
-from algo_settings_widget import AlgoSettingsWidget
-from EyeTrackApp.osc.osc import OSCManager
-from osc.OSCMessage import OSCMessage, OSCMessageType
+from settings.VRCFTModuleSettings import VRCFTSettingsWidget
+from settings.general_settings_widget import SettingsWidget
+from settings.algo_settings_widget import AlgoSettingsWidget
+from osc.osc import OSCManager
+from osc.OSCMessage import OSCMessage
 from utils.misc_utils import is_nt, resource_path
 
 if is_nt:
@@ -55,6 +56,7 @@ RIGHT_EYE_RADIO_NAME = "-RIGHTEYERADIO-"
 BOTH_EYE_RADIO_NAME = "-BOTHEYERADIO-"
 SETTINGS_RADIO_NAME = "-SETTINGSRADIO-"
 ALGO_SETTINGS_RADIO_NAME = "-ALGOSETTINGSRADIO-"
+VRCFT_MODULE_SETTINGS_RADIO_NAME = "-VRCFTSETTINGSRADIO-"
 
 page_url = "https://github.com/RedHawk989/EyeTrackVR/releases/latest"
 appversion = "EyeTrackApp 0.2.0 BETA 11"
@@ -114,6 +116,7 @@ def main():
     settings = [
         SettingsWidget(EyeId.SETTINGS, config),
         AlgoSettingsWidget(EyeId.ALGOSETTINGS, config),
+        VRCFTSettingsWidget(EyeId.ALGOSETTINGS, config, osc_queue),
     ]
 
     osc_manager = OSCManager(
@@ -175,6 +178,13 @@ def main():
                 default=(config.eye_display_id == EyeId.ALGOSETTINGS),
                 key=ALGO_SETTINGS_RADIO_NAME,
             ),
+            sg.Radio(
+                "VRCFT Module Settings",
+                "EYESELECTRADIO",
+                background_color="#292929",
+                default=(config.eye_display_id == EyeId.VRCFTMODULESETTINGS),
+                key=VRCFT_MODULE_SETTINGS_RADIO_NAME,
+            ),
         ],
         [
             sg.Column(
@@ -203,6 +213,13 @@ def main():
                 vertical_alignment="top",
                 key=ALGO_SETTINGS_NAME,
                 visible=(config.eye_display_id in [EyeId.ALGOSETTINGS]),
+                background_color="#424042",
+            ),
+            sg.Column(
+                settings[2].get_layout(),
+                vertical_alignment="top",
+                key=VRCFT_MODULE_SETTINGS_RADIO_NAME,
+                visible=(config.eye_display_id in [EyeId.VRCFTMODULESETTINGS]),
                 background_color="#424042",
             ),
         ],
@@ -245,6 +262,7 @@ def main():
             eyes[1].stop()
             settings[0].stop()
             settings[1].stop()
+            settings[2].stop()
             window[RIGHT_EYE_NAME].update(visible=True)
             window[LEFT_EYE_NAME].update(visible=False)
             window[SETTINGS_NAME].update(visible=False)
@@ -256,6 +274,7 @@ def main():
         elif values[LEFT_EYE_RADIO_NAME] and config.eye_display_id != EyeId.LEFT:
             settings[0].stop()
             settings[1].stop()
+            settings[2].stop()
             eyes[0].stop()
             eyes[1].start()
             window[RIGHT_EYE_NAME].update(visible=False)
@@ -269,6 +288,7 @@ def main():
         elif values[BOTH_EYE_RADIO_NAME] and config.eye_display_id != EyeId.BOTH:
             settings[0].stop()
             settings[1].stop()
+            settings[2].stop()
             eyes[1].start()
             eyes[0].start()
             window[LEFT_EYE_NAME].update(visible=True)
@@ -284,6 +304,7 @@ def main():
             eyes[1].stop()
             settings[1].stop()
             settings[0].start()
+            settings[2].stop()
             window[RIGHT_EYE_NAME].update(visible=False)
             window[LEFT_EYE_NAME].update(visible=False)
             window[SETTINGS_NAME].update(visible=True)
@@ -296,11 +317,26 @@ def main():
             eyes[1].stop()
             settings[0].stop()
             settings[1].start()
+            settings[2].stop()
             window[RIGHT_EYE_NAME].update(visible=False)
             window[LEFT_EYE_NAME].update(visible=False)
             window[SETTINGS_NAME].update(visible=False)
             window[ALGO_SETTINGS_NAME].update(visible=True)
             config.eye_display_id = EyeId.ALGOSETTINGS
+            config.save()
+
+        elif values[VRCFT_MODULE_SETTINGS_RADIO_NAME] and config.eye_display_id != EyeId.VRCFTMODULESETTINGS:
+            eyes[0].stop()
+            eyes[1].stop()
+            settings[0].stop()
+            settings[1].stop()
+            settings[2].start()
+            window[RIGHT_EYE_NAME].update(visible=False)
+            window[LEFT_EYE_NAME].update(visible=False)
+            window[SETTINGS_NAME].update(visible=False)
+            window[ALGO_SETTINGS_NAME].update(visible=False)
+            window[VRCFT_MODULE_SETTINGS_RADIO_NAME].update(visible=True)
+            config.eye_display_id = EyeId.VRCFTMODULESETTINGS
             config.save()
 
         else:
@@ -310,6 +346,7 @@ def main():
                     eye.render(window, event, values)
             for setting in settings:
                 if setting.started():
+                    print(setting, config.eye_display_id)
                     setting.render(window, event, values)
 
 
