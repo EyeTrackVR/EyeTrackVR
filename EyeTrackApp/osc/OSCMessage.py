@@ -1,6 +1,5 @@
 import dataclasses
 from enum import IntEnum
-from typing import Any
 
 
 class OSCMessageType(IntEnum):
@@ -11,4 +10,4 @@ class OSCMessageType(IntEnum):
 @dataclasses.dataclass
 class OSCMessage:
     type: OSCMessageType
-    data: Any
+    data: any
