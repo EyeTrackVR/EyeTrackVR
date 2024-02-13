@@ -1,8 +1,8 @@
 from pythonosc import udp_client
 from pythonosc import osc_server
 from pythonosc import dispatcher
-from EyeTrackApp.config import EyeTrackConfig
-from EyeTrackApp.utils.misc_utils import PlaySound, SND_FILENAME, SND_ASYNC
+from config import EyeTrackConfig
+from utils.misc_utils import PlaySound, SND_FILENAME, SND_ASYNC
 from enum import IntEnum
 import queue
 import threading
