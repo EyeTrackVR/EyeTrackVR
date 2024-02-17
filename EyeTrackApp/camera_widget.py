@@ -130,12 +130,12 @@ class CameraWidget:
                     button_color="#6f4ca1",
                     tooltip="Start eye calibration. Look all arround to all extreams without blinking until sound is heard.",
                 ),
-                sg.Button(
-                    "3D Calibration",
-                    key=self.gui_restart_3d_calibration,
-                    button_color="#6f4ca1",
-                    tooltip="Start 3d eye calibration, must have steamvr open and eyes in hmd",
-                ),
+              #  sg.Button(
+               #     "3D Calibration",
+                #    key=self.gui_restart_3d_calibration,
+                 #   button_color="#6f4ca1",
+                  #  tooltip="Start 3d eye calibration, must have steamvr open and eyes in hmd",
+               # ),
                 sg.Button(
                     "Stop Calibration",
                     key=self.gui_stop_calibration,
