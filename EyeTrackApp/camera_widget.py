@@ -13,6 +13,7 @@ from utils.misc_utils import PlaySound, SND_FILENAME, SND_ASYNC, resource_path
 import numpy as np
 import time
 
+
 class CameraWidget:
     def __init__(self, widget_id: EyeId, main_config: EyeTrackConfig, osc_queue: Queue):
         self.gui_camera_addr = f"-CAMERAADDR{widget_id}-"
@@ -49,9 +50,7 @@ class CameraWidget:
         elif self.eye_id == EyeId.LEFT:
             self.config = main_config.left_eye
         else:
-            raise RuntimeError(
-                "\033[91m[WARN] Cannot have a camera widget represent both eyes!\033[0m"
-            )
+            raise RuntimeError("\033[91m[WARN] Cannot have a camera widget represent both eyes!\033[0m")
 
         self.cancellation_event = Event()
         # Set the event until start is called, otherwise we can block if shutdown is called.
@@ -83,20 +82,20 @@ class CameraWidget:
         )
 
         self.roi_layout = [
-            [
-                sg.Button(
-                    "Mark Out",
-                    key=self.gui_mask_markup,
-                    button_color="#6f4ca1",
-                    tooltip="Mark out stuff that is not your eye.",
-                ),
-                sg.Button(
-                    "Lighten",
-                    key=self.gui_mask_lighten,
-                    button_color="#6f4ca1",
-                    tooltip="Lighten shadowed areas.",
-                ),
-            ],
+            #   [
+            #       sg.Button(
+            #          "Mark Out",
+            #         key=self.gui_mask_markup,
+            #        button_color="#6f4ca1",
+            #       tooltip="Mark out stuff that is not your eye.",
+            #  ),
+            # sg.Button(
+            #    "Lighten",
+            #   key=self.gui_mask_lighten,
+            #  button_color="#6f4ca1",
+            # tooltip="Lighten shadowed areas.",
+            # ),
+            # ],
             [
                 sg.Graph(
                     (640, 480),
@@ -130,12 +129,12 @@ class CameraWidget:
                     button_color="#6f4ca1",
                     tooltip="Start eye calibration. Look all arround to all extreams without blinking until sound is heard.",
                 ),
-              #  sg.Button(
-               #     "3D Calibration",
+                #  sg.Button(
+                #     "3D Calibration",
                 #    key=self.gui_restart_3d_calibration,
-                 #   button_color="#6f4ca1",
-                  #  tooltip="Start 3d eye calibration, must have steamvr open and eyes in hmd",
-               # ),
+                #   button_color="#6f4ca1",
+                #  tooltip="Start 3d eye calibration, must have steamvr open and eyes in hmd",
+                # ),
                 sg.Button(
                     "Stop Calibration",
                     key=self.gui_stop_calibration,
@@ -151,9 +150,7 @@ class CameraWidget:
             ],
             [
                 sg.Text("Mode:", background_color="#424042"),
-                sg.Text(
-                    "Calibrating", key=self.gui_mode_readout, background_color="#424042"
-                ),
+                sg.Text("Calibrating", key=self.gui_mode_readout, background_color="#424042"),
                 sg.Text("", key=self.gui_tracking_fps, background_color="#424042"),
                 sg.Text("", key=self.gui_tracking_bps, background_color="#424042"),
                 #    sg.Checkbox(
@@ -281,15 +278,8 @@ class CameraWidget:
         changed = False
 
         # If anything has changed in our configuration settings, change/update those.
-        if (
-            event == self.gui_save_tracking_button
-            and values[self.gui_camera_addr] != self.config.capture_source
-        ):
-            print(
-                "\033[94m[INFO] New value: {}\033[0m".format(
-                    values[self.gui_camera_addr]
-                )
-            )
+        if event == self.gui_save_tracking_button and values[self.gui_camera_addr] != self.config.capture_source:
+            print("\033[94m[INFO] New value: {}\033[0m".format(values[self.gui_camera_addr]))
             try:
                 # Try storing ints as ints, for those using wired cameras.
                 self.config.capture_source = int(values[self.gui_camera_addr])
@@ -302,9 +292,7 @@ class CameraWidget:
                         and "http" not in values[self.gui_camera_addr]
                         and ".mp4" not in values[self.gui_camera_addr]
                     ):  # If http is not in camera address, add it.
-                        self.config.capture_source = (
-                            f"http://{values[self.gui_camera_addr]}/"
-                        )
+                        self.config.capture_source = f"http://{values[self.gui_camera_addr]}/"
                     else:
                         self.config.capture_source = values[self.gui_camera_addr]
             changed = True
@@ -319,8 +307,6 @@ class CameraWidget:
 
         if changed:
             self.main_config.save()
-
-
 
         if event == self.gui_tracking_button:
             print("\033[94m[INFO] Moving to tracking mode\033[0m")
@@ -401,13 +387,11 @@ class CameraWidget:
             while True:
                 try:
                     imgbytes = cv2.imencode(".ppm", maybe_image[0])[1].tobytes()
-                    image = cv2.imdecode(
-                        np.frombuffer(imgbytes, np.uint8), cv2.IMREAD_COLOR
-                    )
+                    image = cv2.imdecode(np.frombuffer(imgbytes, np.uint8), cv2.IMREAD_COLOR)
 
                     cv2.imshow("Image", image)
                     cv2.waitKey(1)
-                    #cv2.destroyAllWindows()
+                    # cv2.destroyAllWindows()
                     print("lighten")
                 except Empty:
                     pass
@@ -418,7 +402,9 @@ class CameraWidget:
             try:
                 if self.roi_queue.empty():
                     self.capture_event.set()
-                maybe_image = self.roi_queue.get(block=False, timeout=0.1) # this makes the ROI GUI page load slower when there isnt a cam, but fixes bad esp frame drop/lag/stutter
+                maybe_image = self.roi_queue.get(
+                    block=False, timeout=0.1
+                )  # this makes the ROI GUI page load slower when there isnt a cam, but fixes bad esp frame drop/lag/stutter
                 imgbytes = cv2.imencode(".ppm", maybe_image[0])[1].tobytes()
                 graph = window[self.gui_roi_selection]
                 if self.figure:
@@ -430,9 +416,7 @@ class CameraWidget:
                 graph.draw_image(data=imgbytes, location=(0, 0))
                 if None not in (self.x0, self.y0, self.x1, self.y1):
 
-                    self.figure = graph.draw_rectangle(
-                        (self.x0, self.y0), (self.x1, self.y1), line_color="#6f4ca1"
-                    )
+                    self.figure = graph.draw_rectangle((self.x0, self.y0), (self.x1, self.y1), line_color="#6f4ca1")
 
             except Empty:
                 pass
@@ -446,7 +430,6 @@ class CameraWidget:
                 window[self.gui_output_graph].update(visible=True)
                 (maybe_image, eye_info) = self.image_queue.get(block=False)
 
-
                 imgbytes = cv2.imencode(".ppm", maybe_image)[1].tobytes()
                 window[self.gui_tracking_image].update(data=imgbytes)
 
@@ -454,9 +437,7 @@ class CameraWidget:
                 graph = window[self.gui_output_graph]
                 graph.erase()
 
-                if (
-                    eye_info.info_type != EyeInfoOrigin.FAILURE
-                ):  # and not eye_info.blink:
+                if eye_info.info_type != EyeInfoOrigin.FAILURE:  # and not eye_info.blink:
                     graph.update(background_color="white")
                     if not np.isnan(eye_info.x) and not np.isnan(eye_info.y):
 
@@ -483,9 +464,7 @@ class CameraWidget:
                             width=10,
                         )
                     else:
-                        graph.draw_line(
-                            (-100, 0.5 * 200), (-100, 100), color="#6f4ca1", width=10
-                        )
+                        graph.draw_line((-100, 0.5 * 200), (-100, 100), color="#6f4ca1", width=10)
 
                     if eye_info.blink <= 0.0:
                         graph.update(background_color="#6f4ca1")

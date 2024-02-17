@@ -27,6 +27,7 @@ Copyright (c) 2023 EyeTrackVR <3
 """
 #  LEAP = Lightweight Eyelid And Pupil
 import os
+
 os.environ["OMP_NUM_THREADS"] = "1"
 import onnxruntime
 import numpy as np
@@ -69,14 +70,16 @@ class LEAP_C(object):
         self.num_threads = 3  # Number of python threads to use (using ~1 more than needed to achieve wanted fps yields lower cpu usage)
         self.queue_max_size = 1  # Optimize for best CPU usage, Memory, and Latency. A maxsize is needed to not create a potential memory leak.
         if platform.system() == "Darwin":
-            self.model_path = resource_path(
-                "EyeTrackApp/Models/leap123023.onnx"
-            )  # funny MacOS files issues :P
+            self.model_path = resource_path("Models/leap123023.onnx")  # funny MacOS files issues :P
         else:
             self.model_path = resource_path("Models\leap123023.onnx")
         self.interval = 1  # FPS print update rate
-        self.low_priority = True  # set process priority to low (may cause issues when unfocusing? reported by one, not reproducable)
-        self.low_priority = True  # set process priority to low (may cause issues when unfocusing? reported by one, not reproducable)
+        self.low_priority = (
+            False  # set process priority to low (may cause issues when unfocusing? reported by one, not reproducable)
+        )
+        self.low_priority = (
+            True  # set process priority to low (may cause issues when unfocusing? reported by one, not reproducable)
+        )
         self.print_fps = False
         # Init variables
         self.frames = 0
@@ -93,39 +96,39 @@ class LEAP_C(object):
         opts = onnxruntime.SessionOptions()
         opts.inter_op_num_threads = 1
         opts.intra_op_num_threads = 1
-        opts.graph_optimization_level = (
-            onnxruntime.GraphOptimizationLevel.ORT_ENABLE_ALL
-        )
+        opts.graph_optimization_level = onnxruntime.GraphOptimizationLevel.ORT_ENABLE_ALL
         opts.optimized_model_filepath = ""
 
         if self.low_priority:
-            process = psutil.Process(os.getpid())  # set process priority to low
             try:
-                sys.getwindowsversion()
-            except AttributeError:
-                process.nice(0)  # UNIX: 0 low 10 high
-                process.nice()
-            else:
-                process.nice(psutil.BELOW_NORMAL_PRIORITY_CLASS)  # Windows
-                process.nice()
+                process = psutil.Process(os.getpid())  # set process priority to low
+                try:
+                    sys.getwindowsversion()
+                except AttributeError:
+                    process.nice(0)  # UNIX: 0 low 10 high
+                    process.nice()
+                else:
+                    process.nice(psutil.BELOW_NORMAL_PRIORITY_CLASS)  # Windows
+                    process.nice()
+            except:
+                pass
                 # See https://learn.microsoft.com/en-us/windows/win32/api/processthreadsapi/nf-processthreadsapi-getpriorityclass#return-value for values
         else:
-            process = psutil.Process(os.getpid())  # set process priority to low
-            try:
-                sys.getwindowsversion()
-            except AttributeError:
-                process.nice(10)  # UNIX: 0 low 10 high
-            else:
-                process.nice(psutil.HIGH_PRIORITY_CLASS)  # Windows
-                # See https://learn.microsoft.com/en-us/windows/win32/api/processthreadsapi/nf-processthreadsapi-getpriorityclass#return-value for values
+            pass
+        #    process = psutil.Process(os.getpid())  # set process priority to low
+        #   try:
+        #      sys.getwindowsversion()
+        # except AttributeError:
+        #    process.nice(10)  # UNIX: 0 low 10 high
+        # else:
+        #    process.nice(psutil.HIGH_PRIORITY_CLASS)  # Windows
+        # See https://learn.microsoft.com/en-us/windows/win32/api/processthreadsapi/nf-processthreadsapi-getpriorityclass#return-value for values
 
         min_cutoff = 0.1
         beta = 15.0
         # print(np.random.rand(22, 2))
         # noisy_point = np.array([1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1])
-        self.one_euro_filter = OneEuroFilter(
-            np.random.rand(12, 2), min_cutoff=min_cutoff, beta=beta
-        )
+        self.one_euro_filter = OneEuroFilter(np.random.rand(12, 2), min_cutoff=min_cutoff, beta=beta)
         # self.one_euro_filter_open = OneEuroFilter(
         #   np.random.rand(1, 2), min_cutoff=0.01, beta=0.04
         # )
@@ -135,9 +138,7 @@ class LEAP_C(object):
         self.x = 0
         self.y = 0
 
-        self.ort_session1 = onnxruntime.InferenceSession(
-            self.model_path, opts, providers=["CPUExecutionProvider"]
-        )
+        self.ort_session1 = onnxruntime.InferenceSession(self.model_path, opts, providers=["CPUExecutionProvider"])
         # ort_session1 = onnxruntime.InferenceSession("C:/Users/beaul/PycharmProjects/EyeTrackVR/EyeTrackApp/Models/mommy062023.onnx", opts, providers=['DmlExecutionProvider'])
         threads = []
         for i in range(self.num_threads):
@@ -150,11 +151,7 @@ class LEAP_C(object):
             thread.start()
 
     def to_numpy(self, tensor):
-        return (
-            tensor.detach().cpu().numpy()
-            if tensor.requires_grad
-            else tensor.cpu().numpy()
-        )
+        return tensor.detach().cpu().numpy() if tensor.requires_grad else tensor.cpu().numpy()
 
     def run_onnx_model(self, queues, session, frame):
         for i in range(len(queues)):
@@ -182,9 +179,7 @@ class LEAP_C(object):
 
             for point in pre_landmark:
                 x, y = point
-                cv2.circle(
-                    imgvis, (int(x * img_width), int(y * img_height)), 2, (0, 0, 50), -1
-                )
+                cv2.circle(imgvis, (int(x * img_width), int(y * img_height)), 2, (0, 0, 50), -1)
             cv2.circle(
                 imgvis,
                 tuple(int(x * img_width) for x in pre_landmark[2]),
@@ -236,9 +231,7 @@ class LEAP_C(object):
                 self.openlist.append(d)
 
             try:
-                per = (d - max(self.openlist)) / (
-                    min(self.openlist) - max(self.openlist)
-                )
+                per = (d - max(self.openlist)) / (min(self.openlist) - max(self.openlist))
                 per = 1 - per
             except:
                 per = 0.7
