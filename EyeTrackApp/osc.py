@@ -1,8 +1,8 @@
 from pythonosc import udp_client
 from pythonosc import osc_server
 from pythonosc import dispatcher
-from EyeTrackApp.config import EyeTrackConfig
-from EyeTrackApp.utils.misc_utils import PlaySound, SND_FILENAME, SND_ASYNC
+from config import EyeTrackConfig
+from utils.misc_utils import PlaySound, SND_FILENAME, SND_ASYNC
 from enum import IntEnum
 import queue
 import threading
@@ -30,6 +30,7 @@ falloff = False
 
 def output_osc(eye_x, eye_y, eye_blink, last_blink, pupil_dilation, avg_velocity, self):
     global se, falloff
+
 
     if self.config.gui_osc_vrcft_v1:
 

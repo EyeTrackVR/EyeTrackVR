@@ -15,7 +15,6 @@ if is_nt:
     from winotify import Notification
 os.system("color")  # init ANSI color
 
-os.environ["OMP_NUM_THREADS"] = "1"
 # Random environment variable to speed up webcam opening on the MSMF backend.
 # https://github.com/opencv/opencv/issues/17687
 os.environ["OPENCV_VIDEOIO_MSMF_ENABLE_HW_TRANSFORMS"] = "0"

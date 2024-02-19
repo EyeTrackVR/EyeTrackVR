@@ -4,7 +4,6 @@ import os
 import timeit
 from functools import lru_cache
 from logging import Formatter, INFO, StreamHandler, FileHandler, getLogger
-
 import cv2
 import numpy as np
 from numpy.linalg import _umath_linalg
@@ -1122,3 +1121,4 @@ if __name__ == "__main__":
         # print("")
     logger.info("")
     logger.info(f"{this_file_basename}: ALL Finish {format_time(main_total_time)}")
+
