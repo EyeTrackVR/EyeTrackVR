@@ -80,7 +80,6 @@ def data2csv(data_u32, filepath):
     with open(filepath, "w", encoding="utf-8") as out_f:
         out_f.write("x,y,eyedilation\n")
         out_f.writelines(datalines)
-        print('file write')
     return
 
 
@@ -207,7 +206,6 @@ class EllipseBasedPupilDilation:
         self.data[0, -1] = self.maxval
         self.data[1:4, -1] = self.now_roi
         cv2.imwrite(self.imgfile, u32_1ch_to_u16_3ch(self.data))
-        print('file write')
         # print("SAVED: {}".format(self.imgfile))
 
     def change_roi(self, roiinfo: dict):

@@ -428,13 +428,13 @@ def RANSAC3D(self, hsrac_en):
                     with open("RANSAC_BLINK_LEFT.cfg", "w") as file:
                         for item in self.blink_list:
                             file.write(str(item) + "\n")
-                            print('file write')
+
 
                 if self.eye_id in [EyeId.RIGHT]:
                     with open("RANSAC_BLINK_RIGHT.cfg", "w") as file:
                         for item in self.blink_list:
                             file.write(str(item) + "\n")
-                            print('file write')
+
                 # print("SAVE")
 
                 # self.blink_list.pop(0)
