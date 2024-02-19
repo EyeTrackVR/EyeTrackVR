@@ -33,6 +33,7 @@ def output_osc(eye_x, eye_y, eye_blink, last_blink, pupil_dilation, avg_velocity
 
     if self.config.gui_osc_vrcft_v1:
 
+
         if self.main_config.eye_display_id in [
             EyeId.RIGHT,
             EyeId.LEFT,
@@ -208,10 +209,12 @@ def output_osc(eye_x, eye_y, eye_blink, last_blink, pupil_dilation, avg_velocity
 
     if self.config.gui_vrc_native:  # VRC NATIVE
 
+
         if self.main_config.eye_display_id in [
             EyeId.RIGHT,
             EyeId.LEFT,
         ]:  # we are in single eye mode
+
             se = True
             if eye_blink == 0.0:
                 if last_blink > 0.2:  # when binary blink is on, blinks may be too fast for OSC so we repeat them.
@@ -231,6 +234,7 @@ def output_osc(eye_x, eye_y, eye_blink, last_blink, pupil_dilation, avg_velocity
             se = False
 
         if self.eye_id in [EyeId.LEFT] and not se:  # left eye, send data to left
+
             self.l_eye_x = eye_x
             self.l_eye_blink = eye_blink
             self.left_y = eye_y
@@ -284,6 +288,7 @@ def output_osc(eye_x, eye_y, eye_blink, last_blink, pupil_dilation, avg_velocity
             eye_y = (self.right_y + self.left_y) / 2
 
         if not se:
+
             # vrc native ET (z values may need tweaking, they act like a scalar)
             self.client.send_message(
                 "/tracking/eye/LeftRightVec",

@@ -79,6 +79,10 @@ class var:
     l_eye_velocity = 0.0
     r_eye_velocity = 0.0
     overlay_active = False
+    falloff_latch = False
+    single_eye = True
+    left_enb = 0
+    right_enb = 0
 
 
 @Async
