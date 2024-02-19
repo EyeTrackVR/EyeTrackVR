@@ -1087,8 +1087,8 @@ if __name__ == "__main__":
                     cv2.imshow("hsf_hsrac", base_img)
                     if cv2.waitKey(1) & 0xFF == ord("q"):
                         pass
-                if save_video:
-                    video_wr.write(cv2.resize(base_img, (200, 150)))
+              #  if save_video:
+                #    video_wr.write(cv2.resize(base_img, (200, 150)))
             else:
                 _ = hsrac.single_run()
         
@@ -1100,7 +1100,7 @@ if __name__ == "__main__":
     main_end_time = timeit.default_timer()
     main_total_time = main_end_time - main_start_time
     if save_img:
-        cv2.imwrite(output_img_path, all_point_img)
+     #   cv2.imwrite(output_img_path, all_point_img)
         logger.info("image output: {}".format(output_img_path))
         if imshow_enable:
             cv2.imshow("allpoint", all_point_img)

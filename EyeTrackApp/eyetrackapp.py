@@ -15,6 +15,7 @@ if is_nt:
     from winotify import Notification
 os.system("color")  # init ANSI color
 
+os.environ["OMP_NUM_THREADS"] = "1"
 # Random environment variable to speed up webcam opening on the MSMF backend.
 # https://github.com/opencv/opencv/issues/17687
 os.environ["OPENCV_VIDEOIO_MSMF_ENABLE_HW_TRANSFORMS"] = "0"
@@ -30,7 +31,7 @@ SETTINGS_RADIO_NAME = "-SETTINGSRADIO-"
 ALGO_SETTINGS_RADIO_NAME = "-ALGOSETTINGSRADIO-"
 
 page_url = "https://github.com/RedHawk989/EyeTrackVR/releases/latest"
-appversion = "EyeTrackApp 0.2.0 BETA 10.1"
+appversion = "EyeTrackApp 0.2.0 BETA 11"
 
 
 def main():
@@ -43,37 +44,40 @@ def main():
     # Check to see if we can connect to our video source first. If not, bring up camera finding
     # dialog.
 
-    if config.settings.gui_update_check:
-        response = requests.get(
-            "https://api.github.com/repos/RedHawk989/EyeTrackVR/releases/latest"
-        )
-        latestversion = response.json()["name"]
-        if (
-            appversion == latestversion
-        ):  # If what we scraped and hardcoded versions are same, assume we are up to date.
-            print(f"\033[92m[INFO] App is the latest version! [{latestversion}]\033[0m")
-        else:
-            print(
-                f"\033[93m[INFO] You have app version [{appversion}] installed. Please update to [{latestversion}] for the newest features.\033[0m"
+    try:
+        if config.settings.gui_update_check:
+            response = requests.get(
+                "https://api.github.com/repos/EyeTrackVR/EyeTrackVR/releases/latest"
             )
-            try:
-                if is_nt:
-                    cwd = os.getcwd()
-                    # icon = cwd + "\Images\logo.ico"
-                    icon = resource_path("Images/logo.ico")
-                    toast = Notification(
-                        app_id="EyeTrackApp",
-                        title="New Update Available!",
-                        msg=f"Please update to {latestversion}",
-                        icon=r"{}".format(icon),
-                    )
-                    toast.add_actions(
-                        label="Download Page",
-                        launch="https://github.com/RedHawk989/EyeTrackVR/releases/latest",
-                    )
-                    toast.show()
-            except Exception as e:
-                print("[INFO] Toast notifications not supported")
+            latestversion = response.json()["name"]
+            if (
+                appversion == latestversion
+            ):  # If what we scraped and hardcoded versions are same, assume we are up to date.
+                print(f"\033[92m[INFO] App is the latest version! [{latestversion}]\033[0m")
+            else:
+                print(
+                    f"\033[93m[INFO] You have app version [{appversion}] installed. Please update to [{latestversion}] for the newest features.\033[0m"
+                )
+                try:
+                    if is_nt:
+                        cwd = os.getcwd()
+                        # icon = cwd + "\Images\logo.ico"
+                        icon = resource_path("Images/logo.ico")
+                        toast = Notification(
+                            app_id="EyeTrackApp",
+                            title="New Update Available!",
+                            msg=f"Please update to {latestversion}",
+                            icon=r"{}".format(icon),
+                        )
+                        toast.add_actions(
+                            label="Download Page",
+                            launch="https://github.com/RedHawk989/EyeTrackVR/releases/latest",
+                        )
+                        toast.show()
+                except Exception as e:
+                    print("[INFO] Toast notifications not supported")
+    except:
+        print("\033[91m[INFO] Could not check for updates. Please try again later.\033[0m")
 
     # Check to see if we have an ROI. If not, bring up ROI finder GUI.
 

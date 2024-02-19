@@ -34,7 +34,9 @@ from operator import truth
 from dataclasses import dataclass
 import sys
 import asyncio
+import os
 
+os.environ["OMP_NUM_THREADS"] = "1"
 sys.path.append(".")
 from config import EyeTrackCameraConfig
 from config import EyeTrackSettingsConfig

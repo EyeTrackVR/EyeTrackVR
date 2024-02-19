@@ -101,6 +101,7 @@ def data2csv(data_u32, filepath):
     with open(filepath, "w", encoding="utf-8") as out_f:
         out_f.write("x,y,intensity\n")
         out_f.writelines(datalines)
+        print('file write')
     return
 
 
@@ -225,6 +226,7 @@ class IntensityBasedOpeness:
         self.data[0, -1] = self.maxval
         self.data[1:4, -1] = self.now_roi
         cv2.imwrite(self.imgfile, u32_1ch_to_u16_3ch(self.data))
+        print('file write')
         # print("SAVED: {}".format(self.imgfile))
 
     def change_roi(self, roiinfo: dict):
@@ -384,7 +386,7 @@ class IntensityBasedOpeness:
                 eyeopen = 0.0
 
         if changed and (
-            (time.time() - self.lct) > 5
+            (time.time() - self.lct) > 11
         ):  # save every 5 seconds if something changed to save disk usage
             self.save()
             self.lct = time.time()

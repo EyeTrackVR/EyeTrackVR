@@ -67,7 +67,7 @@ class LEAP_C(object):
     def __init__(self):
         onnxruntime.disable_telemetry_events()
         # Config variables
-        self.num_threads = 3  # Number of python threads to use (using ~1 more than needed to achieve wanted fps yields lower cpu usage)
+        self.num_threads = 4  # Number of python threads to use (using ~1 more than needed to achieve wanted fps yields lower cpu usage)
         self.queue_max_size = 1  # Optimize for best CPU usage, Memory, and Latency. A maxsize is needed to not create a potential memory leak.
         if platform.system() == "Darwin":
             self.model_path = resource_path("Models/leap123023.onnx")  # funny MacOS files issues :P

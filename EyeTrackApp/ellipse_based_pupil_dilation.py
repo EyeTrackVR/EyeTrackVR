@@ -34,7 +34,9 @@ from enums import EyeLR
 from one_euro_filter import OneEuroFilter
 from utils.img_utils import safe_crop
 from enum import IntEnum
+import os
 
+os.environ["OMP_NUM_THREADS"] = "1"
 
 class EyeId(IntEnum):
     RIGHT = 0
@@ -78,6 +80,7 @@ def data2csv(data_u32, filepath):
     with open(filepath, "w", encoding="utf-8") as out_f:
         out_f.write("x,y,eyedilation\n")
         out_f.writelines(datalines)
+        print('file write')
     return
 
 
@@ -204,6 +207,7 @@ class EllipseBasedPupilDilation:
         self.data[0, -1] = self.maxval
         self.data[1:4, -1] = self.now_roi
         cv2.imwrite(self.imgfile, u32_1ch_to_u16_3ch(self.data))
+        print('file write')
         # print("SAVED: {}".format(self.imgfile))
 
     def change_roi(self, roiinfo: dict):
@@ -372,7 +376,7 @@ class EllipseBasedPupilDilation:
                 eyedilation = 0.0
 
         if changed and (
-            (time.time() - self.lct) > 5
+            (time.time() - self.lct) > 15
         ):  # save every 5 seconds if something changed to save disk usage
             self.save()
             self.lct = time.time()
