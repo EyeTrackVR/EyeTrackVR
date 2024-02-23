@@ -20,11 +20,9 @@
                                       @@@@@@@@@@@@@(
 
 Copyright (c) 2023 EyeTrackVR <3
-LICENSE: GNU GPLv3 
+LICENSE: GNU GPLv3
 ------------------------------------------------------------------------------------------------------
 """
-
-import PySimpleGUI as sg
 
 from config import EyeTrackConfig
 from eye import EyeId

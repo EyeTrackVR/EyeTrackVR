@@ -127,6 +127,22 @@ class EyeTrackSettingsConfig(BaseModel):
     gui_vrc_native: bool = True
     gui_pupil_dilation: bool = True
 
+    gui_PortNumber: int = 8889
+    gui_ShouldEmulateEyeWiden: bool = True
+    gui_ShouldEmulateEyeSquint: bool = True
+    gui_ShouldEmulateEyebrows: bool = True
+    gui_WidenThresholdV1_min: str = "0.95"
+    gui_WidenThresholdV1_max: str = "1"
+    gui_WidenThresholdV2_min: str = "0.95"
+    gui_WidenThresholdV2_max: str = "1.05"
+    gui_SqueezeThresholdV1_min: str = "0.05"
+    gui_SqueezeThresholdV1_max: str = "0.5"
+    gui_SqueezeThresholdV2_min: str = "0.05"
+    gui_SqueezeThresholdV2_max: str = "-1"
+    gui_EyebrowThresholdRising: str = "0.9"
+    gui_EyebrowThresholdLowering: str = "0.05"
+    gui_OutputMultiplier: str = "1"
+
 
 class EyeTrackConfig(BaseModel):
     version: int = 1
