@@ -1,5 +1,3 @@
-import PySimpleGUI as sg
-
 from config import EyeTrackConfig
 from eye import EyeId
 
