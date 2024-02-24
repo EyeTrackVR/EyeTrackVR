@@ -25,9 +25,7 @@ class BaseSettingsWidget:
         self.main_config = main_config
         self.config = main_config.settings
 
-        self.initialized_modules = self._initialize_modules(
-            settings_modules=settings_modules, widget_id=widget_id
-        )
+        self.initialized_modules = self._initialize_modules(settings_modules=settings_modules, widget_id=widget_id)
 
         self.general_settings_layout = []
         for module in self.initialized_modules:

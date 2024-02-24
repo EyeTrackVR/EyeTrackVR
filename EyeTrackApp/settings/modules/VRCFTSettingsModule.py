@@ -14,22 +14,23 @@ class VRCFTSettingsModuleValidationModel(BaseValidationModel):
     gui_ShouldEmulateEyeWiden: bool
     gui_ShouldEmulateEyeSquint: bool
     gui_ShouldEmulateEyebrows: bool
-    gui_WidenThresholdV1_min: Annotated[str, AfterValidator(check_is_float_convertible)]
-    gui_WidenThresholdV1_max: Annotated[str, AfterValidator(check_is_float_convertible)]
-    gui_WidenThresholdV2_min: Annotated[str, AfterValidator(check_is_float_convertible)]
-    gui_WidenThresholdV2_max: Annotated[str, AfterValidator(check_is_float_convertible)]
-    gui_SqueezeThresholdV1_min: Annotated[str, AfterValidator(check_is_float_convertible)]
-    gui_SqueezeThresholdV1_max: Annotated[str, AfterValidator(check_is_float_convertible)]
-    gui_SqueezeThresholdV2_min: Annotated[str, AfterValidator(check_is_float_convertible)]
-    gui_SqueezeThresholdV2_max: Annotated[str, AfterValidator(check_is_float_convertible)]
-    gui_EyebrowThresholdRising: Annotated[str, AfterValidator(check_is_float_convertible)]
-    gui_EyebrowThresholdLowering: Annotated[str, AfterValidator(check_is_float_convertible)]
+    gui_WidenThresholdV1_min: float
+    gui_WidenThresholdV1_max: float
+    gui_WidenThresholdV2_min: float
+    gui_WidenThresholdV2_max: float
+    gui_SqueezeThresholdV1_min: float
+    gui_SqueezeThresholdV1_max: float
+    gui_SqueezeThresholdV2_min: float
+    gui_SqueezeThresholdV2_max: float
+    gui_EyebrowThresholdRising: float
+    gui_EyebrowThresholdLowering: float
     gui_OutputMultiplier: Annotated[str, AfterValidator(check_is_float_convertible)]
 
 
 class VRCFTSettingsModule(BaseSettingsModule):
     def __init__(self, config, widget_id, **kwargs):
         super().__init__(config=config, widget_id=widget_id, **kwargs)
+        self.validation_model = VRCFTSettingsModuleValidationModel
         self.gui_PortNumber = f"-VRCFTSETTINGSPORTNUMBER{widget_id}"
         self.gui_ShouldEmulateEyeWiden = f"-VRCFTSETTINGSEMULATEWIDEN{widget_id}"
         self.gui_ShouldEmulateEyeSquint = f"-VRCFTSETTINGSEMULATEEYEWIDEN{widget_id}"
@@ -98,7 +99,7 @@ class VRCFTSettingsModule(BaseSettingsModule):
                 sg.Slider(
                     range=(0, 1),
                     resolution=0.01,
-                    default_value=float(self.config.gui_WidenThresholdV1_min),
+                    default_value=self.config.gui_WidenThresholdV1_min,
                     orientation="h",
                     key=self.gui_WidenThresholdV1_min,
                     background_color="#424042",
@@ -108,7 +109,7 @@ class VRCFTSettingsModule(BaseSettingsModule):
                 sg.Slider(
                     range=(0, 2),
                     resolution=0.01,
-                    default_value=float(self.config.gui_WidenThresholdV1_max),
+                    default_value=self.config.gui_WidenThresholdV1_max,
                     orientation="h",
                     key=self.gui_WidenThresholdV1_max,
                     background_color="#424042",
@@ -120,7 +121,7 @@ class VRCFTSettingsModule(BaseSettingsModule):
                 sg.Slider(
                     range=(0, 2),
                     resolution=0.01,
-                    default_value=float(self.config.gui_WidenThresholdV2_min),
+                    default_value=self.config.gui_WidenThresholdV2_min,
                     orientation="h",
                     key=self.gui_WidenThresholdV2_min,
                     background_color="#424042",
@@ -130,7 +131,7 @@ class VRCFTSettingsModule(BaseSettingsModule):
                 sg.Slider(
                     range=(0, 2),
                     resolution=0.01,
-                    default_value=float(self.config.gui_WidenThresholdV2_max),
+                    default_value=self.config.gui_WidenThresholdV2_max,
                     orientation="h",
                     key=self.gui_WidenThresholdV2_max,
                     background_color="#424042",
@@ -145,7 +146,7 @@ class VRCFTSettingsModule(BaseSettingsModule):
                 sg.Slider(
                     range=(0, 1),
                     resolution=0.01,
-                    default_value=float(self.config.gui_SqueezeThresholdV1_min),
+                    default_value=self.config.gui_SqueezeThresholdV1_min,
                     orientation="h",
                     key=self.gui_SqueezeThresholdV1_min,
                     background_color="#424042",
@@ -155,7 +156,7 @@ class VRCFTSettingsModule(BaseSettingsModule):
                 sg.Slider(
                     range=(0, 2),
                     resolution=0.01,
-                    default_value=float(self.config.gui_SqueezeThresholdV1_max),
+                    default_value=self.config.gui_SqueezeThresholdV1_max,
                     orientation="h",
                     key=self.gui_SqueezeThresholdV1_max,
                     background_color="#424042",
@@ -167,7 +168,7 @@ class VRCFTSettingsModule(BaseSettingsModule):
                 sg.Slider(
                     range=(0, 1),
                     resolution=0.01,
-                    default_value=float(self.config.gui_SqueezeThresholdV2_min),
+                    default_value=self.config.gui_SqueezeThresholdV2_min,
                     orientation="h",
                     key=self.gui_SqueezeThresholdV2_min,
                     background_color="#424042",
@@ -177,7 +178,7 @@ class VRCFTSettingsModule(BaseSettingsModule):
                 sg.Slider(
                     range=(-2, 0),
                     resolution=0.01,
-                    default_value=float(self.config.gui_SqueezeThresholdV2_max),
+                    default_value=self.config.gui_SqueezeThresholdV2_max,
                     orientation="h",
                     key=self.gui_SqueezeThresholdV2_max,
                     background_color="#424042",
@@ -192,7 +193,7 @@ class VRCFTSettingsModule(BaseSettingsModule):
                 sg.Slider(
                     range=(0, 1),
                     resolution=0.01,
-                    default_value=float(self.config.gui_EyebrowThresholdRising),
+                    default_value=self.config.gui_EyebrowThresholdRising,
                     orientation="h",
                     key=self.gui_EyebrowThresholdRising,
                     background_color="#424042",
@@ -202,7 +203,7 @@ class VRCFTSettingsModule(BaseSettingsModule):
                 sg.Slider(
                     range=(0, 2),
                     resolution=0.01,
-                    default_value=float(self.config.gui_EyebrowThresholdLowering),
+                    default_value=self.config.gui_EyebrowThresholdLowering,
                     orientation="h",
                     key=self.gui_EyebrowThresholdLowering,
                     background_color="#424042",
