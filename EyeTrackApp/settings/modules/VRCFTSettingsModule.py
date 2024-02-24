@@ -96,13 +96,13 @@ class VRCFTSettingsModule(BaseSettingsModule):
             [
                 sg.Text("V1 Min:", background_color="#424042"),
                 sg.Slider(
-                    range=(0, 2),
+                    range=(0, 1),
                     resolution=0.01,
                     default_value=float(self.config.gui_WidenThresholdV1_min),
                     orientation="h",
                     key=self.gui_WidenThresholdV1_min,
                     background_color="#424042",
-                    tooltip="Adjusts the radius parameter for HSF. Only adjust if you are having tracking issues.",
+                    tooltip="Controls the point at which the emulation should start for v1 params, reacts to openness",
                 ),
                 sg.Text("V1 Max:", background_color="#424042"),
                 sg.Slider(
@@ -112,7 +112,7 @@ class VRCFTSettingsModule(BaseSettingsModule):
                     orientation="h",
                     key=self.gui_WidenThresholdV1_max,
                     background_color="#424042",
-                    tooltip="Adjusts the radius parameter for HSF. Only adjust if you are having tracking issues.",
+                    tooltip="Controls the maximum range of widen emulation",
                 ),
             ],
             [
@@ -124,7 +124,7 @@ class VRCFTSettingsModule(BaseSettingsModule):
                     orientation="h",
                     key=self.gui_WidenThresholdV2_min,
                     background_color="#424042",
-                    tooltip="Adjusts the radius parameter for HSF. Only adjust if you are having tracking issues.",
+                    tooltip="Controls the point at which the emulation should start for v2 params, reacts to openness",
                 ),
                 sg.Text("V2 Max:", background_color="#424042"),
                 sg.Slider(
@@ -134,7 +134,7 @@ class VRCFTSettingsModule(BaseSettingsModule):
                     orientation="h",
                     key=self.gui_WidenThresholdV2_max,
                     background_color="#424042",
-                    tooltip="Adjusts the radius parameter for HSF. Only adjust if you are having tracking issues.",
+                    tooltip="Controls the maximum range of widen emulation",
                 ),
             ],
             [
@@ -143,13 +143,13 @@ class VRCFTSettingsModule(BaseSettingsModule):
             [
                 sg.Text("V1 Min:", background_color="#424042"),
                 sg.Slider(
-                    range=(0, 2),
+                    range=(0, 1),
                     resolution=0.01,
                     default_value=float(self.config.gui_SqueezeThresholdV1_min),
                     orientation="h",
                     key=self.gui_SqueezeThresholdV1_min,
                     background_color="#424042",
-                    tooltip="Adjusts the radius parameter for HSF. Only adjust if you are having tracking issues.",
+                    tooltip="Controls the point at which the emulation should start for v1 params, reacts to openness",
                 ),
                 sg.Text("V1 Max:", background_color="#424042"),
                 sg.Slider(
@@ -159,29 +159,29 @@ class VRCFTSettingsModule(BaseSettingsModule):
                     orientation="h",
                     key=self.gui_SqueezeThresholdV1_max,
                     background_color="#424042",
-                    tooltip="Adjusts the radius parameter for HSF. Only adjust if you are having tracking issues.",
+                    tooltip="Controls the maximum range of squeeze emulation",
                 ),
             ],
             [
                 sg.Text("V2 Min:", background_color="#424042"),
                 sg.Slider(
-                    range=(0, 2),
+                    range=(0, 1),
                     resolution=0.01,
                     default_value=float(self.config.gui_SqueezeThresholdV2_min),
                     orientation="h",
                     key=self.gui_SqueezeThresholdV2_min,
                     background_color="#424042",
-                    tooltip="Adjusts the radius parameter for HSF. Only adjust if you are having tracking issues.",
+                    tooltip="Controls the point at which the emulation should start for v2 params, reacts to openness",
                 ),
                 sg.Text("V2 Max:", background_color="#424042"),
                 sg.Slider(
-                    range=(0, 2),
+                    range=(-2, 0),
                     resolution=0.01,
                     default_value=float(self.config.gui_SqueezeThresholdV2_max),
                     orientation="h",
                     key=self.gui_SqueezeThresholdV2_max,
                     background_color="#424042",
-                    tooltip="Adjusts the radius parameter for HSF. Only adjust if you are having tracking issues.",
+                    tooltip="Controls the maximum range of squeeze emulation",
                 ),
             ],
             [
@@ -190,13 +190,13 @@ class VRCFTSettingsModule(BaseSettingsModule):
             [
                 sg.Text("Rising:", background_color="#424042"),
                 sg.Slider(
-                    range=(0, 2),
+                    range=(0, 1),
                     resolution=0.01,
                     default_value=float(self.config.gui_EyebrowThresholdRising),
                     orientation="h",
                     key=self.gui_EyebrowThresholdRising,
                     background_color="#424042",
-                    tooltip="Adjusts the radius parameter for HSF. Only adjust if you are having tracking issues.",
+                    tooltip="Controls the point at which the emulation should start, reacts to openness",
                 ),
                 sg.Text("Lowering:", background_color="#424042"),
                 sg.Slider(
@@ -206,7 +206,7 @@ class VRCFTSettingsModule(BaseSettingsModule):
                     orientation="h",
                     key=self.gui_EyebrowThresholdLowering,
                     background_color="#424042",
-                    tooltip="Adjusts the radius parameter for HSF. Only adjust if you are having tracking issues.",
+                    tooltip="Controls the maximum range of eyebrows emulation",
                 ),
             ],
         ]
