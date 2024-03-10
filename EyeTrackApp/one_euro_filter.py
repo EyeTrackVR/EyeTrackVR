@@ -1,3 +1,6 @@
+# https://github.com/jaantollander/OneEuroFilter
+# LICENSE: MIT
+
 import numpy as np
 from time import time
 
