@@ -142,6 +142,7 @@ class EyeTrackSettingsConfig(BaseModel):
     gui_EyebrowThresholdRising: float = 0.9
     gui_EyebrowThresholdLowering: float = 0.05
     gui_OutputMultiplier: float = 1
+    gui_use_module: bool = False
 
 
 class EyeTrackConfig(BaseModel):
@@ -178,7 +179,7 @@ class EyeTrackConfig(BaseModel):
     def update(self, data, save=False):
         for field, value in data.items():
             setattr(self.settings, field, value)
-        self.__notify_listeners()
+        self.__notify_listeners(data)
         if save:
             self.save()
 
@@ -202,6 +203,6 @@ class EyeTrackConfig(BaseModel):
         print(f"[DEBUG] Registering listener {callback}")
         self.__listeners.append(callback)
 
-    def __notify_listeners(self):
+    def __notify_listeners(self, data: dict):
         for listener in self.__listeners:
-            listener()
+            listener(data)

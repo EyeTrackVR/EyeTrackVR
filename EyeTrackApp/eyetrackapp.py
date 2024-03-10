@@ -51,6 +51,7 @@ RIGHT_EYE_NAME = "-RIGHTEYEWIDGET-"
 LEFT_EYE_NAME = "-LEFTEYEWIDGET-"
 SETTINGS_NAME = "-SETTINGSWIDGET-"
 ALGO_SETTINGS_NAME = "-ALGOSETTINGSWIDGET-"
+VRCFT_MODULE_SETTINGS_NAME = "-VRCFTSETTINGSWIDGET-"
 LEFT_EYE_RADIO_NAME = "-LEFTEYERADIO-"
 RIGHT_EYE_RADIO_NAME = "-RIGHTEYERADIO-"
 BOTH_EYE_RADIO_NAME = "-BOTHEYERADIO-"
@@ -116,13 +117,14 @@ def main():
     settings = [
         SettingsWidget(EyeId.SETTINGS, config),
         AlgoSettingsWidget(EyeId.ALGOSETTINGS, config),
-        VRCFTSettingsWidget(EyeId.ALGOSETTINGS, config, osc_queue),
+        VRCFTSettingsWidget(EyeId.VRCFTMODULESETTINGS, config, osc_queue),
     ]
 
     osc_manager = OSCManager(
         osc_message_in_queue=osc_queue,
         config=config,
     )
+    config.register_listener_callback(osc_manager.update)
 
     osc_manager.register_listeners(
         config.settings.gui_osc_recenter_address,
@@ -218,7 +220,7 @@ def main():
             sg.Column(
                 settings[2].get_layout(),
                 vertical_alignment="top",
-                key=VRCFT_MODULE_SETTINGS_RADIO_NAME,
+                key=VRCFT_MODULE_SETTINGS_NAME,
                 visible=(config.eye_display_id in [EyeId.VRCFTMODULESETTINGS]),
                 background_color="#424042",
             ),
@@ -233,6 +235,8 @@ def main():
         settings[0].start()
     if config.eye_display_id in [EyeId.ALGOSETTINGS]:
         settings[1].start()
+    if config.eye_display_id in [EyeId.VRCFTMODULESETTINGS]:
+        settings[2].start()
 
     # the eye's needs to be running before it is passed to the OSC
     # Create the window
@@ -266,6 +270,7 @@ def main():
             window[RIGHT_EYE_NAME].update(visible=True)
             window[LEFT_EYE_NAME].update(visible=False)
             window[SETTINGS_NAME].update(visible=False)
+            window[VRCFT_MODULE_SETTINGS_NAME].update(visible=False)
             window[ALGO_SETTINGS_NAME].update(visible=False)
             config.eye_display_id = EyeId.RIGHT
             config.settings.tracker_single_eye = 2
@@ -280,6 +285,7 @@ def main():
             window[RIGHT_EYE_NAME].update(visible=False)
             window[LEFT_EYE_NAME].update(visible=True)
             window[SETTINGS_NAME].update(visible=False)
+            window[VRCFT_MODULE_SETTINGS_NAME].update(visible=False)
             window[ALGO_SETTINGS_NAME].update(visible=False)
             config.eye_display_id = EyeId.LEFT
             config.settings.tracker_single_eye = 1
@@ -294,6 +300,7 @@ def main():
             window[LEFT_EYE_NAME].update(visible=True)
             window[RIGHT_EYE_NAME].update(visible=True)
             window[SETTINGS_NAME].update(visible=False)
+            window[VRCFT_MODULE_SETTINGS_NAME].update(visible=False)
             window[ALGO_SETTINGS_NAME].update(visible=False)
             config.eye_display_id = EyeId.BOTH
             config.settings.tracker_single_eye = 0
@@ -308,6 +315,7 @@ def main():
             window[RIGHT_EYE_NAME].update(visible=False)
             window[LEFT_EYE_NAME].update(visible=False)
             window[SETTINGS_NAME].update(visible=True)
+            window[VRCFT_MODULE_SETTINGS_NAME].update(visible=False)
             window[ALGO_SETTINGS_NAME].update(visible=False)
             config.eye_display_id = EyeId.SETTINGS
             config.save()
@@ -321,6 +329,7 @@ def main():
             window[RIGHT_EYE_NAME].update(visible=False)
             window[LEFT_EYE_NAME].update(visible=False)
             window[SETTINGS_NAME].update(visible=False)
+            window[VRCFT_MODULE_SETTINGS_NAME].update(visible=False)
             window[ALGO_SETTINGS_NAME].update(visible=True)
             config.eye_display_id = EyeId.ALGOSETTINGS
             config.save()
@@ -334,8 +343,8 @@ def main():
             window[RIGHT_EYE_NAME].update(visible=False)
             window[LEFT_EYE_NAME].update(visible=False)
             window[SETTINGS_NAME].update(visible=False)
+            window[VRCFT_MODULE_SETTINGS_NAME].update(visible=True)
             window[ALGO_SETTINGS_NAME].update(visible=False)
-            window[VRCFT_MODULE_SETTINGS_RADIO_NAME].update(visible=True)
             config.eye_display_id = EyeId.VRCFTMODULESETTINGS
             config.save()
 
@@ -346,7 +355,6 @@ def main():
                     eye.render(window, event, values)
             for setting in settings:
                 if setting.started():
-                    print(setting, config.eye_display_id)
                     setting.render(window, event, values)
 
 
