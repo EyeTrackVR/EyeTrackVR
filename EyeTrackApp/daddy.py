@@ -23,6 +23,7 @@ DADDY By: PallasNeko Optimization
 Algorithm App Implementations By: PallasNeko, Prohurtz
 
 Copyright (c) 2023 EyeTrackVR <3
+LICENSE: GNU GPLv3
 ------------------------------------------------------------------------------------------------------
 '''  
 import sys
