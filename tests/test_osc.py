@@ -274,7 +274,7 @@ def test_send_command_v2_params_eye_outer_side_falloff(main_config_v2_params, ey
 
         for message in eye_data:
             msg_queue.put(message)
-            sleep(100)
+            sleep(1)
         client.shutdown()
 
         assert msg_queue.empty()
