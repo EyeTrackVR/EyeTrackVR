@@ -57,11 +57,11 @@ This includes visually checking with an IR camera that the brightness is correct
 > **Warning**: Make sure you are using **NON-focused** emitters and at power less than ***8mW cm^2 total per eye***.
 Please read our LED safety page for a breakdown of math for out V3 and V4 LED kits [here](https://docs.eyetrackvr.dev/getting_started/led_safety)
 
-[Effect of infrared radiation on the lens](https://docs.eyetrackvr.dev/saftey/effect_of_ir_on_the_lens.pdf)
+[Effect of infrared radiation on the lens](https://docs.eyetrackvr.dev/safety/effect_of_ir_on_the_lens.pdf)
 
-[Training-library Nir Stds](https://docs.eyetrackvr.dev/saftey/training-library_nir_stds_20021011.pdf)
+[Training-library Nir Stds](https://docs.eyetrackvr.dev/safety/training-library_nir_stds_20021011.pdf)
 
-[AN002_Details on photobiological safety of LED light sources](https://docs.eyetrackvr.dev/saftey/AN002_Details_on_photobiological_safety_of_LED_light_sources.pdf)
+[AN002_Details on photobiological safety of LED light sources](https://docs.eyetrackvr.dev/safety/AN002_Details_on_photobiological_safety_of_LED_light_sources.pdf)
 
 
 
