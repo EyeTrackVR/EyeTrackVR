@@ -119,7 +119,7 @@ class VRChatOSCSender:
             )
 
         if eye_id in [EyeId.LEFT, EyeId.RIGHT] and not self.is_single_eye:
-            self.output_osc_native_blink(**default_eye_blink_params)
+            self.output_osc_native_blink(**default_eye_blink_params, single_eye_mode=False)
             self.mirror_eye_x_direction(eye_id=eye_id)
 
         if main_config.eye_display_id == EyeId.BOTH and self.r_eye_blink != 621 and self.r_eye_blink != 621:
@@ -322,7 +322,7 @@ class VRChatOSCSender:
         if eye_id in [EyeId.RIGHT, EyeId.LEFT] and not single_eye_mode:
             client.send_message(
                 blink_address,
-                _eyelid_transformer(config, active_eye_blink),
+                _eyelid_transformer(config, 1 - active_eye_blink),
             )
 
             if active_eye_blink == 0.0:
