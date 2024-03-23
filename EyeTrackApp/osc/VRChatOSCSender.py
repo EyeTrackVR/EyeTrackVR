@@ -99,13 +99,18 @@ class VRChatOSCSender:
             "eye_id": eye_id,
             "client": client,
             "config": config,
-            "eye_blink": eye_blink,
-            "left_eye_blink_address": "/tracking/eye/EyesClosedAmount",
-            "right_eye_blink_address": "/tracking/eye/EyesClosedAmount",
-            "params_version": OutputType.NATIVE_PARAMS,
         }
+
+        self.update_eye_state(
+            eye_id=eye_id,
+            eye_x=eye_x,
+            eye_y=eye_y,
+            eye_blink=eye_blink,
+            avg_velocity=avg_velocity,
+        )
+
         if self.is_single_eye:
-            self.send_eye_blink_data(
+            self.output_osc_native_blink(
                 **default_eye_blink_params,
             )
             client.send_message(
@@ -114,21 +119,11 @@ class VRChatOSCSender:
             )
 
         if eye_id in [EyeId.LEFT, EyeId.RIGHT] and not self.is_single_eye:
-            self.update_eye_state(
-                eye_id=eye_id,
-                eye_x=eye_x,
-                eye_y=eye_y,
-                eye_blink=eye_blink,
-                avg_velocity=avg_velocity,
-            )
-            self.send_eye_blink_data(**default_eye_blink_params, both_eyes_mode=True)
+            self.output_osc_native_blink(**default_eye_blink_params)
             self.mirror_eye_x_direction(eye_id=eye_id)
 
         if main_config.eye_display_id == EyeId.BOTH and self.r_eye_blink != 621 and self.r_eye_blink != 621:
-            self.send_eye_blink_data(
-                **default_eye_blink_params,
-                both_eyes_mode=True,
-            )
+            self.output_osc_native_blink(**default_eye_blink_params)
 
         if not self.is_single_eye:
             # vrc native ET (z values may need tweaking, they act like a scalar)
@@ -149,10 +144,17 @@ class VRChatOSCSender:
             "eye_id": eye_id,
             "client": client,
             "config": config,
-            "eye_blink": eye_blink,
             "left_eye_blink_address": config.osc_left_eye_close_address,
             "right_eye_blink_address": config.osc_right_eye_close_address,
         }
+
+        self.update_eye_state(
+            eye_id=eye_id,
+            eye_x=eye_x,
+            eye_y=eye_y,
+            eye_blink=eye_blink,
+            avg_velocity=avg_velocity,
+        )
 
         if self.is_single_eye:
             client.send_message(config.osc_left_eye_x_address, eye_x)
@@ -161,14 +163,7 @@ class VRChatOSCSender:
             self.output_vrcft_blink_data(**default_eye_blink_params)
 
         if eye_id in [EyeId.LEFT, EyeId.RIGHT] and not self.is_single_eye:
-            self.update_eye_state(
-                eye_id=eye_id,
-                eye_x=eye_x,
-                eye_y=eye_y,
-                eye_blink=eye_blink,
-                avg_velocity=avg_velocity,
-            )
-            self.output_vrcft_blink_data(**default_eye_blink_params)
+            self.output_vrcft_blink_data(**default_eye_blink_params, single_eye_mode=False)
             self.mirror_eye_x_direction(eye_id=eye_id)
 
             if eye_id == EyeId.LEFT:
