@@ -37,7 +37,8 @@ class VRChatOSCSender:
         self.l_eye_blink = 0.7
         self.l_eye_velocity = 0
         self.r_eye_velocity = 1
-        self.last_blink = time.time()
+        self.left_last_blink = time.time()
+        self.right_last_blink = time.time()
 
     def output_osc_info(
         self,
@@ -47,7 +48,7 @@ class VRChatOSCSender:
         config: EyeTrackSettingsConfig,
     ):
 
-        eye_id, eye_info = osc_message.data.items()
+        eye_id, eye_info = osc_message.data
         self.is_single_eye = self.get_is_single_eye(main_config.eye_display_id)
 
         output_method = None
@@ -74,56 +75,6 @@ class VRChatOSCSender:
     @staticmethod
     def get_is_single_eye(eye_display_id):
         return eye_display_id in [EyeId.RIGHT, EyeId.LEFT]
-
-    def send_eye_blink_data(
-        self,
-        eye_id: EyeId,
-        client,
-        config,
-        eye_blink,
-        params_version: OutputType,
-        left_eye_blink_address,
-        right_eye_blink_address,
-        both_eyes_mode=False,
-    ):
-        falloff_eye = self.r_eye_blink if eye_id == EyeId.LEFT else self.l_eye_blink
-        saved_side_eye_blink = self.l_eye_blink if eye_id == EyeId.LEFT else self.r_eye_blink
-        blink_address = left_eye_blink_address if eye_blink == EyeId.LEFT else right_eye_blink_address
-
-        def send_blink_message(blink_value):
-            for _ in range(5):
-                client.send_message(blink_address, float(1 - blink_value))
-                blink_value += 0.02
-
-        client.send_message(blink_address, _eyelid_transformer(config, eye_blink))
-
-        # dual eye blink
-        if both_eyes_mode:
-            if self.r_eye_blink == 0.0 or self.l_eye_blink == 0.0:
-                if self.last_blink > 0.2:
-                    send_blink_message(blink_value=1)
-                    self.last_blink = time.time() - self.last_blink
-                eye_blink = (self.r_eye_blink + self.l_eye_blink) / 2
-                client.send_message(blink_address, float(1 - eye_blink))
-        elif saved_side_eye_blink == 0.0:
-            # when binary blink is on, blinks may be too fast for OSC, so we repeat them.
-            if self.last_blink > 0.2:
-                send_blink_message(eye_blink)
-                self.last_blink = time.time() - self.last_blink
-            elif self.is_single_eye:
-                client.send_message(blink_address, float(1 - eye_blink))
-
-            # outer side falloff was designed to help out in dual eye mode, so for single eye we can skip it
-            # we also check for being in single_eye since what dual eye mode does is basically
-            # run both instances "next to" each other
-            if config.gui_outer_side_falloff and not self.is_single_eye:
-                # if both eyes closed and DEF is enabled, blink
-                if falloff_eye == 0.0:
-                    if params_version == OutputType.NATIVE_PARAMS:
-                        client.send_message(blink_address, float(0))
-                    else:
-                        client.send_message(left_eye_blink_address, float(eye_blink))
-                        client.send_message(right_eye_blink_address, float(eye_blink))
 
     def update_eye_state(self, eye_id, eye_x, eye_y, eye_blink, avg_velocity):
         if eye_id == EyeId.LEFT:
@@ -170,7 +121,7 @@ class VRChatOSCSender:
                 eye_blink=eye_blink,
                 avg_velocity=avg_velocity,
             )
-            self.send_eye_blink_data(**default_eye_blink_params)
+            self.send_eye_blink_data(**default_eye_blink_params, both_eyes_mode=True)
             self.mirror_eye_x_direction(eye_id=eye_id)
 
         if main_config.eye_display_id == EyeId.BOTH and self.r_eye_blink != 621 and self.r_eye_blink != 621:
@@ -201,14 +152,13 @@ class VRChatOSCSender:
             "eye_blink": eye_blink,
             "left_eye_blink_address": config.osc_left_eye_close_address,
             "right_eye_blink_address": config.osc_right_eye_close_address,
-            "params_version": OutputType.V1_PARAMS,
         }
 
         if self.is_single_eye:
             client.send_message(config.osc_left_eye_x_address, eye_x)
             client.send_message(config.osc_right_eye_x_address, eye_x)
             client.send_message(config.osc_eyes_y_address, eye_y)
-            self.send_eye_blink_data(**default_eye_blink_params)
+            self.output_vrcft_blink_data(**default_eye_blink_params)
 
         if eye_id in [EyeId.LEFT, EyeId.RIGHT] and not self.is_single_eye:
             self.update_eye_state(
@@ -218,7 +168,7 @@ class VRChatOSCSender:
                 eye_blink=eye_blink,
                 avg_velocity=avg_velocity,
             )
-            self.send_eye_blink_data(**default_eye_blink_params)
+            self.output_vrcft_blink_data(**default_eye_blink_params)
             self.mirror_eye_x_direction(eye_id=eye_id)
 
             if eye_id == EyeId.LEFT:
@@ -247,31 +197,33 @@ class VRChatOSCSender:
             "eye_id": eye_id,
             "client": client,
             "config": config,
-            "eye_blink": eye_blink,
-            "left_eye_blink_address": "/avatar/parameters/v2/EyeLid",
-            "right_eye_blink_address": "/avatar/parameters/v2/EyeLid",
-            "params_version": OutputType.V2_PARAMS,
         }
+
+        self.update_eye_state(
+            eye_id=eye_id,
+            eye_x=eye_x,
+            eye_y=eye_y,
+            eye_blink=eye_blink,
+            avg_velocity=avg_velocity,
+        )
 
         if self.is_single_eye:
             client.send_message("/avatar/parameters/v2/EyeX", eye_x)
             client.send_message("/avatar/parameters/v2/EyeY", eye_y)
-            self.send_eye_blink_data(**default_eye_blink_params)
+
+            self.output_vrcft_blink_data(
+                **default_eye_blink_params,
+                left_eye_blink_address="/avatar/parameters/v2/EyeLid",
+                right_eye_blink_address="/avatar/parameters/v2/EyeLid",
+            )
 
         if eye_id in [EyeId.LEFT, EyeId.RIGHT] and not self.is_single_eye:
-            self.update_eye_state(
-                eye_id=eye_id,
-                eye_x=eye_x,
-                eye_y=eye_y,
-                eye_blink=eye_blink,
-                avg_velocity=avg_velocity,
-            )
-            self.send_eye_blink_data(
+            self.output_vrcft_blink_data(
                 **default_eye_blink_params,
                 left_eye_blink_address="/avatar/parameters/v2/EyeLidLeft",
                 right_eye_blink_address="/avatar/parameters/v2/EyeLidRight",
+                single_eye_mode=False,
             )
-            self.mirror_eye_x_direction(eye_id)
 
             if eye_id == EyeId.LEFT:
                 client.send_message("/avatar/parameters/v2/EyeLeftX", self.l_eye_x)
@@ -293,6 +245,104 @@ class VRChatOSCSender:
                     _eyelid_transformer(config, self.r_eye_blink),
                 )
 
+    def output_vrcft_blink_data(
+        self,
+        eye_id: EyeId,
+        client: SimpleUDPClient,
+        config,
+        left_eye_blink_address,
+        right_eye_blink_address,
+        single_eye_mode=True,
+    ):
+
+        active_eye_blink = self.r_eye_blink if eye_id == EyeId.RIGHT else self.l_eye_blink
+        falloff_blink = self.r_eye_blink if eye_id == EyeId.LEFT else self.l_eye_blink
+        blink_address = right_eye_blink_address if eye_id == EyeId.RIGHT else left_eye_blink_address
+
+        side_name = "left" if eye_id == EyeId.RIGHT else "right"
+        last_side_blink = getattr(self, f"{side_name}_last_blink")
+
+        if single_eye_mode:
+            # in case of v1 params, we have to send the same data do each eye separately.
+            # so in case of v2 params, we will be generating one unnecessary call more
+            client.send_message(
+                left_eye_blink_address,
+                _eyelid_transformer(config, active_eye_blink),
+            )
+            client.send_message(
+                right_eye_blink_address,
+                _eyelid_transformer(config, active_eye_blink),
+            )
+
+        elif eye_id in [EyeId.RIGHT, EyeId.LEFT] and not single_eye_mode:
+            if active_eye_blink == 0.0:
+                if last_side_blink > 0.20:
+                    for _ in range(5):
+                        client.send_message(
+                            blink_address,
+                            _eyelid_transformer(config, active_eye_blink),
+                        )
+                    setattr(self, f"{side_name}_last_blink", time.time() - last_side_blink)
+                if config.gui_outer_side_falloff:
+                    if falloff_blink == 0.0:
+                        client.send_message(
+                            left_eye_blink_address,
+                            _eyelid_transformer(config, self.l_eye_blink),
+                        )
+                        client.send_message(
+                            right_eye_blink_address,
+                            _eyelid_transformer(config, self.r_eye_blink),
+                        )
+            client.send_message(
+                blink_address,
+                _eyelid_transformer(config, active_eye_blink),
+            )
+
+    def output_osc_native_blink(
+        self,
+        eye_id: EyeId,
+        client,
+        config,
+        single_eye_mode=True,
+    ):
+        blink_address = "/tracking/eye/EyesClosedAmount"
+        active_eye_blink = self.r_eye_blink if eye_id == EyeId.RIGHT else self.l_eye_blink
+        falloff_blink = self.r_eye_blink if eye_id == EyeId.LEFT else self.l_eye_blink
+
+        side_name = "left" if eye_id == EyeId.RIGHT else "right"
+        last_side_blink = getattr(self, f"{side_name}_last_blink")
+
+        def send_native_binary_blink(address: str, blink_value):
+            if last_side_blink > 0.2:
+                for _ in range(5):
+                    client.send_message(address, float(1 - blink_value))
+                setattr(self, f"{side_name}_last_blink", time.time() - last_side_blink)
+
+        if single_eye_mode:
+            if active_eye_blink == 0.0:
+                send_native_binary_blink(blink_address, active_eye_blink)
+            else:
+                client.send_message(blink_address, float(1 - active_eye_blink))
+
+        if eye_id in [EyeId.RIGHT, EyeId.LEFT] and not single_eye_mode:
+            client.send_message(
+                blink_address,
+                _eyelid_transformer(config, active_eye_blink),
+            )
+
+            if active_eye_blink == 0.0:
+                send_native_binary_blink(blink_address, active_eye_blink)
+                if config.gui_outer_side_falloff:
+                    if falloff_blink == 0.0:
+                        client.send_message(blink_address, float(1 - active_eye_blink))
+
+        if eye_id == EyeId.BOTH and self.r_eye_blink != 621 and self.r_eye_blink != 621:
+            if self.r_eye_blink == 0.0 or self.l_eye_blink == 0.0:
+                send_native_binary_blink(blink_address, active_eye_blink)
+            # this has a nasty habit of permanent-squint FIXME
+            averaged_eye_blink = (self.r_eye_blink + self.l_eye_blink) / 2
+            client.send_message(blink_address, float(1 - averaged_eye_blink))
+
 
 class VRChatOSCReceiver:
     def __init__(self, cancellation_event: threading.Event, main_config: EyeTrackConfig, eyes: []):
@@ -305,14 +355,14 @@ class VRChatOSCReceiver:
                 (self.config.gui_osc_address, int(self.config.gui_osc_receiver_port)),
                 self.dispatcher,
             )
-        except:
+        except:  # noqa, we purposefully catch all exceptions here
             print(f"\033[91m[ERROR] OSC Receive port: {self.config.gui_osc_receiver_port} occupied.\033[0m")
 
     def shutdown(self):
         print("\033[94m[INFO] Exiting OSC Receiver\033[0m")
         try:
             self.server.shutdown()
-        except:
+        except:  # noqa, we purposefully let the system handle this
             pass
 
     def recenter_eyes(self, address, osc_value):
@@ -339,5 +389,5 @@ class VRChatOSCReceiver:
             print("\033[92m[INFO] VRChatOSCReceiver serving on {}\033[0m".format(self.server.server_address))
             self.server.serve_forever()
 
-        except:
+        except:  # noqa, we purposefully catch all exceptions here
             print(f"\033[91m[ERROR] OSC Receive port: {self.config.gui_osc_receiver_port} occupied.\033[0m")
