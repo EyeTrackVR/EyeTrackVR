@@ -10,6 +10,7 @@ import os
 import subprocess
 import math
 
+
 class TimeoutError(RuntimeError):
     pass
 
@@ -20,9 +21,7 @@ class AsyncCall(object):
         self.Callback = callback
 
     def __call__(self, *args, **kwargs):
-        self.Thread = threading.Thread(
-            target=self.run, name=self.Callable.__name__, args=args, kwargs=kwargs
-        )
+        self.Thread = threading.Thread(target=self.run, name=self.Callable.__name__, args=args, kwargs=kwargs)
         self.Thread.start()
         return self
 
@@ -87,7 +86,7 @@ class var:
 
 @Async
 def center_overlay_calibrate(self):
-   # try:
+    # try:
     if var.overlay_active != True:
 
         dirname = os.getcwd()
@@ -104,10 +103,12 @@ def center_overlay_calibrate(self):
         self.calibration_frame_counter = 0
         var.overlay_active = False
 
-  #  except:
-      #  print("[WARN] Calibration overlay error. Make sure SteamVR is Running.")
-     #   self.settings.gui_recenter_eyes = False
-     #   var.overlay_active = False
+
+#  except:
+#  print("[WARN] Calibration overlay error. Make sure SteamVR is Running.")
+#   self.settings.gui_recenter_eyes = False
+#   var.overlay_active = False
+
 
 @Async
 def overlay_calibrate_3d(self):
@@ -127,7 +128,6 @@ def overlay_calibrate_3d(self):
                 self.settings.gui_recenter_eyes = False
                 self.grab_3d_point = True
 
-
                 print(message)
     except:
         print("[WARN] Calibration overlay error. Make sure SteamVR is Running.")
@@ -138,8 +138,8 @@ def overlay_calibrate_3d(self):
 def calculate_real_angle(angle, ipd):
     return math.degrees(math.atan(math.tan(math.radians(angle)) * (ipd / 2)))
 
-def calibrate_tracked_data(tracked_data, calibrated_data, ipd):
 
+def calibrate_tracked_data(tracked_data, calibrated_data, ipd):
 
     for point in tracked_data:
         x, y, angle = point
@@ -161,21 +161,23 @@ def calibrate_tracked_data(tracked_data, calibrated_data, ipd):
 
     return calibrated_data
 
+
 def rotate_around_y(point, angle):
     """
     Rotate a 3D point around the y-axis by a given angle.
     """
-    rotation_matrix = np.array([[math.cos(angle), 0, -math.sin(angle)],
-                                [0, 1, 0],
-                                [math.sin(angle), 0, math.cos(angle)]])
+    rotation_matrix = np.array(
+        [[math.cos(angle), 0, -math.sin(angle)], [0, 1, 0], [math.sin(angle), 0, math.cos(angle)]]
+    )
     rotated_point = np.dot(rotation_matrix, point)
     return rotated_point
 
-def calculate_rotation_angles(target_point, ipd, eye='left'):
+
+def calculate_rotation_angles(target_point, ipd, eye="left"):
     """
-   Calculate yaw and pitch angles to converge left or right eye at the target point.
+    Calculate yaw and pitch angles to converge left or right eye at the target point.
     """
-    if eye == 'left':
+    if eye == "left":
         x = target_point[0] - ipd
     else:
         x = target_point[0] + ipd
@@ -189,24 +191,19 @@ def calculate_rotation_angles(target_point, ipd, eye='left'):
         pitch = 0
     else:
         pitch = math.degrees(math.atan2(x, y))
- #   print(yaw, pitch)
-
-
+    #   print(yaw, pitch)
 
     return yaw, pitch
-
-
 
 
 class cal:
     def cal_osc(self, cx, cy, angle):
         # Example usage for the left eye
         # Example usage for the center point
-        target_point_center = [0.8, 0.8, 1] # x y z
+        target_point_center = [0.8, 0.8, 1]  # x y z
         ipd = 0.058  # Interpupillary Distance in meters
 
-        calculate_rotation_angles(target_point_center, ipd, eye='left')
-
+        calculate_rotation_angles(target_point_center, ipd, eye="left")
 
         if cx == None or cy == None:
             return 0, 0
@@ -219,17 +216,17 @@ class cal:
         else:
             flipx = self.settings.gui_flip_x_axis_left
         if self.calibration_3d_frame_counter == -621:
-            self.calibration_3d_frame_counter = self.calibration_3d_frame_counter -1
+            self.calibration_3d_frame_counter = self.calibration_3d_frame_counter - 1
             overlay_calibrate_3d(self)
-            print('yippe')
+            print("yippe")
 
         if self.grab_3d_point:
             self.grab_3d_point = False
 
             self.config.calibration_points.append((cx, cy, angle))
-            print(self.config.calibration_points)
+            # print(self.config.calibration_points)
 
-            print("calib")
+        #  print("calib")
 
         if self.calibration_frame_counter == 0:
             self.calibration_frame_counter = None
@@ -264,9 +261,7 @@ class cal:
             if self.ts == 0:
                 center_overlay_calibrate(self)  # TODO, only call on windows machines?
                 self.settings.gui_recenter_eyes = False
-                PlaySound(
-                    resource_path("Audio/completed.wav"), SND_FILENAME | SND_ASYNC
-                )
+                PlaySound(resource_path("Audio/completed.wav"), SND_FILENAME | SND_ASYNC)
             else:
                 self.ts = self.ts - 1
 
@@ -299,9 +294,7 @@ class cal:
             yu = float((cy - self.config.calib_YOFF) / calib_diff_y_MIN)
             yd = float((cy - self.config.calib_YOFF) / calib_diff_y_MAX)
 
-            if (
-                self.settings.gui_flip_y_axis
-            ):  # check config on flipped values settings and apply accordingly
+            if self.settings.gui_flip_y_axis:  # check config on flipped values settings and apply accordingly
                 if yd >= 0:
                     out_y = max(0.0, min(1.0, yd))
                 if yu > 0:
@@ -324,16 +317,12 @@ class cal:
                     out_x = -abs(max(0.0, min(1.0, xl)))
 
             if self.settings.gui_outer_side_falloff:
+                print("pn")
                 run_time = time.time()
                 out_x_mult = out_x * 100
                 out_y_mult = out_y * 100
                 velocity = abs(
-                    np.sqrt(
-                        abs(
-                            np.square(out_x_mult - var.past_x)
-                            - np.square(out_y_mult - var.past_y)
-                        )
-                    )
+                    np.sqrt(abs(np.square(out_x_mult - var.past_x) - np.square(out_y_mult - var.past_y)))
                     / ((var.start_time - run_time) * 10)
                 )
                 if len(var.velocity_rolling_list) < 15:
@@ -341,23 +330,20 @@ class cal:
                 else:
                     var.velocity_rolling_list.pop(0)
                     var.velocity_rolling_list.append(float(velocity))
-                var.average_velocity = sum(var.velocity_rolling_list) / len(
-                    var.velocity_rolling_list
-                )
+                var.average_velocity = sum(var.velocity_rolling_list) / len(var.velocity_rolling_list)
                 var.past_x = out_x_mult
                 var.past_y = out_y_mult
 
+                out_x, out_y = velocity_falloff(self, var, out_x, out_y)
+
             try:
-                noisy_point = np.array(
-                    [float(out_x), float(out_y)]
-                )  # fliter our values with a One Euro Filter
+                noisy_point = np.array([float(out_x), float(out_y)])  # fliter our values with a One Euro Filter
                 point_hat = self.one_euro_filter(noisy_point)
                 out_x = point_hat[0]
                 out_y = point_hat[1]
+
             except:
                 pass
-
-            out_x, out_y = velocity_falloff(self, var, out_x, out_y)
 
             return out_x, out_y, var.average_velocity
         else:

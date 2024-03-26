@@ -39,7 +39,6 @@ import cv2
 import numpy as np
 
 
-
 # from line_profiler_pycharm import profile
 
 # memo: Old Name: CPRD
@@ -56,9 +55,7 @@ save_video = False
 
 VideoCapture_SRC = "/Users/prohurtz/Desktop/t3c.mp4"  # "demo2.mp4"
 input_is_webcam = False
-benchmark_flag = (
-    True if not input_is_webcam and not imshow_enable and not save_video else False
-)
+benchmark_flag = True if not input_is_webcam and not imshow_enable and not save_video else False
 loop_num = 1 if imshow_enable or save_video else 10
 output_video_path = f"./{this_file_name}.mp4"
 logfilename = f"./{this_file_name}.log"
@@ -137,9 +134,7 @@ class TimeitResult(object):
     @property
     def stdev(self):
         mean = self.average
-        return (
-            math.fsum([(x - mean) ** 2 for x in self.timings]) / len(self.timings)
-        ) ** 0.5
+        return (math.fsum([(x - mean) ** 2 for x in self.timings]) / len(self.timings)) ** 0.5
 
     def __str__(self):
         pm = "+-"
@@ -339,9 +334,7 @@ def pupil_detector_haar(img_gray, params):
 
 
 @lru_cache(maxsize=lru_maxsize_vvs)
-def get_empty_array(
-    frame_shape, width_min, width_max, wh_step, xy_step, roi, ratio_outer
-):
+def get_empty_array(frame_shape, width_min, width_max, wh_step, xy_step, roi, ratio_outer):
     frame_int_dtype = np.intc
     np_index_dtype = (
         np.intc
@@ -355,62 +348,20 @@ def get_empty_array(
     h_arr = (w_arr / ratio_outer).astype(np.int16)
 
     # memo: It is not smart code and needs to be changed.
-    y_out_n = np.hstack(
-        [
-            np.arange(roi[1] + h, roi[3] - h, xy_step, dtype=np_index_dtype)
-            for h in h_arr
-        ]
-    )
-    x_out_n = np.hstack(
-        [
-            np.arange(roi[0] + w, roi[2] - w, xy_step, dtype=np_index_dtype)
-            for w in w_arr
-        ]
-    )
-    y_out_h = np.hstack(
-        [
-            np.arange(roi[1] + h, roi[3] - h, xy_step, dtype=np_index_dtype) + h
-            for h in h_arr
-        ]
-    )
-    x_out_w = np.hstack(
-        [
-            np.arange(roi[0] + w, roi[2] - w, xy_step, dtype=np_index_dtype) + w
-            for w in w_arr
-        ]
-    )
+    y_out_n = np.hstack([np.arange(roi[1] + h, roi[3] - h, xy_step, dtype=np_index_dtype) for h in h_arr])
+    x_out_n = np.hstack([np.arange(roi[0] + w, roi[2] - w, xy_step, dtype=np_index_dtype) for w in w_arr])
+    y_out_h = np.hstack([np.arange(roi[1] + h, roi[3] - h, xy_step, dtype=np_index_dtype) + h for h in h_arr])
+    x_out_w = np.hstack([np.arange(roi[0] + w, roi[2] - w, xy_step, dtype=np_index_dtype) + w for w in w_arr])
     out_h = y_out_h - y_out_n
     out_w = x_out_w - x_out_n
 
-    y_in_n = np.hstack(
-        [
-            np.arange(roi[1] + h, roi[3] - h, xy_step, dtype=np_index_dtype)
-            + int(h / 4)
-            for h in h_arr
-        ]
-    )
-    x_in_n = np.hstack(
-        [
-            np.arange(roi[0] + w, roi[2] - w, xy_step, dtype=np_index_dtype)
-            + int(w / 4)
-            for w in w_arr
-        ]
-    )
+    y_in_n = np.hstack([np.arange(roi[1] + h, roi[3] - h, xy_step, dtype=np_index_dtype) + int(h / 4) for h in h_arr])
+    x_in_n = np.hstack([np.arange(roi[0] + w, roi[2] - w, xy_step, dtype=np_index_dtype) + int(w / 4) for w in w_arr])
     y_in_h = np.hstack(
-        [
-            np.arange(roi[1] + h, roi[3] - h, xy_step, dtype=np_index_dtype)
-            + int(h / 4)
-            + int(h / 2)
-            for h in h_arr
-        ]
+        [np.arange(roi[1] + h, roi[3] - h, xy_step, dtype=np_index_dtype) + int(h / 4) + int(h / 2) for h in h_arr]
     )
     x_in_w = np.hstack(
-        [
-            np.arange(roi[0] + w, roi[2] - w, xy_step, dtype=np_index_dtype)
-            + int(w / 4)
-            + int(w / 2)
-            for w in w_arr
-        ]
+        [np.arange(roi[0] + w, roi[2] - w, xy_step, dtype=np_index_dtype) + int(w / 4) + int(w / 2) for w in w_arr]
     )
     in_h = y_in_h - y_in_n
     in_w = x_in_w - x_in_n
@@ -475,9 +426,7 @@ def get_empty_array(
     wh_in_arr = 1 / wh_in_arr  # .astype(np.float32)
     # wh_out_arr=wh_out_arr.astype(np.float64)
     mu_outer_rect = 1 / mu_outer_rect  # .astype(np.float32)
-    mu_outer_rect2 = (
-        -1.0 * mu_outer_rect
-    )  # cv2.merge([mu_outer_rect,-1.0*mu_outer_rect])
+    mu_outer_rect2 = -1.0 * mu_outer_rect  # cv2.merge([mu_outer_rect,-1.0*mu_outer_rect])
 
     # 1/wh_in_arr == wh_in_arr_mul
     return (
@@ -551,9 +500,7 @@ def coarse_detection(img_gray, params):
         wh_out_arr,
         mu_outer_rect,
         mu_outer_rect2,
-    ) = get_empty_array(
-        img_blur.shape, width_min, width_max, wh_step, xy_step, roi, ratio_outer
-    )
+    ) = get_empty_array(img_blur.shape, width_min, width_max, wh_step, xy_step, roi, ratio_outer)
     cv2.integral(
         img_blur, sum=frame_int, sdepth=cv2.CV_32S
     )  # memo: It becomes slower when using float64, probably because the increase in bits from 32 to 64 causes the arrays to be larger.
@@ -674,9 +621,7 @@ def fine_detection(img_gray, pupil_rect_coarse):
     img_pupil_blur = cv2.GaussianBlur(img_pupil, (5, 5), 0, 0)
     edges_filter = detect_edges(img_pupil_blur)
     # fit ellipse to edges
-    contours, hierarchy = cv2.findContours(
-        edges_filter, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE
-    )
+    contours, hierarchy = cv2.findContours(edges_filter, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE)
     # sort contours by area
     contours = sorted(contours, key=lambda x: cv2.contourArea(x), reverse=True)
     # fit ellipse to largest contour
@@ -733,9 +678,7 @@ def detect_edges(img_pupil_blur):
 
 
 def fit_pupil_ellipse_swirski(img_pupil, edges_filter):
-    contours, hierarchy = cv2.findContours(
-        edges_filter, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE
-    )
+    contours, hierarchy = cv2.findContours(edges_filter, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE)
     max_contour_area = 0
     max_contour = None
     print("contours: ", contours)
@@ -953,18 +896,10 @@ if __name__ == "__main__":
     cv2.imshow("pppp", image_brg)
     cv2.waitKey(10)
     cv2.destroyAllWindows()
-    # save images
-    # cv2.imwrite("coarse_detection.png", image_brg)
-    # webcam
-    # cap = cv2.VideoCapture(VideoCapture_SRC)
-    # CLACHE
-    # clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8,8))
 
     timedict = {"to_gray": [], "coarse": [], "fine": [], "total_cv": []}
     # For measuring total processing time
     main_start_time = timeit.default_timer()
-    # for i in range(loop_num):
-    #    cap = cv2.VideoCapture(VideoCapture_SRC)
 
 
 def External_Run_AHSF(frame_gray):
@@ -984,26 +919,13 @@ def External_Run_AHSF(frame_gray):
     y_offset = (max_dimension - height) // 2
 
     # Paste the rotated image onto the square background
-    square_background[y_offset:y_offset + height, x_offset:x_offset + width] = frame_gray
+    square_background[y_offset : y_offset + height, x_offset : x_offset + width] = frame_gray
 
     frame_gray = square_background
     frame_clear_resize = frame_gray.copy()
 
-    #  while True:
-    #     if not cap.isOpened():
-    #        break
-    #    ret, frame = cap.read()
-    #     if not ret:
-    #        break
-    # remove 30 pixels from the right
-    # frame = frame[:, :-200]
-    # frame = cv2.resize(frame, (100, 100))
-    # frame = cv2.GaussianBlur(frame, (11,11), 0)
-
-    # frame_gray = cv2.resize(frame_gray, (100, 100))
-
-    wmax = (frame_gray.shape[1] * 0.5)  # likes to crash, might need more tuning still
-    wmin = (frame_gray.shape[1] * 0.08)
+    wmax = frame_gray.shape[1] * 0.5  # likes to crash, might need more tuning still
+    wmin = frame_gray.shape[1] * 0.08
     params = {
         "ratio_downsample": 0.5,
         "use_init_rect": False,
@@ -1029,7 +951,7 @@ def External_Run_AHSF(frame_gray):
         ) = coarse_detection(frame_gray, params)
         ellipse_rect, center_fitting = fine_detection(frame_gray, pupil_rect_coarse)
     except TypeError:
-       # print("[WARN] AHSF NoneType Error")
+        # print("[WARN] AHSF NoneType Error")
         return frame_gray, frame_gray, 0, 0, 0
     # print(ellipse_rect)
     # Pupil_rect, Outer_rect, max_response, mu_inner, mu_outer = coarse_detection(frame_gray, params)
@@ -1068,39 +990,3 @@ def External_Run_AHSF(frame_gray):
     average_diameter = (major_diameter + minor_diameter) / 2
 
     return frame_gray, frame_clear_resize, x_center, y_center, abs(width - height)
-
-
-#   return frame_gray, 0.0, 0.0, 0.0
-# if imshow_enable:
-#   cv2.imshow("pppp", image_brg)
-#  if cv2.waitKey(1) & 0xFF == ord("q"):
-#     pass
-# if save_video:
-#   video_wr.write(image_brg)
-
-# if save_video:
-#   video_wr.release()
-#  logger.info("video output: {}".format(output_video_path))
-# cap.release()
-# if imshow_enable:
-#   cv2.destroyAllWindows()
-
-
-#  main_end_time = timeit.default_timer()
-# main_total_time = main_end_time - main_start_time
-# if not print_enable:
-# del print
-# or
-#    print = __builtins__.print
-#  logger.info("")
-# for k, v in timedict.items():
-# number=1, precision=5
-#     len_v = len(v)
-#     best = min(v)  # / number
-#    worst = max(v)  # / number
-#    logger.info(k + ":")
-#   logger.info(TimeitResult(loop_num, len_v, best, worst, v, 5))
-#    logger.info(FPSResult(loop_num, len_v, worst, best, v, 5))
-# print("")
-# logger.info("")
-# logger.info(f"{this_file_basename}: ALL Finish {format_time(main_total_time)}")
