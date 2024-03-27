@@ -1,11 +1,11 @@
 import json
 import os.path
 import shutil
-from eye import EyeId
 from pydantic import BaseModel
 from typing import Union, List
 import os
 
+from eye import EyeId
 
 CONFIG_FILE_NAME: str = "eyetrack_settings.json"
 BACKUP_CONFIG_FILE_NAME: str = "eyetrack_settings.backup"
@@ -97,6 +97,23 @@ class EyeTrackSettingsConfig(BaseModel):
     gui_vrc_native: bool = True
     gui_pupil_dilation: bool = True
 
+    gui_PortNumber: int = 8889
+    gui_ShouldEmulateEyeWiden: bool = True
+    gui_ShouldEmulateEyeSquint: bool = True
+    gui_ShouldEmulateEyebrows: bool = True
+    gui_WidenThresholdV1_min: float = 0.95
+    gui_WidenThresholdV1_max: float = 1
+    gui_WidenThresholdV2_min: float = 0.95
+    gui_WidenThresholdV2_max: float = 1.05
+    gui_SqueezeThresholdV1_min: float = 0.05
+    gui_SqueezeThresholdV1_max: float = 0.5
+    gui_SqueezeThresholdV2_min: float = 0.05
+    gui_SqueezeThresholdV2_max: float = -1
+    gui_EyebrowThresholdRising: float = 0.9
+    gui_EyebrowThresholdLowering: float = 0.05
+    gui_OutputMultiplier: float = 1
+    gui_use_module: bool = False
+
 
 class EyeTrackConfig(BaseModel):
     version: int = 1
@@ -132,7 +149,7 @@ class EyeTrackConfig(BaseModel):
     def update(self, data, save=False):
         for field, value in data.items():
             setattr(self.settings, field, value)
-        self.__notify_listeners()
+        self.__notify_listeners(data)
         if save:
             self.save()
 
@@ -156,6 +173,6 @@ class EyeTrackConfig(BaseModel):
         print(f"[DEBUG] Registering listener {callback}")
         self.__listeners.append(callback)
 
-    def __notify_listeners(self):
+    def __notify_listeners(self, data: dict):
         for listener in self.__listeners:
-            listener()
+            listener(data)

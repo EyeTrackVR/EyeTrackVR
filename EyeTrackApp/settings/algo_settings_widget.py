@@ -1,7 +1,5 @@
-import PySimpleGUI as sg
-
 from config import EyeTrackConfig
-from osc import EyeId
+from eye import EyeId
 
 from settings.BaseSettings import BaseSettingsWidget
 from settings.modules.AdvancedTrackingAlgoSettingsModule import (

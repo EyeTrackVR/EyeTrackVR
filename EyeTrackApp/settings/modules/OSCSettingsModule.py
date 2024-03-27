@@ -15,6 +15,7 @@ class OSCValidationModel(BaseValidationModel):
     gui_vrc_native: bool
     gui_osc_vrcft_v1: bool
     gui_osc_vrcft_v2: bool
+    gui_use_module: bool
 
     @model_validator(mode="after")
     def check_osc_vrcft_versions(self):
@@ -42,11 +43,21 @@ class OSCSettingsModule(BaseSettingsModule):
         self.gui_vrc_native = f"-VRCNATIVE{widget_id}-"
         self.gui_osc_vrcft_v1 = f"-OSCVRCFTV1{widget_id}-"
         self.gui_osc_vrcft_v2 = f"-OSCVRCFTV2{widget_id}-"
+        self.gui_use_module = f"-OSCUSEMODULE{widget_id}-"
 
     def get_layout(self):
         return [
             [
                 sg.Text("OSC Settings:", background_color="#242224"),
+            ],
+            [
+                sg.Checkbox(
+                    "Use ETVR VRCFT Module",
+                    default=self.config.gui_use_module,
+                    key=self.gui_use_module,
+                    background_color="#424042",
+                    tooltip="Toggle output to VRCFT Module or just regular OSC port",
+                ),
             ],
             [
                 sg.Checkbox(
