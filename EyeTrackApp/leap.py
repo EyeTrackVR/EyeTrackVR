@@ -73,7 +73,7 @@ class LEAP_C(object):
             self.model_path = resource_path("Models/leap123023.onnx")  # funny MacOS files issues :P
         else:
             self.model_path = resource_path("Models\leap123023.onnx")
-        self.interval = 1  # FPS print update rate
+
         self.low_priority = (
             False  # set process priority to low (may cause issues when unfocusing? reported by one, not reproducable)
         )
@@ -126,22 +126,16 @@ class LEAP_C(object):
 
         min_cutoff = 0.1
         beta = 15.0
-        # print(np.random.rand(22, 2))
-        # noisy_point = np.array([1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1])
         self.one_euro_filter = OneEuroFilter(np.random.rand(12, 2), min_cutoff=min_cutoff, beta=beta)
-        # self.one_euro_filter_open = OneEuroFilter(
-        #   np.random.rand(1, 2), min_cutoff=0.01, beta=0.04
-        # )
         self.dmax = 0
         self.dmin = 0
         self.openlist = []
         self.x = 0
         self.y = 0
         self.maxlist = []
-        self.minlist = []
 
         self.ort_session1 = onnxruntime.InferenceSession(self.model_path, opts, providers=["CPUExecutionProvider"])
-        # ort_session1 = onnxruntime.InferenceSession("C:/Users/beaul/PycharmProjects/EyeTrackVR/EyeTrackApp/Models/mommy062023.onnx", opts, providers=['DmlExecutionProvider'])
+
         threads = []
         for i in range(self.num_threads):
             thread = threading.Thread(
@@ -166,7 +160,6 @@ class LEAP_C(object):
         img = self.current_image_gray_clean.copy()
 
         img = cv2.cvtColor(img, cv2.COLOR_GRAY2RGB)
-        # img = imutils.rotate(img, angle=320)
         img_height, img_width = img.shape[:2]  # Move outside the loop
 
         frame = cv2.resize(img, (112, 112))
@@ -177,7 +170,6 @@ class LEAP_C(object):
 
             frame, pre_landmark = self.output_queue.get()
             pre_landmark = self.one_euro_filter(pre_landmark)
-            # frame = cv2.resize(frame, (112, 112))
 
             for point in pre_landmark:
                 x, y = point
@@ -189,7 +181,7 @@ class LEAP_C(object):
                 (255, 255, 0),
                 -1,
             )
-            #   cv2.circle(img, tuple(int(x*112) for x in pre_landmark[2]), 1, (255, 255, 0), -1)
+
             cv2.circle(
                 imgvis,
                 tuple(int(x * img_width) for x in pre_landmark[4]),
@@ -197,12 +189,6 @@ class LEAP_C(object):
                 (255, 255, 255),
                 -1,
             )
-            #   cv2.circle(img, tuple(int(x * 112) for x in pre_landmark[4]), 1, (255, 255, 255), -1)
-            #    print(pre_landmark)
-
-            x1, y1 = pre_landmark[0]
-            x2, y2 = pre_landmark[6]
-            #  euclidean_dist_width = math.sqrt((x2 - x1) ** 2 + (y2 - y1) ** 2)
 
             x1, y1 = pre_landmark[1]
             x2, y2 = pre_landmark[3]
@@ -210,51 +196,32 @@ class LEAP_C(object):
             x3, y3 = pre_landmark[4]
             x4, y4 = pre_landmark[2]
 
-            # d = area / euclidean_dist_width
-            #  print(area)
-            # eyesize_dist = math.dist(pre_landmark[0], pre_landmark[6])
-            # distance = math.dist(pre_landmark[1], pre_landmark[3])
-            #  d = distance / eyesize_dist
-
             d1 = math.dist(pre_landmark[1], pre_landmark[3])
-
+            # a more fancy method could be used taking into acount the relative size of the landmarks so that weirdness can be acounted for better
             d2 = math.dist(pre_landmark[2], pre_landmark[4])
             d = (d1 + d2) / 2
-            # by averaging both sets we can get less error? i think part of why 1 eye is better than the other is because we only considered one offset points.
+            # by averaging both sets we can get less error? i think part of why 1 eye was better than the other is because we only considered one offset points.
             # considering both should smooth things out between eyes
 
             try:
                 if d >= np.percentile(
-                    self.openlist, 80
+                    self.openlist, 80  # do not go above 85, but this value can be tuned
                 ):  # an aditional approach could be using the place where on average it is most stable, denoting what distance is the most stable "open"
                     self.maxlist.append(d)
 
-                if d <= np.percentile(
-                    self.openlist, 2
-                ):  # an aditional approach could be using the place where on average it is most stable, denoting what distance is the most stable "open"
-                    self.minlist.append(d)
-
-                if len(self.maxlist) > 2000:
+                if len(self.maxlist) > 2000:  # i feel that this is very cpu intensive. think of a better method
                     self.maxlist.pop(0)
 
-                if len(self.minlist) > 2000:
-                    self.minlist.pop(0)
-                # this should be the average most open value, the average of top 200 values in rolling calibration
+                # this should be the average most open value, the average of top 2000 values in rolling calibration
                 # with this we can use it as the "openstate" (0.7, for expanded squeeze)
 
-                # (x * weight_x + y * weight_y) / (weight_x + weight_y)
-
+                # weighted values to shift slightly to max value
                 normal_open = ((sum(self.maxlist) / len(self.maxlist)) * 0.90 + max(self.openlist) * 0.10) / (
                     0.95 + 0.15
-                )
-                normal_close = ((sum(self.minlist) / len(self.minlist)) * 0.05 + min(self.openlist) * 0.95) / (
-                    0.05 + 0.95
                 )
 
             except:
                 normal_open = 0.8
-                normal_close = 0.1
-            # print(self.maxlist)
 
             if len(self.openlist) < 5000:  # TODO expose as setting?
                 self.openlist.append(d)
@@ -270,31 +237,29 @@ class LEAP_C(object):
             try:
                 per = (d - normal_open) / (min(self.openlist) - normal_open)
 
-                oldper = (d - max(self.openlist)) / (min(self.openlist) - max(self.openlist))
+                oldper = (d - max(self.openlist)) / (
+                    min(self.openlist) - max(self.openlist)
+                )  # TODO: remove when testing is done
 
                 per = 1 - per
                 per = per - 0.2  # allow for eye widen? might require a more legit math way but this makes sense.
                 per = min(per, 1.0)
 
-                # if per <= 0.18:  # this should be tuned, i could make this auto calib based on min from a list of per values.
-                #   per = 0.0
                 print("new: ", per, "vs old: ", oldper)
 
             except:
                 per = 0.8
                 pass
 
-            #    print(d, per)
             x = pre_landmark[6][0]
             y = pre_landmark[6][1]
 
-            #  per = d - 0.1
             self.last_lid = per
-            # pera = np.array([per, per])
-            # self.one_euro_filter_open(pera)
+
             if per <= 0.2:  # TODO: EXPOSE AS SETTING
                 per == 0.0
-            # print(per)
+                # this should be tuned, i could make this auto calib based on min from a list of per values.
+
             return imgvis, float(x), float(y), per
 
         imgvis = cv2.cvtColor(img, cv2.COLOR_RGB2GRAY)
