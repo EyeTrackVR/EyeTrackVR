@@ -202,7 +202,7 @@ class LEAP_C(object):
 
             x1, y1 = pre_landmark[0]
             x2, y2 = pre_landmark[6]
-            euclidean_dist_width = math.sqrt((x2 - x1) ** 2 + (y2 - y1) ** 2)
+            #  euclidean_dist_width = math.sqrt((x2 - x1) ** 2 + (y2 - y1) ** 2)
 
             x1, y1 = pre_landmark[1]
             x2, y2 = pre_landmark[3]
@@ -212,8 +212,8 @@ class LEAP_C(object):
 
             # d = area / euclidean_dist_width
             #  print(area)
-            eyesize_dist = math.dist(pre_landmark[0], pre_landmark[6])
-            distance = math.dist(pre_landmark[1], pre_landmark[3])
+            # eyesize_dist = math.dist(pre_landmark[0], pre_landmark[6])
+            # distance = math.dist(pre_landmark[1], pre_landmark[3])
             #  d = distance / eyesize_dist
 
             d1 = math.dist(pre_landmark[1], pre_landmark[3])
@@ -267,7 +267,6 @@ class LEAP_C(object):
                 self.openlist.pop(0)
                 self.openlist.append(d)
 
-            # print(normal_close, normal_open, min(self.openlist))
             try:
                 per = (d - normal_open) / (min(self.openlist) - normal_open)
 
@@ -280,16 +279,6 @@ class LEAP_C(object):
                 # if per <= 0.18:  # this should be tuned, i could make this auto calib based on min from a list of per values.
                 #   per = 0.0
                 print("new: ", per, "vs old: ", oldper)
-            #  print(
-            #     " open distance",
-            #    normal_open,
-            #   "current ",
-            #  d,
-            # "calibrated: ",
-            #    per,
-            #  "old calib",
-            #   oldper,
-            # )
 
             except:
                 per = 0.8
