@@ -32,13 +32,3 @@ class VRCFTSettingsWidget(BaseSettingsWidget):
             )
 
         self.is_saving = False
-
-    def reset_config(self, window):
-        """resets the module for both, the ETVR app and the module"""
-        super().reset_config(window=window)
-        self.osc_queue.put(
-            OSCMessage(
-                type=OSCMessageType.VRCFT_MODULE_INFO,
-                data={"command": "reset"},
-            )
-        )
