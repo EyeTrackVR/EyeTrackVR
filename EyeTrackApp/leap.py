@@ -250,6 +250,7 @@ class LEAP_C(object):
                 normal_close = ((sum(self.minlist) / len(self.minlist)) * 0.05 + min(self.openlist) * 0.95) / (
                     0.05 + 0.95
                 )
+
             except:
                 normal_open = 0.8
                 normal_close = 0.1
