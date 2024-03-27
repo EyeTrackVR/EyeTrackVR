@@ -279,7 +279,7 @@ class LEAP_C(object):
 
                 # if per <= 0.18:  # this should be tuned, i could make this auto calib based on min from a list of per values.
                 #   per = 0.0
-                print("new: ", per, "vs old: ", oldper, "vs: full", fullper)
+                print("new: ", per, "vs old: ", oldper)
             #  print(
             #     " open distance",
             #    normal_open,
