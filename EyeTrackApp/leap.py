@@ -255,7 +255,7 @@ class LEAP_C(object):
 
                 per = 1 - per
                 per = min(per, 1.0)
-                print(per)
+                print("new: ", per, "vs old: ", oldper)
             #  print(
             #     " open distance",
             #    normal_open,
