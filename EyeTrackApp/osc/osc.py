@@ -36,12 +36,14 @@ class OSCManager:
 
     def setup_sender(self):
         print(f"\033[92m[INFO] Setting up OSC sender\033[0m")
+        self.sender_cancellation_event.clear()
         self.osc_sender = OSCSender(self.sender_cancellation_event, self.osc_message_in_queue, self.config)
         self.osc_sender_thread = threading.Thread(target=self.osc_sender.run)
         self.osc_sender_thread.start()
 
     def setup_receiver(self):
         if self.settings.gui_ROSC:
+            self.receiver_cancellation_event.clear()
             print(f"\033[92m[INFO] Setting up OSC receiver\033[0m")
             self.osc_receiver = OSCReceiver(self.receiver_cancellation_event, self.config, self.listeners)
             self.osc_receiver_thread = threading.Thread(target=self.osc_receiver.run)
@@ -100,16 +102,16 @@ class OSCSender:
         self.vrc_sender = VRChatOSCSender()
         self.module_sender = VRCFTModuleSender()
 
-        # idea is that we will use a single port.
-        # if, the user selects in the settings that they want to use the module
-        # we swap the port, and we're good
-        # if they don't, we just output stuff as we'd normally
-        # handlers are only here to handle different payloads pretty much
-        self.client = None
+        self.vrc_client = None
+        self.vrcft_client = None
 
     def run(self):
-        osc_port = self.config.gui_osc_port if not self.config.gui_use_module else self.config.gui_PortNumber
-        self.client = udp_client.SimpleUDPClient(self.config.gui_osc_address, int(osc_port))
+        self.vrc_client = udp_client.SimpleUDPClient(self.config.gui_osc_address, int(self.config.gui_osc_port))
+        self.vrcft_client = udp_client.SimpleUDPClient(self.config.gui_osc_address, int(self.config.gui_PortNumber))
+
+        vrc_osc_output_client = self.vrc_client
+        if self.config.gui_use_module:
+            vrc_osc_output_client = self.vrcft_client
 
         while not self.cancellation_event.is_set():
             try:
@@ -118,12 +120,12 @@ class OSCSender:
                     case OSCMessageType.EYE_INFO:
                         self.vrc_sender.output_osc_info(
                             osc_message=osc_message,
-                            client=self.client,
+                            client=vrc_osc_output_client,
                             main_config=self.main_config,
                             config=self.config,
                         )
                     case OSCMessageType.VRCFT_MODULE_INFO:
-                        self.module_sender.send(osc_message=osc_message, client=self.client)
+                        self.module_sender.send(osc_message=osc_message, client=self.vrcft_client)
                     case _:
                         raise Exception("Encountered message without a handler %s", osc_message.type)
             except queue.Empty:
