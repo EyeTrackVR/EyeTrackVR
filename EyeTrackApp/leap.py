@@ -226,11 +226,6 @@ class LEAP_C(object):
             if len(self.openlist) < 5000:  # TODO expose as setting?
                 self.openlist.append(d)
             else:
-                #  if d >= np.percentile(self.openlist, 99) or d <= np.percentile(
-                #    self.openlist, 1
-                # ):
-                #    pass
-                # else:
                 self.openlist.pop(0)
                 self.openlist.append(d)
 
@@ -243,7 +238,7 @@ class LEAP_C(object):
 
                 per = 1 - per
                 per = per - 0.2  # allow for eye widen? might require a more legit math way but this makes sense.
-                per = min(per, 1.0)
+                per = min(per, 1.0)  # clamp to 1.0 max
 
                 print("new: ", per, "vs old: ", oldper)
 
