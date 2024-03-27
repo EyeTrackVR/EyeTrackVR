@@ -208,7 +208,6 @@ class LEAP_C(object):
 
             x3, y3 = pre_landmark[4]
             x4, y4 = pre_landmark[2]
-            euclidean_dist_open = math.sqrt((x2 - x1) ** 2 + (y2 - y1) ** 2)
 
             # d = area / euclidean_dist_width
             #  print(area)
@@ -216,9 +215,12 @@ class LEAP_C(object):
             distance = math.dist(pre_landmark[1], pre_landmark[3])
             #  d = distance / eyesize_dist
 
-            d = math.dist(pre_landmark[1], pre_landmark[3])
-            #    d2 = math.dist(pre_landmark[2], pre_landmark[4])
-            #   d = d + d2
+            d1 = math.dist(pre_landmark[1], pre_landmark[3])
+
+            d2 = math.dist(pre_landmark[2], pre_landmark[4])
+            d = (d1 + d2) / 2
+            # by averaging both sets we can get less error? i think part of why 1 eye is better than the other is because we only considered one offset points.
+            # considering both should smooth things out between eyes
 
             try:
                 if d >= np.percentile(
@@ -253,16 +255,16 @@ class LEAP_C(object):
 
                 per = 1 - per
                 per = min(per, 1.0)
-                print(
-                    " open distance",
-                    normal_open,
-                    "current ",
-                    d,
-                    "calibrated: ",
-                    per,
-                    "old calib",
-                    oldper,
-                )
+            #  print(
+            #     " open distance",
+            #    normal_open,
+            #   "current ",
+            #  d,
+            # "calibrated: ",
+            #    per,
+            #  "old calib",
+            #   oldper,
+            # )
 
             except:
                 per = 0.8
@@ -271,7 +273,6 @@ class LEAP_C(object):
             #    print(d, per)
             x = pre_landmark[6][0]
             y = pre_landmark[6][1]
-            frame = cv2.cvtColor(img, cv2.COLOR_RGB2GRAY)
 
             #  per = d - 0.1
             self.last_lid = per
