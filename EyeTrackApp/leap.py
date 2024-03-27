@@ -138,6 +138,7 @@ class LEAP_C(object):
         self.x = 0
         self.y = 0
         self.maxlist = []
+        self.minlist = []
 
         self.ort_session1 = onnxruntime.InferenceSession(self.model_path, opts, providers=["CPUExecutionProvider"])
         # ort_session1 = onnxruntime.InferenceSession("C:/Users/beaul/PycharmProjects/EyeTrackVR/EyeTrackApp/Models/mommy062023.onnx", opts, providers=['DmlExecutionProvider'])
@@ -228,14 +229,30 @@ class LEAP_C(object):
                 ):  # an aditional approach could be using the place where on average it is most stable, denoting what distance is the most stable "open"
                     self.maxlist.append(d)
 
+                if d <= np.percentile(
+                    self.openlist, 10
+                ):  # an aditional approach could be using the place where on average it is most stable, denoting what distance is the most stable "open"
+                    self.minlist.append(d)
+
                 if len(self.maxlist) > 2000:
                     self.maxlist.pop(0)
+
+                if len(self.maxlist) > 2000:
+                    self.minlist.pop(0)
                 # this should be the average most open value, the average of top 200 values in rolling calibration
                 # with this we can use it as the "openstate" (0.7, for expanded squeeze)
 
-                normal_open = sum(self.maxlist) / len(self.maxlist)
+                # (x * weight_x + y * weight_y) / (weight_x + weight_y)
+
+                normal_open = ((sum(self.maxlist) / len(self.maxlist)) * 0.90 + max(self.openlist) * 0.10) / (
+                    0.95 + 0.15
+                )
+                normal_close = ((sum(self.minlist) / len(self.minlist)) * 0.70 + min(self.openlist) * 0.40) / (
+                    0.7 + 0.4
+                )
             except:
-                normal_open = 0
+                normal_open = 0.8
+                normal_close = 0.1
             # print(self.maxlist)
 
             if len(self.openlist) < 5000:  # TODO expose as setting?
@@ -249,13 +266,20 @@ class LEAP_C(object):
                 self.openlist.pop(0)
                 self.openlist.append(d)
 
+            # print(normal_close, normal_open)
             try:
                 per = (d - normal_open) / (min(self.openlist) - normal_open)
+
+                fullper = (d - normal_open) / (normal_close - normal_open)
+
                 oldper = (d - max(self.openlist)) / (min(self.openlist) - max(self.openlist))
 
                 per = 1 - per
                 per = min(per, 1.0)
-                print("new: ", per, "vs old: ", oldper)
+
+                # if per <= 0.18:  # this should be tuned, i could make this auto calib based on min from a list of per values.
+                #   per = 0.0
+                print("new: ", per, "vs old: ", oldper, "vs: full", fullper)
             #  print(
             #     " open distance",
             #    normal_open,
