@@ -137,6 +137,7 @@ class LEAP_C(object):
         self.openlist = []
         self.x = 0
         self.y = 0
+        self.maxlist = []
 
         self.ort_session1 = onnxruntime.InferenceSession(self.model_path, opts, providers=["CPUExecutionProvider"])
         # ort_session1 = onnxruntime.InferenceSession("C:/Users/beaul/PycharmProjects/EyeTrackVR/EyeTrackApp/Models/mommy062023.onnx", opts, providers=['DmlExecutionProvider'])
@@ -219,6 +220,22 @@ class LEAP_C(object):
             #    d2 = math.dist(pre_landmark[2], pre_landmark[4])
             #   d = d + d2
 
+            try:
+                if d >= np.percentile(
+                    self.openlist, 80
+                ):  # an aditional approach could be using the place where on average it is most stable, denoting what distance is the most stable "open"
+                    self.maxlist.append(d)
+
+                if len(self.maxlist) > 2000:
+                    self.maxlist.pop(0)
+                # this should be the average most open value, the average of top 200 values in rolling calibration
+                # with this we can use it as the "openstate" (0.7, for expanded squeeze)
+
+                normal_open = sum(self.maxlist) / len(self.maxlist)
+            except:
+                normal_open = 0
+            # print(self.maxlist)
+
             if len(self.openlist) < 5000:  # TODO expose as setting?
                 self.openlist.append(d)
             else:
@@ -231,11 +248,26 @@ class LEAP_C(object):
                 self.openlist.append(d)
 
             try:
-                per = (d - max(self.openlist)) / (min(self.openlist) - max(self.openlist))
+                per = (d - normal_open) / (min(self.openlist) - normal_open)
+                oldper = (d - max(self.openlist)) / (min(self.openlist) - max(self.openlist))
+
                 per = 1 - per
+                per = min(per, 1.0)
+                print(
+                    " open distance",
+                    normal_open,
+                    "current ",
+                    d,
+                    "calibrated: ",
+                    per,
+                    "old calib",
+                    oldper,
+                )
+
             except:
-                per = 0.7
+                per = 0.8
                 pass
+
             #    print(d, per)
             x = pre_landmark[6][0]
             y = pre_landmark[6][1]
