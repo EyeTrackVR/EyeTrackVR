@@ -278,6 +278,7 @@ class LEAP_C(object):
                 oldper = (d - max(self.openlist)) / (min(self.openlist) - max(self.openlist))
 
                 per = 1 - per
+                per = per - 0.2  # allow for eye widen? might require a more legit math way but this makes sense.
                 per = min(per, 1.0)
 
                 # if per <= 0.18:  # this should be tuned, i could make this auto calib based on min from a list of per values.
