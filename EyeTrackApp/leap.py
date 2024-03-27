@@ -271,10 +271,6 @@ class LEAP_C(object):
             try:
                 per = (d - normal_open) / (min(self.openlist) - normal_open)
 
-                fullper = (d - normal_open) / (
-                    normal_close - normal_open
-                )  # this should not be so different to per, idk why
-
                 oldper = (d - max(self.openlist)) / (min(self.openlist) - max(self.openlist))
 
                 per = 1 - per
