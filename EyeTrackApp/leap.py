@@ -230,14 +230,14 @@ class LEAP_C(object):
                     self.maxlist.append(d)
 
                 if d <= np.percentile(
-                    self.openlist, 10
+                    self.openlist, 2
                 ):  # an aditional approach could be using the place where on average it is most stable, denoting what distance is the most stable "open"
                     self.minlist.append(d)
 
                 if len(self.maxlist) > 2000:
                     self.maxlist.pop(0)
 
-                if len(self.maxlist) > 2000:
+                if len(self.minlist) > 2000:
                     self.minlist.pop(0)
                 # this should be the average most open value, the average of top 200 values in rolling calibration
                 # with this we can use it as the "openstate" (0.7, for expanded squeeze)
@@ -247,8 +247,8 @@ class LEAP_C(object):
                 normal_open = ((sum(self.maxlist) / len(self.maxlist)) * 0.90 + max(self.openlist) * 0.10) / (
                     0.95 + 0.15
                 )
-                normal_close = ((sum(self.minlist) / len(self.minlist)) * 0.70 + min(self.openlist) * 0.40) / (
-                    0.7 + 0.4
+                normal_close = ((sum(self.minlist) / len(self.minlist)) * 0.05 + min(self.openlist) * 0.95) / (
+                    0.05 + 0.95
                 )
             except:
                 normal_open = 0.8
@@ -266,11 +266,13 @@ class LEAP_C(object):
                 self.openlist.pop(0)
                 self.openlist.append(d)
 
-            # print(normal_close, normal_open)
+            # print(normal_close, normal_open, min(self.openlist))
             try:
                 per = (d - normal_open) / (min(self.openlist) - normal_open)
 
-                fullper = (d - normal_open) / (normal_close - normal_open)
+                fullper = (d - normal_open) / (
+                    normal_close - normal_open
+                )  # this should not be so different to per, idk why
 
                 oldper = (d - max(self.openlist)) / (min(self.openlist) - max(self.openlist))
 
