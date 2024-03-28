@@ -241,7 +241,7 @@ class LEAP_C(object):
                 per = 1 - per
                 per = per - 0.2  # allow for eye widen? might require a more legit math way but this makes sense.
                 per = min(per, 1.0)  # clamp to 1.0 max
-                per = max(per, 0.0)  # clamp to 1.0 max
+                per = max(per, 0.0)  # clamp to 1.0 min
 
             #   print("new: ", per, "vs old: ", oldper)
 
@@ -258,7 +258,7 @@ class LEAP_C(object):
             per = self.one_euro_filter_float(calib_array)
 
             per = per[0][0]
-            print(per)
+            #  print(per)
             if per <= 0.2:  # TODO: EXPOSE AS SETTING
                 per == 0.0
                 # this should be tuned, i could make this auto calib based on min from a list of per values.
