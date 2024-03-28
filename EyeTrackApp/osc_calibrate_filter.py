@@ -317,7 +317,7 @@ class cal:
                     out_x = -abs(max(0.0, min(1.0, xl)))
 
             if self.settings.gui_outer_side_falloff:
-                print("pn")
+
                 run_time = time.time()
                 out_x_mult = out_x * 100
                 out_y_mult = out_y * 100
@@ -334,7 +334,7 @@ class cal:
                 var.past_x = out_x_mult
                 var.past_y = out_y_mult
 
-                out_x, out_y = velocity_falloff(self, var, out_x, out_y)
+            out_x, out_y = velocity_falloff(self, var, out_x, out_y)
 
             try:
                 noisy_point = np.array([float(out_x), float(out_y)])  # fliter our values with a One Euro Filter
