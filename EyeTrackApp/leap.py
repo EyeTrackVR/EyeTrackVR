@@ -127,6 +127,8 @@ class LEAP_C(object):
         min_cutoff = 0.1
         beta = 15.0
         self.one_euro_filter = OneEuroFilter(np.random.rand(12, 2), min_cutoff=min_cutoff, beta=beta)
+
+        self.one_euro_filter_float = OneEuroFilter(np.random.rand(1, 2), min_cutoff=5, beta=0.007)
         self.dmax = 0
         self.dmin = 0
         self.openlist = []
@@ -239,8 +241,9 @@ class LEAP_C(object):
                 per = 1 - per
                 per = per - 0.2  # allow for eye widen? might require a more legit math way but this makes sense.
                 per = min(per, 1.0)  # clamp to 1.0 max
+                per = max(per, 0.0)  # clamp to 1.0 max
 
-                print("new: ", per, "vs old: ", oldper)
+            #   print("new: ", per, "vs old: ", oldper)
 
             except:
                 per = 0.8
@@ -250,7 +253,12 @@ class LEAP_C(object):
             y = pre_landmark[6][1]
 
             self.last_lid = per
+            calib_array = np.array([per, per]).reshape(1, 2)
 
+            per = self.one_euro_filter_float(calib_array)
+
+            per = per[0][0]
+            print(per)
             if per <= 0.2:  # TODO: EXPOSE AS SETTING
                 per == 0.0
                 # this should be tuned, i could make this auto calib based on min from a list of per values.
