@@ -80,7 +80,7 @@ class VRChatOSCSender:
         if eye_id == EyeId.LEFT:
             self.l_eye_x = eye_x
             self.l_eye_blink = eye_blink
-            self.left_y = eye_y  # in v1 and v2 we do not save this, maybe we shouldn't here either?
+            self.left_y = eye_y
             self.l_eye_velocity = avg_velocity
         if eye_id == EyeId.RIGHT:
             self.r_eye_x = eye_x
@@ -260,38 +260,20 @@ class VRChatOSCSender:
         if single_eye_mode:
             # in case of v1 params, we have to send the same data do each eye separately.
             # so in case of v2 params, we will be generating one unnecessary call more
-            client.send_message(
-                left_eye_blink_address,
-                _eyelid_transformer(config, active_eye_blink),
-            )
-            client.send_message(
-                right_eye_blink_address,
-                _eyelid_transformer(config, active_eye_blink),
-            )
+            client.send_message(left_eye_blink_address, _eyelid_transformer(config, active_eye_blink))
+            client.send_message(right_eye_blink_address, _eyelid_transformer(config, active_eye_blink))
 
         elif eye_id in [EyeId.RIGHT, EyeId.LEFT] and not single_eye_mode:
             if active_eye_blink == 0.0:
                 if last_side_blink > 0.20:
                     for _ in range(5):
-                        client.send_message(
-                            blink_address,
-                            _eyelid_transformer(config, active_eye_blink),
-                        )
+                        client.send_message(blink_address, _eyelid_transformer(config, active_eye_blink))
                     setattr(self, f"{side_name}_last_blink", time.time() - last_side_blink)
                 if config.gui_outer_side_falloff:
                     if falloff_blink == 0.0:
-                        client.send_message(
-                            left_eye_blink_address,
-                            _eyelid_transformer(config, self.l_eye_blink),
-                        )
-                        client.send_message(
-                            right_eye_blink_address,
-                            _eyelid_transformer(config, self.r_eye_blink),
-                        )
-            client.send_message(
-                blink_address,
-                _eyelid_transformer(config, active_eye_blink),
-            )
+                        client.send_message(left_eye_blink_address, _eyelid_transformer(config, self.l_eye_blink))
+                        client.send_message(right_eye_blink_address, _eyelid_transformer(config, self.r_eye_blink))
+            client.send_message(blink_address, _eyelid_transformer(config, active_eye_blink))
 
     def output_osc_native_blink(
         self,
