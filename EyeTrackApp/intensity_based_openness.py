@@ -30,10 +30,8 @@ import numpy as np
 import time
 import os
 import cv2
-from enums import EyeLR
+from eye import EyeId
 from one_euro_filter import OneEuroFilter
-from utils.img_utils import safe_crop
-from enum import IntEnum
 import psutil
 import sys
 
@@ -46,13 +44,6 @@ except AttributeError:
 else:
     process.nice(psutil.BELOW_NORMAL_PRIORITY_CLASS)  # Windows
     process.nice()
-
-
-class EyeId(IntEnum):
-    RIGHT = 0
-    LEFT = 1
-    BOTH = 2
-    SETTINGS = 3
 
 
 # higher intensity means more closed/ more white/less pupil
@@ -392,9 +383,6 @@ class IntensityBasedOpeness:
 
         self.prev_val = eyeopen
         try:
-            noisy_point = np.array(
-                [float(eyeopen), float(eyeopen)]
-            )  # fliter our values with a One Euro Filter
             point_hat = self.one_euro_filter(noisy_point)
             eyeopenx = point_hat[0]
             eyeopeny = point_hat[1]
