@@ -127,7 +127,7 @@ class EyeTrackSettingsConfig(BaseModel):
     gui_vrc_native: bool = True
     gui_pupil_dilation: bool = True
 
-    gui_PortNumber: int = 8889
+    gui_VRCFTModulePort: int = 8889
     gui_ShouldEmulateEyeWiden: bool = True
     gui_ShouldEmulateEyeSquint: bool = True
     gui_ShouldEmulateEyebrows: bool = True

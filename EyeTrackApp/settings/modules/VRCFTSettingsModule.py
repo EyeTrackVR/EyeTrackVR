@@ -10,7 +10,7 @@ from settings.modules.CommonFieldValidators import check_is_float_convertible
 
 
 class VRCFTSettingsModuleValidationModel(BaseValidationModel):
-    gui_PortNumber: int
+    gui_VRCFTModulePort: int
     gui_ShouldEmulateEyeWiden: bool
     gui_ShouldEmulateEyeSquint: bool
     gui_ShouldEmulateEyebrows: bool
@@ -31,7 +31,7 @@ class VRCFTSettingsModule(BaseSettingsModule):
     def __init__(self, config, widget_id, **kwargs):
         super().__init__(config=config, widget_id=widget_id, **kwargs)
         self.validation_model = VRCFTSettingsModuleValidationModel
-        self.gui_PortNumber = f"-VRCFTSETTINGSPORTNUMBER{widget_id}"
+        self.gui_VRCFTModulePort = f"-VRCFTSETTINGSPORTNUMBER{widget_id}"
         self.gui_ShouldEmulateEyeWiden = f"-VRCFTSETTINGSEMULATEWIDEN{widget_id}"
         self.gui_ShouldEmulateEyeSquint = f"-VRCFTSETTINGSEMULATEEYEWIDEN{widget_id}"
         self.gui_ShouldEmulateEyebrows = f"-VRCFTSETTINGSEMULATEEYEBROWS{widget_id}"
@@ -78,8 +78,8 @@ class VRCFTSettingsModule(BaseSettingsModule):
             [
                 sg.Text("VRCFT Module listening port", background_color="#242224"),
                 sg.InputText(
-                    self.config.gui_PortNumber,
-                    key=self.gui_PortNumber,
+                    self.config.gui_VRCFTModulePort,
+                    key=self.gui_VRCFTModulePort,
                     size=(0, 10),
                     tooltip="UDP port on which the module should listen.",
                 ),
