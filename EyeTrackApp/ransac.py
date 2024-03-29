@@ -27,7 +27,7 @@ Copyright (c) 2023 EyeTrackVR <3
 """
 import cv2
 import numpy as np
-from enum import IntEnum
+from eye import EyeId
 from utils.img_utils import safe_crop
 from utils.misc_utils import clamp
 import os
@@ -43,13 +43,6 @@ except AttributeError:
 else:
     process.nice(psutil.BELOW_NORMAL_PRIORITY_CLASS)  # Windows
     process.nice()
-
-
-class EyeId(IntEnum):
-    RIGHT = 0
-    LEFT = 1
-    BOTH = 2
-    SETTINGS = 3
 
 
 def ellipse_model(data, y, f):
