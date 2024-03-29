@@ -59,7 +59,7 @@ class OSCManager:
         keys = set(data.keys())
         sender_trigger_keys = {
             "gui_osc_port",
-            "gui_PortNumber",
+            "gui_VRCFTModulePort",
             "gui_use_module",
         }
         if sender_trigger_keys.intersection(keys):
@@ -107,7 +107,10 @@ class OSCSender:
 
     def run(self):
         self.vrc_client = udp_client.SimpleUDPClient(self.config.gui_osc_address, int(self.config.gui_osc_port))
-        self.vrcft_client = udp_client.SimpleUDPClient(self.config.gui_osc_address, int(self.config.gui_PortNumber))
+        self.vrcft_client = udp_client.SimpleUDPClient(
+            self.config.gui_osc_address,
+            int(self.config.gui_VRCFTModulePort),
+        )
 
         vrc_osc_output_client = self.vrc_client
         if self.config.gui_use_module:
