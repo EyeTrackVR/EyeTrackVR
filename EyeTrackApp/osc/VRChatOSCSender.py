@@ -3,12 +3,8 @@ from pythonosc.udp_client import SimpleUDPClient
 from eye import EyeId
 from osc.OSCMessage import OSCMessage
 
-from pythonosc import osc_server
-from pythonosc import dispatcher
 from config import EyeTrackConfig, EyeTrackSettingsConfig
-from utils.misc_utils import PlaySound, SND_FILENAME, SND_ASYNC
 from enum import IntEnum
-import threading
 import time
 
 
@@ -319,52 +315,3 @@ class VRChatOSCSender:
             # this has a nasty habit of permanent-squint FIXME
             averaged_eye_blink = (self.r_eye_blink + self.l_eye_blink) / 2
             client.send_message(blink_address, float(1 - averaged_eye_blink))
-
-
-class VRChatOSCReceiver:
-    def __init__(self, cancellation_event: threading.Event, main_config: EyeTrackConfig, eyes: []):
-        self.config = main_config.settings
-        self.cancellation_event = cancellation_event
-        self.dispatcher = dispatcher.Dispatcher()
-        self.eyes = eyes  # we cant import CameraWidget so any type it is
-        try:
-            self.server = osc_server.OSCUDPServer(
-                (self.config.gui_osc_address, int(self.config.gui_osc_receiver_port)),
-                self.dispatcher,
-            )
-        except:  # noqa, we purposefully catch all exceptions here
-            print(f"\033[91m[ERROR] OSC Receive port: {self.config.gui_osc_receiver_port} occupied.\033[0m")
-
-    def shutdown(self):
-        print("\033[94m[INFO] Exiting OSC Receiver\033[0m")
-        try:
-            self.server.shutdown()
-        except:  # noqa, we purposefully let the system handle this
-            pass
-
-    def recenter_eyes(self, address, osc_value):
-        if type(osc_value) is not bool:
-            return  # just incase we get anything other than bool
-        if osc_value:
-            for eye in self.eyes:
-                eye.settings.gui_recenter_eyes = True
-
-    def recalibrate_eyes(self, address, osc_value):
-        if type(osc_value) is not bool:
-            return  # just incase we get anything other than bool
-        if osc_value:
-            for eye in self.eyes:
-                eye.ransac.ibo.clear_filter()
-                eye.ransac.calibration_frame_counter = self.config.calibration_samples
-                PlaySound("Audio/start.wav", SND_FILENAME | SND_ASYNC)
-
-    def run(self):
-        try:
-            self.dispatcher.map(self.config.gui_osc_recalibrate_address, self.recalibrate_eyes)
-            self.dispatcher.map(self.config.gui_osc_recenter_address, self.recenter_eyes)
-            # start the server
-            print("\033[92m[INFO] VRChatOSCReceiver serving on {}\033[0m".format(self.server.server_address))
-            self.server.serve_forever()
-
-        except:  # noqa, we purposefully catch all exceptions here
-            print(f"\033[91m[ERROR] OSC Receive port: {self.config.gui_osc_receiver_port} occupied.\033[0m")
