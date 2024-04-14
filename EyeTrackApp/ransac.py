@@ -23,7 +23,7 @@ RANSAC 3D By: Summer#2406 (Main Algorithm Engineer), Pupil Labs (pye3d), PallasN
 Algorithm App Implementations By: Prohurtz, qdot (Initial App Creator)
 
 Copyright (c) 2023 EyeTrackVR <3
-LICENSE: Summer Software Distrabution License 1.0
+LICENSE: Summer Software Distribution License 1.0
 ------------------------------------------------------------------------------------------------------
 """
 import cv2

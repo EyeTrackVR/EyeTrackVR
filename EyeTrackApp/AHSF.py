@@ -24,7 +24,7 @@ Algorithm App Implementations and Tweaks By: Prohurtz
 
 Copyright (c) 2023 EyeTrackVR <3
 
-LICENSE: Summer Software Distrabution License 1.0
+LICENSE: Summer Software Distribution License 1.0
 ------------------------------------------------------------------------------------------------------
 """
 

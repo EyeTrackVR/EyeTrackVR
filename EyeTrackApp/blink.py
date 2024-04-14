@@ -23,7 +23,7 @@ Binary Intensity Based Blink by: Summer, Prohurtz
 Algorithm App Implementations and tweaks By: Prohurtz
 
 Copyright (c) 2023 EyeTrackVR <3
-LICENSE: GNU GPLv3 
+LICENSE: Summer Software Distribution License 1.0
 ------------------------------------------------------------------------------------------------------
 """
 
