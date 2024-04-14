@@ -23,6 +23,7 @@ LEAP by: Prohurtz
 Algorithm App Implementation By: Prohurtz
 
 Copyright (c) 2023 EyeTrackVR <3
+LICENSE: GNU GPLv3 
 ------------------------------------------------------------------------------------------------------
 """
 #  LEAP = Lightweight Eyelid And Pupil

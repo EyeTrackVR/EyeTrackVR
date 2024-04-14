@@ -23,6 +23,8 @@ Adaptive Haar Surround Feature: Summer, PallasNeko (Optimization)
 Algorithm App Implementations and Tweaks By: Prohurtz
 
 Copyright (c) 2023 EyeTrackVR <3
+
+LICENSE: Summer Software Distribution License 1.0
 ------------------------------------------------------------------------------------------------------
 """
 
