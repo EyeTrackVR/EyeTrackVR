@@ -6,7 +6,7 @@ from pydantic import AfterValidator
 from typing_extensions import Annotated
 
 from settings.modules.BaseModule import BaseSettingsModule, BaseValidationModel
-from settings.modules.CommonFieldValidators import check_is_float_convertible
+from settings.modules.CommonFieldValidators import try_convert_to_float
 
 
 class VRCFTSettingsModuleValidationModel(BaseValidationModel):
@@ -24,7 +24,8 @@ class VRCFTSettingsModuleValidationModel(BaseValidationModel):
     gui_SqueezeThresholdV2_max: float
     gui_EyebrowThresholdRising: float
     gui_EyebrowThresholdLowering: float
-    gui_OutputMultiplier: Annotated[str, AfterValidator(check_is_float_convertible)]
+    # this is a hack. I don't like it, but that's what I gotta do to make both, Pydantic and PySimpleGUI happy
+    gui_OutputMultiplier: Annotated[float, AfterValidator(try_convert_to_float)]
 
 
 class VRCFTSettingsModule(BaseSettingsModule):
