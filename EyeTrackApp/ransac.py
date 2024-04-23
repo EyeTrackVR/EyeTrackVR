@@ -213,7 +213,7 @@ cct = 300
 def RANSAC3D(self, hsrac_en):
     f = False
     ranf = False
-    blink = 0.7
+    blink = 0.8
     angle = 0
 
     if hsrac_en:

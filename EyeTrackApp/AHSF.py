@@ -965,7 +965,7 @@ def External_Run_AHSF(frame_gray):
     #   (pupil_rect_coarse[0], pupil_rect_coarse[1]),
     #  (
     #     pupil_rect_coarse[0] + pupil_rect_coarse[2],
-    #    pupil_rect_coarse[1] + pupil_rect_coarse[3],
+    #    pupil_rect_coarse[1] + pupil_rect_coarse[so 3],
     # ),
     # (0, 255, 0),
     # 2,
