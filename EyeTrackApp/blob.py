@@ -19,10 +19,11 @@
                                        @@@@@@@@@@@@@@@@@                                            
                                       @@@@@@@@@@@@@(     
 
-BLOB By: Prohurtz#0001 (Main App Developer)
-Algorithm App Implimentations By: Prohurtz#0001, qdot (Inital App Creator)
+BLOB By: Prohurtz 
+Algorithm App Implimentations By: Prohurtz, qdot (Inital App Creator)
 
 Copyright (c) 2023 EyeTrackVR <3
+LICENSE: GNU GPLv3 
 ------------------------------------------------------------------------------------------------------
 """
 
