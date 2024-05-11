@@ -128,9 +128,9 @@ class EyeTrackSettingsConfig(BaseModel):
     gui_pupil_dilation: bool = True
 
     gui_VRCFTModulePort: int = 8889
-    gui_ShouldEmulateEyeWiden: bool = True
-    gui_ShouldEmulateEyeSquint: bool = True
-    gui_ShouldEmulateEyebrows: bool = True
+    gui_ShouldEmulateEyeWiden: bool = False
+    gui_ShouldEmulateEyeSquint: bool = False
+    gui_ShouldEmulateEyebrows: bool = False
     gui_WidenThresholdV1_min: float = 0.95
     gui_WidenThresholdV1_max: float = 1
     gui_WidenThresholdV2_min: float = 0.95
