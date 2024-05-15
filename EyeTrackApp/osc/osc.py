@@ -195,7 +195,7 @@ class OSCReceiver:
             pass
 
     def handle_osc_message(self, address, value):
-        for listener in self.listeners.get(address):
+        for listener in self.listeners.get(address, []):
             listener(value)
 
     def run(self):
