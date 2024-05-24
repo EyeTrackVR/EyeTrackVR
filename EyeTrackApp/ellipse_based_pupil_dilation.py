@@ -350,12 +350,10 @@ class EllipseBasedPupilDilation:
             minp = float(self.maxval)
 
             try:
-                if maxp != 0 and not (np.isnan(pupil_area) or np.isnan(maxp)):
-                    eyedilation = (pupil_area - maxp) / (
-                        minp - maxp
-                    )
-                else:
+                if not np.isfinite(pupil_area) or not np.isfinite(maxp) or not np.isfinite(minp) or (minp - maxp) == 0:
                     eyedilation = 0.5
+                else:
+                    eyedilation = (pupil_area - maxp) / (minp - maxp)
             except:
                 eyedilation = 0.5
             eyedilation = 1 - eyedilation
