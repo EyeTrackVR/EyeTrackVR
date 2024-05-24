@@ -2,6 +2,9 @@ import os
 import typing
 import sys
 
+from pathlib import Path
+from typing import Union
+
 is_nt = True if os.name == "nt" else False
 
 def PlaySound(*args, **kwargs): pass
@@ -60,12 +63,14 @@ class FastMedian:
             self.__median = lst_median(all, ordered=False)
         return self.__median
 
-def resource_path(relative_path):
-    """ Get absolute path to resource, works for dev and for PyInstaller """
+def resource_path(relative_path: Union[str, Path]) -> str:
+    """
+    Get absolute path to resource, works for dev and for PyInstaller
+    """
     try:
         # PyInstaller creates a temp folder and stores path in _MEIPASS
-        base_path = sys._MEIPASS
+        base_path = Path(sys._MEIPASS)
     except AttributeError:
-        base_path = os.path.abspath(".")
+        base_path = Path(".")
 
-    return os.path.join(base_path, relative_path)
+    return str(base_path / relative_path)
