@@ -41,9 +41,11 @@ from one_euro_filter import OneEuroFilter
 import psutil, os
 import sys
 from utils.misc_utils import resource_path
-import platform
+from pathlib import Path
+
 
 frames = 0
+models = Path("Models")
 
 
 def run_model(input_queue, output_queue, session):
@@ -70,10 +72,7 @@ class LEAP_C(object):
         # Config variables
         self.num_threads = 4  # Number of python threads to use (using ~1 more than needed to achieve wanted fps yields lower cpu usage)
         self.queue_max_size = 1  # Optimize for best CPU usage, Memory, and Latency. A maxsize is needed to not create a potential memory leak.
-        if platform.system() == "Darwin":
-            self.model_path = resource_path("Models/leap123023.onnx")  # funny MacOS files issues :P
-        else:
-            self.model_path = resource_path("Models\leap123023.onnx")
+        self.model_path = resource_path(models / 'leap123023.onnx')
 
         self.low_priority = (
             False  # set process priority to low (may cause issues when unfocusing? reported by one, not reproducable)

@@ -67,6 +67,16 @@ class CameraState(Enum):
     DISCONNECTED = 2
 
 
+def is_serial_capture_source(addr: str) -> bool:
+    """
+    Returns True if the capture source address is a serial port.
+    """
+    return (addr.startswith("COM")  # Windows
+        or addr.startswith("/dev/cu")  # macOS
+        or addr.startswith("/dev/tty")  # Linux
+    )
+
+
 class Camera:
     def __init__(
         self,
@@ -126,7 +136,8 @@ class Camera:
             # than this, otherwise we can deadlock ourselves.
             if self.config.capture_source != None and self.config.capture_source != "":
                 self.current_capture_source = self.config.capture_source
-                if "COM" in str(self.current_capture_source):
+                addr = str(self.current_capture_source)
+                if is_serial_capture_source(addr):
                     if (
                         self.serial_connection is None
                         or self.camera_status == CameraState.DISCONNECTED
@@ -166,7 +177,8 @@ class Camera:
             if should_push and not self.capture_event.wait(timeout=0.001):
                 continue
             if self.config.capture_source != None:
-                if "COM" in str(self.current_capture_source):
+                addr = str(self.current_capture_source)
+                if is_serial_capture_source(addr):
                     self.get_serial_camera_picture(should_push)
                 else:
                     self.get_cv2_camera_picture(should_push)
@@ -301,15 +313,16 @@ class Camera:
         if not any(p for p in com_ports if port in p):
             return
         try:
+            rate = 115200 if sys.platform == "darwin" else 3000000  # Higher baud rate not working on macOS
             conn = serial.Serial(
-                baudrate=3000000, port=port, xonxoff=False, dsrdtr=False, rtscts=False
+                baudrate=rate, port=port, xonxoff=False, dsrdtr=False, rtscts=False
             )
             # Set explicit buffer size for serial.
-            conn.set_buffer_size(rx_size=32768, tx_size=32768)
+            if sys.platform == "win32":
+                buffer_size = 32768
+                conn.set_buffer_size(rx_size=buffer_size, tx_size=buffer_size)
 
-            print(
-                f"{Fore.CYAN}[INFO] ETVR Serial Tracker device connected on {port}{Fore.RESET}"
-            )
+            print(f"{Fore.CYAN}[INFO] ETVR Serial Tracker device connected on {port}{Fore.RESET}")
             self.serial_connection = conn
             self.camera_status = CameraState.CONNECTED
         except Exception:
