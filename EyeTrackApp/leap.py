@@ -182,8 +182,14 @@ class LEAP_C(object):
          #   pre_landmark = self.one_euro_filter(pre_landmark)
 
             for point in pre_landmark:
-                x, y = (point*112).astype(int)
-                x, y = int(x), int(y)  # Ensure x and y are integers
+              #  x, y = (point*112).astype(int)
+
+                x, y = point  # Assuming point is a tuple (x, y)
+
+                # Scale the coordinates to image width and height
+                x = int(x * img_width)
+                y = int(y * img_height)
+             #   x, y = int(x), int(y)  # Ensure x and y are integers
 
                 cv2.circle(imgvis, (int(x), int(y)), 2, (255, 255, 0), -1)
 
