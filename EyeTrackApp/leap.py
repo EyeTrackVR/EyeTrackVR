@@ -56,13 +56,19 @@ def run_model(input_queue, output_queue, session):
 
         img_np = np.array(frame)
         img_np = img_np.astype(np.float32) / 255.0
-        img_np = np.transpose(img_np, (2, 0, 1))
-        img_np = np.expand_dims(img_np, axis=0)
+        gray_img = 0.299 * img_np[:, :, 0] + 0.587 * img_np[:, :, 1] + 0.114 * img_np[:, :, 2]
+
+        # Add the channel and batch dimensions
+        gray_img = np.expand_dims(gray_img, axis=0)  # Add channel dimension
+        img_np = np.expand_dims(gray_img, axis=0)  # Add batch dimension
+     #  img_np = np.transpose(img_np, (2, 0, 1))
+       # img_np = np.expand_dims(img_np, axis=0)
         ort_inputs = {session.get_inputs()[0].name: img_np}
         pre_landmark = session.run(None, ort_inputs)
 
-        pre_landmark = pre_landmark[1]
-        pre_landmark = np.reshape(pre_landmark, (12, 2))
+    #    pre_landmark = pre_landmark[1]
+       # pre_landmark = np.reshape(pre_landmark, (12, 2))
+        pre_landmark = np.reshape(pre_landmark, (-1, 2))
         output_queue.put((frame, pre_landmark))
 
 
@@ -72,7 +78,7 @@ class LEAP_C(object):
         # Config variables
         self.num_threads = 4  # Number of python threads to use (using ~1 more than needed to achieve wanted fps yields lower cpu usage)
         self.queue_max_size = 1  # Optimize for best CPU usage, Memory, and Latency. A maxsize is needed to not create a potential memory leak.
-        self.model_path = resource_path(models / 'leap123023.onnx')
+        self.model_path = resource_path(models / 'LEAP053024.onnx')
 
         self.low_priority = (
             False  # set process priority to low (may cause issues when unfocusing? reported by one, not reproducable)
@@ -171,26 +177,16 @@ class LEAP_C(object):
         if not self.output_queue.empty():
 
             frame, pre_landmark = self.output_queue.get()
-            pre_landmark = self.one_euro_filter(pre_landmark)
+        #    pre_landmark = np.reshape(pre_landmark, (-1, 2))
+
+         #   pre_landmark = self.one_euro_filter(pre_landmark)
 
             for point in pre_landmark:
-                x, y = point
-                cv2.circle(imgvis, (int(x * img_width), int(y * img_height)), 2, (0, 0, 50), -1)
-            cv2.circle(
-                imgvis,
-                tuple(int(x * img_width) for x in pre_landmark[2]),
-                1,
-                (255, 255, 0),
-                -1,
-            )
+                x, y = (point*112).astype(int)
+                x, y = int(x), int(y)  # Ensure x and y are integers
 
-            cv2.circle(
-                imgvis,
-                tuple(int(x * img_width) for x in pre_landmark[4]),
-                1,
-                (255, 255, 255),
-                -1,
-            )
+                cv2.circle(imgvis, (int(x), int(y)), 2, (255, 255, 0), -1)
+
 
             x1, y1 = pre_landmark[1]
             x2, y2 = pre_landmark[3]
