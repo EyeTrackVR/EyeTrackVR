@@ -131,16 +131,16 @@ class EyeTrackSettingsConfig(BaseModel):
     gui_ShouldEmulateEyeWiden: bool = False
     gui_ShouldEmulateEyeSquint: bool = False
     gui_ShouldEmulateEyebrows: bool = False
-    gui_WidenThresholdV1_min: float = 0.95
+    gui_WidenThresholdV1_min: float = 0.60
     gui_WidenThresholdV1_max: float = 1
-    gui_WidenThresholdV2_min: float = 0.95
+    gui_WidenThresholdV2_min: float = 0.60
     gui_WidenThresholdV2_max: float = 1.05
-    gui_SqueezeThresholdV1_min: float = 0.05
+    gui_SqueezeThresholdV1_min: float = 0.07
     gui_SqueezeThresholdV1_max: float = 0.5
-    gui_SqueezeThresholdV2_min: float = 0.05
+    gui_SqueezeThresholdV2_min: float = 0.07
     gui_SqueezeThresholdV2_max: float = -1
-    gui_EyebrowThresholdRising: float = 0.9
-    gui_EyebrowThresholdLowering: float = 0.05
+    gui_EyebrowThresholdRising: float = 0.8
+    gui_EyebrowThresholdLowering: float = 0.15
     gui_OutputMultiplier: float = 1
     gui_use_module: bool = False
 
