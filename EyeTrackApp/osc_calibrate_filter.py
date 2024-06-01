@@ -250,7 +250,7 @@ class cal:
             self.grab_3d_point = False
 
             self.config.calibration_points.append((cx, cy, angle))
-            # print(self.config.calibration_points)
+            print(self.config.calibration_points)
 
         #  print("calib")
 

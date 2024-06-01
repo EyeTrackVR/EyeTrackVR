@@ -1,7 +1,7 @@
 import numpy as np
 import socket
 import threading
-
+import os
 
 class TimeoutError(RuntimeError):
     pass
