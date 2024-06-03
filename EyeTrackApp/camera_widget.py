@@ -10,7 +10,7 @@ from osc import EyeId
 import cv2
 from winsound import PlaySound, SND_FILENAME, SND_ASYNC
 import traceback
-
+import numpy as np
 
 class CameraWidget:
     def __init__(self, widget_id: EyeId, main_config: EyeTrackConfig, osc_queue: Queue):
@@ -313,8 +313,12 @@ class CameraWidget:
                     graph.update(background_color="white")
 
                     try:
+                        x_real = np.real(eye_info.x)
+                        y_real = np.real(eye_info.y)
+
+                        # Draw the circle using the real values
                         graph.draw_circle(
-                            (eye_info.x * -100, eye_info.y * -100),
+                            (x_real * -100, y_real * -100),
                             25,
                             fill_color="black",
                             line_color="white",
