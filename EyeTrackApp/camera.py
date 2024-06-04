@@ -70,9 +70,8 @@ def is_serial_capture_source(addr: str) -> bool:
     """
     Returns True if the capture source address is a serial port.
     """
-    return (addr.startswith("COM")  # Windows
-        or addr.startswith("/dev/cu")  # macOS
-        or addr.startswith("/dev/tty")  # Linux
+    return (
+        addr.startswith("COM") or addr.startswith("/dev/cu") or addr.startswith("/dev/tty")  # Windows  # macOS  # Linux
     )
 
 
@@ -128,7 +127,9 @@ class Camera:
         while True:
             if self.cancellation_event.is_set():
                 print(f"{Fore.CYAN}[INFO] Exiting Capture thread{Fore.RESET}")
-
+                # openCV won't switch to a new source if provided with one
+                # so, we have to manually release the camera on exit
+                self.cv2_camera.release()
                 return
             should_push = True
             # If things aren't open, retry until they are. Don't let read requests come in any earlier
@@ -256,20 +257,14 @@ class Camera:
                 jpeg = self.get_next_jpeg_frame()
                 if jpeg:
                     # Create jpeg frame from byte string
-                    image = cv2.imdecode(
-                        np.fromstring(jpeg, dtype=np.uint8), cv2.IMREAD_UNCHANGED
-                    )
+                    image = cv2.imdecode(np.fromstring(jpeg, dtype=np.uint8), cv2.IMREAD_UNCHANGED)
                     if image is None:
-                        print(
-                            f"{Fore.YELLOW}[WARN] Frame drop. Corrupted JPEG.{Fore.RESET}"
-                        )
+                        print(f"{Fore.YELLOW}[WARN] Frame drop. Corrupted JPEG.{Fore.RESET}")
                         return
                     # Discard the serial buffer. This is due to the fact that it
                     # may build up some outdated frames. A bit of a workaround here tbh.
                     if conn.in_waiting >= 32768:
-                        print(
-                            f"{Fore.CYAN}[INFO] Discarding the serial buffer ({conn.in_waiting} bytes){Fore.RESET}"
-                        )
+                        print(f"{Fore.CYAN}[INFO] Discarding the serial buffer ({conn.in_waiting} bytes){Fore.RESET}")
                         conn.reset_input_buffer()
                         self.buffer = b""
                     # Calculate the fps.
@@ -313,9 +308,7 @@ class Camera:
             return
         try:
             rate = 115200 if sys.platform == "darwin" else 3000000  # Higher baud rate not working on macOS
-            conn = serial.Serial(
-                baudrate=rate, port=port, xonxoff=False, dsrdtr=False, rtscts=False
-            )
+            conn = serial.Serial(baudrate=rate, port=port, xonxoff=False, dsrdtr=False, rtscts=False)
             # Set explicit buffer size for serial.
             if sys.platform == "win32":
                 buffer_size = 32768

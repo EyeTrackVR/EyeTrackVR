@@ -27,8 +27,10 @@ LICENSE: GNU GPLv3
 import json
 import os.path
 import shutil
+
+from colorama import Fore
 from pydantic import BaseModel
-from typing import Union, List
+from typing import Any, Union, List
 import os
 
 from eye import EyeId
@@ -54,6 +56,68 @@ class EyeTrackCameraConfig(BaseModel):
     calibration_points: List[List[Union[float, None]]] = []
     calibration_points_3d: List[List[Union[float, None]]] = []
 
+
+    def update_capture_source(self, new_camera_address: str):
+        if not new_camera_address:
+            self.capture_source = None
+            return
+
+        if new_camera_address.isnumeric():
+            self.capture_source = int(new_camera_address)
+            return
+
+        # we were passed an IP, probably, lets add HTTP:// to it
+        if len(new_camera_address) > 5 and not (
+            not new_camera_address.startswith(("http", "/dev")) or not new_camera_address.endswith(".mp4")
+        ):
+            self.capture_source = f"http://{new_camera_address}"
+            return
+
+        self.capture_source = new_camera_address
+
+    def update(self, data: dict[str, Any]) -> bool:
+        """
+        Updates the model one field at a time based on the provided data dict.
+        The dict has to be defined like
+        ```
+        data = {
+          "model_field": value
+        }
+        ```
+
+        If stale data is provided,
+        ex. User clicked on save and restart but didn't provide a new field
+
+        we skip it, assuming that it was just a call to restart the tracking, or a miss-click.
+
+        Some fields may require more validation, we take care of that with special methods.
+        defining a method like
+
+        ```
+        def update_custom_field(value: type):
+            pass
+        ```
+
+        will cause it to be picked up by this method and called with the current value.
+        Return values are ignored.
+
+        """
+        for key, value in data.items():
+            old_value = getattr(self, key, None)
+            # no reason to update if it's the same value
+            if old_value == value:
+                return False
+
+            if hasattr(self, f"update_{key}"):
+                update_attr = getattr(self, f"update_{key}")
+                if callable(update_attr):
+                    update_attr(value)
+                else:
+                    setattr(self, "key", value)
+                return True
+            else:
+                print(f"\033[93m[WARN] Field {key} does not exist on {self}.\033[0m")
+                return False
 
 
 class EyeTrackSettingsConfig(BaseModel):
@@ -176,7 +240,59 @@ class EyeTrackConfig(BaseModel):
                 load_config = EyeTrackConfig()
             return load_config
 
+    def validate_camera_address_conflict(self, eye_id, capture_source):
+        match eye_id:
+            case EyeId.RIGHT:
+                if self.left_eye.capture_source == capture_source:
+                    print(
+                        f"{Fore.YELLOW}[WARN] Capture source {capture_source} already in use by the left camera.{Fore.RESET}"
+                    )
+                    return False
+            case EyeId.LEFT:
+                if self.right_eye.capture_source == capture_source:
+                    print(
+                        f"{Fore.YELLOW}[WARN] Capture source {capture_source} already in use by the right camera.{Fore.RESET}"
+                    )
+                    return False
+            case _:
+                return False
+        return True
+
+    def update_eye_model_config(self, eye_id: EyeId, data: dict, should_save=True, should_notify=True) -> bool:
+        """
+        A more granular method for updating a particular model so that everything that relies on it
+        will get notified about any changes. Note, it acts a bit like pub-sub,
+        we don't care what changes got passed, we will notify the listeners with them.
+
+        It's the listeners job to check if they want that update.
+        """
+
+        # The app really doesn't like address clashes, so we have to validate it as soon as possible
+        # otherwise we crash
+        if "capture_source" in data and not self.validate_camera_address_conflict(eye_id, data["capture_source"]):
+            return False
+
+        match eye_id:
+            case EyeId.RIGHT:
+                changed = self.right_eye.update(data)
+            case EyeId.LEFT:
+                changed = self.left_eye.update(data)
+            case _:
+                return False
+
+        if should_save:
+            self.save()
+
+        if should_notify:
+            self.__notify_listeners(data)
+
+        return changed
+
     def update(self, data, save=False):
+        """
+        More of an internal method for modules to be able to update the config
+        and have other parts of the system react to changes
+        """
         for field, value in data.items():
             setattr(self.settings, field, value)
         self.__notify_listeners(data)

@@ -69,8 +69,6 @@ class CameraWidget:
         self.main_config = main_config
         self.eye_id = widget_id
         self.settings_config = main_config.settings
-        self.configl = main_config.left_eye
-        self.configr = main_config.right_eye
         self.settings = main_config.settings
         if self.eye_id == EyeId.RIGHT:
             self.config = main_config.right_eye
@@ -156,12 +154,12 @@ class CameraWidget:
                     button_color="#6f4ca1",
                     tooltip="Start eye calibration. Look all arround to all extreams without blinking until sound is heard.",
                 ),
-                  sg.Button(
-                     "3D Calibration",
+                sg.Button(
+                    "3D Calibration",
                     key=self.gui_restart_3d_calibration,
-                   button_color="#6f4ca1",
-                  tooltip="Start 3d eye calibration, must have steamvr open and eyes in hmd",
-                 ),
+                    button_color="#6f4ca1",
+                    tooltip="Start 3d eye calibration, must have steamvr open and eyes in hmd",
+                ),
                 sg.Button(
                     "Stop Calibration",
                     key=self.gui_stop_calibration,
@@ -295,6 +293,15 @@ class CameraWidget:
         self.ransac_thread.join()
         self.camera_thread.join()
 
+    def on_config_update(self, data):
+        keys = set(data.keys())
+        model_keys = set(self.config.model_fields.keys())
+        # we only want to restart our stuff, if our stuff got updated
+        # at the model level
+        if model_keys.intersection(keys):
+            self.stop()
+            self.start()
+
     def render(self, window, event, values):
         if self.image_queue.qsize() > 2:
             with self.image_queue.mutex:
@@ -304,25 +311,14 @@ class CameraWidget:
         changed = False
 
         # If anything has changed in our configuration settings, change/update those.
-        if event == self.gui_save_tracking_button and values[self.gui_camera_addr] != self.config.capture_source:
-            print("\033[94m[INFO] New value: {}\033[0m".format(values[self.gui_camera_addr]))
-            try:
-                # Try storing ints as ints, for those using wired cameras.
-                self.config.capture_source = int(values[self.gui_camera_addr])
-            except ValueError:
-                if values[self.gui_camera_addr] == "":
-                    self.config.capture_source = None
-                else:
-                    if (
-                        len(values[self.gui_camera_addr]) > 5
-                        and "http" not in values[self.gui_camera_addr]
-                        and ".mp4" not in values[self.gui_camera_addr]
-                        and not values[self.gui_camera_addr].startswith('/dev') # For MacOS and Linux users
-                    ):  # If http is not in camera address, add it.
-                        self.config.capture_source = f"http://{values[self.gui_camera_addr]}/"
-                    else:
-                        self.config.capture_source = values[self.gui_camera_addr]
-            changed = True
+        # it's a save *and* restart button, we should just forward the event and let the manager handle it
+        if event == self.gui_save_tracking_button:
+            new_camera_address = values[self.gui_camera_addr]
+            print("\033[94m[INFO] New value: {}\033[0m".format(new_camera_address))
+            # we don't want to save yet, we can notify the listeners though
+            changed = self.main_config.update_eye_model_config(
+                self.eye_id, {"capture_source": new_camera_address}, should_save=False
+            )
 
         if self.config.rotation_angle != values[self.gui_rotation_slider]:
             self.config.rotation_angle = int(values[self.gui_rotation_slider])
@@ -443,7 +439,6 @@ class CameraWidget:
                 graph.erase()
                 graph.draw_image(data=imgbytes, location=(0, 0))
                 if None not in (self.x0, self.y0, self.x1, self.y1):
-
                     self.figure = graph.draw_rectangle((self.x0, self.y0), (self.x1, self.y1), line_color="#6f4ca1")
 
             except Empty:
@@ -468,7 +463,6 @@ class CameraWidget:
                 if eye_info.info_type != EyeInfoOrigin.FAILURE:  # and not eye_info.blink:
                     graph.update(background_color="white")
                     if not np.isnan(eye_info.x) and not np.isnan(eye_info.y):
-
                         graph.draw_circle(
                             (eye_info.x * -100, eye_info.y * -100),
                             eye_info.pupil_dilation * 25,
@@ -484,7 +478,6 @@ class CameraWidget:
                         )
 
                     if not np.isnan(eye_info.blink):
-
                         graph.draw_line(
                             (-100, abs(eye_info.blink) * 2 * 200),
                             (-100, 100),

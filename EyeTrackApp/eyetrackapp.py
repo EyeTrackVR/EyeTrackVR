@@ -74,9 +74,7 @@ def main():
 
     try:
         if config.settings.gui_update_check:
-            response = requests.get(
-                "https://api.github.com/repos/EyeTrackVR/EyeTrackVR/releases/latest"
-            )
+            response = requests.get("https://api.github.com/repos/EyeTrackVR/EyeTrackVR/releases/latest")
             latestversion = response.json()["name"]
             if (
                 appversion == latestversion
@@ -125,6 +123,8 @@ def main():
         config=config,
     )
     config.register_listener_callback(osc_manager.update)
+    config.register_listener_callback(eyes[0].on_config_update)
+    config.register_listener_callback(eyes[1].on_config_update)
 
     osc_manager.register_listeners(
         config.settings.gui_osc_recenter_address,
