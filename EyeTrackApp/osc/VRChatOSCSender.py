@@ -43,7 +43,6 @@ class VRChatOSCSender:
         main_config: EyeTrackConfig,
         config: EyeTrackSettingsConfig,
     ):
-
         eye_id, eye_info = osc_message.data
         self.is_single_eye = self.get_is_single_eye(main_config.eye_display_id)
 
@@ -84,12 +83,6 @@ class VRChatOSCSender:
             self.right_y = eye_y
             self.r_eye_velocity = avg_velocity
 
-    def mirror_eye_x_direction(self, eye_id: EyeId):
-        if eye_id == EyeId.LEFT:
-            self.l_eye_x = self.r_eye_x
-        if eye_id == EyeId.RIGHT:
-            self.r_eye_x = self.l_eye_x
-
     def output_native(self, main_config, config, client, eye_x, eye_y, eye_blink, avg_velocity, eye_id):
         default_eye_blink_params = {
             "eye_id": eye_id,
@@ -116,7 +109,6 @@ class VRChatOSCSender:
 
         if eye_id in [EyeId.LEFT, EyeId.RIGHT] and not self.is_single_eye:
             self.output_osc_native_blink(**default_eye_blink_params, single_eye_mode=False)
-            self.mirror_eye_x_direction(eye_id=eye_id)
 
         if main_config.eye_display_id == EyeId.BOTH and self.r_eye_blink != 621 and self.r_eye_blink != 621:
             self.output_osc_native_blink(**default_eye_blink_params)
@@ -160,7 +152,6 @@ class VRChatOSCSender:
 
         if eye_id in [EyeId.LEFT, EyeId.RIGHT] and not self.is_single_eye:
             self.output_vrcft_blink_data(**default_eye_blink_params, single_eye_mode=False)
-            self.mirror_eye_x_direction(eye_id=eye_id)
 
             if eye_id == EyeId.LEFT:
                 client.send_message(config.osc_left_eye_x_address, self.l_eye_x)
@@ -171,7 +162,7 @@ class VRChatOSCSender:
                 )
 
             if eye_id == EyeId.RIGHT:
-                client.send_message(config.osc_right_eye_x_address, eye_x)
+                client.send_message(config.osc_right_eye_x_address, self.r_eye_x)
                 self.right_y = eye_y
 
                 client.send_message(
@@ -245,7 +236,6 @@ class VRChatOSCSender:
         right_eye_blink_address,
         single_eye_mode=True,
     ):
-
         active_eye_blink = self.r_eye_blink if eye_id == EyeId.RIGHT else self.l_eye_blink
         falloff_blink = self.r_eye_blink if eye_id == EyeId.LEFT else self.l_eye_blink
         blink_address = right_eye_blink_address if eye_id == EyeId.RIGHT else left_eye_blink_address
