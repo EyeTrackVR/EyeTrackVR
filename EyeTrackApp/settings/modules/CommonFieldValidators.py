@@ -1,3 +1,6 @@
+import ipaddress
+
+
 def check_is_float_convertible(v: str):
     """
     Check if value provided can be converted to a float or double.
@@ -21,3 +24,11 @@ def try_convert_to_float(v: str):
         return float(check_is_float_convertible(v))
     except ValueError:
         raise
+
+
+def check_is_ip_address(v: str):
+    try:
+        ipaddress.IPv4Address(v)
+        return v
+    except ValueError:
+        raise ValueError("Please provide a valid IP Address")

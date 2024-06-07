@@ -192,6 +192,7 @@ class EyeTrackSettingsConfig(BaseModel):
     gui_pupil_dilation: bool = True
 
     gui_VRCFTModulePort: int = 8889
+    gui_VRCFTModuleIPAddress: str = "127.0.0.1"
     gui_ShouldEmulateEyeWiden: bool = False
     gui_ShouldEmulateEyeSquint: bool = False
     gui_ShouldEmulateEyebrows: bool = False

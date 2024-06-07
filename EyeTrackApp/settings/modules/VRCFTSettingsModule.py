@@ -6,11 +6,12 @@ from pydantic import AfterValidator
 from typing_extensions import Annotated
 
 from settings.modules.BaseModule import BaseSettingsModule, BaseValidationModel
-from settings.modules.CommonFieldValidators import try_convert_to_float
+from settings.modules.CommonFieldValidators import check_is_ip_address, try_convert_to_float
 
 
 class VRCFTSettingsModuleValidationModel(BaseValidationModel):
     gui_VRCFTModulePort: int
+    gui_VRCFTModuleIPAddress: Annotated[str, AfterValidator(check_is_ip_address)]
     gui_ShouldEmulateEyeWiden: bool
     gui_ShouldEmulateEyeSquint: bool
     gui_ShouldEmulateEyebrows: bool
@@ -33,6 +34,7 @@ class VRCFTSettingsModule(BaseSettingsModule):
         super().__init__(config=config, widget_id=widget_id, **kwargs)
         self.validation_model = VRCFTSettingsModuleValidationModel
         self.gui_VRCFTModulePort = f"-VRCFTSETTINGSPORTNUMBER{widget_id}"
+        self.gui_VRCFTModuleIPAddress = f"-VRCFTSETTINGSIPNUMBER{widget_id}"
         self.gui_ShouldEmulateEyeWiden = f"-VRCFTSETTINGSEMULATEWIDEN{widget_id}"
         self.gui_ShouldEmulateEyeSquint = f"-VRCFTSETTINGSEMULATEEYEWIDEN{widget_id}"
         self.gui_ShouldEmulateEyebrows = f"-VRCFTSETTINGSEMULATEEYEBROWS{widget_id}"
@@ -77,13 +79,22 @@ class VRCFTSettingsModule(BaseSettingsModule):
                 sg.Text("General Module Settings:", background_color="#242224"),
             ],
             [
-                sg.Text("VRCFT Module listening port", background_color="#242224"),
+                sg.Text("VRCFT Module listening IP", background_color="#242224"),
+                sg.InputText(
+                    self.config.gui_VRCFTModuleIPAddress,
+                    key=self.gui_VRCFTModuleIPAddress,
+                    size=(0, 10),
+                    tooltip="Ip on which the module should listen.",
+                ),
+                sg.Text("port", background_color="#242224"),
                 sg.InputText(
                     self.config.gui_VRCFTModulePort,
                     key=self.gui_VRCFTModulePort,
                     size=(0, 10),
                     tooltip="UDP port on which the module should listen.",
                 ),
+            ],
+            [
                 sg.Text("VRCFT Module output multiplier", background_color="#242224"),
                 sg.InputText(
                     self.config.gui_OutputMultiplier,
