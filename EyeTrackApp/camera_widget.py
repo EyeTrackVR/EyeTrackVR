@@ -366,6 +366,7 @@ class CameraWidget:
 
             self.x1, self.y1 = values[self.gui_roi_selection]
 
+        # todo, this is now kinda duplicated with the OSC implementation
         if event == self.gui_restart_3d_calibration:
             self.ransac.calibration_3d_frame_counter = -621
             self.ransac.ibo.clear_filter()
