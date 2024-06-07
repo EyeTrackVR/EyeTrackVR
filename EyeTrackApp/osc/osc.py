@@ -26,7 +26,7 @@ LICENSE: GNU GPLv3
 
 
 from time import sleep
-from typing import Optional, Iterable, Callable
+from typing import Dict, Optional, Iterable, Callable
 
 from pythonosc import udp_client
 from pythonosc import osc_server
@@ -167,7 +167,7 @@ class OSCReceiver:
         self,
         cancellation_event: threading.Event,
         main_config: EyeTrackConfig,
-        listeners,
+        listeners: Dict[str, Callable[[OSCMessage], None]],
     ):
         self.config = main_config.settings
         self.cancellation_event = cancellation_event
@@ -196,7 +196,7 @@ class OSCReceiver:
 
     def handle_osc_message(self, address, value):
         for listener in self.listeners.get(address, []):
-            listener(value)
+            listener(OSCMessage(type=OSCMessageType.EYE_INFO, data=value))
 
     def run(self):
         try:
