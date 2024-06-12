@@ -161,75 +161,11 @@ def overlay_calibrate_3d(self):
         var.overlay_active = False
 
 
-def calculate_real_angle(angle, ipd):
-    return math.degrees(math.atan(math.tan(math.radians(angle)) * (ipd / 2)))
-
-
-def calibrate_tracked_data(tracked_data, calibrated_data, ipd):
-
-    for point in tracked_data:
-        x, y, angle = point
-
-        # Find the nearest calibration point
-        min_distance_point = min(calibration_points, key=lambda p: math.dist((x, y), (p[0], p[1])))
-        cal_x, cal_y, _ = min_distance_point
-
-        # Calculate the real angle for each eye
-        left_eye_angle = calculate_real_angle(angle, ipd / 2)
-        right_eye_angle = calculate_real_angle(angle, -ipd / 2)
-
-        # Adjust the tracked data using calibration information
-        calibrated_x = x + (cal_x - x)
-        calibrated_y = y + (cal_y - y)
-        calibrated_angle = angle + (cal_x - x) * math.tan(math.radians(left_eye_angle))
-
-        calibrated_data.append((calibrated_x, calibrated_y, calibrated_angle))
-
-    return calibrated_data
-
-
-def rotate_around_y(point, angle):
-    """
-    Rotate a 3D point around the y-axis by a given angle.
-    """
-    rotation_matrix = np.array(
-        [[math.cos(angle), 0, -math.sin(angle)], [0, 1, 0], [math.sin(angle), 0, math.cos(angle)]]
-    )
-    rotated_point = np.dot(rotation_matrix, point)
-    return rotated_point
-
-
-def calculate_rotation_angles(target_point, ipd, eye="left"):
-    """
-    Calculate yaw and pitch angles to converge left or right eye at the target point.
-    """
-    if eye == "left":
-        x = target_point[0] - ipd
-    else:
-        x = target_point[0] + ipd
-    y = target_point[1]
-    z = target_point[2]
-    if x == 0:
-        yaw = 90.0  # Assign a specific value when b is zero
-    else:
-        yaw = math.degrees(math.atan2(z, x))
-    if y == 0:
-        pitch = 0
-    else:
-        pitch = math.degrees(math.atan2(x, y))
-    #   print(yaw, pitch)
-
-    return yaw, pitch
-
 
 class cal:
     def cal_osc(self, cx, cy, angle):
-        # Example usage for the left eye
-        # Example usage for the center point
-        target_point_center = [0.8, 0.8, 1]  # x y z
-        ipd = 0.058  # Interpupillary Distance in meters
 
-        calculate_rotation_angles(target_point_center, ipd, eye="left")
+        #print(self.eye_id)
 
         if cx == None or cy == None:
             return 0, 0
@@ -249,8 +185,8 @@ class cal:
         if self.grab_3d_point:
             self.grab_3d_point = False
 
-            self.config.calibration_points.append((cx, cy, angle))
-            print(self.config.calibration_points)
+            self.config.calibration_points.append((cx, cy))
+            print(self.config.calibration_points, self.eye_id)
 
         #  print("calib")
 

@@ -218,7 +218,7 @@ class Camera:
                 self.fl.pop(0)
                 self.fl.append(self.fps)
             self.fps = sum(self.fl) / len(self.fl)
-            # self.bps = image.nbytes
+          #  self.bps = image.nbytes
             if should_push:
                 self.push_image_to_queue(image, frame_number, self.fps)
         except:
