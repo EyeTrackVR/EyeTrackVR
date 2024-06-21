@@ -80,6 +80,8 @@ class EyeTrackSettingsConfig(BaseModel):
     gui_blob_maxsize: float = 25
     gui_blob_minsize: float = 10
     gui_recenter_eyes: bool = False
+    gui_3d_calibration: bool = False
+    grab_3d_point: bool = False
     tracker_single_eye: int = 0
     gui_threshold: int = 65
     gui_AHSFRACP: int = 1

@@ -51,7 +51,7 @@ class LEAP_C(object):
         # Config variables
         self.num_threads = 1  # Number of python threads to use (using ~1 more than needed to achieve wanted fps yields lower cpu usage)
         self.queue_max_size = 1  # Optimize for best CPU usage, Memory, and Latency. A maxsize is needed to not create a potential memory leak.
-        self.model_path = resource_path(models / 'LEAP053024.onnx')
+        self.model_path = resource_path(models / 'LEAP06212024.onnx')
 
         self.low_priority = (
             False  # set process priority to low (may cause issues when unfocusing? reported by one, not reproducable)

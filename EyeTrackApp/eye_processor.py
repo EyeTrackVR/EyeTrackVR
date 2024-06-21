@@ -104,6 +104,8 @@ class EyeProcessor:
         self.eye_id = eye_id
         self.baseconfig = baseconfig
         self.filterlist = []
+        self.left_eye_data = [(0.351, 0.399, 1), (0.352, 0.400, 1)]  # Example data
+        self.right_eye_data = [(0.351, 0.399, 1), (0.352, 0.400, 1)]  # Example data
 
         # Cross algo state
         self.lkg_projected_sphere = None

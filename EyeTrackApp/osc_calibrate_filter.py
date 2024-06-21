@@ -35,7 +35,7 @@ import threading
 import os
 import subprocess
 import math
-
+from utils.calibration_3d import receive_calibration_data
 
 class TimeoutError(RuntimeError):
     pass
@@ -108,6 +108,9 @@ class var:
     single_eye = True
     left_enb = 0
     right_enb = 0
+    eye_wait = 10
+    left_calib = False
+    right_calib = False
 
 
 @Async
@@ -152,9 +155,12 @@ def overlay_calibrate_3d(self):
                 received_int = struct.unpack("!l", data)[0]
                 message = received_int
                 self.settings.gui_recenter_eyes = False
-                self.grab_3d_point = True
+                self.settings.grab_3d_point = True
 
                 print(message)
+                if message == 8:
+                    var.overlay_active = False
+
     except:
         print("[WARN] Calibration overlay error. Make sure SteamVR is Running.")
         self.settings.gui_recenter_eyes = False
@@ -177,18 +183,42 @@ class cal:
             flipx = self.settings.gui_flip_x_axis_right
         else:
             flipx = self.settings.gui_flip_x_axis_left
-        if self.calibration_3d_frame_counter == -621:
+        if self.calibration_3d_frame_counter == -621: #or self.settings.gui_3d_calibration:
+
             self.calibration_3d_frame_counter = self.calibration_3d_frame_counter - 1
             overlay_calibrate_3d(self)
-            print("yippe")
 
-        if self.grab_3d_point:
-            self.grab_3d_point = False
+          #  print(self.eye_id, cx, cy)
+       # self.settings.gui_3d_calibration = False
 
-            self.config.calibration_points.append((cx, cy))
-            print(self.config.calibration_points, self.eye_id)
+        if self.settings.grab_3d_point:
+            # Check if both calibrations are done
+            if var.left_calib and var.right_calib:
+                self.settings.grab_3d_point = False
+                var.left_calib = False
+                var.right_calib = False
+                print('end')
+            else:
+                # Check if it's the left eye and left calibration is not done yet
+                if self.eye_id == EyeId.LEFT and not var.left_calib:
+                    var.left_calib = True
+                    self.config.calibration_points.append((cx, cy, 1))
+                # Check if it's the right eye and right calibration is not done yet
+                elif self.eye_id == EyeId.RIGHT and not var.right_calib:
+                    var.right_calib = True
+                    self.config.calibration_points.append((cx, cy, 0))
 
-        #  print("calib")
+
+        if self.eye_id == EyeId.LEFT and len(self.config.calibration_points) == 8 and var.left_calib == False:
+            var.left_calib = True
+            receive_calibration_data(self.config.calibration_points, self.eye_id)
+            print('SENT LEFT EYE POINTS')
+
+        if self.eye_id == EyeId.RIGHT and len(self.config.calibration_points) == 8 and var.right_calib == False:
+            var.right_calib = True
+            receive_calibration_data(self.config.calibration_points, self.eye_id)
+            print('SENT RIGHT EYE POINTS')
+       # print(len(self.config.calibration_points), self.eye_id)
 
         if self.calibration_frame_counter == 0:
             self.calibration_frame_counter = None
@@ -216,6 +246,8 @@ class cal:
                 self.config.calib_YMIN = cy
 
             self.calibration_frame_counter -= 1
+
+
 
         if self.settings.gui_recenter_eyes == True:
             self.config.calib_XOFF = cx

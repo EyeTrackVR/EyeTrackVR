@@ -373,6 +373,7 @@ class CameraWidget:
 
         if event == self.gui_restart_3d_calibration:
             self.ransac.calibration_3d_frame_counter = -621
+            self.settings.gui_3d_calibration = True
             self.ransac.ibo.clear_filter()
             PlaySound(resource_path("Audio/start.wav"), SND_FILENAME | SND_ASYNC)
 
