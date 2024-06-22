@@ -26,6 +26,31 @@ Copyright (c) 2023 EyeTrackVR <3
 LICENSE: GNU GPLv3 
 ------------------------------------------------------------------------------------------------------
 """
+
+
+"""
+DATASET CONTRIBUTIONS:
+
+@article{ICML2021DS,
+  title={TEyeD: Over 20 million real-world eye images with Pupil, Eyelid, and Iris 2D and 3D Segmentations, 2D and 3D Landmarks, 3D Eyeball, Gaze Vector, and Eye Movement Types},
+  author={Fuhl, Wolfgang and Kasneci, Gjergji and Kasneci, Enkelejda},
+  journal={arXiv preprint arXiv:2102.02115},
+  year={2021}
+}
+
+@inproceedings{tonsen2016labelled,
+  title={Labelled pupils in the wild: a dataset for studying pupil detection in unconstrained environments},
+  author={Tonsen, Marc and Zhang, Xucong and Sugano, Yusuke and Bulling, Andreas},
+  booktitle={Proceedings of the ninth biennial ACM symposium on eye tracking research \& applications},
+  pages={139--142},
+  year={2016}
+}
+
++ Custom user annotated and submitted data.
+"""
+
+
+
 #  LEAP = Lightweight Eyelid And Pupil
 import os
 os.environ["OMP_NUM_THREADS"] = "1"
