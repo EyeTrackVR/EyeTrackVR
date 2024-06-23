@@ -22,8 +22,7 @@ class CalibrationProcessor:
         if self.left_eye_data is None or self.right_eye_data is None:
             raise ValueError("Calibration data for both eyes must be provided")
 
-        # Example computation with both calibration arrays
-        # Replace with your actual computation logic
+
         print("Processing calibration data for both eyes...")
         print(f"Left Eye Data: {self.left_eye_data}")
         print(f"Right Eye Data: {self.right_eye_data}")
