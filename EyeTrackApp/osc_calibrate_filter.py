@@ -35,7 +35,7 @@ import threading
 import os
 import subprocess
 import math
-from utils.calibration_3d import receive_calibration_data
+from utils.calibration_3d import receive_calibration_data, converge_3d
 
 class TimeoutError(RuntimeError):
     pass
@@ -111,6 +111,7 @@ class var:
     eye_wait = 10
     left_calib = False
     right_calib = False
+    completed_3d_calib = 0
 
 
 @Async
@@ -158,7 +159,7 @@ def overlay_calibrate_3d(self):
                 self.settings.grab_3d_point = True
 
                 print(message)
-                if message == 8:
+                if message == 9:
                     var.overlay_active = False
 
     except:
@@ -212,16 +213,22 @@ class cal:
                     self.config.calibration_points_3d.append((cx, cy, 0))
 
 
-        if self.eye_id == EyeId.LEFT and len(self.config.calibration_points_3d) == 8 and var.left_calib == False:
+        if self.eye_id == EyeId.LEFT and len(self.config.calibration_points_3d) == 9 and var.left_calib == False:
             var.left_calib = True
             receive_calibration_data(self.config.calibration_points_3d, self.eye_id)
             print('SENT LEFT EYE POINTS')
+            var.completed_3d_calib += 1
 
-        if self.eye_id == EyeId.RIGHT and len(self.config.calibration_points_3d) == 8 and var.right_calib == False:
+        if self.eye_id == EyeId.RIGHT and len(self.config.calibration_points_3d) == 9 and var.right_calib == False:
             var.right_calib = True
             receive_calibration_data(self.config.calibration_points_3d, self.eye_id)
             print('SENT RIGHT EYE POINTS')
+            var.completed_3d_calib += 1
        # print(len(self.config.calibration_points), self.eye_id)
+
+        if var.completed_3d_calib >= 2:
+            converge_3d()
+           # pass
 
         if self.calibration_frame_counter == 0:
             self.calibration_frame_counter = None

@@ -1,2 +1,2 @@
 cd Tools\
-ETVR_SteamVR_Calibration_Overlay.exe
+EyeTrackVR-Overlay.exe
