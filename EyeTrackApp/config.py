@@ -52,6 +52,8 @@ class EyeTrackCameraConfig(BaseModel):
     calib_XOFF: Union[float, None] = None
     calib_YOFF: Union[float, None] = None
     calibration_points: List[List[Union[float, None]]] = []
+    calibration_points_3d: List[List[Union[float, None]]] = []
+
 
 
 class EyeTrackSettingsConfig(BaseModel):

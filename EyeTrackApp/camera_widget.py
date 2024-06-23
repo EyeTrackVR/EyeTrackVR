@@ -63,6 +63,7 @@ class CameraWidget:
         self.gui_mask_lighten = f"-LIGHTEN{widget_id}-"
         self.gui_restart_3d_calibration = f"-RESTART3DCALIBRATION{widget_id}-"
 
+
         self.last_eye_info = None
         self.osc_queue = osc_queue
         self.main_config = main_config

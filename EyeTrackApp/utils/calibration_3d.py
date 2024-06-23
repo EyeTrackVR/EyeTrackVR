@@ -6,14 +6,16 @@ class CalibrationProcessor:
         self.right_eye_data = None
 
     def receive_calibration_data(self, eye_id, data):
-        if eye_id == 'left':
+        if eye_id == 1:
             self.left_eye_data = data
-        elif eye_id == 'right':
+        elif eye_id == 0:
             self.right_eye_data = data
 
+       # print('receive',len(self.left_eye_data), self.left_eye_data, self.right_eye_data, data, eye_id)
         # Check if both sets of data have been received
         if self.left_eye_data is not None and self.right_eye_data is not None:
-            self.process_calibration_data()
+            if len(self.left_eye_data) == 8 and len(self.right_eye_data) == 8:
+                self.process_calibration_data()
 
     def process_calibration_data(self):
         # Ensure both data are present
@@ -27,12 +29,12 @@ class CalibrationProcessor:
         print(f"Right Eye Data: {self.right_eye_data}")
 
         # After processing, reset the data
-        self.left_eye_data = None
-        self.right_eye_data = None
+       # self.left_eye_data = None
+      #  self.right_eye_data = None
 
 # Global instance of CalibrationProcessor
 calibration_processor = CalibrationProcessor()
 
-def receive_calibration_data(eye_id, data):
+def receive_calibration_data(data, eye_id):
     global calibration_processor
     calibration_processor.receive_calibration_data(eye_id, data)

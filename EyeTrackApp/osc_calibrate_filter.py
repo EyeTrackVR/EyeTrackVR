@@ -187,6 +187,8 @@ class cal:
 
             self.calibration_3d_frame_counter = self.calibration_3d_frame_counter - 1
             overlay_calibrate_3d(self)
+            self.config.calibration_points_3d = []
+
 
           #  print(self.eye_id, cx, cy)
        # self.settings.gui_3d_calibration = False
@@ -197,26 +199,27 @@ class cal:
                 self.settings.grab_3d_point = False
                 var.left_calib = False
                 var.right_calib = False
-                print('end')
+                print('end', len(self.config.calibration_points_3d), self.config.calibration_points_3d)
+
             else:
                 # Check if it's the left eye and left calibration is not done yet
                 if self.eye_id == EyeId.LEFT and not var.left_calib:
                     var.left_calib = True
-                    self.config.calibration_points.append((cx, cy, 1))
+                    self.config.calibration_points_3d.append((cx, cy, 1))
                 # Check if it's the right eye and right calibration is not done yet
                 elif self.eye_id == EyeId.RIGHT and not var.right_calib:
                     var.right_calib = True
-                    self.config.calibration_points.append((cx, cy, 0))
+                    self.config.calibration_points_3d.append((cx, cy, 0))
 
 
-        if self.eye_id == EyeId.LEFT and len(self.config.calibration_points) == 8 and var.left_calib == False:
+        if self.eye_id == EyeId.LEFT and len(self.config.calibration_points_3d) == 8 and var.left_calib == False:
             var.left_calib = True
-            receive_calibration_data(self.config.calibration_points, self.eye_id)
+            receive_calibration_data(self.config.calibration_points_3d, self.eye_id)
             print('SENT LEFT EYE POINTS')
 
-        if self.eye_id == EyeId.RIGHT and len(self.config.calibration_points) == 8 and var.right_calib == False:
+        if self.eye_id == EyeId.RIGHT and len(self.config.calibration_points_3d) == 8 and var.right_calib == False:
             var.right_calib = True
-            receive_calibration_data(self.config.calibration_points, self.eye_id)
+            receive_calibration_data(self.config.calibration_points_3d, self.eye_id)
             print('SENT RIGHT EYE POINTS')
        # print(len(self.config.calibration_points), self.eye_id)
 
