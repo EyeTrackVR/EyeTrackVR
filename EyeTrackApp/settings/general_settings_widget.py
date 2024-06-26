@@ -24,24 +24,20 @@ LICENSE: GNU GPLv3
 ------------------------------------------------------------------------------------------------------
 """
 
-import PySimpleGUI as sg
-
 from config import EyeTrackConfig
-from osc import EyeId
+from eye import EyeId
 
 from settings.BaseSettings import BaseSettingsWidget
-from settings.modules.AdvancedTrackingAlgoSettingsModule import (
-    AdvancedTrackingAlgoSettingsModule,
-)
-from settings.modules.BlinkAlgoModule import BlinkAlgoSettingsModule
-from settings.modules.TrackingAlgorithmModule import TrackingAlgorithmModule
+from settings.modules.GeneralSettingsModule import GeneralSettingsModule
+from settings.modules.OneEuroSettingsModule import OneEuroSettingsModule
+from settings.modules.OSCSettingsModule import OSCSettingsModule
 
 
-class AlgoSettingsWidget(BaseSettingsWidget):
+class SettingsWidget(BaseSettingsWidget):
     def __init__(self, widget_id: EyeId, main_config: EyeTrackConfig):
         settings_modules = [
-            TrackingAlgorithmModule,
-            BlinkAlgoSettingsModule,
-            AdvancedTrackingAlgoSettingsModule,
+            GeneralSettingsModule,
+            OneEuroSettingsModule,
+            OSCSettingsModule,
         ]
         super().__init__(widget_id, main_config, settings_modules)

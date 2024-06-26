@@ -31,20 +31,10 @@ import numpy as np
 import time
 import os
 import cv2
-from enums import EyeLR
+
+from eye import EyeId
 from one_euro_filter import OneEuroFilter
-from utils.img_utils import safe_crop
-from enum import IntEnum
-import os
-
 os.environ["OMP_NUM_THREADS"] = "1"
-
-class EyeId(IntEnum):
-    RIGHT = 0
-    LEFT = 1
-    BOTH = 2
-    SETTINGS = 3
-
 
 # Note.
 # OpenCV on Windows will generate an error if the file path contains non-ASCII characters when using cv2.imread(), cv2.imwrite(), etc.

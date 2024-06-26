@@ -1,5 +1,5 @@
 import pytest
-from EyeTrackApp.config import (
+from config import (
     EyeTrackConfig,
     EyeTrackCameraConfig,
     EyeTrackSettingsConfig,
