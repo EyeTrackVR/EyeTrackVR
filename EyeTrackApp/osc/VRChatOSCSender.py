@@ -224,6 +224,7 @@ class VRChatOSCSender:
             )
 
             if eye_id == EyeId.LEFT:
+                self.l_dilation = pupil_dilation
                 client.send_message("/avatar/parameters/v2/EyeLeftX", self.l_eye_x)
                 if self.left_y != 621:
                     client.send_message("/avatar/parameters/v2/EyeLeftY", eye_y)
@@ -234,6 +235,7 @@ class VRChatOSCSender:
                 )
 
             if eye_id == EyeId.RIGHT:
+                self.r_dilation = pupil_dilation
                 client.send_message("/avatar/parameters/v2/EyeRightX", self.r_eye_x)
                 if eye_y != 621:
                     client.send_message("/avatar/parameters/v2/EyeRightY", eye_y)
@@ -242,6 +244,10 @@ class VRChatOSCSender:
                     "/avatar/parameters/v2/EyeLidRight",
                     _eyelid_transformer(config, self.r_eye_blink),
                 )
+
+            avg_pupil_dilation = (self.l_dilation + self.r_dilation) / 2
+            client.send_message("/avatar/parameters/v2/PupilDilation", avg_pupil_dilation)
+
 
     def output_vrcft_blink_data(
         self,
