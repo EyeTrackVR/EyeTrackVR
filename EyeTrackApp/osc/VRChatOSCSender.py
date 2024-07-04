@@ -35,6 +35,8 @@ class VRChatOSCSender:
         self.r_eye_velocity = 1
         self.left_last_blink = time.time()
         self.right_last_blink = time.time()
+        self.r_dilation = 0
+        self.l_dilation = 0
 
     def output_osc_info(
         self,
@@ -65,13 +67,16 @@ class VRChatOSCSender:
                 eye_blink=eye_info.blink,
                 avg_velocity=eye_info.avg_velocity,
                 eye_id=eye_id,
+                pupil_dilation=eye_info.pupil_dilation,
             )
+
+
 
     @staticmethod
     def get_is_single_eye(eye_display_id):
         return eye_display_id in [EyeId.RIGHT, EyeId.LEFT]
 
-    def update_eye_state(self, eye_id, eye_x, eye_y, eye_blink, avg_velocity):
+    def update_eye_state(self, eye_id, eye_x, eye_y, eye_blink, avg_velocity, pupil_dilation):
         if eye_id == EyeId.LEFT:
             self.l_eye_x = eye_x
             self.l_eye_blink = eye_blink
@@ -83,7 +88,7 @@ class VRChatOSCSender:
             self.right_y = eye_y
             self.r_eye_velocity = avg_velocity
 
-    def output_native(self, main_config, config, client, eye_x, eye_y, eye_blink, avg_velocity, eye_id):
+    def output_native(self, main_config, config, client, eye_x, eye_y, eye_blink, avg_velocity, eye_id, pupil_dilation):
         default_eye_blink_params = {
             "eye_id": eye_id,
             "client": client,
@@ -96,6 +101,7 @@ class VRChatOSCSender:
             eye_y=eye_y,
             eye_blink=eye_blink,
             avg_velocity=avg_velocity,
+            pupil_dilation=pupil_dilation,
         )
 
         if self.is_single_eye:
@@ -127,7 +133,7 @@ class VRChatOSCSender:
                 ],
             )
 
-    def output_v1_params(self, main_config, config, client, eye_x, eye_y, eye_blink, avg_velocity, eye_id):
+    def output_v1_params(self, main_config, config, client, eye_x, eye_y, eye_blink, avg_velocity, eye_id, pupil_dilation):
         default_eye_blink_params = {
             "eye_id": eye_id,
             "client": client,
@@ -142,12 +148,14 @@ class VRChatOSCSender:
             eye_y=eye_y,
             eye_blink=eye_blink,
             avg_velocity=avg_velocity,
+            pupil_dilation=pupil_dilation,
         )
 
         if self.is_single_eye:
             client.send_message(config.osc_left_eye_x_address, eye_x)
             client.send_message(config.osc_right_eye_x_address, eye_x)
             client.send_message(config.osc_eyes_y_address, eye_y)
+            client.send_message(config.osc_eyes_pupil_dilation_address, pupil_dilation)
             self.output_vrcft_blink_data(**default_eye_blink_params)
 
         if eye_id in [EyeId.LEFT, EyeId.RIGHT] and not self.is_single_eye:
@@ -156,6 +164,7 @@ class VRChatOSCSender:
             if eye_id == EyeId.LEFT:
                 client.send_message(config.osc_left_eye_x_address, self.l_eye_x)
                 self.left_y = eye_y
+                self.l_dilation = pupil_dilation
                 client.send_message(
                     config.osc_left_eye_close_address,
                     _eyelid_transformer(config, self.l_eye_blink),
@@ -164,17 +173,22 @@ class VRChatOSCSender:
             if eye_id == EyeId.RIGHT:
                 client.send_message(config.osc_right_eye_x_address, self.r_eye_x)
                 self.right_y = eye_y
-
+                self.r_dilation = pupil_dilation
                 client.send_message(
                     config.osc_right_eye_close_address,
                     _eyelid_transformer(config, self.r_eye_blink),
                 )
 
+
+
         if main_config.eye_display_id == EyeId.BOTH and self.right_y != 621 and self.left_y != 621:
             y = (self.right_y + self.left_y) / 2
             client.send_message(config.osc_eyes_y_address, y)
 
-    def output_v2_params(self, main_config, config, client, eye_x, eye_y, eye_blink, avg_velocity, eye_id):
+            avg_dilation = (self.r_dilation + self.l_dilation) / 2  # i am unsure of this tbh.
+            client.send_message(config.osc_eyes_pupil_dilation_address, avg_dilation)  # single param for both eyes.
+
+    def output_v2_params(self, main_config, config, client, eye_x, eye_y, eye_blink, avg_velocity, eye_id, pupil_dilation):
         default_eye_blink_params = {
             "eye_id": eye_id,
             "client": client,
@@ -187,11 +201,13 @@ class VRChatOSCSender:
             eye_y=eye_y,
             eye_blink=eye_blink,
             avg_velocity=avg_velocity,
+            pupil_dilation=pupil_dilation,
         )
 
         if self.is_single_eye:
             client.send_message("/avatar/parameters/v2/EyeX", eye_x)
             client.send_message("/avatar/parameters/v2/EyeY", eye_y)
+            client.send_message("/avatar/parameters/v2/PupilDilation", pupil_dilation)
 
             self.output_vrcft_blink_data(
                 **default_eye_blink_params,

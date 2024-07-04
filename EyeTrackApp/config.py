@@ -174,6 +174,7 @@ class EyeTrackSettingsConfig(BaseModel):
     osc_left_eye_x_address: str = "/avatar/parameters/LeftEyeX"
     osc_right_eye_x_address: str = "/avatar/parameters/RightEyeX"
     osc_eyes_y_address: str = "/avatar/parameters/EyesY"
+    osc_eyes_pupil_dilation_address: str = "/avatar/parameters/EyesDilation"
     osc_invert_eye_close: bool = False
     gui_RANSACBLINK: bool = False
 
