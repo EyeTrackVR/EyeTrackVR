@@ -6,7 +6,7 @@ from colorama import Fore
 
 from config import EyeTrackConfig, EyeTrackSettingsConfig
 from threading import Event
-from osc import EyeId  # TODO this is bad, fix this
+from eye import EyeId
 
 
 class BaseSettingsWidget:
@@ -25,9 +25,7 @@ class BaseSettingsWidget:
         self.main_config = main_config
         self.config = main_config.settings
 
-        self.initialized_modules = self._initialize_modules(
-            settings_modules=settings_modules, widget_id=widget_id
-        )
+        self.initialized_modules = self._initialize_modules(settings_modules=settings_modules, widget_id=widget_id)
 
         self.general_settings_layout = []
         for module in self.initialized_modules:
@@ -41,8 +39,16 @@ class BaseSettingsWidget:
                     background_color="#424042",
                 ),
             ],
-            [sg.Text("", background_color="#424042"), ],
-            [sg.Button("Reset settings to default", key=self.reset_button_key, button_color="#c40e23")],
+            [
+                sg.Text("", background_color="#424042"),
+            ],
+            [
+                sg.Button(
+                    "Reset settings to default",
+                    key=self.reset_button_key,
+                    button_color="#c40e23",
+                )
+            ],
         ]
 
         self.cancellation_event = (

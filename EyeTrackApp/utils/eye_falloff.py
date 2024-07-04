@@ -1,12 +1,6 @@
 import numpy as np
-from enum import IntEnum
 
-
-class EyeId(IntEnum):
-    RIGHT = 0
-    LEFT = 1
-    BOTH = 2
-    SETTINGS = 3
+from eye import EyeId
 
 
 def velocity_falloff(self, var, out_x, out_y):

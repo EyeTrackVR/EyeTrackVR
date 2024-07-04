@@ -42,7 +42,7 @@ requires = ["poetry-core>=1.0.0"]
 build-backend = "poetry.core.masonry.api"
 
 [tool.pytest.ini_options]
-addopts = "-ra -q --cov=. --cov-report html --cov-report term"
+addopts = "-ra -q"
 pythonpath = "."
 python_files = [
     "test_*.py"

@@ -32,9 +32,11 @@ import threading
 from camera_widget import CameraWidget
 from config import EyeTrackConfig
 from eye import EyeId
-from osc import VRChatOSCReceiver, VRChatOSC
-from general_settings_widget import SettingsWidget
-from algo_settings_widget import AlgoSettingsWidget
+from settings.VRCFTModuleSettings import VRCFTSettingsWidget
+from settings.general_settings_widget import SettingsWidget
+from settings.algo_settings_widget import AlgoSettingsWidget
+from osc.osc import OSCManager
+from osc.OSCMessage import OSCMessage
 from utils.misc_utils import is_nt, resource_path
 
 if is_nt:
@@ -49,11 +51,13 @@ RIGHT_EYE_NAME = "-RIGHTEYEWIDGET-"
 LEFT_EYE_NAME = "-LEFTEYEWIDGET-"
 SETTINGS_NAME = "-SETTINGSWIDGET-"
 ALGO_SETTINGS_NAME = "-ALGOSETTINGSWIDGET-"
+VRCFT_MODULE_SETTINGS_NAME = "-VRCFTSETTINGSWIDGET-"
 LEFT_EYE_RADIO_NAME = "-LEFTEYERADIO-"
 RIGHT_EYE_RADIO_NAME = "-RIGHTEYERADIO-"
 BOTH_EYE_RADIO_NAME = "-BOTHEYERADIO-"
 SETTINGS_RADIO_NAME = "-SETTINGSRADIO-"
 ALGO_SETTINGS_RADIO_NAME = "-ALGOSETTINGSRADIO-"
+VRCFT_MODULE_SETTINGS_RADIO_NAME = "-VRCFTSETTINGSRADIO-"
 
 page_url = "https://github.com/RedHawk989/EyeTrackVR/releases/latest"
 appversion = "EyeTrackApp 0.2.0 BETA 11"
@@ -65,15 +69,12 @@ def main():
     config.save()
 
     cancellation_event = threading.Event()
-    ROSC = False
     # Check to see if we can connect to our video source first. If not, bring up camera finding
     # dialog.
 
     try:
         if config.settings.gui_update_check:
-            response = requests.get(
-                "https://api.github.com/repos/EyeTrackVR/EyeTrackVR/releases/latest"
-            )
+            response = requests.get("https://api.github.com/repos/EyeTrackVR/EyeTrackVR/releases/latest")
             latestversion = response.json()["name"]
             if (
                 appversion == latestversion
@@ -104,14 +105,7 @@ def main():
     except:
         print("\033[91m[INFO] Could not check for updates. Please try again later.\033[0m")
 
-    # Check to see if we have an ROI. If not, bring up ROI finder GUI.
-
-    # Spawn worker threads
-    osc_queue: queue.Queue[tuple[bool, int, int]] = queue.Queue()
-    osc = VRChatOSC(cancellation_event, osc_queue, config)
-    osc_thread = threading.Thread(target=osc.run)
-    # start worker threads
-    osc_thread.start()
+    osc_queue: queue.Queue[OSCMessage] = queue.Queue()
 
     eyes = [
         CameraWidget(EyeId.RIGHT, config, osc_queue),
@@ -121,7 +115,33 @@ def main():
     settings = [
         SettingsWidget(EyeId.SETTINGS, config),
         AlgoSettingsWidget(EyeId.ALGOSETTINGS, config),
+        VRCFTSettingsWidget(EyeId.VRCFTMODULESETTINGS, config, osc_queue),
     ]
+
+    osc_manager = OSCManager(
+        osc_message_in_queue=osc_queue,
+        config=config,
+    )
+    config.register_listener_callback(osc_manager.update)
+    config.register_listener_callback(eyes[0].on_config_update)
+    config.register_listener_callback(eyes[1].on_config_update)
+
+    osc_manager.register_listeners(
+        config.settings.gui_osc_recenter_address,
+        [
+            eyes[0].recenter_eyes,
+            eyes[1].recenter_eyes,
+        ],
+    )
+    osc_manager.register_listeners(
+        config.settings.gui_osc_recalibrate_address,
+        [
+            eyes[0].recalibrate_eyes,
+            eyes[1].recalibrate_eyes,
+        ],
+    )
+
+    osc_manager.start()
 
     layout = [
         [
@@ -160,6 +180,13 @@ def main():
                 default=(config.eye_display_id == EyeId.ALGOSETTINGS),
                 key=ALGO_SETTINGS_RADIO_NAME,
             ),
+            sg.Radio(
+                "VRCFT Module Settings",
+                "EYESELECTRADIO",
+                background_color="#292929",
+                default=(config.eye_display_id == EyeId.VRCFTMODULESETTINGS),
+                key=VRCFT_MODULE_SETTINGS_RADIO_NAME,
+            ),
         ],
         [
             sg.Column(
@@ -190,6 +217,13 @@ def main():
                 visible=(config.eye_display_id in [EyeId.ALGOSETTINGS]),
                 background_color="#424042",
             ),
+            sg.Column(
+                settings[2].get_layout(),
+                vertical_alignment="top",
+                key=VRCFT_MODULE_SETTINGS_NAME,
+                visible=(config.eye_display_id in [EyeId.VRCFTMODULESETTINGS]),
+                background_color="#424042",
+            ),
         ],
     ]
 
@@ -201,15 +235,10 @@ def main():
         settings[0].start()
     if config.eye_display_id in [EyeId.ALGOSETTINGS]:
         settings[1].start()
-        # self.main_config.eye_display_id
+    if config.eye_display_id in [EyeId.VRCFTMODULESETTINGS]:
+        settings[2].start()
 
     # the eye's needs to be running before it is passed to the OSC
-    if config.settings.gui_ROSC:
-        osc_receiver = VRChatOSCReceiver(cancellation_event, config, eyes)
-        osc_receiver_thread = threading.Thread(target=osc_receiver.run)
-        osc_receiver_thread.start()
-        ROSC = True
-
     # Create the window
     window = sg.Window(
         f"{appversion}",
@@ -228,15 +257,7 @@ def main():
             for eye in eyes:
                 eye.stop()
             cancellation_event.set()
-            # shut down worker threads
-            osc_thread.join()
-            # TODO: find a way to have this function run on join maybe??
-            # threading.Event() wont work because pythonosc spawns its own thread.
-            # only way i can see to get around this is an ugly while loop that only checks if a threading event is triggered
-            # and then call the pythonosc shutdown function
-            if ROSC:
-                osc_receiver.shutdown()
-                osc_receiver_thread.join()
+            osc_manager.shutdown()
             print("\033[94m[INFO] Exiting EyeTrackApp\033[0m")
             return
 
@@ -245,9 +266,11 @@ def main():
             eyes[1].stop()
             settings[0].stop()
             settings[1].stop()
+            settings[2].stop()
             window[RIGHT_EYE_NAME].update(visible=True)
             window[LEFT_EYE_NAME].update(visible=False)
             window[SETTINGS_NAME].update(visible=False)
+            window[VRCFT_MODULE_SETTINGS_NAME].update(visible=False)
             window[ALGO_SETTINGS_NAME].update(visible=False)
             config.eye_display_id = EyeId.RIGHT
             config.settings.tracker_single_eye = 2
@@ -256,11 +279,13 @@ def main():
         elif values[LEFT_EYE_RADIO_NAME] and config.eye_display_id != EyeId.LEFT:
             settings[0].stop()
             settings[1].stop()
+            settings[2].stop()
             eyes[0].stop()
             eyes[1].start()
             window[RIGHT_EYE_NAME].update(visible=False)
             window[LEFT_EYE_NAME].update(visible=True)
             window[SETTINGS_NAME].update(visible=False)
+            window[VRCFT_MODULE_SETTINGS_NAME].update(visible=False)
             window[ALGO_SETTINGS_NAME].update(visible=False)
             config.eye_display_id = EyeId.LEFT
             config.settings.tracker_single_eye = 1
@@ -269,11 +294,13 @@ def main():
         elif values[BOTH_EYE_RADIO_NAME] and config.eye_display_id != EyeId.BOTH:
             settings[0].stop()
             settings[1].stop()
+            settings[2].stop()
             eyes[1].start()
             eyes[0].start()
             window[LEFT_EYE_NAME].update(visible=True)
             window[RIGHT_EYE_NAME].update(visible=True)
             window[SETTINGS_NAME].update(visible=False)
+            window[VRCFT_MODULE_SETTINGS_NAME].update(visible=False)
             window[ALGO_SETTINGS_NAME].update(visible=False)
             config.eye_display_id = EyeId.BOTH
             config.settings.tracker_single_eye = 0
@@ -284,26 +311,41 @@ def main():
             eyes[1].stop()
             settings[1].stop()
             settings[0].start()
+            settings[2].stop()
             window[RIGHT_EYE_NAME].update(visible=False)
             window[LEFT_EYE_NAME].update(visible=False)
             window[SETTINGS_NAME].update(visible=True)
+            window[VRCFT_MODULE_SETTINGS_NAME].update(visible=False)
             window[ALGO_SETTINGS_NAME].update(visible=False)
             config.eye_display_id = EyeId.SETTINGS
             config.save()
 
-        elif (
-            values[ALGO_SETTINGS_RADIO_NAME]
-            and config.eye_display_id != EyeId.ALGOSETTINGS
-        ):
+        elif values[ALGO_SETTINGS_RADIO_NAME] and config.eye_display_id != EyeId.ALGOSETTINGS:
             eyes[0].stop()
             eyes[1].stop()
             settings[0].stop()
             settings[1].start()
+            settings[2].stop()
             window[RIGHT_EYE_NAME].update(visible=False)
             window[LEFT_EYE_NAME].update(visible=False)
             window[SETTINGS_NAME].update(visible=False)
+            window[VRCFT_MODULE_SETTINGS_NAME].update(visible=False)
             window[ALGO_SETTINGS_NAME].update(visible=True)
             config.eye_display_id = EyeId.ALGOSETTINGS
+            config.save()
+
+        elif values[VRCFT_MODULE_SETTINGS_RADIO_NAME] and config.eye_display_id != EyeId.VRCFTMODULESETTINGS:
+            eyes[0].stop()
+            eyes[1].stop()
+            settings[0].stop()
+            settings[1].stop()
+            settings[2].start()
+            window[RIGHT_EYE_NAME].update(visible=False)
+            window[LEFT_EYE_NAME].update(visible=False)
+            window[SETTINGS_NAME].update(visible=False)
+            window[VRCFT_MODULE_SETTINGS_NAME].update(visible=True)
+            window[ALGO_SETTINGS_NAME].update(visible=False)
+            config.eye_display_id = EyeId.VRCFTMODULESETTINGS
             config.save()
 
         else:
@@ -314,6 +356,7 @@ def main():
             for setting in settings:
                 if setting.started():
                     setting.render(window, event, values)
+
 
 if __name__ == "__main__":
     main()
