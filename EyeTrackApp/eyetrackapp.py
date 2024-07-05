@@ -250,7 +250,7 @@ def main():
     # GUI Render loop
     while True:
         # First off, check for any events from the GUI
-        event, values = window.read(timeout=1)
+        event, values = window.read(timeout=1) # this higher timeout saves some cpu usage
 
         # If we're in either mode and someone hits q, quit immediately
         if event == "Exit" or event == sg.WIN_CLOSED:
@@ -259,6 +259,7 @@ def main():
             cancellation_event.set()
             osc_manager.shutdown()
             print("\033[94m[INFO] Exiting EyeTrackApp\033[0m")
+            os._exit(0)  # I do not like this, but for now this fixes app hang on close
             return
 
         if values[RIGHT_EYE_RADIO_NAME] and config.eye_display_id != EyeId.RIGHT:

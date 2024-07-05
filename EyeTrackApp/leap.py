@@ -328,6 +328,7 @@ class External_Run_LEAP(object):
         self.algo = LEAP_C()
 
     def run(self, current_image_gray, current_image_gray_clean):
+
         self.algo.current_image_gray = current_image_gray
         self.algo.current_image_gray_clean = current_image_gray_clean
         img, x, y, per = self.algo.leap_run()
