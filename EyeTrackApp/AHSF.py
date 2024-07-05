@@ -906,9 +906,13 @@ if __name__ == "__main__":
 
 def External_Run_AHSF(frame_gray):
     average_color = np.mean(frame_gray)
+    orig_height, orig_width = frame_gray.shape
+    org_frame_gray = frame_gray.copy()
 
+    frame_gray = cv2.resize(frame_gray, (130, 130))  # TODO TEST FIXED RESIZE
     # Get the dimensions of the rotated image
     height, width = frame_gray.shape
+
 
     # Determine the size of the square background (choose the larger dimension)
     max_dimension = max(height, width)
@@ -926,19 +930,23 @@ def External_Run_AHSF(frame_gray):
     frame_gray = square_background
     frame_clear_resize = frame_gray.copy()
 
-    wmax = frame_gray.shape[1] * 0.5  # likes to crash, might need more tuning still
-    wmin = frame_gray.shape[1] * 0.08
+    wh_step = max((int(max_dimension / 80)),1)  # TODO: FINETUNE VALUES
+    xy_step = max(int(max_dimension / 24), 1)  # TODO: FINETUNE VALUES
+
+    wmax = max_dimension * 0.4  # likes to crash, might need more tuning still
+    wmin = max_dimension * 0.02
+
     params = {
         "ratio_downsample": 0.5,
         "use_init_rect": False,
-        "mu_outer": 250,  # aprroximatly how much pupil should be in the outer rect
-        "mu_inner": 50,  # aprroximatly how much pupil should be in the inner rect
+        "mu_outer": 200,  # aprroximatly how much pupil should be in the outer rect
+        "mu_inner": 70,  # aprroximatly how much pupil should be in the inner rect
         "ratio_outer": 1.0,  # rectangular ratio. 1 means square (LIKE REGULAR HSF)
-        "kf": 2,  # noise filter. May lose tracking if too high (or even never start)
+        "kf": 1.5,  # noise filter. May lose tracking if too high (or even never start)
         "width_min": wmin,  # Minimum width of the pupil
         "width_max": wmax,  # Maximum width of the pupil
-        "wh_step": 5,  # Pupil width and height step search size
-        "xy_step": 10,  # Kernel movement step search size
+        "wh_step": wh_step,  # Pupil width and height step search size
+        "xy_step": xy_step,  # Kernel movement step search size
         "roi": (0, 0, frame_gray.shape[1], frame_gray.shape[0]),
         "init_rect_flag": False,
         "init_rect": (0, 0, frame_gray.shape[1], frame_gray.shape[0]),
@@ -960,35 +968,64 @@ def External_Run_AHSF(frame_gray):
     image_brg = frame_gray  # cv2.cvtColor(frame_gray, cv2.COLOR_GRAY2BGR)
 
     # show
-    # cv2.rectangle(
-    #    image_brg,
-    #   (pupil_rect_coarse[0], pupil_rect_coarse[1]),
-    #  (
-    #     pupil_rect_coarse[0] + pupil_rect_coarse[2],
-    #    pupil_rect_coarse[1] + pupil_rect_coarse[so 3],
-    # ),
-    # (0, 255, 0),
-    # 2,
-    # )
-    cv2.rectangle(
-        frame_gray,
-        (outer_rect_coarse[0], outer_rect_coarse[1]),
-        (
-            outer_rect_coarse[0] + outer_rect_coarse[2],
-            outer_rect_coarse[1] + outer_rect_coarse[3],
-        ),
-        (255, 0, 0),
-        1,
-    )
+
     x_center = outer_rect_coarse[0] + outer_rect_coarse[2] / 2
     y_center = outer_rect_coarse[1] + outer_rect_coarse[3] / 2
     x, y, width, height = outer_rect_coarse
 
-    cv2.circle(frame_gray, (int(x_center), int(y_center)), 2, (255, 255, 255), -1)
+    scale_x = orig_width / 130
+    scale_y = orig_height / 130
+
+    x_center = int(x_center * scale_x)
+    y_center = int(y_center * scale_y)
+   # print(x_center, y_center, scale_x, orig_height, orig_width)
+
+    cv2.circle(org_frame_gray, (int(x_center), int(y_center)), 2, (255, 255, 255), -1)
+
+
+
+    pupil_rect_coarse_0 = int(pupil_rect_coarse[0] * scale_x)
+    pupil_rect_coarse_2 = int(pupil_rect_coarse[2] * scale_x)
+
+    pupil_rect_coarse_1 = int(pupil_rect_coarse[1] * scale_x)
+    pupil_rect_coarse_3 = int(pupil_rect_coarse[3] * scale_x)
+
+
+    outer_rect_coarse_0 = int(outer_rect_coarse[0] * scale_x)
+    outer_rect_coarse_2 = int(outer_rect_coarse[2] * scale_x)
+
+    outer_rect_coarse_1 = int(outer_rect_coarse[1] * scale_x)
+    outer_rect_coarse_3 = int(outer_rect_coarse[3] * scale_x)
+
+
+    cv2.rectangle(
+        org_frame_gray,
+        (pupil_rect_coarse_0, pupil_rect_coarse_1),
+        (
+            pupil_rect_coarse_0 + pupil_rect_coarse_2,
+            pupil_rect_coarse_1 + pupil_rect_coarse_3,
+        ),
+        (255, 255, 255),
+        1,
+    )
+    cv2.rectangle(
+        org_frame_gray,
+        (outer_rect_coarse_0, outer_rect_coarse_1),
+        (
+            outer_rect_coarse_0 + outer_rect_coarse_2,
+            outer_rect_coarse_1 + outer_rect_coarse_3,
+        ),
+        (255, 255, 255),
+        1,
+    )
+
 
     # Calculate the major and minor diameters
     major_diameter = math.sqrt(width**2 + height**2)
     minor_diameter = min(width, height)
     average_diameter = (major_diameter + minor_diameter) / 2
 
-    return frame_gray, frame_clear_resize, x_center, y_center, abs(width - height)
+
+
+
+    return org_frame_gray, frame_clear_resize, x_center, y_center, abs(width - height)
