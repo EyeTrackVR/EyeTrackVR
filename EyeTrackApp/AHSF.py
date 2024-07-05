@@ -907,6 +907,8 @@ if __name__ == "__main__":
 def External_Run_AHSF(frame_gray):
     average_color = np.mean(frame_gray)
     orig_height, orig_width = frame_gray.shape
+
+    frame_clear_resize = frame_gray.copy()
     org_frame_gray = frame_gray.copy()
 
     frame_gray = cv2.resize(frame_gray, (130, 130))  # TODO TEST FIXED RESIZE
@@ -928,7 +930,7 @@ def External_Run_AHSF(frame_gray):
     square_background[y_offset : y_offset + height, x_offset : x_offset + width] = frame_gray
 
     frame_gray = square_background
-    frame_clear_resize = frame_gray.copy()
+
 
     wh_step = max((int(max_dimension / 80)),1)  # TODO: FINETUNE VALUES
     xy_step = max(int(max_dimension / 24), 1)  # TODO: FINETUNE VALUES
@@ -1025,7 +1027,7 @@ def External_Run_AHSF(frame_gray):
     minor_diameter = min(width, height)
     average_diameter = (major_diameter + minor_diameter) / 2
 
-
+   # print(orig_width, orig_height)
 
 
     return org_frame_gray, frame_clear_resize, x_center, y_center, abs(width - height)
