@@ -129,10 +129,13 @@ class Camera:
                 print(f"{Fore.CYAN}[INFO] Exiting Capture thread{Fore.RESET}")
                 # openCV won't switch to a new source if provided with one
                 # so, we have to manually release the camera on exit
-                try:
+
+                addr = str(self.current_capture_source)
+                if is_serial_capture_source(addr):
+                    self.serial_connection.close()
+                else:
                     self.cv2_camera.release()
-                except:
-                    pass
+
                 return
             should_push = True
             # If things aren't open, retry until they are. Don't let read requests come in any earlier
