@@ -70,8 +70,6 @@ class VRChatOSCSender:
                 pupil_dilation=eye_info.pupil_dilation,
             )
 
-
-
     @staticmethod
     def get_is_single_eye(eye_display_id):
         return eye_display_id in [EyeId.RIGHT, EyeId.LEFT]
@@ -113,11 +111,8 @@ class VRChatOSCSender:
                 [float(eye_x), float(eye_y), 1.0, float(eye_x), float(eye_y), 1.0],
             )
 
-        if eye_id in [EyeId.LEFT, EyeId.RIGHT] and not self.is_single_eye:
+        if eye_id in [EyeId.LEFT, EyeId.RIGHT, EyeId.BOTH] and not self.is_single_eye:
             self.output_osc_native_blink(**default_eye_blink_params, single_eye_mode=False)
-
-        if main_config.eye_display_id == EyeId.BOTH and self.r_eye_blink != 621 and self.r_eye_blink != 621:
-            self.output_osc_native_blink(**default_eye_blink_params)
 
         if not self.is_single_eye:
             # vrc native ET (z values may need tweaking, they act like a scalar)
@@ -133,7 +128,18 @@ class VRChatOSCSender:
                 ],
             )
 
-    def output_v1_params(self, main_config, config, client, eye_x, eye_y, eye_blink, avg_velocity, eye_id, pupil_dilation):
+    def output_v1_params(
+        self,
+        main_config,
+        config,
+        client,
+        eye_x,
+        eye_y,
+        eye_blink,
+        avg_velocity,
+        eye_id,
+        pupil_dilation,
+    ):
         default_eye_blink_params = {
             "eye_id": eye_id,
             "client": client,
@@ -179,8 +185,6 @@ class VRChatOSCSender:
                     _eyelid_transformer(config, self.r_eye_blink),
                 )
 
-
-
         if main_config.eye_display_id == EyeId.BOTH and self.right_y != 621 and self.left_y != 621:
             y = (self.right_y + self.left_y) / 2
             client.send_message(config.osc_eyes_y_address, y)
@@ -188,7 +192,18 @@ class VRChatOSCSender:
             avg_dilation = (self.r_dilation + self.l_dilation) / 2  # i am unsure of this tbh.
             client.send_message(config.osc_eyes_pupil_dilation_address, avg_dilation)  # single param for both eyes.
 
-    def output_v2_params(self, main_config, config, client, eye_x, eye_y, eye_blink, avg_velocity, eye_id, pupil_dilation):
+    def output_v2_params(
+        self,
+        main_config,
+        config,
+        client,
+        eye_x,
+        eye_y,
+        eye_blink,
+        avg_velocity,
+        eye_id,
+        pupil_dilation,
+    ):
         default_eye_blink_params = {
             "eye_id": eye_id,
             "client": client,
@@ -247,7 +262,6 @@ class VRChatOSCSender:
 
             avg_pupil_dilation = (self.l_dilation + self.r_dilation) / 2
             client.send_message("/avatar/parameters/v2/PupilDilation", avg_pupil_dilation)
-
 
     def output_vrcft_blink_data(
         self,
@@ -310,16 +324,23 @@ class VRChatOSCSender:
                 client.send_message(blink_address, float(1 - active_eye_blink))
 
         if eye_id in [EyeId.RIGHT, EyeId.LEFT] and not single_eye_mode:
+            # in dual eye mode we need to average the blink to prevent flickering.
+            # VRC also **currently** doesn't support separate eyelids, so it's fine
+            if self.r_eye_blink or self.l_eye_blink:
+                averaged_eye_blink = (self.r_eye_blink + self.l_eye_blink) / 2
+            else:
+                averaged_eye_blink = 0
+
             client.send_message(
                 blink_address,
-                _eyelid_transformer(config, 1 - active_eye_blink),
+                _eyelid_transformer(config, 1 - averaged_eye_blink),
             )
 
-            if active_eye_blink == 0.0:
-                send_native_binary_blink(blink_address, active_eye_blink)
+            if averaged_eye_blink == 0.0:
+                send_native_binary_blink(blink_address, averaged_eye_blink)
                 if config.gui_outer_side_falloff:
                     if falloff_blink == 0.0:
-                        client.send_message(blink_address, float(1 - active_eye_blink))
+                        client.send_message(blink_address, float(1 - averaged_eye_blink))
 
         if eye_id == EyeId.BOTH and self.r_eye_blink != 621 and self.r_eye_blink != 621:
             if self.r_eye_blink == 0.0 or self.l_eye_blink == 0.0:
