@@ -40,6 +40,7 @@ BACKUP_CONFIG_FILE_NAME: str = "eyetrack_settings.backup"
 
 
 class EyeTrackCameraConfig(BaseModel):
+    gui_rotation_ui_padding: bool = True
     rotation_angle: int = 0
     roi_window_x: int = 0
     roi_window_y: int = 0

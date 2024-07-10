@@ -20,7 +20,7 @@
                                       @@@@@@@@@@@@@(
 
 Copyright (c) 2023 EyeTrackVR <3
-LICENSE: GNU GPLv3 
+LICENSE: GNU GPLv3
 ------------------------------------------------------------------------------------------------------
 """
 
@@ -28,7 +28,7 @@ import PySimpleGUI as sg
 from config import EyeTrackConfig
 from collections import deque
 from threading import Event, Thread
-
+import math
 from eye import EyeId
 from eye_processor import EyeProcessor, EyeInfoOrigin
 from queue import Queue, Empty
@@ -40,10 +40,16 @@ from utils.misc_utils import PlaySound, SND_FILENAME, SND_ASYNC, resource_path
 import numpy as np
 
 
+
+# for clarity when indexing
+X = 0
+Y = 1
+
 class CameraWidget:
     def __init__(self, widget_id: EyeId, main_config: EyeTrackConfig, osc_queue: Queue):
         self.gui_camera_addr = f"-CAMERAADDR{widget_id}-"
         self.gui_rotation_slider = f"-ROTATIONSLIDER{widget_id}-"
+        self.gui_rotation_ui_padding = f"-ROTATIONUIPADDING{widget_id}-"
         self.gui_roi_button = f"-ROIMODE{widget_id}-"
         self.gui_roi_layout = f"-ROILAYOUT{widget_id}-"
         self.gui_roi_selection = f"-GRAPH{widget_id}-"
@@ -61,29 +67,32 @@ class CameraWidget:
         self.gui_roi_message = f"-ROIMESSAGE{widget_id}-"
         self.gui_mask_markup = f"-MARKUP{widget_id}-"
         self.gui_mask_lighten = f"-LIGHTEN{widget_id}-"
-        self.gui_restart_3d_calibration = f"-RESTART3DCALIBRATION{widget_id}-"
-
 
         self.last_eye_info = None
         self.osc_queue = osc_queue
         self.main_config = main_config
         self.eye_id = widget_id
         self.settings_config = main_config.settings
+        self.configl = main_config.left_eye
+        self.configr = main_config.right_eye
         self.settings = main_config.settings
         if self.eye_id == EyeId.RIGHT:
             self.config = main_config.right_eye
         elif self.eye_id == EyeId.LEFT:
             self.config = main_config.left_eye
         else:
-            raise RuntimeError("\033[91m[WARN] Cannot have a camera widget represent both eyes!\033[0m")
+            raise RuntimeError(
+                "\033[91m[WARN] Cannot have a camera widget represent both eyes!\033[0m"
+            )
 
         self.cancellation_event = Event()
         # Set the event until start is called, otherwise we can block if shutdown is called.
         self.cancellation_event.set()
         self.capture_event = Event()
-        self.capture_queue = Queue(maxsize=2)
-        self.roi_queue = Queue(maxsize=2)
-        self.image_queue = Queue(maxsize=500)
+        self.capture_queue = Queue()
+        self.roi_queue = Queue()
+
+        self.image_queue = Queue()
 
         self.ransac = EyeProcessor(
             self.config,
@@ -96,7 +105,7 @@ class CameraWidget:
             self.eye_id,
         )
 
-        self.camera_status_queue = Queue(maxsize=2)
+        self.camera_status_queue = Queue()
         self.camera = Camera(
             self.config,
             0,
@@ -107,20 +116,27 @@ class CameraWidget:
         )
 
         self.roi_layout = [
-            #   [
-            #       sg.Button(
-            #          "Mark Out",
-            #         key=self.gui_mask_markup,
-            #        button_color="#6f4ca1",
-            #       tooltip="Mark out stuff that is not your eye.",
-            #  ),
-            # sg.Button(
-            #    "Lighten",
-            #   key=self.gui_mask_lighten,
-            #  button_color="#6f4ca1",
-            # tooltip="Lighten shadowed areas.",
-            # ),
-            # ],
+            [
+                sg.Button(
+                    "Mark Out",
+                    key=self.gui_mask_markup,
+                    button_color="#6f4ca1",
+                    tooltip="Mark out stuff that is not your eye.",
+                ),
+                sg.Button(
+                    "Lighten",
+                    key=self.gui_mask_lighten,
+                    button_color="#6f4ca1",
+                    tooltip="Lighten shadowed areas.",
+                ),
+                sg.Checkbox(
+                    "Camera Widget Padding",
+                    default=self.config.gui_rotation_ui_padding,
+                    tooltip="Pad the camera view widget enough to allow a full rotation.",
+                    key=self.gui_rotation_ui_padding,
+                    background_color="#424042",
+                ),
+            ],
             [
                 sg.Graph(
                     (640, 480),
@@ -129,6 +145,7 @@ class CameraWidget:
                     key=self.gui_roi_selection,
                     drag_submits=True,
                     enable_events=True,
+                    motion_events=True,
                     background_color="#424042",
                 ),
             ],
@@ -137,28 +154,11 @@ class CameraWidget:
         # Define the window's contents
         self.tracking_layout = [
             [
-                sg.Text("Rotation", background_color="#424042"),
-                sg.Slider(
-                    range=(0, 360),
-                    default_value=self.config.rotation_angle,
-                    orientation="h",
-                    key=self.gui_rotation_slider,
-                    background_color="#424042",
-                    tooltip="Adjust the rotation of your cameras, make them level.",
-                ),
-            ],
-            [
                 sg.Button(
-                    "2D Calibration",
+                    "Start Calibration",
                     key=self.gui_restart_calibration,
                     button_color="#6f4ca1",
                     tooltip="Start eye calibration. Look all arround to all extreams without blinking until sound is heard.",
-                ),
-                sg.Button(
-                    "3D Calibration",
-                    key=self.gui_restart_3d_calibration,
-                    button_color="#6f4ca1",
-                    tooltip="Start 3d eye calibration, must have steamvr open and eyes in hmd",
                 ),
                 sg.Button(
                     "Stop Calibration",
@@ -175,7 +175,9 @@ class CameraWidget:
             ],
             [
                 sg.Text("Mode:", background_color="#424042"),
-                sg.Text("Calibrating", key=self.gui_mode_readout, background_color="#424042"),
+                sg.Text(
+                    "Calibrating", key=self.gui_mode_readout, background_color="#424042"
+                ),
                 sg.Text("", key=self.gui_tracking_fps, background_color="#424042"),
                 sg.Text("", key=self.gui_tracking_bps, background_color="#424042"),
                 #    sg.Checkbox(
@@ -237,6 +239,17 @@ class CameraWidget:
                 ),
             ],
             [
+                sg.Text("Rotation", background_color="#424042"),
+                sg.Slider(
+                    range=(0, 360),
+                    default_value=self.config.rotation_angle,
+                    orientation="h",
+                    key=self.gui_rotation_slider,
+                    background_color="#424042",
+                    tooltip="Adjust the rotation of your cameras, make them level.",
+                ),
+            ],
+            [
                 sg.Column(
                     self.tracking_layout,
                     key=self.gui_tracking_layout,
@@ -251,10 +264,23 @@ class CameraWidget:
             ],
         ]
 
-        self.x0, self.y0 = None, None
-        self.x1, self.y1 = None, None
-        self.figure = None
+        self.hover = None
+
+        # cartesian co-ordinates in widget space are used during selection
+        self.xy0 = None
+        self.xy1 = None
+        self.cartesian_needs_update = False
+        # polar co-ordinates from the image center are the canonical representation
+        self.cr, self.ca = None, None
+        self.roi_size = None
+        self.clip_size = None
+        self.clip_pos = None
+        self.padded_size = None
+        self.img_pos = None
+        self.roi_image_center = None
+
         self.is_mouse_up = True
+        self.hover_pos = None
         self.in_roi_mode = False
         self.movavg_fps_queue = deque(maxlen=120)
         self.movavg_bps_queue = deque(maxlen=120)
@@ -269,6 +295,31 @@ class CameraWidget:
         self.movavg_bps_queue.append(next_bps)
         return f"{sum(self.movavg_bps_queue) / len(self.movavg_bps_queue) * 0.001 * 0.001 * 8:.3f} Mbps"
 
+    def _cartesian_to_polar(self):
+        if not (self.xy0 is None or self.xy1 is None):
+            roi_center = (self.xy0 + self.xy1) / 2 - self.roi_image_center
+            self.cr = np.linalg.norm(roi_center)
+            self.ca = math.atan2(roi_center[Y], roi_center[X]) + \
+                math.radians(self.config.rotation_angle)
+            self.roi_size = np.abs(self.xy1 - self.xy0)
+
+    def _polar_to_cartesian_at_angle(self, rotation_angle_radians):
+        if not (self.cr is None or self.ca is None or self.roi_size is None):
+            ca = self.ca - rotation_angle_radians
+            cx = math.cos(ca) * self.cr + self.roi_image_center[X]
+            cy = math.sin(ca) * self.cr + self.roi_image_center[Y]
+            roi_pos = np.array((int(cx), int(cy))) - self.roi_size//2
+            return (roi_pos, roi_pos + self.roi_size)
+        else:
+            return (None, None)
+
+    def _polar_to_cartesian(self):
+        if not (self.cr is None or self.ca is None or self.roi_size is None):
+            (self.xy0), (self.xy1) = \
+                self._polar_to_cartesian_at_angle(
+                    math.radians(self.config.rotation_angle))
+
+
     def started(self):
         return not self.cancellation_event.is_set()
 
@@ -276,7 +327,6 @@ class CameraWidget:
         # If we're already running, bail
         if not self.cancellation_event.is_set():
             return
-
         self.cancellation_event.clear()
         self.ransac_thread = Thread(target=self.ransac.run)
         self.ransac_thread.start()
@@ -287,8 +337,6 @@ class CameraWidget:
         # If we're not running yet, bail
         if self.cancellation_event.is_set():
             return
-        with self.image_queue.mutex:
-            self.image_queue.queue.clear()
         self.cancellation_event.set()
         self.ransac_thread.join()
         self.camera_thread.join()
@@ -302,27 +350,61 @@ class CameraWidget:
             self.stop()
             self.start()
 
+    def recenter_eyes(self, osc_message: OSCMessage):
+        if osc_message.data is not bool:
+            return  # just incase we get anything other than bool
+
+    def recalibrate_eyes(self, osc_message: OSCMessage):
+        if osc_message.data is not bool:
+            return  # just incase we get anything other than bool
+
+        if osc_message.data:
+            self.ransac.ibo.clear_filter()
+            self.ransac.calibration_frame_counter = self.config.calibration_samples
+            PlaySound("Audio/start.wav", SND_FILENAME | SND_ASYNC)
+
     def render(self, window, event, values):
-        if self.image_queue.qsize() > 2:
-            with self.image_queue.mutex:
-                self.image_queue.queue.clear()
-        else:
-            pass
         changed = False
 
         # If anything has changed in our configuration settings, change/update those.
-        # it's a save *and* restart button, we should just forward the event and let the manager handle it
-        if event == self.gui_save_tracking_button:
-            new_camera_address = values[self.gui_camera_addr]
-            print("\033[94m[INFO] New value: {}\033[0m".format(new_camera_address))
-            # we don't want to save yet, we can notify the listeners though
-            changed = self.main_config.update_eye_model_config(
-                self.eye_id, {"capture_source": new_camera_address}, should_save=False
+        if (
+            event == self.gui_save_tracking_button
+            and values[self.gui_camera_addr] != self.config.capture_source
+        ):
+            print(
+                "\033[94m[INFO] New value: {}\033[0m".format(
+                    values[self.gui_camera_addr]
+                )
             )
+            try:
+                # Try storing ints as ints, for those using wired cameras.
+                self.config.capture_source = int(values[self.gui_camera_addr])
+            except ValueError:
+                if values[self.gui_camera_addr] == "":
+                    self.config.capture_source = None
+                else:
+                    if (
+                        len(values[self.gui_camera_addr]) > 5
+                        and "http" not in values[self.gui_camera_addr]
+                        and ".mp4" not in values[self.gui_camera_addr]
+                    ):  # If http is not in camera address, add it.
+                        self.config.capture_source = (
+                            f"http://{values[self.gui_camera_addr]}/"
+                        )
+                    else:
+                        self.config.capture_source = values[self.gui_camera_addr]
+            changed = True
 
-        if self.config.rotation_angle != values[self.gui_rotation_slider]:
+        if self.config.rotation_angle != int(values[self.gui_rotation_slider]):
             self.config.rotation_angle = int(values[self.gui_rotation_slider])
             changed = True
+            self.cartesian_needs_update = True
+
+        if self.config.gui_rotation_ui_padding != bool(values[self.gui_rotation_ui_padding]):
+            self.config.gui_rotation_ui_padding = bool(values[self.gui_rotation_ui_padding])
+            changed = True
+            self.cartesian_needs_update = True
+
 
         # if self.config.gui_circular_crop != values[self.gui_circular_crop]:
         #     self.config.gui_circular_crop = values[self.gui_circular_crop]
@@ -348,31 +430,35 @@ class CameraWidget:
         if event == "{}+UP".format(self.gui_roi_selection):
             # Event for mouse button up in ROI mode
             self.is_mouse_up = True
-            if self.x1 < 0:
-                self.x1 = 0
-            if self.y1 < 0:
-                self.y1 = 0
-            if abs(self.x0 - self.x1) != 0 and abs(self.y0 - self.y1) != 0:
-                self.config.roi_window_x = min([self.x0, self.x1])
-                self.config.roi_window_y = min([self.y0, self.y1])
-                self.config.roi_window_w = abs(self.x0 - self.x1)
-                self.config.roi_window_h = abs(self.y0 - self.y1)
+            print("UP")
+            self.xy0 = np.clip(self.xy0, self.clip_pos, self.clip_pos + self.clip_size)
+            self.xy1 = np.clip(self.xy1, self.clip_pos, self.clip_pos + self.clip_size)
+            self._cartesian_to_polar()
+            if all(abs(self.xy0 - self.xy1) != 0):
+                xy0, xy1 = self._polar_to_cartesian_at_angle(0)
+
+                self.config.roi_window_x, self.config.roi_window_y = (np.minimum(xy0, xy1) - self.img_pos).tolist()
+                self.config.roi_window_w, self.config.roi_window_h = (np.abs(xy0 - xy1)).tolist()
                 self.main_config.save()
 
         if event == self.gui_roi_selection:
             # Event for mouse button down or mouse drag in ROI mode
+            self.hover_pos = None
+
             if self.is_mouse_up:
                 self.is_mouse_up = False
-                self.x0, self.y0 = values[self.gui_roi_selection]
+                self.xy0 = np.array(values[self.gui_roi_selection])
 
-            self.x1, self.y1 = values[self.gui_roi_selection]
+            self.xy1 = np.array(values[self.gui_roi_selection])
 
-        # todo, this is now kinda duplicated with the OSC implementation
-        if event == self.gui_restart_3d_calibration:
-            self.ransac.calibration_3d_frame_counter = -621
-            self.settings.gui_3d_calibration = True
-            self.ransac.ibo.clear_filter()
-            PlaySound(resource_path("Audio/start.wav"), SND_FILENAME | SND_ASYNC)
+            self._cartesian_to_polar()
+
+        if event == "{}+MOVE".format(self.gui_roi_selection):
+            if self.is_mouse_up:
+                self.hover_pos = np.array(values[self.gui_roi_selection])
+
+                if any(self.hover_pos > self.padded_size):
+                    self.hover_pos = None
 
         if event == self.gui_restart_calibration:
             self.ransac.calibration_frame_counter = self.settings.calibration_samples
@@ -411,13 +497,16 @@ class CameraWidget:
         if event == self.gui_mask_lighten:
             while True:
                 try:
+                    maybe_image = self.roi_queue.get(block=False)
                     imgbytes = cv2.imencode(".ppm", maybe_image[0])[1].tobytes()
-                    image = cv2.imdecode(np.frombuffer(imgbytes, np.uint8), cv2.IMREAD_COLOR)
+                    image = cv2.imdecode(
+                        np.frombuffer(imgbytes, np.uint8), cv2.IMREAD_COLOR
+                    )
 
                     cv2.imshow("Image", image)
                     cv2.waitKey(1)
-                    # cv2.destroyAllWindows()
-                    print("lighten")
+                    cv2.destroyAllWindows()
+                    print("lighen")
                 except Empty:
                     pass
         if event == self.gui_mask_markup:
@@ -427,20 +516,104 @@ class CameraWidget:
             try:
                 if self.roi_queue.empty():
                     self.capture_event.set()
-                maybe_image = self.roi_queue.get(
-                    block=False, timeout=0.1
-                )  # this makes the ROI GUI page load slower when there isnt a cam, but fixes bad esp frame drop/lag/stutter
+                maybe_image = self.roi_queue.get(block=False)
+
+                if maybe_image:
+                    image = maybe_image[0]
+
+                    img_h, img_w, _ = image.shape
+
+                    hyp = math.ceil((img_w**2 + img_h**2)**0.5)
+                    rotation_matrix = cv2.getRotationMatrix2D(
+                        ((img_w/2), (img_h/2)), self.config.rotation_angle, 1
+                    )
+
+                    # calculate position of all four corners of image
+
+                    # calculate crop corner locations in original image space
+                    x_coords, y_coords = np.matmul(
+                        rotation_matrix,
+                        np.transpose([
+                            [0,     0,     1],
+                            [img_w, 0,     1],
+                            [0,     img_h, 1],
+                            [img_w, img_h, 1]]),
+                    )
+
+                    self.clip_size = np.array([math.ceil(max(x_coords) - min(x_coords)),
+                                               math.ceil(max(y_coords) - min(y_coords))])
+                    if self.config.gui_rotation_ui_padding:
+                        self.padded_size = np.array([hyp, hyp])
+                    else:
+                        self.padded_size = self.clip_size
+
+                    self.img_pos = ((self.padded_size - (img_w, img_h))/2).astype(np.int32)
+
+                    self.clip_pos = ((self.padded_size - self.clip_size)/2).astype(np.int32)
+
+                    self.roi_image_center = self.padded_size / 2
+
+                    # deferred to after roi_image_center is updated
+                    if self.cartesian_needs_update:
+                        self._polar_to_cartesian()
+                        self.cartesian_needs_update = False
+
+                    pad_matrix = np.float32([[1, 0, self.img_pos[X]],
+                                             [0, 1, self.img_pos[Y]],
+                                             [0, 0, 1]])
+                    rotation_matrix_padded = cv2.getRotationMatrix2D(
+                        self.roi_image_center, self.config.rotation_angle, 1
+                    )
+                    matrix = np.matmul(rotation_matrix_padded, pad_matrix)
+
+                    image = cv2.warpAffine(
+                        image,
+                        matrix,
+                        self.padded_size,
+                        borderMode=cv2.BORDER_CONSTANT,
+                        borderValue=(128, 128, 128),
+                    )
+
+                    maybe_image = (image, *maybe_image[1:])
+
                 imgbytes = cv2.imencode(".ppm", maybe_image[0])[1].tobytes()
                 graph = window[self.gui_roi_selection]
-                if self.figure:
-                    graph.delete_figure(self.figure)
                 # INCREDIBLY IMPORTANT ERASE. Drawing images does NOT overwrite the buffer, the fucking
                 # graph keeps every image fed in until you call this. Therefore we have to make sure we
                 # erase before we redraw, otherwise we'll leak memory *very* quickly.
                 graph.erase()
                 graph.draw_image(data=imgbytes, location=(0, 0))
-                if None not in (self.x0, self.y0, self.x1, self.y1):
-                    self.figure = graph.draw_rectangle((self.x0, self.y0), (self.x1, self.y1), line_color="#6f4ca1")
+
+                def make_dashed(spawn_item, dark="#000000", light="#ffffff", duty=1):
+                    pixel_duty = math.floor(4 * duty)
+                    for (color, dashoffset) in [(dark, 0), (light, 4)]:
+                        item = spawn_item(color)
+                        graph._TKCanvas2.itemconfig(item, dash=(pixel_duty, 8 - pixel_duty), dashoffset=dashoffset)
+
+                if (self.xy0 is None or self.xy1 is None):
+                    # roi_window rotates around roi center, we rotate around image center
+                    # TODO: it would be nice if they were more consistent
+                    roi_window_pos = (self.config.roi_window_x, self.config.roi_window_y)
+                    roi_window_size = (self.config.roi_window_w, self.config.roi_window_h)
+                    self.xy0 = roi_window_pos + self.img_pos
+                    self.xy1 = self.xy0 + roi_window_size
+                    self._cartesian_to_polar()
+                    self.ca -= math.radians(self.config.rotation_angle)
+                    self._polar_to_cartesian()
+
+                style = {}
+                if self.is_mouse_up:
+                    style = {"dark": "#7f78ff", "light": "#d002ff", "duty": 0.5}
+                make_dashed(lambda color: graph.draw_rectangle(
+                    self.xy0, self.xy1, line_color=color,
+                ), **style)
+                if self.is_mouse_up and self.hover_pos is not None:
+                    make_dashed(lambda color: graph.draw_line(
+                        (self.hover_pos[X], 0), (self.hover_pos[X], self.padded_size[Y]), color=color
+                    ))
+                    make_dashed(lambda color: graph.draw_line(
+                        (0, self.hover_pos[Y]), (self.padded_size[X], self.hover_pos[Y]), color=color
+                    ))
 
             except Empty:
                 pass
@@ -461,9 +634,12 @@ class CameraWidget:
                 graph = window[self.gui_output_graph]
                 graph.erase()
 
-                if eye_info.info_type != EyeInfoOrigin.FAILURE:  # and not eye_info.blink:
+                if (
+                    eye_info.info_type != EyeInfoOrigin.FAILURE
+                ):  # and not eye_info.blink:
                     graph.update(background_color="white")
                     if not np.isnan(eye_info.x) and not np.isnan(eye_info.y):
+
                         graph.draw_circle(
                             (eye_info.x * -100, eye_info.y * -100),
                             eye_info.pupil_dilation * 25,
@@ -479,6 +655,7 @@ class CameraWidget:
                         )
 
                     if not np.isnan(eye_info.blink):
+
                         graph.draw_line(
                             (-100, abs(eye_info.blink) * 2 * 200),
                             (-100, 100),
@@ -486,7 +663,9 @@ class CameraWidget:
                             width=10,
                         )
                     else:
-                        graph.draw_line((-100, 0.5 * 200), (-100, 100), color="#6f4ca1", width=10)
+                        graph.draw_line(
+                            (-100, 0.5 * 200), (-100, 100), color="#6f4ca1", width=10
+                        )
 
                     if eye_info.blink <= 0.0:
                         graph.update(background_color="#6f4ca1")
@@ -502,19 +681,3 @@ class CameraWidget:
                     self.osc_queue.put(osc_message)
             except Empty:
                 pass
-
-    def recenter_eyes(self, osc_message: OSCMessage):
-        if osc_message.data is not bool:
-            return  # just incase we get anything other than bool
-
-        if osc_message.data:
-            self.settings.gui_recenter_eyes = True
-
-    def recalibrate_eyes(self, osc_message: OSCMessage):
-        if osc_message.data is not bool:
-            return  # just incase we get anything other than bool
-
-        if osc_message.data:
-            self.ransac.ibo.clear_filter()
-            self.ransac.calibration_frame_counter = self.config.calibration_samples
-            PlaySound("Audio/start.wav", SND_FILENAME | SND_ASYNC)

@@ -194,58 +194,100 @@ class EyeProcessor:
     def capture_crop_rotate_image(self):
         # Get our current frame
 
-        try:
-            # Get frame from capture source, crop to ROI
-            self.current_image = self.current_image[
-                int(self.config.roi_window_y) : int(self.config.roi_window_y + self.config.roi_window_h),
-                int(self.config.roi_window_x) : int(self.config.roi_window_x + self.config.roi_window_w),
-            ]
-            self.ibo.change_roi(self.config.dict(include=self.roi_include_set))
+        self.ibo.change_roi(self.config.dict(include=self.roi_include_set))
+        roi_x = self.config.roi_window_x
+        roi_y = self.config.roi_window_y
+        roi_w = self.config.roi_window_w
+        roi_h = self.config.roi_window_h
 
-        except:
-            # Failure to process frame, reuse previous frame.
-            self.current_image = self.previous_image
-            print("\033[91m[ERROR] Frame capture issue detected.\033[0m")
+        img_w, img_h, _ = self.current_image.shape
 
         try:
             # Apply rotation to cropped area. For any rotation area outside of the bounds of the image,
             # fill with avg color + 10.
-            try:
-                rows, cols, _ = self.current_image.shape
-            except:
-                rows, cols, _ = self.previous_image.shape
+            # fill with white (self.current_image_white) and average in-bounds color (self.current_image).
 
-            avg_color_per_row = np.average(self.current_image, axis=0)
-            avg_color = np.average(avg_color_per_row, axis=0)
-            ar, ag, ab = avg_color
-            avg_color = ar + 10
+            crop_matrix = np.float32([[1, 0, -roi_x],
+                                      [0, 1, -roi_y],
+                                      [0, 0, 1]])
+            img_center = (roi_w / 2, roi_h / 2)
 
-            rows, cols = self.current_image.shape[:2]
-            rotation_matrix = cv2.getRotationMatrix2D((cols / 2, rows / 2), self.config.rotation_angle, 1)
-            cos_theta = np.abs(rotation_matrix[0, 0])
-            sin_theta = np.abs(rotation_matrix[0, 1])
-            new_cols = int((cols * cos_theta) + (rows * sin_theta))
-            new_rows = int((cols * sin_theta) + (rows * cos_theta))
-            rotation_matrix[0, 2] += (new_cols - cols) / 2
-            rotation_matrix[1, 2] += (new_rows - rows) / 2
+            rotation_matrix = cv2.getRotationMatrix2D(
+                img_center, self.config.rotation_angle, 1
+            )
 
-            # Perform the rotation without cropping
-            self.current_image = cv2.warpAffine(
+          #  rows, cols = self.current_image.shape[:2]
+          #  rotation_matrix = cv2.getRotationMatrix2D((cols / 2, rows / 2), self.config.rotation_angle, 1)
+            #cos_theta = np.abs(rotation_matrix[0, 0])
+       #     sin_theta = np.abs(rotation_matrix[0, 1])
+        #    new_cols = int((cols * cos_theta) + (rows * sin_theta))
+         #   new_rows = int((cols * sin_theta) + (rows * cos_theta))
+          #  rotation_matrix[0, 2] += (new_cols - cols) / 2
+           # rotation_matrix[1, 2] += (new_rows - rows) / 2
+
+
+
+
+            matrix = np.matmul(rotation_matrix, crop_matrix)
+            self.current_image_white = cv2.warpAffine(
                 self.current_image,
-                rotation_matrix,
-                (new_cols, new_rows),
+                matrix,
+                (roi_w, roi_h),
                 borderMode=cv2.BORDER_CONSTANT,
-                borderValue=(avg_color, avg_color, avg_color),
-                flags=cv2.INTER_LINEAR,
+                borderValue=(255, 255, 255),
             )
 
             self.current_image_white = cv2.warpAffine(
                 self.current_image,
-                rotation_matrix,
-                (cols, rows),
+                matrix,
+                (roi_w, roi_h),
                 borderMode=cv2.BORDER_CONSTANT,
                 borderValue=(255, 255, 255),
             )
+
+            inv_matrix = np.linalg.inv(np.vstack((matrix, [0, 0, 1])))[:-1]
+            # calculate crop corner locations in original image space
+            corners = np.matmul([[0, 0, 1],
+                                 [roi_w, 0, 1],
+                                 [0, roi_h, 1],
+                                 [roi_w, roi_h, 1]],
+                                np.transpose(inv_matrix))
+            fits_in_bounds = all(0 <= x <= img_w and 0 <= y <= img_h
+                                 for (x, y) in corners)
+
+            if fits_in_bounds:
+                # crop is entirely within original image bounds so average color and white are identical
+                self.current_image = self.current_image_white
+                return True
+
+            # image does not fit in bounds, so warp, calculate average color of covered pixels, and apply that to the outside region.
+
+            # warp image with alpha
+            alpha = np.full(self.current_image.shape[:2], 255, dtype=np.uint8)
+            self.current_image = np.dstack((self.current_image, alpha))
+
+            self.current_image = cv2.warpAffine(
+                self.current_image,
+                matrix,
+                (roi_w, roi_h),
+                borderMode=cv2.BORDER_CONSTANT,
+                borderValue=(0, 0, 0, 0),
+            )
+
+            avg_color_per_row = np.average(self.current_image, axis=0)
+            avg_color = np.average(avg_color_per_row, axis=0)
+            avg_color_norm = avg_color[0:3] / avg_color[3]
+            ar, ag, ab = np.clip(avg_color_norm, 0, 1)
+
+            # add border color to image masked by alpha and discard alpha channel
+            rgb_ch = self.current_image[:, :, :3]
+            inv_alpha_ch = 255 - self.current_image[:, :, 3]
+            self.current_image = rgb_ch + np.stack(
+                np.uint8([inv_alpha_ch * ar,
+                          inv_alpha_ch * ag,
+                          inv_alpha_ch * ab]),
+                axis=-1)
+
 
             return True
         except:
