@@ -26,58 +26,6 @@ Copyright (c) 2023 EyeTrackVR <3
 LICENSE: GNU GPLv3 
 ------------------------------------------------------------------------------------------------------
 """
-
-
-"""
-DATASET CONTRIBUTIONS:
-
-@article{ICML2021DS,
-  title={TEyeD: Over 20 million real-world eye images with Pupil, Eyelid, and Iris 2D and 3D Segmentations, 2D and 3D Landmarks, 3D Eyeball, Gaze Vector, and Eye Movement Types},
-  author={Fuhl, Wolfgang and Kasneci, Gjergji and Kasneci, Enkelejda},
-  journal={arXiv preprint arXiv:2102.02115},
-  year={2021}
-}
-
-@inproceedings{tonsen2016labelled,
-  title={Labelled pupils in the wild: a dataset for studying pupil detection in unconstrained environments},
-  author={Tonsen, Marc and Zhang, Xucong and Sugano, Yusuke and Bulling, Andreas},
-  booktitle={Proceedings of the ninth biennial ACM symposium on eye tracking research \& applications},
-  pages={139--142},
-  year={2016}
-}
-
-+ Custom user annotated and submitted data.
-"""
-
-
-"""
-------------------------------------------------------------------------------------------------------
-
-                                               ,@@@@@@
-                                            @@@@@@@@@@@            @@@
-                                          @@@@@@@@@@@@      @@@@@@@@@@@
-                                        @@@@@@@@@@@@@   @@@@@@@@@@@@@@
-                                      @@@@@@@/         ,@@@@@@@@@@@@@
-                                         /@@@@@@@@@@@@@@@  @@@@@@@@
-                                    @@@@@@@@@@@@@@@@@@@@@@@@ @@@@@
-                                @@@@@@@@                @@@@@
-                              ,@@@                        @@@@&
-                                             @@@@@@.       @@@@
-                                   @@@     @@@@@@@@@/      @@@@@
-                                   ,@@@.     @@@@@@((@     @@@@(
-                                   //@@@        ,,  @@@@  @@@@@
-                                   @@@(                @@@@@@@
-                                   @@@  @          @@@@@@@@#
-                                       @@@@@@@@@@@@@@@@@
-                                      @@@@@@@@@@@@@(
-
-LEAP by: Prohurtz
-Algorithm App Implementation By: Prohurtz
-
-Copyright (c) 2023 EyeTrackVR <3
-LICENSE: GNU GPLv3 
-------------------------------------------------------------------------------------------------------
-"""
 #  LEAP = Lightweight Eyelid And Pupil
 import os
 
@@ -128,9 +76,9 @@ class LEAP_C(object):
     def __init__(self):
         onnxruntime.disable_telemetry_events()
         # Config variables
-        self.num_threads = 4  # Number of python threads to use (using ~1 more than needed to achieve wanted fps yields lower cpu usage)
+        self.num_threads = 1  # Number of python threads to use (using ~1 more than needed to achieve wanted fps yields lower cpu usage)
         self.queue_max_size = 1  # Optimize for best CPU usage, Memory, and Latency. A maxsize is needed to not create a potential memory leak.
-        self.model_path = resource_path(models / 'LEAP062120246epoch.onnx')
+        self.model_path = resource_path(models / 'LEAP071024_E16.onnx')
 
         self.low_priority = (
             False  # set process priority to low (may cause issues when unfocusing? reported by one, not reproducable)
@@ -153,7 +101,7 @@ class LEAP_C(object):
 
         opts = onnxruntime.SessionOptions()
         opts.inter_op_num_threads = 4
-        opts.intra_op_num_threads = 1
+        opts.intra_op_num_threads = 1 # big perf hit
         opts.graph_optimization_level = onnxruntime.GraphOptimizationLevel.ORT_ENABLE_ALL
         opts.optimized_model_filepath = ""
 
@@ -328,7 +276,6 @@ class External_Run_LEAP(object):
         self.algo = LEAP_C()
 
     def run(self, current_image_gray, current_image_gray_clean):
-
         self.algo.current_image_gray = current_image_gray
         self.algo.current_image_gray_clean = current_image_gray_clean
         img, x, y, per = self.algo.leap_run()

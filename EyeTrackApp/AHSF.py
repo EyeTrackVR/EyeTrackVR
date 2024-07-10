@@ -911,13 +911,14 @@ def External_Run_AHSF(frame_gray):
     frame_clear_resize = frame_gray.copy()
     org_frame_gray = frame_gray.copy()
 
-    frame_gray = cv2.resize(frame_gray, (130, 130))  # TODO TEST FIXED RESIZE
+ #   frame_gray = cv2.resize(frame_gray, (130, 130))  # TODO TEST FIXED RESIZE
     # Get the dimensions of the rotated image
     height, width = frame_gray.shape
 
 
     # Determine the size of the square background (choose the larger dimension)
     max_dimension = max(height, width)
+    min_dimension = min(height, width)
 
     # Create a square background with the average color
     square_background = np.full((max_dimension, max_dimension), average_color, dtype=np.uint8)
@@ -934,15 +935,16 @@ def External_Run_AHSF(frame_gray):
 
     wh_step = max((int(max_dimension / 80)),1)  # TODO: FINETUNE VALUES
     xy_step = max(int(max_dimension / 24), 1)  # TODO: FINETUNE VALUES
+   # print(xy_step, max_dimension)
 
-    wmax = max_dimension * 0.4  # likes to crash, might need more tuning still
-    wmin = max_dimension * 0.02
+    wmax = max_dimension * 0.5  # likes to crash, might need more tuning still
+    wmin = max_dimension * 0.1
 
     params = {
         "ratio_downsample": 0.5,
         "use_init_rect": False,
-        "mu_outer": 200,  # aprroximatly how much pupil should be in the outer rect
-        "mu_inner": 70,  # aprroximatly how much pupil should be in the inner rect
+        "mu_outer": 100,  # aprroximatly how much pupil should be in the outer rect
+        "mu_inner": 50,  # aprroximatly how much pupil should be in the inner rect
         "ratio_outer": 1.0,  # rectangular ratio. 1 means square (LIKE REGULAR HSF)
         "kf": 1.5,  # noise filter. May lose tracking if too high (or even never start)
         "width_min": wmin,  # Minimum width of the pupil
@@ -975,29 +977,28 @@ def External_Run_AHSF(frame_gray):
     y_center = outer_rect_coarse[1] + outer_rect_coarse[3] / 2
     x, y, width, height = outer_rect_coarse
 
-    scale_x = orig_width / 130
-    scale_y = orig_height / 130
 
-    x_center = int(x_center * scale_x)
-    y_center = int(y_center * scale_y)
+
+    x_center = int(x_center)
+    y_center = int(y_center)
    # print(x_center, y_center, scale_x, orig_height, orig_width)
 
     cv2.circle(org_frame_gray, (int(x_center), int(y_center)), 2, (255, 255, 255), -1)
 
 
 
-    pupil_rect_coarse_0 = int(pupil_rect_coarse[0] * scale_x)
-    pupil_rect_coarse_2 = int(pupil_rect_coarse[2] * scale_x)
+    pupil_rect_coarse_0 = int(pupil_rect_coarse[0])  # added for test, now redundant
+    pupil_rect_coarse_2 = int(pupil_rect_coarse[2])
 
-    pupil_rect_coarse_1 = int(pupil_rect_coarse[1] * scale_x)
-    pupil_rect_coarse_3 = int(pupil_rect_coarse[3] * scale_x)
+    pupil_rect_coarse_1 = int(pupil_rect_coarse[1])
+    pupil_rect_coarse_3 = int(pupil_rect_coarse[3])
 
 
-    outer_rect_coarse_0 = int(outer_rect_coarse[0] * scale_x)
-    outer_rect_coarse_2 = int(outer_rect_coarse[2] * scale_x)
+    outer_rect_coarse_0 = int(outer_rect_coarse[0])
+    outer_rect_coarse_2 = int(outer_rect_coarse[2])
 
-    outer_rect_coarse_1 = int(outer_rect_coarse[1] * scale_x)
-    outer_rect_coarse_3 = int(outer_rect_coarse[3] * scale_x)
+    outer_rect_coarse_1 = int(outer_rect_coarse[1])
+    outer_rect_coarse_3 = int(outer_rect_coarse[3])
 
 
     cv2.rectangle(
@@ -1027,7 +1028,7 @@ def External_Run_AHSF(frame_gray):
     minor_diameter = min(width, height)
     average_diameter = (major_diameter + minor_diameter) / 2
 
-   # print(orig_width, orig_height)
+   # print(average_diameter)
 
 
-    return org_frame_gray, frame_clear_resize, x_center, y_center, abs(width - height)
+    return org_frame_gray, frame_clear_resize, x_center, y_center, int(average_diameter -15)
