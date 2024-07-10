@@ -192,6 +192,7 @@ class LEAP_C(object):
              #   x, y = int(x), int(y)  # Ensure x and y are integers
 
                 cv2.circle(imgvis, (int(x), int(y)), 2, (255, 255, 0), -1)
+                cv2.circle(imgvis, (int(x), int(y)), 1, (0, 0, 255), -1)
 
 
             x1, y1 = pre_landmark[1]
@@ -254,15 +255,19 @@ class LEAP_C(object):
             x = pre_landmark[6][0]
             y = pre_landmark[6][1]
 
+
             self.last_lid = per
             calib_array = np.array([per, per]).reshape(1, 2)
 
             per = self.one_euro_filter_float(calib_array)
 
+
+
             per = per[0][0]
-            #  print(per)
+            time.sleep(0.01)
             if per <= 0.2:  # TODO: EXPOSE AS SETTING
                 per == 0.0
+             #   print('BLINKMF')
                 # this should be tuned, i could make this auto calib based on min from a list of per values.
 
             return imgvis, float(x), float(y), per

@@ -905,52 +905,52 @@ if __name__ == "__main__":
 
 
 def External_Run_AHSF(frame_gray):
-    average_color = np.mean(frame_gray)
-    orig_height, orig_width = frame_gray.shape
+
 
     frame_clear_resize = frame_gray.copy()
     org_frame_gray = frame_gray.copy()
-
- #   frame_gray = cv2.resize(frame_gray, (130, 130))  # TODO TEST FIXED RESIZE
-    # Get the dimensions of the rotated image
     height, width = frame_gray.shape
-
 
     # Determine the size of the square background (choose the larger dimension)
     max_dimension = max(height, width)
     min_dimension = min(height, width)
 
-    # Create a square background with the average color
-    square_background = np.full((max_dimension, max_dimension), average_color, dtype=np.uint8)
+    original_height, original_width = frame_gray.shape
+    average_color = np.mean(frame_gray)
+    # Create a new image with a white background
+    new_image = np.full((100, 100), average_color, dtype=np.uint8)
 
-    # Calculate the position to paste the rotated image onto the square background
-    x_offset = (max_dimension - width) // 2
-    y_offset = (max_dimension - height) // 2
+    # Calculate the scaling factor to fit the image inside the 100x100 box
+    scale_factor = min(100 / original_width, 100 / original_height)
 
-    # Paste the rotated image onto the square background
-    square_background[y_offset : y_offset + height, x_offset : x_offset + width] = frame_gray
+    # Calculate the new size of the image after scaling
+    new_width = int(original_width * scale_factor)
+    new_height = int(original_height * scale_factor)
 
-    frame_gray = square_background
+    # Resize the original image
+    resized_image = cv2.resize(frame_gray, (new_width, new_height), interpolation=cv2.INTER_AREA)
 
+    # Calculate the position to place the resized image onto the white background
+    x_offset = (100 - new_width) // 2
+    y_offset = (100 - new_height) // 2
 
-    wh_step = max((int(max_dimension / 80)),1)  # TODO: FINETUNE VALUES
-    xy_step = max(int(max_dimension / 24), 1)  # TODO: FINETUNE VALUES
-   # print(xy_step, max_dimension)
+    # Place the resized image onto the white background
+    new_image[y_offset:y_offset + new_height, x_offset:x_offset + new_width] = resized_image
 
-    wmax = max_dimension * 0.5  # likes to crash, might need more tuning still
-    wmin = max_dimension * 0.1
+    frame_gray = cv2.GaussianBlur(new_image, (13, 13), 1)
+  #  frame_gray = new_image
 
     params = {
         "ratio_downsample": 0.5,
         "use_init_rect": False,
-        "mu_outer": 100,  # aprroximatly how much pupil should be in the outer rect
-        "mu_inner": 50,  # aprroximatly how much pupil should be in the inner rect
-        "ratio_outer": 1.0,  # rectangular ratio. 1 means square (LIKE REGULAR HSF)
-        "kf": 1.5,  # noise filter. May lose tracking if too high (or even never start)
-        "width_min": wmin,  # Minimum width of the pupil
-        "width_max": wmax,  # Maximum width of the pupil
-        "wh_step": wh_step,  # Pupil width and height step search size
-        "xy_step": xy_step,  # Kernel movement step search size
+        "mu_outer": 200, #aprroximatly how much pupil should be in the outer rect
+        "mu_inner": 50, #aprroximatly how much pupil should be in the inner rect
+        "ratio_outer": 1.0, #rectangular ratio. 1 means square (LIKE REGULAR HSF)
+        "kf": 2, #noise filter. May lose tracking if too high (or even never start)
+        "width_min": 16, #Minimum width of the pupil
+        "width_max": 50, #Maximum width of the pupil
+        "wh_step": 10, #Pupil width and height step search size
+        "xy_step": 1, #Kernel movement step search size
         "roi": (0, 0, frame_gray.shape[1], frame_gray.shape[0]),
         "init_rect_flag": False,
         "init_rect": (0, 0, frame_gray.shape[1], frame_gray.shape[0]),
@@ -972,34 +972,28 @@ def External_Run_AHSF(frame_gray):
     image_brg = frame_gray  # cv2.cvtColor(frame_gray, cv2.COLOR_GRAY2BGR)
 
     # show
-
     x_center = outer_rect_coarse[0] + outer_rect_coarse[2] / 2
     y_center = outer_rect_coarse[1] + outer_rect_coarse[3] / 2
     x, y, width, height = outer_rect_coarse
 
 
+    x_center = int((x_center - x_offset) / scale_factor)
+    y_center = int((y_center - y_offset) / scale_factor)
 
-    x_center = int(x_center)
-    y_center = int(y_center)
-   # print(x_center, y_center, scale_x, orig_height, orig_width)
 
     cv2.circle(org_frame_gray, (int(x_center), int(y_center)), 2, (255, 255, 255), -1)
 
+    pupil_rect_coarse_0 = int((pupil_rect_coarse[0] - x_offset) / scale_factor)
+    pupil_rect_coarse_2 = int(pupil_rect_coarse[2] / scale_factor)
 
+    pupil_rect_coarse_1 = int((pupil_rect_coarse[1] - y_offset) / scale_factor)
+    pupil_rect_coarse_3 = int(pupil_rect_coarse[3] / scale_factor)
 
-    pupil_rect_coarse_0 = int(pupil_rect_coarse[0])  # added for test, now redundant
-    pupil_rect_coarse_2 = int(pupil_rect_coarse[2])
+    outer_rect_coarse_0 = int((outer_rect_coarse[0] - x_offset) / scale_factor)
+    outer_rect_coarse_2 = int(outer_rect_coarse[2] / scale_factor)
 
-    pupil_rect_coarse_1 = int(pupil_rect_coarse[1])
-    pupil_rect_coarse_3 = int(pupil_rect_coarse[3])
-
-
-    outer_rect_coarse_0 = int(outer_rect_coarse[0])
-    outer_rect_coarse_2 = int(outer_rect_coarse[2])
-
-    outer_rect_coarse_1 = int(outer_rect_coarse[1])
-    outer_rect_coarse_3 = int(outer_rect_coarse[3])
-
+    outer_rect_coarse_1 = int((outer_rect_coarse[1] - y_offset) / scale_factor)
+    outer_rect_coarse_3 = int(outer_rect_coarse[3] / scale_factor)
 
     cv2.rectangle(
         org_frame_gray,
@@ -1016,7 +1010,7 @@ def External_Run_AHSF(frame_gray):
         (outer_rect_coarse_0, outer_rect_coarse_1),
         (
             outer_rect_coarse_0 + outer_rect_coarse_2,
-            outer_rect_coarse_1 + outer_rect_coarse_3,
+            outer_rect_coarse_3 + outer_rect_coarse_1,
         ),
         (255, 255, 255),
         1,
@@ -1026,9 +1020,8 @@ def External_Run_AHSF(frame_gray):
     # Calculate the major and minor diameters
     major_diameter = math.sqrt(width**2 + height**2)
     minor_diameter = min(width, height)
+    major = max(width, height)
     average_diameter = (major_diameter + minor_diameter) / 2
 
-   # print(average_diameter)
 
-
-    return org_frame_gray, frame_clear_resize, x_center, y_center, int(average_diameter -15)
+    return org_frame_gray, frame_clear_resize, x_center, y_center, average_diameter + 10

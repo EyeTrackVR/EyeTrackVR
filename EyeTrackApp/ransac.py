@@ -168,7 +168,7 @@ def fit_rotated_ellipse(data, P):
     w, h = wh[0], wh[1]
 
     error_sum = np.sum(data)
-    # print("fitting error = %.3f" % (error_sum))
+   # print("fitting error = %.3f" % (error_sum))
 
     return (cx, cy, w, h, theta)
 
@@ -260,7 +260,7 @@ def RANSAC3D(self, hsrac_en):
         self.failed = self.failed + 1  # we have failed, move onto next algo
         return 0, 0, 0, frame, blink, 0, 0
     else:
-        frame_gray = cv2.GaussianBlur(frame, (5, 5), 0)
+        frame_gray = cv2.GaussianBlur(frame, (9, 9), 10)
 
     # this will need to be adjusted everytime hardware is changed (brightness of IR, Camera postion, etc)m
     min_val, max_val, min_loc, max_loc = cv2.minMaxLoc(frame_gray)
