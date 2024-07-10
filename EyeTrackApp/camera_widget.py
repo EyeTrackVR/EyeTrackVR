@@ -1,19 +1,45 @@
+"""
+------------------------------------------------------------------------------------------------------
+
+                                               ,@@@@@@
+                                            @@@@@@@@@@@            @@@
+                                          @@@@@@@@@@@@      @@@@@@@@@@@
+                                        @@@@@@@@@@@@@   @@@@@@@@@@@@@@
+                                      @@@@@@@/         ,@@@@@@@@@@@@@
+                                         /@@@@@@@@@@@@@@@  @@@@@@@@
+                                    @@@@@@@@@@@@@@@@@@@@@@@@ @@@@@
+                                @@@@@@@@                @@@@@
+                              ,@@@                        @@@@&
+                                             @@@@@@.       @@@@
+                                   @@@     @@@@@@@@@/      @@@@@
+                                   ,@@@.     @@@@@@((@     @@@@(
+                                   //@@@        ,,  @@@@  @@@@@
+                                   @@@(                @@@@@@@
+                                   @@@  @          @@@@@@@@#
+                                       @@@@@@@@@@@@@@@@@
+                                      @@@@@@@@@@@@@(
+
+Copyright (c) 2023 EyeTrackVR <3
+LICENSE: GNU GPLv3
+------------------------------------------------------------------------------------------------------
+"""
+
 import PySimpleGUI as sg
 from config import EyeTrackConfig
-from config import EyeTrackSettingsConfig
 from collections import deque
 from threading import Event, Thread
+import math
+from eye import EyeId
 from eye_processor import EyeProcessor, EyeInfoOrigin
-from enum import Enum
 from queue import Queue, Empty
 from camera import Camera, CameraState
-from osc import EyeId
 import cv2
-import sys
+
+from osc.OSCMessage import OSCMessageType, OSCMessage
 from utils.misc_utils import PlaySound, SND_FILENAME, SND_ASYNC, resource_path
-import traceback
-import math
 import numpy as np
+
+
 
 # for clarity when indexing
 X = 0
@@ -314,6 +340,28 @@ class CameraWidget:
         self.cancellation_event.set()
         self.ransac_thread.join()
         self.camera_thread.join()
+
+    def on_config_update(self, data):
+        keys = set(data.keys())
+        model_keys = set(self.config.model_fields.keys())
+        # we only want to restart our stuff, if our stuff got updated
+        # at the model level
+        if model_keys.intersection(keys):
+            self.stop()
+            self.start()
+
+    def recenter_eyes(self, osc_message: OSCMessage):
+        if osc_message.data is not bool:
+            return  # just incase we get anything other than bool
+
+    def recalibrate_eyes(self, osc_message: OSCMessage):
+        if osc_message.data is not bool:
+            return  # just incase we get anything other than bool
+
+        if osc_message.data:
+            self.ransac.ibo.clear_filter()
+            self.ransac.calibration_frame_counter = self.config.calibration_samples
+            PlaySound("Audio/start.wav", SND_FILENAME | SND_ASYNC)
 
     def render(self, window, event, values):
         changed = False
@@ -626,6 +674,10 @@ class CameraWidget:
                     graph.update(background_color="red")
                 # Relay information to OSC
                 if eye_info.info_type != EyeInfoOrigin.FAILURE:
-                    self.osc_queue.put((self.eye_id, eye_info))
+                    osc_message = OSCMessage(
+                        type=OSCMessageType.EYE_INFO,
+                        data=(self.eye_id, eye_info),
+                    )
+                    self.osc_queue.put(osc_message)
             except Empty:
                 pass
