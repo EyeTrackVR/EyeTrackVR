@@ -1,3 +1,29 @@
+"""
+------------------------------------------------------------------------------------------------------
+
+                                               ,@@@@@@
+                                            @@@@@@@@@@@            @@@
+                                          @@@@@@@@@@@@      @@@@@@@@@@@
+                                        @@@@@@@@@@@@@   @@@@@@@@@@@@@@
+                                      @@@@@@@/         ,@@@@@@@@@@@@@
+                                         /@@@@@@@@@@@@@@@  @@@@@@@@
+                                    @@@@@@@@@@@@@@@@@@@@@@@@ @@@@@
+                                @@@@@@@@                @@@@@
+                              ,@@@                        @@@@&
+                                             @@@@@@.       @@@@
+                                   @@@     @@@@@@@@@/      @@@@@
+                                   ,@@@.     @@@@@@((@     @@@@(
+                                   //@@@        ,,  @@@@  @@@@@
+                                   @@@(                @@@@@@@
+                                   @@@  @          @@@@@@@@#
+                                       @@@@@@@@@@@@@@@@@
+                                      @@@@@@@@@@@@@(
+
+Copyright (c) 2023 EyeTrackVR <3
+LICENSE: GNU GPLv3 
+------------------------------------------------------------------------------------------------------
+"""
+
 import cv2
 import numpy as np
 import queue
@@ -5,10 +31,23 @@ import serial
 import serial.tools.list_ports
 import threading
 import time
-import platform
 from colorama import Fore
-from config import EyeTrackConfig
+from config import EyeTrackCameraConfig
 from enum import Enum
+import psutil, os
+import sys
+
+
+process = psutil.Process(os.getpid())  # set process priority to low
+try:
+    sys.getwindowsversion()
+except AttributeError:
+    process.nice(10)  # UNIX: 0 low 10 high
+    process.nice()
+else:
+    process.nice(psutil.HIGH_PRIORITY_CLASS)  # Windows
+    process.nice()
+    # See https://learn.microsoft.com/en-us/windows/win32/api/processthreadsapi/nf-processthreadsapi-getpriorityclass#return-value for values
 
 WAIT_TIME = 0.1
 # Serial communication protocol:
@@ -27,15 +66,24 @@ class CameraState(Enum):
     DISCONNECTED = 2
 
 
+def is_serial_capture_source(addr: str) -> bool:
+    """
+    Returns True if the capture source address is a serial port.
+    """
+    return (
+        addr.startswith("COM") or addr.startswith("/dev/cu") or addr.startswith("/dev/tty")  # Windows  # macOS  # Linux
+    )
+
+
 class Camera:
     def __init__(
         self,
-        config: EyeTrackConfig,
+        config: EyeTrackCameraConfig,
         camera_index: int,
         cancellation_event: "threading.Event",
         capture_event: "threading.Event",
         camera_status_outgoing: "queue.Queue[CameraState]",
-        camera_output_outgoing: "queue.Queue(maxsize=2)",
+        camera_output_outgoing: "queue.Queue(maxsize=20)",
     ):
         self.camera_status = CameraState.CONNECTING
         self.config = config
@@ -79,13 +127,23 @@ class Camera:
         while True:
             if self.cancellation_event.is_set():
                 print(f"{Fore.CYAN}[INFO] Exiting Capture thread{Fore.RESET}")
+                # openCV won't switch to a new source if provided with one
+                # so, we have to manually release the camera on exit
+
+                addr = str(self.current_capture_source)
+                if is_serial_capture_source(addr):
+                    self.serial_connection.close()
+                else:
+                    self.cv2_camera.release()
+
                 return
             should_push = True
             # If things aren't open, retry until they are. Don't let read requests come in any earlier
             # than this, otherwise we can deadlock ourselves.
             if self.config.capture_source != None and self.config.capture_source != "":
-
-                if "COM" in str(self.current_capture_source):
+                self.current_capture_source = self.config.capture_source
+                addr = str(self.current_capture_source)
+                if is_serial_capture_source(addr):
                     if (
                         self.serial_connection is None
                         or self.camera_status == CameraState.DISCONNECTED
@@ -122,10 +180,11 @@ class Camera:
             # Assuming we can access our capture source, wait for another thread to request a capture.
             # Cycle every so often to see if our cancellation token has fired. This basically uses a
             # python event as a context-less, resettable one-shot channel.
-            if should_push and not self.capture_event.wait(timeout=0.02):
+            if should_push and not self.capture_event.wait(timeout=0.001):
                 continue
             if self.config.capture_source != None:
-                if "COM" in str(self.current_capture_source):
+                addr = str(self.current_capture_source)
+                if is_serial_capture_source(addr):
                     self.get_serial_camera_picture(should_push)
                 else:
                     self.get_cv2_camera_picture(should_push)
@@ -165,7 +224,7 @@ class Camera:
                 self.fl.pop(0)
                 self.fl.append(self.fps)
             self.fps = sum(self.fl) / len(self.fl)
-            # self.bps = image.nbytes
+          #  self.bps = image.nbytes
             if should_push:
                 self.push_image_to_queue(image, frame_number, self.fps)
         except:
@@ -204,20 +263,14 @@ class Camera:
                 jpeg = self.get_next_jpeg_frame()
                 if jpeg:
                     # Create jpeg frame from byte string
-                    image = cv2.imdecode(
-                        np.fromstring(jpeg, dtype=np.uint8), cv2.IMREAD_UNCHANGED
-                    )
+                    image = cv2.imdecode(np.fromstring(jpeg, dtype=np.uint8), cv2.IMREAD_UNCHANGED)
                     if image is None:
-                        print(
-                            f"{Fore.YELLOW}[WARN] Frame drop. Corrupted JPEG.{Fore.RESET}"
-                        )
+                        print(f"{Fore.YELLOW}[WARN] Frame drop. Corrupted JPEG.{Fore.RESET}")
                         return
                     # Discard the serial buffer. This is due to the fact that it
                     # may build up some outdated frames. A bit of a workaround here tbh.
                     if conn.in_waiting >= 32768:
-                        print(
-                            f"{Fore.CYAN}[INFO] Discarding the serial buffer ({conn.in_waiting} bytes){Fore.RESET}"
-                        )
+                        print(f"{Fore.CYAN}[INFO] Discarding the serial buffer ({conn.in_waiting} bytes){Fore.RESET}")
                         conn.reset_input_buffer()
                         self.buffer = b""
                     # Calculate the fps.
@@ -260,15 +313,14 @@ class Camera:
         if not any(p for p in com_ports if port in p):
             return
         try:
-            conn = serial.Serial(
-                baudrate=3000000, port=port, xonxoff=False, dsrdtr=False, rtscts=False
-            )
+            rate = 115200 if sys.platform == "darwin" else 3000000  # Higher baud rate not working on macOS
+            conn = serial.Serial(baudrate=rate, port=port, xonxoff=False, dsrdtr=False, rtscts=False)
             # Set explicit buffer size for serial.
-            conn.set_buffer_size(rx_size=32768, tx_size=32768)
+            if sys.platform == "win32":
+                buffer_size = 32768
+                conn.set_buffer_size(rx_size=buffer_size, tx_size=buffer_size)
 
-            print(
-                f"{Fore.CYAN}[INFO] ETVR Serial Tracker device connected on {port}{Fore.RESET}"
-            )
+            print(f"{Fore.CYAN}[INFO] ETVR Serial Tracker device connected on {port}{Fore.RESET}")
             self.serial_connection = conn
             self.camera_status = CameraState.CONNECTED
         except Exception:

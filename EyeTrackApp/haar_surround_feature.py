@@ -1,11 +1,38 @@
+"""
+------------------------------------------------------------------------------------------------------
+
+                                               ,@@@@@@
+                                            @@@@@@@@@@@            @@@
+                                          @@@@@@@@@@@@      @@@@@@@@@@@
+                                        @@@@@@@@@@@@@   @@@@@@@@@@@@@@
+                                      @@@@@@@/         ,@@@@@@@@@@@@@
+                                         /@@@@@@@@@@@@@@@  @@@@@@@@
+                                    @@@@@@@@@@@@@@@@@@@@@@@@ @@@@@
+                                @@@@@@@@                @@@@@
+                              ,@@@                        @@@@&
+                                             @@@@@@.       @@@@
+                                   @@@     @@@@@@@@@/      @@@@@
+                                   ,@@@.     @@@@@@((@     @@@@(
+                                   //@@@        ,,  @@@@  @@@@@
+                                   @@@(                @@@@@@@
+                                   @@@  @          @@@@@@@@#
+                                       @@@@@@@@@@@@@@@@@
+                                      @@@@@@@@@@@@@(
+
+Haar Surround Feature: Summer, PallasNeko (Optimization)
+Algorithm App Implementations and tweaks By: Prohurtz
+
+Copyright (c) 2023 EyeTrackVR <3
+LICENSE: Summer Software Distribution License 1.0
+------------------------------------------------------------------------------------------------------
+"""
+
 import timeit
 from functools import lru_cache
 
 import cv2
 import numpy as np
-from utils.misc_utils import clamp
 from utils.img_utils import safe_crop
-from enum import IntEnum
 import psutil
 import sys
 import os
@@ -20,15 +47,8 @@ else:
     process.nice(psutil.BELOW_NORMAL_PRIORITY_CLASS)  # Windows
     process.nice()
 
-
-class EyeId(IntEnum):
-    RIGHT = 0
-    LEFT = 1
-    BOTH = 2
-    SETTINGS = 3
-
-
 # from line_profiler_pycharm import profile
+
 
 video_path = "ezgif.com-gif-maker.avi"
 imshow_enable = False
@@ -122,10 +142,7 @@ class HaarSurroundFeature:
     def get_kernel(self):
         # Defined here, but not yet used?
         # Create a kernel filled with the value of self.val_out
-        kernel = (
-            np.ones(shape=(2 * self.r_out - 1, 2 * self.r_out - 1), dtype=np.float64)
-            * self.val_out
-        )
+        kernel = np.ones(shape=(2 * self.r_out - 1, 2 * self.r_out - 1), dtype=np.float64) * self.val_out
 
         # Set the values of the inner area of the kernel using array slicing
         start = self.r_out - self.r_in
@@ -144,9 +161,7 @@ def to_gray(frame):
 @lru_cache(maxsize=lru_maxsize_vvs)
 def get_frameint_empty_array(frame_shape, pad, x_step, y_step, r_in, r_out):
     frame_int_dtype = np.intc
-    frame_pad = np.empty(
-        (frame_shape[0] + (pad * 2), frame_shape[1] + (pad * 2)), dtype=np.uint8
-    )
+    frame_pad = np.empty((frame_shape[0] + (pad * 2), frame_shape[1] + (pad * 2)), dtype=np.uint8)
 
     row, col = frame_pad.shape
 
@@ -183,9 +198,7 @@ def get_frameint_empty_array(frame_shape, pad, x_step, y_step, r_in, r_out):
     out_p01 = np.empty(len_syx, dtype=frame_int_dtype)
     out_p10 = np.empty(len_syx, dtype=frame_int_dtype)
     response_list = np.empty(len_syx, dtype=np.float64)  # or np.int32
-    frame_conv = np.zeros(
-        shape=(row - 2 * pad, col - 2 * pad), dtype=np.uint8
-    )  # or np.float64
+    frame_conv = np.zeros(shape=(row - 2 * pad, col - 2 * pad), dtype=np.uint8)  # or np.float64
     frame_conv_stride = frame_conv[::y_step, ::x_step]
 
     return (
@@ -332,21 +345,14 @@ class AutoRadiusCalc(object):
             self.adj_comp_flag = False
             return self.radius_cand_list[self.radius_middle_index]
         else:
-            if (
-                self.left_index <= self.right_index
-                and self.left_index != self.radius_middle_index
-            ):
-                if (self.left_item[1] + self.response_list[-1][1]) < (
-                    self.right_item[1] + self.response_list[-1][1]
-                ):
+            if self.left_index <= self.right_index and self.left_index != self.radius_middle_index:
+                if (self.left_item[1] + self.response_list[-1][1]) < (self.right_item[1] + self.response_list[-1][1]):
                     self.right_item = self.response_list[-1]
                     self.right_index = self.radius_middle_index - 1
                     self.radius_middle_index = (self.left_index + self.right_index) // 2
                     self.adj_comp_flag = False
                     return self.radius_cand_list[self.radius_middle_index]
-                if (self.left_item[1] + self.response_list[-1][1]) > (
-                    self.right_item[1] + self.response_list[-1][1]
-                ):
+                if (self.left_item[1] + self.response_list[-1][1]) > (self.right_item[1] + self.response_list[-1][1]):
                     self.left_item = self.response_list[-1]
                     self.left_index = self.radius_middle_index + 1
                     self.radius_middle_index = (self.left_index + self.right_index) // 2
@@ -380,21 +386,11 @@ class AutoRadiusCalc(object):
                 self.adj_comp_flag = True
                 return default_radius
             elif sort_res[0] == auto_radius_range[0]:
-                self.radius_cand_list = [
-                    i
-                    for i in range(
-                        auto_radius_range[0], default_radius, auto_radius_step
-                    )
-                ][1:]
+                self.radius_cand_list = [i for i in range(auto_radius_range[0], default_radius, auto_radius_step)][1:]
                 self.adj_comp_flag = False
                 return self.radius_cand_list.pop()
             else:
-                self.radius_cand_list = [
-                    i
-                    for i in range(
-                        default_radius, auto_radius_range[1], auto_radius_step
-                    )
-                ][1:]
+                self.radius_cand_list = [i for i in range(default_radius, auto_radius_range[1], auto_radius_step)][1:]
                 self.adj_comp_flag = False
                 return self.radius_cand_list.pop()
         else:
@@ -468,9 +464,7 @@ class CenterCorrection(object):
         self.frame_mask = None
         self.frame_bin = None
         self.frame_final = None
-        self.morph_kernel = cv2.getStructuringElement(
-            cv2.MORPH_RECT, (kernel_size, kernel_size)
-        )
+        self.morph_kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (kernel_size, kernel_size))
         self.morph_kernel2 = np.ones((3, 3))
         self.hist_index = np.arange(256)
         self.hist = np.empty((256, 1))
@@ -507,20 +501,14 @@ class CenterCorrection(object):
         )
 
         # bottleneck
-        self.frame_bin = cv2.threshold(gray_frame, frame_thr, 1, cv2.THRESH_BINARY_INV)[
-            1
-        ]
+        self.frame_bin = cv2.threshold(gray_frame, frame_thr, 1, cv2.THRESH_BINARY_INV)[1]
         cropped_x, cropped_y, cropped_w, cropped_h = cv2.boundingRect(self.frame_bin)
 
         self.frame_final = cv2.bitwise_and(self.frame_bin, self.frame_mask)
 
         # bottleneck
-        self.frame_final = cv2.morphologyEx(
-            self.frame_final, cv2.MORPH_CLOSE, self.morph_kernel
-        )
-        self.frame_final = cv2.morphologyEx(
-            self.frame_final, cv2.MORPH_OPEN, self.morph_kernel
-        )
+        self.frame_final = cv2.morphologyEx(self.frame_final, cv2.MORPH_CLOSE, self.morph_kernel)
+        self.frame_final = cv2.morphologyEx(self.frame_final, cv2.MORPH_OPEN, self.morph_kernel)
 
         if (cropped_h, cropped_w) == self.frame_shape:
             # Not detected.
@@ -539,9 +527,7 @@ class CenterCorrection(object):
                 else:
                     base_x, base_y = center_x, center_y
 
-        contours, _ = cv2.findContours(
-            self.frame_final, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE
-        )
+        contours, _ = cv2.findContours(self.frame_final, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE)
         contours_box = [cv2.boundingRect(cnt) for cnt in contours]
         contours_dist = np.array(
             [
@@ -551,9 +537,7 @@ class CenterCorrection(object):
         )
 
         if len(contours_box):
-            cropped_x2, cropped_y2, cropped_w2, cropped_h2 = contours_box[
-                contours_dist.argmin()
-            ]
+            cropped_x2, cropped_y2, cropped_w2, cropped_h2 = contours_box[contours_dist.argmin()]
             x = cropped_x2 + cropped_w2 // 2
             y = cropped_y2 + cropped_h2 // 2
         else:
@@ -659,9 +643,7 @@ class HSF_cls(object):
 
             self.cvparam.radius = self.auto_radius_calc.get_radius()
             if self.auto_radius_calc.adj_comp_flag:
-                self.now_modeo = (
-                    self.cv_modeo[2] if not skip_blink_detect else self.cv_modeo[3]
-                )
+                self.now_modeo = self.cv_modeo[2] if not skip_blink_detect else self.cv_modeo[3]
 
         radius, pad, step, hsf = self.cvparam.get_rpsh()
 
@@ -694,13 +676,9 @@ class HSF_cls(object):
             response_list,
             frame_conv,
             frame_conv_stride,
-        ) = get_frameint_empty_array(
-            gray_frame.shape, pad, step[0], step[1], hsf.r_in, hsf.r_out
-        )
+        ) = get_frameint_empty_array(gray_frame.shape, pad, step[0], step[1], hsf.r_in, hsf.r_out)
         # BORDER_CONSTANT is faster than BORDER_REPLICATE There seems to be almost no negative impact when BORDER_CONSTANT is used.
-        cv2.copyMakeBorder(
-            gray_frame, pad, pad, pad, pad, cv2.BORDER_CONSTANT, dst=frame_pad
-        )
+        cv2.copyMakeBorder(gray_frame, pad, pad, pad, pad, cv2.BORDER_CONSTANT, dst=frame_pad)
         cv2.integral(frame_pad, sum=frame_int, sdepth=cv2.CV_32S)
         self.timedict["int_img"].append(timeit.default_timer() - int_start_time)
 
@@ -756,18 +734,10 @@ class HSF_cls(object):
             if self.blink_detector.response_len() < blink_init_frames:
                 self.blink_detector.add_response(cv2.mean(cropped_image)[0])
 
-                upper_x = center_x + max(
-                    20, radius
-                )  # self.center_correct.center_q1_radius
-                lower_x = center_x - max(
-                    20, radius
-                )  # self.center_correct.center_q1_radius
-                upper_y = center_y + max(
-                    20, radius
-                )  # self.center_correct.center_q1_radius
-                lower_y = center_y - max(
-                    20, radius
-                )  # self.center_correct.center_q1_radius
+                upper_x = center_x + max(20, radius)  # self.center_correct.center_q1_radius
+                lower_x = center_x - max(20, radius)  # self.center_correct.center_q1_radius
+                upper_y = center_y + max(20, radius)  # self.center_correct.center_q1_radius
+                lower_y = center_y - max(20, radius)  # self.center_correct.center_q1_radius
 
                 self.center_q1.add_response(
                     cv2.mean(
@@ -802,19 +772,13 @@ class HSF_cls(object):
                     else:
                         # pass
                         if not self.center_correct.setup_comp:
-                            self.center_correct.init_array(
-                                gray_frame.shape, self.center_q1.quartile_1, radius
-                            )
+                            self.center_correct.init_array(gray_frame.shape, self.center_q1.quartile_1, radius)
                         elif self.center_correct.frame_shape != gray_frame.shape:
                             """The resolution should have changed and the statistics should have changed, so essentially the statistics
                             need to be reworked, but implementation will be postponed as viability is the highest priority."""
-                            self.center_correct.init_array(
-                                gray_frame.shape, self.center_q1.quartile_1, radius
-                            )
+                            self.center_correct.init_array(gray_frame.shape, self.center_q1.quartile_1, radius)
 
-                        center_x, center_y = self.center_correct.correction(
-                            gray_frame, center_x, center_y
-                        )
+                        center_x, center_y = self.center_correct.correction(gray_frame, center_x, center_y)
                         # Define the center point and radius
                         center_xy = (center_x, center_y)
                         upper_x = center_x + radius
@@ -822,9 +786,7 @@ class HSF_cls(object):
                         upper_y = center_y + radius
                         lower_y = center_y - radius
                         # Crop the image using the calculated bounds
-                        cropped_image = safe_crop(
-                            gray_frame, lower_x, lower_y, upper_x, upper_y
-                        )
+                        cropped_image = safe_crop(gray_frame, lower_x, lower_y, upper_x, upper_y)
                         # cropbox = [clamp(val, 0, gray_frame.shape[i]) for i, val in
                         #            zip([1, 0, 1, 0], [lower_x, lower_y, upper_x, upper_y])]  # debug code
 
@@ -845,10 +807,7 @@ class HSF_cls(object):
         #   print('Pixel position:', center_xy)
 
         if imshow_enable:
-            if (
-                self.now_modeo != self.cv_modeo[0]
-                and self.now_modeo != self.cv_modeo[1]
-            ):
+            if self.now_modeo != self.cv_modeo[0] and self.now_modeo != self.cv_modeo[1]:
                 if 0 in cropped_image.shape:
                     # If shape contains 0, it is not detected well.
                     pass

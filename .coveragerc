@@ -1,0 +1,6 @@
+[run]
+omit=
+    tests/*
+    conftest.py
+source =
+    EyeTrackApp

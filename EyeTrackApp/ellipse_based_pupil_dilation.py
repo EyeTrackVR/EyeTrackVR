@@ -23,6 +23,7 @@ Ellipse Based Pupil Dilation By: Prohurtz, PallasNeko (Optimization)
 Algorithm App Implementations By: Prohurtz
 
 Copyright (c) 2023 EyeTrackVR <3
+LICENSE: GNU GPLv3
 ------------------------------------------------------------------------------------------------------
 """
 import numpy
@@ -30,30 +31,10 @@ import numpy as np
 import time
 import os
 import cv2
-from enums import EyeLR
+
+from eye import EyeId
 from one_euro_filter import OneEuroFilter
-from utils.img_utils import safe_crop
-from enum import IntEnum
-import psutil
-import sys
-
-process = psutil.Process(os.getpid())  # set process priority to low
-try:  # medium chance this does absolutely nothing but eh
-    sys.getwindowsversion()
-except AttributeError:
-    process.nice(0)  # UNIX: 0 low 10 high
-    process.nice()
-else:
-    process.nice(psutil.BELOW_NORMAL_PRIORITY_CLASS)  # Windows
-    process.nice()
-
-
-class EyeId(IntEnum):
-    RIGHT = 0
-    LEFT = 1
-    BOTH = 2
-    SETTINGS = 3
-
+os.environ["OMP_NUM_THREADS"] = "1"
 
 # Note.
 # OpenCV on Windows will generate an error if the file path contains non-ASCII characters when using cv2.imread(), cv2.imwrite(), etc.
@@ -359,9 +340,10 @@ class EllipseBasedPupilDilation:
             minp = float(self.maxval)
 
             try:
-                eyedilation = (pupil_area - maxp) / (
-                    minp - maxp
-                )  # for whatever reason when input and maxp are too close it outputs high
+                if not np.isfinite(pupil_area) or not np.isfinite(maxp) or not np.isfinite(minp) or (minp - maxp) == 0:
+                    eyedilation = 0.5
+                else:
+                    eyedilation = (pupil_area - maxp) / (minp - maxp)
             except:
                 eyedilation = 0.5
             eyedilation = 1 - eyedilation
@@ -381,7 +363,7 @@ class EllipseBasedPupilDilation:
                 eyedilation = 0.0
 
         if changed and (
-            (time.time() - self.lct) > 5
+            (time.time() - self.lct) > 15
         ):  # save every 5 seconds if something changed to save disk usage
             self.save()
             self.lct = time.time()

@@ -23,16 +23,15 @@ Intensity Based Openess By: Prohurtz, PallasNeko (Optimization)
 Algorithm App Implementations By: Prohurtz
 
 Copyright (c) 2023 EyeTrackVR <3
+LICENSE: GNU GPLv3 
 ------------------------------------------------------------------------------------------------------
 """
 import numpy as np
 import time
 import os
 import cv2
-from enums import EyeLR
+from eye import EyeId
 from one_euro_filter import OneEuroFilter
-from utils.img_utils import safe_crop
-from enum import IntEnum
 import psutil
 import sys
 
@@ -45,13 +44,6 @@ except AttributeError:
 else:
     process.nice(psutil.BELOW_NORMAL_PRIORITY_CLASS)  # Windows
     process.nice()
-
-
-class EyeId(IntEnum):
-    RIGHT = 0
-    LEFT = 1
-    BOTH = 2
-    SETTINGS = 3
 
 
 # higher intensity means more closed/ more white/less pupil
@@ -258,9 +250,7 @@ class IntensityBasedOpeness:
 
         # The same can be done with cv2.integral, but since there is only one area of the rectangle for which we want to know the total value, there is no advantage in terms of computational complexity.
         intensity = frame_crop.sum() + 1
-        # cv2.imshow('e', frame)
-        # if cv2.waitKey(10) == 27:
-        #    exit()
+
         if len(self.filterlist) < filterSamples:
             self.filterlist.append(intensity)
         else:
@@ -269,7 +259,7 @@ class IntensityBasedOpeness:
 
         try:
             if intensity >= np.percentile(
-                self.filterlist, 98
+                self.filterlist, 99
             ):  # filter abnormally high values
                 # print('filter, assume blink')
                 intensity = self.maxval
@@ -386,16 +376,13 @@ class IntensityBasedOpeness:
                 eyeopen = 0.0
 
         if changed and (
-            (time.time() - self.lct) > 5
+            (time.time() - self.lct) > 11
         ):  # save every 5 seconds if something changed to save disk usage
             self.save()
             self.lct = time.time()
 
         self.prev_val = eyeopen
         try:
-            noisy_point = np.array(
-                [float(eyeopen), float(eyeopen)]
-            )  # fliter our values with a One Euro Filter
             point_hat = self.one_euro_filter(noisy_point)
             eyeopenx = point_hat[0]
             eyeopeny = point_hat[1]
@@ -404,7 +391,7 @@ class IntensityBasedOpeness:
         except:
             pass
 
-        eyevec = abs(self.prev_val - eyeopen)
+        #  eyevec = abs(self.prev_val - eyeopen)
         # print(eyevec)
         #  if eyevec > 0.4:
         #      print("BLINK LCOK")

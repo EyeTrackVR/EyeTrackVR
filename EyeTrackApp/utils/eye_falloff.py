@@ -1,85 +1,45 @@
 import numpy as np
-from enum import IntEnum
 
-
-class EyeId(IntEnum):
-    RIGHT = 0
-    LEFT = 1
-    BOTH = 2
-    SETTINGS = 3
+from eye import EyeId
 
 
 def velocity_falloff(self, var, out_x, out_y):
 
-    falloff = False
-    if self.eye_id in [EyeId.LEFT]:
-        var.l_eye_velocity = var.average_velocity
-        if self.settings.gui_outer_side_falloff:
-            dist = abs(
-                np.sqrt(
-                    abs(np.square(out_x - var.r_eye_x) - np.square(out_y - var.right_y))
-                )
-            )
-            # print(dist)  # TODO remove once testing is done
-            if dist > self.settings.gui_eye_dominant_diff_thresh:
-                falloff = True
-                if (
-                    not self.settings.gui_left_eye_dominant
-                    and not self.settings.gui_right_eye_dominant
-                ):
-                    if var.l_eye_velocity < var.r_eye_velocity:
-                        var.r_eye_x = out_x
-                        var.right_y = out_y
-                    else:
-                        eye_x = var.l_eye_x
-                        eye_y = var.left_y
-                elif self.settings.gui_left_eye_dominant:
-                    var.r_eye_x = out_x
-                    var.right_y = out_y
-                    falloff = False
-            else:
-                var.l_eye_x = out_x
-                var.left_y = out_y
-                falloff = False
+    if (
+        self.settings.gui_right_eye_dominant
+        or self.settings.gui_left_eye_dominant
+        or self.settings.gui_outer_side_falloff
+    ):
+        # Calculate the distance between the two eyes
+        dist = np.sqrt(np.square(var.l_eye_x - var.r_eye_x) + np.square(var.left_y - var.right_y))
+        if self.eye_id == EyeId.LEFT:
+            var.l_eye_x = out_x
+            var.left_y = out_y
 
-    if self.eye_id == EyeId.RIGHT:
-        var.r_eye_velocity = var.average_velocity
-        if self.settings.gui_outer_side_falloff:
-            dist = abs(
-                np.sqrt(
-                    abs(np.square(var.l_eye_x - out_x) - np.square(var.left_y - out_y))
-                )
-            )
-            #  print(dist, "r")  # TODO remove once testing is done
-            if dist > self.settings.gui_eye_dominant_diff_thresh:
-                falloff = True
-                if (
-                    not self.settings.gui_left_eye_dominant
-                    and not self.settings.gui_right_eye_dominant
-                ):
-                    if var.l_eye_velocity < var.r_eye_velocity:
-                        var.r_eye_x = out_x
-                        var.right_y = out_y
-                    else:
-                        var.l_eye_x = out_x
-                        var.left_y = out_y  # need to make sure we send these values... might re think the whole file
-                elif self.settings.gui_right_eye_dominant:
-                    var.l_eye_x = out_x
-                    var.left_y = out_y
-                    falloff = False
+        if self.eye_id == EyeId.RIGHT:
+            var.r_eye_x = out_x
+            var.right_y = out_y
+
+        # Check if the distance is greater than the threshold
+        if dist > self.settings.gui_eye_dominant_diff_thresh:
+
+            if self.settings.gui_right_eye_dominant:
+                out_x, out_y = var.r_eye_x, var.right_y
+
+            elif self.settings.gui_left_eye_dominant:
+                out_x, out_y = var.l_eye_x, var.left_y
 
             else:
-                falloff = False
-                var.r_eye_x = out_x
-                var.right_y = out_y
-
-    if self.eye_id == EyeId.LEFT and falloff:
-        out_x = var.r_eye_x
-        out_y = var.right_y
-    if self.eye_id == EyeId.RIGHT and falloff:
-        out_x = var.l_eye_x
-        out_y = (
-            var.left_y
-        )  # needs to not be in this file lol... well if we want proper visualization..
-
+                # If the distance is too large, identify the eye with the lower velocity
+                if var.l_eye_velocity < var.r_eye_velocity:
+                    # Mirror the position of the eye with lower velocity to the other eye
+                    out_x, out_y = var.r_eye_x, var.right_y
+                else:
+                    # Mirror the position of the eye with lower velocity to the other eye
+                    out_x, out_y = var.l_eye_x, var.left_y
+        else:
+            # If the distance is within the threshold, do not mirror the eyes
+            pass
+    else:
+        pass
     return out_x, out_y

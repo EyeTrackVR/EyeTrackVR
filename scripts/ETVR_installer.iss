@@ -2,7 +2,7 @@
 ; SEE THE DOCUMENTATION FOR DETAILS ON CREATING INNO SETUP SCRIPT FILES!
 
 #define MyAppName "EyeTrackVR"
-#define MyAppVersion "0.2 BETA 5"
+#define MyAppVersion "0.2 BETA 10"
 #define MyAppPublisher "EyeTrackVR"
 #define MyAppURL "https://redhawk989.github.io/EyeTrackVR/"
 #define MyAppExeName "eyetrackapp.exe"
@@ -20,11 +20,11 @@ AppSupportURL={#MyAppURL}
 AppUpdatesURL={#MyAppURL}
 DefaultDirName={autopf}\{#MyAppName}
 DisableProgramGroupPage=yes
-OutputDir=C:\Users\beaul\OneDrive\Desktop\Output\
+OutputDir=C:\Users\Prohurtz\Desktop\Output\
 ; Uncomment the following line to run in non administrative install mode (install for current user only.)
 ;PrivilegesRequired=lowest
 OutputBaseFilename=EyeTrackVR-Setup
-SetupIconFile=C:\Users\beaul\PycharmProjects\EyeTrackVR\EyeTrackApp\Images\logo.ico
+SetupIconFile=C:\Users\Prohurtz\PycharmProjects\EyeTrackVR\EyeTrackApp\Images\logo.ico
 Compression=lzma/ultra64
 
 SolidCompression=yes
@@ -37,8 +37,8 @@ Name: "english"; MessagesFile: "compiler:Default.isl"
 Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{cm:AdditionalIcons}";
 
 [Files]
-Source: "C:\Users\beaul\PycharmProjects\EyeTrackVR\EyeTrackApp\dist\EyeTrackApp\{#MyAppExeName}"; DestDir: "{app}"; Flags: ignoreversion
-Source: "C:\Users\beaul\PycharmProjects\EyeTrackVR\EyeTrackApp\dist\EyeTrackApp\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
+Source: "C:\Users\Prohurtz\PycharmProjects\EyeTrackVR\EyeTrackApp\dist\{#MyAppExeName}"; DestDir: "{app}"; Flags: ignoreversion
+Source: "C:\Users\Prohurtz\PycharmProjects\EyeTrackVR\EyeTrackApp\dist\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
 ; NOTE: Don't use "Flags: ignoreversion" on any shared system files
 
 [Dirs]

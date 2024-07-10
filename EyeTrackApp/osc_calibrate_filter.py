@@ -1,3 +1,29 @@
+"""
+------------------------------------------------------------------------------------------------------
+
+                                               ,@@@@@@
+                                            @@@@@@@@@@@            @@@
+                                          @@@@@@@@@@@@      @@@@@@@@@@@
+                                        @@@@@@@@@@@@@   @@@@@@@@@@@@@@
+                                      @@@@@@@/         ,@@@@@@@@@@@@@
+                                         /@@@@@@@@@@@@@@@  @@@@@@@@
+                                    @@@@@@@@@@@@@@@@@@@@@@@@ @@@@@
+                                @@@@@@@@                @@@@@
+                              ,@@@                        @@@@&
+                                             @@@@@@.       @@@@
+                                   @@@     @@@@@@@@@/      @@@@@
+                                   ,@@@.     @@@@@@((@     @@@@(
+                                   //@@@        ,,  @@@@  @@@@@
+                                   @@@(                @@@@@@@
+                                   @@@  @          @@@@@@@@#
+                                       @@@@@@@@@@@@@@@@@
+                                      @@@@@@@@@@@@@(
+
+Copyright (c) 2023 EyeTrackVR <3
+LICENSE: GNU GPLv3 
+------------------------------------------------------------------------------------------------------
+"""
+
 import numpy as np
 import time
 from enum import IntEnum
@@ -5,9 +31,11 @@ from utils.misc_utils import PlaySound, SND_FILENAME, SND_ASYNC, resource_path
 from utils.eye_falloff import velocity_falloff
 import socket
 import struct
-
 import threading
-
+import os
+import subprocess
+import math
+from utils.calibration_3d import receive_calibration_data, converge_3d
 
 class TimeoutError(RuntimeError):
     pass
@@ -19,9 +47,7 @@ class AsyncCall(object):
         self.Callback = callback
 
     def __call__(self, *args, **kwargs):
-        self.Thread = threading.Thread(
-            target=self.run, name=self.Callable.__name__, args=args, kwargs=kwargs
-        )
+        self.Thread = threading.Thread(target=self.run, name=self.Callable.__name__, args=args, kwargs=kwargs)
         self.Thread.start()
         return self
 
@@ -77,31 +103,77 @@ class var:
     right_y = 0.0
     l_eye_velocity = 0.0
     r_eye_velocity = 0.0
+    overlay_active = False
+    falloff_latch = False
+    single_eye = True
+    left_enb = 0
+    right_enb = 0
+    eye_wait = 10
+    left_calib = False
+    right_calib = False
+    completed_3d_calib = 0
 
 
 @Async
 def center_overlay_calibrate(self):
-    try:
-        os.startfile(
-            "Tools/ETVR_SteamVR_Calibration_Overlay.exe -center"
-        )  # i cant remember if this need the - for argument...
+    # try:
+    if var.overlay_active != True:
+
+        dirname = os.getcwd()
+        overlay_path = os.path.join(dirname, "center.bat")
+        os.startfile(overlay_path)
+        var.overlay_active = True
         sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         server_address = ("localhost", 2112)
         sock.bind(server_address)
-
         data, address = sock.recvfrom(4096)
         received_int = struct.unpack("!l", data)[0]
         message = received_int
         self.settings.gui_recenter_eyes = False
-        print(message)  # TODO: remove print after testing
+        self.calibration_frame_counter = 0
+        var.overlay_active = False
+
+
+#  except:
+#  print("[WARN] Calibration overlay error. Make sure SteamVR is Running.")
+#   self.settings.gui_recenter_eyes = False
+#   var.overlay_active = False
+
+
+@Async
+def overlay_calibrate_3d(self):
+    try:
+        if var.overlay_active != True:
+            dirname = os.getcwd()
+            overlay_path = os.path.join(dirname, "calibrate.bat")
+            os.startfile(overlay_path)
+            var.overlay_active = True
+            while var.overlay_active:
+                sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+                server_address = ("localhost", 2112)
+                sock.bind(server_address)
+                data, address = sock.recvfrom(4096)
+                received_int = struct.unpack("!l", data)[0]
+                message = received_int
+                self.settings.gui_recenter_eyes = False
+                self.settings.grab_3d_point = True
+
+                print(message)
+                if message == 9:
+                    var.overlay_active = False
+
     except:
         print("[WARN] Calibration overlay error. Make sure SteamVR is Running.")
         self.settings.gui_recenter_eyes = False
-    return self.settings.gui_recenter_eyes
+        var.overlay_active = False
+
 
 
 class cal:
-    def cal_osc(self, cx, cy):
+    def cal_osc(self, cx, cy, angle):
+
+        #print(self.eye_id)
+
         if cx == None or cy == None:
             return 0, 0
         if cx == 0:
@@ -112,6 +184,51 @@ class cal:
             flipx = self.settings.gui_flip_x_axis_right
         else:
             flipx = self.settings.gui_flip_x_axis_left
+        if self.calibration_3d_frame_counter == -621: #or self.settings.gui_3d_calibration:
+
+            self.calibration_3d_frame_counter = self.calibration_3d_frame_counter - 1
+            overlay_calibrate_3d(self)
+            self.config.calibration_points_3d = []
+
+
+          #  print(self.eye_id, cx, cy)
+       # self.settings.gui_3d_calibration = False
+
+        if self.settings.grab_3d_point:
+            # Check if both calibrations are done
+            if var.left_calib and var.right_calib:
+                self.settings.grab_3d_point = False
+                var.left_calib = False
+                var.right_calib = False
+                print('end', len(self.config.calibration_points_3d), self.config.calibration_points_3d)
+
+            else:
+                # Check if it's the left eye and left calibration is not done yet
+                if self.eye_id == EyeId.LEFT and not var.left_calib:
+                    var.left_calib = True
+                    self.config.calibration_points_3d.append((cx, cy, 1))
+                # Check if it's the right eye and right calibration is not done yet
+                elif self.eye_id == EyeId.RIGHT and not var.right_calib:
+                    var.right_calib = True
+                    self.config.calibration_points_3d.append((cx, cy, 0))
+
+
+        if self.eye_id == EyeId.LEFT and len(self.config.calibration_points_3d) == 9 and var.left_calib == False:
+            var.left_calib = True
+            receive_calibration_data(self.config.calibration_points_3d, self.eye_id)
+            print('SENT LEFT EYE POINTS')
+            var.completed_3d_calib += 1
+
+        if self.eye_id == EyeId.RIGHT and len(self.config.calibration_points_3d) == 9 and var.right_calib == False:
+            var.right_calib = True
+            receive_calibration_data(self.config.calibration_points_3d, self.eye_id)
+            print('SENT RIGHT EYE POINTS')
+            var.completed_3d_calib += 1
+       # print(len(self.config.calibration_points), self.eye_id)
+
+        if var.completed_3d_calib >= 2:
+            converge_3d()
+           # pass
 
         if self.calibration_frame_counter == 0:
             self.calibration_frame_counter = None
@@ -140,15 +257,15 @@ class cal:
 
             self.calibration_frame_counter -= 1
 
+
+
         if self.settings.gui_recenter_eyes == True:
             self.config.calib_XOFF = cx
             self.config.calib_YOFF = cy
             if self.ts == 0:
                 center_overlay_calibrate(self)  # TODO, only call on windows machines?
                 self.settings.gui_recenter_eyes = False
-                PlaySound(
-                    resource_path("Audio/completed.wav"), SND_FILENAME | SND_ASYNC
-                )
+                PlaySound(resource_path("Audio/completed.wav"), SND_FILENAME | SND_ASYNC)
             else:
                 self.ts = self.ts - 1
 
@@ -181,9 +298,7 @@ class cal:
             yu = float((cy - self.config.calib_YOFF) / calib_diff_y_MIN)
             yd = float((cy - self.config.calib_YOFF) / calib_diff_y_MAX)
 
-            if (
-                self.settings.gui_flip_y_axis
-            ):  # check config on flipped values settings and apply accordingly
+            if self.settings.gui_flip_y_axis:  # check config on flipped values settings and apply accordingly
                 if yd >= 0:
                     out_y = max(0.0, min(1.0, yd))
                 if yu > 0:
@@ -206,16 +321,12 @@ class cal:
                     out_x = -abs(max(0.0, min(1.0, xl)))
 
             if self.settings.gui_outer_side_falloff:
+
                 run_time = time.time()
                 out_x_mult = out_x * 100
                 out_y_mult = out_y * 100
                 velocity = abs(
-                    np.sqrt(
-                        abs(
-                            np.square(out_x_mult - var.past_x)
-                            - np.square(out_y_mult - var.past_y)
-                        )
-                    )
+                    np.sqrt(abs(np.square(out_x_mult - var.past_x) - np.square(out_y_mult - var.past_y)))
                     / ((var.start_time - run_time) * 10)
                 )
                 if len(var.velocity_rolling_list) < 15:
@@ -223,23 +334,20 @@ class cal:
                 else:
                     var.velocity_rolling_list.pop(0)
                     var.velocity_rolling_list.append(float(velocity))
-                var.average_velocity = sum(var.velocity_rolling_list) / len(
-                    var.velocity_rolling_list
-                )
+                var.average_velocity = sum(var.velocity_rolling_list) / len(var.velocity_rolling_list)
                 var.past_x = out_x_mult
                 var.past_y = out_y_mult
 
+            out_x, out_y = velocity_falloff(self, var, out_x, out_y)
+
             try:
-                noisy_point = np.array(
-                    [float(out_x), float(out_y)]
-                )  # fliter our values with a One Euro Filter
+                noisy_point = np.array([float(out_x), float(out_y)])  # fliter our values with a One Euro Filter
                 point_hat = self.one_euro_filter(noisy_point)
                 out_x = point_hat[0]
                 out_y = point_hat[1]
+
             except:
                 pass
-
-            out_x, out_y = velocity_falloff(self, var, out_x, out_y)
 
             return out_x, out_y, var.average_velocity
         else:
