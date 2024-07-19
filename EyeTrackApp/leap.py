@@ -264,7 +264,7 @@ class LEAP_C(object):
 
 
             per = per[0][0]
-            time.sleep(0.01)
+            #time.sleep(0.01)
             if per <= 0.2:  # TODO: EXPOSE AS SETTING
                 per == 0.0
              #   print('BLINKMF')
