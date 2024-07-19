@@ -60,7 +60,7 @@ ALGO_SETTINGS_RADIO_NAME = "-ALGOSETTINGSRADIO-"
 VRCFT_MODULE_SETTINGS_RADIO_NAME = "-VRCFTSETTINGSRADIO-"
 
 page_url = "https://github.com/RedHawk989/EyeTrackVR/releases/latest"
-appversion = "EyeTrackApp 0.2.0 BETA 11"
+appversion = "EyeTrackApp 0.2.0 BETA 13"
 
 
 def main():
