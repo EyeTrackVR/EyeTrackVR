@@ -294,7 +294,7 @@ class EyeProcessor:
             pass
 
     def UPDATE(self):
-        # print(self.eyeopen)
+
 
         if self.settings.gui_BLINK:
             self.eyeopen = BLINK(self)
@@ -366,6 +366,7 @@ class EyeProcessor:
         self.past_blink = self.eyeopen
         self.prev_x = self.out_x
         self.prev_y = self.out_y
+
 
         self.output_images_and_update(
             self.thresh,

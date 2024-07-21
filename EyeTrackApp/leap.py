@@ -141,6 +141,9 @@ class LEAP_C(object):
         self.x = 0
         self.y = 0
         self.maxlist = []
+        self.previous_time = None
+        self.old_matrix = None
+        self.total_velocity = 0
 
         self.ort_session1 = onnxruntime.InferenceSession(self.model_path, opts, providers=["CPUExecutionProvider"])
 
@@ -162,6 +165,25 @@ class LEAP_C(object):
             if not queues[i].full():
                 queues[i].put(frame)
                 break
+
+
+    def calculate_velocity_vectors(self, old_matrix, current_matrix, time_difference):
+        if len(old_matrix) != len(current_matrix):
+            raise ValueError("Both matrices must have the same number of points")
+
+        velocity_vectors = []
+
+        for i in range(len(old_matrix)):
+            old_point = np.array(old_matrix[i])
+            current_point = np.array(current_matrix[i])
+
+            displacement = current_point - old_point
+            velocity = displacement / time_difference
+
+            velocity_vectors.append(velocity)
+            total_velocity = np.mean([np.linalg.norm(vector) for vector in velocity_vectors])
+
+        return total_velocity
 
     def leap_run(self):
 
@@ -191,7 +213,7 @@ class LEAP_C(object):
                 y = int(y * img_height)
              #   x, y = int(x), int(y)  # Ensure x and y are integers
 
-                cv2.circle(imgvis, (int(x), int(y)), 2, (255, 255, 0), -1)
+                cv2.circle(imgvis, (int(x), int(y)), 3, (255, 255, 0), -1)
                 cv2.circle(imgvis, (int(x), int(y)), 1, (0, 0, 255), -1)
 
 
@@ -205,8 +227,8 @@ class LEAP_C(object):
             # a more fancy method could be used taking into acount the relative size of the landmarks so that weirdness can be acounted for better
             d2 = math.dist(pre_landmark[2], pre_landmark[4])
             d = (d1 + d2) / 2
-            # by averaging both sets we can get less error? i think part of why 1 eye was better than the other is because we only considered one offset points.
-            # considering both should smooth things out between eyes
+            # by averaging both sets we can get less error?
+            # considering both point sets should smooth things out between l&r eyes
 
             try:
                 if d >= np.percentile(
@@ -256,6 +278,27 @@ class LEAP_C(object):
             y = pre_landmark[6][1]
 
 
+            current_time = time.time()  # Get the current time
+
+            # Extract current matrix
+            current_matrix = [point[1] for point in pre_landmark]
+
+            # Calculate time difference
+            if self.previous_time is not None:
+                time_difference = current_time - self.previous_time
+
+                # Calculate velocity vectors if we have old data
+                if self.old_matrix is not None:
+                    self.total_velocity = self.calculate_velocity_vectors(self.old_matrix, current_matrix, time_difference)
+                   # print(f"Velocity Vectors:", total_velocity)
+
+            # Update old matrix and previous time for the next iteration
+            self.old_matrix = [point[1] for point in pre_landmark]
+            self.previous_time = current_time
+
+
+
+
             self.last_lid = per
             calib_array = np.array([per, per]).reshape(1, 2)
 
@@ -264,10 +307,14 @@ class LEAP_C(object):
 
 
             per = per[0][0]
+        #    print(per)
             #time.sleep(0.01)
-            if per <= 0.2:  # TODO: EXPOSE AS SETTING
-                per == 0.0
-             #   print('BLINKMF')
+            if per <= 0.18:  # TODO: EXPOSE AS SETTING
+                per = 0.0
+            if self.total_velocity > 1:
+                per = 0.0
+              #  print('blink', self.total_velocity)
+              #  print('BLINK')
                 # this should be tuned, i could make this auto calib based on min from a list of per values.
 
             return imgvis, float(x), float(y), per
