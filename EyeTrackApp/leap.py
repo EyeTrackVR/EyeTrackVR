@@ -307,9 +307,9 @@ class LEAP_C(object):
 
 
             per = per[0][0]
-        #    print(per)
+          #  print(per)
             #time.sleep(0.01)
-            if per <= 0.18:  # TODO: EXPOSE AS SETTING
+            if per <= 0.25:  # TODO: EXPOSE AS SETTING
                 per = 0.0
             if self.total_velocity > 1:
                 per = 0.0
