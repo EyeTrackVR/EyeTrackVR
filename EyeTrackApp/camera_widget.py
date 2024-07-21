@@ -655,13 +655,13 @@ class CameraWidget:
                         )
 
                     if not np.isnan(eye_info.blink):
-
                         graph.draw_line(
-                            (-100, abs(eye_info.blink) * 2 * 200),
-                            (-100, 100),
+                            (-100, 100),  # Start at the bottom (-100)
+                            (-100, (eye_info.blink * 200) - 100),  # Scale and adjust to the -100 to 100 range
                             color="#6f4ca1",
                             width=10,
                         )
+
                     else:
                         graph.draw_line(
                             (-100, 0.5 * 200), (-100, 100), color="#6f4ca1", width=10
