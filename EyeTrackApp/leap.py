@@ -309,7 +309,7 @@ class LEAP_C(object):
             print(self.total_velocity_new)
             self.total_velocity_avg = (self.total_velocity_new + self.total_velocity_old) / 2
             self.total_velocity_old = self.total_velocity_new
-            if self.total_velocity_avg > 1.7:
+            if self.total_velocity_avg > 1.5:
                 per = 0.0
                 # this should be tuned, i could make this auto calib based on min from a list of per values.
 
