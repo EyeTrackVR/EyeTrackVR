@@ -302,6 +302,8 @@ def main():
                 eventg, valuesg = windowg.read()
 
                 if eventg == sg.WINDOW_CLOSED:
+                    config.settings.gui_disable_gui = False
+                    config.save()
                     break
                 elif eventg == 'Enable GUI':
                     config.settings.gui_disable_gui = False
@@ -309,15 +311,12 @@ def main():
                     print('GUI Enabled')
 
                     break
-
             # Close the window
             windowg.close()
-            print('close')
 
 
         # First off, check for any events from the GUI
         window = create_window(config, settings, eyes)
-        print('new window')
         while True:
             event, values = window.read(timeout=1) # this higher timeout saves some cpu usage
 
