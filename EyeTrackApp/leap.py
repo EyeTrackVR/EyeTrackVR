@@ -247,10 +247,10 @@ class LEAP_C(object):
                 # with this we can use it as the "open state" (0.7, for expanded squeeze)
 
                 # weighted values to shift slightly to max value
-                normal_open = ((sum(self.maxlist) / len(self.maxlist)) * 0.90 + max(self.openlist) * 0.10) / (
-                    0.95 + 0.15
-                )
-
+                normal_open = np.percentile(self.openlist, 70) #((sum(self.maxlist) / len(self.maxlist)) * 0.90 + max(self.openlist) * 0.10) / (
+              #      0.95 + 0.15
+              #  )
+#
             except:
                 normal_open = 0.8
 
@@ -261,7 +261,7 @@ class LEAP_C(object):
                 self.openlist.append(d)
 
             try:
-                per = (d - normal_open) / (min(self.openlist) - normal_open)
+                per = (d - normal_open) / (np.percentile(self.openlist, 2) - normal_open)
 
             #     oldper = (d - max(self.openlist)) / (
             #       min(self.openlist) - max(self.openlist)
@@ -306,9 +306,18 @@ class LEAP_C(object):
             if per <= 0.25:  # TODO: EXPOSE AS SETTING
                 per = 0.0
 
-            print(self.total_velocity_new)
+            #print(per)
+
             self.total_velocity_avg = (self.total_velocity_new + self.total_velocity_old) / 2
             self.total_velocity_old = self.total_velocity_new
+
+            print(self.total_velocity_avg)
+            if self.last_lid == 0.0:
+                if self.total_velocity_avg > 1:
+                    pass
+                else:
+                    per = 0.0
+
             if self.total_velocity_avg > 1.5:
                 per = 0.0
                 # this should be tuned, i could make this auto calib based on min from a list of per values.
