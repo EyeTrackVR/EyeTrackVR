@@ -38,6 +38,9 @@ from settings.algo_settings_widget import AlgoSettingsWidget
 from osc.osc import OSCManager
 from osc.OSCMessage import OSCMessage
 from utils.misc_utils import is_nt, resource_path
+import time
+import cv2
+import numpy as np
 
 if is_nt:
     from winotify import Notification
@@ -258,136 +261,165 @@ def main():
         background_color="#292929",
     )
 
-    # GUI Render loop
     while True:
-        # First off, check for any events from the GUI
-        event, values = window.read(timeout=1) # this higher timeout saves some cpu usage
+        print('main loop')
+        if config.settings.gui_disable_gui:
+            timeout = 10 #TODO: test this on windows, on mac im not seeing a negitive side effect
+            layout = [[sg.Button("Enable GUI")]]
 
-        # If we're in either mode and someone hits q, quit immediately
-        if event == "Exit" or event == sg.WIN_CLOSED:
-            for eye in eyes:
-                eye.stop()
-            cancellation_event.set()
-            osc_manager.shutdown()
-            print("\033[94m[INFO] Exiting EyeTrackApp\033[0m")
-            os._exit(0)  # I do not like this, but for now this fixes app hang on close
-            return
+            # Create the window
+            window = sg.Window("Simple Button", layout)
 
-        if values[RIGHT_EYE_RADIO_NAME] and config.eye_display_id != EyeId.RIGHT:
-            config.settings.gui_disable_gui = False
-            eyes[0].start()
-            eyes[1].stop()
-            settings[0].stop()
-            settings[1].stop()
-            settings[2].stop()
-            window[RIGHT_EYE_NAME].update(visible=True)
-            window[LEFT_EYE_NAME].update(visible=False)
-            window[SETTINGS_NAME].update(visible=False)
-            window[VRCFT_MODULE_SETTINGS_NAME].update(visible=False)
-            window[ALGO_SETTINGS_NAME].update(visible=False)
-            config.eye_display_id = EyeId.RIGHT
-            config.settings.tracker_single_eye = 2
-            config.save()
+            # Event loop to process events and get the values of the inputs
+            while True:
+                event, values = window.read()
 
-        elif values[LEFT_EYE_RADIO_NAME] and config.eye_display_id != EyeId.LEFT:
-            config.settings.gui_disable_gui = False
-            settings[0].stop()
-            settings[1].stop()
-            settings[2].stop()
-            eyes[0].stop()
-            eyes[1].start()
-            window[RIGHT_EYE_NAME].update(visible=False)
-            window[LEFT_EYE_NAME].update(visible=True)
-            window[SETTINGS_NAME].update(visible=False)
-            window[VRCFT_MODULE_SETTINGS_NAME].update(visible=False)
-            window[ALGO_SETTINGS_NAME].update(visible=False)
-            config.eye_display_id = EyeId.LEFT
-            config.settings.tracker_single_eye = 1
-            config.save()
+                # If user closes window or clicks the button, break the loop
+                if event == sg.WINDOW_CLOSED:
+                    break
+                elif event == "Enable GUI":
+                    print("Button clicked!")
+                    config.settings.gui_disable_gui = False
+                    config.save()
+                    break
 
-        elif values[BOTH_EYE_RADIO_NAME] and config.eye_display_id != EyeId.BOTH:
-            config.settings.gui_disable_gui = False
-            settings[0].stop()
-            settings[1].stop()
-            settings[2].stop()
-            eyes[1].start()
-            eyes[0].start()
-            window[LEFT_EYE_NAME].update(visible=True)
-            window[RIGHT_EYE_NAME].update(visible=True)
-            window[SETTINGS_NAME].update(visible=False)
-            window[VRCFT_MODULE_SETTINGS_NAME].update(visible=False)
-            window[ALGO_SETTINGS_NAME].update(visible=False)
-            config.eye_display_id = EyeId.BOTH
-            config.settings.tracker_single_eye = 0
-            config.save()
-
-        elif values[SETTINGS_RADIO_NAME] and config.eye_display_id != EyeId.SETTINGS:
-            config.settings.gui_disable_gui = False
-            eyes[0].stop()
-            eyes[1].stop()
-            settings[1].stop()
-            settings[0].start()
-            settings[2].stop()
-            window[RIGHT_EYE_NAME].update(visible=False)
-            window[LEFT_EYE_NAME].update(visible=False)
-            window[SETTINGS_NAME].update(visible=True)
-            window[VRCFT_MODULE_SETTINGS_NAME].update(visible=False)
-            window[ALGO_SETTINGS_NAME].update(visible=False)
-            config.eye_display_id = EyeId.SETTINGS
-            config.save()
-
-        elif values[ALGO_SETTINGS_RADIO_NAME] and config.eye_display_id != EyeId.ALGOSETTINGS:
-            config.settings.gui_disable_gui = False
-            eyes[0].stop()
-            eyes[1].stop()
-            settings[0].stop()
-            settings[1].start()
-            settings[2].stop()
-            window[RIGHT_EYE_NAME].update(visible=False)
-            window[LEFT_EYE_NAME].update(visible=False)
-            window[SETTINGS_NAME].update(visible=False)
-            window[VRCFT_MODULE_SETTINGS_NAME].update(visible=False)
-            window[ALGO_SETTINGS_NAME].update(visible=True)
-            config.eye_display_id = EyeId.ALGOSETTINGS
-            config.save()
-
-        elif values[VRCFT_MODULE_SETTINGS_RADIO_NAME] and config.eye_display_id != EyeId.VRCFTMODULESETTINGS:
-            config.settings.gui_disable_gui = False
-            eyes[0].stop()
-            eyes[1].stop()
-            settings[0].stop()
-            settings[1].stop()
-            settings[2].start()
-            window[RIGHT_EYE_NAME].update(visible=False)
-            window[LEFT_EYE_NAME].update(visible=False)
-            window[SETTINGS_NAME].update(visible=False)
-            window[VRCFT_MODULE_SETTINGS_NAME].update(visible=True)
-            window[ALGO_SETTINGS_NAME].update(visible=False)
-            config.eye_display_id = EyeId.VRCFTMODULESETTINGS
-            config.save()
-        elif values[GUIOFF_RADIO_NAME] and config.eye_display_id != EyeId.GUIOFF:
-            config.settings.gui_disable_gui = True
-          #  eyes[0].stop()
-           # eyes[1].stop()
-            settings[0].stop()
-            settings[1].stop()
-            settings[2].stop()
-            window[RIGHT_EYE_NAME].update(visible=False)
-            window[LEFT_EYE_NAME].update(visible=False)
-            window[SETTINGS_NAME].update(visible=False)
-            window[VRCFT_MODULE_SETTINGS_NAME].update(visible=False)
-            window[ALGO_SETTINGS_NAME].update(visible=False)
-            config.eye_display_id = EyeId.GUIOFF
-            config.save()
+            # Close the window
+            window.close()
 
         else:
-            # Otherwise, render all
-            for eye in eyes:
-                if eye.started():
-                    eye.render(window, event, values)
-            for setting in settings:
-                if setting.started():
-                    setting.render(window, event, values)
+            timeout = 1
+        # GUI Render loop
+            while True:
+
+                # First off, check for any events from the GUI
+                event, values = window.read(timeout=timeout) # this higher timeout saves some cpu usage
+
+                # If we're in either mode and someone hits q, quit immediately
+                if event == "Exit" or event == sg.WIN_CLOSED:
+                    for eye in eyes:
+                        eye.stop()
+                    cancellation_event.set()
+                    osc_manager.shutdown()
+                    print("\033[94m[INFO] Exiting EyeTrackApp\033[0m")
+                    os._exit(0)  # I do not like this, but for now this fixes app hang on close
+                    return
+
+                if values[RIGHT_EYE_RADIO_NAME] and config.eye_display_id != EyeId.RIGHT:
+                    config.settings.gui_disable_gui = False
+                    eyes[0].start()
+                    eyes[1].stop()
+                    settings[0].stop()
+                    settings[1].stop()
+                    settings[2].stop()
+                    window[RIGHT_EYE_NAME].update(visible=True)
+                    window[LEFT_EYE_NAME].update(visible=False)
+                    window[SETTINGS_NAME].update(visible=False)
+                    window[VRCFT_MODULE_SETTINGS_NAME].update(visible=False)
+                    window[ALGO_SETTINGS_NAME].update(visible=False)
+                    config.eye_display_id = EyeId.RIGHT
+                    config.settings.tracker_single_eye = 2
+                    config.save()
+
+                elif values[LEFT_EYE_RADIO_NAME] and config.eye_display_id != EyeId.LEFT:
+                    config.settings.gui_disable_gui = False
+                    settings[0].stop()
+                    settings[1].stop()
+                    settings[2].stop()
+                    eyes[0].stop()
+                    eyes[1].start()
+                    window[RIGHT_EYE_NAME].update(visible=False)
+                    window[LEFT_EYE_NAME].update(visible=True)
+                    window[SETTINGS_NAME].update(visible=False)
+                    window[VRCFT_MODULE_SETTINGS_NAME].update(visible=False)
+                    window[ALGO_SETTINGS_NAME].update(visible=False)
+                    config.eye_display_id = EyeId.LEFT
+                    config.settings.tracker_single_eye = 1
+                    config.save()
+
+                elif values[BOTH_EYE_RADIO_NAME] and config.eye_display_id != EyeId.BOTH:
+                    config.settings.gui_disable_gui = False
+                    settings[0].stop()
+                    settings[1].stop()
+                    settings[2].stop()
+                    eyes[1].start()
+                    eyes[0].start()
+                    window[LEFT_EYE_NAME].update(visible=True)
+                    window[RIGHT_EYE_NAME].update(visible=True)
+                    window[SETTINGS_NAME].update(visible=False)
+                    window[VRCFT_MODULE_SETTINGS_NAME].update(visible=False)
+                    window[ALGO_SETTINGS_NAME].update(visible=False)
+                    config.eye_display_id = EyeId.BOTH
+                    config.settings.tracker_single_eye = 0
+                    config.save()
+
+                elif values[SETTINGS_RADIO_NAME] and config.eye_display_id != EyeId.SETTINGS:
+                    config.settings.gui_disable_gui = False
+                    eyes[0].stop()
+                    eyes[1].stop()
+                    settings[1].stop()
+                    settings[0].start()
+                    settings[2].stop()
+                    window[RIGHT_EYE_NAME].update(visible=False)
+                    window[LEFT_EYE_NAME].update(visible=False)
+                    window[SETTINGS_NAME].update(visible=True)
+                    window[VRCFT_MODULE_SETTINGS_NAME].update(visible=False)
+                    window[ALGO_SETTINGS_NAME].update(visible=False)
+                    config.eye_display_id = EyeId.SETTINGS
+                    config.save()
+
+                elif values[ALGO_SETTINGS_RADIO_NAME] and config.eye_display_id != EyeId.ALGOSETTINGS:
+                    config.settings.gui_disable_gui = False
+                    eyes[0].stop()
+                    eyes[1].stop()
+                    settings[0].stop()
+                    settings[1].start()
+                    settings[2].stop()
+                    window[RIGHT_EYE_NAME].update(visible=False)
+                    window[LEFT_EYE_NAME].update(visible=False)
+                    window[SETTINGS_NAME].update(visible=False)
+                    window[VRCFT_MODULE_SETTINGS_NAME].update(visible=False)
+                    window[ALGO_SETTINGS_NAME].update(visible=True)
+                    config.eye_display_id = EyeId.ALGOSETTINGS
+                    config.save()
+
+                elif values[VRCFT_MODULE_SETTINGS_RADIO_NAME] and config.eye_display_id != EyeId.VRCFTMODULESETTINGS:
+                    config.settings.gui_disable_gui = False
+                    eyes[0].stop()
+                    eyes[1].stop()
+                    settings[0].stop()
+                    settings[1].stop()
+                    settings[2].start()
+                    window[RIGHT_EYE_NAME].update(visible=False)
+                    window[LEFT_EYE_NAME].update(visible=False)
+                    window[SETTINGS_NAME].update(visible=False)
+                    window[VRCFT_MODULE_SETTINGS_NAME].update(visible=True)
+                    window[ALGO_SETTINGS_NAME].update(visible=False)
+                    config.eye_display_id = EyeId.VRCFTMODULESETTINGS
+                    config.save()
+                elif values[GUIOFF_RADIO_NAME] and config.eye_display_id != EyeId.GUIOFF:
+                    config.settings.gui_disable_gui = True
+                  #  eyes[0].stop()
+                   # eyes[1].stop()
+                    settings[0].stop()
+                    settings[1].stop()
+                    settings[2].stop()
+                    window[RIGHT_EYE_NAME].update(visible=False)
+                    window[LEFT_EYE_NAME].update(visible=False)
+                    window[SETTINGS_NAME].update(visible=False)
+                    window[VRCFT_MODULE_SETTINGS_NAME].update(visible=False)
+                    window[ALGO_SETTINGS_NAME].update(visible=False)
+                    config.eye_display_id = EyeId.GUIOFF
+                    config.save()
+                    break
+
+                else:
+                    # Otherwise, render all
+                    for eye in eyes:
+                        if eye.started():
+                            eye.render(window, event, values)
+                    for setting in settings:
+                        if setting.started():
+                            setting.render(window, event, values)
 
 
 if __name__ == "__main__":

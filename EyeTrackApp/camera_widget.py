@@ -117,18 +117,18 @@ class CameraWidget:
 
         self.roi_layout = [
             [
-                sg.Button(
-                    "Mark Out",
-                    key=self.gui_mask_markup,
-                    button_color="#6f4ca1",
-                    tooltip="Mark out stuff that is not your eye.",
-                ),
-                sg.Button(
-                    "Lighten",
-                    key=self.gui_mask_lighten,
-                    button_color="#6f4ca1",
-                    tooltip="Lighten shadowed areas.",
-                ),
+               # sg.Button(
+                #    "Mark Out",
+               #     key=self.gui_mask_markup,
+              #      button_color="#6f4ca1",
+             #       tooltip="Mark out stuff that is not your eye.",
+            #    ),
+            #    sg.Button(
+            #        "Lighten",
+            #        key=self.gui_mask_lighten,
+             #       button_color="#6f4ca1",
+              #      tooltip="Lighten shadowed areas.",
+            #    ),
                 sg.Checkbox(
                     "Camera Widget Padding",
                     default=self.config.gui_rotation_ui_padding,
@@ -497,23 +497,23 @@ class CameraWidget:
                 window[self.gui_tracking_fps].update(self._movavg_fps(self.camera.fps))
                 window[self.gui_tracking_bps].update(self._movavg_bps(self.camera.bps))
 
-            if event == self.gui_mask_lighten:
-                while True:
-                    try:
-                        maybe_image = self.roi_queue.get(block=False)
-                        imgbytes = cv2.imencode(".ppm", maybe_image[0])[1].tobytes()
-                        image = cv2.imdecode(
-                            np.frombuffer(imgbytes, np.uint8), cv2.IMREAD_COLOR
-                        )
+        #    if event == self.gui_mask_lighten:
+         #       while True:
+          #          try:
+           #             maybe_image = self.roi_queue.get(block=False)
+            #            imgbytes = cv2.imencode(".ppm", maybe_image[0])[1].tobytes()
+             #           image = cv2.imdecode(
+              #              np.frombuffer(imgbytes, np.uint8), cv2.IMREAD_COLOR
+               #         )
 
-                        cv2.imshow("Image", image)
-                        cv2.waitKey(1)
-                        cv2.destroyAllWindows()
-                        print("lighen")
-                    except Empty:
-                        pass
-            if event == self.gui_mask_markup:
-                print("markup")
+                #        cv2.imshow("Image", image)
+                 #       cv2.waitKey(1)
+                  #      cv2.destroyAllWindows()
+                   #     print("lighen")
+                    #except Empty:
+                     #   pass
+           # if event == self.gui_mask_markup:
+            #    print("markup")
 
             if self.in_roi_mode:
                 try:
@@ -686,6 +686,8 @@ class CameraWidget:
                     pass
 
         else:
+            def back(*args):
+                pass
             try:
                 window[self.gui_roi_message].update(visible=False)
                 window[self.gui_output_graph].update(visible=False)
