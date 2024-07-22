@@ -28,7 +28,6 @@ LICENSE: GNU GPLv3
 """
 #  LEAP = Lightweight Eyelid And Pupil
 import os
-
 os.environ["OMP_NUM_THREADS"] = "1"
 import onnxruntime
 import numpy as np
@@ -46,7 +45,6 @@ from pathlib import Path
 
 frames = 0
 models = Path("Models")
-
 
 def run_model(input_queue, output_queue, session):
     while True:
@@ -72,8 +70,41 @@ def run_model(input_queue, output_queue, session):
         output_queue.put((frame, pre_landmark))
 
 
+def run_onnx_model(queues, session, frame):
+    for i in range(len(queues)):
+        if not queues[i].full():
+            queues[i].put(frame)
+            break
+
+
+def calculate_velocity_vectors(old_matrix, current_matrix, time_difference):
+    if len(old_matrix) != len(current_matrix):
+        raise ValueError("Both matrices must have the same number of points")
+
+    velocity_vectors = []
+
+    for i in range(len(old_matrix)):
+        old_point = np.array(old_matrix[i])
+        current_point = np.array(current_matrix[i])
+
+        displacement = current_point - old_point
+        velocity = displacement / time_difference
+
+        velocity_vectors.append(velocity)
+        total_velocity = np.mean([np.linalg.norm(vector) for vector in velocity_vectors])
+
+    return total_velocity
+
+
+def to_numpy(tensor):
+    return tensor.detach().cpu().numpy() if tensor.requires_grad else tensor.cpu().numpy()
+
+
 class LEAP_C(object):
     def __init__(self):
+        self.last_lid = None
+        self.current_image_gray = None
+        self.current_image_gray_clean = None
         onnxruntime.disable_telemetry_events()
         # Config variables
         self.num_threads = 1  # Number of python threads to use (using ~1 more than needed to achieve wanted fps yields lower cpu usage)
@@ -101,7 +132,7 @@ class LEAP_C(object):
 
         opts = onnxruntime.SessionOptions()
         opts.inter_op_num_threads = 4
-        opts.intra_op_num_threads = 1 # big perf hit
+        opts.intra_op_num_threads = 1  # big perf hit
         opts.graph_optimization_level = onnxruntime.GraphOptimizationLevel.ORT_ENABLE_ALL
         opts.optimized_model_filepath = ""
 
@@ -133,7 +164,6 @@ class LEAP_C(object):
         min_cutoff = 0.1
         beta = 15.0
         self.one_euro_filter = OneEuroFilter(np.random.rand(12, 2), min_cutoff=min_cutoff, beta=beta)
-
         self.one_euro_filter_float = OneEuroFilter(np.random.rand(1, 2), min_cutoff=5, beta=0.007)
         self.dmax = 0
         self.dmin = 0
@@ -144,7 +174,6 @@ class LEAP_C(object):
         self.previous_time = None
         self.old_matrix = None
         self.total_velocity = 0
-
         self.ort_session1 = onnxruntime.InferenceSession(self.model_path, opts, providers=["CPUExecutionProvider"])
 
         threads = []
@@ -157,36 +186,7 @@ class LEAP_C(object):
             threads.append(thread)
             thread.start()
 
-    def to_numpy(self, tensor):
-        return tensor.detach().cpu().numpy() if tensor.requires_grad else tensor.cpu().numpy()
-
-    def run_onnx_model(self, queues, session, frame):
-        for i in range(len(queues)):
-            if not queues[i].full():
-                queues[i].put(frame)
-                break
-
-
-    def calculate_velocity_vectors(self, old_matrix, current_matrix, time_difference):
-        if len(old_matrix) != len(current_matrix):
-            raise ValueError("Both matrices must have the same number of points")
-
-        velocity_vectors = []
-
-        for i in range(len(old_matrix)):
-            old_point = np.array(old_matrix[i])
-            current_point = np.array(current_matrix[i])
-
-            displacement = current_point - old_point
-            velocity = displacement / time_difference
-
-            velocity_vectors.append(velocity)
-            total_velocity = np.mean([np.linalg.norm(vector) for vector in velocity_vectors])
-
-        return total_velocity
-
     def leap_run(self):
-
         img = self.current_image_gray_clean.copy()
 
         img = cv2.cvtColor(img, cv2.COLOR_GRAY2RGB)
@@ -194,37 +194,31 @@ class LEAP_C(object):
 
         frame = cv2.resize(img, (112, 112))
         imgvis = self.current_image_gray.copy()
-        self.run_onnx_model(self.queues, self.ort_session1, frame)
+        run_onnx_model(self.queues, self.ort_session1, frame)
 
         if not self.output_queue.empty():
-
             frame, pre_landmark = self.output_queue.get()
-        #    pre_landmark = np.reshape(pre_landmark, (-1, 2))
-
-         #   pre_landmark = self.one_euro_filter(pre_landmark)
 
             for point in pre_landmark:
-              #  x, y = (point*112).astype(int)
-
                 x, y = point  # Assuming point is a tuple (x, y)
 
                 # Scale the coordinates to image width and height
                 x = int(x * img_width)
                 y = int(y * img_height)
-             #   x, y = int(x), int(y)  # Ensure x and y are integers
 
                 cv2.circle(imgvis, (int(x), int(y)), 3, (255, 255, 0), -1)
                 cv2.circle(imgvis, (int(x), int(y)), 1, (0, 0, 255), -1)
 
 
-            x1, y1 = pre_landmark[1]
-            x2, y2 = pre_landmark[3]
+            #  x1, y1 = pre_landmark[1]
+            #  x2, y2 = pre_landmark[3]
 
-            x3, y3 = pre_landmark[4]
-            x4, y4 = pre_landmark[2]
+            #  x3, y3 = pre_landmark[4]
+            #  x4, y4 = pre_landmark[2]
 
             d1 = math.dist(pre_landmark[1], pre_landmark[3])
-            # a more fancy method could be used taking into acount the relative size of the landmarks so that weirdness can be acounted for better
+            # a more fancy method could be used taking into acount the relative size of the landmarks so that
+            # weirdness can be acounted for better
             d2 = math.dist(pre_landmark[2], pre_landmark[4])
             d = (d1 + d2) / 2
             # by averaging both sets we can get less error?
@@ -233,14 +227,15 @@ class LEAP_C(object):
             try:
                 if d >= np.percentile(
                     self.openlist, 80  # do not go above 85, but this value can be tuned
-                ):  # an aditional approach could be using the place where on average it is most stable, denoting what distance is the most stable "open"
+                ):  # an additional approach could be using the place where on average it is most stable, denoting
+                    # what distance is the most stable "open"
                     self.maxlist.append(d)
 
-                if len(self.maxlist) > 2000:  # i feel that this is very cpu intensive. think of a better method
+                if len(self.maxlist) > 2000:  # I feel that this is very cpu intensive. think of a better method
                     self.maxlist.pop(0)
 
                 # this should be the average most open value, the average of top 2000 values in rolling calibration
-                # with this we can use it as the "openstate" (0.7, for expanded squeeze)
+                # with this we can use it as the "open state" (0.7, for expanded squeeze)
 
                 # weighted values to shift slightly to max value
                 normal_open = ((sum(self.maxlist) / len(self.maxlist)) * 0.90 + max(self.openlist) * 0.10) / (
@@ -259,16 +254,14 @@ class LEAP_C(object):
             try:
                 per = (d - normal_open) / (min(self.openlist) - normal_open)
 
-                oldper = (d - max(self.openlist)) / (
-                    min(self.openlist) - max(self.openlist)
-                )  # TODO: remove when testing is done
+            #     oldper = (d - max(self.openlist)) / (
+            #       min(self.openlist) - max(self.openlist)
+            #    )  # TODO: remove when testing is done
 
                 per = 1 - per
                 per = per - 0.2  # allow for eye widen? might require a more legit math way but this makes sense.
                 per = min(per, 1.0)  # clamp to 1.0 max
                 per = max(per, 0.0)  # clamp to 1.0 min
-
-            #   print("new: ", per, "vs old: ", oldper)
 
             except:
                 per = 0.8
@@ -277,9 +270,7 @@ class LEAP_C(object):
             x = pre_landmark[6][0]
             y = pre_landmark[6][1]
 
-
             current_time = time.time()  # Get the current time
-
             # Extract current matrix
             current_matrix = [point[1] for point in pre_landmark]
 
@@ -289,32 +280,25 @@ class LEAP_C(object):
 
                 # Calculate velocity vectors if we have old data
                 if self.old_matrix is not None:
-                    self.total_velocity = self.calculate_velocity_vectors(self.old_matrix, current_matrix, time_difference)
+                    self.total_velocity = calculate_velocity_vectors(self.old_matrix, current_matrix, time_difference)
                    # print(f"Velocity Vectors:", total_velocity)
 
             # Update old matrix and previous time for the next iteration
             self.old_matrix = [point[1] for point in pre_landmark]
             self.previous_time = current_time
 
-
-
-
             self.last_lid = per
             calib_array = np.array([per, per]).reshape(1, 2)
 
             per = self.one_euro_filter_float(calib_array)
 
-
-
             per = per[0][0]
-          #  print(per)
-            #time.sleep(0.01)
+
             if per <= 0.25:  # TODO: EXPOSE AS SETTING
                 per = 0.0
+
             if self.total_velocity > 1:
                 per = 0.0
-              #  print('blink', self.total_velocity)
-              #  print('BLINK')
                 # this should be tuned, i could make this auto calib based on min from a list of per values.
 
             return imgvis, float(x), float(y), per
@@ -331,4 +315,5 @@ class External_Run_LEAP(object):
         self.algo.current_image_gray = current_image_gray
         self.algo.current_image_gray_clean = current_image_gray_clean
         img, x, y, per = self.algo.leap_run()
+
         return img, x, y, per

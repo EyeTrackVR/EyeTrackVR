@@ -58,6 +58,7 @@ BOTH_EYE_RADIO_NAME = "-BOTHEYERADIO-"
 SETTINGS_RADIO_NAME = "-SETTINGSRADIO-"
 ALGO_SETTINGS_RADIO_NAME = "-ALGOSETTINGSRADIO-"
 VRCFT_MODULE_SETTINGS_RADIO_NAME = "-VRCFTSETTINGSRADIO-"
+GUIOFF_RADIO_NAME = "-GUIOFF-"
 
 page_url = "https://github.com/RedHawk989/EyeTrackVR/releases/latest"
 appversion = "EyeTrackApp 0.2.0 BETA 13"
@@ -180,13 +181,23 @@ def main():
                 default=(config.eye_display_id == EyeId.ALGOSETTINGS),
                 key=ALGO_SETTINGS_RADIO_NAME,
             ),
-            sg.Radio(
-                "VRCFT Module Settings",
-                "EYESELECTRADIO",
-                background_color="#292929",
-                default=(config.eye_display_id == EyeId.VRCFTMODULESETTINGS),
-                key=VRCFT_MODULE_SETTINGS_RADIO_NAME,
-            ),
+
+        ],
+        [
+        sg.Radio(
+            "VRCFT Module Settings",
+            "EYESELECTRADIO",
+            background_color="#292929",
+            default=(config.eye_display_id == EyeId.VRCFTMODULESETTINGS),
+            key=VRCFT_MODULE_SETTINGS_RADIO_NAME,
+        ),
+        sg.Radio(
+            "GUI OFF",
+            "EYESELECTRADIO",
+            background_color="#292929",
+            default=(config.eye_display_id == EyeId.GUIOFF),
+            key=GUIOFF_RADIO_NAME,
+        ),
         ],
         [
             sg.Column(
@@ -347,6 +358,19 @@ def main():
             window[VRCFT_MODULE_SETTINGS_NAME].update(visible=True)
             window[ALGO_SETTINGS_NAME].update(visible=False)
             config.eye_display_id = EyeId.VRCFTMODULESETTINGS
+            config.save()
+        elif values[GUIOFF_RADIO_NAME] and config.eye_display_id != EyeId.GUIOFF:
+          #  eyes[0].stop()
+           # eyes[1].stop()
+            settings[0].stop()
+            settings[1].stop()
+            settings[2].stop()
+            window[RIGHT_EYE_NAME].update(visible=False)
+            window[LEFT_EYE_NAME].update(visible=False)
+            window[SETTINGS_NAME].update(visible=False)
+            window[VRCFT_MODULE_SETTINGS_NAME].update(visible=False)
+            window[ALGO_SETTINGS_NAME].update(visible=False)
+            config.eye_display_id = EyeId.GUIOFF
             config.save()
 
         else:
