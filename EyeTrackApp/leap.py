@@ -78,20 +78,27 @@ def run_onnx_model(queues, session, frame):
 
 
 def calculate_velocity_vectors(old_matrix, current_matrix, time_difference):
+    # Check if both matrices have the same number of points
     if len(old_matrix) != len(current_matrix):
         raise ValueError("Both matrices must have the same number of points")
 
+    # Indices of the points to be considered
+    indices = [1, 2, 4, 5]
+
     velocity_vectors = []
 
-    for i in range(len(old_matrix)):
-        old_point = np.array(old_matrix[i])
-        current_point = np.array(current_matrix[i])
+    for i in indices:
+        old_y = old_matrix[i]
+        current_y = current_matrix[i]
 
-        displacement = current_point - old_point
-        velocity = displacement / time_difference
+        # Calculate displacement and velocity using the y-values
+        displacement_y = current_y - old_y
+        velocity_y = displacement_y / time_difference
 
-        velocity_vectors.append(velocity)
-        total_velocity = np.mean([np.linalg.norm(vector) for vector in velocity_vectors])
+        velocity_vectors.append(velocity_y)
+
+    # Calculate the total velocity as the mean of the absolute values of the velocity vectors
+    total_velocity = np.mean([abs(velocity) for velocity in velocity_vectors])
 
     return total_velocity
 
@@ -297,7 +304,8 @@ class LEAP_C(object):
             if per <= 0.25:  # TODO: EXPOSE AS SETTING
                 per = 0.0
 
-            if self.total_velocity > 1:
+            print(self.total_velocity)
+            if self.total_velocity > 1.5:
                 per = 0.0
                 # this should be tuned, i could make this auto calib based on min from a list of per values.
 
