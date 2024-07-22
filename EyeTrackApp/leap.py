@@ -180,7 +180,9 @@ class LEAP_C(object):
         self.maxlist = []
         self.previous_time = None
         self.old_matrix = None
-        self.total_velocity = 0
+        self.total_velocity_new = 0
+        self.total_velocity_avg = 0
+        self.total_velocity_old = 0
         self.ort_session1 = onnxruntime.InferenceSession(self.model_path, opts, providers=["CPUExecutionProvider"])
 
         threads = []
@@ -287,7 +289,7 @@ class LEAP_C(object):
 
                 # Calculate velocity vectors if we have old data
                 if self.old_matrix is not None:
-                    self.total_velocity = calculate_velocity_vectors(self.old_matrix, current_matrix, time_difference)
+                    self.total_velocity_new = calculate_velocity_vectors(self.old_matrix, current_matrix, time_difference)
                    # print(f"Velocity Vectors:", total_velocity)
 
             # Update old matrix and previous time for the next iteration
@@ -304,8 +306,10 @@ class LEAP_C(object):
             if per <= 0.25:  # TODO: EXPOSE AS SETTING
                 per = 0.0
 
-            print(self.total_velocity)
-            if self.total_velocity > 1.5:
+            print(self.total_velocity_new)
+            self.total_velocity_avg = (self.total_velocity_new + self.total_velocity_old) / 2
+            self.total_velocity_old = self.total_velocity_new
+            if self.total_velocity_avg > 1.7:
                 per = 0.0
                 # this should be tuned, i could make this auto calib based on min from a list of per values.
 
