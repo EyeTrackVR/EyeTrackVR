@@ -81,7 +81,6 @@ class KeyManager:
 # Create an instance of the KeyManager
 key_manager = KeyManager()
 
-
 def create_window(config, settings, eyes):
 
     key_manager.update_keys()
@@ -213,7 +212,6 @@ def main():
     cancellation_event = threading.Event()
     # Check to see if we can connect to our video source first. If not, bring up camera finding
     # dialog.
-
     try:
         if config.settings.gui_update_check:
             response = requests.get("https://api.github.com/repos/EyeTrackVR/EyeTrackVR/releases/latest")
@@ -285,7 +283,6 @@ def main():
 
     osc_manager.start()
 
-   # window = create_window(config, settings, eyes)
     while True:
 
         if config.settings.gui_disable_gui:
@@ -450,40 +447,6 @@ def main():
                 for setting in settings:
                     if setting.started():
                         setting.render(window, event, values)
-
-
-
-
- #   while True:
-  #      print('main loop')
-   #     if config.settings.gui_disable_gui:
-    #        layoutg = [[sg.Button("Enable GUI")]]
-
-            # Create the window
-     #       windowc = sg.Window("Simple Button", layoutg)
-
-            # Event loop to process events and get the values of the inputs
-      #      while True:
- #               eventg, valuesg = windowc.read()
-#
-                # If user closes window or clicks the button, break the loop
- #               if eventg == sg.WINDOW_CLOSED:
-  #                  break
-   #             elif eventg == "Enable GUI":
-    #                config.settings.gui_disable_gui = False
-     #               config.save()
-      #              break
-
-            # Close the window
-       #     windowc.close()
-
-
-
-    #    else:
-     #       print('main loop')
-      #      run_window(config, settings, eyes)
-
-
 
 if __name__ == "__main__":
     main()
