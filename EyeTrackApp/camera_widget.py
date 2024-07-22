@@ -115,20 +115,104 @@ class CameraWidget:
             self.capture_queue,
         )
 
+
+
+
+        self.hover = None
+
+        # cartesian co-ordinates in widget space are used during selection
+        self.xy0 = None
+        self.xy1 = None
+        self.cartesian_needs_update = False
+        # polar co-ordinates from the image center are the canonical representation
+        self.cr, self.ca = None, None
+        self.roi_size = None
+        self.clip_size = None
+        self.clip_pos = None
+        self.padded_size = None
+        self.img_pos = None
+        self.roi_image_center = None
+
+        self.is_mouse_up = True
+        self.hover_pos = None
+        self.in_roi_mode = False
+        self.movavg_fps_queue = deque(maxlen=120)
+        self.movavg_bps_queue = deque(maxlen=120)
+
+
+
+    def get_widget_layout(self):
+        self.widget_layout = [
+            [
+                sg.Text("Camera Address", background_color="#424042"),
+                sg.InputText(
+                    self.config.capture_source,
+                    key=self.gui_camera_addr,
+                    tooltip="Enter the IP address or UVC port of your camera. (Include the 'http://')",
+                ),
+            ],
+            [
+                sg.Button(
+                    "Save and Restart Tracking",
+                    key=self.gui_save_tracking_button,
+                    button_color="#6f4ca1",
+                ),
+            ],
+            [
+                sg.Button(
+                    "Tracking Mode",
+                    key=self.gui_tracking_button,
+                    button_color="#6f4ca1",
+                    tooltip="Go here to track your eye.",
+                ),
+                sg.Button(
+                    "Cropping Mode",
+                    key=self.gui_roi_button,
+                    button_color="#6f4ca1",
+                    tooltip="Go here to crop out your eye.",
+                ),
+            ],
+            [
+                sg.Text("Rotation", background_color="#424042"),
+                sg.Slider(
+                    range=(0, 360),
+                    default_value=self.config.rotation_angle,
+                    orientation="h",
+                    key=self.gui_rotation_slider,
+                    background_color="#424042",
+                    tooltip="Adjust the rotation of your cameras, make them level.",
+                ),
+            ],
+            [
+                sg.Column(
+                    self.tracking_layout,
+                    key=self.gui_tracking_layout,
+                    background_color="#424042",
+                ),
+                sg.Column(
+                    self.roi_layout,
+                    key=self.gui_roi_layout,
+                    background_color="#424042",
+                    visible=False,
+                ),
+            ],
+        ]
+
+    def get_roi_layout(self):
         self.roi_layout = [
             [
-               # sg.Button(
+                # sg.Button(
                 #    "Mark Out",
-               #     key=self.gui_mask_markup,
-              #      button_color="#6f4ca1",
-             #       tooltip="Mark out stuff that is not your eye.",
-            #    ),
-            #    sg.Button(
-            #        "Lighten",
-            #        key=self.gui_mask_lighten,
-             #       button_color="#6f4ca1",
-              #      tooltip="Lighten shadowed areas.",
-            #    ),
+                #     key=self.gui_mask_markup,
+                #      button_color="#6f4ca1",
+                #       tooltip="Mark out stuff that is not your eye.",
+                #    ),
+                #    sg.Button(
+                #        "Lighten",
+                #        key=self.gui_mask_lighten,
+                #       button_color="#6f4ca1",
+                #      tooltip="Lighten shadowed areas.",
+                #    ),
                 sg.Checkbox(
                     "Camera Widget Padding",
                     default=self.config.gui_rotation_ui_padding,
@@ -151,6 +235,7 @@ class CameraWidget:
             ],
         ]
 
+    def get_tracking_layout(self):
         # Define the window's contents
         self.tracking_layout = [
             [
@@ -208,82 +293,11 @@ class CameraWidget:
             ],
         ]
 
-        self.widget_layout = [
-            [
-                sg.Text("Camera Address", background_color="#424042"),
-                sg.InputText(
-                    self.config.capture_source,
-                    key=self.gui_camera_addr,
-                    tooltip="Enter the IP address or UVC port of your camera. (Include the 'http://')",
-                ),
-            ],
-            [
-                sg.Button(
-                    "Save and Restart Tracking",
-                    key=self.gui_save_tracking_button,
-                    button_color="#6f4ca1",
-                ),
-            ],
-            [
-                sg.Button(
-                    "Tracking Mode",
-                    key=self.gui_tracking_button,
-                    button_color="#6f4ca1",
-                    tooltip="Go here to track your eye.",
-                ),
-                sg.Button(
-                    "Cropping Mode",
-                    key=self.gui_roi_button,
-                    button_color="#6f4ca1",
-                    tooltip="Go here to crop out your eye.",
-                ),
-            ],
-            [
-                sg.Text("Rotation", background_color="#424042"),
-                sg.Slider(
-                    range=(0, 360),
-                    default_value=self.config.rotation_angle,
-                    orientation="h",
-                    key=self.gui_rotation_slider,
-                    background_color="#424042",
-                    tooltip="Adjust the rotation of your cameras, make them level.",
-                ),
-            ],
-            [
-                sg.Column(
-                    self.tracking_layout,
-                    key=self.gui_tracking_layout,
-                    background_color="#424042",
-                ),
-                sg.Column(
-                    self.roi_layout,
-                    key=self.gui_roi_layout,
-                    background_color="#424042",
-                    visible=False,
-                ),
-            ],
-        ]
 
-        self.hover = None
-
-        # cartesian co-ordinates in widget space are used during selection
-        self.xy0 = None
-        self.xy1 = None
-        self.cartesian_needs_update = False
-        # polar co-ordinates from the image center are the canonical representation
-        self.cr, self.ca = None, None
-        self.roi_size = None
-        self.clip_size = None
-        self.clip_pos = None
-        self.padded_size = None
-        self.img_pos = None
-        self.roi_image_center = None
-
-        self.is_mouse_up = True
-        self.hover_pos = None
-        self.in_roi_mode = False
-        self.movavg_fps_queue = deque(maxlen=120)
-        self.movavg_bps_queue = deque(maxlen=120)
+    def update_layouts(self):
+        self.get_roi_layout()
+        self.get_tracking_layout()
+        self.get_widget_layout()
 
     def _movavg_fps(self, next_fps):
         self.movavg_fps_queue.append(next_fps)
@@ -417,6 +431,7 @@ class CameraWidget:
                 self.main_config.save()
 
             if event == self.gui_tracking_button:
+                self.get_tracking_layout()
                 print("\033[94m[INFO] Moving to tracking mode\033[0m")
                 self.in_roi_mode = False
                 self.camera.set_output_queue(self.capture_queue)
@@ -424,6 +439,7 @@ class CameraWidget:
                 window[self.gui_tracking_layout].update(visible=True)
 
             if event == self.gui_roi_button:
+                self.get_roi_layout()
                 print("\033[94m[INFO] Move to roi mode\033[0m")
                 self.in_roi_mode = True
                 self.camera.set_output_queue(self.roi_queue)
