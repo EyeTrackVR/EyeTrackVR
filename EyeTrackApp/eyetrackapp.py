@@ -274,6 +274,7 @@ def main():
             return
 
         if values[RIGHT_EYE_RADIO_NAME] and config.eye_display_id != EyeId.RIGHT:
+            config.settings.gui_disable_gui = False
             eyes[0].start()
             eyes[1].stop()
             settings[0].stop()
@@ -289,6 +290,7 @@ def main():
             config.save()
 
         elif values[LEFT_EYE_RADIO_NAME] and config.eye_display_id != EyeId.LEFT:
+            config.settings.gui_disable_gui = False
             settings[0].stop()
             settings[1].stop()
             settings[2].stop()
@@ -304,6 +306,7 @@ def main():
             config.save()
 
         elif values[BOTH_EYE_RADIO_NAME] and config.eye_display_id != EyeId.BOTH:
+            config.settings.gui_disable_gui = False
             settings[0].stop()
             settings[1].stop()
             settings[2].stop()
@@ -319,6 +322,7 @@ def main():
             config.save()
 
         elif values[SETTINGS_RADIO_NAME] and config.eye_display_id != EyeId.SETTINGS:
+            config.settings.gui_disable_gui = False
             eyes[0].stop()
             eyes[1].stop()
             settings[1].stop()
@@ -333,6 +337,7 @@ def main():
             config.save()
 
         elif values[ALGO_SETTINGS_RADIO_NAME] and config.eye_display_id != EyeId.ALGOSETTINGS:
+            config.settings.gui_disable_gui = False
             eyes[0].stop()
             eyes[1].stop()
             settings[0].stop()
@@ -347,6 +352,7 @@ def main():
             config.save()
 
         elif values[VRCFT_MODULE_SETTINGS_RADIO_NAME] and config.eye_display_id != EyeId.VRCFTMODULESETTINGS:
+            config.settings.gui_disable_gui = False
             eyes[0].stop()
             eyes[1].stop()
             settings[0].stop()
@@ -360,6 +366,7 @@ def main():
             config.eye_display_id = EyeId.VRCFTMODULESETTINGS
             config.save()
         elif values[GUIOFF_RADIO_NAME] and config.eye_display_id != EyeId.GUIOFF:
+            config.settings.gui_disable_gui = True
           #  eyes[0].stop()
            # eyes[1].stop()
             settings[0].stop()

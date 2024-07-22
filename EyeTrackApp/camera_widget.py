@@ -366,318 +366,342 @@ class CameraWidget:
     def render(self, window, event, values):
         changed = False
 
-        # If anything has changed in our configuration settings, change/update those.
-        if (
-            event == self.gui_save_tracking_button
-            and values[self.gui_camera_addr] != self.config.capture_source
-        ):
-            print(
-                "\033[94m[INFO] New value: {}\033[0m".format(
-                    values[self.gui_camera_addr]
+        if self.settings.gui_disable_gui == False:
+
+
+            # If anything has changed in our configuration settings, change/update those.
+            if (
+                event == self.gui_save_tracking_button
+                and values[self.gui_camera_addr] != self.config.capture_source
+            ):
+                print(
+                    "\033[94m[INFO] New value: {}\033[0m".format(
+                        values[self.gui_camera_addr]
+                    )
                 )
-            )
-            try:
-                # Try storing ints as ints, for those using wired cameras.
-                self.config.capture_source = int(values[self.gui_camera_addr])
-            except ValueError:
-                if values[self.gui_camera_addr] == "":
-                    self.config.capture_source = None
-                else:
-                    if (
-                        len(values[self.gui_camera_addr]) > 5
-                        and "http" not in values[self.gui_camera_addr]
-                        and ".mp4" not in values[self.gui_camera_addr]
-                    ):  # If http is not in camera address, add it.
-                        self.config.capture_source = (
-                            f"http://{values[self.gui_camera_addr]}/"
-                        )
+                try:
+                    # Try storing ints as ints, for those using wired cameras.
+                    self.config.capture_source = int(values[self.gui_camera_addr])
+                except ValueError:
+                    if values[self.gui_camera_addr] == "":
+                        self.config.capture_source = None
                     else:
-                        self.config.capture_source = values[self.gui_camera_addr]
-            changed = True
+                        if (
+                            len(values[self.gui_camera_addr]) > 5
+                            and "http" not in values[self.gui_camera_addr]
+                            and ".mp4" not in values[self.gui_camera_addr]
+                        ):  # If http is not in camera address, add it.
+                            self.config.capture_source = (
+                                f"http://{values[self.gui_camera_addr]}/"
+                            )
+                        else:
+                            self.config.capture_source = values[self.gui_camera_addr]
+                changed = True
 
-        if self.config.rotation_angle != int(values[self.gui_rotation_slider]):
-            self.config.rotation_angle = int(values[self.gui_rotation_slider])
-            changed = True
-            self.cartesian_needs_update = True
+            if self.config.rotation_angle != int(values[self.gui_rotation_slider]):
+                self.config.rotation_angle = int(values[self.gui_rotation_slider])
+                changed = True
+                self.cartesian_needs_update = True
 
-        if self.config.gui_rotation_ui_padding != bool(values[self.gui_rotation_ui_padding]):
-            self.config.gui_rotation_ui_padding = bool(values[self.gui_rotation_ui_padding])
-            changed = True
-            self.cartesian_needs_update = True
+            if self.config.gui_rotation_ui_padding != bool(values[self.gui_rotation_ui_padding]):
+                self.config.gui_rotation_ui_padding = bool(values[self.gui_rotation_ui_padding])
+                changed = True
+                self.cartesian_needs_update = True
 
 
-        # if self.config.gui_circular_crop != values[self.gui_circular_crop]:
-        #     self.config.gui_circular_crop = values[self.gui_circular_crop]
-        #    changed = True
+            # if self.config.gui_circular_crop != values[self.gui_circular_crop]:
+            #     self.config.gui_circular_crop = values[self.gui_circular_crop]
+            #    changed = True
 
-        if changed:
-            self.main_config.save()
-
-        if event == self.gui_tracking_button:
-            print("\033[94m[INFO] Moving to tracking mode\033[0m")
-            self.in_roi_mode = False
-            self.camera.set_output_queue(self.capture_queue)
-            window[self.gui_roi_layout].update(visible=False)
-            window[self.gui_tracking_layout].update(visible=True)
-
-        if event == self.gui_roi_button:
-            print("\033[94m[INFO] Move to roi mode\033[0m")
-            self.in_roi_mode = True
-            self.camera.set_output_queue(self.roi_queue)
-            window[self.gui_roi_layout].update(visible=True)
-            window[self.gui_tracking_layout].update(visible=False)
-
-        if event == "{}+UP".format(self.gui_roi_selection):
-            # Event for mouse button up in ROI mode
-            self.is_mouse_up = True
-            print("UP")
-            self.xy0 = np.clip(self.xy0, self.clip_pos, self.clip_pos + self.clip_size)
-            self.xy1 = np.clip(self.xy1, self.clip_pos, self.clip_pos + self.clip_size)
-            self._cartesian_to_polar()
-            if all(abs(self.xy0 - self.xy1) != 0):
-                xy0, xy1 = self._polar_to_cartesian_at_angle(0)
-
-                self.config.roi_window_x, self.config.roi_window_y = (np.minimum(xy0, xy1) - self.img_pos).tolist()
-                self.config.roi_window_w, self.config.roi_window_h = (np.abs(xy0 - xy1)).tolist()
+            if changed:
                 self.main_config.save()
 
-        if event == self.gui_roi_selection:
-            # Event for mouse button down or mouse drag in ROI mode
-            self.hover_pos = None
+            if event == self.gui_tracking_button:
+                print("\033[94m[INFO] Moving to tracking mode\033[0m")
+                self.in_roi_mode = False
+                self.camera.set_output_queue(self.capture_queue)
+                window[self.gui_roi_layout].update(visible=False)
+                window[self.gui_tracking_layout].update(visible=True)
 
-            if self.is_mouse_up:
-                self.is_mouse_up = False
-                self.xy0 = np.array(values[self.gui_roi_selection])
+            if event == self.gui_roi_button:
+                print("\033[94m[INFO] Move to roi mode\033[0m")
+                self.in_roi_mode = True
+                self.camera.set_output_queue(self.roi_queue)
+                window[self.gui_roi_layout].update(visible=True)
+                window[self.gui_tracking_layout].update(visible=False)
 
-            self.xy1 = np.array(values[self.gui_roi_selection])
+            if event == "{}+UP".format(self.gui_roi_selection):
+                # Event for mouse button up in ROI mode
+                self.is_mouse_up = True
+                print("UP")
+                self.xy0 = np.clip(self.xy0, self.clip_pos, self.clip_pos + self.clip_size)
+                self.xy1 = np.clip(self.xy1, self.clip_pos, self.clip_pos + self.clip_size)
+                self._cartesian_to_polar()
+                if all(abs(self.xy0 - self.xy1) != 0):
+                    xy0, xy1 = self._polar_to_cartesian_at_angle(0)
 
-            self._cartesian_to_polar()
+                    self.config.roi_window_x, self.config.roi_window_y = (np.minimum(xy0, xy1) - self.img_pos).tolist()
+                    self.config.roi_window_w, self.config.roi_window_h = (np.abs(xy0 - xy1)).tolist()
+                    self.main_config.save()
 
-        if event == "{}+MOVE".format(self.gui_roi_selection):
-            if self.is_mouse_up:
-                self.hover_pos = np.array(values[self.gui_roi_selection])
+            if event == self.gui_roi_selection:
+                # Event for mouse button down or mouse drag in ROI mode
+                self.hover_pos = None
 
-                if any(self.hover_pos > self.padded_size):
-                    self.hover_pos = None
+                if self.is_mouse_up:
+                    self.is_mouse_up = False
+                    self.xy0 = np.array(values[self.gui_roi_selection])
 
-        if event == self.gui_restart_calibration:
-            self.ransac.calibration_frame_counter = self.settings.calibration_samples
-            self.ransac.ibo.clear_filter()
-            PlaySound(resource_path("Audio/start.wav"), SND_FILENAME | SND_ASYNC)
+                self.xy1 = np.array(values[self.gui_roi_selection])
 
-        if event == self.gui_stop_calibration:
-            self.ransac.calibration_frame_counter = 0
+                self._cartesian_to_polar()
 
-        if event == self.gui_recenter_eyes:
-            self.settings.gui_recenter_eyes = True
+            if event == "{}+MOVE".format(self.gui_roi_selection):
+                if self.is_mouse_up:
+                    self.hover_pos = np.array(values[self.gui_roi_selection])
 
-        needs_roi_set = self.config.roi_window_h <= 0 or self.config.roi_window_w <= 0
+                    if any(self.hover_pos > self.padded_size):
+                        self.hover_pos = None
 
-        # TODO: Refactor if statements below...
-        window[self.gui_tracking_fps].update("")
-        window[self.gui_tracking_bps].update("")
-        if self.config.capture_source is None or self.config.capture_source == "":
-            window[self.gui_mode_readout].update("Waiting for camera address")
-            window[self.gui_roi_message].update(visible=False)
-            window[self.gui_output_graph].update(visible=False)
-        elif self.camera.camera_status == CameraState.CONNECTING:
-            window[self.gui_mode_readout].update("Camera Connecting")
-        elif self.camera.camera_status == CameraState.DISCONNECTED:
-            window[self.gui_mode_readout].update("Camera Reconnecting...")
+            if event == self.gui_restart_calibration:
+                self.ransac.calibration_frame_counter = self.settings.calibration_samples
+                self.ransac.ibo.clear_filter()
+                PlaySound(resource_path("Audio/start.wav"), SND_FILENAME | SND_ASYNC)
 
-        elif needs_roi_set:
-            window[self.gui_mode_readout].update("Awaiting Eye Crop")
-        elif self.ransac.calibration_frame_counter != None:
-            window[self.gui_mode_readout].update("Calibration")
-        else:
-            window[self.gui_mode_readout].update("Tracking")
-            window[self.gui_tracking_fps].update(self._movavg_fps(self.camera.fps))
-            window[self.gui_tracking_bps].update(self._movavg_bps(self.camera.bps))
+            if event == self.gui_stop_calibration:
+                self.ransac.calibration_frame_counter = 0
 
-        if event == self.gui_mask_lighten:
-            while True:
+            if event == self.gui_recenter_eyes:
+                self.settings.gui_recenter_eyes = True
+
+            needs_roi_set = self.config.roi_window_h <= 0 or self.config.roi_window_w <= 0
+
+            # TODO: Refactor if statements below...
+            window[self.gui_tracking_fps].update("")
+            window[self.gui_tracking_bps].update("")
+            if self.config.capture_source is None or self.config.capture_source == "":
+                window[self.gui_mode_readout].update("Waiting for camera address")
+                window[self.gui_roi_message].update(visible=False)
+                window[self.gui_output_graph].update(visible=False)
+            elif self.camera.camera_status == CameraState.CONNECTING:
+                window[self.gui_mode_readout].update("Camera Connecting")
+            elif self.camera.camera_status == CameraState.DISCONNECTED:
+                window[self.gui_mode_readout].update("Camera Reconnecting...")
+
+            elif needs_roi_set:
+                window[self.gui_mode_readout].update("Awaiting Eye Crop")
+            elif self.ransac.calibration_frame_counter != None:
+                window[self.gui_mode_readout].update("Calibration")
+            else:
+                window[self.gui_mode_readout].update("Tracking")
+                window[self.gui_tracking_fps].update(self._movavg_fps(self.camera.fps))
+                window[self.gui_tracking_bps].update(self._movavg_bps(self.camera.bps))
+
+            if event == self.gui_mask_lighten:
+                while True:
+                    try:
+                        maybe_image = self.roi_queue.get(block=False)
+                        imgbytes = cv2.imencode(".ppm", maybe_image[0])[1].tobytes()
+                        image = cv2.imdecode(
+                            np.frombuffer(imgbytes, np.uint8), cv2.IMREAD_COLOR
+                        )
+
+                        cv2.imshow("Image", image)
+                        cv2.waitKey(1)
+                        cv2.destroyAllWindows()
+                        print("lighen")
+                    except Empty:
+                        pass
+            if event == self.gui_mask_markup:
+                print("markup")
+
+            if self.in_roi_mode:
                 try:
+                    if self.roi_queue.empty():
+                        self.capture_event.set()
                     maybe_image = self.roi_queue.get(block=False)
-                    imgbytes = cv2.imencode(".ppm", maybe_image[0])[1].tobytes()
-                    image = cv2.imdecode(
-                        np.frombuffer(imgbytes, np.uint8), cv2.IMREAD_COLOR
-                    )
 
-                    cv2.imshow("Image", image)
-                    cv2.waitKey(1)
-                    cv2.destroyAllWindows()
-                    print("lighen")
+                    if maybe_image:
+                        image = maybe_image[0]
+
+                        img_h, img_w, _ = image.shape
+
+                        hyp = math.ceil((img_w**2 + img_h**2)**0.5)
+                        rotation_matrix = cv2.getRotationMatrix2D(
+                            ((img_w/2), (img_h/2)), self.config.rotation_angle, 1
+                        )
+
+                        # calculate position of all four corners of image
+
+                        # calculate crop corner locations in original image space
+                        x_coords, y_coords = np.matmul(
+                            rotation_matrix,
+                            np.transpose([
+                                [0,     0,     1],
+                                [img_w, 0,     1],
+                                [0,     img_h, 1],
+                                [img_w, img_h, 1]]),
+                        )
+
+                        self.clip_size = np.array([math.ceil(max(x_coords) - min(x_coords)),
+                                                   math.ceil(max(y_coords) - min(y_coords))])
+                        if self.config.gui_rotation_ui_padding:
+                            self.padded_size = np.array([hyp, hyp])
+                        else:
+                            self.padded_size = self.clip_size
+
+                        self.img_pos = ((self.padded_size - (img_w, img_h))/2).astype(np.int32)
+
+                        self.clip_pos = ((self.padded_size - self.clip_size)/2).astype(np.int32)
+
+                        self.roi_image_center = self.padded_size / 2
+
+                        # deferred to after roi_image_center is updated
+                        if self.cartesian_needs_update:
+                            self._polar_to_cartesian()
+                            self.cartesian_needs_update = False
+
+                        pad_matrix = np.float32([[1, 0, self.img_pos[X]],
+                                                 [0, 1, self.img_pos[Y]],
+                                                 [0, 0, 1]])
+                        rotation_matrix_padded = cv2.getRotationMatrix2D(
+                            self.roi_image_center, self.config.rotation_angle, 1
+                        )
+                        matrix = np.matmul(rotation_matrix_padded, pad_matrix)
+
+                        image = cv2.warpAffine(
+                            image,
+                            matrix,
+                            self.padded_size,
+                            borderMode=cv2.BORDER_CONSTANT,
+                            borderValue=(128, 128, 128),
+                        )
+
+                        maybe_image = (image, *maybe_image[1:])
+
+                    imgbytes = cv2.imencode(".ppm", maybe_image[0])[1].tobytes()
+                    graph = window[self.gui_roi_selection]
+                    # INCREDIBLY IMPORTANT ERASE. Drawing images does NOT overwrite the buffer, the fucking
+                    # graph keeps every image fed in until you call this. Therefore we have to make sure we
+                    # erase before we redraw, otherwise we'll leak memory *very* quickly.
+                    graph.erase()
+                    graph.draw_image(data=imgbytes, location=(0, 0))
+
+                    def make_dashed(spawn_item, dark="#000000", light="#ffffff", duty=1):
+                        pixel_duty = math.floor(4 * duty)
+                        for (color, dashoffset) in [(dark, 0), (light, 4)]:
+                            item = spawn_item(color)
+                            graph._TKCanvas2.itemconfig(item, dash=(pixel_duty, 8 - pixel_duty), dashoffset=dashoffset)
+
+                    if (self.xy0 is None or self.xy1 is None):
+                        # roi_window rotates around roi center, we rotate around image center
+                        # TODO: it would be nice if they were more consistent
+                        roi_window_pos = (self.config.roi_window_x, self.config.roi_window_y)
+                        roi_window_size = (self.config.roi_window_w, self.config.roi_window_h)
+                        self.xy0 = roi_window_pos + self.img_pos
+                        self.xy1 = self.xy0 + roi_window_size
+                        self._cartesian_to_polar()
+                        self.ca -= math.radians(self.config.rotation_angle)
+                        self._polar_to_cartesian()
+
+                    style = {}
+                    if self.is_mouse_up:
+                        style = {"dark": "#7f78ff", "light": "#d002ff", "duty": 0.5}
+                    make_dashed(lambda color: graph.draw_rectangle(
+                        self.xy0, self.xy1, line_color=color,
+                    ), **style)
+                    if self.is_mouse_up and self.hover_pos is not None:
+                        make_dashed(lambda color: graph.draw_line(
+                            (self.hover_pos[X], 0), (self.hover_pos[X], self.padded_size[Y]), color=color
+                        ))
+                        make_dashed(lambda color: graph.draw_line(
+                            (0, self.hover_pos[Y]), (self.padded_size[X], self.hover_pos[Y]), color=color
+                        ))
+
                 except Empty:
                     pass
-        if event == self.gui_mask_markup:
-            print("markup")
+            else:
+                if needs_roi_set:
+                    window[self.gui_roi_message].update(visible=True)
+                    window[self.gui_output_graph].update(visible=False)
+                    return
+                try:
+                    window[self.gui_roi_message].update(visible=False)
+                    window[self.gui_output_graph].update(visible=True)
+                    (maybe_image, eye_info) = self.image_queue.get(block=False)
 
-        if self.in_roi_mode:
-            try:
-                if self.roi_queue.empty():
-                    self.capture_event.set()
-                maybe_image = self.roi_queue.get(block=False)
+                    imgbytes = cv2.imencode(".ppm", maybe_image)[1].tobytes()
+                    window[self.gui_tracking_image].update(data=imgbytes)
 
-                if maybe_image:
-                    image = maybe_image[0]
+                    # Update the GUI
+                    graph = window[self.gui_output_graph]
+                    graph.erase()
 
-                    img_h, img_w, _ = image.shape
+                    if (
+                        eye_info.info_type != EyeInfoOrigin.FAILURE
+                    ):  # and not eye_info.blink:
+                        graph.update(background_color="white")
+                        if not np.isnan(eye_info.x) and not np.isnan(eye_info.y):
 
-                    hyp = math.ceil((img_w**2 + img_h**2)**0.5)
-                    rotation_matrix = cv2.getRotationMatrix2D(
-                        ((img_w/2), (img_h/2)), self.config.rotation_angle, 1
-                    )
+                            graph.draw_circle(
+                                (eye_info.x * -100, eye_info.y * -100),
+                                eye_info.pupil_dilation * 25,
+                                fill_color="black",
+                                line_color="white",
+                            )
+                        else:
+                            graph.draw_circle(
+                                (0.0 * -100, 0.0 * -100),
+                                20,
+                                fill_color="black",
+                                line_color="white",
+                            )
 
-                    # calculate position of all four corners of image
+                        if not np.isnan(eye_info.blink):
+                            graph.draw_line(
+                                (-100, 100),  # Start at the bottom (-100)
+                                (-100, (eye_info.blink * 200) - 100),  # Scale and adjust to the -100 to 100 range
+                                color="#6f4ca1",
+                                width=10,
+                            )
 
-                    # calculate crop corner locations in original image space
-                    x_coords, y_coords = np.matmul(
-                        rotation_matrix,
-                        np.transpose([
-                            [0,     0,     1],
-                            [img_w, 0,     1],
-                            [0,     img_h, 1],
-                            [img_w, img_h, 1]]),
-                    )
+                        else:
+                            graph.draw_line(
+                                (-100, 0.5 * 200), (-100, 100), color="#6f4ca1", width=10
+                            )
 
-                    self.clip_size = np.array([math.ceil(max(x_coords) - min(x_coords)),
-                                               math.ceil(max(y_coords) - min(y_coords))])
-                    if self.config.gui_rotation_ui_padding:
-                        self.padded_size = np.array([hyp, hyp])
-                    else:
-                        self.padded_size = self.clip_size
+                        if eye_info.blink <= 0.0:
+                            graph.update(background_color="#6f4ca1")
 
-                    self.img_pos = ((self.padded_size - (img_w, img_h))/2).astype(np.int32)
+                    elif eye_info.info_type == EyeInfoOrigin.FAILURE:
+                        graph.update(background_color="red")
+                    # Relay information to OSC
+                    if eye_info.info_type != EyeInfoOrigin.FAILURE:
+                        osc_message = OSCMessage(
+                            type=OSCMessageType.EYE_INFO,
+                            data=(self.eye_id, eye_info),
+                        )
+                        self.osc_queue.put(osc_message)
+                except Empty:
+                    pass
 
-                    self.clip_pos = ((self.padded_size - self.clip_size)/2).astype(np.int32)
-
-                    self.roi_image_center = self.padded_size / 2
-
-                    # deferred to after roi_image_center is updated
-                    if self.cartesian_needs_update:
-                        self._polar_to_cartesian()
-                        self.cartesian_needs_update = False
-
-                    pad_matrix = np.float32([[1, 0, self.img_pos[X]],
-                                             [0, 1, self.img_pos[Y]],
-                                             [0, 0, 1]])
-                    rotation_matrix_padded = cv2.getRotationMatrix2D(
-                        self.roi_image_center, self.config.rotation_angle, 1
-                    )
-                    matrix = np.matmul(rotation_matrix_padded, pad_matrix)
-
-                    image = cv2.warpAffine(
-                        image,
-                        matrix,
-                        self.padded_size,
-                        borderMode=cv2.BORDER_CONSTANT,
-                        borderValue=(128, 128, 128),
-                    )
-
-                    maybe_image = (image, *maybe_image[1:])
-
-                imgbytes = cv2.imencode(".ppm", maybe_image[0])[1].tobytes()
-                graph = window[self.gui_roi_selection]
-                # INCREDIBLY IMPORTANT ERASE. Drawing images does NOT overwrite the buffer, the fucking
-                # graph keeps every image fed in until you call this. Therefore we have to make sure we
-                # erase before we redraw, otherwise we'll leak memory *very* quickly.
-                graph.erase()
-                graph.draw_image(data=imgbytes, location=(0, 0))
-
-                def make_dashed(spawn_item, dark="#000000", light="#ffffff", duty=1):
-                    pixel_duty = math.floor(4 * duty)
-                    for (color, dashoffset) in [(dark, 0), (light, 4)]:
-                        item = spawn_item(color)
-                        graph._TKCanvas2.itemconfig(item, dash=(pixel_duty, 8 - pixel_duty), dashoffset=dashoffset)
-
-                if (self.xy0 is None or self.xy1 is None):
-                    # roi_window rotates around roi center, we rotate around image center
-                    # TODO: it would be nice if they were more consistent
-                    roi_window_pos = (self.config.roi_window_x, self.config.roi_window_y)
-                    roi_window_size = (self.config.roi_window_w, self.config.roi_window_h)
-                    self.xy0 = roi_window_pos + self.img_pos
-                    self.xy1 = self.xy0 + roi_window_size
-                    self._cartesian_to_polar()
-                    self.ca -= math.radians(self.config.rotation_angle)
-                    self._polar_to_cartesian()
-
-                style = {}
-                if self.is_mouse_up:
-                    style = {"dark": "#7f78ff", "light": "#d002ff", "duty": 0.5}
-                make_dashed(lambda color: graph.draw_rectangle(
-                    self.xy0, self.xy1, line_color=color,
-                ), **style)
-                if self.is_mouse_up and self.hover_pos is not None:
-                    make_dashed(lambda color: graph.draw_line(
-                        (self.hover_pos[X], 0), (self.hover_pos[X], self.padded_size[Y]), color=color
-                    ))
-                    make_dashed(lambda color: graph.draw_line(
-                        (0, self.hover_pos[Y]), (self.padded_size[X], self.hover_pos[Y]), color=color
-                    ))
-
-            except Empty:
-                pass
         else:
-            if needs_roi_set:
-                window[self.gui_roi_message].update(visible=True)
-                window[self.gui_output_graph].update(visible=False)
-                return
             try:
                 window[self.gui_roi_message].update(visible=False)
-                window[self.gui_output_graph].update(visible=True)
+                window[self.gui_output_graph].update(visible=False)
                 (maybe_image, eye_info) = self.image_queue.get(block=False)
 
-                imgbytes = cv2.imencode(".ppm", maybe_image)[1].tobytes()
-                window[self.gui_tracking_image].update(data=imgbytes)
-
-                # Update the GUI
-                graph = window[self.gui_output_graph]
-                graph.erase()
 
                 if (
-                    eye_info.info_type != EyeInfoOrigin.FAILURE
-                ):  # and not eye_info.blink:
-                    graph.update(background_color="white")
-                    if not np.isnan(eye_info.x) and not np.isnan(eye_info.y):
+                        eye_info.info_type != EyeInfoOrigin.FAILURE
+                ):
 
-                        graph.draw_circle(
-                            (eye_info.x * -100, eye_info.y * -100),
-                            eye_info.pupil_dilation * 25,
-                            fill_color="black",
-                            line_color="white",
-                        )
-                    else:
-                        graph.draw_circle(
-                            (0.0 * -100, 0.0 * -100),
-                            20,
-                            fill_color="black",
-                            line_color="white",
-                        )
-
-                    if not np.isnan(eye_info.blink):
-                        graph.draw_line(
-                            (-100, 100),  # Start at the bottom (-100)
-                            (-100, (eye_info.blink * 200) - 100),  # Scale and adjust to the -100 to 100 range
-                            color="#6f4ca1",
-                            width=10,
-                        )
-
-                    else:
-                        graph.draw_line(
-                            (-100, 0.5 * 200), (-100, 100), color="#6f4ca1", width=10
-                        )
-
-                    if eye_info.blink <= 0.0:
-                        graph.update(background_color="#6f4ca1")
-
-                elif eye_info.info_type == EyeInfoOrigin.FAILURE:
-                    graph.update(background_color="red")
                 # Relay information to OSC
-                if eye_info.info_type != EyeInfoOrigin.FAILURE:
-                    osc_message = OSCMessage(
-                        type=OSCMessageType.EYE_INFO,
-                        data=(self.eye_id, eye_info),
-                    )
-                    self.osc_queue.put(osc_message)
+                    if eye_info.info_type != EyeInfoOrigin.FAILURE:
+                        osc_message = OSCMessage(
+                            type=OSCMessageType.EYE_INFO,
+                            data=(self.eye_id, eye_info),
+                        )
+                        self.osc_queue.put(osc_message)
             except Empty:
                 pass

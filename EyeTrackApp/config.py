@@ -179,6 +179,8 @@ class EyeTrackSettingsConfig(BaseModel):
     osc_invert_eye_close: bool = False
     gui_RANSACBLINK: bool = False
 
+    gui_disable_gui: bool = False
+
     gui_right_eye_dominant: bool = False
     gui_left_eye_dominant: bool = False
     gui_outer_side_falloff: bool = False
