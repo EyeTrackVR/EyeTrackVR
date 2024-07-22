@@ -289,17 +289,16 @@ def main():
     while True:
 
         if config.settings.gui_disable_gui:
-            print('ee')
             layoutg = [
-                [sg.Button('Enable GUI')]
+                [sg.Text("GUI Disabled!", background_color="#242224")],
+                [sg.Button('Enable GUI', button_color="#6f4ca1")]
             ]
 
             # Create the window
-            windowg = sg.Window('Simple Window', layoutg)
+            windowg = sg.Window('No GUI', layoutg, background_color="#242224")
 
             # Event loop
             while True:
-
                 eventg, valuesg = windowg.read()
 
                 if eventg == sg.WINDOW_CLOSED:
