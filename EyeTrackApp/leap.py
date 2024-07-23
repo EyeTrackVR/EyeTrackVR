@@ -82,9 +82,7 @@ def calculate_velocity_vectors(old_matrix, current_matrix, time_difference):
     if len(old_matrix) != len(current_matrix):
         raise ValueError("Both matrices must have the same number of points")
 
-    # Indices of the points to be considered
     indices = [1, 2, 4, 5]
-
     velocity_vectors = []
 
     for i in indices:
@@ -103,6 +101,25 @@ def calculate_velocity_vectors(old_matrix, current_matrix, time_difference):
     return total_velocity
 
 
+def calculate_polygon_area(points):
+    indices = [1, 2, 4, 5]
+    selected_points = [points[i] for i in indices]
+
+    selected_points.append(selected_points[0])
+
+    # Use the Shoelace formula to calculate the area
+    n = len(selected_points)
+    area = 0
+    for i in range(n - 1):
+        x1, y1 = selected_points[i]
+        x2, y2 = selected_points[i + 1]
+        area += x1 * y2 - x2 * y1
+
+    # Return the absolute value of half the computed area
+    return abs(area)
+
+
+
 def to_numpy(tensor):
     return tensor.detach().cpu().numpy() if tensor.requires_grad else tensor.cpu().numpy()
 
@@ -114,7 +131,7 @@ class LEAP_C(object):
         self.current_image_gray_clean = None
         onnxruntime.disable_telemetry_events()
         # Config variables
-        self.num_threads = 1  # Number of python threads to use (using ~1 more than needed to achieve wanted fps yields lower cpu usage)
+        self.num_threads = 2  # Number of python threads to use (using ~1 more than needed to achieve wanted fps yields lower cpu usage)
         self.queue_max_size = 1  # Optimize for best CPU usage, Memory, and Latency. A maxsize is needed to not create a potential memory leak.
         self.model_path = resource_path(models / 'LEAP071024_E16.onnx')
 
@@ -183,6 +200,8 @@ class LEAP_C(object):
         self.total_velocity_new = 0
         self.total_velocity_avg = 0
         self.total_velocity_old = 0
+        self.old_per = 0.0
+        self.delta_per_neg = 0.0
         self.ort_session1 = onnxruntime.InferenceSession(self.model_path, opts, providers=["CPUExecutionProvider"])
 
         threads = []
@@ -250,7 +269,7 @@ class LEAP_C(object):
                 normal_open = np.percentile(self.openlist, 70) #((sum(self.maxlist) / len(self.maxlist)) * 0.90 + max(self.openlist) * 0.10) / (
               #      0.95 + 0.15
               #  )
-#
+
             except:
                 normal_open = 0.8
 
@@ -261,7 +280,7 @@ class LEAP_C(object):
                 self.openlist.append(d)
 
             try:
-                per = (d - normal_open) / (np.percentile(self.openlist, 2) - normal_open)
+                per = (d - normal_open) / (np.percentile(self.openlist, 1.5) - normal_open)
 
             #     oldper = (d - max(self.openlist)) / (
             #       min(self.openlist) - max(self.openlist)
@@ -271,6 +290,20 @@ class LEAP_C(object):
                 per = per - 0.2  # allow for eye widen? might require a more legit math way but this makes sense.
                 per = min(per, 1.0)  # clamp to 1.0 max
                 per = max(per, 0.0)  # clamp to 1.0 min
+
+                area = calculate_polygon_area(pre_landmark)
+               # if self.old_per > area:
+               #     self.delta_per_neg = self.old_per - area
+               #     print(area, self.delta_per_neg)
+
+                #    self.old_per = area
+
+               # self.old_per = area
+
+
+             #   print(self.delta_per_neg)
+              #  if self.delta_per_neg > 0.06:
+               #     per = 0.0
 
             except:
                 per = 0.8
@@ -290,7 +323,7 @@ class LEAP_C(object):
                 # Calculate velocity vectors if we have old data
                 if self.old_matrix is not None:
                     self.total_velocity_new = calculate_velocity_vectors(self.old_matrix, current_matrix, time_difference)
-                   # print(f"Velocity Vectors:", total_velocity)
+
 
             # Update old matrix and previous time for the next iteration
             self.old_matrix = [point[1] for point in pre_landmark]
@@ -311,15 +344,15 @@ class LEAP_C(object):
             self.total_velocity_avg = (self.total_velocity_new + self.total_velocity_old) / 2
             self.total_velocity_old = self.total_velocity_new
 
-            print(self.total_velocity_avg)
-            if self.last_lid == 0.0:
-                if self.total_velocity_avg > 1:
-                    pass
-                else:
-                    per = 0.0
+        #    print(self.total_velocity_avg)
+         #   if self.last_lid == 0.0:
+          #      if self.total_velocity_avg > 1:
+           #         pass
+            #    else:
+             #       per = 0.0
 
-            if self.total_velocity_avg > 1.5:
-                per = 0.0
+         #   if self.total_velocity_avg > 1.5:
+           #     per = 0.0
                 # this should be tuned, i could make this auto calib based on min from a list of per values.
 
             return imgvis, float(x), float(y), per
