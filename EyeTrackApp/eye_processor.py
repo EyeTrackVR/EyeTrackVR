@@ -52,7 +52,7 @@ from eye import EyeInfo, EyeInfoOrigin
 from intensity_based_openness import *
 from ellipse_based_pupil_dilation import *
 from AHSF import *
-
+from osc.OSCMessage import OSCMessageType, OSCMessage
 
 def run_once(f):
     def wrapper(*args, **kwargs):
@@ -81,6 +81,7 @@ class EyeProcessor:
         capture_queue_incoming: "queue.Queue(maxsize=2)",
         image_queue_outgoing: "queue.Queue(maxsize=2)",
         eye_id,
+        osc_queue: queue.Queue,
     ):
         self.main_config = EyeTrackSettingsConfig
         self.config = config
@@ -96,6 +97,7 @@ class EyeProcessor:
         self.filterlist = []
         self.left_eye_data = [(0.351, 0.399, 1), (0.352, 0.400, 1)]  # Example data
         self.right_eye_data = [(0.351, 0.399, 1), (0.352, 0.400, 1)]  # Example data
+        self.osc_queue = osc_queue
 
         # Cross algo state
         self.lkg_projected_sphere = None
@@ -165,6 +167,7 @@ class EyeProcessor:
         self.pupil_height = 0.0
         self.avg_velocity = 0.0
         self.angle = 621
+
 
         try:
             min_cutoff = float(self.settings.gui_min_cutoff)  # 0.0004
@@ -379,10 +382,25 @@ class EyeProcessor:
                 self.avg_velocity,
             ),
         )
+
         if self.settings.gui_RANSACBLINK and self.eyeopen == 0.0:
             pass
         else:
             self.eyeopen = 0.8
+
+
+        osc_message = OSCMessage(
+            type=OSCMessageType.EYE_INFO,
+            data=(self.eye_id, EyeInfo(
+            self.current_algo,
+            self.out_x,
+            self.out_y,
+            self.pupil_dilation,
+            self.eyeopen,
+            self.avg_velocity,
+        )),
+        )
+        self.osc_queue.put(osc_message)
 
     def BLINKM(self):
         self.eyeopen = BLINK(self)
@@ -720,6 +738,7 @@ class EyeProcessor:
 
         f = True
         while True:
+
             # f = True
             # print(self.capture_queue_incoming.qsize())
             # Check to make sure we haven't been requested to close

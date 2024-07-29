@@ -280,7 +280,7 @@ class LEAP_C(object):
                 self.openlist.append(d)
 
             try:
-                per = (d - normal_open) / (np.percentile(self.openlist, 1.5) - normal_open)
+                per = (d - normal_open) / (np.percentile(self.openlist, 1.7) - normal_open)
 
             #     oldper = (d - max(self.openlist)) / (
             #       min(self.openlist) - max(self.openlist)

@@ -34,7 +34,6 @@ from eye_processor import EyeProcessor, EyeInfoOrigin
 from queue import Queue, Empty
 from camera import Camera, CameraState
 import cv2
-
 from osc.OSCMessage import OSCMessageType, OSCMessage
 from utils.misc_utils import PlaySound, SND_FILENAME, SND_ASYNC, resource_path
 import numpy as np
@@ -103,6 +102,7 @@ class CameraWidget:
             self.capture_queue,
             self.image_queue,
             self.eye_id,
+            self.osc_queue
         )
 
         self.camera_status_queue = Queue()
@@ -692,12 +692,12 @@ class CameraWidget:
                     elif eye_info.info_type == EyeInfoOrigin.FAILURE:
                         graph.update(background_color="red")
                     # Relay information to OSC
-                    if eye_info.info_type != EyeInfoOrigin.FAILURE:
-                        osc_message = OSCMessage(
-                            type=OSCMessageType.EYE_INFO,
-                            data=(self.eye_id, eye_info),
-                        )
-                        self.osc_queue.put(osc_message)
+             #       if eye_info.info_type != EyeInfoOrigin.FAILURE:
+              #          osc_message = OSCMessage(
+               #             type=OSCMessageType.EYE_INFO,
+                #            data=(self.eye_id, eye_info),
+                 #       )
+                  #      self.osc_queue.put(osc_message)
                 except Empty:
                     pass
 
