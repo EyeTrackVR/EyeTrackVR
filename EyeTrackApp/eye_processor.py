@@ -336,7 +336,7 @@ class EyeProcessor:
                 self.rawy,
                 self.eyeopen,
             ) = self.er_leap.run(self.current_image_gray, self.current_image_gray_clean)
-        #  print(self.eyeopen)
+
 
         if len(self.prev_y_list) >= 100:  # "lock" eye when close/blink IN TESTING, kinda broke
             self.prev_y_list.pop(0)
@@ -383,10 +383,10 @@ class EyeProcessor:
             ),
         )
 
-        if self.settings.gui_RANSACBLINK and self.eyeopen == 0.0:
-            pass
-        else:
-            self.eyeopen = 0.8
+    #    if self.settings.gui_RANSACBLINK and self.eyeopen == 0.0:
+     #       pass
+      #  else:
+       #     self.eyeopen = 0.81
 
 
         osc_message = OSCMessage(
@@ -401,6 +401,7 @@ class EyeProcessor:
         )),
         )
         self.osc_queue.put(osc_message)
+        self.eyeopen = 0.8 # TODO: remove this by fixing checks if is 0.0
 
     def BLINKM(self):
         self.eyeopen = BLINK(self)
