@@ -65,8 +65,8 @@ class LEAP_C:
             self.queues.append(queue)
 
         opts = onnxruntime.SessionOptions()
-        opts.inter_op_num_threads = 4
-        opts.intra_op_num_threads = 1
+        opts.inter_op_num_threads = 1
+        opts.intra_op_num_threads = 1 #fps hit
         opts.graph_optimization_level = onnxruntime.GraphOptimizationLevel.ORT_ENABLE_ALL
 
         self.one_euro_filter_float = OneEuroFilter(np.random.rand(1, 2), min_cutoff=0.0004, beta=0.9)

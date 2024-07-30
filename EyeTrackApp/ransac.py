@@ -63,7 +63,7 @@ def ellipse_model(data, y, f):
 def fit_rotated_ellipse_ransac(
     data: np.ndarray,
     rng: np.random.Generator,
-    iter=100,
+    iter=45,
     sample_num=10,
     offset=80,  # 80.0, 10, 80
 ):  # before changing these values, please read up on the ransac algorithm
