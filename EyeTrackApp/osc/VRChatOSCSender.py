@@ -81,11 +81,14 @@ class VRChatOSCSender:
             self.l_eye_blink = eye_blink
             self.left_y = eye_y
             self.l_eye_velocity = avg_velocity
+            self.l_dilation = pupil_dilation
+
         if eye_id == EyeId.RIGHT:
             self.r_eye_x = eye_x
             self.r_eye_blink = eye_blink
             self.right_y = eye_y
             self.r_eye_velocity = avg_velocity
+            self.r_dilation = pupil_dilation
 
     def output_native(self, main_config, config, client, eye_x, eye_y, eye_blink, avg_velocity, eye_id, pupil_dilation):
         default_eye_blink_params = {
@@ -193,6 +196,7 @@ class VRChatOSCSender:
             avg_dilation = (self.r_dilation + self.l_dilation) / 2  # i am unsure of this tbh.
             client.send_message(config.osc_eyes_pupil_dilation_address, avg_dilation)  # single param for both eyes.
 
+
     def output_v2_params(
         self,
         main_config,
@@ -263,6 +267,8 @@ class VRChatOSCSender:
 
             avg_pupil_dilation = (self.l_dilation + self.r_dilation) / 2
             client.send_message("/avatar/parameters/v2/PupilDilation", avg_pupil_dilation)
+
+
 
     def output_vrcft_blink_data(
         self,

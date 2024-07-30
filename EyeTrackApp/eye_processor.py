@@ -355,7 +355,7 @@ class EyeProcessor:
             self.out_y = sum(self.prev_y_list) / len(self.prev_y_list)
         #   print('AVG', self.out_y, len(self.prev_y_list))
 
-        if self.settings.gui_pupil_dilation and self.eyeopen > 0.2:
+        if self.settings.gui_pupil_dilation :
             self.pupil_dilation = self.ebpd.intense(
                 self.pupil_width,
                 self.pupil_height,
@@ -371,7 +371,6 @@ class EyeProcessor:
         self.past_blink = self.eyeopen
         self.prev_x = self.out_x
         self.prev_y = self.out_y
-
 
         self.output_images_and_update(
             self.thresh,
