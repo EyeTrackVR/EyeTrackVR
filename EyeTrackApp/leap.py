@@ -59,13 +59,10 @@ def run_model(input_queue, output_queue, session):
         # Add the channel and batch dimensions
         gray_img = np.expand_dims(gray_img, axis=0)  # Add channel dimension
         img_np = np.expand_dims(gray_img, axis=0)  # Add batch dimension
-     #  img_np = np.transpose(img_np, (2, 0, 1))
-       # img_np = np.expand_dims(img_np, axis=0)
+
         ort_inputs = {session.get_inputs()[0].name: img_np}
         pre_landmark = session.run(None, ort_inputs)
 
-    #    pre_landmark = pre_landmark[1]
-       # pre_landmark = np.reshape(pre_landmark, (12, 2))
         pre_landmark = np.reshape(pre_landmark, (-1, 2))
         output_queue.put((frame, pre_landmark))
 
@@ -76,47 +73,6 @@ def run_onnx_model(queues, session, frame):
             queues[i].put(frame)
             break
 
-
-def calculate_velocity_vectors(old_matrix, current_matrix, time_difference):
-    # Check if both matrices have the same number of points
-    if len(old_matrix) != len(current_matrix):
-        raise ValueError("Both matrices must have the same number of points")
-
-    indices = [1, 2, 4, 5]
-    velocity_vectors = []
-
-    for i in indices:
-        old_y = old_matrix[i]
-        current_y = current_matrix[i]
-
-        # Calculate displacement and velocity using the y-values
-        displacement_y = current_y - old_y
-        velocity_y = displacement_y / time_difference
-
-        velocity_vectors.append(velocity_y)
-
-    # Calculate the total velocity as the mean of the absolute values of the velocity vectors
-    total_velocity = np.mean([abs(velocity) for velocity in velocity_vectors])
-
-    return total_velocity
-
-
-def calculate_polygon_area(points):
-    indices = [1, 2, 4, 5]
-    selected_points = [points[i] for i in indices]
-
-    selected_points.append(selected_points[0])
-
-    # Use the Shoelace formula to calculate the area
-    n = len(selected_points)
-    area = 0
-    for i in range(n - 1):
-        x1, y1 = selected_points[i]
-        x2, y2 = selected_points[i + 1]
-        area += x1 * y2 - x2 * y1
-
-    # Return the absolute value of half the computed area
-    return abs(area)
 
 
 
@@ -135,12 +91,6 @@ class LEAP_C(object):
         self.queue_max_size = 1  # Optimize for best CPU usage, Memory, and Latency. A maxsize is needed to not create a potential memory leak.
         self.model_path = resource_path(models / 'LEAP071024_E16.onnx')
 
-        self.low_priority = (
-            False  # set process priority to low (may cause issues when unfocusing? reported by one, not reproducable)
-        )
-        self.low_priority = (
-            True  # set process priority to low (may cause issues when unfocusing? reported by one, not reproducable)
-        )
         self.print_fps = False
         # Init variables
         self.frames = 0
@@ -160,35 +110,7 @@ class LEAP_C(object):
         opts.graph_optimization_level = onnxruntime.GraphOptimizationLevel.ORT_ENABLE_ALL
         opts.optimized_model_filepath = ""
 
-        if self.low_priority:
-            try:
-                process = psutil.Process(os.getpid())  # set process priority to low
-                try:
-                    sys.getwindowsversion()
-                except AttributeError:
-                    process.nice(0)  # UNIX: 0 low 10 high
-                    process.nice()
-                else:
-                    process.nice(psutil.BELOW_NORMAL_PRIORITY_CLASS)  # Windows
-                    process.nice()
-            except:
-                pass
-                # See https://learn.microsoft.com/en-us/windows/win32/api/processthreadsapi/nf-processthreadsapi-getpriorityclass#return-value for values
-        else:
-            pass
-        #    process = psutil.Process(os.getpid())  # set process priority to low
-        #   try:
-        #      sys.getwindowsversion()
-        # except AttributeError:
-        #    process.nice(10)  # UNIX: 0 low 10 high
-        # else:
-        #    process.nice(psutil.HIGH_PRIORITY_CLASS)  # Windows
-        # See https://learn.microsoft.com/en-us/windows/win32/api/processthreadsapi/nf-processthreadsapi-getpriorityclass#return-value for values
-
-        min_cutoff = 0.1
-        beta = 15.0
-        self.one_euro_filter = OneEuroFilter(np.random.rand(12, 2), min_cutoff=min_cutoff, beta=beta)
-        self.one_euro_filter_float = OneEuroFilter(np.random.rand(1, 2), min_cutoff=5, beta=0.007)
+        self.one_euro_filter_float = OneEuroFilter(np.random.rand(1, 2), min_cutoff=0.0004, beta=0.9) #min_cutoff=5, beta=0.007
         self.dmax = 0
         self.dmin = 0
         self.openlist = []
@@ -238,12 +160,6 @@ class LEAP_C(object):
                 cv2.circle(imgvis, (int(x), int(y)), 1, (0, 0, 255), -1)
 
 
-            #  x1, y1 = pre_landmark[1]
-            #  x2, y2 = pre_landmark[3]
-
-            #  x3, y3 = pre_landmark[4]
-            #  x4, y4 = pre_landmark[2]
-
             d1 = math.dist(pre_landmark[1], pre_landmark[3])
             # a more fancy method could be used taking into acount the relative size of the landmarks so that
             # weirdness can be acounted for better
@@ -266,9 +182,7 @@ class LEAP_C(object):
                 # with this we can use it as the "open state" (0.7, for expanded squeeze)
 
                 # weighted values to shift slightly to max value
-                normal_open = np.percentile(self.openlist, 70) #((sum(self.maxlist) / len(self.maxlist)) * 0.90 + max(self.openlist) * 0.10) / (
-              #      0.95 + 0.15
-              #  )
+                normal_open = np.percentile(self.openlist, 70)
 
             except:
                 normal_open = 0.8
@@ -281,29 +195,9 @@ class LEAP_C(object):
 
             try:
                 per = (d - normal_open) / (np.percentile(self.openlist, 1.7) - normal_open)
-
-            #     oldper = (d - max(self.openlist)) / (
-            #       min(self.openlist) - max(self.openlist)
-            #    )  # TODO: remove when testing is done
-
                 per = 1 - per
                 per = per - 0.2  # allow for eye widen? might require a more legit math way but this makes sense.
-                per = min(per, 1.0)  # clamp to 1.0 max
-                per = max(per, 0.0)  # clamp to 1.0 min
-
-                area = calculate_polygon_area(pre_landmark)
-               # if self.old_per > area:
-               #     self.delta_per_neg = self.old_per - area
-               #     print(area, self.delta_per_neg)
-
-                #    self.old_per = area
-
-               # self.old_per = area
-
-
-             #   print(self.delta_per_neg)
-              #  if self.delta_per_neg > 0.06:
-               #     per = 0.0
+                per = np.clip(per, 0.0, 1.0)
 
             except:
                 per = 0.8
@@ -311,23 +205,6 @@ class LEAP_C(object):
 
             x = pre_landmark[6][0]
             y = pre_landmark[6][1]
-
-            current_time = time.time()  # Get the current time
-            # Extract current matrix
-            current_matrix = [point[1] for point in pre_landmark]
-
-            # Calculate time difference
-            if self.previous_time is not None:
-                time_difference = current_time - self.previous_time
-
-                # Calculate velocity vectors if we have old data
-                if self.old_matrix is not None:
-                    self.total_velocity_new = calculate_velocity_vectors(self.old_matrix, current_matrix, time_difference)
-
-
-            # Update old matrix and previous time for the next iteration
-            self.old_matrix = [point[1] for point in pre_landmark]
-            self.previous_time = current_time
 
             self.last_lid = per
             calib_array = np.array([per, per]).reshape(1, 2)
@@ -338,22 +215,6 @@ class LEAP_C(object):
 
             if per <= 0.25:  # TODO: EXPOSE AS SETTING
                 per = 0.0
-
-            #print(per)
-
-            self.total_velocity_avg = (self.total_velocity_new + self.total_velocity_old) / 2
-            self.total_velocity_old = self.total_velocity_new
-
-        #    print(self.total_velocity_avg)
-         #   if self.last_lid == 0.0:
-          #      if self.total_velocity_avg > 1:
-           #         pass
-            #    else:
-             #       per = 0.0
-
-         #   if self.total_velocity_avg > 1.5:
-           #     per = 0.0
-                # this should be tuned, i could make this auto calib based on min from a list of per values.
 
             return imgvis, float(x), float(y), per
 

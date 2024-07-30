@@ -266,8 +266,6 @@ def filter_light(img_gray, img_blur, tau):
 
 def pupil_detector_haar(img_gray, params):
     frame_num = 0
-    mu_inner0 = 50
-    mu_outer0 = 200
     img_down = cv2.resize(
         img_gray,
         (
@@ -545,8 +543,6 @@ def coarse_detection(img_gray, params):
     inner_sum = cv2.add(in_p00, in_p11)
     cv2.subtract(inner_sum, in_p01, dst=inner_sum)
     cv2.subtract(inner_sum, in_p10, dst=inner_sum)
-    # inner_sum=inner_sum.astype(np.float64)
-    # inner_sum = cv2.transpose(inner_sum)
 
     # memo: Multiplication, etc. can be faster by self-assignment, but care must be taken because array initialization is required.
     # https://stackoverflow.com/questions/71204415/opencv-python-fastest-way-to-multiply-pixel-value
@@ -558,26 +554,13 @@ def coarse_detection(img_gray, params):
     response_value = np.empty(outer_sum.shape, dtype=np.float64)
     inout_rect_sum = mu_outer_rect2.copy()
     inout_rect_mul = mu_outer_rect.copy()
-    # outer_sum_rect = cv2.multiply(outer_sum, mu_outer_rect,None,-1.0)
-    # inner_sum_rect = cv2.multiply(inner_sum, mu_outer_rect)
+
     cv2.multiply(inner_sum_f, inout_rect_mul, inout_rect_mul)
     cv2.multiply(outer_sum_f, inout_rect_sum, inout_rect_sum)
     cv2.add(inout_rect_mul, inout_rect_sum, dst=inout_rect_sum)
-    # inout_rect_sum = inout_rect_mul[:,:,0]+inout_rect_mul[:,:,1]
-    # inner_sum_wh = cv2.multiply(inner_sum_f,wh_in_arr,None,kf)
+
     cv2.multiply(inner_sum_f, wh_in_arr, inner_sum_f, kf)
-    # inout_sum = np.empty((*inner_sum.shape,2),dtype=np.float64)
-    # inout_sum[:,:,0]=inner_sum
-    # inout_sum[:,:,1]=outer_sum
-    # # outer_sum_rect = cv2.multiply(outer_sum, mu_outer_rect,None,-1.0)
-    # # inner_sum_rect = cv2.multiply(inner_sum, mu_outer_rect)
-    # inout_rect_mul = cv2.multiply(inout_sum[:,:,0],mu_outer_rect2[:,:,0])
-    # inout_rect_sum=cv2.multiply(inout_sum[:,:,1],mu_outer_rect2[:,:,1])
-    # inout_rect_sum=cv2.add(inout_rect_mul,inout_rect_sum)
-    # # inout_rect_sum = inout_rect_mul[:,:,0]+inout_rect_mul[:,:,1]
-    # inner_sum_wh = cv2.multiply(inout_sum[:,:,0],wh_in_arr,None,kf)
-    # response_value2= outer_sum_rect+inner_sum_rect+inner_sum_wh
-    # response_value = inout_rect_sum + inner_sum_wh
+
     cv2.add(inout_rect_sum, inner_sum_f, dst=response_value)
     # mu_outer_left+(kf*inner_sum*wh_in_arr)
 
@@ -600,14 +583,6 @@ def coarse_detection(img_gray, params):
     max_response_coarse = -min_response
     pupil_rect_coarse = rec_in
     outer_rect_coarse = rec_o
-
-    rectlist2 = []
-    response2 = []
-
-    # print()
-    # print("rectlist: ", rectlist)
-    # rect_suppression(rectlist, response, rectlist2, response2)
-    # rect_suppression(rectlist2, response2, rectlist, response)
 
     return pupil_rect_coarse, outer_rect_coarse, max_response_coarse, mu_inner, mu_outer
 
@@ -740,6 +715,7 @@ def draw_coarse(img_bgr, pupil_rect, outer_rect, max_response, color):
     put_number(img_bgr, max_response, center, color)
 
 
+
 def rect_suppression(rectlist, response, rectlist_out, response_out):
     for i in range(len(rectlist)):
         flag_intersect = False
@@ -771,139 +747,6 @@ def put_number(img_bgr, number, position, color):
     )
 
 
-if __name__ == "__main__":
-    if not print_enable:
-
-        def print(*args, **kwargs):
-            pass
-
-    logger.info(this_file_basename)
-    if save_logfile:
-        logger.info("log path: {}".format(logfilename))
-    logger.info("alg ver: {}".format(alg_ver))
-    if benchmark_flag:
-        logger.info("loops: {}".format(loop_num))
-
-    if not input_is_webcam:
-        if not os.path.exists(VideoCapture_SRC) or not os.path.isfile(VideoCapture_SRC):
-            raise FileNotFoundError(VideoCapture_SRC)
-        logger.info("input video name: {}".format(os.path.basename(VideoCapture_SRC)))
-    else:
-        logger.info("input video: {}".format(VideoCapture_SRC))
-
-    cap = cv2.VideoCapture(VideoCapture_SRC)
-    if not cap.isOpened():
-        raise IOError("Error opening video stream or file")
-    if not input_is_webcam:
-        logger.info(
-            "video info: size:{}x{} fps:{} frames:{} total:{:.3f} sec".format(
-                int(cap.get(cv2.CAP_PROP_FRAME_WIDTH)),
-                int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT)),
-                cap.get(cv2.CAP_PROP_FPS),
-                int(cap.get(cv2.CAP_PROP_FRAME_COUNT)),
-                cap.get(cv2.CAP_PROP_FRAME_COUNT) / cap.get(cv2.CAP_PROP_FPS),
-            )
-        )
-    else:
-        logger.info(
-            "video info: size:{}x{} fps:{}".format(
-                int(cap.get(cv2.CAP_PROP_FRAME_WIDTH)),
-                int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT)),
-                cap.get(cv2.CAP_PROP_FPS),
-            )
-        )
-    # video writer
-    if save_video:
-        # mp4
-        video_wr = video_wr(
-            output_video_path,
-            cv2.VideoWriter_fourcc(*"x264"),
-            cap.get(cv2.CAP_PROP_FPS),
-            (
-                int(cap.get(cv2.CAP_PROP_FRAME_WIDTH)),
-                int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT)),
-            ),
-        )
-        # avi
-        # video_wr = video_wr(output_video_path, cv2.VideoWriter_fourcc(*"XVID"), cap.get(cv2.CAP_PROP_FPS),
-        #                     (int(cap.get(cv2.CAP_PROP_FRAME_WIDTH)), int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))))
-
-    cap.release()
-
-    # Load an image
-    image_path = "image (1).png"
-    if not os.path.exists(image_path) or not os.path.isfile(image_path):
-        cap = cv2.VideoCapture(VideoCapture_SRC)
-        time.sleep(0.1)
-        _, img = cap.read()
-        cap.release()
-    else:
-        img = cv2.imread(image_path)
-    # img = cv2.resize(img, (100, 100))
-    img_gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-
-    # If using uncropped source
-    # # make the image 100x100
-    # # img_gray = cv2.resize(img_gray, (00, 100))
-    # # remove 20 pixels from the right
-    # img_gray = img_gray[:, :-200]
-    # # remove 30 pixels from the bottom
-    # img_gray = img_gray[:-50, :]
-
-    # Define the parameters for pupil detection
-    # Default
-    # params = {
-    #     "ratio_downsample": 0.5,
-    #     "use_init_rect": False,
-    #     "mu_outer": 200, #aprroximatly how much pupil should be in the outer rect
-    #     "mu_inner": 50, #aprroximatly how much pupil should be in the inner rect
-    #     "ratio_outer": 1, #rectangular ratio. 1 means square (LIKE REGULAR HSF)
-    #     "kf": 5, #noise filter. May lose tracking if too high (or even never start)
-    #     "width_min": 50, #Minimum width of the pupil
-    #     "width_max": 100, #Maximum width of the pupil
-    #     "wh_step": 1, #Pupil width and height step search size
-    #     "xy_step": 5, #Kernel movement step search size
-    #     "roi": (0, 0, img_gray.shape[1], img_gray.shape[0]),
-    #     "init_rect_flag": False,
-    #     "init_rect": (0, 0, img_gray.shape[1], img_gray.shape[0]),
-    # }
-
-    logger.info("params: {}".format(params))
-
-    # Call the pupil_detector_haar function
-    (
-        pupil_rect_coarse,
-        outer_rect_coarse,
-        max_response_coarse,
-        mu_inner,
-        mu_outer,
-    ) = coarse_detection(img_gray, params)
-
-    # show the coarse detection
-
-    image_brg = cv2.cvtColor(img_gray, cv2.COLOR_GRAY2BGR)
-    # show the pupil_rect_coarse
-    cv2.rectangle(
-        image_brg,
-        (pupil_rect_coarse[0], pupil_rect_coarse[1]),
-        (
-            pupil_rect_coarse[0] + pupil_rect_coarse[2],
-            pupil_rect_coarse[1] + pupil_rect_coarse[3],
-        ),
-        (0, 255, 0),
-        2,
-    )
-    # upscale it to 200 x 200
-    # show the img
-    cv2.imshow("pppp", image_brg)
-    cv2.waitKey(10)
-    cv2.destroyAllWindows()
-
-    timedict = {"to_gray": [], "coarse": [], "fine": [], "total_cv": []}
-    # For measuring total processing time
-    main_start_time = timeit.default_timer()
-
-
 def External_Run_AHSF(frame_gray):
     average_color = np.mean(frame_gray)
 
@@ -932,7 +775,7 @@ def External_Run_AHSF(frame_gray):
         "use_init_rect": False,
         "mu_outer": 200,  # aprroximatly how much pupil should be in the outer rect
         "mu_inner": 50,  # aprroximatly how much pupil should be in the inner rect
-        "ratio_outer": 1.0,  # rectangular ratio. 1 means square (LIKE REGULAR HSF)
+        "ratio_outer": 0.9,  # rectangular ratio. 1 means square (LIKE REGULAR HSF)
         "kf": 2,  # noise filter. May lose tracking if too high (or even never start)
         "width_min": 16,  # Minimum width of the pupil
         "width_max": 50,  # Maximum width of the pupil
@@ -954,36 +797,35 @@ def External_Run_AHSF(frame_gray):
     except TypeError:
         # print("[WARN] AHSF NoneType Error")
         return frame_gray, frame_gray, 0, 0, 0
-    # print(ellipse_rect)
-    # Pupil_rect, Outer_rect, max_response, mu_inner, mu_outer = coarse_detection(frame_gray, params)
-    image_brg = frame_gray  # cv2.cvtColor(frame_gray, cv2.COLOR_GRAY2BGR)
 
     # show
-    # cv2.rectangle(
-    #    image_brg,
-    #   (pupil_rect_coarse[0], pupil_rect_coarse[1]),
-    #  (
-    #     pupil_rect_coarse[0] + pupil_rect_coarse[2],
-    #    pupil_rect_coarse[1] + pupil_rect_coarse[so 3],
-    # ),
-    # (0, 255, 0),
-    # 2,
-    # )
-    cv2.rectangle(
-        frame_gray,
-        (outer_rect_coarse[0], outer_rect_coarse[1]),
-        (
-            outer_rect_coarse[0] + outer_rect_coarse[2],
-            outer_rect_coarse[1] + outer_rect_coarse[3],
-        ),
-        (255, 0, 0),
-        1,
-    )
     x_center = outer_rect_coarse[0] + outer_rect_coarse[2] / 2
     y_center = outer_rect_coarse[1] + outer_rect_coarse[3] / 2
     x, y, width, height = outer_rect_coarse
 
     cv2.circle(frame_gray, (int(x_center), int(y_center)), 2, (255, 255, 255), -1)
+    thickness = 1
+    cv2.rectangle(
+        frame_gray,
+        (pupil_rect_coarse[0], pupil_rect_coarse[1]),
+        (pupil_rect_coarse[0] + pupil_rect_coarse[2], pupil_rect_coarse[1] + pupil_rect_coarse[3]),
+        (255, 255, 255),
+        thickness,
+    )
+    cv2.rectangle(
+        frame_gray,
+        (outer_rect_coarse[0], outer_rect_coarse[1]),
+        (outer_rect_coarse[0] + outer_rect_coarse[2], outer_rect_coarse[1] + outer_rect_coarse[3]),
+        (255, 255, 255),
+        thickness,
+    )
+
+    center = (pupil_rect_coarse[0] + pupil_rect_coarse[2] // 2, pupil_rect_coarse[1] + pupil_rect_coarse[3] // 2)
+#    cv2.drawMarker(frame_gray, center, (255, 255, 255), cv2.MARKER_CROSS, 20, thickness)
+
+
+
+
 
     # Calculate the major and minor diameters
     major_diameter = math.sqrt(width**2 + height**2)

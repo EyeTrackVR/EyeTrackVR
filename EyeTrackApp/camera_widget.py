@@ -691,13 +691,7 @@ class CameraWidget:
 
                     elif eye_info.info_type == EyeInfoOrigin.FAILURE:
                         graph.update(background_color="red")
-                    # Relay information to OSC
-             #       if eye_info.info_type != EyeInfoOrigin.FAILURE:
-              #          osc_message = OSCMessage(
-               #             type=OSCMessageType.EYE_INFO,
-                #            data=(self.eye_id, eye_info),
-                 #       )
-                  #      self.osc_queue.put(osc_message)
+
                 except Empty:
                     pass
 
@@ -709,17 +703,5 @@ class CameraWidget:
                 window[self.gui_output_graph].update(visible=False)
                 (maybe_image, eye_info) = self.image_queue.get(block=False)
 
-
-                if (
-                        eye_info.info_type != EyeInfoOrigin.FAILURE
-                ):
-
-                # Relay information to OSC
-                    if eye_info.info_type != EyeInfoOrigin.FAILURE:
-                        osc_message = OSCMessage(
-                            type=OSCMessageType.EYE_INFO,
-                            data=(self.eye_id, eye_info),
-                        )
-                        self.osc_queue.put(osc_message)
             except Empty:
                 pass

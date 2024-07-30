@@ -298,7 +298,6 @@ class EyeProcessor:
 
     def UPDATE(self):
 
-
         if self.settings.gui_BLINK:
             self.eyeopen = BLINK(self)
 
@@ -344,10 +343,9 @@ class EyeProcessor:
         else:
             self.prev_y_list.append(self.out_y)
 
-        # print(abs(self.eyeopen - self.past_blink))
+
         blink_vec = min(abs(self.eyeopen - self.past_blink), 1)  # clamp to 1
 
-        # if blink_vec >= 0.2:
         if blink_vec >= 0.18:
             # self.out_x = sum(self.prev_x_list) / len(self.prev_x_list)
             self.out_y = sum(self.prev_y_list) / len(self.prev_y_list)
@@ -383,7 +381,7 @@ class EyeProcessor:
             ),
         )
 
-    #    if self.settings.gui_RANSACBLINK and self.eyeopen == 0.0:
+    #    if self.settings.gui_RANSACBLINK and self.eyeopen == 0.0: why is this here
      #       pass
       #  else:
        #     self.eyeopen = 0.81

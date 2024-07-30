@@ -292,7 +292,7 @@ def main():
             ]
 
             # Create the window
-            windowg = sg.Window('No GUI', layoutg, background_color="#242224")
+            windowg = sg.Window('ETVR', layoutg, background_color="#242224", size=(200, 80)) #icon=resource_path("Images/logo.ico") adds cpu usage.....
 
             # Event loop
             while True:
@@ -306,9 +306,8 @@ def main():
                     config.settings.gui_disable_gui = False
                     config.save()
                     print('GUI Enabled')
-
                     break
-            # Close the window
+
             windowg.close()
 
 
@@ -428,8 +427,8 @@ def main():
                 settings[0].stop()
                 settings[1].stop()
                 settings[2].stop()
-             #   window[key_manager.RIGHT_EYE_NAME].update(visible=False)
-              #  window[key_manager.LEFT_EYE_NAME].update(visible=False)
+                window[key_manager.RIGHT_EYE_NAME].update(visible=False)
+                window[key_manager.LEFT_EYE_NAME].update(visible=False)
                 window[key_manager.SETTINGS_NAME].update(visible=False)
                 window[key_manager.VRCFT_MODULE_SETTINGS_NAME].update(visible=False)
                 window[key_manager.ALGO_SETTINGS_NAME].update(visible=False)

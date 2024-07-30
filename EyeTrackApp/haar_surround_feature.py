@@ -647,14 +647,10 @@ class HSF_cls(object):
 
         radius, pad, step, hsf = self.cvparam.get_rpsh()
 
-        # For measuring processing time of image processing
-        cv_start_time = timeit.default_timer()
 
         gray_frame = frame
-        self.timedict["to_gray"].append(timeit.default_timer() - cv_start_time)
 
         # Calculate the integral image of the frame
-        int_start_time = timeit.default_timer()
         (
             frame_pad,
             frame_int,
@@ -680,7 +676,6 @@ class HSF_cls(object):
         # BORDER_CONSTANT is faster than BORDER_REPLICATE There seems to be almost no negative impact when BORDER_CONSTANT is used.
         cv2.copyMakeBorder(gray_frame, pad, pad, pad, pad, cv2.BORDER_CONSTANT, dst=frame_pad)
         cv2.integral(frame_pad, sum=frame_int, sdepth=cv2.CV_32S)
-        self.timedict["int_img"].append(timeit.default_timer() - int_start_time)
 
         # Convolve the feature with the integral image
         conv_int_start_time = timeit.default_timer()
@@ -709,7 +704,7 @@ class HSF_cls(object):
         # Pseudo-visualization of HSF
         # cv2.normalize(cv2.filter2D(cv2.filter2D(frame_pad, cv2.CV_64F, hsf.get_kernel()[hsf.get_kernel().shape[0]//2,:].reshape(1,-1), borderType=cv2.BORDER_CONSTANT), cv2.CV_64F, hsf.get_kernel()[:,hsf.get_kernel().shape[1]//2].reshape(-1,1), borderType=cv2.BORDER_CONSTANT),None,0,255,cv2.NORM_MINMAX,dtype=cv2.CV_8U))
 
-        self.timedict["conv_int"].append(timeit.default_timer() - conv_int_start_time)
+       # self.timedict["conv_int"].append(timeit.default_timer() - conv_int_start_time)
 
         crop_start_time = timeit.default_timer()
         # Define the center point and radius
@@ -798,8 +793,8 @@ class HSF_cls(object):
         # https://stackoverflow.com/questions/42771110/fastest-way-to-left-cycle-a-numpy-array-like-pop-push-for-a-queue
 
         cv_end_time = timeit.default_timer()
-        self.timedict["crop"].append(cv_end_time - crop_start_time)
-        self.timedict["total_cv"].append(cv_end_time - cv_start_time)
+      #  self.timedict["crop"].append(cv_end_time - crop_start_time)
+     #   self.timedict["total_cv"].append(cv_end_time - cv_start_time)
 
         # if calc_print_enable:
         # the lower the response the better the likelyhood of there being a pupil. you can adujst the radius and steps accordingly
