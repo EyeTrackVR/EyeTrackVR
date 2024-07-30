@@ -132,7 +132,8 @@ class Camera:
 
                 addr = str(self.current_capture_source)
                 if is_serial_capture_source(addr):
-                    self.serial_connection.close()
+                    pass # TODO: find a nicer way to stop the com port
+                  #  self.serial_connection.close()
                 else:
                     self.cv2_camera.release()
 
