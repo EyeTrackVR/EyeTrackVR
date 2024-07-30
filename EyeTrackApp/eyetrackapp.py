@@ -245,7 +245,7 @@ def main():
     except:
         print("\033[91m[INFO] Could not check for updates. Please try again later.\033[0m")
 
-    osc_queue: queue.Queue[OSCMessage] = queue.Queue()
+    osc_queue: queue.Queue[OSCMessage] = queue.Queue(maxsize=10)
 
     eyes = [
         CameraWidget(EyeId.RIGHT, config, osc_queue),
