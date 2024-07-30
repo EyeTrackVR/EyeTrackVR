@@ -229,6 +229,7 @@ class VRChatOSCSender:
             client.send_message("/avatar/parameters/v2/EyeY", eye_y)
             client.send_message("/avatar/parameters/v2/PupilDilation", pupil_dilation)
 
+
             self.output_vrcft_blink_data(
                 **default_eye_blink_params,
                 left_eye_blink_address="/avatar/parameters/v2/EyeLid",

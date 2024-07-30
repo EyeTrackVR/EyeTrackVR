@@ -355,7 +355,7 @@ class EyeProcessor:
             self.out_y = sum(self.prev_y_list) / len(self.prev_y_list)
         #   print('AVG', self.out_y, len(self.prev_y_list))
 
-        if self.settings.gui_pupil_dilation :
+        if self.settings.gui_pupil_dilation:
             self.pupil_dilation = self.ebpd.intense(
                 self.pupil_width,
                 self.pupil_height,
