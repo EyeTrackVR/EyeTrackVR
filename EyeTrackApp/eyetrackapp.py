@@ -135,13 +135,6 @@ def create_window(config, settings, eyes):
                 default=(config.eye_display_id == EyeId.VRCFTMODULESETTINGS),
                 key=key_manager.VRCFT_MODULE_SETTINGS_RADIO_NAME,
             ),
-            sg.Radio(
-                "GUI OFF",
-                "EYESELECTRADIO",
-                background_color="#292929",
-                default=(config.eye_display_id == EyeId.GUIOFF),
-                key=key_manager.GUIOFF_RADIO_NAME,
-            ),
         ],
         [
             sg.Column(
@@ -178,6 +171,13 @@ def create_window(config, settings, eyes):
                 key=key_manager.VRCFT_MODULE_SETTINGS_NAME,
                 visible=(config.eye_display_id in [EyeId.VRCFTMODULESETTINGS]),
                 background_color="#424042",
+            ),
+        ],
+        [
+            sg.Button(
+                "GUI OFF",
+                key=key_manager.GUIOFF_RADIO_NAME,
+                button_color="#6f4ca1",
             ),
         ],
     ]
@@ -420,7 +420,17 @@ def main():
                 window[key_manager.ALGO_SETTINGS_NAME].update(visible=False)
                 config.eye_display_id = EyeId.VRCFTMODULESETTINGS
                 config.save()
-            elif values[key_manager.GUIOFF_RADIO_NAME] and config.eye_display_id != EyeId.GUIOFF:
+            else:
+
+                # Otherwise, render all
+                for eye in eyes:
+                    if eye.started():
+                        eye.render(window, event, values)
+                for setting in settings:
+                    if setting.started():
+                        setting.render(window, event, values)
+
+            if event == key_manager.GUIOFF_RADIO_NAME:
                 config.settings.gui_disable_gui = True
                 #  eyes[0].stop()
                 # eyes[1].stop()
@@ -432,20 +442,10 @@ def main():
                 window[key_manager.SETTINGS_NAME].update(visible=False)
                 window[key_manager.VRCFT_MODULE_SETTINGS_NAME].update(visible=False)
                 window[key_manager.ALGO_SETTINGS_NAME].update(visible=False)
-                config.eye_display_id = EyeId.GUIOFF
+                #config.eye_display_id = EyeId.GUIOFF
                 config.save()
                 window.close()
                 break
-
-            else:
-
-                # Otherwise, render all
-                for eye in eyes:
-                    if eye.started():
-                        eye.render(window, event, values)
-                for setting in settings:
-                    if setting.started():
-                        setting.render(window, event, values)
 
 if __name__ == "__main__":
     main()

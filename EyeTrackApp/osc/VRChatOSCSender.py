@@ -73,7 +73,7 @@ class VRChatOSCSender:
 
     @staticmethod
     def get_is_single_eye(eye_display_id):
-        return eye_display_id in [EyeId.RIGHT, EyeId.LEFT, 0, 1, 6]
+        return eye_display_id in [EyeId.RIGHT, EyeId.LEFT, 0, 1]
 
     def update_eye_state(self, eye_id, eye_x, eye_y, eye_blink, avg_velocity, pupil_dilation):
         if eye_id == EyeId.LEFT:
