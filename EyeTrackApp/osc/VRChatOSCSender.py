@@ -48,6 +48,7 @@ class VRChatOSCSender:
         eye_id, eye_info = osc_message.data
         self.is_single_eye = self.get_is_single_eye(main_config.eye_display_id)
 
+
         output_method = None
 
         if config.gui_vrc_native:
@@ -72,7 +73,7 @@ class VRChatOSCSender:
 
     @staticmethod
     def get_is_single_eye(eye_display_id):
-        return eye_display_id in [EyeId.RIGHT, EyeId.LEFT]
+        return eye_display_id in [EyeId.RIGHT, EyeId.LEFT, 0, 1, 6]
 
     def update_eye_state(self, eye_id, eye_x, eye_y, eye_blink, avg_velocity, pupil_dilation):
         if eye_id == EyeId.LEFT:
