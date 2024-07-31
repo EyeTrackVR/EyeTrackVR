@@ -30,20 +30,19 @@ Please check out our [documentation site.](https://docs.eyetrackvr.dev/)
 
 ## Hardware
 
-3d files for mounting brackets will be found [here](https://github.com/RedHawk989/EyeTrackVR-Hardware)
-IR emitter files are also located there. For more info please reference our [documentation site](https://docs.eyetrackvr.dev/how_to_build/parts_list)
+3d files for mounting brackets can be found [here](https://github.com/RedHawk989/EyeTrackVR-Hardware)
+IR emitter PCB files are also located there, along with pre-soldered PCBs on the [official store](https://store.eyetrackvr.dev/). For more info, please reference our [documentation site](https://docs.eyetrackvr.dev/how_to_build/parts_list)
 
 
 
-## ESP-CAM Firmware
+## ESP32 Cam Firmware
 
-Current work has been with our official firmware by `lorow`, found [here](https://github.com/lorow/OpenIris).
-
+Current work has been with our official firmware by `lorow` and `ZanzyTHEbar`, found [here](https://github.com/EyeTrackVR/OpenIris).
 
 
 ## Headset support
 
-Any headset that can fit the camera and LEDs can likely be supported, however, mounts may not have been made for it. Please reference to our [parts list](https://docs.eyetrackvr.dev/how_to_build/parts_list#_3d-printed-mounts) for details.
+Pretty much any headset that can fit the camera and LEDs can be supported. However, mounts may not have been made for it. Please reference our [parts list](https://docs.eyetrackvr.dev/how_to_build/parts_list#_3d-printed-mounts) for linked mounts and [create your own mount page](https://docs.eyetrackvr.dev/how_to_build/creating_your_own_mount) for details.
 
 
 ## About IR Emitter Safety
@@ -54,8 +53,8 @@ Please *exercise extreme caution* when messing around with IR emitters.
 The safety measures were put in place to REDUCE the potential failure risk. All further safety responsibilities are on the user.
 This includes visually checking with an IR camera that the brightness is correct and making sure you do not feel warmth.
 
-> **Warning**: Make sure you are using **NON-focused** emitters and at power less than ***8mW cm^2 total per eye***.
-Please read our LED safety page for a breakdown of math for out V3 and V4 LED kits [here](https://docs.eyetrackvr.dev/getting_started/led_safety)
+> **Warning**: Make sure you are using **NON-focused** emitters and at power less than ***5mW cm^2 total per eye***.
+Please read our LED safety page for a breakdown of math for our V3 and V4 LED kits [here](https://docs.eyetrackvr.dev/getting_started/led_safety)
 
 [Effect of infrared radiation on the lens](https://docs.eyetrackvr.dev/safety/effect_of_ir_on_the_lens.pdf)
 
