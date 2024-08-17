@@ -54,6 +54,7 @@ from ellipse_based_pupil_dilation import *
 from AHSF import *
 from osc.OSCMessage import OSCMessageType, OSCMessage
 
+
 def run_once(f):
     def wrapper(*args, **kwargs):
         if not wrapper.has_run:
@@ -168,7 +169,6 @@ class EyeProcessor:
         self.avg_velocity = 0.0
         self.angle = 621
 
-
         try:
             min_cutoff = float(self.settings.gui_min_cutoff)  # 0.0004
             beta = float(self.settings.gui_speed_coefficient)  # 0.9
@@ -214,26 +214,19 @@ class EyeProcessor:
             # fill with avg color + 10.
             # fill with white (self.current_image_white) and average in-bounds color (self.current_image).
 
-            crop_matrix = np.float32([[1, 0, -roi_x],
-                                      [0, 1, -roi_y],
-                                      [0, 0, 1]])
+            crop_matrix = np.float32([[1, 0, -roi_x], [0, 1, -roi_y], [0, 0, 1]])
             img_center = (roi_w / 2, roi_h / 2)
 
-            rotation_matrix = cv2.getRotationMatrix2D(
-                img_center, self.config.rotation_angle, 1
-            )
+            rotation_matrix = cv2.getRotationMatrix2D(img_center, self.config.rotation_angle, 1)
 
-          #  rows, cols = self.current_image.shape[:2]
-          #  rotation_matrix = cv2.getRotationMatrix2D((cols / 2, rows / 2), self.config.rotation_angle, 1)
-            #cos_theta = np.abs(rotation_matrix[0, 0])
-       #     sin_theta = np.abs(rotation_matrix[0, 1])
-        #    new_cols = int((cols * cos_theta) + (rows * sin_theta))
-         #   new_rows = int((cols * sin_theta) + (rows * cos_theta))
-          #  rotation_matrix[0, 2] += (new_cols - cols) / 2
-           # rotation_matrix[1, 2] += (new_rows - rows) / 2
-
-
-
+            #  rows, cols = self.current_image.shape[:2]
+            #  rotation_matrix = cv2.getRotationMatrix2D((cols / 2, rows / 2), self.config.rotation_angle, 1)
+            # cos_theta = np.abs(rotation_matrix[0, 0])
+            #     sin_theta = np.abs(rotation_matrix[0, 1])
+            #    new_cols = int((cols * cos_theta) + (rows * sin_theta))
+            #   new_rows = int((cols * sin_theta) + (rows * cos_theta))
+            #  rotation_matrix[0, 2] += (new_cols - cols) / 2
+            # rotation_matrix[1, 2] += (new_rows - rows) / 2
 
             matrix = np.matmul(rotation_matrix, crop_matrix)
             self.current_image_white = cv2.warpAffine(
@@ -254,13 +247,8 @@ class EyeProcessor:
 
             inv_matrix = np.linalg.inv(np.vstack((matrix, [0, 0, 1])))[:-1]
             # calculate crop corner locations in original image space
-            corners = np.matmul([[0, 0, 1],
-                                 [roi_w, 0, 1],
-                                 [0, roi_h, 1],
-                                 [roi_w, roi_h, 1]],
-                                np.transpose(inv_matrix))
-            fits_in_bounds = all(0 <= x <= img_w and 0 <= y <= img_h
-                                 for (x, y) in corners)
+            corners = np.matmul([[0, 0, 1], [roi_w, 0, 1], [0, roi_h, 1], [roi_w, roi_h, 1]], np.transpose(inv_matrix))
+            fits_in_bounds = all(0 <= x <= img_w and 0 <= y <= img_h for (x, y) in corners)
 
             if fits_in_bounds:
                 # crop is entirely within original image bounds so average color and white are identical
@@ -290,11 +278,8 @@ class EyeProcessor:
             rgb_ch = self.current_image[:, :, :3]
             inv_alpha_ch = 255 - self.current_image[:, :, 3]
             self.current_image = rgb_ch + np.stack(
-                np.uint8([inv_alpha_ch * ar,
-                          inv_alpha_ch * ag,
-                          inv_alpha_ch * ab]),
-                axis=-1)
-
+                np.uint8([inv_alpha_ch * ar, inv_alpha_ch * ag, inv_alpha_ch * ab]), axis=-1
+            )
 
             return True
         except:
@@ -332,7 +317,7 @@ class EyeProcessor:
                 self.settings.ibo_average_output_samples,
             )
 
-        if self.settings.gui_LEAP_lid and self.eyeopen != 0.0:
+        if self.settings.gui_LEAP_lid and self.eyeopen != 0.0 and not self.settings.gui_LEAP:
             (
                 self.current_image_gray,
                 self.rawx,
@@ -340,13 +325,11 @@ class EyeProcessor:
                 self.eyeopen,
             ) = self.er_leap.run(self.current_image_gray, self.current_image_gray_clean)
 
-
         if len(self.prev_y_list) >= 100:  # "lock" eye when close/blink IN TESTING, kinda broke
             self.prev_y_list.pop(0)
             self.prev_y_list.append(self.out_y)
         else:
             self.prev_y_list.append(self.out_y)
-
 
         blink_vec = min(abs(self.eyeopen - self.past_blink), 1)  # clamp to 1
 
@@ -384,25 +367,27 @@ class EyeProcessor:
             ),
         )
 
-    #    if self.settings.gui_RANSACBLINK and self.eyeopen == 0.0: why is this here
-     #       pass
-      #  else:
-       #     self.eyeopen = 0.81
-
+        #    if self.settings.gui_RANSACBLINK and self.eyeopen == 0.0: why is this here
+        #       pass
+        #  else:
+        #     self.eyeopen = 0.81
 
         osc_message = OSCMessage(
             type=OSCMessageType.EYE_INFO,
-            data=(self.eye_id, EyeInfo(
-            self.current_algo,
-            self.out_x,
-            self.out_y,
-            self.pupil_dilation,
-            self.eyeopen,
-            self.avg_velocity,
-        )),
+            data=(
+                self.eye_id,
+                EyeInfo(
+                    self.current_algo,
+                    self.out_x,
+                    self.out_y,
+                    self.pupil_dilation,
+                    self.eyeopen,
+                    self.avg_velocity,
+                ),
+            ),
         )
         self.osc_queue.put(osc_message)
-        self.eyeopen = 0.8 # TODO: remove this by fixing checks if is 0.0
+        self.eyeopen = 0.8  # TODO: remove this by fixing checks if is 0.0
 
     def BLINKM(self):
         self.eyeopen = BLINK(self)

@@ -1,4 +1,5 @@
 import os
+
 os.environ["OMP_NUM_THREADS"] = "1"
 import onnxruntime
 import numpy as np
@@ -15,6 +16,7 @@ from pathlib import Path
 
 frames = 0
 models = Path("Models")
+
 
 def run_model(input_queue, output_queue, session):
     while True:
@@ -33,14 +35,17 @@ def run_model(input_queue, output_queue, session):
         pre_landmark = np.reshape(pre_landmark, (-1, 2))
         output_queue.put((frame, pre_landmark))
 
+
 def run_onnx_model(queues, session, frame):
     for queue in queues:
         if not queue.full():
             queue.put(frame)
             break
 
+
 def to_numpy(tensor):
     return tensor.detach().cpu().numpy() if tensor.requires_grad else tensor.cpu().numpy()
+
 
 class LEAP_C:
     def __init__(self):
@@ -50,7 +55,7 @@ class LEAP_C:
         onnxruntime.disable_telemetry_events()
         self.num_threads = 2
         self.queue_max_size = 1
-        self.model_path = resource_path(models / 'LEAP071024_E16.onnx')
+        self.model_path = resource_path(models / "LEAP071024_E16.onnx")
 
         self.print_fps = False
         self.frames = 0
@@ -66,7 +71,7 @@ class LEAP_C:
 
         opts = onnxruntime.SessionOptions()
         opts.inter_op_num_threads = 1
-        opts.intra_op_num_threads = 1 #fps hit
+        opts.intra_op_num_threads = 1  # fps hit
         opts.graph_optimization_level = onnxruntime.GraphOptimizationLevel.ORT_ENABLE_ALL
 
         self.one_euro_filter_float = OneEuroFilter(np.random.rand(1, 2), min_cutoff=0.0004, beta=0.9)
@@ -123,15 +128,18 @@ class LEAP_C:
 
             normal_open = np.percentile(self.openlist, 70) if len(self.openlist) >= 500 else 0.8
 
-            if len(self.openlist) < 5000:
+            if len(self.openlist) < 2500:
                 self.openlist.append(d)
             else:
-                self.openlist.pop(0)
-                self.openlist.append(d)
+                print("full")
+
+            print(len(self.openlist))
+            # self.openlist.pop(0)
+            # self.openlist.append(d)
 
             try:
                 if len(self.openlist) > 0:
-                    per = (d - normal_open) / (np.percentile(self.openlist, 1.7) - normal_open)
+                    per = (d - normal_open) / (np.percentile(self.openlist, 1) - normal_open)
                     per = 1 - per
                     per = np.clip(per - 0.2, 0.0, 1.0)
                 else:
@@ -153,6 +161,7 @@ class LEAP_C:
 
         imgvis = cv2.cvtColor(img, cv2.COLOR_RGB2GRAY)
         return imgvis, 0, 0, 0
+
 
 class External_Run_LEAP:
     def __init__(self):
