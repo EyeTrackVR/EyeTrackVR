@@ -37,6 +37,7 @@ import subprocess
 import math
 from utils.calibration_3d import receive_calibration_data, converge_3d
 
+
 class TimeoutError(RuntimeError):
     pass
 
@@ -120,7 +121,7 @@ def center_overlay_calibrate(self):
     if var.overlay_active != True:
 
         dirname = os.getcwd()
-        overlay_path = os.path.join(dirname, "center.bat")
+        overlay_path = os.path.join(dirname, "Tools/center.bat")
         os.startfile(overlay_path)
         var.overlay_active = True
         sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
@@ -168,12 +169,10 @@ def overlay_calibrate_3d(self):
         var.overlay_active = False
 
 
-
 class cal:
     def cal_osc(self, cx, cy, angle):
 
-
-        #print(self.eye_id)
+        # print(self.eye_id)
 
         if cx == None or cy == None:
             return 0, 0
@@ -185,15 +184,14 @@ class cal:
             flipx = self.settings.gui_flip_x_axis_right
         else:
             flipx = self.settings.gui_flip_x_axis_left
-        if self.calibration_3d_frame_counter == -621: #or self.settings.gui_3d_calibration:
+        if self.calibration_3d_frame_counter == -621:  # or self.settings.gui_3d_calibration:
 
             self.calibration_3d_frame_counter = self.calibration_3d_frame_counter - 1
             overlay_calibrate_3d(self)
             self.config.calibration_points_3d = []
 
-
-          #  print(self.eye_id, cx, cy)
-       # self.settings.gui_3d_calibration = False
+        #  print(self.eye_id, cx, cy)
+        # self.settings.gui_3d_calibration = False
 
         if self.settings.grab_3d_point:
             # Check if both calibrations are done
@@ -201,7 +199,7 @@ class cal:
                 self.settings.grab_3d_point = False
                 var.left_calib = False
                 var.right_calib = False
-                print('end', len(self.config.calibration_points_3d), self.config.calibration_points_3d)
+                print("end", len(self.config.calibration_points_3d), self.config.calibration_points_3d)
 
             else:
                 # Check if it's the left eye and left calibration is not done yet
@@ -213,23 +211,22 @@ class cal:
                     var.right_calib = True
                     self.config.calibration_points_3d.append((cx, cy, 0))
 
-
         if self.eye_id == EyeId.LEFT and len(self.config.calibration_points_3d) == 9 and var.left_calib == False:
             var.left_calib = True
             receive_calibration_data(self.config.calibration_points_3d, self.eye_id)
-            print('SENT LEFT EYE POINTS')
+            print("SENT LEFT EYE POINTS")
             var.completed_3d_calib += 1
 
         if self.eye_id == EyeId.RIGHT and len(self.config.calibration_points_3d) == 9 and var.right_calib == False:
             var.right_calib = True
             receive_calibration_data(self.config.calibration_points_3d, self.eye_id)
-            print('SENT RIGHT EYE POINTS')
+            print("SENT RIGHT EYE POINTS")
             var.completed_3d_calib += 1
-       # print(len(self.config.calibration_points), self.eye_id)
+        # print(len(self.config.calibration_points), self.eye_id)
 
         if var.completed_3d_calib >= 2:
             converge_3d()
-           # pass
+        # pass
 
         if self.calibration_frame_counter == 0:
             self.calibration_frame_counter = None
@@ -257,8 +254,6 @@ class cal:
                 self.config.calib_YMIN = cy
 
             self.calibration_frame_counter -= 1
-
-
 
         if self.settings.gui_recenter_eyes == True:
             self.config.calib_XOFF = cx

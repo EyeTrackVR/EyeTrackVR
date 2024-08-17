@@ -4,7 +4,7 @@ import sys ; sys.setrecursionlimit(sys.getrecursionlimit() * 5)
 
 block_cipher = None
 
-resources=[("Audio/*", "Audio"), ("Images/*", "Images/"), ("pye3d/refraction_models/*", "pye3d/refraction_models/"), ("Models/*", "Models/"),("Tools/*", "Tools/"),("center.bat", ".")]
+resources=[("Audio/*", "Audio"), ("Images/*", "Images/"), ("pye3d/refraction_models/*", "pye3d/refraction_models/"), ("Models/*", "Models/"),("Tools/*", "Tools/")]
 
 a = Analysis(
 ['eyetrackapp.py'],
