@@ -180,23 +180,26 @@ class EyeProcessor:
         self.one_euro_filter = OneEuroFilter(noisy_point, min_cutoff=min_cutoff, beta=beta)
 
     def output_images_and_update(self, threshold_image, output_information: EyeInfo):
-        try:
-            image_stack = np.concatenate(
-                (
-                    cv2.cvtColor(self.current_image_gray, cv2.COLOR_GRAY2BGR),
-                    cv2.cvtColor(threshold_image, cv2.COLOR_GRAY2BGR),
-                ),
-                axis=1,
-            )
-            self.image_queue_outgoing.put((image_stack, output_information))
-            if self.image_queue_outgoing.qsize() > 1:
-                self.image_queue_outgoing.get()
+        #  try:  # I do not like this try.
 
-            self.previous_image = self.current_image
-            self.previous_rotation = self.config.rotation_angle
+        self.current_image_gray = cv2.resize(self.current_image_gray, (150, 150), interpolation=cv2.INTER_AREA)
+        threshold_image = cv2.resize(threshold_image, (150, 150), interpolation=cv2.INTER_AREA)
+        image_stack = np.concatenate(
+            (
+                cv2.cvtColor(self.current_image_gray, cv2.COLOR_GRAY2BGR),
+                cv2.cvtColor(threshold_image, cv2.COLOR_GRAY2BGR),
+            ),
+            axis=1,
+        )
+        self.image_queue_outgoing.put((image_stack, output_information))
+        if self.image_queue_outgoing.qsize() > 1:
+            self.image_queue_outgoing.get()
 
-        except:  # If this fails it likely means that the images are not the same size for some reason.
-            print("\033[91m[ERROR] Size of frames to display are of unequal sizes.\033[0m")
+        self.previous_image = self.current_image
+        self.previous_rotation = self.config.rotation_angle
+
+    #       except:  # If this fails it likely means that the images are not the same size for some reason.
+    #    print("\033[91m[ERROR] Size of frames to display are of unequal sizes.\033[0m")
 
     def capture_crop_rotate_image(self):
         # Get our current frame
@@ -300,6 +303,7 @@ class EyeProcessor:
                 self.settings.ibo_filter_samples,
                 self.settings.ibo_average_output_samples,
             )
+            print(self.eyeopen)
             # threshold so the eye fully closes
             if self.eyeopen < float(self.settings.ibo_fully_close_eye_threshold):
                 self.eyeopen = 0.0
@@ -307,15 +311,6 @@ class EyeProcessor:
             if self.bd_blink == True:
                 print("blinks")
                 pass
-
-        if self.settings.gui_IBO and self.eyeopen != 0.0:
-            ibo = self.ibo.intense(
-                self.rawx,
-                self.rawy,
-                self.current_image_white,
-                self.settings.ibo_filter_samples,
-                self.settings.ibo_average_output_samples,
-            )
 
         if self.settings.gui_LEAP_lid and self.eyeopen != 0.0 and not self.settings.gui_LEAP:
             (
@@ -580,7 +575,7 @@ class EyeProcessor:
             pass
         self.rawx, self.rawy, self.thresh = BLOB(self)
 
-        self.out_x, self.out_y = cal.cal_osc(self, self.rawx, self.rawy, self.angle)
+        self.out_x, self.out_y, self.avg_velocity = cal.cal_osc(self, self.rawx, self.rawy, self.angle)
         self.current_algorithm = EyeInfoOrigin.BLOB
 
     def ALGOSELECT(self):
