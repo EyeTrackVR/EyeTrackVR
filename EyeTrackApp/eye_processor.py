@@ -303,7 +303,6 @@ class EyeProcessor:
                 self.settings.ibo_filter_samples,
                 self.settings.ibo_average_output_samples,
             )
-            print(self.eyeopen)
             # threshold so the eye fully closes
             if self.eyeopen < float(self.settings.ibo_fully_close_eye_threshold):
                 self.eyeopen = 0.0

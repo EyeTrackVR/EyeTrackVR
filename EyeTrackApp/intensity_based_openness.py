@@ -344,13 +344,5 @@ class IntensityBasedOpeness:
             self.lct = time.time()
 
         self.prev_val = eyeopen
-        try:
-            point_hat = self.one_euro_filter(noisy_point)
-            eyeopenx = point_hat[0]
-            eyeopeny = point_hat[1]
-            eyeopen = (eyeopenx + eyeopeny) / 2
-        #  print(eyeopen, eyeopenx, eyeopeny)
-        except:
-            pass
 
         return eyeopen
