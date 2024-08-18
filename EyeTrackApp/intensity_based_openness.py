@@ -317,6 +317,7 @@ class IntensityBasedOpeness:
                 )  # continuously adjust closed intensity, will be set when user blink, used to allow eyes to close when lighting changes
                 self.maxval = intensityd  # set value at 0 index
         #     print(intensityd, intensity)
+
         if newval_flg:
             # Do the same thing as in the original version.
             eyeopen = self.prev_val  # 0.9

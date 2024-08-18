@@ -166,17 +166,6 @@ class CameraWidget:
                 ),
             ],
             [
-                sg.Text("Rotation", background_color="#424042"),
-                sg.Slider(
-                    range=(0, 360),
-                    default_value=self.config.rotation_angle,
-                    orientation="h",
-                    key=self.gui_rotation_slider,
-                    background_color="#424042",
-                    tooltip="Adjust the rotation of your cameras, make them level.",
-                ),
-            ],
-            [
                 sg.Column(
                     self.tracking_layout,
                     key=self.gui_tracking_layout,
@@ -206,6 +195,15 @@ class CameraWidget:
                 #       button_color="#6f4ca1",
                 #      tooltip="Lighten shadowed areas.",
                 #    ),
+                sg.Text("Rotation", background_color="#424042"),
+                sg.Slider(
+                    range=(0, 360),
+                    default_value=self.config.rotation_angle,
+                    orientation="h",
+                    key=self.gui_rotation_slider,
+                    background_color="#424042",
+                    tooltip="Adjust the rotation of your cameras, make them level.",
+                ),
                 sg.Checkbox(
                     "Camera Widget Padding",
                     default=self.config.gui_rotation_ui_padding,

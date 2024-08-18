@@ -34,6 +34,7 @@ import cv2
 
 from eye import EyeId
 from one_euro_filter import OneEuroFilter
+
 os.environ["OMP_NUM_THREADS"] = "1"
 
 # Note.
@@ -65,9 +66,7 @@ def data2csv(data_u32, filepath):
     # For data checking
     nonzero_index = np.nonzero(data_u32)  # (row,col)
     data_list = data_u32[nonzero_index].tolist()
-    datalines = [
-        "{},{},{}\n".format(x, y, val) for y, x, val in zip(*nonzero_index, data_list)
-    ]
+    datalines = ["{},{},{}\n".format(x, y, val) for y, x, val in zip(*nonzero_index, data_list)]
     with open(filepath, "w", encoding="utf-8") as out_f:
         out_f.write("x,y,eyedilation\n")
         out_f.writelines(datalines)
@@ -87,9 +86,7 @@ def u32_1ch_to_u16_3ch(img):
 def u16_3ch_to_u32_1ch(img):
     # The image format with the most bits that can be displayed on Windows without additional software and that opencv can handle is PNG's uint16
     out = img[:, :, 0].astype(np.float64)  # float64 = max 2^53
-    cv2.add(
-        out, img[:, :, 1].astype(np.float64) * np.float64(65536), dst=out
-    )  # opencv did not have uint32 type
+    cv2.add(out, img[:, :, 1].astype(np.float64) * np.float64(65536), dst=out)  # opencv did not have uint32 type
     return out.astype(np.uint32)  # cast
 
 
@@ -137,9 +134,7 @@ class EllipseBasedPupilDilation:
         min_cutoff = 0.00001
         beta = 0.05
         noisy_point = np.array([1, 1])
-        self.one_euro_filter = OneEuroFilter(
-            noisy_point, min_cutoff=min_cutoff, beta=beta
-        )
+        self.one_euro_filter = OneEuroFilter(noisy_point, min_cutoff=min_cutoff, beta=beta)
 
     def check(self, frameshape):
         # 0 in data is used as the initial value.
@@ -154,9 +149,7 @@ class EllipseBasedPupilDilation:
         # Not very clever, but increase the width by 1px to save the maximum value.
         frameshape = (frameshape[0], frameshape[1] + 1)
         if self.data is None:
-            print(
-                f"\033[92m[INFO] Loaded data for pupil dilation: {self.imgfile}\033[0m"
-            )
+            print(f"\033[92m[INFO] Loaded data for pupil dilation: {self.imgfile}\033[0m")
             if os.path.isfile(self.imgfile):
                 try:
                     img = cv2.imread(self.imgfile, flags=cv2.IMREAD_UNCHANGED)
@@ -179,9 +172,7 @@ class EllipseBasedPupilDilation:
                 print("\033[94m[INFO] File does not exist.\033[0m")
                 req_newdata = True
         else:
-            if self.data.shape != frameshape or not np.array_equal(
-                self.img_roi, self.now_roi
-            ):
+            if self.data.shape != frameshape or not np.array_equal(self.img_roi, self.now_roi):
                 # If the ROI recorded in the image file differs from the current ROI
                 # todo: Using the previous and current frame sizes and centre positions from the original, etc., the data can be ported to some extent, but there may be many areas where code changes are required.
                 print("[INFO] \033[94mFrame size changed.\033[0m")
@@ -242,9 +233,7 @@ class EllipseBasedPupilDilation:
             self.filterlist.append(pupil_area)
 
         try:
-            if pupil_area >= np.percentile(
-                self.filterlist, 98
-            ):  # filter abnormally high values
+            if pupil_area >= np.percentile(self.filterlist, 99):  # filter abnormally high values
                 # print('filter, assume blink')
                 pupil_area = self.maxval
 
@@ -306,9 +295,7 @@ class EllipseBasedPupilDilation:
             changed = True
             newval_flg = True
         else:
-            if (
-                pupil_area < data_val
-            ):  # if current intensity value is less (more pupil), save that
+            if pupil_area < data_val:  # if current intensity value is less (more pupil), save that
                 self.data[int_y, int_x] = pupil_area  # set value
                 changed = True
             else:
@@ -322,9 +309,7 @@ class EllipseBasedPupilDilation:
         if self.maxval == 0:  # that value is not yet saved
             self.maxval = pupil_area  # set value at 0 index
         else:
-            if (
-                pupil_area > self.maxval
-            ):  # if current intensity value is more (less pupil), save that NOTE: we have the
+            if pupil_area > self.maxval:  # if current intensity value is more (less pupil), save that NOTE: we have the
                 self.maxval = pupil_area - 5  # set value at 0 index
             else:
                 pupil_aread = max(
@@ -332,6 +317,7 @@ class EllipseBasedPupilDilation:
                 )  # continuously adjust closed intensity, will be set when user blink, used to allow eyes to close when lighting changes
                 self.maxval = pupil_aread  # set value at 0 index
         #     print(intensityd, intensity)
+
         if newval_flg:
             # Do the same thing as in the original version.
             eyedilation = self.prev_val  # 0.9
@@ -344,6 +330,7 @@ class EllipseBasedPupilDilation:
                     eyedilation = 0.5
                 else:
                     eyedilation = (pupil_area - maxp) / (minp - maxp)
+                    # print(eyedilation, pupil_area, maxp, minp)
             except:
                 eyedilation = 0.5
             eyedilation = 1 - eyedilation
@@ -362,17 +349,13 @@ class EllipseBasedPupilDilation:
             if eyedilation < 0:
                 eyedilation = 0.0
 
-        if changed and (
-            (time.time() - self.lct) > 15
-        ):  # save every 5 seconds if something changed to save disk usage
+        if changed and ((time.time() - self.lct) > 15):  # save every 5 seconds if something changed to save disk usage
             self.save()
             self.lct = time.time()
 
         self.prev_val = eyedilation
         try:
-            noisy_point = np.array(
-                [float(eyedilation), float(eyedilation)]
-            )  # fliter our values with a One Euro Filter
+            noisy_point = np.array([float(eyedilation), float(eyedilation)])  # fliter our values with a One Euro Filter
             point_hat = self.one_euro_filter(noisy_point)
             eyedilationx = point_hat[0]
             eyedilationy = point_hat[1]
