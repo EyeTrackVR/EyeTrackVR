@@ -85,6 +85,7 @@ class Camera:
         camera_status_outgoing: "queue.Queue[CameraState]",
         camera_output_outgoing: "queue.Queue(maxsize=20)",
     ):
+
         self.camera_status = CameraState.CONNECTING
         self.config = config
         self.camera_index = camera_index
@@ -107,6 +108,8 @@ class Camera:
         self.prevft = 0
         self.newft = 0
         self.fl = [0]
+
+
 
         self.error_message = f"{Fore.YELLOW}[WARN] Capture source {{}} not found, retrying...{Fore.RESET}"
 
@@ -207,25 +210,24 @@ class Camera:
                 self.cv2_camera.set(cv2.CAP_PROP_POS_FRAMES, 0)
                 raise RuntimeError("Problem while getting frame")
             frame_number = self.cv2_camera.get(cv2.CAP_PROP_POS_FRAMES)
-            # Calculate the fps.
             current_frame_time = time.time()
             delta_time = current_frame_time - self.last_frame_time
-            self.last_frame_time = current_frame_time
             if delta_time > 0:
-                self.bps = len(image) / delta_time
-            self.frame_number = self.frame_number + 1
-            self.fps = (self.fps + self.pf_fps) / 2
-            self.newft = time.time()
-            self.fps = 1 / (self.newft - self.prevft)
-            self.prevft = self.newft
-            self.fps = int(self.fps)
+                current_fps = 1 / delta_time
+            else:
+                current_fps = 0
+            self.last_frame_time = current_frame_time
+
             if len(self.fl) < 60:
-                self.fl.append(self.fps)
+                self.fl.append(current_fps)
             else:
                 self.fl.pop(0)
-                self.fl.append(self.fps)
+                self.fl.append(current_fps)
+
             self.fps = sum(self.fl) / len(self.fl)
-          #  self.bps = image.nbytes
+            self.bps = image.nbytes * self.fps
+
+
             if should_push:
                 self.push_image_to_queue(image, frame_number, self.fps)
         except:
@@ -278,8 +280,6 @@ class Camera:
                     current_frame_time = time.time()
                     delta_time = current_frame_time - self.last_frame_time
                     self.last_frame_time = current_frame_time
-                    if delta_time > 0:
-                        self.bps = len(jpeg) / delta_time
                     self.fps = (self.fps + self.pf_fps) / 2
                     self.newft = time.time()
                     self.fps = 1 / (self.newft - self.prevft)
@@ -291,6 +291,7 @@ class Camera:
                         self.fl.pop(0)
                         self.fl.append(self.fps)
                     self.fps = sum(self.fl) / len(self.fl)
+                    self.bps = image.nbytes * self.fps
                     self.frame_number = self.frame_number + 1
                     if should_push:
                         self.push_image_to_queue(image, self.frame_number, self.fps)

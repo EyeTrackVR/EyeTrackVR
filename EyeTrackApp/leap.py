@@ -1,5 +1,4 @@
 import os
-
 os.environ["OMP_NUM_THREADS"] = "1"
 import onnxruntime
 import numpy as np
@@ -55,7 +54,7 @@ class LEAP_C:
         onnxruntime.disable_telemetry_events()
         self.num_threads = 2
         self.queue_max_size = 1
-        self.model_path = resource_path(models / "LEAP071024_E16.onnx")
+        self.model_path = resource_path(models / "pfld-sim.onnx")
 
         self.print_fps = False
         self.frames = 0
@@ -131,9 +130,10 @@ class LEAP_C:
             if len(self.openlist) < 2500:
                 self.openlist.append(d)
             else:
-                print("full")
+                pass
+          #      print("full")
 
-            print(len(self.openlist))
+            #print(len(self.openlist))
             # self.openlist.pop(0)
             # self.openlist.append(d)
 

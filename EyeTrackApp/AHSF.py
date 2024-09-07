@@ -658,7 +658,7 @@ def fit_pupil_ellipse_swirski(img_pupil, edges_filter):
     contours, hierarchy = cv2.findContours(edges_filter, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE)
     max_contour_area = 0
     max_contour = None
-    print("contours: ", contours)
+    #print("contours: ", contours)
     for contour in contours:
         area = cv2.contourArea(contour)
         if area > max_contour_area:
@@ -692,28 +692,6 @@ def intersect_rect(rect1, rect2):
     w = min(x1 + w1, x2 + w2) - x
     h = min(y1 + h1, y2 + h2) - y
     return x, y, w, h
-
-
-def draw_coarse(img_bgr, pupil_rect, outer_rect, max_response, color):
-    thickness = 1
-    cv2.rectangle(
-        img_bgr,
-        (pupil_rect[0], pupil_rect[1]),
-        (pupil_rect[0] + pupil_rect[2], pupil_rect[1] + pupil_rect[3]),
-        color,
-        thickness,
-    )
-    cv2.rectangle(
-        img_bgr,
-        (outer_rect[0], outer_rect[1]),
-        (outer_rect[0] + outer_rect[2], outer_rect[1] + outer_rect[3]),
-        color,
-        thickness,
-    )
-    center = (pupil_rect[0] + pupil_rect[2] // 2, pupil_rect[1] + pupil_rect[3] // 2)
-    cv2.drawMarker(img_bgr, center, color, cv2.MARKER_CROSS, 20, thickness)
-    put_number(img_bgr, max_response, center, color)
-
 
 
 def rect_suppression(rectlist, response, rectlist_out, response_out):
@@ -776,7 +754,7 @@ def External_Run_AHSF(frame_gray):
         "mu_outer": 200,  # aprroximatly how much pupil should be in the outer rect
         "mu_inner": 50,  # aprroximatly how much pupil should be in the inner rect
         "ratio_outer": 0.9,  # rectangular ratio. 1 means square (LIKE REGULAR HSF)
-        "kf": 2,  # noise filter. May lose tracking if too high (or even never start)
+        "kf": 1,  # noise filter. May lose tracking if too high (or even never start)
         "width_min": 16,  # Minimum width of the pupil
         "width_max": 50,  # Maximum width of the pupil
         "wh_step": 5,  # Pupil width and height step search size
@@ -820,10 +798,8 @@ def External_Run_AHSF(frame_gray):
         thickness,
     )
 
-    center = (pupil_rect_coarse[0] + pupil_rect_coarse[2] // 2, pupil_rect_coarse[1] + pupil_rect_coarse[3] // 2)
+   # center = (pupil_rect_coarse[0] + pupil_rect_coarse[2] // 2, pupil_rect_coarse[1] + pupil_rect_coarse[3] // 2)
 #    cv2.drawMarker(frame_gray, center, (255, 255, 255), cv2.MARKER_CROSS, 20, thickness)
-
-
 
 
 

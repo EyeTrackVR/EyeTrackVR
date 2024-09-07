@@ -56,7 +56,7 @@ WINDOW_NAME = "EyeTrackApp"
 
 
 page_url = "https://github.com/RedHawk989/EyeTrackVR/releases/latest"
-appversion = "EyeTrackApp 0.2.0 BETA 13"
+appversion = "EyeTrackApp 0.2.0 BETA 14"
 
 
 class KeyManager:
@@ -296,7 +296,7 @@ def main():
 
             # Event loop
             while True:
-                eventg, valuesg = windowg.read()
+                eventg, valuesg = windowg.read(timeout=30)
 
                 if eventg == sg.WINDOW_CLOSED:
                     config.settings.gui_disable_gui = False
@@ -314,7 +314,7 @@ def main():
         # First off, check for any events from the GUI
         window = create_window(config, settings, eyes)
         while True:
-            event, values = window.read(timeout=1) # this higher timeout saves some cpu usage
+            event, values = window.read(timeout=30) # this higher timeout saves some cpu usage
 
             # If we're in either mode and someone hits q, quit immediately
             if event == "Exit" or event == sg.WIN_CLOSED and not config.settings.gui_disable_gui:

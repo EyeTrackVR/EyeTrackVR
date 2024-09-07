@@ -36,7 +36,8 @@ import os
 import subprocess
 import math
 from utils.calibration_3d import receive_calibration_data, converge_3d
-
+from utils.misc_utils import resource_path
+from pathlib import Path
 
 class TimeoutError(RuntimeError):
     pass
@@ -117,11 +118,13 @@ class var:
 
 @Async
 def center_overlay_calibrate(self):
+    tools = Path("Tools")
     # try:
     if var.overlay_active != True:
 
         dirname = os.getcwd()
-        overlay_path = os.path.join(dirname, "Tools/center.bat")
+
+        overlay_path = resource_path(tools / "center.bat")
         os.startfile(overlay_path)
         var.overlay_active = True
         sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
