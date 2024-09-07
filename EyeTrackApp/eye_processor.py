@@ -168,6 +168,8 @@ class EyeProcessor:
         self.pupil_height = 0.0
         self.avg_velocity = 0.0
         self.angle = 621
+        self.er_ahsf = None
+
 
         try:
             min_cutoff = float(self.settings.gui_min_cutoff)  # 0.0004
@@ -428,7 +430,7 @@ class EyeProcessor:
             self.rawx,
             self.rawy,
             self.radius,
-        ) = External_Run_AHSF(self.current_image_gray)
+        ) = self.er_ahsf.External_Run_AHSF(self.current_image_gray)
         self.current_image_gray_clean = resize_img.copy()
 
         self.thresh = resize_img
@@ -554,7 +556,7 @@ class EyeProcessor:
             self.rawx,
             self.rawy,
             self.radius,
-        ) = External_Run_AHSF(self.current_image_gray)
+        ) =  self.er_ahsf.External_Run_AHSF(self, self.current_image_gray)
         self.thresh = self.current_image_gray
         self.out_x, self.out_y, self.avg_velocity = cal.cal_osc(self, self.rawx, self.rawy, self.angle)
         self.current_algorithm = EyeInfoOrigin.HSF
@@ -633,9 +635,13 @@ class EyeProcessor:
 
         # set algo priorities
         if self.settings.gui_AHSFRAC:
+            if self.er_ahsf is None:
+                self.er_ahsf = AHSF(self.current_image_gray)
             algolist[self.settings.gui_AHSFRACP] = self.AHSFRACM
 
         if self.settings.gui_AHSF:
+            if self.er_ahsf is None:
+                self.er_ahsf = AHSF(self.current_image_gray)
             algolist[self.settings.gui_AHSFP] = self.AHSFM
 
         if self.settings.gui_HSF:
