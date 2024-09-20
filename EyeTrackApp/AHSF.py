@@ -350,9 +350,9 @@ class AHSF:
             init_rect_down = self.rect_scale(init_rect, params["ratio_downsample"], False)
             init_rect_down = self.intersect_rect(init_rect_down, imgboundary)
             img_blur = img_gray[
-                init_rect_down[1] : init_rect_down[1] + init_rect_down[3],
-                init_rect_down[0] : init_rect_down[0] + init_rect_down[2],
-            ]
+                       init_rect_down[1]: init_rect_down[1] + init_rect_down[3],
+                       init_rect_down[0]: init_rect_down[0] + init_rect_down[2],
+                       ]
 
         (
             frame_int,
@@ -375,53 +375,36 @@ class AHSF:
         ) = self.get_empty_array(img_blur.shape, width_min, width_max, wh_step, xy_step, roi, ratio_outer)
         cv2.integral(
             img_blur, sum=frame_int, sdepth=cv2.CV_32S
-        )  # memo: It becomes slower when using float64, probably because the increase in bits from 32 to 64 causes the arrays to be larger.
+        )
 
-        # memo: If axis=1 is too slow, just transpose and "take" with axis=0.
-        # memo: This URL gave me an idea.  https://numpy.org/doc/1.25/dev/internals.html#multidimensional-array-indexing-order-issues
-        out_p_temp = frame_int.take(y_out_n, axis=0, mode="clip")  # , out=out_p_temp)
+        out_p_temp = frame_int.take(y_out_n, axis=0, mode="clip")
         out_p_temp = cv2.transpose(out_p_temp)
-        out_p00 = out_p_temp.take(x_out_n, axis=0, mode="clip")  # , out=out_p00)
-        # p01 calc
-        out_p01 = out_p_temp.take(x_out_w, axis=0, mode="clip")  # , out=out_p01)
-        # p11 calc
-        out_p_temp = frame_int.take(y_out_h, axis=0, mode="clip")  # , out=out_p_temp)
+        out_p00 = out_p_temp.take(x_out_n, axis=0, mode="clip")
+        out_p01 = out_p_temp.take(x_out_w, axis=0, mode="clip")
+        out_p_temp = frame_int.take(y_out_h, axis=0, mode="clip")
         out_p_temp = cv2.transpose(out_p_temp)
-        out_p11 = out_p_temp.take(x_out_w, axis=0, mode="clip")  # , out=out_p11)
-        # p10 calc
-        out_p10 = out_p_temp.take(x_out_n, axis=0, mode="clip")  # , out=out_p10)
+        out_p11 = out_p_temp.take(x_out_w, axis=0, mode="clip")
+        out_p10 = out_p_temp.take(x_out_n, axis=0, mode="clip")
 
-        # outer_sum[:, :] = out_p00 + out_p11 - out_p01 - out_p10
-        outer_sum = cv2.add(out_p00, out_p11)  # , dst=outer_sum)
+        outer_sum = cv2.add(out_p00, out_p11)
         cv2.subtract(outer_sum, out_p01, dst=outer_sum)
         cv2.subtract(outer_sum, out_p10, dst=outer_sum)
-        # outer_sum=outer_sum.astype(np.float64)
-        # outer_sum = cv2.transpose(outer_sum)
 
-        in_p_temp = frame_int.take(y_in_n, axis=0, mode="clip")  # , out=in_p_temp)
-
+        in_p_temp = frame_int.take(y_in_n, axis=0, mode="clip")
         in_p_temp = cv2.transpose(in_p_temp)
-        in_p00 = in_p_temp.take(x_in_n, axis=0, mode="clip")  # , out=in_p00)
-        # p01 calc
-        in_p01 = in_p_temp.take(x_in_w, axis=0, mode="clip")  # , out=in_p01)
-        # p11 calc
-        in_p_temp = frame_int.take(y_in_h, axis=0, mode="clip")  # , out=in_p_temp)
+        in_p00 = in_p_temp.take(x_in_n, axis=0, mode="clip")
+        in_p01 = in_p_temp.take(x_in_w, axis=0, mode="clip")
+        in_p_temp = frame_int.take(y_in_h, axis=0, mode="clip")
         in_p_temp = cv2.transpose(in_p_temp)
-        in_p11 = in_p_temp.take(x_in_w, axis=0, mode="clip")  # , out=in_p11)
-        # p10 calc
-        in_p10 = in_p_temp.take(x_in_n, axis=0, mode="clip")  # , out=in_p10)
+        in_p11 = in_p_temp.take(x_in_w, axis=0, mode="clip")
+        in_p10 = in_p_temp.take(x_in_n, axis=0, mode="clip")
 
-        # inner_sum[:, :] = in_p00 + in_p11 - in_p01 - in_p10
         inner_sum = cv2.add(in_p00, in_p11)
         cv2.subtract(inner_sum, in_p01, dst=inner_sum)
         cv2.subtract(inner_sum, in_p10, dst=inner_sum)
 
-        # memo: Multiplication, etc. can be faster by self-assignment, but care must be taken because array initialization is required.
-        # https://stackoverflow.com/questions/71204415/opencv-python-fastest-way-to-multiply-pixel-value
-        inner_sum_f = np.empty(inner_sum.shape, dtype=np.float64)
-        inner_sum_f[:, :] = inner_sum
-        outer_sum_f = np.empty(outer_sum.shape, dtype=np.float64)
-        outer_sum_f[:, :] = outer_sum
+        inner_sum_f = inner_sum.astype(np.float64)
+        outer_sum_f = outer_sum.astype(np.float64)
 
         response_value = np.empty(outer_sum.shape, dtype=np.float64)
         inout_rect_sum = mu_outer_rect2.copy()
@@ -432,14 +415,10 @@ class AHSF:
         cv2.add(inout_rect_mul, inout_rect_sum, dst=inout_rect_sum)
 
         cv2.multiply(inner_sum_f, wh_in_arr, inner_sum_f, kf)
-
         cv2.add(inout_rect_sum, inner_sum_f, dst=response_value)
-        # mu_outer_left+(kf*inner_sum*wh_in_arr)
 
-        # memo: The input image is transposed, so the coordinate output of this function has x and y swapped.
         min_response, max_response, min_loc, max_loc = cv2.minMaxLoc(response_value)
 
-        # The sign is reversed from the original calculation result, so using min.
         rec_o = (
             x_out_n[min_loc[1]],
             y_out_n[min_loc[0]],
@@ -597,7 +576,6 @@ class AHSF:
         )
 
 
-
     def External_Run_AHSF(self, frame_gray):
         average_color = np.mean(frame_gray)
         height, width = frame_gray.shape
@@ -614,19 +592,20 @@ class AHSF:
             "use_init_rect": False,
             "mu_outer": 200,
             "mu_inner": 50,
-            "ratio_outer": 0.9,
+            "ratio_outer": 1,
             "kf": 1,
-            "width_min": 16,
+            "width_min": 25,
             "width_max": 50,
-            "wh_step": 5,
-            "xy_step": 10,
+            "wh_step": 1,
+            "xy_step": 5,
             "roi": (0, 0, frame_gray.shape[1], frame_gray.shape[0]),
             "init_rect_flag": False,
             "init_rect": (0, 0, frame_gray.shape[1], frame_gray.shape[0]),
         }
         try:
             pupil_rect_coarse, outer_rect_coarse, max_response_coarse, mu_inner, mu_outer = self.coarse_detection(frame_gray, params)
-            ellipse_rect, center_fitting = self.fine_detection(frame_gray, pupil_rect_coarse)
+          #  ellipse_rect, center_fitting = self.fine_detection(frame_gray, pupil_rect_coarse)
+
         except TypeError:
             return frame_gray, frame_gray, 0, 0, 0
 
@@ -634,10 +613,27 @@ class AHSF:
         y_center = outer_rect_coarse[1] + outer_rect_coarse[3] / 2
         x, y, width, height = outer_rect_coarse
 
+
         cv2.circle(frame_gray, (int(x_center), int(y_center)), 2, (255, 255, 255), -1)
         thickness = 1
-        cv2.rectangle(frame_gray, (pupil_rect_coarse[0], pupil_rect_coarse[1]), (pupil_rect_coarse[0] + pupil_rect_coarse[2], pupil_rect_coarse[1] + pupil_rect_coarse[3]), (255, 255, 255), thickness)
-        cv2.rectangle(frame_gray, (outer_rect_coarse[0], outer_rect_coarse[1]), (outer_rect_coarse[0] + outer_rect_coarse[2], outer_rect_coarse[1] + outer_rect_coarse[3]), (255, 255, 255), thickness)
+
+        cv2.rectangle(frame_gray, (pupil_rect_coarse[0], pupil_rect_coarse[1]),
+                      (pupil_rect_coarse[0] + pupil_rect_coarse[2], pupil_rect_coarse[1] + pupil_rect_coarse[3]),
+                      (0, 255, 0), 2)
+        cv2.rectangle(frame_gray, (outer_rect_coarse[0], outer_rect_coarse[1]),
+                      (outer_rect_coarse[0] + outer_rect_coarse[2], outer_rect_coarse[1] + outer_rect_coarse[3]),
+                      (255, 0, 0), 2)
+
+
+
+
+
+
+
+
+
+
+
 
         major_diameter = math.sqrt(width**2 + height**2)
         minor_diameter = min(width, height)
