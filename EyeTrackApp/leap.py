@@ -16,6 +16,7 @@ os.environ["OMP_NUM_THREADS"] = "1"
 frames = 0
 models = Path("Models")
 
+
 def run_model(input_queue, output_queue, session):
     while True:
         frame = input_queue.get()
@@ -32,11 +33,13 @@ def run_model(input_queue, output_queue, session):
         pre_landmark = np.reshape(pre_landmark, (-1, 2))
         output_queue.put((frame, pre_landmark))
 
+
 def run_onnx_model(queues, session, frame):
     for queue in queues:
         if not queue.full():
             queue.put(frame)
             break
+
 
 class LEAP_C:
     def __init__(self):
@@ -74,8 +77,7 @@ class LEAP_C:
         self.total_velocity_old = 0
         self.old_per = 0.0
         self.delta_per_neg = 0.0
-        self.ort_session1 = onnxruntime.InferenceSession(self.model_path, opts, providers=['CUDAExecutionProvider', 'CPUExecutionProvider'])
-
+        self.ort_session1 = onnxruntime.InferenceSession(self.model_path, opts, providers=["CPUExecutionProvider"])
 
         for i in range(self.num_threads):
             thread = threading.Thread(
@@ -144,6 +146,7 @@ class LEAP_C:
 
         imgvis = cv2.cvtColor(img, cv2.COLOR_RGB2GRAY)
         return imgvis, 0, 0, 0
+
 
 class External_Run_LEAP:
     def __init__(self):
