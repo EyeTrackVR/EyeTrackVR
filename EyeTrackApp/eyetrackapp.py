@@ -327,6 +327,14 @@ def main():
                 os._exit(0)  # I do not like this, but for now this fixes app hang on close
                 return
 
+            # When focus is lost stop 'n slow down the loop here.
+            try:
+                if not window.TKroot.focus_get():
+                    time.sleep(0.2)
+                    continue
+            except KeyError:
+                pass
+
             if values[key_manager.RIGHT_EYE_RADIO_NAME] and config.eye_display_id != EyeId.RIGHT:
                 config.settings.gui_disable_gui = False
                 eyes[0].start()
