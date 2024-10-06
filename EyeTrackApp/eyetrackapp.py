@@ -317,8 +317,7 @@ def main():
             event, values = window.read(timeout=30) # this higher timeout saves some cpu usage
 
             # If we're in either mode and someone hits q, quit immediately
-            if event == "Exit" or event == sg.WIN_CLOSED and not config.settings.gui_disable_gui:
-                print(event == "Exit", event == sg.WIN_CLOSED, config.settings.gui_disable_gui)
+            if event in ("Exit", sg.WIN_CLOSED) and not config.settings.gui_disable_gui:
                 for eye in eyes:
                     eye.stop()
                 cancellation_event.set()
