@@ -50,13 +50,13 @@ else:
     # See https://learn.microsoft.com/en-us/windows/win32/api/processthreadsapi/nf-processthreadsapi-getpriorityclass#return-value for values
 
 WAIT_TIME = 0.1
+BUFFER_SIZE = 32768
 # Serial communication protocol:
-# header-begin (2 bytes)
-# header-type (2 bytes)
-# packet-size (2 bytes)
-# packet (packet-size bytes)
-ETVR_HEADER = b"\xff\xa0"
-ETVR_HEADER_FRAME = b"\xff\xa1"
+#  header-begin (2 bytes) '\xff\xa0'
+#  header-type (2 bytes)  '\xff\xa1'
+#  packet-size (2 bytes)
+#  packet (packet-size bytes)
+ETVR_HEADER = b'\xff\xa0\xff\xa1'
 ETVR_HEADER_LEN = 6
 
 
@@ -83,13 +83,12 @@ class Camera:
         cancellation_event: "threading.Event",
         capture_event: "threading.Event",
         camera_status_outgoing: "queue.Queue[CameraState]",
-        camera_output_outgoing: "queue.Queue(maxsize=20)",
+        camera_output_outgoing: "queue.Queue(maxsize=2)",
     ):
 
         self.camera_status = CameraState.CONNECTING
         self.config = config
         self.camera_index = camera_index
-        self.camera_address = config.capture_source
         self.camera_status_outgoing = camera_status_outgoing
         self.camera_output_outgoing = camera_output_outgoing
         self.capture_event = capture_event
@@ -99,17 +98,11 @@ class Camera:
 
         self.serial_connection = None
         self.last_frame_time = time.time()
-        self.frame_number = 0
         self.fps = 0
         self.bps = 0
         self.start = True
         self.buffer = b""
-        self.pf_fps = 0
-        self.prevft = 0
-        self.newft = 0
-        self.fl = [0]
-
-
+        self.sp_max = 2560  # Most ETVR frames are ~4298-4800 bytes (Keep lower!)
 
         self.error_message = f"{Fore.YELLOW}[WARN] Capture source {{}} not found, retrying...{Fore.RESET}"
 
@@ -210,96 +203,96 @@ class Camera:
                 self.cv2_camera.set(cv2.CAP_PROP_POS_FRAMES, 0)
                 raise RuntimeError("Problem while getting frame")
             frame_number = self.cv2_camera.get(cv2.CAP_PROP_POS_FRAMES)
-            current_frame_time = time.time()
+            current_frame_time = time.time()    # Should be using "time.perf_counter()", not worth ~3x cycles?
             delta_time = current_frame_time - self.last_frame_time
-            if delta_time > 0:
-                current_fps = 1 / delta_time
-            else:
-                current_fps = 0
             self.last_frame_time = current_frame_time
-
-            if len(self.fl) < 60:
-                self.fl.append(current_fps)
-            else:
-                self.fl.pop(0)
-                self.fl.append(current_fps)
-
-            self.fps = sum(self.fl) / len(self.fl)
+            current_fps = 1 / delta_time if delta_time > 0 else 0
+            # Exponential moving average (EMA). ~1100ns savings, delicious..
+            self.fps = current_fps if not self.fps else 0.2 * current_fps + (1 - 0.2) * self.fps
             self.bps = image.nbytes * self.fps
-
 
             if should_push:
                 self.push_image_to_queue(image, frame_number, self.fps)
-        except:
-            print(
-                f"{Fore.YELLOW}[WARN] Capture source problem, assuming camera disconnected, waiting for reconnect.{Fore.RESET}"
-            )
+        except Exception:
+            print(f"{Fore.YELLOW}[WARN] Capture source problem, assuming camera disconnected, waiting for reconnect.{Fore.RESET}")
             self.camera_status = CameraState.DISCONNECTED
             pass
 
-    def get_next_packet_bounds(self):
-        beg = -1
-        while beg == -1:
-            self.buffer += self.serial_connection.read(2048)
-            beg = self.buffer.find(ETVR_HEADER + ETVR_HEADER_FRAME)
-        # Discard any data before the frame header.
-        if beg > 0:
-            self.buffer = self.buffer[beg:]
-            beg = 0
-        # We know exactly how long the jpeg packet is
-        end = int.from_bytes(self.buffer[4:6], signed=False, byteorder="little")
-        self.buffer += self.serial_connection.read(end - len(self.buffer))
-        return beg, end
+    def serial_read(self, rb):
+        self.buffer += self.serial_connection.read(rb)
+        return len(self.buffer)
 
-    def get_next_jpeg_frame(self):
-        beg, end = self.get_next_packet_bounds()
-        jpeg = self.buffer[beg + ETVR_HEADER_LEN : end + ETVR_HEADER_LEN]
-        self.buffer = self.buffer[end + ETVR_HEADER_LEN :]
-        return jpeg
+    def serial_sleep(self, sb):
+        if sb > 0:
+            sb /= 256000    # Sleeping for 0.01s increases ".in_waiting" buffer by ~2560 bytes. Most ETVR frames are ~4298-4800
+            time.sleep(sb)
+
+    def get_next_jpeg_frame(self, conn):
+        # Erm, so yah...
+        self.serial_sleep(self.sp_max - (conn.in_waiting + len(self.buffer)))
+        buffer_len = self.serial_read(conn.in_waiting)
+        if buffer_len >= ETVR_HEADER_LEN:
+            if buffer_len > (self.sp_max * 2.3):
+                # Skip frames:
+                #  Ad hoc to catch up to latest frames. Got a feelin there's going to be unforeseen consequences for this one
+                beg = self.buffer.rfind(ETVR_HEADER)
+            else:
+                beg = self.buffer.find(ETVR_HEADER)
+            if beg != -1:
+                self.buffer = self.buffer[beg:]
+                buffer_len = len(self.buffer)
+                if buffer_len >= ETVR_HEADER_LEN:
+                    end = int.from_bytes(self.buffer[4:ETVR_HEADER_LEN], signed=False, byteorder="little") + ETVR_HEADER_LEN
+                    if conn.in_waiting + buffer_len < end:
+                        self.serial_sleep(end - (conn.in_waiting + buffer_len))
+                    if conn.in_waiting >= end:
+                        buffer_len = self.serial_read(conn.in_waiting)
+                    if buffer_len >= end and self.buffer[end-2:end] == b'\xff\xd9':
+                        if end > self.sp_max:
+                            self.sp_max = end
+                        jpeg = self.buffer[ETVR_HEADER_LEN:end]
+                        self.buffer = self.buffer[end:]
+                        return jpeg
+                    # Sometime we end up here ~44 times in a row, because "buffer_len" < "end" or EOL '\xff\xd9' was not found. Loosing 2.3-2.5 frames before things get normal
+                    if end > self.sp_max:
+                        self.sp_max = end
+        return False
 
     def get_serial_camera_picture(self, should_push):
-        conn = self.serial_connection
-        if conn is None:
+        # Stop spamming "Serial capture source problem" if connection is lost
+        if self.serial_connection is None or self.camera_status == CameraState.DISCONNECTED:
             return
         try:
-            if conn.in_waiting:
-                jpeg = self.get_next_jpeg_frame()
+            if self.serial_connection.in_waiting:
+                jpeg = self.get_next_jpeg_frame(self.serial_connection)
                 if jpeg:
                     # Create jpeg frame from byte string
                     image = cv2.imdecode(np.fromstring(jpeg, dtype=np.uint8), cv2.IMREAD_UNCHANGED)
                     if image is None:
                         print(f"{Fore.YELLOW}[WARN] Frame drop. Corrupted JPEG.{Fore.RESET}")
                         return
-                    # Discard the serial buffer. This is due to the fact that it
-                    # may build up some outdated frames. A bit of a workaround here tbh.
-                    if conn.in_waiting >= 32768:
-                        print(f"{Fore.CYAN}[INFO] Discarding the serial buffer ({conn.in_waiting} bytes){Fore.RESET}")
-                        conn.reset_input_buffer()
-                        self.buffer = b""
                     # Calculate the fps.
-                    current_frame_time = time.time()
+                    current_frame_time = time.time()    # Should be using "time.perf_counter()", not worth ~3x cycles?
                     delta_time = current_frame_time - self.last_frame_time
                     self.last_frame_time = current_frame_time
-                    self.fps = (self.fps + self.pf_fps) / 2
-                    self.newft = time.time()
-                    self.fps = 1 / (self.newft - self.prevft)
-                    self.prevft = self.newft
-                    self.fps = int(self.fps)
-                    if len(self.fl) < 60:
-                        self.fl.append(self.fps)
-                    else:
-                        self.fl.pop(0)
-                        self.fl.append(self.fps)
-                    self.fps = sum(self.fl) / len(self.fl)
-                    self.bps = image.nbytes * self.fps
-                    self.frame_number = self.frame_number + 1
+                    current_fps = 1 / delta_time if delta_time > 0 else 0
+                    # Exponential moving average (EMA). ~1100ns savings, delicious..
+                    self.fps = current_fps if not self.fps else 0.2 * current_fps + (1 - 0.2) * self.fps
+                    self.bps = len(jpeg) * self.fps
+
                     if should_push:
-                        self.push_image_to_queue(image, self.frame_number, self.fps)
+                        self.push_image_to_queue(image, current_frame_time, self.fps)
+                # Discard the serial buffer. This is due to the fact that it,
+                # may build up some outdated frames. A bit of a workaround here tbh.
+                # Do this at the end to give buffer time to refill.
+                if self.serial_connection.in_waiting >= BUFFER_SIZE:
+                    print(f"{Fore.CYAN}[INFO] Discarding the serial buffer ({self.serial_connection.in_waiting} bytes){Fore.RESET}")
+                    self.serial_connection.reset_input_buffer()
+                    self.buffer = b''
+
         except Exception:
-            print(
-                f"{Fore.YELLOW}[WARN] Serial capture source problem, assuming camera disconnected, waiting for reconnect.{Fore.RESET}"
-            )
-            conn.close()
+            print(f"{Fore.YELLOW}[WARN] Serial capture source problem, assuming camera disconnected, waiting for reconnect.{Fore.RESET}")
+            self.serial_connection.close()
             self.camera_status = CameraState.DISCONNECTED
             pass
 
@@ -318,9 +311,7 @@ class Camera:
             rate = 115200 if sys.platform == "darwin" else 3000000  # Higher baud rate not working on macOS
             conn = serial.Serial(baudrate=rate, port=port, xonxoff=False, dsrdtr=False, rtscts=False)
             # Set explicit buffer size for serial.
-            if sys.platform == "win32":
-                buffer_size = 32768
-                conn.set_buffer_size(rx_size=buffer_size, tx_size=buffer_size)
+            conn.set_buffer_size(rx_size=BUFFER_SIZE, tx_size=BUFFER_SIZE)
 
             print(f"{Fore.CYAN}[INFO] ETVR Serial Tracker device connected on {port}{Fore.RESET}")
             self.serial_connection = conn
@@ -334,8 +325,6 @@ class Camera:
         # some sort of capture event conflict though.
         qsize = self.camera_output_outgoing.qsize()
         if qsize > 1:
-            print(
-                f"{Fore.YELLOW}[WARN] CAPTURE QUEUE BACKPRESSURE OF {qsize}. CHECK FOR CRASH OR TIMING ISSUES IN ALGORITHM.{Fore.RESET}"
-            )
+            print(f"{Fore.YELLOW}[WARN] CAPTURE QUEUE BACKPRESSURE OF {qsize}. CHECK FOR CRASH OR TIMING ISSUES IN ALGORITHM.{Fore.RESET}")
         self.camera_output_outgoing.put((image, frame_number, fps))
         self.capture_event.clear()
