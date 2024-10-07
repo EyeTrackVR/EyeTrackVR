@@ -29,7 +29,6 @@ import PySimpleGUI as sg
 import queue
 import requests
 import threading
-from ctypes import windll, c_int
 from camera_widget import CameraWidget
 from config import EyeTrackConfig
 from eye import EyeId
@@ -48,12 +47,6 @@ import uuid
 if is_nt:
     from winotify import Notification
 os.system("color")  # init ANSI color
-
-winmm = None
-try:
-    winmm = windll.winmm
-except OSError:
-    print("[WARN] Failed to load winmm.dll")
 
 # Random environment variable to speed up webcam opening on the MSMF backend.
 # https://github.com/opencv/opencv/issues/17687
@@ -209,15 +202,7 @@ def create_window(config, settings, eyes):
         icon=resource_path("Images/logo.ico"),
         background_color="#292929")
 
-def timerResolution(toggle):
-    if winmm != None:
-        if toggle:
-            rc = c_int(winmm.timeBeginPeriod(1))
-            if rc.value != 0:
-                # TIMEERR_NOCANDO = 97
-                print(f"[WARN] Failed to set timer resolution: {rc.value}")
-        else:
-            winmm.timeEndPeriod(1)
+
 
 def main():
     # Get Configuration
@@ -259,8 +244,6 @@ def main():
                     print("[INFO] Toast notifications not supported")
     except:
         print("\033[91m[INFO] Could not check for updates. Please try again later.\033[0m")
-
-    timerResolution(True)
 
     osc_queue: queue.Queue[OSCMessage] = queue.Queue(maxsize=10)
 
@@ -334,24 +317,16 @@ def main():
             event, values = window.read(timeout=30) # this higher timeout saves some cpu usage
 
             # If we're in either mode and someone hits q, quit immediately
-            if event in ("Exit", sg.WIN_CLOSED) and not config.settings.gui_disable_gui:
+            if event == "Exit" or event == sg.WIN_CLOSED and not config.settings.gui_disable_gui:
+                print(event == "Exit", event == sg.WIN_CLOSED, config.settings.gui_disable_gui)
                 for eye in eyes:
                     eye.stop()
                 cancellation_event.set()
                 osc_manager.shutdown()
-                timerResolution(False)
                 print("\033[94m[INFO] Exiting EyeTrackApp\033[0m")
                 window.close()
                 os._exit(0)  # I do not like this, but for now this fixes app hang on close
                 return
-
-            # When focus is lost stop 'n slow down the loop here.
-            try:
-                if not window.TKroot.focus_get():
-                    time.sleep(0.2)
-                    continue
-            except KeyError:
-                pass
 
             if values[key_manager.RIGHT_EYE_RADIO_NAME] and config.eye_display_id != EyeId.RIGHT:
                 config.settings.gui_disable_gui = False

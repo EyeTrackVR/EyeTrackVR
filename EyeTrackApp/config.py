@@ -313,14 +313,12 @@ class EyeTrackConfig(BaseModel):
                     EyeTrackConfig(**json.load(settings_file))
                 shutil.copy(CONFIG_FILE_NAME, BACKUP_CONFIG_FILE_NAME)
                 # print("Backed up settings files.") # Comment out because it's too loud.
-            except shutil.SameFileError:
-                pass
             except json.JSONDecodeError:
                 # No backup because the saved settings file is broken.
                 pass
         with open(CONFIG_FILE_NAME, "w") as settings_file:
             json.dump(obj=self.model_dump(warnings=False), fp=settings_file)
-        #print(f"\033[92m[INFO] Config Saved Successfully\033[0m")
+        print(f"\033[92m[INFO] Config Saved Successfully\033[0m")
 
     def register_listener_callback(self, callback):
         print(f"[DEBUG] Registering listener {callback}")

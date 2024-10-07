@@ -159,8 +159,6 @@ class OSCSender:
                         self.module_sender.send(osc_message=osc_message, client=self.vrcft_client)
                     case _:
                         raise Exception("Encountered message without a handler %s", osc_message.type)
-            except TypeError:
-                continue
             except queue.Empty:
                 continue
 
