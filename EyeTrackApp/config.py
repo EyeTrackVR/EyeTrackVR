@@ -69,7 +69,7 @@ class EyeTrackCameraConfig(BaseModel):
 
         # we were passed an IP, probably, lets add HTTP:// to it
         if len(new_camera_address) > 5 and not (
-            not new_camera_address.startswith(("http", "/dev")) or not new_camera_address.endswith(".mp4")
+            not new_camera_address.startswith(("http", "/dev", "aseevr")) or not new_camera_address.endswith(".mp4")
         ):
             self.capture_source = f"http://{new_camera_address}"
             return
