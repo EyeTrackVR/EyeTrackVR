@@ -275,7 +275,7 @@ class Camera:
             windll.user32.SetProcessDPIAware()
             
             # Find the right window and then capture it to a bitmap using win32gui
-            hwnd = win32gui.FindWindow(None, self.pimax_camera)
+            hwnd = win32gui.FindWindow(None, self.aseevr_camera)
             hwnd_dc = win32gui.GetWindowDC(hwnd)
             mfc_dc = win32ui.CreateDCFromHandle(hwnd_dc)
             save_dc = mfc_dc.CreateCompatibleDC()
