@@ -36,7 +36,9 @@ from config import EyeTrackCameraConfig
 from enum import Enum
 import psutil, os
 import sys
-
+from ctypes import windll
+import win32gui
+import win32ui
 
 process = psutil.Process(os.getpid())  # set process priority to low
 try:
@@ -74,6 +76,14 @@ def is_serial_capture_source(addr: str) -> bool:
         addr.startswith("COM") or addr.startswith("/dev/cu") or addr.startswith("/dev/tty")  # Windows  # macOS  # Linux
     )
 
+def is_aseevr_capture_source(addr: str) -> bool:
+    """
+    Returns True if the capture source address is ASeeVR/Droolon Pi 1
+    """
+    if addr == "aseevrleft" or addr == "aseevrright":
+        return(True)        
+    else:
+        return(False)
 
 class Camera:
     def __init__(
@@ -98,6 +108,7 @@ class Camera:
         self.cv2_camera: "cv2.VideoCapture" = None
 
         self.serial_connection = None
+        self.aseevr_camera = None
         self.last_frame_time = time.time()
         self.frame_number = 0
         self.fps = 0
@@ -156,6 +167,24 @@ class Camera:
                         port = self.config.capture_source
                         self.current_capture_source = port
                         self.start_serial_connection(port)
+                elif is_aseevr_capture_source(addr):
+                    if (
+                        self.aseevr_camera is None
+                        or self.camera_status == CameraState.DISCONNECTED
+                        or self.config.capture_source != self.current_capture_source
+                    ):
+                        self.current_capture_source = self.config.capture_source
+                        
+                        # Determine if we want the left or the right video feed and
+                        # set the pimax_camera variable to the window title of that eye
+                        if ( self.current_capture_source == "aseevrleft"):
+                            self.aseevr_camera = "draw Image1"
+                        elif (self.current_capture_source == "aseevrright"):
+                            self.aseevr_camera = "draw Image2"
+                        else:
+                            # This should be a completely impossible scenario, but... I guess I need to do something here
+                            print("There is only aseevrleft and aseevrright.")
+                        should_push = False
                 else:
                     if (
                         self.cv2_camera is None
@@ -190,6 +219,8 @@ class Camera:
                 addr = str(self.current_capture_source)
                 if is_serial_capture_source(addr):
                     self.get_serial_camera_picture(should_push)
+                elif is_aseevr_capture_source(addr):
+                    self.get_aseevr_camera_picture(should_push)
                 else:
                     self.get_cv2_camera_picture(should_push)
                 if not should_push:
@@ -228,6 +259,66 @@ class Camera:
             self.bps = image.nbytes * self.fps
 
 
+            if should_push:
+                self.push_image_to_queue(image, frame_number, self.fps)
+        except:
+            print(
+                f"{Fore.YELLOW}[WARN] Capture source problem, assuming camera disconnected, waiting for reconnect.{Fore.RESET}"
+            )
+            self.camera_status = CameraState.DISCONNECTED
+            pass
+
+    def get_aseevr_camera_picture(self, should_push):
+        try:
+            # We probably need to be DPI aware to capture the window correctly for
+            # users that have window scaling set to something else than 100%
+            windll.user32.SetProcessDPIAware()
+            
+            # Find the right window and then capture it to a bitmap using win32gui
+            hwnd = win32gui.FindWindow(None, self.pimax_camera)
+            hwnd_dc = win32gui.GetWindowDC(hwnd)
+            mfc_dc = win32ui.CreateDCFromHandle(hwnd_dc)
+            save_dc = mfc_dc.CreateCompatibleDC()
+            bitmap = win32ui.CreateBitmap()
+            bitmap.CreateCompatibleBitmap(mfc_dc, 320, 240)
+            save_dc.SelectObject(bitmap)
+            result = windll.user32.PrintWindow(hwnd, save_dc.GetSafeHdc(), 3)
+            
+            # Convert the created bitmap into a format that ETVR likes
+            bmpinfo = bitmap.GetInfo()
+            bmpstr = bitmap.GetBitmapBits(True)
+            image = np.frombuffer(bmpstr, dtype=np.uint8).reshape((bmpinfo["bmHeight"], bmpinfo["bmWidth"], 4))
+            image = np.ascontiguousarray(image)[..., :-1]
+            
+            # Clean up after writing the image
+            win32gui.DeleteObject(bitmap.GetHandle())
+            save_dc.DeleteDC()
+            mfc_dc.DeleteDC()
+            win32gui.ReleaseDC(hwnd, hwnd_dc)
+          
+            # Calculate the aspect ratio
+            height, width = image.shape[:2]  
+
+            # Calculate the fps.
+            current_frame_time = time.time()
+            delta_time = current_frame_time - self.last_frame_time
+            self.last_frame_time = current_frame_time
+            if delta_time > 0:
+                self.bps = len(image) / delta_time
+            self.frame_number = self.frame_number + 1
+            self.fps = (self.fps + self.pf_fps) / 2
+            self.newft = time.time()
+            self.fps = 1 / (self.newft - self.prevft)
+            self.prevft = self.newft
+            self.fps = int(self.fps)
+            if len(self.fl) < 60:
+                self.fl.append(self.fps)
+            else:
+                self.fl.pop(0)
+                self.fl.append(self.fps)
+            self.fps = sum(self.fl) / len(self.fl)
+            #  self.bps = image.nbytes
+            frame_number = self.frame_number
             if should_push:
                 self.push_image_to_queue(image, frame_number, self.fps)
         except:
