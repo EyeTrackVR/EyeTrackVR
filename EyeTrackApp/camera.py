@@ -148,6 +148,9 @@ class Camera:
                 if is_serial_capture_source(addr):
                     pass # TODO: find a nicer way to stop the com port
                   #  self.serial_connection.close()
+                elif is_aseevr_capture_source(addr):
+                    # We don't need any special release for ASeeVR, each capture event is fully closed within itself
+                    pass
                 else:
                     self.cv2_camera.release()
 
