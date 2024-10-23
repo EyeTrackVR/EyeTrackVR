@@ -44,17 +44,16 @@ import cv2
 import numpy as np
 import uuid
 
+winmm = None
 
 if is_nt:
     from winotify import Notification
+    try:
+        winmm = windll.winmm
+    except OSError:
+        print("\033[91m[WARN] Failed to load winmm.dll\033[0m")
 os.system("color")  # init ANSI color
 
-winmm = None
-try:
-    winmm = windll.winmm
-except OSError:
-    #print("[WARN] Failed to load winmm.dll")
-    pass
 
 # Random environment variable to speed up webcam opening on the MSMF backend.
 # https://github.com/opencv/opencv/issues/17687
@@ -216,7 +215,7 @@ def timerResolution(toggle):
             rc = c_int(winmm.timeBeginPeriod(1))
             if rc.value != 0:
                 # TIMEERR_NOCANDO = 97
-                print(f"[WARN] Failed to set timer resolution: {rc.value}")
+                print(f"\033[93m[WARN] Failed to set timer resolution: {rc.value}\033[0m")
         else:
             winmm.timeEndPeriod(1)
 
