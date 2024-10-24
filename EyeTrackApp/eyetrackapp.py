@@ -38,7 +38,6 @@ from settings.algo_settings_widget import AlgoSettingsWidget
 from osc.osc import OSCManager
 from osc.OSCMessage import OSCMessage
 from utils.misc_utils import is_nt, resource_path
-import time
 import cv2
 import numpy as np
 import uuid
@@ -180,6 +179,8 @@ def create_window(config, settings, eyes):
                 button_color="#6f4ca1",
             ),
         ],
+        # Keep at bottom!
+        [sg.Text("- - -  Interface Paused  - - -", key="-WINFOCUS-", background_color="#292929", text_color="#F0F0F0", justification="center", expand_x=True, visible=False)],
     ]
 
 
@@ -296,7 +297,7 @@ def main():
 
             # Event loop
             while True:
-                eventg, valuesg = windowg.read(timeout=30)
+                eventg, valuesg = windowg.read(timeout=33)
 
                 if eventg == sg.WINDOW_CLOSED:
                     config.settings.gui_disable_gui = False
@@ -313,8 +314,11 @@ def main():
 
         # First off, check for any events from the GUI
         window = create_window(config, settings, eyes)
+        
+        tint = 33
+        fs = False
         while True:
-            event, values = window.read(timeout=30) # this higher timeout saves some cpu usage
+            event, values = window.read(timeout=tint) # this higher timeout saves some cpu usage
 
             # If we're in either mode and someone hits q, quit immediately
             if event == "Exit" or event == sg.WIN_CLOSED and not config.settings.gui_disable_gui:
@@ -328,10 +332,21 @@ def main():
                 os._exit(0)  # I do not like this, but for now this fixes app hang on close
                 return
 
-            # When focus is lost stop 'n slow down the loop here.
             try:
-                if not window.TKroot.focus_get():
-                    time.sleep(0.2)
+                # If window isn't in focus increase timeout and stop loop early
+                if window.TKroot.focus_get():
+                    if fs:
+                        fs = False
+                        tint = 33
+                        window["-WINFOCUS-"].update(visible=False)
+                        window["-WINFOCUS-"].hide_row()
+                        window.refresh()
+                else:
+                    if not fs:
+                        fs = True
+                        tint = 100
+                        window["-WINFOCUS-"].update(visible=True)
+                        window["-WINFOCUS-"].unhide_row()
                     continue
             except KeyError:
                 pass
