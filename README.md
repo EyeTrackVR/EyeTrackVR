@@ -13,6 +13,8 @@ Picture courtesy of Wackalope#6737
       - [Contact](#contact)
 - [Licenses](#licenses)
 
+Active Development: [V2 App Branch](https://github.com/EyeTrackVR/EyeTrackVR/tree/v2.0-beta-feature-branch)
+
 ### [Documentation](https://docs.eyetrackvr.dev/)
 
 # EyeTrackVR
