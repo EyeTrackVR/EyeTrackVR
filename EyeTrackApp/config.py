@@ -159,7 +159,7 @@ class EyeTrackSettingsConfig(BaseModel):
     gui_RANSAC3DP: int = 6
     gui_BLOBP: int = 7
     gui_LEAPP: int = 8
-    gui_IBO: bool = True
+    gui_IBO: bool = False
     gui_skip_autoradius: bool = False
     gui_thresh_add: int = 11
     gui_update_check: bool = False
