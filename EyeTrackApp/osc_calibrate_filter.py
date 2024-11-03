@@ -39,6 +39,7 @@ from utils.calibration_3d import receive_calibration_data, converge_3d
 from utils.misc_utils import resource_path
 from pathlib import Path
 
+tool = Path("Tools")
 class TimeoutError(RuntimeError):
     pass
 
@@ -148,8 +149,7 @@ def center_overlay_calibrate(self):
 def overlay_calibrate_3d(self):
     try:
         if var.overlay_active != True:
-            dirname = os.getcwd()
-            overlay_path = os.path.join(dirname, "calibrate.bat")
+            overlay_path = resource_path(tool / "calibrate.bat")
             os.startfile(overlay_path)
             var.overlay_active = True
             while var.overlay_active:
