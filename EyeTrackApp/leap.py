@@ -111,13 +111,11 @@ class LEAP_C:
             d2 = math.dist(pre_landmark[2], pre_landmark[4])
             d = (d1 + d2) / 2
 
-            if len(self.openlist) > 0 and d >= np.percentile(self.openlist, 80) and len(self.openlist) < self.calibration_samples:
-                self.maxlist.append(d)
+         #   if len(self.openlist) > 0 and d >= np.percentile(self.openlist, 80) and len(self.openlist) < self.calibration_samples:
+           #     self.maxlist.append(d)
 
-         #   if len(self.maxlist) > 2000:
-          #      self.maxlist.pop(0)
 
-            normal_open = np.percentile(self.openlist, 70) if len(self.openlist) >= 500 else 0.8
+            normal_open = np.percentile(self.openlist, 90) if len(self.openlist) >= 10 else 0.8
 
             if self.calib == 0:
                 self.openlist = []
@@ -127,9 +125,9 @@ class LEAP_C:
 
             try:
                 if len(self.openlist) > 0:
-                    per = (d - normal_open) / (np.percentile(self.openlist, 1) - normal_open)
+                    per = (d - normal_open) / (np.percentile(self.openlist, 2) - normal_open)
                     per = 1 - per
-                    per = np.clip(per - 0.2, 0.0, 1.0)
+                    per = np.clip(per, 0.0, 1.0)
                 else:
                     per = 0.8
             except:
