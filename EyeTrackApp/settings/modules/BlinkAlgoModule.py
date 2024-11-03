@@ -33,6 +33,7 @@ class BlinkAlgoSettingsModule(BaseSettingsModule):
         self.ibo_fully_close_eye_threshold = f"-CLOSETHRESH{widget_id}-"
         self.gui_circular_crop_left = f"-CIRCLECROPLEFT{widget_id}-"
         self.gui_circular_crop_right = f"-CIRCLECROPRIGHT{widget_id}-"
+        self.leap_calibration_samples = f"-LEAPCALIBRATION{widget_id}-"
 
     def get_layout(self):
         return [
@@ -61,6 +62,14 @@ class BlinkAlgoSettingsModule(BaseSettingsModule):
                     default=self.config.gui_LEAP_lid,
                     key=self.gui_LEAP_lid,
                     background_color="#424042",
+                ),
+            ],
+            [
+                sg.Text("LEAP Calibration Samples", background_color="#424042"),
+                sg.InputText(
+                    self.config.leap_calibration_samples,
+                    key=self.leap_calibration_samples,
+                    size=(0, 10),
                 ),
             ],
             [

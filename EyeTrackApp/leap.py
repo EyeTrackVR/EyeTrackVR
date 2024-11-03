@@ -111,15 +111,18 @@ class LEAP_C:
             d2 = math.dist(pre_landmark[2], pre_landmark[4])
             d = (d1 + d2) / 2
 
-            if len(self.openlist) > 0 and d >= np.percentile(self.openlist, 80):
+            if len(self.openlist) > 0 and d >= np.percentile(self.openlist, 80) and len(self.openlist) < self.calibration_samples:
                 self.maxlist.append(d)
 
-            if len(self.maxlist) > 2000:
-                self.maxlist.pop(0)
+         #   if len(self.maxlist) > 2000:
+          #      self.maxlist.pop(0)
 
             normal_open = np.percentile(self.openlist, 70) if len(self.openlist) >= 500 else 0.8
 
-            if len(self.openlist) < 2500:
+            if self.calib == 0:
+                self.openlist = []
+
+            if len(self.openlist) < self.calibration_samples:
                 self.openlist.append(d)
 
             try:
@@ -152,8 +155,10 @@ class External_Run_LEAP:
     def __init__(self):
         self.algo = LEAP_C()
 
-    def run(self, current_image_gray, current_image_gray_clean):
+    def run(self, current_image_gray, current_image_gray_clean, calib, calibration_samples):
         self.algo.current_image_gray = current_image_gray
         self.algo.current_image_gray_clean = current_image_gray_clean
+        self.algo.calib = calib
+        self.algo.calibration_samples = calibration_samples
         img, x, y, per = self.algo.leap_run()
         return img, x, y, per
