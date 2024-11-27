@@ -285,7 +285,8 @@ def main():
     osc_manager.start()
 
     while True:
-
+        tint = 33
+        fs = False
         if config.settings.gui_disable_gui:
             layoutg = [
                 [sg.Text("GUI Disabled!", background_color="#242224")],
@@ -297,7 +298,7 @@ def main():
 
             # Event loop
             while True:
-                eventg, valuesg = windowg.read(timeout=33)
+                eventg, valuesg = windowg.read(timeout=tint)
 
                 if eventg == sg.WINDOW_CLOSED:
                     config.settings.gui_disable_gui = False
@@ -315,8 +316,7 @@ def main():
         # First off, check for any events from the GUI
         window = create_window(config, settings, eyes)
         
-        tint = 33
-        fs = False
+
         while True:
             event, values = window.read(timeout=tint) # this higher timeout saves some cpu usage
 
