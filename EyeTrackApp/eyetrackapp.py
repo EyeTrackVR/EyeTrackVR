@@ -42,10 +42,17 @@ import cv2
 import numpy as np
 import uuid
 
+winmm = None
 
 if is_nt:
     from winotify import Notification
+    from ctypes import windll, c_int
+    try:
+        winmm = windll.winmm
+    except OSError:
+        print("\033[91m[WARN] Failed to load winmm.dll\033[0m")
 os.system("color")  # init ANSI color
+
 
 # Random environment variable to speed up webcam opening on the MSMF backend.
 # https://github.com/opencv/opencv/issues/17687
@@ -203,7 +210,15 @@ def create_window(config, settings, eyes):
         icon=resource_path("Images/logo.ico"),
         background_color="#292929")
 
-
+def timerResolution(toggle):
+    if winmm != None:
+        if toggle:
+            rc = c_int(winmm.timeBeginPeriod(1))
+            if rc.value != 0:
+                # TIMEERR_NOCANDO = 97
+                print(f"\033[93m[WARN] Failed to set timer resolution: {rc.value}\033[0m")
+        else:
+            winmm.timeEndPeriod(1)
 
 def main():
     # Get Configuration
@@ -245,6 +260,8 @@ def main():
                     print("[INFO] Toast notifications not supported")
     except:
         print("\033[91m[INFO] Could not check for updates. Please try again later.\033[0m")
+
+    timerResolution(True)
 
     osc_queue: queue.Queue[OSCMessage] = queue.Queue(maxsize=10)
 
@@ -326,6 +343,7 @@ def main():
                     eye.stop()
                 cancellation_event.set()
                 osc_manager.shutdown()
+                timerResolution(False)
                 print("\033[94m[INFO] Exiting EyeTrackApp\033[0m")
                 window.close()
                 os._exit(0)  # I do not like this, but for now this fixes app hang on close
