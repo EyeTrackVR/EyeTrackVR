@@ -368,18 +368,26 @@ class EyeProcessor:
             else:
                 self.ts = 10
 
-            xl = float(
-                (cx - self.xoff) / (self.xmax - self.xoff)
-            )
-            xr = float(
-                (cx - self.xoff) / (self.xmin - self.xoff)
-            )
-            yu = float(
-                (cy - self.yoff) / (self.ymin - self.yoff)
-            )
-            yd = float(
-                (cy - self.yoff) / (self.ymax - self.yoff)
-            )
+            temp = self.xmax - self.xoff
+            if (temp != 0.0):  
+                xl = float(
+                    (cx - self.xoff) / temp
+                )
+            temp = self.xmin - self.xoff
+            if (temp != 0.0):  
+                xr = float(
+                    (cx - self.xoff) / temp
+                )
+            temp = self.ymin - self.yoff
+            if (temp != 0.0):  
+                yu = float(
+                    (cy - self.yoff) / temp
+                )
+            temp = self.ymax - self.yoff
+            if (temp != 0.0):  
+                yd = float(
+                    (cy - self.yoff) / temp
+                )
 
             out_x = 0
             out_y = 0
