@@ -251,6 +251,8 @@ class EyeTrackSettingsConfig(BaseModel):
     gui_OutputMultiplier: float = 1
     gui_use_module: bool = False
 
+    gui_openvr_autostart: bool = False
+
 
 class EyeTrackConfig(BaseModel):
     version: int = 1

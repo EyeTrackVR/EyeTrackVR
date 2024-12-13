@@ -38,6 +38,7 @@ from settings.algo_settings_widget import AlgoSettingsWidget
 from osc.osc import OSCManager
 from osc.OSCMessage import OSCMessage
 from utils.misc_utils import is_nt, resource_path
+from OVR.OpenVRService import openvr_service
 import cv2
 import numpy as np
 import uuid
@@ -284,6 +285,7 @@ def main():
     config.register_listener_callback(osc_manager.update)
     config.register_listener_callback(eyes[0].on_config_update)
     config.register_listener_callback(eyes[1].on_config_update)
+    config.register_listener_callback(openvr_service.on_config_update)
 
     osc_manager.register_listeners(
         config.settings.gui_osc_recenter_address,
@@ -333,7 +335,9 @@ def main():
 
         # First off, check for any events from the GUI
         window = create_window(config, settings, eyes)
-        
+
+        # Allow openvr service to access the windows to dynamically update the settings (uncheck autostart box)
+        openvr_service.window = window
 
         while True:
             event, values = window.read(timeout=tint) # this higher timeout saves some cpu usage

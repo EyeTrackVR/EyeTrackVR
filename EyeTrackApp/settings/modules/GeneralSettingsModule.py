@@ -12,6 +12,7 @@ class GeneralSettingsValidationModel(BaseValidationModel):
     gui_right_eye_dominant: bool
     gui_left_eye_dominant: bool
     gui_eye_dominant_diff_thresh: float
+    gui_openvr_autostart: bool
 
 
 class GeneralSettingsModule(BaseSettingsModule):
@@ -26,6 +27,7 @@ class GeneralSettingsModule(BaseSettingsModule):
         self.gui_left_eye_dominant = f"-LEFTEYEDOMINANT{widget_id}-"
         self.gui_right_eye_dominant = f"-RIGHTEYEDOMINANT{widget_id}-"
         self.gui_update_check = f"-UPDATECHECK{widget_id}-"
+        self.gui_openvr_autostart = f"-OPENVRAUTOSTART{widget_id}-"
 
     # gui_right_eye_dominant: bool = False
     # gui_left_eye_dominant: bool = False
@@ -67,6 +69,15 @@ class GeneralSettingsModule(BaseSettingsModule):
                     key=self.gui_update_check,
                     background_color="#424042",
                     tooltip="Toggle update check on launch.",
+                ),
+            ],
+            [
+                sg.Checkbox(
+                    "Start and stop with SteamVR",
+                    default=self.config.gui_openvr_autostart,
+                    key=self.gui_openvr_autostart,
+                    background_color="#424042",
+                    tooltip="Start the EyeTrackVR app when SteamVR starts, Stop the EyeTrackVRApp when SteamVR stops. Needs SteamVR running to be enabled",
                 ),
             ],
             [

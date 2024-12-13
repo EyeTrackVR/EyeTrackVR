@@ -1,6 +1,7 @@
 # -*- mode: python ; coding: utf-8 -*-
 
 import sys ; sys.setrecursionlimit(sys.getrecursionlimit() * 5)
+import openvr
 
 block_cipher = None
 
@@ -9,7 +10,10 @@ resources=[("Audio/*", "Audio"), ("Images/*", "Images/"), ("pye3d/refraction_mod
 a = Analysis(
 ['eyetrackapp.py'],
 pathex=[],
-binaries=[],
+binaries=[
+    (os.path.abspath(openvr.__file__ + "\\..\\libopenvr_api_32.dll"), "openvr"),
+    (os.path.abspath(openvr.__file__ + "\\..\\libopenvr_api_64.dll"), "openvr"),
+],
 datas=resources,
 hiddenimports=['cv2', 'numpy', 'PySimpleGui', 'pkg_resources.extern'],
 hookspath=[],
