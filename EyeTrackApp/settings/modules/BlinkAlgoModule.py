@@ -17,6 +17,7 @@ class BlinkAlgoSettingsValidationModel(BaseValidationModel):
     ibo_fully_close_eye_threshold: Annotated[str, AfterValidator(check_is_float_convertible)]
     gui_circular_crop_left: bool
     gui_circular_crop_right: bool
+    leap_calibration_samples: int
 
 
 class BlinkAlgoSettingsModule(BaseSettingsModule):
