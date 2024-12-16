@@ -319,7 +319,7 @@ class EyeProcessor:
                 self.rawx,
                 self.rawy,
                 self.eyeopen,
-            ) = self.er_leap.run(self.current_image_gray, self.current_image_gray_clean, self.calibration_frame_counter, self.settings.leap_calibration_samples)
+            ) = self.er_leap.run(self.current_image_gray, self.current_image_gray_clean, self.calibration_frame_counter)
 
         if len(self.prev_y_list) >= 100:  # "lock" eye when close/blink IN TESTING, kinda broke
             self.prev_y_list.pop(0)
@@ -391,7 +391,7 @@ class EyeProcessor:
     def LEAPM(self):
         self.thresh = self.current_image_gray.copy()
         (self.current_image_gray, self.rawx, self.rawy, self.eyeopen,) = self.er_leap.run(
-            self.current_image_gray, self.current_image_gray_clean, self.calibration_frame_counter, self.settings.leap_calibration_samples
+            self.current_image_gray, self.current_image_gray_clean, self.calibration_frame_counter
         )  # TODO: make own self var and LEAP toggle
         self.thresh = self.current_image_gray.copy()
         # todo: lorow, fix this as well
@@ -699,7 +699,7 @@ class EyeProcessor:
 
         if self.settings.gui_LEAP or self.settings.gui_LEAP_lid:
             if self.er_leap is None:
-                self.er_leap = External_Run_LEAP()
+                self.er_leap = External_Run_LEAP(self.config, self.baseconfig)
             algolist[self.settings.gui_LEAP] = self.LEAPM
         else:
             if self.er_leap is not None:
