@@ -556,7 +556,7 @@ class EyeProcessor:
             self.rawx,
             self.rawy,
             self.radius,
-        ) =  self.er_ahsf.External_Run_AHSF(self, self.current_image_gray)
+        ) =  self.er_ahsf.External_Run_AHSF(self.current_image_gray)
         self.thresh = self.current_image_gray
         self.out_x, self.out_y, self.avg_velocity = cal.cal_osc(self, self.rawx, self.rawy, self.angle)
         self.current_algorithm = EyeInfoOrigin.HSF
