@@ -147,7 +147,7 @@ class LEAP_C:
             if per <= 0.25:
                 per = 0.0
 
-            return imgvis, float(x), float(y), per
+            return imgvis, float(x*img_width), float(y*img_height), per
 
         imgvis = cv2.cvtColor(img, cv2.COLOR_RGB2GRAY)
         return imgvis, 0, 0, 0
