@@ -8,6 +8,8 @@ from eye import EyeId
 from colorama import Fore
 import PySimpleGUI as sg
 
+class OpenVRException(Exception):
+    pass
 
 class OpenVRService:
     appKey: str = "etvr.etvrapp"
@@ -42,20 +44,25 @@ class OpenVRService:
         self.logger = getLogger(__name__)
 
     # Initialize the openvr connection if it wasn't already
-    def initialize(self) -> bool:
+    def initialize(self):
         if self.is_initialized:
-            return True
+            return 
 
         try:
             openvr.init(openvr.VRApplication_Background)
-            return True
         except openvr.error_code.InitError_Init_NoServerForBackgroundApp:
-            return False
+            raise OpenVRException("SteamVR is not running")
+        except (openvr.error_code.InitError_Init_HmdNotFound,
+                openvr.error_code.InitError_Init_HmdNotFoundPresenceFailed):
+            raise OpenVRException("No headset connected")
+        except openvr.error_code.InitError_Init_PathRegistryNotFound:
+            raise OpenVRException("SteamVR might not be installed")
+        except Exception as e:
+            raise OpenVRException(f"Unknown SteamVR initialization error ({e.__class__.__name__})")
 
-    def set_autostart(self, enabled: bool) -> bool:
+    def set_autostart(self, enabled: bool):
         if enabled:
-            if not self.initialize():
-                return False
+            self.initialize()
 
             self.app = openvr.IVRApplications()
             # Write the manifest dynamically depending on current executable path
@@ -65,7 +72,9 @@ class OpenVRService:
                 self.app.setApplicationAutoLaunch(OpenVRService.appKey, True)
             except openvr.error_code.ApplicationError_UnknownApplication:
                 self.logger.log(ERROR, f"{Fore.RED}[ERROR] Could not register app in SteamVR")
-                return False
+                raise OpenVRException("Could not register SteamVR app")
+            except Exception as e:
+                raise OpenVRException(f"Unknown error enabling auto launch: {e.__class__.__name__}")
         else:
             if os.path.exists(OpenVRService.manifestPath):
                 if self.initialize():
@@ -76,17 +85,18 @@ class OpenVRService:
                 # App won't autostart if the manifest doesn't exit anymore when SteamVR starts.
                 os.remove(OpenVRService.manifestPath)
 
-        return True
 
     # Called when general settings get updated in case autostart option is modified
     def on_config_update(self, data):
         if "gui_openvr_autostart" in data:
-            if not self.set_autostart(data["gui_openvr_autostart"]):
+            try:
+                self.set_autostart(data["gui_openvr_autostart"])
+            except OpenVRException as e:
                 # Uncheck the autostart option if we failed to toggle it on
                 self.window[f"-OPENVRAUTOSTART{EyeId.SETTINGS}-"].update(False)
-                self.logger.log(WARN, f"{Fore.YELLOW}[WARN] SteamVR must be running to turn on auto start!")
+                self.logger.log(WARN, f"{Fore.YELLOW}[WARN] Cannot enable steamvr autostart: {e.args[0]}")
                 sg.popup_ok(
-                    "SteamVR must be running to turn on auto start!",
+                    f"Cannot enable steamvr autostart: {e.args[0]}",
                     title="Warning",
                     text_color="#ffae42",
                     background_color="#292929"
@@ -94,7 +104,3 @@ class OpenVRService:
 
 
 openvr_service = OpenVRService()
-if EyeTrackConfig.load().settings.gui_openvr_autostart:
-    # Try to initialize OpenVR when app start with autostart enabled
-    # Allow the app to be closed when SteamVR closes
-    openvr_service.initialize()
