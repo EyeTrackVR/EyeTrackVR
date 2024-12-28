@@ -213,19 +213,9 @@ class EllipseBasedPupilDilation:
         upper_y = min(int_y + 25, frame.shape[0] - 1)
         lower_y = max(int_y - 25, 0)
 
-        #   frame_crop = frame[lower_y:upper_y, lower_x:upper_x]
-        # frame = safe_crop(frame, lower_x, lower_y, upper_x, upper_y, False)
-        # ret_, th = cv2.threshold(frame_crop, 80, 1.0, cv2.THRESH_BINARY_INV, dst=frame_crop)
-        frame_crop = frame
-
-        # ret, f = cv2.threshold(frame, 80, 255, cv2.THRESH_BINARY)
-        #  ret, frame_crop = cv2.threshold(frame_crop, 80, 255, cv2.THRESH_BINARY)
-
         # The same can be done with cv2.integral, but since there is only one area of the rectangle for which we want to know the total value, there is no advantage in terms of computational complexity.
         pupil_area = numpy.pi * (w / 2) * (h / 2)
-        # cv2.imshow('e', frame)
-        # if cv2.waitKey(10) == 27:
-        #    exit()
+
         if len(self.filterlist) < filterSamples:
             self.filterlist.append(pupil_area)
         else:
@@ -237,51 +227,27 @@ class EllipseBasedPupilDilation:
                 # print('filter, assume blink')
                 pupil_area = self.maxval
 
-        #    if intensity <= np.percentile( # TODO test this
-        #       self.filterlist, 0.3
-        #  ):  # filter abnormally low values
-        # print('filter, assume blink')
-        #    intensity = self.data[int_y, int_x]
         except:
             pass
-        # self.tri_filter.append(intensity)
-        # if len(self.tri_filter) > 3:
-        #   self.tri_filter.pop(0)
-        #  intensity = sum(self.tri_filter) / 3
-        # avg_color_per_row = np.average(frame_crop, axis=0)
-        # avg_color = np.average(avg_color_per_row, axis=0)
-        # ar, ag, ab = avg_color
-        #  intensity = int(ar * 8) #higher = closed
 
-        # if cv2.waitKey(1) & 0xFF == ord("q"):
-        #   pass
-
-        # numpy:np.sum(),ndarray.sum()
-        # opencv:cv2.sumElems()
-        # I don't know which is faster.
-        changed = False
         newval_flg = False
         oob = False
 
         if int_x >= frame.shape[1]:
             int_x = frame.shape[1] - 1
             oob = True
-        #  print('CAUGHT X OUT OF BOUNDS')
 
         if int_x < 0:
             int_x = True
             oob = True
-        #  print('CAUGHT X UNDER BOUNDS')
 
         if int_y >= frame.shape[0]:
             int_y = frame.shape[0] - 1
             oob = True
-        #  print('CAUGHT Y OUT OF BOUNDS')
 
         if int_y < 0:
             int_y = 1
             oob = True
-        #  print('CAUGHT Y UNDER BOUNDS')
 
         if oob != True and self.data.any():
             data_val = self.data[int_y, int_x]
@@ -316,7 +282,6 @@ class EllipseBasedPupilDilation:
                     (self.maxval - 5), 1
                 )  # continuously adjust closed intensity, will be set when user blink, used to allow eyes to close when lighting changes
                 self.maxval = pupil_aread  # set value at 0 index
-        #     print(intensityd, intensity)
 
         if newval_flg:
             # Do the same thing as in the original version.
@@ -330,7 +295,7 @@ class EllipseBasedPupilDilation:
                     eyedilation = 0.5
                 else:
                     eyedilation = (pupil_area - maxp) / (minp - maxp)
-                    # print(eyedilation, pupil_area, maxp, minp)
+
             except:
                 eyedilation = 0.5
             eyedilation = 1 - eyedilation
