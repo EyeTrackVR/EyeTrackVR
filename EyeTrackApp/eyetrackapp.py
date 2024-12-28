@@ -38,7 +38,7 @@ from settings.algo_settings_widget import AlgoSettingsWidget
 from osc.osc import OSCManager
 from osc.OSCMessage import OSCMessage
 from utils.misc_utils import is_nt, resource_path
-from OVR.OpenVRService import openvr_service
+from OVR.OpenVRService import openvr_service, OpenVRException
 import cv2
 import numpy as np
 import uuid
@@ -228,6 +228,15 @@ def main():
     config.save()
 
     cancellation_event = threading.Event()
+
+    # Start openvr service if autostart with openvr option is enabled
+    # Allow the app to be closed when SteamVR closes
+    if config.settings.gui_openvr_autostart:
+        try:
+            openvr_service.initialize()
+        except OpenVRException:
+            pass
+
     # Check to see if we can connect to our video source first. If not, bring up camera finding
     # dialog.
     try:
