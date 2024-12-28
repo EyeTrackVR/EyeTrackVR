@@ -56,6 +56,9 @@ class EyeTrackCameraConfig(BaseModel):
     calib_YOFF: Union[float, None] = None
     calibration_points: List[List[Union[float, None]]] = []
     calibration_points_3d: List[List[Union[float, None]]] = []
+    leap_calibration_percentile_90: float = 0
+    leap_calibration_percentile_2: float = 0
+    leap_calibrated: bool = False
 
 
     def update_capture_source(self, new_camera_address: str):
