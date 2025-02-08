@@ -222,7 +222,7 @@ class EyeTrackSettingsConfig(BaseModel):
     gui_smartinversion_select_right:            bool = True
     gui_smartinversion_thresh:                  float = 0.25
     gui_smartinversion_frame_count:             int = 10
-
+    gui_smartinversion_smoothing_rate:          float = 0.025
 
 class EyeTrackConfig(BaseModel):
     version: int = 1
