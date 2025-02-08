@@ -38,6 +38,7 @@ import math
 from utils.calibration_3d import receive_calibration_data, converge_3d
 from utils.misc_utils import resource_path
 from pathlib import Path
+from utils.misc_utils import clamp
 
 tool = Path("Tools")
 class TimeoutError(RuntimeError):
@@ -334,6 +335,17 @@ class cal:
                 var.average_velocity = sum(var.velocity_rolling_list) / len(var.velocity_rolling_list)
                 var.past_x = out_x_mult
                 var.past_y = out_y_mult
+
+            #Clamps the right eye's X values
+            if self.eye_id == EyeID.Left:
+                out_x = clamp(out_x, -self.settings.gui_eyetune_maxout, self.settings.gui_eyetune_maxin)
+            #Clamps the left eye's x values
+            elif  self.eye_id == EyeID.Right:
+                out_x = clamp(out_x, -self.settings.gui_eyetune_maxin, self.settings.gui_eyetune_maxout)
+            #Clamps both eye's Y values
+            out_y = clamp(out_y, -self.settings.gui_eyetune_maxdown, self.settings.gui_eyetune_maxup)
+
+
 
             out_x, out_y = velocity_falloff(self, var, out_x, out_y)
 

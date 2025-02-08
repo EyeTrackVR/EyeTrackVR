@@ -74,6 +74,12 @@ def eyetrack_settings_config():
         gui_osc_vrcft_v2=False,
         gui_vrc_native=False,
         gui_pupil_dilation=True,
+
+        #EyeTune
+        gui_eyetune_maxin=1,
+        gui_eyetune_maxout=1,
+        gui_eyetune_maxup=1,
+        gui_eyetune_maxdown=1,
     )
 
 
