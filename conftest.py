@@ -78,9 +78,10 @@ def eyetrack_settings_config():
         #Smart Inversion Tracking
         gui_smartinversion_enabled=False,
         gui_smartinversion_select_right=True,
-        gui_smartinversion_thresh=0.5,
+        gui_smartinversion_thresh=0.4,
         gui_smartinversion_frame_count=10,
         gui_smartinversion_smoothing_rate=0.025,
+        gui_smartinversion_minthresh=0.3,
     )
 
 

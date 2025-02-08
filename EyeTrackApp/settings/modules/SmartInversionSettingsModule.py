@@ -14,6 +14,7 @@ class SmartInversionValidationModule(BaseValidationModel):
     gui_smartinversion_thresh:                           Annotated[float, AfterValidator(try_convert_to_float)]
     gui_smartinversion_frame_count:                      Annotated[int, AfterValidator(try_convert_to_int)]
     gui_smartinversion_smoothing_rate:                   Annotated[float, AfterValidator(try_convert_to_float)]
+    gui_smartinversion_minthresh:                        Annotated[float, AfterValidator(try_convert_to_float)]
 
 class SmartInversionSettingsModule(BaseSettingsModule):
     def __init__(self, config, widget_id, **kwargs):
@@ -24,6 +25,8 @@ class SmartInversionSettingsModule(BaseSettingsModule):
         self.gui_smartinversion_thresh = f"-gui_smartinversion_thresh{widget_id}-"
         self.gui_smartinversion_frame_count =f"-gui_smartinversion_frame_count{widget_id}"
         self.gui_smartinversion_smoothing_rate =f"-gui_smartinversion_smoothing_rate{widget_id}"
+        self.gui_smartinversion_minthresh =f"-gui_smartinversion_minthresh{widget_id}"
+
         
 
     def get_layout(self):
@@ -64,6 +67,18 @@ class SmartInversionSettingsModule(BaseSettingsModule):
                     size=(0, 10),
                     tooltip=(
                         "Sets the maximum allowed difference in eye position (x-axis) to determine if the eyes are cross-eyed or not."
+                        "\n Lower value will make cross-eye detection more sensitive."
+                    )
+                ),
+            ],
+            [
+                sg.Text("Inwards Look Threshold", background_color=BACKGROUND_COLOR),
+                sg.InputText(
+                    self.config.gui_smartinversion_minthresh,
+                    key=self.gui_smartinversion_minthresh,
+                    size=(0, 10),
+                    tooltip=(
+                        "Sets the minimum distance of looking in that's required before state can chaned to cross-eyed."
                         "\n Lower value will make cross-eye detection more sensitive."
                     )
                 ),

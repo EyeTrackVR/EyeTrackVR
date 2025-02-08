@@ -38,7 +38,7 @@ def smart_inversion(self, var, out_x, out_y):
 
     #Checks if the eyes are no longer inverted, and then clears inversion if the conditions haven't been true for a specified number of frames.
     elif self.smartinversion_is_inverted and (
-        not (var.l_eye_x > 0 and var.r_eye_x < 0) or
+        not (var.l_eye_x > self.settings.gui_smartinversion_minthresh and var.r_eye_x < -self.settings.gui_smartinversion_minthresh) or
         abs(var.l_eye_x - var.r_eye_x) <= self.settings.gui_smartinversion_thresh
         ):
 

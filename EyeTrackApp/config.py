@@ -220,9 +220,10 @@ class EyeTrackSettingsConfig(BaseModel):
     #SmartInversionTracking
     gui_smartinversion_enabled:                 bool = False
     gui_smartinversion_select_right:            bool = True
-    gui_smartinversion_thresh:                  float = 0.25
-    gui_smartinversion_frame_count:             int = 10
+    gui_smartinversion_thresh:                  float = 0.4
+    gui_smartinversion_frame_count:             int = 30
     gui_smartinversion_smoothing_rate:          float = 0.025
+    gui_smartinversion_minthresh:               float = 0.3
 
 class EyeTrackConfig(BaseModel):
     version: int = 1
