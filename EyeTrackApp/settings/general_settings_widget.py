@@ -32,6 +32,7 @@ from settings.modules.GeneralSettingsModule import GeneralSettingsModule
 from settings.modules.OneEuroSettingsModule import OneEuroSettingsModule
 from settings.modules.OSCSettingsModule import OSCSettingsModule
 from settings.modules.EyeTuneSettingsModule import EyeTuneSettingsModule
+from settings.modules.SmartInversionSettingsModule import SmartInversionSettingsModule
 
 
 class SettingsWidget(BaseSettingsWidget):
@@ -39,6 +40,7 @@ class SettingsWidget(BaseSettingsWidget):
         settings_modules = [
             GeneralSettingsModule,
             OneEuroSettingsModule,
+            SmartInversionSettingsModule,
             OSCSettingsModule,
             EyeTuneSettingsModule,
         ]
