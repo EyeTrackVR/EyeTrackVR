@@ -336,6 +336,8 @@ class cal:
                 var.past_x = out_x_mult
                 var.past_y = out_y_mult
 
+            out_x, out_y = velocity_falloff(self, var, out_x, out_y)
+
             #Clamps the right eye's X values
             if self.eye_id == EyeId.LEFT:
                 out_x = clamp(out_x, -self.settings.gui_eyetune_maxout, self.settings.gui_eyetune_maxin)
@@ -344,10 +346,6 @@ class cal:
                 out_x = clamp(out_x, -self.settings.gui_eyetune_maxin, self.settings.gui_eyetune_maxout)
             #Clamps both eye's Y values
             out_y = clamp(out_y, -self.settings.gui_eyetune_maxdown, self.settings.gui_eyetune_maxup)
-
-
-
-            out_x, out_y = velocity_falloff(self, var, out_x, out_y)
 
             try:
                 noisy_point = np.array([float(out_x), float(out_y)])  # fliter our values with a One Euro Filter

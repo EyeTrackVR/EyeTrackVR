@@ -30,7 +30,7 @@ class EyeTuneSettingsModule(BaseSettingsModule):
                 sg.Text("Eye Tuning (Max Rotation):", background_color='#242224'),
             ],
             [
-                sg.Text("Max. Inwards", background_color=BACKGROUND_COLOR),
+                sg.Text("In:", background_color=BACKGROUND_COLOR),
                 sg.InputText(
                     self.config.gui_eyetune_maxin,
                     key=self.gui_eyetune_maxin,
@@ -40,7 +40,7 @@ class EyeTuneSettingsModule(BaseSettingsModule):
                         "\nSet between 0 and 1"
                     )
                 ),
-                sg.Text("Max. Outwards", background_color=BACKGROUND_COLOR),
+                sg.Text("Out:", background_color=BACKGROUND_COLOR),
                 sg.InputText(
                     self.config.gui_eyetune_maxout,
                     key=self.gui_eyetune_maxout,
@@ -50,9 +50,7 @@ class EyeTuneSettingsModule(BaseSettingsModule):
                         "\nSet between 0 and 1"
                     )
                 ),
-            ],
-            [
-                sg.Text("Max. Upwards", background_color=BACKGROUND_COLOR),
+                sg.Text("Up:", background_color=BACKGROUND_COLOR),
                 sg.InputText(
                     self.config.gui_eyetune_maxup,
                     key=self.gui_eyetune_maxup,
@@ -62,7 +60,7 @@ class EyeTuneSettingsModule(BaseSettingsModule):
                         "\nSet between 0 and 1"
                     )
                 ),
-                sg.Text("Max. Down", background_color=BACKGROUND_COLOR),
+                sg.Text("Down:", background_color=BACKGROUND_COLOR),
                 sg.InputText(
                     self.config.gui_eyetune_maxdown,
                     key=self.gui_eyetune_maxdown,
