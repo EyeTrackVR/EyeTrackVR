@@ -337,10 +337,10 @@ class cal:
                 var.past_y = out_y_mult
 
             #Clamps the right eye's X values
-            if self.eye_id == EyeID.Left:
+            if self.eye_id == EyeId.LEFT:
                 out_x = clamp(out_x, -self.settings.gui_eyetune_maxout, self.settings.gui_eyetune_maxin)
             #Clamps the left eye's x values
-            elif  self.eye_id == EyeID.Right:
+            elif  self.eye_id == EyeId.RIGHT:
                 out_x = clamp(out_x, -self.settings.gui_eyetune_maxin, self.settings.gui_eyetune_maxout)
             #Clamps both eye's Y values
             out_y = clamp(out_y, -self.settings.gui_eyetune_maxdown, self.settings.gui_eyetune_maxup)
