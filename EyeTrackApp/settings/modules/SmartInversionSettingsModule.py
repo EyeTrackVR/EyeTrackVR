@@ -6,13 +6,15 @@ from settings.constants import BACKGROUND_COLOR
 import PySimpleGUI as sg
 
 from settings.modules.CommonFieldValidators import try_convert_to_float
+from settings.modules.CommonFieldValidators import try_convert_to_int
+
 
 
 class SmartInversionValidationModule(BaseValidationModel):
     gui_smartinversion_enabled:                          bool
     gui_smartinversion_select_right:                     bool
     gui_smartinversion_thresh:                           Annotated[float, AfterValidator(try_convert_to_float)]
-    gui_smartinversion_recessive_difference:             Annotated[float, AfterValidator(try_convert_to_float)]
+    gui_smartinversion_frame_count:                      Annotated[int, AfterValidator(try_convert_to_int)]
 
 class SmartInversionSettingsModule(BaseSettingsModule):
     def __init__(self, config, widget_id, **kwargs):
@@ -21,6 +23,7 @@ class SmartInversionSettingsModule(BaseSettingsModule):
         self.gui_smartinversion_enabled = f"-gui_smartinversion_enabled{widget_id}-"
         self.gui_smartinversion_select_right = f"-gui_smartinversion_select_right{widget_id}-"
         self.gui_smartinversion_thresh = f"-gui_smartinversion_thresh{widget_id}-"
+        self.gui_smartinversion_frame_count =f"-gui_smartinversion_frame_count{widget_id}"
         
 
     def get_layout(self):
@@ -36,17 +39,7 @@ class SmartInversionSettingsModule(BaseSettingsModule):
                 background_color="#424042",
                 tooltip="Enables Smart Inversion Tracking System",
                 ),
-            ],
-            [
-                sg.Text("Max. X-Axis Difference", background_color=BACKGROUND_COLOR),
-                sg.InputText(
-                    self.config.gui_smartinversion_thresh,
-                    key=self.gui_smartinversion_thresh,
-                    size=(0, 10),
-                    tooltip="Sets the maximum allowed difference in eye position (x-axis) to determine if the eyes are inverted or not."
-                ),
-            ],
-            [
+
                 sg.Radio(
                 "Use Left Eye",
                 "smartinversion_selectedeye",
@@ -62,5 +55,23 @@ class SmartInversionSettingsModule(BaseSettingsModule):
                 background_color="#424042",
                 tooltip="Uses the right eye as the tracked eye.",
                 )
-            ]
+            ],
+            [
+                sg.Text("Max. X-Axis Difference", background_color=BACKGROUND_COLOR),
+                sg.InputText(
+                    self.config.gui_smartinversion_thresh,
+                    key=self.gui_smartinversion_thresh,
+                    size=(0, 10),
+                    tooltip="Sets the maximum allowed difference in eye position (x-axis) to determine if the eyes are inverted or not."
+                ),
+            ],
+            [
+                sg.Text("Inversion Trigger Frame Count", background_color=BACKGROUND_COLOR),
+                sg.InputText(
+                    self.config.gui_smartinversion_frame_count,
+                    key=self.gui_smartinversion_frame_count,
+                    size=(0, 10),
+                    tooltip="How many frames the inversion conditions must be true (or no longer true) before the inversion state is toggled on or back off."
+                ),
+            ],
         ]

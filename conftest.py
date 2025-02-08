@@ -79,6 +79,7 @@ def eyetrack_settings_config():
         gui_smartinversion_enabled=False,
         gui_smartinversion_select_right=True,
         gui_smartinversion_thresh=0.5,
+        gui_smartinversion_frame_count=10,
     )
 
 
