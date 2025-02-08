@@ -74,6 +74,11 @@ def eyetrack_settings_config():
         gui_osc_vrcft_v2=False,
         gui_vrc_native=False,
         gui_pupil_dilation=True,
+
+        #Smart Inversion Tracking
+        gui_smartinversion_enabled=False,
+        gui_smartinversion_select_right=True,
+        gui_smartinversion_thresh=0.5,
     )
 
 

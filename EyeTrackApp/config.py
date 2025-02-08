@@ -217,6 +217,11 @@ class EyeTrackSettingsConfig(BaseModel):
     gui_OutputMultiplier: float = 1
     gui_use_module: bool = False
 
+    #SmartInversionTracking
+    gui_smartinversion_enabled:            bool = False
+    gui_smartinversion_select_right:       bool = True
+    gui_smartinversion_thresh:             float = 0.5
+
 
 class EyeTrackConfig(BaseModel):
     version: int = 1
