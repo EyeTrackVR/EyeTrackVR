@@ -6,7 +6,6 @@ from settings.constants import BACKGROUND_COLOR
 import PySimpleGUI as sg
 
 from settings.modules.CommonFieldValidators import try_convert_to_float
-from settings.modules.CommonFieldValidators import try_convert_to_int
 
 class EyeTuneValidationModule(BaseValidationModel):
     gui_eyetune_maxin:                      Annotated[float, AfterValidator(try_convert_to_float)]
