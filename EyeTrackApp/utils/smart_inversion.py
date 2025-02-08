@@ -25,13 +25,11 @@ def smart_inversion(self, var, out_x, out_y):
     #Checks if eyes are inverted, and then activates inversion if the conditions have been true for a specified number of frames.
     if (var.l_eye_x > 0 and var.r_eye_x < 0) and (abs(var.l_eye_x - var.r_eye_x) > self.settings.gui_smartinversion_thresh):
         self.inverted_frame_count = min(self.inverted_frame_count + 1, self.settings.gui_smartinversion_frame_count)
-        print(f"Inverted frame count: {self.inverted_frame_count}")
-
 
         if self.inverted_frame_count == self.settings.gui_smartinversion_frame_count:
             self.is_inverted = True
             self.normal_frame_count = 0
-            print(f"Inversion Active")
+            print(f"Inversion Activated")
 
     #Checks if the eyes are no longer inverted, and then clears inversion if the conditions haven't been true for a specified number of frames.
     elif self.is_inverted and (
@@ -40,8 +38,6 @@ def smart_inversion(self, var, out_x, out_y):
         ):
 
         self.normal_frame_count = min(self.normal_frame_count + 1, self.settings.gui_smartinversion_frame_count)
-        print(f"Normal frame count: {self.normal_frame_count})
-
 
         if self.normal_frame_count == self.settings.gui_smartinversion_frame_count:
             self.is_inverted = False
