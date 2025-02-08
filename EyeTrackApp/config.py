@@ -218,9 +218,9 @@ class EyeTrackSettingsConfig(BaseModel):
     gui_use_module: bool = False
 
     #SmartInversionTracking
-    gui_smartinversion_enabled:            bool = False
-    gui_smartinversion_select_right:       bool = True
-    gui_smartinversion_thresh:             float = 0.5
+    gui_smartinversion_enabled:                 bool = False
+    gui_smartinversion_select_right:            bool = True
+    gui_smartinversion_thresh:                  float = 0.25
 
 
 class EyeTrackConfig(BaseModel):

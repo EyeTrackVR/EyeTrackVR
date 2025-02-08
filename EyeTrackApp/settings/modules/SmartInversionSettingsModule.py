@@ -9,17 +9,19 @@ from settings.modules.CommonFieldValidators import try_convert_to_float
 
 
 class SmartInversionValidationModule(BaseValidationModel):
-    gui_smartinversion_enabled:            bool
-    gui_smartinversion_select_right:       bool
-    gui_smartinversion_thresh:             Annotated[str, AfterValidator(try_convert_to_float)]
-
+    gui_smartinversion_enabled:                          bool
+    gui_smartinversion_select_right:                     bool
+    gui_smartinversion_thresh:                           Annotated[float, AfterValidator(try_convert_to_float)]
+    gui_smartinversion_recessive_difference:             Annotated[float, AfterValidator(try_convert_to_float)]
 
 class SmartInversionSettingsModule(BaseSettingsModule):
     def __init__(self, config, widget_id, **kwargs):
         super().__init__(config=config, widget_id=widget_id, **kwargs)
+        self.validation_model = SmartInversionValidationModule
         self.gui_smartinversion_enabled = f"-gui_smartinversion_enabled{widget_id}-"
         self.gui_smartinversion_select_right = f"-gui_smartinversion_select_right{widget_id}-"
         self.gui_smartinversion_thresh = f"-gui_smartinversion_thresh{widget_id}-"
+        
 
     def get_layout(self):
         return [
@@ -34,7 +36,8 @@ class SmartInversionSettingsModule(BaseSettingsModule):
                 background_color="#424042",
                 tooltip="Enables Smart Inversion Tracking System",
                 ),
-
+            ],
+            [
                 sg.Text("Max. X-Axis Difference", background_color=BACKGROUND_COLOR),
                 sg.InputText(
                     self.config.gui_smartinversion_thresh,

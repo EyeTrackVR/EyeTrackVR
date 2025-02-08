@@ -29,6 +29,7 @@ import time
 from enum import IntEnum
 from utils.misc_utils import PlaySound, SND_FILENAME, SND_ASYNC, resource_path
 from utils.eye_falloff import velocity_falloff
+from utils.smart_inversion import smart_inversion
 import socket
 import struct
 import threading
@@ -335,7 +336,10 @@ class cal:
                 var.past_x = out_x_mult
                 var.past_y = out_y_mult
 
-            out_x, out_y = velocity_falloff(self, var, out_x, out_y)
+            if(self.settings.gui_smartinversion_enabled):
+                out_x, out_y = smart_inversion(self,var, out_x, out_y)
+            else:
+                out_x, out_y = velocity_falloff(self, var, out_x, out_y)
 
             try:
                 noisy_point = np.array([float(out_x), float(out_y)])  # fliter our values with a One Euro Filter
