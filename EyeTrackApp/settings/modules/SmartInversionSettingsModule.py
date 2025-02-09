@@ -15,6 +15,7 @@ class SmartInversionValidationModule(BaseValidationModel):
     gui_smartinversion_frame_count:                      Annotated[int, AfterValidator(try_convert_to_int)]
     gui_smartinversion_smoothing_rate:                   Annotated[float, AfterValidator(try_convert_to_float)]
     gui_smartinversion_minthresh:                        Annotated[float, AfterValidator(try_convert_to_float)]
+    gui_smartinversion_rotation_clamp:                   Annotated[float, AfterValidator(try_convert_to_float)]
 
 class SmartInversionSettingsModule(BaseSettingsModule):
     def __init__(self, config, widget_id, **kwargs):
@@ -26,6 +27,7 @@ class SmartInversionSettingsModule(BaseSettingsModule):
         self.gui_smartinversion_frame_count =f"-gui_smartinversion_frame_count{widget_id}"
         self.gui_smartinversion_smoothing_rate =f"-gui_smartinversion_smoothing_rate{widget_id}"
         self.gui_smartinversion_minthresh =f"-gui_smartinversion_minthresh{widget_id}"
+        self.gui_smartinversion_rotation_clamp =f"-gui_smartinversion_rotation_clamp{widget_id}-"
 
         
 
@@ -104,6 +106,18 @@ class SmartInversionSettingsModule(BaseSettingsModule):
                     tooltip=(
                     "How quickly eye smoothing decays when you enter or leave a cross-eyed state."
                     "\nHigher number = shorter smoothing duration."
+                )
+                ),
+            ],
+            [
+                sg.Text("Maximum allowed cross-eye", background_color=BACKGROUND_COLOR),
+                sg.InputText(
+                    self.config.gui_smartinversion_rotation_clamp,
+                    key=self.gui_smartinversion_rotation_clamp,
+                    size=(0, 10),
+                    tooltip=(
+                    "Defines the maximum inwards rotation that is output when cross-eyed."
+                    "\n0 = will only look straight ahead \n0.5 = will go a little bit cross-eyed \n1 = maximum hurr durr "
                 )
                 ),
             ],

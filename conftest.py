@@ -87,6 +87,7 @@ def eyetrack_settings_config():
         gui_smartinversion_frame_count=10,
         gui_smartinversion_smoothing_rate=0.025,
         gui_smartinversion_minthresh=0.3,
+        gui_smartinversion_rotation_clamp=1.0,
     )
 
 
