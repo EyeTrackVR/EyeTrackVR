@@ -14,8 +14,8 @@ def smart_inversion(self, var, out_x, out_y):
         self.smartinversion_smoothing_progress = 0
     if not hasattr(self, "smartinversion_smoothed_eye_x"):
         self.smartinversion_smoothed_eye_x = 0.0
-    if not hasattr(self, "smartinversion_previous_inversion_state"):
-        self.smartinversion_previous_inversion_state = False
+    if not hasattr(self, "smartinversion_stare_ahead"):
+        self.smartinversion_stare_ahead = False
 
     #Updates eye positions with latest
     if self.eye_id == EyeId.LEFT:
@@ -39,52 +39,56 @@ def smart_inversion(self, var, out_x, out_y):
         recessive_eye = EyeId.RIGHT
         dominant_eye = EyeId.LEFT
 
+    #Checks if eyes are straight, and then sets eye gaze forward until inversion threshold is met
+    if (0 < var.l_eye_x <= self.settings.gui_smartinversion_minthresh) and (self.settings.gui_smartinversion_minthresh <= var.r_eye_x < 0):
+        tracked_eye_x = 0
+        if not self.smartinversion_stare_ahead:
+            self.smartinversion_smoothing_progress = 1
+        self.smartinversion_is_inverted = False
+        self.smartinversion_stare_ahead = True
 
     #Checks if eyes are inverted, and then activates inversion if the conditions have been true for a specified number of frames.
-    if (var.l_eye_x > self.settings.gui_smartinversion_minthresh and var.r_eye_x < -self.settings.gui_smartinversion_minthresh) and (abs(var.l_eye_x - var.r_eye_x) > self.settings.gui_smartinversion_thresh):
+    if (var.l_eye_x > self.settings.gui_smartinversion_minthresh and var.r_eye_x < -self.settings.gui_smartinversion_minthresh):
         self.smartinversion_inverted_frame_count = min(self.smartinversion_inverted_frame_count + 1, self.settings.gui_smartinversion_frame_count)
 
         if self.smartinversion_inverted_frame_count == self.settings.gui_smartinversion_frame_count:
             if not self.smartinversion_is_inverted:
-                self.smartinversion_is_inverted = True
+                self.smartinversion_smoothing_progress = 1
                 self.smartinversion_normal_frame_count = 0
+                self.smartinversion_stare_ahead = False
                 tracked_eye_x = 0
                 print(f"Inversion Activated")
 
     #Checks if the eyes are no longer inverted, and then clears inversion if the conditions haven't been true for a specified number of frames.
-    elif self.smartinversion_is_inverted and (
-        not (var.l_eye_x > self.settings.gui_smartinversion_minthresh and var.r_eye_x < -self.settings.gui_smartinversion_minthresh) or
-        abs(var.l_eye_x - var.r_eye_x) <= self.settings.gui_smartinversion_thresh
-        ):
-
+    elif self.smartinversion_is_inverted and (not (var.l_eye_x > self.settings.gui_smartinversion_minthresh and var.r_eye_x < -self.settings.gui_smartinversion_minthresh)):
         self.smartinversion_normal_frame_count = min(self.smartinversion_normal_frame_count + 1, self.settings.gui_smartinversion_frame_count)
 
         if self.smartinversion_normal_frame_count == self.settings.gui_smartinversion_frame_count:
             if self.smartinversion_is_inverted:
                 self.smartinversion_is_inverted = False
                 self.smartinversion_inverted_frame_count = 0
+                self.smartinversion_stare_ahead = False
                 print(f"Inversion Cleared")
 
     out_x = tracked_eye_x
     out_y = tracked_eye_y
-
-    #Checks if the inversion state has recently been toggled, and activates smoothing
-    if self.smartinversion_previous_inversion_state != self.smartinversion_is_inverted:
-        self.smartinversion_smoothing_progress = 1
-        self.smartinversion_previous_inversion_state = self.smartinversion_is_inverted
     
-    """#Logic if smoothing is activated
+    #Logic if smoothing is activated
     if self.smartinversion_smoothing_progress > 0:
-        smartinversion_lerp_factor = (1 - self.smartinversion_smoothing_progress)
+        lerp_factor = 0.2
 
-        if not self.smartinversion_is_inverted and self.eye_id == recessive_eye:
-            self.smartinversion_smoothed_eye_x += (tracked_eye_x - self.smartinversion_smoothed_eye_x) * smartinversion_lerp_factor
-
+        if self.smartinversion_is_inverted:
+            if self.eye_id == recessive_eye:
+                self.smartinversion_smoothed_eye_x += (-tracked_eye_x - self.smartinversion_smoothed_eye_x) * lerp_factor
+    
+            else:
+                self.smartinversion_smoothed_eye_x += (tracked_eye_x - self.smartinversion_smoothed_eye_x) * lerp_factor
+    
         self.smartinversion_smoothing_progress = max(self.smartinversion_smoothing_progress - self.settings.gui_smartinversion_smoothing_rate, 0)
-        out_x = self.smartinversion_smoothed_eye_x"""
+        out_x = self.smartinversion_smoothed_eye_x
 
     #Logic if inversion is active, but smoothing is not active
-    if self.smartinversion_is_inverted and self.eye_id == recessive_eye:
+    elif self.smartinversion_is_inverted and self.eye_id == recessive_eye:
         out_x = -tracked_eye_x
 
     #Limits the maximum allowed inwards rotation if detected as cross-eyed
