@@ -41,10 +41,10 @@ def smart_inversion(self, var, out_x, out_y):
 
     #Checks if eyes are straight, and then sets eye gaze forward until inversion threshold is met
     if (0 < var.l_eye_x <= self.settings.gui_smartinversion_minthresh) and (self.settings.gui_smartinversion_minthresh <= var.r_eye_x < 0):
-        tracked_eye_x = 0
         if not self.smartinversion_stare_ahead:
             self.smartinversion_smoothing_progress = 1
-        self.smartinversion_is_inverted = False
+            self.smartinversion_is_inverted = False
+        tracked_eye_x = 0
         self.smartinversion_stare_ahead = True
 
     #Checks if eyes are inverted, and then activates inversion if the conditions have been true for a specified number of frames.
@@ -55,12 +55,15 @@ def smart_inversion(self, var, out_x, out_y):
             if not self.smartinversion_is_inverted:
                 self.smartinversion_smoothing_progress = 1
                 self.smartinversion_normal_frame_count = 0
+                self.smartinversion_is_inverted = True
                 self.smartinversion_stare_ahead = False
                 tracked_eye_x = 0
                 print(f"Inversion Activated")
+    elif self.smartinversion_inverted_frame_count > 0:
+        self.smartinversion_inverted_frame_count = 0
 
     #Checks if the eyes are no longer inverted, and then clears inversion if the conditions haven't been true for a specified number of frames.
-    elif self.smartinversion_is_inverted and (not (var.l_eye_x > self.settings.gui_smartinversion_minthresh and var.r_eye_x < -self.settings.gui_smartinversion_minthresh)):
+    if self.smartinversion_is_inverted and (not (var.l_eye_x > self.settings.gui_smartinversion_minthresh and var.r_eye_x < -self.settings.gui_smartinversion_minthresh)):
         self.smartinversion_normal_frame_count = min(self.smartinversion_normal_frame_count + 1, self.settings.gui_smartinversion_frame_count)
 
         if self.smartinversion_normal_frame_count == self.settings.gui_smartinversion_frame_count:
@@ -69,6 +72,8 @@ def smart_inversion(self, var, out_x, out_y):
                 self.smartinversion_inverted_frame_count = 0
                 self.smartinversion_stare_ahead = False
                 print(f"Inversion Cleared")
+    elif self.smartinversion_normal_frame_count > 0:
+        self.smartinversion_normal_frame_count = 0
 
     out_x = tracked_eye_x
     out_y = tracked_eye_y

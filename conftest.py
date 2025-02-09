@@ -75,11 +75,6 @@ def eyetrack_settings_config():
         gui_vrc_native=False,
         gui_pupil_dilation=True,
 
-        #EyeTune
-        gui_eyetune_maxin=1,
-        gui_eyetune_maxout=1,
-        gui_eyetune_maxup=1,
-        gui_eyetune_maxdown=1,
         #Smart Inversion Tracking
         gui_smartinversion_enabled=False,
         gui_smartinversion_select_right=True,

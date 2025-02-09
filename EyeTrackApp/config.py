@@ -217,11 +217,6 @@ class EyeTrackSettingsConfig(BaseModel):
     gui_OutputMultiplier: float = 1
     gui_use_module: bool = False
 
-    #EyeTune
-    gui_eyetune_maxin: float = 1
-    gui_eyetune_maxout: float = 1
-    gui_eyetune_maxup: float = 1
-    gui_eyetune_maxdown: float = 1
     #SmartInversionTracking
     gui_smartinversion_enabled:                 bool = False
     gui_smartinversion_select_right:            bool = True

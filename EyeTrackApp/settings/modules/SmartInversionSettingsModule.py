@@ -22,9 +22,9 @@ class SmartInversionSettingsModule(BaseSettingsModule):
         self.validation_model = SmartInversionValidationModule
         self.gui_smartinversion_enabled = f"-gui_smartinversion_enabled{widget_id}-"
         self.gui_smartinversion_select_right = f"-gui_smartinversion_select_right{widget_id}-"
-        self.gui_smartinversion_frame_count =f"-gui_smartinversion_frame_count{widget_id}"
-        self.gui_smartinversion_smoothing_rate =f"-gui_smartinversion_smoothing_rate{widget_id}"
-        self.gui_smartinversion_minthresh =f"-gui_smartinversion_minthresh{widget_id}"
+        self.gui_smartinversion_frame_count =f"-gui_smartinversion_frame_count{widget_id}-"
+        self.gui_smartinversion_smoothing_rate =f"-gui_smartinversion_smoothing_rate{widget_id}-"
+        self.gui_smartinversion_minthresh =f"-gui_smartinversion_minthresh{widget_id}-"
         self.gui_smartinversion_rotation_clamp =f"-gui_smartinversion_rotation_clamp{widget_id}-"
 
         
@@ -60,51 +60,47 @@ class SmartInversionSettingsModule(BaseSettingsModule):
                 )
             ],
             [
-                sg.Text("Inwards Look Threshold", background_color=BACKGROUND_COLOR),
+                sg.Text("Inwards Look Threshold", background_color=BACKGROUND_COLOR,tooltip=
+                        "Sets the minimum distance of looking in that's required before state can chaned to cross-eyed."
+                        "\n Lower value will make cross-eye detection more sensitive."
+                ),
                 sg.InputText(
                     self.config.gui_smartinversion_minthresh,
                     key=self.gui_smartinversion_minthresh,
                     size=(0, 10),
-                    tooltip=(
-                        "Sets the minimum distance of looking in that's required before state can chaned to cross-eyed."
-                        "\n Lower value will make cross-eye detection more sensitive."
-                    )
                 ),
             ],
             [
-                sg.Text("Inversion Trigger Frame Count", background_color=BACKGROUND_COLOR),
+                sg.Text("Inversion Trigger Frame Count", background_color=BACKGROUND_COLOR,tooltip=
+                        "How long it takes to detect you are cross-eyed, or no longer cross-eyed."
+                        "\n Higher number means longer duration before changing in or out of being cross-eyed state."
+                ),
                 sg.InputText(
                     self.config.gui_smartinversion_frame_count,
                     key=self.gui_smartinversion_frame_count,
                     size=(0, 10),
-                    tooltip=(
-                        "How long it takes to detect you are cross-eyed, or no longer cross-eyed."
-                        "\n Higher number means longer duration before changing in or out of being cross-eyed state."
-                    )
                 ),
             ],
             [
-                sg.Text("Smoothing Decay Rate", background_color=BACKGROUND_COLOR),
+                sg.Text("Smoothing Decay Rate", background_color=BACKGROUND_COLOR,tooltip=
+                        "How quickly eye smoothing decays when you enter or leave a cross-eyed state."
+                        "\nHigher number = shorter smoothing duration."
+                ),
                 sg.InputText(
                     self.config.gui_smartinversion_smoothing_rate,
                     key=self.gui_smartinversion_smoothing_rate,
                     size=(0, 10),
-                    tooltip=(
-                    "How quickly eye smoothing decays when you enter or leave a cross-eyed state."
-                    "\nHigher number = shorter smoothing duration."
-                )
                 ),
             ],
             [
-                sg.Text("Maximum allowed cross-eye", background_color=BACKGROUND_COLOR),
+                sg.Text("Maximum allowed cross-eye", background_color=BACKGROUND_COLOR,tooltip=
+                    "Defines the maximum inwards rotation that is output when cross-eyed."
+                    "\n0 = will only look straight ahead \n0.5 = will go a little bit cross-eyed \n1 = maximum hurr durr "
+                ),
                 sg.InputText(
                     self.config.gui_smartinversion_rotation_clamp,
                     key=self.gui_smartinversion_rotation_clamp,
                     size=(0, 10),
-                    tooltip=(
-                    "Defines the maximum inwards rotation that is output when cross-eyed."
-                    "\n0 = will only look straight ahead \n0.5 = will go a little bit cross-eyed \n1 = maximum hurr durr "
-                )
                 ),
             ],
         ]
