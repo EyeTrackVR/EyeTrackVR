@@ -29,7 +29,7 @@ import time
 from enum import IntEnum
 from utils.misc_utils import PlaySound, SND_FILENAME, SND_ASYNC, resource_path
 from utils.eye_falloff import velocity_falloff
-from utils.smart_inversion import smart_inversion
+from utils.smart_inversion import SmartInversion
 import socket
 import struct
 import threading
@@ -338,7 +338,7 @@ class cal:
                 var.past_y = out_y_mult
 
             if(self.settings.gui_smartinversion_enabled):
-                out_x, out_y = smart_inversion(self,var, out_x, out_y)
+                out_x, out_y = SmartInversion.process(self.eye_id, out_x, out_y)
             else:
                 out_x, out_y = velocity_falloff(self, var, out_x, out_y)
 

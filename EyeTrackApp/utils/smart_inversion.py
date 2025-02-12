@@ -1,167 +1,202 @@
 from eye import EyeId
-from utils.misc_utils import clamp
+from enum import Enum
+from config import EyeTrackConfig
+from utils.CycleCounter import *
+import threading
 
-def smart_inversion(self, var, out_x, out_y):
-
-    #Checks to see if the class already has frame counts, inversion attributes or smoothing attributes
-    if not hasattr(self, "smartinversion_inverted_frame_count"):
-        self.smartinversion_inverted_frame_count = 0
-    if not hasattr(self, "smartinversion_normal_frame_count"):
-        self.smartinversion_normal_frame_count = 0
-    if not hasattr(self, "smartinversion_stare_valid_frame_count"):
-        self.smartinversion_stare_valid_frame_count = 0
-    if not hasattr(self, "smartinversion_stare_invalid_frame_count"):
-        self.smartinversion_stare_invalid_frame_count = 0
-    if not hasattr(self, "smartinversion_is_inverted"):
-        self.smartinversion_is_inverted = False
-    if not hasattr(self, "smartinversion_smoothing_progress"):
-        self.smartinversion_smoothing_progress = 0
-    if not hasattr(self, "smartinversion_smoothed_eye_x"):
-        self.smartinversion_smoothed_eye_x = 0.0
-    if not hasattr(self, "smartinversion_stare_ahead"):
-        self.smartinversion_stare_ahead = False
-
-########################################################################################################
-    #Updates eye positions with latest
-    if self.eye_id == EyeId.LEFT:
-        var.l_eye_x = out_x
-        var.left_y = out_y
-
-    if self.eye_id == EyeId.RIGHT:
-        var.r_eye_x = out_x
-        var.right_y = out_y
-
-########################################################################################################
-    #Determines which eye is being tracked based off selection and sets values accordingly
-    if self.settings.gui_smartinversion_select_right:
-        tracked_eye_x = var.r_eye_x
-        tracked_eye_y = var.right_y
-        is_rec_eye = (self.eye_id == EyeId.LEFT)
-        is_dom_eye = (self.eye_id == EyeId.RIGHT)
-        
-    else:
-        tracked_eye_x = var.l_eye_x
-        tracked_eye_y = var.left_y
-        is_rec_eye = (self.eye_id == EyeId.RIGHT)
-        is_dom_eye = (self.eye_id == EyeId.LEFT)
-
-########################################################################################################
-    #Provides some booleans that are a bit easier to use repeatedly
-    dom_is_inward = (
-        (self.settings.gui_smartinversion_select_right and var.r_eye_x < 0)
-        or
-        (not self.settings.gui_smartinversion_select_right and var.l_eye_x > 0)
-    )
-    rec_is_inward = (
-        (self.settings.gui_smartinversion_select_right and var.l_eye_x > 0)
-        or
-        (not self.settings.gui_smartinversion_select_right and var.r_eye_x < 0)
-    )
-    dom_in_inv_range = (
-        (self.settings.gui_smartinversion_select_right and var.r_eye_x < -self.settings.gui_smartinversion_minthresh)
-        or
-        (not self.settings.gui_smartinversion_select_right and var.l_eye_x > self.settings.gui_smartinversion_minthresh)
-    )
-    rec_in_inv_range = (
-        (self.settings.gui_smartinversion_select_right and var.l_eye_x > self.settings.gui_smartinversion_minthresh)
-        or
-        (not self.settings.gui_smartinversion_select_right and var.r_eye_x < -self.settings.gui_smartinversion_minthresh)
-    )
-    looking_same_dir = (var.r_eye_x * var.l_eye_x > 0)
-    x_diff = abs(var.r_eye_x - var.l_eye_x)
-
-########################################################################################################
-    #Checks if eyes are straight, and then sets eye gaze forward until inversion threshold is met
-    if dom_is_inward and not rec_in_inv_range and (rec_is_inward or x_diff > 0.4):
-        self.smartinversion_stare_valid_frame_count = min(self.smartinversion_stare_valid_frame_count + 1, self.settings.gui_smartinversion_frame_count)
-        self.smartinversion_stare_invalid_frame_count = 0
-
-        if self.smartinversion_stare_valid_frame_count >= self.settings.gui_smartinversion_frame_count:
-
-            if not self.smartinversion_stare_ahead:
-                self.smartinversion_smoothing_progress = 1
-                self.smartinversion_is_inverted = False
-                print(f"Stare Ahead Activated")
-                self.smartinversion_stare_ahead = True
-            tracked_eye_x = 0
-
-    elif self.smartinversion_stare_valid_frame_count > 0:
-        self.smartinversion_stare_valid_frame_count = 0
-
-    if self.smartinversion_stare_ahead and not (dom_is_inward and not rec_in_inv_range and (rec_is_inward or x_diff > 0.4)):
-        self.smartinversion_stare_invalid_frame_count = min(self.smartinversion_stare_invalid_frame_count + 1, self.settings.gui_smartinversion_frame_count)
-        tracked_eye_x = 0
-
-        if self.smartinversion_stare_invalid_frame_count == self.settings.gui_smartinversion_frame_count:
-            self.smartinversion_stare_ahead = False
-            print(f"Stare Ahead Deactivated")
-
-    elif self.smartinversion_stare_invalid_frame_count > 0:
-        self.smartinversion_stare_invalid_frame_count = 0
-
-########################################################################################################
-    #Checks if eyes are inverted, and then activates inversion if the conditions have been true for a specified number of frames.
-    if dom_is_inward and rec_in_inv_range:
-        self.smartinversion_inverted_frame_count = min(self.smartinversion_inverted_frame_count + 1, self.settings.gui_smartinversion_frame_count)
-
-        if self.smartinversion_inverted_frame_count >= self.settings.gui_smartinversion_frame_count:
-            if not self.smartinversion_is_inverted:
-                self.smartinversion_smoothing_progress = 1
-                self.smartinversion_normal_frame_count = 0
-                self.smartinversion_is_inverted = True
-                self.smartinversion_stare_ahead = False
-                tracked_eye_x = 0
-                print(f"Inversion Activated")
-
-    elif self.smartinversion_inverted_frame_count > 0:
-        self.smartinversion_inverted_frame_count = 0
-
-########################################################################################################
-    #Checks if the eyes are no longer inverted, and then clears inversion if the conditions haven't been true for a specified number of frames.
-    if self.smartinversion_is_inverted and (not (dom_is_inward and rec_in_inv_range)):
-        self.smartinversion_normal_frame_count = min(self.smartinversion_normal_frame_count + 1, self.settings.gui_smartinversion_frame_count)
-
-        if self.smartinversion_normal_frame_count >= self.settings.gui_smartinversion_frame_count:
-            if self.smartinversion_is_inverted:
-                self.smartinversion_is_inverted = False
-                self.smartinversion_inverted_frame_count = 0
-                print(f"Inversion Deactivated")
-
-    elif self.smartinversion_normal_frame_count > 0:
-        self.smartinversion_normal_frame_count = 0
-
-
-########################################################################################################
-    out_x = tracked_eye_x
-    out_y = tracked_eye_y
-
-########################################################################################################
-    #Logic if smoothing is activated
-    if self.smartinversion_smoothing_progress > 0:
-        lerp_factor = 0.2
-
-        if self.smartinversion_is_inverted:
-            if is_rec_eye:
-                self.smartinversion_smoothed_eye_x += (-tracked_eye_x - self.smartinversion_smoothed_eye_x) * lerp_factor
+class SmartInversion:
     
-            else:
-                self.smartinversion_smoothed_eye_x += (tracked_eye_x - self.smartinversion_smoothed_eye_x) * lerp_factor
-    
-        self.smartinversion_smoothing_progress = max(self.smartinversion_smoothing_progress - self.settings.gui_smartinversion_smoothing_rate, 0)
-        out_x = self.smartinversion_smoothed_eye_x
+    #Defines our possible tracking states
+    class States(Enum):
+        TRACKING = 0
+        STARE = 1
+        INVERTED = 2
 
-########################################################################################################
-    #Logic if inversion is active, but smoothing is not active
-    elif self.smartinversion_is_inverted and is_rec_eye:
-        out_x = -tracked_eye_x
+    state = States.TRACKING
 
-    #Limits the maximum allowed inwards rotation if detected as cross-eyed
-    if self.smartinversion_is_inverted:
-        if self.eye_id == EyeId.LEFT:
-            clamped_x = min(out_x, self.settings.gui_smartinversion_rotation_clamp)
-            out_x = clamped_x
+    #Defines our tracked values
+    thread_lock = threading.Lock()
+    rx_left_x = 0.0
+    rx_left_y = 0.0
+    rx_right_x = 0.0
+    rx_right_y = 0.0
+    dom_eye_x = 0.0
+    dom_eye_y = 0.0
+    inv_x_thresh = 0.3
+    is_r_dom = True
+    bypass_stare = False
+
+    #Defines variables that require settings
+    @classmethod
+    def init_config(cls,config: EyeTrackConfig):
+        if config.settings.gui_smartinversion_select_right:
+            cls.dom_eye = EyeId.RIGHT
+            cls.rec_eye = EyeId.LEFT
+            cls.is_r_dom = True
         else:
-            clamped_x = max(out_x, -self.settings.gui_smartinversion_rotation_clamp)
-            out_x = clamped_x
+            cls.dom_eye = EyeId.LEFT
+            cls.rec_eye = EyeId.RIGHT
+            cls.is_r_dom = False
+        
+        cls.inv_x_thresh = config.settings.gui_smartinversion_minthresh
+        cls.cycle_counts = config.settings.gui_smartinversion_frame_count
+        cls.inv_clamp = config.settings.gui_smartinversion_rotation_clamp
 
-    return out_x, out_y
+        cls.inv_counter = CycleCounter(cls.cycle_counts)
+        cls.stare_counter = CycleCounter(cls.cycle_counts)
+        cls.track_counter = CycleCounter(cls.cycle_counts)
+
+    #Receives changes in configuration and applies them accordingly
+    @classmethod
+    def config_update(cls,data):
+        print(f"Smart inversion heard that some settings were changed!")
+
+        if "gui_smartinversion_select_right" in data:
+            cls.dom_eye = EyeId.RIGHT if data["gui_smartinversion_select_right"] else EyeId.LEFT
+            cls.rec_eye = EyeId.LEFT if data["gui_smartinversion_select_right"] else EyeId.RIGHT
+            cls.is_r_dom = True if data["gui_smartinversion_select_right"] else False
+            print(f"Dominant eye changed to {cls.dom_eye.name}")
+
+        if "gui_smartinversion_minthresh" in data:
+            cls.inv_x_thresh = data["gui_smartinversion_minthresh"]
+            print(f"Smart inversion transition threshold changed to {cls.inv_x_thresh}")
+
+        if "gui_smartinversion_frame_count" in data:
+            cls.cycle_counts = data["gui_smartinversion_frame_count"]
+            print(f"Smart inversion transition condition required cycle count changed to {cls.cycle_counts}")
+
+        if "gui_smartinversion_rotation_clamp" in data:
+            cls.inv_clamp = data["gui_smartinversion_rotation_clamp"]
+            print(f"Smart inversion maximum allowed cross-eye changed to {cls.cycle_counts}")
+
+    #Main processing function
+    @classmethod
+    def process(cls,eye_id,out_x,out_y):
+        with cls.thread_lock:
+            cls.process_tracked_positions(eye_id,out_x,out_y)
+            cls.check_for_stare()
+            cls.check_for_inversion()
+            
+            if cls.is_stare_mode():
+                out_x, out_y = 0, cls.dom_eye_y
+
+            elif not cls.is_dominant_eye(eye_id) and cls.is_inverted_mode():
+                out_x, out_y = -cls.dom_eye_x, cls.dom_eye_y
+            
+            else:
+                out_x, out_y = cls.dom_eye_x, cls.dom_eye_y
+            
+            if cls.is_inverted_mode():
+                if cls.is_processing_right_eye(eye_id):
+                    out_x = max(out_x,-cls.inv_clamp)
+                else:
+                    out_x = min(out_x,cls.inv_clamp)
+
+            return out_x, out_y
+    
+    #Main methods that are called during processing
+    @classmethod
+    def process_tracked_positions(cls, eye_id, out_x,out_y):
+        if cls.is_processing_right_eye(eye_id):
+            cls.rx_right_x = out_x
+            cls.rx_right_y = out_y
+            if cls.is_dominant_eye(eye_id):
+                cls.dom_eye_x = cls.rx_right_x
+                cls.dom_eye_y = cls.rx_right_y
+        else:
+            cls.rx_left_x = out_x
+            cls.rx_left_y = out_y
+            if cls.is_dominant_eye(eye_id):
+                cls.dom_eye_x = cls.rx_left_x
+                cls.dom_eye_y = cls.rx_left_y
+    @classmethod
+    def check_for_stare(cls):
+        if cls.dom_is_inward() and cls.rec_is_inward():
+
+            #Updates the counter for stare activation
+            if not cls.is_stare_mode() and not cls.stare_counter.complete():
+                cls.stare_counter.increase()
+            
+            #Sets the state to stare if count completes
+            elif not cls.is_stare_mode() and cls.stare_counter.complete() and not cls.bypass_stare:
+                cls.set_state("STARE")
+                print(f"State is {cls.state.name}")
+                cls.stare_counter.reset()
+        
+        elif cls.is_stare_mode():
+            cls.stare_counter.increase()
+            if cls.stare_counter.complete():
+                if cls.bypass_stare:
+                    cls.bypass_stare = False
+                    #print(f"bypass_stare disabled by check_for_stare")
+            cls.set_state("TRACKING")
+            print(f"State set to {cls.state.name} by check_for_stare method.")
+            cls.stare_counter.reset()
+            cls.inv_counter.reset()
+
+        elif not cls.stare_counter.active():
+                cls.stare_counter.reset()
+
+    @classmethod
+    def check_for_inversion(cls):
+        if cls.dom_is_inward() and cls.rec_meets_thresh() and cls.is_stare_mode():
+
+            #Updates the counter for activation
+            if not cls.is_inverted_mode() and not cls.inv_counter.complete():
+                cls.inv_counter.increase()
+                #print(f"Inversion activation counter is increasing: {cls.inv_counter.get_count()}")
+                
+            #Sets the state to inverted if enough cycles have completed
+            elif not cls.is_inverted_mode() and cls.inv_counter.complete():
+                cls.set_state("INVERTED")
+                print(f"State set to {cls.state.name} by check_for_inv method.")
+                cls.bypass_stare = True
+                cls.inv_counter.reset()
+        
+        #Begins the counter for deactivation if conditions are not met
+        elif cls.is_inverted_mode():
+            cls.inv_counter.increase()
+            if cls.inv_counter.complete():
+                if cls.bypass_stare:
+                    cls.bypass_stare = False
+                    #print(f"bypass_stare disabled by check_for_inv")
+        
+        #Fast resets the counter if conditions are not met, and inversion isn't active.
+        elif cls.inv_counter.active():
+            cls.inv_counter.reset()
+            print(f"Inversion activation counter was instantly reset as conditions weren't met")
+      
+    #Helper Methods
+    @classmethod
+    def is_tracking_mode(cls):
+        return cls.state == cls.States.TRACKING
+    @classmethod
+    def is_stare_mode(cls):
+        return cls.state == cls.States.STARE
+    @classmethod
+    def is_inverted_mode(cls):
+        return cls.state == cls.States.INVERTED
+    @classmethod
+    def set_state(cls,new_state: str):
+        cls.state = cls.States[new_state]
+    @classmethod
+    def is_dominant_eye(cls,eye_id):
+        return eye_id == cls.dom_eye
+    @classmethod
+    def is_processing_right_eye(cls,eye_id):
+        return eye_id == EyeId.RIGHT
+    @classmethod
+    def dom_is_inward(cls):
+        return (cls.is_r_dom and cls.rx_right_x < 0) or (not cls.is_r_dom and cls.rx_left_x > 0)
+    @classmethod
+    def rec_is_inward(cls):
+        return (cls.is_r_dom and cls.rx_left_x > 0) or (not cls.is_r_dom and cls.rx_right_x < 0)
+    @classmethod
+    def dom_meets_thresh(cls):
+        return (cls.is_r_dom and cls.rx_right_x < -cls.inv_x_thresh) or (not cls.is_r_dom and cls.rx_left_x > cls.inv_x_thresh)
+    @classmethod
+    def rec_meets_thresh(cls):
+        return (cls.is_r_dom and cls.rx_left_x > cls.inv_x_thresh) or (not cls.is_r_dom and cls.rx_right_x < -cls.inv_x_thresh)
+    @classmethod
+    def x_diff(cls):
+        return abs(cls.rx_left_x - cls.rx_right_x)
