@@ -14,14 +14,24 @@ class SmartInversion:
 
     state = States.TRACKING
 
-    #Defines our tracked values
+    #Defines our tracked positions
     thread_lock = threading.Lock()
     rx_left_x = 0.0
     rx_left_y = 0.0
     rx_right_x = 0.0
     rx_right_y = 0.0
-    dom_eye_x = 0.0
-    dom_eye_y = 0.0
+    rx_dom_eye_x = 0.0
+    rx_dom_eye_y = 0.0
+
+    #Defines our processed positions
+    tx_left_x = 0.0
+    tx_left_y = 0.0
+    tx_right_x = 0.0
+    tx_right_y = 0.0
+    tx_dom_eye_x = 0.0
+    tx_dom_eye_y = 0.0
+
+    #Defines other global variables
     inv_x_thresh = 0.3
     is_r_dom = True
     bypass_stare = False
@@ -42,9 +52,8 @@ class SmartInversion:
         cls.cycle_counts = config.settings.gui_smartinversion_frame_count
         cls.inv_clamp = config.settings.gui_smartinversion_rotation_clamp
 
-        cls.inv_counter = CycleCounter(cls.cycle_counts)
+        cls.inv_counter = CycleCounter(cls.cycle_counts*1.25)
         cls.stare_counter = CycleCounter(cls.cycle_counts)
-        cls.track_counter = CycleCounter(cls.cycle_counts)
 
     #Receives changes in configuration and applies them accordingly
     @classmethod
@@ -73,42 +82,44 @@ class SmartInversion:
     @classmethod
     def process(cls,eye_id,out_x,out_y):
         with cls.thread_lock:
-            cls.process_tracked_positions(eye_id,out_x,out_y)
+            cls.store_tracked_positions(eye_id,out_x,out_y)
             cls.check_for_stare()
             cls.check_for_inversion()
-            
-            if cls.is_stare_mode():
-                out_x, out_y = 0, cls.dom_eye_y
-
-            elif not cls.is_dominant_eye(eye_id) and cls.is_inverted_mode():
-                out_x, out_y = -cls.dom_eye_x, cls.dom_eye_y
-            
-            else:
-                out_x, out_y = cls.dom_eye_x, cls.dom_eye_y
-            
-            if cls.is_inverted_mode():
-                if cls.is_processing_right_eye(eye_id):
-                    out_x = max(out_x,-cls.inv_clamp)
-                else:
-                    out_x = min(out_x,cls.inv_clamp)
-
+            out_x, out_y = cls.update_new_position(eye_id,out_x,out_y)
+            cls.store_processed_positions(eye_id,out_x,out_y)
             return out_x, out_y
     
     #Main methods that are called during processing
     @classmethod
-    def process_tracked_positions(cls, eye_id, out_x,out_y):
+    def store_tracked_positions(cls, eye_id, out_x,out_y):
         if cls.is_processing_right_eye(eye_id):
             cls.rx_right_x = out_x
             cls.rx_right_y = out_y
             if cls.is_dominant_eye(eye_id):
-                cls.dom_eye_x = cls.rx_right_x
-                cls.dom_eye_y = cls.rx_right_y
+                cls.rx_dom_eye_x = cls.rx_right_x
+                cls.rx_dom_eye_y = cls.rx_right_y
         else:
             cls.rx_left_x = out_x
             cls.rx_left_y = out_y
             if cls.is_dominant_eye(eye_id):
-                cls.dom_eye_x = cls.rx_left_x
-                cls.dom_eye_y = cls.rx_left_y
+                cls.rx_dom_eye_x = cls.rx_left_x
+                cls.rx_dom_eye_y = cls.rx_left_y
+
+    @classmethod
+    def store_processed_positions(cls, eye_id, out_x,out_y):
+        if cls.is_processing_right_eye(eye_id):
+            cls.tx_right_x = out_x
+            cls.tx_right_y = out_y
+            if cls.is_dominant_eye(eye_id):
+                cls.tx_dom_eye_x = cls.tx_right_x
+                cls.tx_dom_eye_y = cls.tx_right_y
+        else:
+            cls.tx_left_x = out_x
+            cls.tx_left_y = out_y
+            if cls.is_dominant_eye(eye_id):
+                cls.tx_dom_eye_x = cls.tx_left_x
+                cls.tx_dom_eye_y = cls.tx_left_y
+
     @classmethod
     def check_for_stare(cls):
         if cls.dom_is_inward() and cls.rec_is_inward():
@@ -121,21 +132,19 @@ class SmartInversion:
             elif not cls.is_stare_mode() and cls.stare_counter.complete() and not cls.bypass_stare:
                 cls.set_state("STARE")
                 print(f"State is {cls.state.name}")
-                cls.stare_counter.reset()
         
         elif cls.is_stare_mode():
-            cls.stare_counter.increase()
-            if cls.stare_counter.complete():
+            if cls.stare_counter.active():
+                cls.stare_counter.decrease()
+            if not cls.stare_counter.active():
                 if cls.bypass_stare:
                     cls.bypass_stare = False
-                    #print(f"bypass_stare disabled by check_for_stare")
+                    print(f"bypass_stare disabled by check_for_stare")
             cls.set_state("TRACKING")
-            print(f"State set to {cls.state.name} by check_for_stare method.")
-            cls.stare_counter.reset()
-            cls.inv_counter.reset()
+            print(f"State set to {cls.state.name}")
 
         elif not cls.stare_counter.active():
-                cls.stare_counter.reset()
+                cls.stare_counter.decrease()
 
     @classmethod
     def check_for_inversion(cls):
@@ -149,22 +158,40 @@ class SmartInversion:
             #Sets the state to inverted if enough cycles have completed
             elif not cls.is_inverted_mode() and cls.inv_counter.complete():
                 cls.set_state("INVERTED")
-                print(f"State set to {cls.state.name} by check_for_inv method.")
+                print(f"State set to {cls.state.name}")
                 cls.bypass_stare = True
-                cls.inv_counter.reset()
         
         #Begins the counter for deactivation if conditions are not met
         elif cls.is_inverted_mode():
-            cls.inv_counter.increase()
-            if cls.inv_counter.complete():
+            if cls.inv_counter.active():
+                cls.inv_counter.decrease()
+            if not cls.inv_counter.active():
                 if cls.bypass_stare:
                     cls.bypass_stare = False
-                    #print(f"bypass_stare disabled by check_for_inv")
+                    print(f"bypass_stare disabled by check_for_inv")
         
-        #Fast resets the counter if conditions are not met, and inversion isn't active.
+        #Decreases the counter if conditions are not met, and inversion isn't active.
         elif cls.inv_counter.active():
-            cls.inv_counter.reset()
-            print(f"Inversion activation counter was instantly reset as conditions weren't met")
+            cls.inv_counter.decrease()
+
+    @classmethod
+    def update_new_position(cls,eye_id,out_x,out_y):
+        if cls.is_stare_mode():
+            out_x, out_y = 0, cls.rx_dom_eye_y
+
+        elif not cls.is_dominant_eye(eye_id) and cls.is_inverted_mode():
+            out_x, out_y = -cls.rx_dom_eye_x, cls.rx_dom_eye_y
+            
+        else:
+            out_x, out_y = cls.rx_dom_eye_x, cls.rx_dom_eye_y
+        
+        if cls.is_inverted_mode():
+            if cls.is_processing_right_eye(eye_id):
+                out_x = max(out_x,-cls.inv_clamp)
+            else:
+                out_x = min(out_x,cls.inv_clamp)
+
+        return out_x, out_y
       
     #Helper Methods
     @classmethod
@@ -200,3 +227,13 @@ class SmartInversion:
     @classmethod
     def x_diff(cls):
         return abs(cls.rx_left_x - cls.rx_right_x)
+    
+    """class Smoothing:
+        def __init__(self, smoothing_rate=0.05):
+            self.smoothing_rate = smoothing_rate
+            self.start_x = 0.0
+            self.target_x = 0.0
+            self.out
+        
+        def process_smoothing(self,out_x,out_y):
+            out_x = (self.start_x += (self.start_x - self.target_x) * smoothing_rate)"""
