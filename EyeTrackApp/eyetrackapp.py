@@ -38,7 +38,7 @@ from settings.algo_settings_widget import AlgoSettingsWidget
 from osc.osc import OSCManager
 from osc.OSCMessage import OSCMessage
 from utils.misc_utils import is_nt, resource_path
-from utils.mirrortrack import mirrortrack
+from utils.mirrortrack import MirrorTrack
 import cv2
 import numpy as np
 import uuid
@@ -284,7 +284,7 @@ def main():
     config.register_listener_callback(osc_manager.update)
     config.register_listener_callback(eyes[0].on_config_update)
     config.register_listener_callback(eyes[1].on_config_update)
-    config.register_listener_callback(mirrortrack.config_update)
+    config.register_listener_callback(MirrorTrack.config_update)
 
     osc_manager.register_listeners(
         config.settings.gui_osc_recenter_address,
@@ -302,7 +302,7 @@ def main():
     )
 
     osc_manager.start()
-    mirrortrack.init_config(config)
+    MirrorTrack.init_config(config)
 
     while True:
         tint = 33
