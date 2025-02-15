@@ -75,13 +75,15 @@ def eyetrack_settings_config():
         gui_vrc_native=False,
         gui_pupil_dilation=True,
 
-        #Smart Inversion Tracking
-        gui_smartinversion_enabled=False,
-        gui_smartinversion_select_right=True,
-        gui_smartinversion_frame_count=10,
-        gui_smartinversion_smoothing_rate=0.025,
-        gui_smartinversion_minthresh=0.3,
-        gui_smartinversion_rotation_clamp=1.0,
+        #MirrorTrack
+        gui_mirrortrack_enabled=False,
+        gui_mirrortrack_select_right=True,
+        gui_mirrortrack_cycle_count_inv=20,
+        gui_mirrortrack_cycle_count_stare=20,
+        #gui_mirrortrack_smoothing_rate=0.025,
+        gui_mirrortrack_minthresh=0.3,
+        gui_mirrortrack_rotation_clamp=0.3,
+        gui_mirrortrack_enable_inv=False
     )
 
 

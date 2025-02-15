@@ -15,7 +15,7 @@ class CycleCounter:
     def reset(self):
         self.count = 0
 
-    def complete(self):
+    def is_complete(self):
         if self.count >= self.max_count:
             return True
         return False
@@ -28,3 +28,9 @@ class CycleCounter:
         
     def get_count(self):
         return self.count
+    
+    def update(self,max_count):
+        self.max_count = max_count
+
+    def force_complete(self):
+        self.count = self.max_count

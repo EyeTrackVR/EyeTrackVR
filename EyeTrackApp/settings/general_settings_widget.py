@@ -31,7 +31,7 @@ from settings.BaseSettings import BaseSettingsWidget
 from settings.modules.GeneralSettingsModule import GeneralSettingsModule
 from settings.modules.OneEuroSettingsModule import OneEuroSettingsModule
 from settings.modules.OSCSettingsModule import OSCSettingsModule
-from settings.modules.SmartInversionSettingsModule import SmartInversionSettingsModule
+from settings.modules.MirrorTrackSettingsModule import MirrorTrackSettingsModule
 
 
 class SettingsWidget(BaseSettingsWidget):
@@ -39,7 +39,7 @@ class SettingsWidget(BaseSettingsWidget):
         settings_modules = [
             GeneralSettingsModule,
             OneEuroSettingsModule,
-            SmartInversionSettingsModule,
+            MirrorTrackSettingsModule,
             OSCSettingsModule,
         ]
         super().__init__(widget_id, main_config, settings_modules)
