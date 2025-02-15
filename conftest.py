@@ -79,7 +79,7 @@ def eyetrack_settings_config():
         gui_mirrortrack_enabled=False,
         gui_mirrortrack_enable_inv=False
         gui_mirrortrack_enable_smooth=True
-        gui_mirrortrack_select_right=True,
+        gui_mirrortrack_select_right=False,
         gui_mirrortrack_cycle_count_inv=15,
         gui_mirrortrack_cycle_count_stare=10,
         gui_mirrortrack_smooth_rate=0.2,

@@ -51,6 +51,7 @@ class MirrorTrackSettingsModule(BaseSettingsModule):
                 sg.Radio(
                 "Use Left Eye",
                 "mirrortrack_selectedeye",
+                default = not self.config.gui_mirrortrack_select_right,
                 background_color="#424042",
                 tooltip="Uses the left eye as the tracked eye.",
                 ),
