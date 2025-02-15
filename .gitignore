@@ -24,3 +24,4 @@ EyeTrackApp/IBO_RIGHT.png
 /eyetrack_settings.backup
 /eyetrack_settings.json
 zBuild.bat
+EyeTrackApp/z_CompileBuild.bat
