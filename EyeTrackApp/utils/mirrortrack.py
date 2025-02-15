@@ -72,25 +72,25 @@ class MirrorTrack:
             cls.dom_eye = EyeId.RIGHT if data["gui_mirrortrack_select_right"] else EyeId.LEFT
             cls.rec_eye = EyeId.LEFT if data["gui_mirrortrack_select_right"] else EyeId.RIGHT
             cls.is_r_dom = True if data["gui_mirrortrack_select_right"] else False
-            print(f"Dominant eye changed to {cls.dom_eye.name}")
+            #print(f"Dominant eye changed to {cls.dom_eye.name}")
 
         if "gui_mirrortrack_minthresh" in data:
             cls.inv_x_thresh = data["gui_mirrortrack_minthresh"]
-            print(f"MirrorTrack transition threshold changed to {cls.inv_x_thresh}")
+            #print(f"MirrorTrack transition threshold changed to {cls.inv_x_thresh}")
 
         if "gui_mirrortrack_cycle_count_inv" in data:
             cls.cyc_counts_inv = data["gui_mirrortrack_cycle_count_inv"]
             cls.cyc_counter_inv.update(cls.cyc_counts_inv)
-            print(f"MirrorTrack inversion transition condition required cycle count changed to {cls.cyc_counts_inv}")
+            #print(f"MirrorTrack inversion transition condition required cycle count changed to {cls.cyc_counts_inv}")
 
         if "gui_mirrortrack_cycle_count_stare" in data:
             cls.cyc_counts_stare = data["gui_mirrortrack_cycle_count_stare"]
             cls.cyc_counter_stare.update(cls.cyc_counts_stare)
-            print(f"MirrorTrack stare transition condition required cycle count changed to {cls.cyc_counts_stare}")
+            #print(f"MirrorTrack stare transition condition required cycle count changed to {cls.cyc_counts_stare}")
 
         if "gui_mirrortrack_rotation_clamp" in data:
             cls.inv_clamp = data["gui_mirrortrack_rotation_clamp"]
-            print(f"MirrorTrack maximum allowed cross-eye changed to {cls.inv_clamp}")
+            #print(f"MirrorTrack maximum allowed cross-eye changed to {cls.inv_clamp}")
 
         if "gui_mirrortrack_enable_inv" in data:
             cls.is_inv_enabled = data["gui_mirrortrack_enable_inv"]
@@ -99,15 +99,15 @@ class MirrorTrack:
                 cls.set_state("STARE")
                 cls.bypass_stare = False
             
-            print(f"MirrorTrack allow cross-eye is set to {cls.is_inv_enabled}")
+            #print(f"MirrorTrack allow cross-eye is set to {cls.is_inv_enabled}")
 
         if "gui_mirrortrack_enable_smooth" in data:
             cls.is_smooth_enabled = data["gui_mirrortrack_enable_smooth"]
-            print(f"MirrorTrack cross-eye smoothing is set to {cls.is_smooth_enabled}")
+            #print(f"MirrorTrack cross-eye smoothing is set to {cls.is_smooth_enabled}")
 
         if "gui_mirrortrack_smooth_rate" in data:
             cls.smoothing_rate = data["gui_mirrortrack_smooth_rate"]
-            print(f"MirrorTrack cross-eye smoothing rate is set to {cls.smoothing_rate}")
+            #print(f"MirrorTrack cross-eye smoothing rate is set to {cls.smoothing_rate}")
 
 
     #Main processing function
@@ -200,6 +200,7 @@ class MirrorTrack:
                     cls.set_state("INVERTED")
                     cls.bypass_stare = True
                     cls.smoothing_trigger = True
+                    #print(f"Smoothing trigger is {cls.smoothing_trigger}")
             
             #Begins the counter for deactivation if conditions are not met
             elif cls.cyc_counter_inv.active():
@@ -210,6 +211,7 @@ class MirrorTrack:
                     cls.bypass_stare = False
                 if cls.is_inverted_mode():
                     cls.smoothing_trigger = True
+                    #print(f"Smoothing trigger is {cls.smoothing_trigger}")
                     cls.check_for_stare(True)
         else:
             return
@@ -241,6 +243,7 @@ class MirrorTrack:
            
             if abs(out_x - smoothing_out_x) < 0.1:
                 cls.smoothing_trigger = False
+                #print(f"Smoothing trigger is {cls.smoothing_trigger}")
             
             return smoothing_out_x
 
