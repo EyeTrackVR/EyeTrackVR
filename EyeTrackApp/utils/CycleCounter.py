@@ -34,3 +34,6 @@ class CycleCounter:
 
     def force_complete(self):
         self.count = self.max_count
+
+    def less_than_percentage(self,mult):
+        return self.count <= self.max_count * mult

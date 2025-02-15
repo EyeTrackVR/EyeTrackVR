@@ -179,7 +179,7 @@ class MirrorTrack:
         elif cls.cyc_counter_stare.active():
                 cls.cyc_counter_stare.decrease()
 
-        if not cls.cyc_counter_stare.active():
+        if cls.cyc_counter_stare.less_than_percentage(0.5):
             if cls.bypass_stare:
                 cls.bypass_stare = False
             if not cls.is_tracking_mode():
@@ -205,7 +205,7 @@ class MirrorTrack:
             elif cls.cyc_counter_inv.active():
                     cls.cyc_counter_inv.decrease()
                 
-            if not cls.cyc_counter_inv.active():
+            if cls.cyc_counter_inv.less_than_percentage(0.5):
                 if cls.bypass_stare:
                     cls.bypass_stare = False
                 if cls.is_inverted_mode():
