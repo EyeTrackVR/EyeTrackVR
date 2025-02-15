@@ -1,10 +1,11 @@
 from eye import EyeId
 from enum import Enum
 from config import EyeTrackConfig
+from utils.misc_utils import clamp
 from utils.CycleCounter import *
 import threading
 
-class mirrortrack:
+class MirrorTrack:
     
     #Defines our possible tracking states
     class States(Enum):
@@ -57,6 +58,8 @@ class mirrortrack:
 
         cls.cyc_counter_inv = CycleCounter(cls.cyc_counts_inv)
         cls.cyc_counter_stare = CycleCounter(cls.cyc_counts_stare)
+
+        cls.smoothing_rate = config.settings.gui_mirrortrack_
 
         cls.thread_lock = threading.Lock()
 
@@ -195,9 +198,10 @@ class mirrortrack:
         
         if cls.is_inverted_mode():
             if cls.is_processing_right_eye(eye_id):
-                out_x = max(out_x,-cls.inv_clamp)
+                out_x = clamp(out_x,-cls.inv_clamp,0)
             else:
-                out_x = min(out_x,cls.inv_clamp)
+                out_x = clamp(out_x,0,cls.inv_clamp)
+
 
         return out_x, out_y
       
@@ -237,12 +241,11 @@ class mirrortrack:
     def x_diff(cls):
         return abs(cls.rx_left_x - cls.rx_right_x)
     
-    """class Smoothing:
-        def __init__(self, smoothing_rate=0.05):
-            self.smoothing_rate = smoothing_rate
-            self.start_x = 0.0
-            self.target_x = 0.0
-            self.out
-        
-        def process_smoothing(self,out_x,out_y):
-            out_x = (self.start_x += (self.start_x - self.target_x) * smoothing_rate)"""
+    @classmethod
+    def process_smoothing(cls,eye_id,out_x):
+        if cls.is_processing_right_eye(eye_id):
+           cls.tx_right_x += (out_x - cls.tx_right_x) * cls.smoothing_rate
+           out_x = cls.tx_right_x
+        else:
+           cls.tx_left_x += (out_x - cls.tx_left_x) * cls.smoothing_rate
+           out_x = cls.tx_left_x
