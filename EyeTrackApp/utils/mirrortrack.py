@@ -188,7 +188,7 @@ class MirrorTrack:
     @classmethod
     def check_for_inversion(cls):
         if cls.is_inv_enabled:
-            if cls.dom_is_inward() and cls.rec_meets_thresh() and (cls.is_stare_mode() or cls.bypass_stare):
+            if cls.dom_meets_thresh() and cls.rec_meets_thresh() and (cls.is_stare_mode() or cls.bypass_stare):
 
                 #Updates the counter for activation
                 if not cls.is_inverted_mode() and not cls.cyc_counter_inv.is_complete():

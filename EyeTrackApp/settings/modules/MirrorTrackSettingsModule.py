@@ -66,31 +66,11 @@ class MirrorTrackSettingsModule(BaseSettingsModule):
                 )
             ],
             [
-                sg.Text("Inwards Look Threshold", background_color=BACKGROUND_COLOR,tooltip=
-                        "Sets the minimum distance of looking in that's required before state can chaned to cross-eyed."
-                        "\n Lower value will make cross-eye detection more sensitive."
-                ),
-                sg.InputText(
-                    self.config.gui_mirrortrack_minthresh,
-                    key=self.gui_mirrortrack_minthresh,
-                    size=(0, 10),
-                ),
-            ],
-            [
-                sg.Text("Transition Cycle Count (Cross-Eye)", background_color=BACKGROUND_COLOR,tooltip=
-                        "How long it takes to detect you are cross-eyed, or no longer cross-eyed."
-                        "\n Higher number means longer duration before changing in or out of being cross-eyed state."
-                ),
-                sg.InputText(
-                    self.config.gui_mirrortrack_cycle_count_inv,
-                    key=self.gui_mirrortrack_cycle_count_inv,
-                    size=(0, 10),
-                ),
-            ],
-            [
-                sg.Text("Transition Cycle Count (Stare Forward)", background_color=BACKGROUND_COLOR,tooltip=
+                sg.Text("Stare Ahead Detection Duration", background_color=BACKGROUND_COLOR,tooltip=
                         "How long it takes to detect you are staring ahead, or no longer staring ahead."
                         "\n Higher number means longer duration before changing in or out of being in stare ahead state."
+                        "\n Exit conditions are half the duration of entry conditions."
+
                 ),
                 sg.InputText(
                     self.config.gui_mirrortrack_cycle_count_stare,
@@ -100,13 +80,38 @@ class MirrorTrackSettingsModule(BaseSettingsModule):
             ],                
             [
                 sg.Checkbox(
-                    "Allow cross-eye",
+                    "Enable Cross-Eye Detection",
                     default=self.config.gui_mirrortrack_enable_inv,
                     key=self.gui_mirrortrack_enable_inv,
                     background_color="#424042",
                     tooltip="Enables cross-eye functionality",
                 ),
-                sg.Text("Maximum allowed cross-eye", background_color=BACKGROUND_COLOR,tooltip=
+            ],
+            [
+                sg.Text("Detection Threshold", background_color=BACKGROUND_COLOR,tooltip=
+                        "Sets the minimum distance of looking in that's required before state will changed to cross-eyed."
+                        "\n Lower value will make cross-eye detection more sensitive."
+                ),
+                sg.InputText(
+                    self.config.gui_mirrortrack_minthresh,
+                    key=self.gui_mirrortrack_minthresh,
+                    size=(0, 10),
+                ),
+            ],
+            [
+                sg.Text("Detection Duration", background_color=BACKGROUND_COLOR,tooltip=
+                        "How long it takes to detect you are cross-eyed, or no longer cross-eyed."
+                        "\n Higher number means longer duration before changing in or out of being cross-eyed state."
+                        "\n Exit conditions are half the duration of entry conditions."
+                ),
+                sg.InputText(
+                    self.config.gui_mirrortrack_cycle_count_inv,
+                    key=self.gui_mirrortrack_cycle_count_inv,
+                    size=(0, 10),
+                ),
+            ],
+            [
+                sg.Text("Rotation Limit", background_color=BACKGROUND_COLOR,tooltip=
                     "Defines the maximum inwards rotation that is output when cross-eyed."
                     "\n0 = will only look straight ahead \n0.5 = will go a little bit cross-eyed \n1 = maximum hurr durr "
                 ),
@@ -124,8 +129,8 @@ class MirrorTrackSettingsModule(BaseSettingsModule):
                 #    background_color="#424042",
                 #    tooltip="Enables smoothing when transitioning to cross-eye",
                 #),
-                sg.Text("Smoothing Rate", background_color=BACKGROUND_COLOR,tooltip=
-                        "How quickly smoothing decays when you enter or leave a transition."
+                sg.Text("Transition Smoothing Rate", background_color=BACKGROUND_COLOR,tooltip=
+                        "How quickly smoothing decays when you enter or leave the cross-eyed state."
                         "\nHigher number = shorter smoothing duration, snappier transition."
                         "\nLower number = longer smoothing duration, smoother transition"
                 ),
