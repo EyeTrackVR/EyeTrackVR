@@ -23,7 +23,7 @@ Ellipse Based Pupil Dilation By: Prohurtz, PallasNeko (Optimization)
 Algorithm App Implementations By: Prohurtz
 
 Copyright (c) 2023 EyeTrackVR <3
-LICENSE: GNU GPLv3
+LICENSE: Babble Software Distribution License 1.0
 ------------------------------------------------------------------------------------------------------
 """
 import numpy

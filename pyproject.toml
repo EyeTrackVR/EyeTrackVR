@@ -3,7 +3,7 @@ name = "EyeTrackVR"
 version = "0.2"
 description = "Opensource, affordable VR eye tracker for VRChat"
 authors = ["RedHawk989"]
-license = "GNU GPL V3"
+license = "LICENSE: Babble Software Distribution License 1.0"
 repository = "https://github.com/EyeTrackVR/EyeTrackVR"
 
 [tool.poetry.dependencies]

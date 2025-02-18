@@ -23,8 +23,8 @@ Algorithm App Implementations By: Prohurtz, qdot (GUI, Initial Implementations),
 
 Additional Contributors: [Assassin], Summer404NotFound, lorow, ZanzyTHEbar
 
-Copyright (c) 2023 EyeTrackVR <3
-LICENSE: GNU GPLv3
+Copyright (c) 2025 EyeTrackVR <3
+LICENSE: Babble Software Distribution License 1.0
 ------------------------------------------------------------------------------------------------------
 """
 
