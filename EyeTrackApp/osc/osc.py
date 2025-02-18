@@ -39,7 +39,6 @@ from osc.VRChatOSCSender import VRChatOSCSender
 import queue
 import threading
 
-
 class OSCManager:
     def __init__(
         self,
