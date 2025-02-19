@@ -147,11 +147,6 @@ class IntensityBasedOpeness:
         self.eye_id = eye_id
         self.maxinten = 0
         self.tri_filter = []
-        #  try:
-        #      min_cutoff = float(self.settings.gui_min_cutoff)  # 0.0004
-        #     beta = float(self.settings.gui_speed_coefficient)  # 0.9
-        # except:
-        print("\033[93m[WARN] OneEuroFilter values must be a legal number.\033[0m")
         min_cutoff = 0.0004
         beta = 0.9
         noisy_point = np.array([1, 1])
