@@ -32,3 +32,12 @@ def check_is_ip_address(v: str):
         return v
     except ValueError:
         raise ValueError("Please provide a valid IP Address")
+
+def try_convert_to_int(v: str):
+    """"
+    Checks if value provided can be converted to an integer and returns the converted result
+    """
+    try:
+        return int(v)
+    except ValueError:
+        raise ValueError("Please provide a number with no decimal points")

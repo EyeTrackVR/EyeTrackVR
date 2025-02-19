@@ -217,6 +217,16 @@ class EyeTrackSettingsConfig(BaseModel):
     gui_OutputMultiplier: float = 1
     gui_use_module: bool = False
 
+    #mirrortrackTracking
+    gui_mirrortrack_enabled:                 bool = False
+    gui_mirrortrack_enable_inv:              bool = True
+    gui_mirrortrack_enable_smooth:           bool = True
+    gui_mirrortrack_select_right:            bool = False
+    gui_mirrortrack_cycle_count_inv:         int = 15
+    gui_mirrortrack_cycle_count_stare:       int = 10
+    gui_mirrortrack_smooth_rate:             float = 0.2
+    gui_mirrortrack_minthresh:               float = 0.125
+    gui_mirrortrack_rotation_clamp:          float = 0.3
 
 class EyeTrackConfig(BaseModel):
     version: int = 1
