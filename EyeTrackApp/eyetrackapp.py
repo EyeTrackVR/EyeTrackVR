@@ -287,15 +287,15 @@ def main():
     osc_manager.register_listeners(
         config.settings.gui_osc_recenter_address,
         [
-            eyes[0].recenter_eyes,
-            eyes[1].recenter_eyes,
+            eyes[0].osc_recenter_eyes,
+            eyes[1].osc_recenter_eyes,
         ],
     )
     osc_manager.register_listeners(
         config.settings.gui_osc_recalibrate_address,
         [
-            eyes[0].recalibrate_eyes,
-            eyes[1].recalibrate_eyes,
+            eyes[0].osc_recalibrate_eyes,
+            eyes[1].osc_recalibrate_eyes,
         ],
     )
 
