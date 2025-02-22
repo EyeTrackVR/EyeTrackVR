@@ -19,7 +19,7 @@ Active Development: [V2 App Branch](https://github.com/EyeTrackVR/EyeTrackVR/tre
 
 # EyeTrackVR
 
-Open source and *affordable* VR eye tracker platform for [VRChat](https://hello.vrchat.com/) via `OSC` and `UDP` protocol.
+Source First and *affordable* VR eye tracker platform for [VRChat](https://hello.vrchat.com/) via `OSC` and `UDP` protocol.
 
 > **Note**: This project is in development and is not fully finished
 
