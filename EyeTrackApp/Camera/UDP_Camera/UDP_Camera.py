@@ -88,10 +88,37 @@ class UDP_Camera(ICameraSource):
                 print("Packet loss detected.")
             else:
                 print("Whole data received. Processing...")
-                data_stream = [b for p in self.packets for b in p.data]
-                print(data_stream)
+                full_buffer = b''.join(p.data for p in self.packets)
+                np_buffer = np.frombuffer(full_buffer, dtype=np.uint8)
+                self.process_and_push_image(np_buffer)
+
 
             self.num_loaded = 0
 
         # Send acknowledgment
         self.sock.sendto(f"{packet.id}:ACK".encode(), addr)
+
+    def process_and_push_image(self, buf: np.ndarray):
+        image = cv2.imdecode(buf, cv2.IMREAD_UNCHANGED)
+        if image is None:
+            print(f"{Fore.YELLOW}[WARN] Frame drop. Corrupted JPEG.{Fore.RESET}")
+            return
+        
+        current_frame_time = time.time()
+        delta_time = current_frame_time - self.last_frame_time
+        self.last_frame_time = current_frame_time
+        self.fps = (self.fps + self.pf_fps) / 2
+        self.newft = time.time()
+        self.fps = 1 / (self.newft - self.prevft)
+        self.prevft = self.newft
+        self.fps = int(self.fps)
+        if len(self.fl) < 60:
+            self.fl.append(self.fps)
+        else:
+            self.fl.pop(0)
+            self.fl.append(self.fps)
+        self.fps = sum(self.fl) / len(self.fl)
+        self.bps = image.nbytes * self.fps
+        self.frame_number = self.frame_number + 1
+        
+        self.push_image_to_queue(image, self.frame_number, self.fps)
