@@ -22,10 +22,12 @@ class CameraFactory:
     @staticmethod
     def get_camera_from_string_type(sourceName: str) -> ICameraSource:
         sourceName = str(sourceName) # prevents int to be entered
-        if sourceName.lower().startswith("COM") or sourceName.lower().startswith("/dev/cu") or sourceName.lower().startswith("/dev/tty"):  # Windows  # macOS  # Linux
+        if sourceName.lower().startswith("com") or sourceName.lower().startswith("/dev/cu") or sourceName.lower().startswith("/dev/tty"):  # Windows  # macOS  # Linux
+            print(f"{Fore.CYAN}[INFO] Serial camera selected {Fore.RESET}")
             return SerialCamera
         elif sourceName.lower() == "udp":
             print(f"{Fore.YELLOW}[WARN] UDP selected. Prepare for bugs from BOTAlex. Unfinished and extreme alpha. {Fore.RESET}")
             return UDP_Camera
         else:
+            print(f"{Fore.CYAN}[INFO] System camera selected {Fore.RESET}")
             return SystemCamera

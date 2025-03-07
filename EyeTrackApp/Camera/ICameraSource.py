@@ -88,3 +88,27 @@ class ICameraSource:
 
     def set_output_queue(self, camera_output_outgoing: "queue.Queue"):
         self.camera_output_outgoing = camera_output_outgoing
+
+    def get_stream_fps(self):
+        """Based on how many times this method gets called"""
+
+        # Calculate the fps.
+        current_frame_time = time.time()
+        delta_time = current_frame_time - self.last_frame_time
+        self.last_frame_time = current_frame_time
+
+        # Avoid division by zero
+        if delta_time > 0:
+            fps = 1.0 / delta_time
+        else:
+            fps = 0
+
+        # Smooth the FPS using a moving average
+        self.fl.append(fps)
+        if len(self.fl) > 60:
+            self.fl.pop(0)  # Keep the list length constant
+
+        # Compute average FPS
+        fps = sum(self.fl) / len(self.fl)
+
+        return fps

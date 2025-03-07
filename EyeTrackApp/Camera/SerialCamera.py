@@ -15,6 +15,7 @@ from Camera.CameraState import CameraState
 from Camera.ICameraSource import ICameraSource
 import socket
 
+WAIT_TIME = 0.1
 # Serial communication protocol:
 # header-begin (2 bytes)
 # header-type (2 bytes)
@@ -105,32 +106,11 @@ class SerialCamera(ICameraSource):
                         print(f"{Fore.CYAN}[INFO] Discarding the serial buffer ({conn.in_waiting} bytes){Fore.RESET}")
                         conn.reset_input_buffer()
                         self.buffer = b""
-                    # Calculate the fps.
-                    current_frame_time = time.time()
-                    delta_time = current_frame_time - self.last_frame_time
-                    self.last_frame_time = current_frame_time
+                    
+                    fps = self.get_stream_fps()
 
-                    # Avoid division by zero
-                    if delta_time > 0:
-                        fps = 1.0 / delta_time
-                    else:
-                        fps = 0
-
-                    # Smooth the FPS using a moving average
-                    self.fl.append(fps)
-                    if len(self.fl) > 60:
-                        self.fl.pop(0)  # Keep the list length constant
-
-                    # Compute average FPS
-                    self.fps = sum(self.fl) / len(self.fl)
-
-                    # Compute bandwidth per second (bps)
-                    self.bps = image.nbytes * self.fps
-
-                    # Increment frame count
-                    self.frame_number += 1
                     if should_push:
-                        self.push_image_to_queue(image, self.frame_number, self.fps)
+                        self.push_image_to_queue(image, self.frame_number, fps)
         except Exception:
             print(
                 f"{Fore.YELLOW}[WARN] Serial capture source problem, assuming camera disconnected, waiting for reconnect.{Fore.RESET}"

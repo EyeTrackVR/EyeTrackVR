@@ -105,7 +105,6 @@ class CameraWidget:
         )
 
         self.camera_status_queue = Queue()
-        CameraFactory
 
         if not self.config.capture_source is None:
             self.camera = CameraFactory.get_camera_from_string_type(self.config.capture_source)(
