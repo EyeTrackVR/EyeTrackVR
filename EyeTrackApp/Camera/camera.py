@@ -78,8 +78,6 @@ def is_udp(addr: str) -> bool:
 
 
 class Camera(ICameraSource):
-    def set_output_queue(self, camera_output_outgoing: "queue.Queue"):
-        self.camera_output_outgoing = camera_output_outgoing
 
     def run(self):
         OPENCV_PARAMS = [
@@ -118,9 +116,6 @@ class Camera(ICameraSource):
                         port = self.config.capture_source
                         self.current_capture_source = port
                         self.start_serial_connection(port)
-                elif (is_udp(addr)):
-                    # print("UDP selected!")
-                    setup_udp(self)
                 else:
                     if (
                         self.cv2_camera is None
@@ -155,8 +150,6 @@ class Camera(ICameraSource):
                 addr = str(self.current_capture_source)
                 if is_serial_capture_source(addr):
                     self.get_serial_camera_picture(should_push)
-                elif is_udp(addr):
-                    udp_get_image(self)
                 else:
                     self.get_cv2_camera_picture(should_push)
                 if not should_push:

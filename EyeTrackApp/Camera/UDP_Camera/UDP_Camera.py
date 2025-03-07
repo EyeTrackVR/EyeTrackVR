@@ -18,9 +18,9 @@ from .DataPacket import PacketHeader # Python imports stupid. missed a single ".
 
 WAIT_TIME = 0.1
 
-BUFFER_SIZE = 1024
-NUM_FRAGMENTS = 8
-HEADER_FORMAT = "iii"
+IMAGE_BUFFER_SIZE = 1024
+NUM_FRAGMENTS = 12
+HEADER_FORMAT = "iiii"
 
 RED = "\033[91m"
 GREEN = "\033[92m"
@@ -51,10 +51,12 @@ class UDP_Camera(ICameraSource):
         self.port = 3333
         self.num_loaded = 0
         self.packets = [None] * NUM_FRAGMENTS
-        self.rawDataBuffer = np.zeros(BUFFER_SIZE, dtype=np.uint8)
-        self.rawFullDataBuffer = np.zeros(BUFFER_SIZE*NUM_FRAGMENTS, dtype=np.uint8)
+        self.headerSize = struct.calcsize(HEADER_FORMAT)
+        self.rawDataBuffer = np.zeros(IMAGE_BUFFER_SIZE + self.headerSize, dtype=np.uint8)
+        self.rawFullDataBuffer = np.zeros(IMAGE_BUFFER_SIZE*NUM_FRAGMENTS, dtype=np.uint8)
         self.imageBuffView = memoryview(self.rawFullDataBuffer)
         self.currentFrameNum = 0
+        self.totalDataSize = 0
 
         self.sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         self.sock.bind((self.host, self.port))
@@ -68,25 +70,23 @@ class UDP_Camera(ICameraSource):
 
                 return
             
-            
             bufferView = memoryview(self.rawDataBuffer)
             n, senderAddr = self.sock.recvfrom_into(bufferView)
             self.handle_packet(n, senderAddr)
 
     def saveDataToBuff(self, dataView: memoryview, packet: PacketHeader):
-        header_size = struct.calcsize(HEADER_FORMAT)
-        payload_start = header_size
-        payload_end = header_size + packet.image_buf_size
+        payload_start = self.headerSize
+        payload_end = self.headerSize + packet.image_buf_size
         payload = dataView[payload_start:payload_end]
         
         #time.sleep(0.05)
 
-        offset = self.packets[0].image_buf_size * packet.id  # Adjust offset based on payload size
+        offset = IMAGE_BUFFER_SIZE * packet.id  # Adjust offset based on payload size
         self.imageBuffView[offset: offset + packet.image_buf_size] = payload
         # print(f"Packet {packet.id}: {offset}->{offset + packet.image_buf_size}")
 
     def resetImageBuffer(self):
-        self.rawFullDataBuffer = np.zeros(BUFFER_SIZE*NUM_FRAGMENTS, dtype=np.uint8)
+        self.rawFullDataBuffer = np.zeros(IMAGE_BUFFER_SIZE*NUM_FRAGMENTS, dtype=np.uint8)
                 
     def handle_packet(self, dataSize, senderAddr):
         bufferView = memoryview(self.rawDataBuffer)
@@ -95,43 +95,39 @@ class UDP_Camera(ICameraSource):
             return
         
         # Send acknowledgment
-        self.sock.sendto(f"{packet.id}:{packet.frame_num}:ACK".encode(), senderAddr)
+        # self.sock.sendto(f"{packet.id}:{packet.frame_num}:ACK".encode(), senderAddr)
         # print(packet.id)
 
-        if self.num_loaded > 0 and packet.id != 0:
-            self.sock.sendto(f"ERR".encode(), senderAddr)
+        # if self.num_loaded > 0 and packet.id != 0:
+        #     self.sock.sendto(f"ERR".encode(), senderAddr)
 
-        if packet.id == 0 or packet.frame_num != self.currentFrameNum:
-            self.packets: list[PacketHeader|None] = [None] * NUM_FRAGMENTS # Reset packets
+        if (packet.id == 0 or packet.frame_num != self.currentFrameNum):
+            self.packets: list[PacketHeader|None] = [None] * packet.totalPackets # Reset packets
             self.num_loaded = 0
             self.currentFrameNum = packet.frame_num
             self.rawFullDataBuffer[:] = 0
-            # print("Reset frame capture")
+            # print(f"Reset frame capture. total packets: {packet.totalPackets}")
             
-        if (self.packets[packet.id] is None 
+        if (packet.id < len(self.packets)
+            and self.packets[packet.id] is None 
             and self.packets[0] is not None
+            and self.currentFrameNum == packet.frame_num
             or packet.id == 0 ):
             self.num_loaded += 1
             self.packets[packet.id] = packet
             self.saveDataToBuff(bufferView, packet)
 
-        # print(f"Got packet id: {packet.id} (total: )")
-
-        # if (self.num_loaded > NUM_FRAGMENTS * 0.75):
-        #     formatted_list = "[" + ", ".join(f"{RED}x{RESET}" if item is None else f"{GREEN}x{RESET}" for item in self.packets) + "]"
+        # if self.packets[0] is not None:
+        #     print(f"Got packet id: {packet.id} (total: {self.packets[0].totalPackets} loaded: {self.num_loaded})")
+        # if self.packets[0] is not None:
+        #     formatted_list = "[" + ", ".join(f"{RED}x{RESET}" if item is None else f"{GREEN}x{RESET}" for item in self.packets[:self.packets[0].totalPackets]) + "]"
         #     print(formatted_list)
 
-        if self.num_loaded >= NUM_FRAGMENTS:
-            if self.packets[0] is None:
-                return
-            current_frame = self.packets[0].frame_num
 
-            if any(p is None or p.frame_num != current_frame for p in self.packets):
-                print("Packet loss detected.")
-                pass
-            else:
-                #print("Whole data received. Processing...")
-                self.process_and_push_image()
+        if (self.packets[0] is not None and self.num_loaded >= self.packets[0].totalPackets 
+            or self.num_loaded >= NUM_FRAGMENTS):
+
+            self.process_and_push_image()
 
             self.num_loaded = 0
             self.packets: list[PacketHeader|None] = [None] * NUM_FRAGMENTS # Reset packets
@@ -143,6 +139,8 @@ class UDP_Camera(ICameraSource):
         if image is None:
             print(f"{Fore.YELLOW}[WARN] Frame drop. Corrupted JPEG.{Fore.RESET}")
             return
+        
+        # print("Frame")
         
         self.camera_status = CameraState.CONNECTED
 

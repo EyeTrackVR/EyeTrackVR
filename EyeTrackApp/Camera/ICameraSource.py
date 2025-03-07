@@ -64,6 +64,7 @@ class ICameraSource:
             print(
                 f"{Fore.YELLOW}[WARN] CAPTURE QUEUE BACKPRESSURE OF {qsize}. CHECK FOR CRASH OR TIMING ISSUES IN ALGORITHM.{Fore.RESET}"
             )
+            pass
         self.camera_output_outgoing.put((image, frame_number, fps))
         self.capture_event.clear()
 
@@ -73,3 +74,6 @@ class ICameraSource:
 
     def extraInit(self):
         pass
+
+    def set_output_queue(self, camera_output_outgoing: "queue.Queue"):
+        self.camera_output_outgoing = camera_output_outgoing
