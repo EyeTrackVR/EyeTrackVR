@@ -1,20 +1,11 @@
 import struct
+import numpy as np
+import ctypes
 
-class DataPacket:
-    def __init__(self, buffer, offset, size):
-        self.frame_num = None
-        self.id = None
-        self.buf_size = None
-        self.data = None
+class PacketHeader:
+    def __init__(self, headerFormat, dataView, rawDataSize):
+        self.frame_num: int|None = None
+        self.id: int|None = None
+        self.image_buf_size: int|None = None
 
-        if len(buffer) < offset + 12:  # Ensure buffer is large enough for metadata
-            return
-
-        self.frame_num, self.id, self.buf_size = struct.unpack_from("iii", buffer, offset)
-        current_index = offset + 12
-
-        message_length = size - current_index
-        if message_length < 0 or current_index + message_length > len(buffer):
-            return
-
-        self.data = buffer[current_index:current_index + message_length]
+        self.frame_num, self.id, self.image_buf_size = struct.unpack_from(headerFormat, dataView, 0)
