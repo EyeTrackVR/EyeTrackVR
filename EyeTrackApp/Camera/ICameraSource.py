@@ -1,0 +1,75 @@
+import cv2
+import numpy as np
+import queue
+import serial
+import serial.tools.list_ports
+import threading
+import time
+from colorama import Fore
+from config import EyeTrackCameraConfig
+from enum import Enum
+import psutil, os
+import sys
+from Camera.CameraState import CameraState
+from abc import ABC, abstractmethod
+
+
+# This is when C# dev does Python dev
+class ICameraSource:
+    def __init__(
+        self,
+        config: EyeTrackCameraConfig,
+        camera_index: int,
+        cancellation_event: "threading.Event",
+        capture_event: "threading.Event",
+        camera_status_outgoing: "queue.Queue[CameraState]",
+        camera_output_outgoing: "queue.Queue(maxsize=20)",
+    ):
+        self.camera_status = CameraState.CONNECTING
+        self.config = config
+        self.camera_index = camera_index
+        self.camera_address = config.capture_source
+        self.camera_status_outgoing = camera_status_outgoing
+        self.camera_output_outgoing = camera_output_outgoing
+        self.capture_event = capture_event
+        self.cancellation_event = cancellation_event
+        self.current_capture_source = config.capture_source
+        self.cv2_camera: "cv2.VideoCapture" = None
+
+        self.serial_connection = None
+        self.last_frame_time = time.time()
+        self.frame_number = 0
+        self.fps = 0
+        self.bps = 0
+        self.start = True
+        self.buffer = b""
+        self.pf_fps = 0
+        self.prevft = 0
+        self.newft = 0
+        self.fl = [0]
+
+        self.extraInit()
+
+
+        self.error_message = f"{Fore.YELLOW}[WARN] Capture source {{}} not found, retrying...{Fore.RESET}"
+
+    def __del__(self):
+        pass
+
+    def push_image_to_queue(self, image, frame_number, fps):
+        # If there's backpressure, just yell. We really shouldn't have this unless we start getting
+        # some sort of capture event conflict though.
+        qsize = self.camera_output_outgoing.qsize()
+        if qsize > 1:
+            print(
+                f"{Fore.YELLOW}[WARN] CAPTURE QUEUE BACKPRESSURE OF {qsize}. CHECK FOR CRASH OR TIMING ISSUES IN ALGORITHM.{Fore.RESET}"
+            )
+        self.camera_output_outgoing.put((image, frame_number, fps))
+        self.capture_event.clear()
+
+    @abstractmethod
+    def run(self):
+        pass
+
+    def extraInit(self):
+        pass

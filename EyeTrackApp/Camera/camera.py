@@ -36,6 +36,10 @@ from config import EyeTrackCameraConfig
 from enum import Enum
 import psutil, os
 import sys
+from Camera.CameraState import CameraState
+from Camera.ICameraSource import ICameraSource
+
+
 
 
 process = psutil.Process(os.getpid())  # set process priority to low
@@ -60,11 +64,6 @@ ETVR_HEADER_FRAME = b"\xff\xa1"
 ETVR_HEADER_LEN = 6
 
 
-class CameraState(Enum):
-    CONNECTING = 0
-    CONNECTED = 1
-    DISCONNECTED = 2
-
 
 def is_serial_capture_source(addr: str) -> bool:
     """
@@ -74,49 +73,11 @@ def is_serial_capture_source(addr: str) -> bool:
         addr.startswith("COM") or addr.startswith("/dev/cu") or addr.startswith("/dev/tty")  # Windows  # macOS  # Linux
     )
 
-
-class Camera:
-    def __init__(
-        self,
-        config: EyeTrackCameraConfig,
-        camera_index: int,
-        cancellation_event: "threading.Event",
-        capture_event: "threading.Event",
-        camera_status_outgoing: "queue.Queue[CameraState]",
-        camera_output_outgoing: "queue.Queue(maxsize=20)",
-    ):
-
-        self.camera_status = CameraState.CONNECTING
-        self.config = config
-        self.camera_index = camera_index
-        self.camera_address = config.capture_source
-        self.camera_status_outgoing = camera_status_outgoing
-        self.camera_output_outgoing = camera_output_outgoing
-        self.capture_event = capture_event
-        self.cancellation_event = cancellation_event
-        self.current_capture_source = config.capture_source
-        self.cv2_camera: "cv2.VideoCapture" = None
-
-        self.serial_connection = None
-        self.last_frame_time = time.time()
-        self.frame_number = 0
-        self.fps = 0
-        self.bps = 0
-        self.start = True
-        self.buffer = b""
-        self.pf_fps = 0
-        self.prevft = 0
-        self.newft = 0
-        self.fl = [0]
+def is_udp(addr: str) -> bool:
+    return addr.find("UDP") >= 0
 
 
-
-        self.error_message = f"{Fore.YELLOW}[WARN] Capture source {{}} not found, retrying...{Fore.RESET}"
-
-    def __del__(self):
-        if self.serial_connection is not None:
-            self.serial_connection.close()
-
+class Camera(ICameraSource):
     def set_output_queue(self, camera_output_outgoing: "queue.Queue"):
         self.camera_output_outgoing = camera_output_outgoing
 
@@ -147,6 +108,7 @@ class Camera:
             if self.config.capture_source != None and self.config.capture_source != "":
                 self.current_capture_source = self.config.capture_source
                 addr = str(self.current_capture_source)
+
                 if is_serial_capture_source(addr):
                     if (
                         self.serial_connection is None
@@ -156,6 +118,9 @@ class Camera:
                         port = self.config.capture_source
                         self.current_capture_source = port
                         self.start_serial_connection(port)
+                elif (is_udp(addr)):
+                    # print("UDP selected!")
+                    setup_udp(self)
                 else:
                     if (
                         self.cv2_camera is None
@@ -190,6 +155,8 @@ class Camera:
                 addr = str(self.current_capture_source)
                 if is_serial_capture_source(addr):
                     self.get_serial_camera_picture(should_push)
+                elif is_udp(addr):
+                    udp_get_image(self)
                 else:
                     self.get_cv2_camera_picture(should_push)
                 if not should_push:
@@ -328,14 +295,3 @@ class Camera:
         except Exception:
             print(f"{Fore.CYAN}[INFO] Failed to connect on {port}{Fore.RESET}")
             self.camera_status = CameraState.DISCONNECTED
-
-    def push_image_to_queue(self, image, frame_number, fps):
-        # If there's backpressure, just yell. We really shouldn't have this unless we start getting
-        # some sort of capture event conflict though.
-        qsize = self.camera_output_outgoing.qsize()
-        if qsize > 1:
-            print(
-                f"{Fore.YELLOW}[WARN] CAPTURE QUEUE BACKPRESSURE OF {qsize}. CHECK FOR CRASH OR TIMING ISSUES IN ALGORITHM.{Fore.RESET}"
-            )
-        self.camera_output_outgoing.put((image, frame_number, fps))
-        self.capture_event.clear()

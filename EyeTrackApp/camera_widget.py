@@ -32,7 +32,8 @@ import math
 from eye import EyeId
 from eye_processor import EyeProcessor, EyeInfoOrigin
 from queue import Queue, Empty
-from camera import Camera, CameraState
+from Camera.camera import Camera, CameraState
+from Camera.UDP_Camera.UDP_Camera import UDP_Camera
 import cv2
 from osc.OSCMessage import OSCMessageType, OSCMessage
 from utils.misc_utils import PlaySound, SND_FILENAME, SND_ASYNC, resource_path
@@ -104,14 +105,25 @@ class CameraWidget:
         )
 
         self.camera_status_queue = Queue()
-        self.camera = Camera(
-            self.config,
-            0,
-            self.cancellation_event,
-            self.capture_event,
-            self.camera_status_queue,
-            self.capture_queue,
-        )
+        if not self.config.capture_source is None and "UDP" in self.config.capture_source: # Not the best code but I don't care. I want to be finished
+            print("UDP selected. Prepare for bugs from BOTAlex")
+            self.camera = UDP_Camera(
+                self.config,
+                0,
+                self.cancellation_event,
+                self.capture_event,
+                self.camera_status_queue,
+                self.capture_queue,
+            )
+        else:
+            self.camera = Camera(
+                self.config,
+                0,
+                self.cancellation_event,
+                self.capture_event,
+                self.camera_status_queue,
+                self.capture_queue,
+            )
 
         self.hover = None
 
