@@ -240,19 +240,26 @@ class Camera(ICameraSource):
                     current_frame_time = time.time()
                     delta_time = current_frame_time - self.last_frame_time
                     self.last_frame_time = current_frame_time
-                    self.fps = (self.fps + self.pf_fps) / 2
-                    self.newft = time.time()
-                    self.fps = 1 / (self.newft - self.prevft)
-                    self.prevft = self.newft
-                    self.fps = int(self.fps)
-                    if len(self.fl) < 60:
-                        self.fl.append(self.fps)
+
+                    # Avoid division by zero
+                    if delta_time > 0:
+                        fps = 1.0 / delta_time
                     else:
-                        self.fl.pop(0)
-                        self.fl.append(self.fps)
+                        fps = 0
+
+                    # Smooth the FPS using a moving average
+                    self.fl.append(fps)
+                    if len(self.fl) > 60:
+                        self.fl.pop(0)  # Keep the list length constant
+
+                    # Compute average FPS
                     self.fps = sum(self.fl) / len(self.fl)
+
+                    # Compute bandwidth per second (bps)
                     self.bps = image.nbytes * self.fps
-                    self.frame_number = self.frame_number + 1
+
+                    # Increment frame count
+                    self.frame_number += 1
                     if should_push:
                         self.push_image_to_queue(image, self.frame_number, self.fps)
         except Exception:

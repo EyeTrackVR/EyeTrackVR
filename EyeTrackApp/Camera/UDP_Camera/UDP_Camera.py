@@ -19,7 +19,7 @@ from .DataPacket import PacketHeader # Python imports stupid. missed a single ".
 WAIT_TIME = 0.1
 
 IMAGE_BUFFER_SIZE = 1024
-NUM_FRAGMENTS = 12
+NUM_MAX_FRAGMENTS = 12
 HEADER_FORMAT = "iiii"
 
 RED = "\033[91m"
@@ -50,10 +50,10 @@ class UDP_Camera(ICameraSource):
         self.host = "0.0.0.0"
         self.port = 3333
         self.num_loaded = 0
-        self.packets = [None] * NUM_FRAGMENTS
+        self.packets = [None] * NUM_MAX_FRAGMENTS
         self.headerSize = struct.calcsize(HEADER_FORMAT)
         self.rawDataBuffer = np.zeros(IMAGE_BUFFER_SIZE + self.headerSize, dtype=np.uint8)
-        self.rawFullDataBuffer = np.zeros(IMAGE_BUFFER_SIZE*NUM_FRAGMENTS, dtype=np.uint8)
+        self.rawFullDataBuffer = np.zeros(IMAGE_BUFFER_SIZE*NUM_MAX_FRAGMENTS, dtype=np.uint8)
         self.imageBuffView = memoryview(self.rawFullDataBuffer)
         self.currentFrameNum = 0
         self.totalDataSize = 0
@@ -86,12 +86,12 @@ class UDP_Camera(ICameraSource):
         # print(f"Packet {packet.id}: {offset}->{offset + packet.image_buf_size}")
 
     def resetImageBuffer(self):
-        self.rawFullDataBuffer = np.zeros(IMAGE_BUFFER_SIZE*NUM_FRAGMENTS, dtype=np.uint8)
+        self.rawFullDataBuffer = np.zeros(IMAGE_BUFFER_SIZE*NUM_MAX_FRAGMENTS, dtype=np.uint8)
                 
     def handle_packet(self, dataSize, senderAddr):
         bufferView = memoryview(self.rawDataBuffer)
         packet = PacketHeader(HEADER_FORMAT, bufferView, dataSize)
-        if packet.id < 0 or packet.id >= NUM_FRAGMENTS:
+        if packet.id < 0 or packet.id >= NUM_MAX_FRAGMENTS:
             return
         
         # Send acknowledgment
@@ -102,35 +102,34 @@ class UDP_Camera(ICameraSource):
         #     self.sock.sendto(f"ERR".encode(), senderAddr)
 
         if (packet.id == 0 or packet.frame_num != self.currentFrameNum):
-            self.packets: list[PacketHeader|None] = [None] * packet.totalPackets # Reset packets
+            self.packets: list[PacketHeader|None] = [None] * NUM_MAX_FRAGMENTS # Reset packets
             self.num_loaded = 0
             self.currentFrameNum = packet.frame_num
             self.rawFullDataBuffer[:] = 0
             # print(f"Reset frame capture. total packets: {packet.totalPackets}")
+
+        # if self.packets[0] is not None:
+        #     print(f"Got packet id: {packet.id} (total: {self.packets[0].totalPackets} loaded: {self.num_loaded})")
             
-        if (packet.id < len(self.packets)
-            and self.packets[packet.id] is None 
-            and self.packets[0] is not None
+        if (self.packets is not None
             and self.currentFrameNum == packet.frame_num
-            or packet.id == 0 ):
+            and self.packets[0] is not None
+            and not packet in self.packets
+            or packet.id == 0):
             self.num_loaded += 1
             self.packets[packet.id] = packet
             self.saveDataToBuff(bufferView, packet)
 
-        # if self.packets[0] is not None:
-        #     print(f"Got packet id: {packet.id} (total: {self.packets[0].totalPackets} loaded: {self.num_loaded})")
-        # if self.packets[0] is not None:
-        #     formatted_list = "[" + ", ".join(f"{RED}x{RESET}" if item is None else f"{GREEN}x{RESET}" for item in self.packets[:self.packets[0].totalPackets]) + "]"
-        #     print(formatted_list)
-
-
-        if (self.packets[0] is not None and self.num_loaded >= self.packets[0].totalPackets 
-            or self.num_loaded >= NUM_FRAGMENTS):
+        if (packet.id < len(self.packets) and self.packets[0] is not None and self.num_loaded >= self.packets[0].totalPackets 
+            or self.num_loaded >= NUM_MAX_FRAGMENTS):
+            # if self.packets[0] is not None:
+            #     formatted_list = "[" + ", ".join(f"{RED}x{RESET}" if item is None else f"{GREEN}x{RESET}" for item in self.packets[:self.packets[0].totalPackets]) + "]"
+            #     print(formatted_list)
 
             self.process_and_push_image()
 
             self.num_loaded = 0
-            self.packets: list[PacketHeader|None] = [None] * NUM_FRAGMENTS # Reset packets
+            self.packets: list[PacketHeader|None] = [None] * NUM_MAX_FRAGMENTS # Reset packets
             self.rawFullDataBuffer[:] = 0
             
 
