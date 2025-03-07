@@ -1,29 +1,4 @@
-"""
-------------------------------------------------------------------------------------------------------
-
-                                               ,@@@@@@
-                                            @@@@@@@@@@@            @@@
-                                          @@@@@@@@@@@@      @@@@@@@@@@@
-                                        @@@@@@@@@@@@@   @@@@@@@@@@@@@@
-                                      @@@@@@@/         ,@@@@@@@@@@@@@
-                                         /@@@@@@@@@@@@@@@  @@@@@@@@
-                                    @@@@@@@@@@@@@@@@@@@@@@@@ @@@@@
-                                @@@@@@@@                @@@@@
-                              ,@@@                        @@@@&
-                                             @@@@@@.       @@@@
-                                   @@@     @@@@@@@@@/      @@@@@
-                                   ,@@@.     @@@@@@((@     @@@@(
-                                   //@@@        ,,  @@@@  @@@@@
-                                   @@@(                @@@@@@@
-                                   @@@  @          @@@@@@@@#
-                                       @@@@@@@@@@@@@@@@@
-                                      @@@@@@@@@@@@@(
-
-Copyright (c) 2025 EyeTrackVR <3
-LICENSE: Babble Software Distribution License 1.0
-------------------------------------------------------------------------------------------------------
-"""
-
+import struct
 import cv2
 import numpy as np
 import queue
@@ -38,9 +13,8 @@ import psutil, os
 import sys
 from Camera.CameraState import CameraState
 from Camera.ICameraSource import ICameraSource
+import socket
 
-
-WAIT_TIME = 0.1
 # Serial communication protocol:
 # header-begin (2 bytes)
 # header-type (2 bytes)
@@ -50,41 +24,13 @@ ETVR_HEADER = b"\xff\xa0"
 ETVR_HEADER_FRAME = b"\xff\xa1"
 ETVR_HEADER_LEN = 6
 
-
-
-def is_serial_capture_source(addr: str) -> bool:
-    """
-    Returns True if the capture source address is a serial port.
-    """
-    return (
-        addr.startswith("COM") or addr.startswith("/dev/cu") or addr.startswith("/dev/tty")  # Windows  # macOS  # Linux
-    )
-
-def is_udp(addr: str) -> bool:
-    return addr.find("UDP") >= 0
-
-
-class Camera(ICameraSource):
-
+class SerialCamera(ICameraSource):
     def run(self):
-        OPENCV_PARAMS = [
-            cv2.CAP_PROP_OPEN_TIMEOUT_MSEC,
-            5000,
-            cv2.CAP_PROP_READ_TIMEOUT_MSEC,
-            5000,
-        ]
         while True:
             if self.cancellation_event.is_set():
                 print(f"{Fore.CYAN}[INFO] Exiting Capture thread{Fore.RESET}")
                 # openCV won't switch to a new source if provided with one
                 # so, we have to manually release the camera on exit
-
-                addr = str(self.current_capture_source)
-                if is_serial_capture_source(addr):
-                    pass # TODO: find a nicer way to stop the com port
-                  #  self.serial_connection.close()
-                else:
-                    self.cv2_camera.release()
 
                 return
             should_push = True
@@ -94,35 +40,15 @@ class Camera(ICameraSource):
                 self.current_capture_source = self.config.capture_source
                 addr = str(self.current_capture_source)
 
-                if is_serial_capture_source(addr):
-                    if (
-                        self.serial_connection is None
-                        or self.camera_status == CameraState.DISCONNECTED
-                        or self.config.capture_source != self.current_capture_source
-                    ):
-                        port = self.config.capture_source
-                        self.current_capture_source = port
-                        self.start_serial_connection(port)
-                else:
-                    if (
-                        self.cv2_camera is None
-                        or not self.cv2_camera.isOpened()
-                        or self.camera_status == CameraState.DISCONNECTED
-                        or self.config.capture_source != self.current_capture_source
-                    ):
-                        print(self.error_message.format(self.config.capture_source))
-                        # This requires a wait, otherwise we can error and possible screw up the camera
-                        # firmware. Fickle things.
-                        if self.cancellation_event.wait(WAIT_TIME):
-                            return
-                        self.current_capture_source = self.config.capture_source
-                        #   self.cv2_camera = cv2.VideoCapture(self.current_capture_source)
-
-                        self.cv2_camera = cv2.VideoCapture()
-                        self.cv2_camera.setExceptionMode(True)
-                        # https://github.com/opencv/opencv/blob/4.8.0/modules/videoio/include/opencv2/videoio.hpp#L803
-                        self.cv2_camera.open(self.current_capture_source)
-                        should_push = False
+                if (
+                    self.serial_connection is None
+                    or self.camera_status == CameraState.DISCONNECTED
+                    or self.config.capture_source != self.current_capture_source
+                ):
+                    port = self.config.capture_source
+                    self.current_capture_source = port
+                    self.start_serial_connection(port)
+                
             else:
                 # We don't have a capture source to try yet, wait for one to show up in the GUI.
                 if self.cancellation_event.wait(WAIT_TIME):
@@ -135,54 +61,10 @@ class Camera(ICameraSource):
                 continue
             if self.config.capture_source != None:
                 addr = str(self.current_capture_source)
-                if is_serial_capture_source(addr):
-                    self.get_serial_camera_picture(should_push)
-                else:
-                    self.get_cv2_camera_picture(should_push)
+                self.get_serial_camera_picture(should_push)
                 if not should_push:
                     # if we get all the way down here, consider ourselves connected
                     self.camera_status = CameraState.CONNECTED
-
-    def get_cv2_camera_picture(self, should_push):
-        try:
-            ret, image = self.cv2_camera.read()
-            height, width = image.shape[:2]  # Calculate the aspect ratio
-            if int(width) > 680:
-                aspect_ratio = float(width) / float(
-                    height
-                )  # Determine the new height based on the desired maximum width
-                new_height = int(680 / aspect_ratio)
-                image = cv2.resize(image, (680, new_height))
-            if not ret:
-                self.cv2_camera.set(cv2.CAP_PROP_POS_FRAMES, 0)
-                raise RuntimeError("Problem while getting frame")
-            frame_number = self.cv2_camera.get(cv2.CAP_PROP_POS_FRAMES)
-            current_frame_time = time.time()
-            delta_time = current_frame_time - self.last_frame_time
-            if delta_time > 0:
-                current_fps = 1 / delta_time
-            else:
-                current_fps = 0
-            self.last_frame_time = current_frame_time
-
-            if len(self.fl) < 60:
-                self.fl.append(current_fps)
-            else:
-                self.fl.pop(0)
-                self.fl.append(current_fps)
-
-            self.fps = sum(self.fl) / len(self.fl)
-            self.bps = image.nbytes * self.fps
-
-
-            if should_push:
-                self.push_image_to_queue(image, frame_number, self.fps)
-        except:
-            print(
-                f"{Fore.YELLOW}[WARN] Capture source problem, assuming camera disconnected, waiting for reconnect.{Fore.RESET}"
-            )
-            self.camera_status = CameraState.DISCONNECTED
-            pass
 
     def get_next_packet_bounds(self):
         beg = -1
@@ -197,13 +79,13 @@ class Camera(ICameraSource):
         end = int.from_bytes(self.buffer[4:6], signed=False, byteorder="little")
         self.buffer += self.serial_connection.read(end - len(self.buffer))
         return beg, end
-
+    
     def get_next_jpeg_frame(self):
         beg, end = self.get_next_packet_bounds()
         jpeg = self.buffer[beg + ETVR_HEADER_LEN : end + ETVR_HEADER_LEN]
         self.buffer = self.buffer[end + ETVR_HEADER_LEN :]
         return jpeg
-
+    
     def get_serial_camera_picture(self, should_push):
         conn = self.serial_connection
         if conn is None:

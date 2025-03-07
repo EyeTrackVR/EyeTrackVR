@@ -14,7 +14,7 @@ import sys
 from Camera.CameraState import CameraState
 from Camera.ICameraSource import ICameraSource
 import socket
-from .DataPacket import PacketHeader # Python imports stupid. missed a single "."
+from .PacketHeader import PacketHeader # Python imports stupid. missed a single "."
 
 WAIT_TIME = 0.1
 
@@ -26,27 +26,10 @@ RED = "\033[91m"
 GREEN = "\033[92m"
 RESET = "\033[0m"
 
-# I HATE PYTHON!!!! slow fucking... 
-# Never know when value passed by value or ref
-# EVERYTHING is lowercase, EXCEPT True and False. ok
-# const is UPPERCASE, but still modifiable. ok
-# Unreadable sudo code language
-# forced upon me by every industry. VR, AI, Websites? bruh
-# Rant over
+# I do not like slow slow slow python - BOTAlex
 
 class UDP_Camera(ICameraSource):
     def extraInit(self):
-        process = psutil.Process(os.getpid())  # set process priority to low
-        try:
-            sys.getwindowsversion()
-        except AttributeError:
-            process.nice(10)  # UNIX: 0 low 10 high
-            process.nice()
-        else:
-            process.nice(psutil.HIGH_PRIORITY_CLASS)  # Windows
-            process.nice()
-            # See https://learn.microsoft.com/en-us/windows/win32/api/processthreadsapi/nf-processthreadsapi-getpriorityclass#return-value for values
-
         self.host = "0.0.0.0"
         self.port = 3333
         self.num_loaded = 0

@@ -50,6 +50,17 @@ class ICameraSource:
 
         self.extraInit()
 
+        process = psutil.Process(os.getpid())  # set process priority to low
+        try:
+            sys.getwindowsversion()
+        except AttributeError:
+            process.nice(10)  # UNIX: 0 low 10 high
+            process.nice()
+        else:
+            process.nice(psutil.HIGH_PRIORITY_CLASS)  # Windows
+            process.nice()
+            # See https://learn.microsoft.com/en-us/windows/win32/api/processthreadsapi/nf-processthreadsapi-getpriorityclass#return-value for values
+
 
         self.error_message = f"{Fore.YELLOW}[WARN] Capture source {{}} not found, retrying...{Fore.RESET}"
 
