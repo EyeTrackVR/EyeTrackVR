@@ -32,7 +32,7 @@ import math
 from eye import EyeId
 from eye_processor import EyeProcessor, EyeInfoOrigin
 from queue import Queue, Empty
-from Camera.camera import CameraState
+from Camera.CameraState import CameraState
 from Camera.CameraFactory import CameraFactory
 import cv2
 from osc.OSCMessage import OSCMessageType, OSCMessage
