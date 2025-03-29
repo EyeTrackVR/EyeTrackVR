@@ -381,6 +381,7 @@ class CameraWidget:
                             len(values[self.gui_camera_addr]) > 5
                             and "http" not in values[self.gui_camera_addr]
                             and ".mp4" not in values[self.gui_camera_addr]
+                            and "/dev" not in values[self.gui_camera_addr]
                         ):  # If http is not in camera address, add it.
                             self.config.capture_source = f"http://{values[self.gui_camera_addr]}/"
                         else:
