@@ -62,7 +62,7 @@ WINDOW_NAME = "EyeTrackApp"
 
 
 page_url = "https://github.com/RedHawk989/EyeTrackVR/releases/latest"
-appversion = "EyeTrackApp 0.2.0 BETA 14"
+appversion = "EyeTrackApp 0.2.0"
 
 
 class KeyManager:
