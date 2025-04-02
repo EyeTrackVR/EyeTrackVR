@@ -372,9 +372,11 @@ class EyeProcessor:
 
     def LEAPM(self):
         self.thresh = self.current_image_gray.copy()
-        (self.current_image_gray, self.rawx, self.rawy, self.eyeopen,) = self.er_leap.run(
+        (self.current_image_gray, self.rawx, self.rawy, eyeopen,) = self.er_leap.run(
             self.current_image_gray, self.current_image_gray_clean, self.calibration_frame_counter
         )  # TODO: make own self var and LEAP toggle
+        if self.settings.gui_LEAP_lid:
+            self.eyeopen = eyeopen
         self.thresh = self.current_image_gray.copy()
         # todo: lorow, fix this as well
         self.out_x, self.out_y, self.avg_velocity = cal.cal_osc(self, self.rawx, self.rawy, self.angle)
