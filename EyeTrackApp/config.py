@@ -133,10 +133,10 @@ class EyeTrackSettingsConfig(BaseModel):
     gui_BLOB: bool = False
     gui_BLINK: bool = False
     gui_HSRAC: bool = False
-    gui_AHSFRAC: bool = True
+    gui_AHSFRAC: bool = False
     gui_AHSF: bool = False
     gui_DADDY: bool = False
-    gui_LEAP: bool = False
+    gui_LEAP: bool = True
     gui_HSF_radius: int = 15
     gui_HSF_radius_left: int = 10
     gui_HSF_radius_right: int = 10
@@ -197,7 +197,7 @@ class EyeTrackSettingsConfig(BaseModel):
     gui_osc_vrcft_v1: bool = False
     gui_osc_vrcft_v2: bool = False
     gui_vrc_native: bool = True
-    gui_pupil_dilation: bool = True
+    gui_pupil_dilation: bool = False
 
     gui_VRCFTModulePort: int = 8889
     gui_VRCFTModuleIPAddress: str = "127.0.0.1"
