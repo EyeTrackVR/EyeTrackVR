@@ -20,6 +20,9 @@ pyserial = "^3.5"
 winotify = [ 
     { version = "^1.1.0", platform = 'win32' }
 ]
+openvr = [
+    { version = "^2.5.101", platform = 'win32' }
+]
 onnxruntime = "^1.13.1"
 colorama = "^0.4.6"
 taskipy = "^1.10.4"
