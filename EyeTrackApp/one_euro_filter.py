@@ -1,3 +1,6 @@
+# https://github.com/jaantollander/OneEuroFilter
+# LICENSE: MIT
+
 import numpy as np
 from time import time
 
@@ -20,17 +23,17 @@ class OneEuroFilter:
         self.beta = np.full(x0.shape, beta)
         self.d_cutoff = np.full(x0.shape, d_cutoff)
         # Previous values.
-        self.x_prev = x0.astype(np.float)
+        self.x_prev = x0
         self.dx_prev = np.full(x0.shape, dx0)
         self.t_prev = time()
 
     def __call__(self, x):
         """Compute the filtered signal."""
         assert x.shape == self.data_shape
-
-        t = time()
-        t_e = t - self.t_prev
-        if t_e != 0.0: #occasionally when switching to algos this becomes zero causing divide by zero errors crashing the filter.
+        try:
+            t = time()
+            t_e = t - self.t_prev
+            if t_e != 0.0: #occasionally when switching to HSF this becomes zero causing divide by zero errors crashing the filter.
                 t_e = np.full(x.shape, t_e)
 
                 # The filtered derivative of the signal.
@@ -49,3 +52,8 @@ class OneEuroFilter:
                 self.t_prev = t
 
                 return x_hat
+            else:
+                self.x_prev = x
+                return x
+        except:
+            print("\033[91m[ERROR] One Euro Filter Error. Is your system clock running properly?\033[0m")

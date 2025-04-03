@@ -13,38 +13,30 @@ Picture courtesy of Wackalope#6737
       - [Contact](#contact)
 - [Licenses](#licenses)
 
-Active Development: [V2 App Branch](https://github.com/EyeTrackVR/EyeTrackVR/tree/v2.0-beta-feature-branch)
-
-### [Documentation](https://docs.eyetrackvr.dev/)
+### [Documentation](https://redhawk989.github.io/EyeTrackVR/)
 
 # EyeTrackVR
 
-Source First and *affordable* VR eye tracker platform for [VRChat](https://hello.vrchat.com/) via `OSC` and `UDP` protocol.
+Open source and *affordable* VR eye tracker platform for [VRChat](https://hello.vrchat.com/) via `OSC` and `UDP` protocol.
 
-> **Note**: This project is in development and is not fully finished
-
-
+> [!IMPORTANT]\
+> This project is in active development and is not fully finished
 
 ## Documentation
-Please check out our [documentation site.](https://docs.eyetrackvr.dev/)
-
-
+Please check out our [documentation site](https://redhawk989.github.io/EyeTrackVR/)
 
 ## Hardware
 
-3d files for mounting brackets can be found [here](https://github.com/RedHawk989/EyeTrackVR-Hardware)
-IR emitter PCB files are also located there, along with pre-soldered PCBs on the [official store](https://store.eyetrackvr.dev/). For more info, please reference our [documentation site](https://docs.eyetrackvr.dev/how_to_build/parts_list)
+3d files for mounting brackets will be found [here](https://github.com/RedHawk989/EyeTrackVR-Hardware)
+IR emitter files are also located there. For more info please reference our parts list on our [documentation site](https://redhawk989.github.io/EyeTrackVR/parts-list/)
 
+## ESP-CAM Firmware
 
-
-## ESP32 Cam Firmware
-
-Current work has been with our official firmware by `lorow` and `ZanzyTHEbar`, found [here](https://github.com/EyeTrackVR/OpenIris).
-
+Current work has been with our official firmware by `lorow`, found [here](https://github.com/lorow/OpenIris).
 
 ## Headset support
 
-Pretty much any headset that can fit the camera and LEDs can be supported. However, mounts may not have been made for it. Please reference our [parts list](https://docs.eyetrackvr.dev/how_to_build/parts_list#_3d-printed-mounts) for linked mounts and [create your own mount page](https://docs.eyetrackvr.dev/how_to_build/creating_your_own_mount) for details.
+Any headset that can fit the camera and LEDs can likely be supported, however, mounts may not have been made for it. Please reference to our [parts list](https://redhawk989.github.io/EyeTrackVR/parts-list/#other-parts) for details.
 
 
 ## About IR Emitter Safety
@@ -55,17 +47,14 @@ Please *exercise extreme caution* when messing around with IR emitters.
 The safety measures were put in place to REDUCE the potential failure risk. All further safety responsibilities are on the user.
 This includes visually checking with an IR camera that the brightness is correct and making sure you do not feel warmth.
 
-> **Warning**: Make sure you are using **NON-focused** emitters and at power less than ***5mW cm^2 total per eye***.
-Please read our LED safety page for a breakdown of math for our V3 and V4 LED kits [here](https://docs.eyetrackvr.dev/getting_started/led_safety)
+> [!WARNING]\
+> Make sure you are using **NON-focused** emitters and at around ***5ma total power per eye***.
 
-[Effect of infrared radiation on the lens](https://docs.eyetrackvr.dev/safety/effect_of_ir_on_the_lens.pdf)
+[Effect of infrared radiation on the lens](https://github.com/RedHawk989/EyeTrackVR/blob/docs/docs/Reference_Docs/saftey/effect_of_ir_on_the_lens.pdf)
 
-[Training-library Nir Stds](https://docs.eyetrackvr.dev/safety/training-library_nir_stds_20021011.pdf)
+[Training-library Nir Stds](https://github.com/RedHawk989/EyeTrackVR/blob/docs/docs/Reference_Docs/saftey/training-library_nir_stds_20021011.pdf)
 
-[AN002_Details on photobiological safety of LED light sources](https://docs.eyetrackvr.dev/safety/AN002_Details_on_photobiological_safety_of_LED_light_sources.pdf)
-
-
-
+[AN002_Details on photobiological safety of LED light sources](https://github.com/RedHawk989/EyeTrackVR/blob/docs/docs/Reference_Docs/saftey/AN002_Details_on_photobiological_safety_of_LED_light_sources.pdf)
 
 ## Contact
 
@@ -75,9 +64,8 @@ Please join our Discord for updates and any questions.
 
 ## Licenses
 
-[![GitHub license](https://img.shields.io/github/license/RedHawk989/EyeTrackVR?style=plastic)](https://github.com/RedHawk989/EyeTrackVR/blob/master/LICENSE)
+***All software is licensed under the Babble Software Distribution License 1.0 unless marked otherwise.***
 
-***All software is licensed under the Babble Software Distribution License 1.0 unless marked otherwise.
 All documentation, including the [Wiki](https://github.com/RedHawk989/EyeTrackVR/wiki), is under the Creative Commons CC-BY-SA-4.0 license***.
 
 <!-- <div align="center">

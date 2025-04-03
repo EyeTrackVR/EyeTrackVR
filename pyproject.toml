@@ -1,33 +1,49 @@
 [tool.poetry]
 name = "EyeTrackVR"
-version = "0.1.7.2"
+version = "0.2"
 description = "Opensource, affordable VR eye tracker for VRChat"
 authors = ["RedHawk989"]
-license = "MIT"
-repository = "https://github.com/RedHawk989/EyeTrackVR"
+license = "LICENSE: Babble Software Distribution License 1.0"
+repository = "https://github.com/EyeTrackVR/EyeTrackVR"
 
 [tool.poetry.dependencies]
 python = "~3.11.0"
 python-osc = "^1.8.0"
-opencv-python = "^4.6.0.66"
-numpy = "^1.23.4"
-pye3d = "^0.3.1.post1"
 requests = "^2.28.1"
+opencv-python = "^4.6.0.66"
+numpy = "~1.23.5"
+pye3d = "^0.3.2"
 pysimplegui-4-foss = "^4.6.4.1"
-pydantic = "^1.10.2"
-win10toast_click = "^0.1.2"
-beautifulsoup4 = "^4.11.1"
+pydantic = "^2.4.2"
+scikit-image = "*"
+pyserial = "^3.5"
+winotify = [ 
+    { version = "^1.1.0", platform = 'win32' }
+]
+onnxruntime = "^1.13.1"
+colorama = "^0.4.6"
+taskipy = "^1.10.4"
+pytest = "^8.0.0"
+pytest-cov = "^4.1.0"
 
 [tool.poetry.group.dev.dependencies]
 black = "^22.10.0"
 pyinstaller = "^5.6.2"
 flake8 = "^5.0.4"
 
+[tool.taskipy.tasks]
+dev = "python eyetrackapp.py"
+
+[tool.black]
+line-length = 120
+
 [build-system]
 requires = ["poetry-core>=1.0.0"]
 build-backend = "poetry.core.masonry.api"
 
-[tool.black]
-line-length = 135
-exclude = "(.git|.env|venv)"
-target-version = ["py310","py311"]
+[tool.pytest.ini_options]
+addopts = "-ra -q"
+pythonpath = "."
+python_files = [
+    "test_*.py"
+]
