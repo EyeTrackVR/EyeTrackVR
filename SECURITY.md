@@ -12,4 +12,4 @@ currently being supported with security updates.
 
 ## Reporting a Vulnerability
 
-Please report security issues to <https://redhawk989.github.io/EyeTrackVR/contact/>
+Please report security issues to <https://docs.eyetrackvr.dev/contact/>
