@@ -388,6 +388,7 @@ class CameraWidget:
                         if (
                             len(values[self.gui_camera_addr]) > 5
                             and "http" not in values[self.gui_camera_addr]
+                            and "aseevr" not in values[self.gui_camera_addr]
                             and ".mp4" not in values[self.gui_camera_addr]
                             and "/dev" not in values[self.gui_camera_addr]
                         ):  # If http is not in camera address, add it.
