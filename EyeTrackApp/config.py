@@ -165,7 +165,7 @@ class EyeTrackSettingsConfig(BaseModel):
     gui_IBO: bool = False
     gui_skip_autoradius: bool = False
     gui_thresh_add: int = 11
-    gui_update_check: bool = False
+    gui_update_check: bool = True
     gui_ROSC: bool = False
     gui_circular_crop_right: bool = False
     gui_circular_crop_left: bool = False

@@ -61,7 +61,7 @@ WINDOW_NAME = "EyeTrackApp"
 
 
 
-page_url = "https://github.com/RedHawk989/EyeTrackVR/releases/latest"
+page_url = "https://github.com/EyeTrackVR/EyeTrackVR/releases/latest"
 appversion = "EyeTrackApp 0.2.0"
 
 
@@ -232,6 +232,7 @@ def main():
         if config.settings.gui_update_check:
             response = requests.get("https://api.github.com/repos/EyeTrackVR/EyeTrackVR/releases/latest")
             latestversion = response.json()["name"]
+
             if (
                 appversion == latestversion
             ):  # If what we scraped and hardcoded versions are same, assume we are up to date.
@@ -242,7 +243,6 @@ def main():
                 )
                 try:
                     if is_nt:
-                        cwd = os.getcwd()
                         # icon = cwd + "\Images\logo.ico"
                         icon = resource_path("Images/logo.ico")
                         toast = Notification(
@@ -253,7 +253,7 @@ def main():
                         )
                         toast.add_actions(
                             label="Download Page",
-                            launch="https://github.com/RedHawk989/EyeTrackVR/releases/latest",
+                            launch="https://github.com/EyeTrackVR/EyeTrackVR/releases/latest",
                         )
                         toast.show()
                 except Exception as e:
