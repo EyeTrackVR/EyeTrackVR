@@ -74,6 +74,17 @@ def eyetrack_settings_config():
         gui_osc_vrcft_v2=False,
         gui_vrc_native=False,
         gui_pupil_dilation=True,
+
+        #MirrorTrack
+        gui_mirrortrack_enabled=False,
+        gui_mirrortrack_enable_inv=False
+        gui_mirrortrack_enable_smooth=True
+        gui_mirrortrack_select_right=False,
+        gui_mirrortrack_cycle_count_inv=15,
+        gui_mirrortrack_cycle_count_stare=10,
+        gui_mirrortrack_smooth_rate=0.2,
+        gui_mirrortrack_minthresh=0.125,
+        gui_mirrortrack_rotation_clamp=0.3,
     )
 
 

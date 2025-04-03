@@ -30,6 +30,7 @@ import time
 from enum import IntEnum
 from utils.misc_utils import PlaySound, SND_FILENAME, SND_ASYNC, resource_path
 from utils.eye_falloff import velocity_falloff
+from utils.mirrortrack import MirrorTrack
 import socket
 import struct
 import threading
@@ -39,6 +40,7 @@ import math
 from utils.calibration_3d import receive_calibration_data, converge_3d
 from utils.misc_utils import resource_path
 from pathlib import Path
+from utils.misc_utils import clamp
 
 tool = Path("Tools")
 class TimeoutError(RuntimeError):
@@ -336,7 +338,10 @@ class cal:
                 var.past_x = out_x_mult
                 var.past_y = out_y_mult
 
-            out_x, out_y = velocity_falloff(self, var, out_x, out_y)
+            if(self.settings.gui_mirrortrack_enabled):
+                out_x, out_y = MirrorTrack.process(self.eye_id, out_x, out_y)
+            else:
+                out_x, out_y = velocity_falloff(self, var, out_x, out_y)
 
             try:
                 noisy_point = np.array([float(out_x), float(out_y)])  # fliter our values with a One Euro Filter
