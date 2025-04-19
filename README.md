@@ -13,26 +13,24 @@ Picture courtesy of Wackalope#6737
       - [Contact](#contact)
 - [Licenses](#licenses)
 
-### [Documentation](https://redhawk989.github.io/EyeTrackVR/)
-
 # EyeTrackVR
 
-Open source and *affordable* VR eye tracker platform for [VRChat](https://hello.vrchat.com/) via `OSC` and `UDP` protocol.
+Source First and *affordable* VR eye tracker platform for [VRChat](https://hello.vrchat.com/) via `OSC` and `UDP` protocol.
 
 > [!IMPORTANT]\
 > This project is in active development and is not fully finished
 
 ## Documentation
-Please check out our [documentation site](https://redhawk989.github.io/EyeTrackVR/)
+Please check out our [documentation site](https://docs.eyetrackvr.dev)
 
 ## Hardware
 
-3d files for mounting brackets will be found [here](https://github.com/RedHawk989/EyeTrackVR-Hardware)
-IR emitter files are also located there. For more info please reference our parts list on our [documentation site](https://redhawk989.github.io/EyeTrackVR/parts-list/)
+3d files for mounting brackets will be found [here](https://github.com/EyeTrackVR/EyeTrackVR-Hardware)
+IR emitter files are also located there. For more info please reference our parts list on our [documentation site](https://docs.eyetrackvr.dev/how_to_build/part_list)
 
-## ESP-CAM Firmware
+## ESP32 Firmware
 
-Current work has been with our official firmware by `lorow`, found [here](https://github.com/lorow/OpenIris).
+Current work has been with our official firmware by `lorow`, found [here](https://github.com/EyeTrackVR/OpenIris).
 
 ## Headset support
 
@@ -50,11 +48,11 @@ This includes visually checking with an IR camera that the brightness is correct
 > [!WARNING]\
 > Make sure you are using **NON-focused** emitters and at around ***5ma total power per eye***.
 
-[Effect of infrared radiation on the lens](https://github.com/RedHawk989/EyeTrackVR/blob/docs/docs/Reference_Docs/saftey/effect_of_ir_on_the_lens.pdf)
+[Effect of infrared radiation on the lens](https://docs.eyetrackvr.dev/safety/effect_of_ir_on_the_lens.pdf)
 
-[Training-library Nir Stds](https://github.com/RedHawk989/EyeTrackVR/blob/docs/docs/Reference_Docs/saftey/training-library_nir_stds_20021011.pdf)
+[Training-library Nir Stds](https://docs.eyetrackvr.dev/safety/training-library_nir_stds_20021011.pdf)
 
-[AN002_Details on photobiological safety of LED light sources](https://github.com/RedHawk989/EyeTrackVR/blob/docs/docs/Reference_Docs/saftey/AN002_Details_on_photobiological_safety_of_LED_light_sources.pdf)
+[AN002_Details on photobiological safety of LED light sources](https://docs.eyetrackvr.dev/safety/AN002_Details_on_photobiological_safety_of_LED_light_sources.pdf)
 
 ## Contact
 
