@@ -64,7 +64,7 @@ Please join our Discord for updates and any questions.
 
 ***All software is licensed under the Babble Software Distribution License 1.0 unless marked otherwise.***
 
-All documentation, including the [Wiki](https://github.com/RedHawk989/EyeTrackVR/wiki), is under the Creative Commons CC-BY-SA-4.0 license***.
+All documentation, is under the Creative Commons CC-BY-SA-4.0 license***.
 
 <!-- <div align="center">
 <img src="./docs/assets/images/licenses/licenses.svg" width="300" alt="Open Licenses" />
