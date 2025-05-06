@@ -165,7 +165,7 @@ class EyeProcessor:
         self.pupil_height = 0.0
         self.avg_velocity = 0.0
         self.angle = 621
-        self.er_ahsf = None
+        self.det = PupilDetectorHaar(ratio_outer=1.4, kf=1.4)
 
 
         try:
@@ -406,16 +406,14 @@ class EyeProcessor:
             pass
 
         self.hasrac_en = True
-        (
-            self.current_image_gray,
-            resize_img,
-            self.rawx,
-            self.rawy,
-            self.radius,
-        ) = self.er_ahsf.External_Run_AHSF(self.current_image_gray)
-        self.current_image_gray_clean = resize_img.copy()
 
-        self.thresh = resize_img
+        self.current_image_gray_clean = self.current_image_gray.copy()
+        self.det.detect(self.current_image_gray)
+        cx, cy = map(int, self.det.center_fine)
+        cv2.circle(self.current_image_gray, (cx, cy), 3, (0, 0, 255), -1)
+        cv2.rectangle(self.current_image_gray, self.det.pupil_rect_fine, (0, 255, 0), 1)
+
+        self.thresh = self.current_image_gray_clean
         (
             self.rawx,
             self.rawy,
@@ -522,13 +520,11 @@ class EyeProcessor:
             )
         else:
             pass
-        (
-            self.current_image_gray,
-            resize_img,
-            self.rawx,
-            self.rawy,
-            self.radius,
-        ) =  self.er_ahsf.External_Run_AHSF(self.current_image_gray)
+
+        self.det.detect(self.current_image_gray)  # <- single call per frame
+        cx, cy = map(int, self.det.center_fine)       # fine centre (upsampled)
+        cv2.circle(self.current_image_gray, (cx, cy), 3, (0, 0, 255), -1)
+        cv2.rectangle(self.current_image_gray, self.det.pupil_rect_fine, (0, 255, 0), 1)
         self.thresh = self.current_image_gray
         self.out_x, self.out_y, self.avg_velocity = cal.cal_osc(self, self.rawx, self.rawy, self.angle)
         self.current_algorithm = EyeInfoOrigin.HSF
@@ -603,13 +599,9 @@ class EyeProcessor:
 
         # set algo priorities
         if self.settings.gui_AHSFRAC:
-            if self.er_ahsf is None:
-                self.er_ahsf = AHSF(self.current_image_gray)
             algolist[self.settings.gui_AHSFRACP] = self.AHSFRACM
 
         if self.settings.gui_AHSF:
-            if self.er_ahsf is None:
-                self.er_ahsf = AHSF(self.current_image_gray)
             algolist[self.settings.gui_AHSFP] = self.AHSFM
 
         if self.settings.gui_HSF:
