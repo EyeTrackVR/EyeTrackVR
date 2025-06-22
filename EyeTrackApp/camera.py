@@ -70,8 +70,9 @@ def is_serial_capture_source(addr: str) -> bool:
     """
     Returns True if the capture source address is a serial port.
     """
+    addr_upper = addr.upper()
     return (
-        addr.startswith("COM") or addr.startswith("/dev/cu") or addr.startswith("/dev/tty")  # Windows  # macOS  # Linux
+        addr_upper.startswith("COM") or addr.startswith("/dev/cu") or addr.startswith("/dev/tty") # Windows  # macOS  # Linux
     )
 
 
