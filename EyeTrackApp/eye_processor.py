@@ -238,7 +238,7 @@ class EyeProcessor:
                 borderValue=(255, 255, 255),
             )
 
-            inv_matrix = np.linalg.inv(np.vstack((matrix, [0, 0, 1])))[:-1]
+            inv_matrix = cv2.invertAffineTransform(matrix)
             # calculate crop corner locations in original image space
             corners = np.matmul([[0, 0, 1], [roi_w, 0, 1], [0, roi_h, 1], [roi_w, roi_h, 1]], np.transpose(inv_matrix))
             fits_in_bounds = all(0 <= x <= img_w and 0 <= y <= img_h for (x, y) in corners)
