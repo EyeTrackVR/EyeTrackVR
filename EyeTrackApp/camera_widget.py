@@ -38,7 +38,6 @@ from osc.OSCMessage import OSCMessageType, OSCMessage
 from utils.misc_utils import PlaySound, SND_FILENAME, SND_ASYNC, resource_path
 import numpy as np
 
-
 # for clarity when indexing
 X = 0
 Y = 1
@@ -86,8 +85,8 @@ class CameraWidget:
         # Set the event until start is called, otherwise we can block if shutdown is called.
         self.cancellation_event.set()
         self.capture_event = Event()
-        self.capture_queue = Queue()
-        self.roi_queue = Queue()
+        self.capture_queue = Queue(maxsize=5)
+        self.roi_queue = Queue(maxsize=5)
 
         self.image_queue = Queue()
 
@@ -133,6 +132,9 @@ class CameraWidget:
         self.in_roi_mode = False
         self.movavg_fps_queue = deque(maxlen=120)
         self.movavg_bps_queue = deque(maxlen=120)
+        self.last_roi_shape = None
+        self.last_roi_rotation = -1
+        self.roi_transform_matrix = None
 
     def get_widget_layout(self):
         self.widget_layout = [
@@ -370,6 +372,48 @@ class CameraWidget:
         if osc_message.data:
             self.recalibrate_eyes()
 
+    def _update_roi_transform(self, image_shape):
+        """
+        Recalculates the affine transformation matrix for ROI mode only when
+        the image shape or rotation angle has changed.
+        """
+        # Exit early if no change has occurred
+        if self.last_roi_shape == image_shape and self.last_roi_rotation == self.config.rotation_angle:
+            return
+
+        img_h, img_w, _ = image_shape
+        rotation_angle = self.config.rotation_angle
+        center_x, center_y = img_w / 2, img_h / 2
+
+        # Get the base rotation matrix
+        matrix = cv2.getRotationMatrix2D((center_x, center_y), rotation_angle, 1.0)
+
+        # Calculate the bounding box of the rotated image to determine the new canvas size
+        cos_abs = abs(matrix[0, 0])
+        sin_abs = abs(matrix[0, 1])
+        clip_w = int(img_h * sin_abs + img_w * cos_abs)
+        clip_h = int(img_h * cos_abs + img_w * sin_abs)
+        self.clip_size = np.array([clip_w, clip_h])
+
+        if self.config.gui_rotation_ui_padding:
+            hyp = math.ceil((img_w ** 2 + img_h ** 2) ** 0.5)
+            self.padded_size = np.array([hyp, hyp], dtype=np.int32)
+        else:
+            self.padded_size = self.clip_size.astype(np.int32)
+
+        # Adjust the matrix to account for the new padded size, centering the image
+        matrix[0, 2] += (self.padded_size[X] / 2) - center_x
+        matrix[1, 2] += (self.padded_size[Y] / 2) - center_y
+
+        # Cache the calculated values
+        self.roi_transform_matrix = matrix
+        self.img_pos = ((self.padded_size - (img_w, img_h)) / 2).astype(np.int32)
+        self.roi_image_center = self.padded_size / 2
+        self.last_roi_shape = image_shape
+        self.last_roi_rotation = rotation_angle
+        self.cartesian_needs_update = True  # Flag that the ROI box needs recalculating
+
+
     def render(self, window, event, values):
         changed = False
 
@@ -417,6 +461,8 @@ class CameraWidget:
                 self.get_tracking_layout()
                 print("\033[94m[INFO] Moving to tracking mode\033[0m")
                 self.in_roi_mode = False
+                self.capture_queue.empty()
+                self.roi_queue.empty()
                 self.camera.set_output_queue(self.capture_queue)
                 window[self.gui_roi_layout].update(visible=False)
                 window[self.gui_tracking_layout].update(visible=True)
@@ -425,6 +471,8 @@ class CameraWidget:
                 self.get_roi_layout()
                 print("\033[94m[INFO] Move to roi mode\033[0m")
                 self.in_roi_mode = True
+                self.capture_queue.empty()
+                self.roi_queue.empty()
                 self.camera.set_output_queue(self.roi_queue)
                 window[self.gui_roi_layout].update(visible=True)
                 window[self.gui_tracking_layout].update(visible=False)
@@ -515,81 +563,47 @@ class CameraWidget:
 
             if self.in_roi_mode:
                 try:
+                    # If the queue is empty, signal the camera thread to send another frame.
                     if self.roi_queue.empty():
                         self.capture_event.set()
+
+                    # Get the latest frame from the queue without blocking.
                     maybe_image = self.roi_queue.get(block=False)
+                    image = maybe_image[0]
 
-                    if maybe_image:
-                        image = maybe_image[0]
+                    self._update_roi_transform(image.shape)
 
-                        img_h, img_w, _ = image.shape
+                    # Apply the pre-calculated transformation matrix on every frame.
+                    # This is much faster than recalculating the matrix each time.
+                    rotated_image = cv2.warpAffine(
+                        image,
+                        self.roi_transform_matrix,
+                        (self.padded_size[X], self.padded_size[Y]),
+                        borderMode=cv2.BORDER_CONSTANT,
+                        borderValue=(128, 128, 128),
+                    )
 
-                        hyp = math.ceil((img_w**2 + img_h**2) ** 0.5)
-                        rotation_matrix = cv2.getRotationMatrix2D(
-                            ((img_w / 2), (img_h / 2)), self.config.rotation_angle, 1
-                        )
-
-                        # calculate position of all four corners of image
-
-                        # calculate crop corner locations in original image space
-                        x_coords, y_coords = np.matmul(
-                            rotation_matrix,
-                            np.transpose([[0, 0, 1], [img_w, 0, 1], [0, img_h, 1], [img_w, img_h, 1]]),
-                        )
-
-                        self.clip_size = np.array(
-                            [math.ceil(max(x_coords) - min(x_coords)), math.ceil(max(y_coords) - min(y_coords))]
-                        )
-                        if self.config.gui_rotation_ui_padding:
-                            self.padded_size = np.array([hyp, hyp])
-
-                        else:
-                            self.padded_size = self.clip_size
-
-                        self.img_pos = ((self.padded_size - (img_w, img_h)) / 2).astype(np.int32)
-
-                        self.clip_pos = ((self.padded_size - self.clip_size) / 2).astype(np.int32)
-
-                        self.roi_image_center = self.padded_size / 2
-
-                        # deferred to after roi_image_center is updated
-                        if self.cartesian_needs_update:
-                            self._polar_to_cartesian()
-                            self.cartesian_needs_update = False
-
-                        pad_matrix = np.float32([[1, 0, self.img_pos[X]], [0, 1, self.img_pos[Y]], [0, 0, 1]])
-                        rotation_matrix_padded = cv2.getRotationMatrix2D(
-                            self.roi_image_center, self.config.rotation_angle, 1
-                        )
-                        matrix = np.matmul(rotation_matrix_padded, pad_matrix)
-
-                        image = cv2.warpAffine(
-                            image,
-                            matrix,
-                            self.padded_size,
-                            borderMode=cv2.BORDER_CONSTANT,
-                            borderValue=(128, 128, 128),
-                        )
-
-                        maybe_image = (image, *maybe_image[1:])
-
-                    imgbytes = cv2.imencode(".ppm", maybe_image[0])[1].tobytes()
+                    imgbytes = cv2.imencode(".ppm", rotated_image)[1].tobytes()
                     graph = window[self.gui_roi_selection]
-                    # INCREDIBLY IMPORTANT ERASE. Drawing images does NOT overwrite the buffer, the fucking
-                    # graph keeps every image fed in until you call this. Therefore we have to make sure we
-                    # erase before we redraw, otherwise we'll leak memory *very* quickly.
+
+                    # Erase the previous frame and draw the new one. VERY IMPORTANT
                     graph.erase()
                     graph.draw_image(data=imgbytes, location=(0, 0))
 
+                    # If the transform was updated, we must also update the ROI box's cartesian coordinates.
+                    if self.cartesian_needs_update:
+                        self._polar_to_cartesian()
+                        self.cartesian_needs_update = False
+
+                    # Helper function to draw dashed lines for the UI.
                     def make_dashed(spawn_item, dark="#000000", light="#ffffff", duty=1):
                         pixel_duty = math.floor(4 * duty)
                         for (color, dashoffset) in [(dark, 0), (light, 4)]:
                             item = spawn_item(color)
                             graph._TKCanvas2.itemconfig(item, dash=(pixel_duty, 8 - pixel_duty), dashoffset=dashoffset)
 
+                    # Initialize the ROI selection box if it doesn't exist.
                     if self.xy0 is None or self.xy1 is None:
-                        # roi_window rotates around roi center, we rotate around image center
-                        # TODO: it would be nice if they were more consistent
                         roi_window_pos = (self.config.roi_window_x, self.config.roi_window_y)
                         roi_window_size = (self.config.roi_window_w, self.config.roi_window_h)
                         self.xy0 = roi_window_pos + self.img_pos
@@ -598,6 +612,7 @@ class CameraWidget:
                         self.ca -= math.radians(self.config.rotation_angle)
                         self._polar_to_cartesian()
 
+                    # Style and draw the ROI selection rectangle.
                     style = {}
                     if self.is_mouse_up:
                         style = {"dark": "#7f78ff", "light": "#d002ff", "duty": 0.5}
@@ -609,6 +624,8 @@ class CameraWidget:
                         ),
                         **style,
                     )
+
+                    # Draw the crosshairs when hovering with the mouse.
                     if self.is_mouse_up and self.hover_pos is not None:
                         make_dashed(
                             lambda color: graph.draw_line(
@@ -622,7 +639,10 @@ class CameraWidget:
                         )
 
                 except Empty:
+                    # This is expected if the GUI loop is faster than the camera frame rate.
+                    # Simply skip this iteration and wait for the next frame.
                     pass
+
             else:
                 if needs_roi_set:
                     window[self.gui_roi_message].update(visible=True)

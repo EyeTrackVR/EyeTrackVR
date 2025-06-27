@@ -75,7 +75,6 @@ def is_serial_capture_source(addr: str) -> bool:
         addr_upper.startswith("COM") or addr.startswith("/dev/cu") or addr.startswith("/dev/tty") # Windows  # macOS  # Linux
     )
 
-
 class Camera:
     def __init__(
         self,
@@ -84,7 +83,7 @@ class Camera:
         cancellation_event: "threading.Event",
         capture_event: "threading.Event",
         camera_status_outgoing: "queue.Queue[CameraState]",
-        camera_output_outgoing: "queue.Queue(maxsize=20)",
+        camera_output_outgoing: "queue.Queue(maxsize=5)",
     ):
 
         self.camera_status = CameraState.CONNECTING
@@ -257,6 +256,8 @@ class Camera:
         jpeg = self.buffer[beg + ETVR_HEADER_LEN : end + ETVR_HEADER_LEN]
         self.buffer = self.buffer[end + ETVR_HEADER_LEN :]
         return jpeg
+
+
 
     def get_serial_camera_picture(self, should_push):
         conn = self.serial_connection
