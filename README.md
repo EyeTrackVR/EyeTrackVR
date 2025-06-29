@@ -34,7 +34,7 @@ Current work has been with our official firmware by `lorow`, found [here](https:
 
 ## Headset support
 
-Any headset that can fit the camera and LEDs can likely be supported, however, mounts may not have been made for it. Please reference to our [parts list](https://redhawk989.github.io/EyeTrackVR/parts-list/#other-parts) for details.
+Any headset that can fit the camera and LEDs can likely be supported, however, mounts may not have been made for it. Please reference to our [parts list](https://docs.eyetrackvr.dev/how_to_build/part_list) for details.
 
 
 ## About IR Emitter Safety
