@@ -12,6 +12,7 @@ class GeneralSettingsValidationModel(BaseValidationModel):
     gui_right_eye_dominant: bool
     gui_left_eye_dominant: bool
     gui_eye_dominant_diff_thresh: float
+    gui_sync_eye_y: bool
 
 
 class GeneralSettingsModule(BaseSettingsModule):
@@ -26,6 +27,7 @@ class GeneralSettingsModule(BaseSettingsModule):
         self.gui_left_eye_dominant = f"-LEFTEYEDOMINANT{widget_id}-"
         self.gui_right_eye_dominant = f"-RIGHTEYEDOMINANT{widget_id}-"
         self.gui_update_check = f"-UPDATECHECK{widget_id}-"
+        self.gui_sync_eye_y = f"-SYNCEYEY{widget_id}-"
 
     # gui_right_eye_dominant: bool = False
     # gui_left_eye_dominant: bool = False
@@ -101,6 +103,15 @@ class GeneralSettingsModule(BaseSettingsModule):
                     key=self.gui_right_eye_dominant,
                     background_color="#424042",
                     tooltip="If one eye is too different than the other, use right eye data",
+                ),
+            ],
+            [
+                sg.Checkbox(
+                    "Sync Eye Y",
+                    default=self.config.gui_sync_eye_y,
+                    key=self.gui_sync_eye_y,
+                    background_color="#424042",
+                    tooltip="Synchronizes the Y axis between both eyes using the average of both eyes if no dominant eye is set, or the dominant eye's Y position if one is set.",
                 ),
             ],
         ]

@@ -66,6 +66,7 @@ def eyetrack_settings_config():
         gui_left_eye_dominant=False,
         gui_outer_side_falloff=False,
         gui_eye_dominant_diff_thresh=0.3,
+        gui_sync_eye_y=False,
         gui_legacy_ransac=False,
         gui_legacy_ransac_thresh_right=80,
         gui_legacy_ransac_thresh_left=80,

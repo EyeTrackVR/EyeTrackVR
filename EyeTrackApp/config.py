@@ -60,7 +60,6 @@ class EyeTrackCameraConfig(BaseModel):
     leap_calibration_percentile_2: float = 0
     leap_calibrated: bool = False
 
-
     def update_capture_source(self, new_camera_address: str):
         if not new_camera_address:
             self.capture_source = None
@@ -189,6 +188,7 @@ class EyeTrackSettingsConfig(BaseModel):
     gui_left_eye_dominant: bool = False
     gui_outer_side_falloff: bool = False
     gui_eye_dominant_diff_thresh: float = 0.3
+    gui_sync_eye_y: bool = False
 
     gui_legacy_ransac: bool = False
     gui_legacy_ransac_thresh_right: int = 80
