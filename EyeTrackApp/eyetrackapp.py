@@ -30,6 +30,7 @@ import queue
 import requests
 import threading
 from camera_widget import CameraWidget
+from bsb_camera_widget import BSBCameraWidget
 from config import EyeTrackConfig
 from eye import EyeId
 from settings.VRCFTModuleSettings import VRCFTSettingsWidget
@@ -62,7 +63,7 @@ WINDOW_NAME = "EyeTrackApp"
 
 
 page_url = "https://github.com/EyeTrackVR/EyeTrackVR/releases/latest"
-appversion = "EyeTrackApp 0.2.4"
+appversion = "EyeTrackApp 0.2.5"
 
 
 class KeyManager:
@@ -83,6 +84,7 @@ class KeyManager:
         self.ALGO_SETTINGS_RADIO_NAME = f"-ALGOSETTINGSRADIO{unique_id}-"
         self.VRCFT_MODULE_SETTINGS_RADIO_NAME = f"-VRCFTSETTINGSRADIO{unique_id}-"
         self.GUIOFF_RADIO_NAME = f"-GUIOFF{unique_id}-"
+        self.BSB2E_RADIO_NAME = f"-BSB2ERADIO{unique_id}-"
 
 # Create an instance of the KeyManager
 key_manager = KeyManager()
@@ -116,6 +118,13 @@ def create_window(config, settings, eyes):
                 background_color="#292929",
                 default=(config.eye_display_id == EyeId.BOTH),
                 key=key_manager.BOTH_EYE_RADIO_NAME,
+            ),
+            sg.Radio(
+                "Beyond 2e",
+                "EYESELECTRADIO",
+                background_color="#292929",
+                default=(config.eye_display_id == EyeId.BSB2E),
+                key=key_manager.BSB2E_RADIO_NAME,
             ),
             sg.Radio(
                 "Settings",
@@ -158,6 +167,13 @@ def create_window(config, settings, eyes):
                 background_color="#424042",
             ),
             sg.Column(
+                eyes[2].widget_layout,
+                vertical_alignment="top",
+                key=key_manager.BSB2E_RADIO_NAME,
+                visible=(config.eye_display_id in [EyeId.BSB2E]),
+                background_color="#424042",
+            ),
+            sg.Column(
                 settings[0].get_layout(),
                 vertical_alignment="top",
                 key=key_manager.SETTINGS_NAME,
@@ -191,6 +207,8 @@ def create_window(config, settings, eyes):
     ]
 
 
+    if config.eye_display_id in [EyeId.BSB2E]:
+        eyes[2].start()
     if config.eye_display_id in [EyeId.LEFT, EyeId.BOTH]:
         eyes[1].start()
     if config.eye_display_id in [EyeId.RIGHT, EyeId.BOTH]:
@@ -268,6 +286,7 @@ def main():
     eyes = [
         CameraWidget(EyeId.RIGHT, config, osc_queue),
         CameraWidget(EyeId.LEFT, config, osc_queue),
+        BSBCameraWidget(EyeId.BSB2E, config, osc_queue),
     ]
 
     settings = [
@@ -283,12 +302,14 @@ def main():
     config.register_listener_callback(osc_manager.update)
     config.register_listener_callback(eyes[0].on_config_update)
     config.register_listener_callback(eyes[1].on_config_update)
+    config.register_listener_callback(eyes[2].on_config_update)
 
     osc_manager.register_listeners(
         config.settings.gui_osc_recenter_address,
         [
             eyes[0].osc_recenter_eyes,
             eyes[1].osc_recenter_eyes,
+            eyes[2].osc_recenter_eyes,
         ],
     )
     osc_manager.register_listeners(
@@ -296,6 +317,7 @@ def main():
         [
             eyes[0].osc_recalibrate_eyes,
             eyes[1].osc_recalibrate_eyes,
+            eyes[2].osc_recalibrate_eyes,
         ],
     )
 
@@ -339,12 +361,13 @@ def main():
 
             # If we're in either mode and someone hits q, quit immediately
             if event in ("Exit", sg.WIN_CLOSED) and not config.settings.gui_disable_gui:
+                print("\033[94m[INFO] Exiting EyeTrackApp\033[0m")
                 for eye in eyes:
                     eye.stop()
                 cancellation_event.set()
                 osc_manager.shutdown()
                 timerResolution(False)
-                print("\033[94m[INFO] Exiting EyeTrackApp\033[0m")
+
                 window.close()
                 os._exit(0)  # I do not like this, but for now this fixes app hang on close
                 return
@@ -372,6 +395,7 @@ def main():
                 config.settings.gui_disable_gui = False
                 eyes[0].start()
                 eyes[1].stop()
+                eyes[2].stop()
                 settings[0].stop()
                 settings[1].stop()
                 settings[2].stop()
@@ -380,6 +404,7 @@ def main():
                 window[key_manager.SETTINGS_NAME].update(visible=False)
                 window[key_manager.VRCFT_MODULE_SETTINGS_NAME].update(visible=False)
                 window[key_manager.ALGO_SETTINGS_NAME].update(visible=False)
+                window[key_manager.BSB2E_RADIO_NAME].update(visible=False)
                 config.eye_display_id = EyeId.RIGHT
                 config.settings.tracker_single_eye = 2
                 config.save()
@@ -391,11 +416,13 @@ def main():
                 settings[2].stop()
                 eyes[0].stop()
                 eyes[1].start()
+                eyes[2].stop()
                 window[key_manager.RIGHT_EYE_NAME].update(visible=False)
                 window[key_manager.LEFT_EYE_NAME].update(visible=True)
                 window[key_manager.SETTINGS_NAME].update(visible=False)
                 window[key_manager.VRCFT_MODULE_SETTINGS_NAME].update(visible=False)
                 window[key_manager.ALGO_SETTINGS_NAME].update(visible=False)
+                window[key_manager.BSB2E_RADIO_NAME].update(visible=False)
                 config.eye_display_id = EyeId.LEFT
                 config.settings.tracker_single_eye = 1
                 config.save()
@@ -407,11 +434,13 @@ def main():
                 settings[2].stop()
                 eyes[1].start()
                 eyes[0].start()
+                eyes[2].stop()
                 window[key_manager.LEFT_EYE_NAME].update(visible=True)
                 window[key_manager.RIGHT_EYE_NAME].update(visible=True)
                 window[key_manager.SETTINGS_NAME].update(visible=False)
                 window[key_manager.VRCFT_MODULE_SETTINGS_NAME].update(visible=False)
                 window[key_manager.ALGO_SETTINGS_NAME].update(visible=False)
+                window[key_manager.BSB2E_RADIO_NAME].update(visible=False)
                 config.eye_display_id = EyeId.BOTH
                 config.settings.tracker_single_eye = 0
                 config.save()
@@ -420,6 +449,7 @@ def main():
                 config.settings.gui_disable_gui = False
                 eyes[0].stop()
                 eyes[1].stop()
+                eyes[2].stop()
                 settings[1].stop()
                 settings[0].start()
                 settings[2].stop()
@@ -428,6 +458,7 @@ def main():
                 window[key_manager.SETTINGS_NAME].update(visible=True)
                 window[key_manager.VRCFT_MODULE_SETTINGS_NAME].update(visible=False)
                 window[key_manager.ALGO_SETTINGS_NAME].update(visible=False)
+                window[key_manager.BSB2E_RADIO_NAME].update(visible=False)
                 config.eye_display_id = EyeId.SETTINGS
                 config.save()
 
@@ -435,6 +466,7 @@ def main():
                 config.settings.gui_disable_gui = False
                 eyes[0].stop()
                 eyes[1].stop()
+                eyes[2].stop()
                 settings[0].stop()
                 settings[1].start()
                 settings[2].stop()
@@ -443,6 +475,7 @@ def main():
                 window[key_manager.SETTINGS_NAME].update(visible=False)
                 window[key_manager.VRCFT_MODULE_SETTINGS_NAME].update(visible=False)
                 window[key_manager.ALGO_SETTINGS_NAME].update(visible=True)
+                window[key_manager.BSB2E_RADIO_NAME].update(visible=False)
                 config.eye_display_id = EyeId.ALGOSETTINGS
                 config.save()
 
@@ -450,6 +483,7 @@ def main():
                 config.settings.gui_disable_gui = False
                 eyes[0].stop()
                 eyes[1].stop()
+                eyes[2].stop()
                 settings[0].stop()
                 settings[1].stop()
                 settings[2].start()
@@ -458,10 +492,33 @@ def main():
                 window[key_manager.SETTINGS_NAME].update(visible=False)
                 window[key_manager.VRCFT_MODULE_SETTINGS_NAME].update(visible=True)
                 window[key_manager.ALGO_SETTINGS_NAME].update(visible=False)
+                window[key_manager.BSB2E_RADIO_NAME].update(visible=False)
                 config.eye_display_id = EyeId.VRCFTMODULESETTINGS
                 config.save()
-            else:
 
+            elif values[key_manager.BSB2E_RADIO_NAME] and config.eye_display_id != EyeId.BSB2E:
+
+                config.settings.gui_disable_gui = False
+                settings[0].stop()
+                settings[1].stop()
+                settings[2].stop()
+                eyes[1].stop()
+                eyes[0].stop()
+                eyes[2].start()
+                window[key_manager.LEFT_EYE_NAME].update(visible=False)
+                window[key_manager.RIGHT_EYE_NAME].update(visible=False)
+                window[key_manager.BSB2E_RADIO_NAME].update(visible=True)
+                window[key_manager.SETTINGS_NAME].update(visible=False)
+                window[key_manager.VRCFT_MODULE_SETTINGS_NAME].update(visible=False)
+                window[key_manager.ALGO_SETTINGS_NAME].update(visible=False)
+                config.eye_display_id = EyeId.BSB2E
+                config.settings.tracker_single_eye = 0
+                config.save()
+
+
+
+
+            else:
                 # Otherwise, render all
                 for eye in eyes:
                     if eye.started():
@@ -486,6 +543,9 @@ def main():
                 config.save()
                 window.close()
                 break
+
+
+
 
 if __name__ == "__main__":
     main()

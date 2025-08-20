@@ -222,6 +222,7 @@ class EyeTrackConfig(BaseModel):
     version: int = 1
     right_eye: EyeTrackCameraConfig = EyeTrackCameraConfig()
     left_eye: EyeTrackCameraConfig = EyeTrackCameraConfig()
+    bsb2e: EyeTrackCameraConfig = EyeTrackCameraConfig() # should we do independent per bsb eye?
     settings: EyeTrackSettingsConfig = EyeTrackSettingsConfig()
     eye_display_id: EyeId = EyeId.RIGHT
     __listeners = []
