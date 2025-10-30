@@ -174,8 +174,14 @@ def overlay_calibrate_3d(self):
 
 class cal:
     def cal_osc(self, cx, cy, angle):
+        if self.config.calib_evecs is not None and self.config.calib_XOFF != None:
+            self.cal.init_from_save(self.config.calib_evecs, self.config.calib_axes)
 
-        # print(self.eye_id)
+
+        else:
+            if self.printcal:
+                print("\033[91m[ERROR] Please Calibrate Eye(s).\033[0m")
+                self.printcal = False
 
         if cx == None or cy == None:
             return 0, 0
@@ -193,15 +199,12 @@ class cal:
             self.calibration_frame_counter = None
             self.config.calib_XOFF = cx
             self.config.calib_YOFF = cy
+            self.config.calib_evecs, self.config.calib_axes = self.cal.fit_ellipse()
             self.baseconfig.save()
-            self.cal.fit_ellipse()
+
             PlaySound(resource_path("Audio/completed.wav"), SND_FILENAME | SND_ASYNC)
 
         if self.calibration_frame_counter == self.settings.calibration_samples:
-            self.config.calib_XMAX = -69420
-            self.config.calib_XMIN = 69420
-            self.config.calib_YMAX = -69420
-            self.config.calib_YMIN = 69420
             self.blink_clear = True
             self.calibration_frame_counter -= 1
         elif self.calibration_frame_counter != None:
@@ -230,6 +233,7 @@ class cal:
 
         out_x = 0.5
         out_y = 0.5
+
 
 
         out_x, out_y = self.cal.normalize((cx, cy), (self.config.calib_XOFF, self.config.calib_YOFF))
@@ -270,3 +274,5 @@ class cal:
             pass
 
         return out_x, out_y, var.average_velocity
+
+

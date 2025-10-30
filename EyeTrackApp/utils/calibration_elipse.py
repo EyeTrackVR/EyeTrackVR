@@ -27,14 +27,19 @@ class CalibrationEllipse:
     def set_inset_percent(self, percent_smaller=0.0):
         clamped_percent = np.clip(percent_smaller, 0.0, 100.0)
         self.scale_factor = 1.0 - (clamped_percent / 100.0)
-        print(f"Set inset to {clamped_percent}%. New scale_factor: {self.scale_factor}")
+     #   print(f"Set inset to {clamped_percent}%. New scale_factor: {self.scale_factor}")
+
+    def init_from_save(self, evecs, axes):
+        self.evecs = np.asarray(evecs, dtype=float)
+        self.axes = np.asarray(axes, dtype=float)
+        self.fitted = True
 
     def fit_ellipse(self):
         N = len(self.xs)
         if N < 2:
             print("Warning: Need >= 2 samples to fit PCA. Fit failed.")
             self.fitted = False
-            return
+            return 0,0
 
         points = np.column_stack([self.xs, self.ys])
         self.center = np.mean(points, axis=0)
@@ -45,9 +50,9 @@ class CalibrationEllipse:
         try:
             evals_cov, evecs_cov = np.linalg.eigh(cov)
         except np.linalg.LinAlgError as e:
-            print(f"PCA Eigen-decomposition failed: {e}")
+   #         print(f"PCA Eigen-decomposition failed: {e}")
             self.fitted = False
-            return
+            return 0,0
 
         # Sort eigenvectors by alignment with screen axes (X, Y), not by magnitude
         # evecs_cov[:, 0] is eigenvector for first eigenvalue, evecs_cov[:, 1] for second
@@ -76,10 +81,14 @@ class CalibrationEllipse:
         self.rotation = np.arctan2(major_vec[1], major_vec[0])
 
         self.fitted = True
-        print(f"Ellipse fitted: center={self.center}, axes={self.axes}, rotation={np.degrees(self.rotation):.1f}°")
+        return self.evecs.T, self.axes
+
+
+        # Scale by ellipse axes (with scale factor for margins)
+        scaled_axes = self.axe
+    #    print(f"Ellipse fitted: center={self.center}, axes={self.axes}, rotation={np.degrees(self.rotation):.1f}°")
 
     def fit_and_visualize(self):
-        """Fit and plot the ellipse with calibration samples"""
         plt.figure(figsize=(10, 8))
         plt.plot(self.xs, self.ys, 'k.', label='Calibration Samples', alpha=0.5, markersize=8)
         plt.axis('equal')
@@ -121,7 +130,7 @@ class CalibrationEllipse:
 
     def normalize(self, pupil_pos, target_pos=None, clip=True):
         if not self.fitted:
-            print("ERROR: Ellipse not fitted yet. Call fit_ellipse() first.")
+        #    print("ERROR: Ellipse not fitted yet. Call fit_ellipse() first.")
             return 0.0, 0.0
 
         # Current pupil position
