@@ -158,6 +158,68 @@ class PupilDetectorHaar:
         self._img_boundary = (0, 0, 0, 0)
         self._init_rect_down = (0, 0, 0, 0)
 
+    def detect_etvr(self, img_gray) -> Tuple[np.ndarray, np.ndarray, float, float, float]:
+        """
+        Runs the full detection and returns a visualized image and ETVR-specific data.
+
+        Args:
+            img_gray: The input grayscale image (uint8).
+
+        Returns:
+            A tuple containing:
+            - vis_img (np.ndarray): The original image with visualizations drawn on it (BGR).
+            - resize_img (np.ndarray): The downscaled image used for processing.
+            - rawx (float): The final X coordinate of the pupil center.
+            - rawy (float): The final Y coordinate of the pupil center.
+            - radius (float): The calculated average radius of the final pupil rectangle.
+        """
+
+        # 1. Run the main detection.
+        # This populates all internal class attributes:
+        # self.pupil_rect_fine, self.center_fine,
+        # self.pupil_rect_coarse, self.outer_rect_coarse,
+        # and self._ratio_down. It also increments self.frame_num.
+        self.detect(img_gray)
+
+        # 2. Get the downscaled image.
+        # We call _preprocess again. This is slightly inefficient but
+        # avoids refactoring detect(). It will correctly use the
+        # self.frame_num that detect() just set.
+        resize_img = img_gray
+
+        # 3. Get the final data from class attributes
+        rawx, rawy = self.center_fine
+        px, py, pw, ph = self.pupil_rect_fine
+
+        # Calculate an average radius from the fine rect's width and height
+        radius = (pw + ph) / 4.0
+
+        # 4. Create the visualization image
+        # Convert the original grayscale image to BGR for color drawing
+        vis_img = cv2.cvtColor(img_gray, cv2.COLOR_GRAY2BGR)
+
+        # Draw coarse pupil rect (Green)
+        x, y, w, h = self.pupil_rect_coarse
+        if w > 0 and h > 0:
+            cv2.rectangle(vis_img, (x, y), (x + w, y + h), (0, 255, 0), 1)
+
+        # Draw coarse outer rect (Yellow)
+        x, y, w, h = self.outer_rect_coarse
+        if w > 0 and h > 0:
+            cv2.rectangle(vis_img, (x, y), (x + w, y + h), (0, 255, 255), 1)
+
+        # Draw fine pupil rect (Red)
+        x, y, w, h = self.pupil_rect_fine
+        if w > 0 and h > 0:
+            cv2.rectangle(vis_img, (x, y), (x + w, y + h), (0, 0, 255), 1)
+
+        # Draw fine center (Red)
+        cv2.circle(vis_img, (int(round(rawx)), int(round(rawy))), 3, (0, 0, 255), -1)
+
+        vis_img = cv2.cvtColor(vis_img, cv2.COLOR_BGR2GRAY)
+        # 5. Return the requested 5-tuple
+        return vis_img, resize_img, rawx, rawy, radius
+
     def detect(self, img_gray: np.ndarray) -> Tuple[Tuple[int, int, int, int], Tuple[float, float]]:
         if img_gray.dtype != np.uint8:
             raise TypeError("img_gray must be uint8 [0,255]")

@@ -194,7 +194,7 @@ class cal:
             self.config.calib_XOFF = cx
             self.config.calib_YOFF = cy
             self.baseconfig.save()
-            self.cal.fit_and_visualize()
+            self.cal.fit_ellipse()
             PlaySound(resource_path("Audio/completed.wav"), SND_FILENAME | SND_ASYNC)
 
         if self.calibration_frame_counter == self.settings.calibration_samples:
