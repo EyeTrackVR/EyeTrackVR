@@ -36,6 +36,8 @@ from config import EyeTrackConfig
 from osc.OSCMessage import OSCMessage, OSCMessageType
 from osc.VRCFTModuleMessenger import VRCFTModuleSender
 from osc.VRChatOSCSender import VRChatOSCSender
+from osc.osc_csv_reader import CSVLogger
+from eye import EyeId
 import queue
 import threading
 
@@ -128,9 +130,13 @@ class OSCSender:
         self.config = main_config.settings
         self.vrc_sender = VRChatOSCSender()
         self.module_sender = VRCFTModuleSender()
+        self.csv_loggers: Dict[EyeId, CSVLogger] = {}
 
         self.vrc_client = None
         self.vrcft_client = None
+
+    def add_csv_logger(self, eye_id: EyeId, logger: CSVLogger):
+        self.csv_loggers[eye_id] = logger
 
     def run(self):
         self.vrc_client = udp_client.SimpleUDPClient(self.config.gui_osc_address, int(self.config.gui_osc_port))
@@ -154,6 +160,21 @@ class OSCSender:
                             main_config=self.main_config,
                             config=self.config,
                         )
+                        # CSV logging based on current eye display mode
+                        eye_side = osc_message.eye_id
+                        
+                        # Log to the specific eye's logger if it exists and is recording
+                        if eye_side in self.csv_loggers:
+                            logger = self.csv_loggers[eye_side]
+                            if logger.is_recording and osc_message.eye_info is not None:
+                                logger.log_eye_data(eye_side, osc_message.eye_info)
+                        
+                        # If we're in BOTH mode, also log to the BOTH logger
+                        if self.main_config.eye_display_id == EyeId.BOTH:
+                            if EyeId.BOTH in self.csv_loggers:
+                                both_logger = self.csv_loggers[EyeId.BOTH]
+                                if both_logger.is_recording and osc_message.eye_info is not None:
+                                    both_logger.log_eye_data(eye_side, osc_message.eye_info)
                     case OSCMessageType.VRCFT_MODULE_INFO:
                         self.module_sender.send(osc_message=osc_message, client=self.vrcft_client)
                     case _:

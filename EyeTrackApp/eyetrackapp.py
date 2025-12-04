@@ -36,6 +36,7 @@ from settings.VRCFTModuleSettings import VRCFTSettingsWidget
 from settings.general_settings_widget import SettingsWidget
 from settings.algo_settings_widget import AlgoSettingsWidget
 from osc.osc import OSCManager
+from osc.osc_csv_reader import CSVLogger
 from osc.OSCMessage import OSCMessage
 from utils.misc_utils import is_nt, resource_path
 import cv2
@@ -62,7 +63,7 @@ WINDOW_NAME = "EyeTrackApp"
 
 
 page_url = "https://github.com/EyeTrackVR/EyeTrackVR/releases/latest"
-appversion = "EyeTrackApp 0.2.4"
+appversion = "EyeTrackApp 0.2.6"
 
 
 class KeyManager:
@@ -83,6 +84,7 @@ class KeyManager:
         self.ALGO_SETTINGS_RADIO_NAME = f"-ALGOSETTINGSRADIO{unique_id}-"
         self.VRCFT_MODULE_SETTINGS_RADIO_NAME = f"-VRCFTSETTINGSRADIO{unique_id}-"
         self.GUIOFF_RADIO_NAME = f"-GUIOFF{unique_id}-"
+
 
 # Create an instance of the KeyManager
 key_manager = KeyManager()
@@ -301,6 +303,20 @@ def main():
 
     osc_manager.start()
 
+    # Creating our instances of CSVLogger here, send info to our OSCSender 
+    osc_manager.osc_sender.add_csv_logger(eye_id=EyeId.LEFT, logger=eyes[1].csv_logger)
+    osc_manager.osc_sender.add_csv_logger(eye_id=EyeId.RIGHT, logger=eyes[0].csv_logger)
+    both_eyes_logger = CSVLogger(EyeId.BOTH)
+
+    osc_manager.osc_sender.add_csv_logger(eye_id=EyeId.BOTH, logger=both_eyes_logger)
+
+    # Callback to our listener 
+    config.register_listener_callback(osc_manager.update)
+    config.register_listener_callback(eyes[0].on_config_update)
+    config.register_listener_callback(eyes[1].on_config_update)
+
+    print("\033[CSVLogger is intialized\033[0m")
+    
     while True:
         tint = 33
         fs = False
@@ -339,12 +355,13 @@ def main():
 
             # If we're in either mode and someone hits q, quit immediately
             if event in ("Exit", sg.WIN_CLOSED) and not config.settings.gui_disable_gui:
+                print("\033[94m[INFO] Exiting EyeTrackApp\033[0m")
                 for eye in eyes:
                     eye.stop()
                 cancellation_event.set()
                 osc_manager.shutdown()
                 timerResolution(False)
-                print("\033[94m[INFO] Exiting EyeTrackApp\033[0m")
+
                 window.close()
                 os._exit(0)  # I do not like this, but for now this fixes app hang on close
                 return
@@ -461,7 +478,6 @@ def main():
                 config.eye_display_id = EyeId.VRCFTMODULESETTINGS
                 config.save()
             else:
-
                 # Otherwise, render all
                 for eye in eyes:
                     if eye.started():

@@ -35,8 +35,10 @@ from queue import Queue, Empty
 from camera import Camera, CameraState
 import cv2
 from osc.OSCMessage import OSCMessageType, OSCMessage
+from osc.osc_csv_reader import CSVLogger
 from utils.misc_utils import PlaySound, SND_FILENAME, SND_ASYNC, resource_path
 import numpy as np
+import time as time
 
 
 # for clarity when indexing
@@ -66,7 +68,13 @@ class CameraWidget:
         self.gui_roi_message = f"-ROIMESSAGE{widget_id}-"
         self.gui_mask_markup = f"-MARKUP{widget_id}-"
         self.gui_mask_lighten = f"-LIGHTEN{widget_id}-"
+        self.gui_record_csv_data = f"-RECORDING{widget_id}-"
+        self.gui_record_csv_left_eye_test = f"-RECORDINGLEFTEYETEST{widget_id}-"
+        self.gui_record_csv_right_eye_test = f"-RECORDINGRIGHTEYETEST{widget_id}-"
+        self.gui_recording_timer = f"-RECORDINGTIMER{widget_id}-"
 
+        self.csv_logger = CSVLogger(widget_id)
+        self.is_recording = False
         self.last_eye_info = None
         self.osc_queue = osc_queue
         self.main_config = main_config
@@ -150,6 +158,24 @@ class CameraWidget:
                     key=self.gui_save_tracking_button,
                     button_color="#6f4ca1",
                 ),
+            ],
+            [
+                sg.Button(
+                    "Recording (CSV)",
+                    key=self.gui_record_csv_data,
+                    button_color="#6f4ca1",
+                ),
+                # Changes made here for additional eye tracking calibration
+                sg.Button(
+                    "Left Orientation Gaze Test (CSV)",
+                    key=self.gui_record_csv_left_eye_test,
+                    button_color="#3fad43",
+                ),
+                sg.Button(
+                    "Right Orientation Gaze Test (CSV)",
+                    key=self.gui_record_csv_right_eye_test,
+                    button_color="#d9721e",
+                )
             ],
             [
                 sg.Button(
@@ -470,6 +496,51 @@ class CameraWidget:
 
             if event == self.gui_recenter_eyes:
                 self.recenter_eyes()
+            
+            if event == self.gui_record_csv_data:
+                if self.csv_logger.is_recording:
+                    self.csv_logger.stop_recording()
+                    self.recording_start_time = None
+                    window[self.gui_record_csv_data].update(text="Recording (CSV)", button_color="#6f4ca1")
+                else:
+                    # Only allow recording if camera is connected
+                    camera_connected = self.camera.camera_status == CameraState.CONNECTED
+                    success_record = self.csv_logger.start_recording(camera_connected=camera_connected)
+                    if success_record:
+                        self.recording_start_time = time.time()
+                        window[self.gui_record_csv_data].update(text="Recording... 00:00", button_color="#ff4444")
+                    else:
+                        window[self.gui_record_csv_data].update(text="Recording (CSV)", button_color="#6f4ca1")
+            
+            if event == self.gui_record_csv_left_eye_test:
+                if self.csv_logger.is_recording:
+                    self.csv_logger.stop_recording()
+                    self.recording_start_time = None
+                    window[self.gui_record_csv_left_eye_test].update(text="Left Orientation Gaze Test (CSV)", button_color="#3fad43")
+                else:
+                    # Only allow recording if camera is connected
+                    camera_connected = self.camera.camera_status == CameraState.CONNECTED
+                    success_record = self.csv_logger.start_recording(camera_connected=camera_connected, left_test=True, right_test=False)
+                    if success_record:
+                        self.recording_start_time = time.time()
+                        window[self.gui_record_csv_left_eye_test].update(text="Recording... 00:00", button_color="#ff4444")
+                    else:
+                        window[self.gui_record_csv_left_eye_test].update(text="Left Orientation Gaze Test (CSV)", button_color="#3fad43")
+            
+            if event == self.gui_record_csv_right_eye_test:
+                if self.csv_logger.is_recording:
+                    self.csv_logger.stop_recording()
+                    self.recording_start_time = None
+                    window[self.gui_record_csv_right_eye_test].update(text="Right Orientation Gaze Test (CSV)", button_color="#d94d1e")
+                else:
+                    # Only allow recording if camera is connected
+                    camera_connected = self.camera.camera_status == CameraState.CONNECTED
+                    success_record = self.csv_logger.start_recording(camera_connected=camera_connected, left_test=False, right_test=True)
+                    if success_record:
+                        self.recording_start_time = time.time()
+                        window[self.gui_record_csv_right_eye_test].update(text="Recording Right Eye Test... 00:00", button_color="#ff4444")
+                    else:
+                        window[self.gui_record_csv_right_eye_test].update(text="Right Orientation Gaze Test (CSV)", button_color="#d94d1e")
 
             needs_roi_set = self.config.roi_window_h <= 0 or self.config.roi_window_w <= 0
 
@@ -493,6 +564,12 @@ class CameraWidget:
                 window[self.gui_mode_readout].update("Tracking")
                 window[self.gui_tracking_fps].update(self._movavg_fps(self.camera.fps))
                 window[self.gui_tracking_bps].update(self._movavg_bps(self.camera.bps))
+
+            # Update recording timer if recording is active
+            if self.csv_logger.is_recording and self.recording_start_time is not None:
+                elapsed_time = time.time() - self.recording_start_time
+                timer_display = self._format_recording_timer(elapsed_time)
+                window[self.gui_record_csv_data].update(text=f"Recording... {timer_display}")
 
             #    if event == self.gui_mask_lighten:
             #       while True:
