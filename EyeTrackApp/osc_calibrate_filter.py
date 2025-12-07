@@ -201,17 +201,23 @@ class cal:
 
         if self.calibration_frame_counter == 0:
             self.calibration_frame_counter = None
-            # Only save calibration data if samples were actually collected
+            # Always save offset (XOFF/YOFF) for recenter functionality
+            self.config.calib_XOFF = cx
+            self.config.calib_YOFF = cy
+            
+            # Only save ellipse calibration data if samples were actually collected
             evecs, axes = self.cal.fit_ellipse()
             # Check if fit was successful (returns (0, 0) on failure)
             if not (isinstance(evecs, int) and isinstance(axes, int) and evecs == 0 and axes == 0):
-                self.config.calib_XOFF = cx
-                self.config.calib_YOFF = cy
+                # Valid calibration data - save it
                 self.config.calib_evecs, self.config.calib_axes = evecs, axes
                 self.baseconfig.save()
                 PlaySound(resource_path("Audio/completed.wav"), SND_FILENAME | SND_ASYNC)
             else:
-                print("\033[93m[WARN] Calibration stopped without collecting samples. Previous calibration data preserved.\033[0m")
+                # No samples collected - only save the offset (for Recenter Eyes)
+                # Don't overwrite existing ellipse calibration
+                print("\033[93m[WARN] Calibration stopped without collecting samples. Ellipse calibration preserved, offset updated.\033[0m")
+                self.baseconfig.save()  # Still save to persist the offset changes
 
         if self.calibration_frame_counter == self.settings.calibration_samples:
             self.blink_clear = True
