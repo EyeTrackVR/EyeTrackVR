@@ -125,8 +125,10 @@ def center_overlay_calibrate(self):
     # try:
     if var.overlay_active != True:
         
-        overlay_path = resource_path("tools/ETVR_SteamVR_Calibration_Overlay.exe")
-        os.startfile(overlay_path, arguments="center")
+        overlay_path = resource_path("tools/EyeTrackVR-Overlay.exe")
+        # Set working directory to the tools folder so overlay can find assets/Purple_Dot.png
+        tools_dir = Path(overlay_path).parent
+        subprocess.Popen([overlay_path, "center"], cwd=str(tools_dir))
         var.overlay_active = True
         sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         server_address = ("localhost", 2112)
@@ -150,7 +152,9 @@ def overlay_calibrate_3d(self):
     try:
         if var.overlay_active != True:
             overlay_path = resource_path("tools/EyeTrackVR-Overlay.exe")
-            os.startfile(overlay_path)
+            # Set working directory to the tools folder so overlay can find assets/Purple_Dot.png
+            tools_dir = Path(overlay_path).parent
+            subprocess.Popen([overlay_path], cwd=str(tools_dir))
             var.overlay_active = True
             while var.overlay_active:
                 sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
