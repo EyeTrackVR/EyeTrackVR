@@ -175,8 +175,12 @@ def overlay_calibrate_3d(self):
 class cal:
     def cal_osc(self, cx, cy, angle):
         if self.config.calib_evecs is not None and self.config.calib_XOFF != None:
-            self.cal.init_from_save(self.config.calib_evecs, self.config.calib_axes)
-
+            # Validate and load saved calibration data
+            if not self.cal.init_from_save(self.config.calib_evecs, self.config.calib_axes):
+                # If init_from_save fails, treat as uncalibrated
+                if self.printcal:
+                    print("\033[91m[ERROR] Failed to load calibration data. Please recalibrate.\033[0m")
+                    self.printcal = False
 
         else:
             if self.printcal:
@@ -197,12 +201,17 @@ class cal:
 
         if self.calibration_frame_counter == 0:
             self.calibration_frame_counter = None
-            self.config.calib_XOFF = cx
-            self.config.calib_YOFF = cy
-            self.config.calib_evecs, self.config.calib_axes = self.cal.fit_ellipse()
-            self.baseconfig.save()
-
-            PlaySound(resource_path("Audio/completed.wav"), SND_FILENAME | SND_ASYNC)
+            # Only save calibration data if samples were actually collected
+            evecs, axes = self.cal.fit_ellipse()
+            # Check if fit was successful (returns (0, 0) on failure)
+            if not (isinstance(evecs, int) and isinstance(axes, int) and evecs == 0 and axes == 0):
+                self.config.calib_XOFF = cx
+                self.config.calib_YOFF = cy
+                self.config.calib_evecs, self.config.calib_axes = evecs, axes
+                self.baseconfig.save()
+                PlaySound(resource_path("Audio/completed.wav"), SND_FILENAME | SND_ASYNC)
+            else:
+                print("\033[93m[WARN] Calibration stopped without collecting samples. Previous calibration data preserved.\033[0m")
 
         if self.calibration_frame_counter == self.settings.calibration_samples:
             self.blink_clear = True

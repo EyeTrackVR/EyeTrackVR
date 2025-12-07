@@ -30,9 +30,38 @@ class CalibrationEllipse:
      #   print(f"Set inset to {clamped_percent}%. New scale_factor: {self.scale_factor}")
 
     def init_from_save(self, evecs, axes):
-        self.evecs = np.asarray(evecs, dtype=float)
-        self.axes = np.asarray(axes, dtype=float)
-        self.fitted = True
+        """Initialize calibration from saved data with validation"""
+        try:
+            evecs_array = np.asarray(evecs, dtype=float)
+            axes_array = np.asarray(axes, dtype=float)
+            
+            # Validate evecs shape
+            if evecs_array.shape != (2, 2):
+                print(f"\033[91m[ERROR] Invalid evecs shape in saved data: {evecs_array.shape}. Expected (2, 2).\033[0m")
+                self.fitted = False
+                return False
+            
+            # Validate axes shape
+            if axes_array.shape != (2,):
+                print(f"\033[91m[ERROR] Invalid axes shape in saved data: {axes_array.shape}. Expected (2,).\033[0m")
+                self.fitted = False
+                return False
+            
+            # Check for zero or invalid values
+            if np.all(axes_array == 0) or np.any(np.isnan(axes_array)) or np.any(np.isnan(evecs_array)):
+                print("\033[91m[ERROR] Saved calibration data contains zero or NaN values.\033[0m")
+                self.fitted = False
+                return False
+            
+            self.evecs = evecs_array
+            self.axes = axes_array
+            self.fitted = True
+            return True
+            
+        except (ValueError, TypeError) as e:
+            print(f"\033[91m[ERROR] Failed to load calibration data: {e}\033[0m")
+            self.fitted = False
+            return False
 
     def fit_ellipse(self):
         N = len(self.xs)
@@ -133,6 +162,26 @@ class CalibrationEllipse:
         #    print("ERROR: Ellipse not fitted yet. Call fit_ellipse() first.")
             return 0.0, 0.0
 
+        # Validate calibration data before matrix operations
+        if self.evecs is None or self.axes is None:
+            print("\033[91m[ERROR] Calibration data (evecs/axes) is None. Please calibrate.\033[0m")
+            return 0.0, 0.0
+        
+        # Check if evecs has valid shape
+        if not isinstance(self.evecs, np.ndarray) or self.evecs.shape != (2, 2):
+            print(f"\033[91m[ERROR] Invalid evecs shape: {self.evecs.shape if isinstance(self.evecs, np.ndarray) else type(self.evecs)}. Expected (2, 2). Please recalibrate.\033[0m")
+            return 0.0, 0.0
+        
+        # Check if axes has valid shape and is not zero
+        if not isinstance(self.axes, np.ndarray) or self.axes.shape != (2,):
+            print(f"\033[91m[ERROR] Invalid axes shape: {self.axes.shape if isinstance(self.axes, np.ndarray) else type(self.axes)}. Expected (2,). Please recalibrate.\033[0m")
+            return 0.0, 0.0
+        
+        # Check if axes contains valid non-zero values
+        if np.all(self.axes == 0) or np.any(np.isnan(self.axes)):
+            print("\033[91m[ERROR] Calibration axes are zero or invalid. Please recalibrate.\033[0m")
+            return 0.0, 0.0
+
         # Current pupil position
         x, y = float(pupil_pos[0]), float(pupil_pos[1])
         p = np.array([x, y], dtype=float)
@@ -148,7 +197,11 @@ class CalibrationEllipse:
         p_centered = p - reference
 
         # Rotate into ellipse principal axes space
-        p_rot = self.evecs.T @ p_centered
+        try:
+            p_rot = self.evecs.T @ p_centered
+        except (ValueError, TypeError) as e:
+            print(f"\033[91m[ERROR] Matrix multiplication failed in normalize: {e}. Please recalibrate.\033[0m")
+            return 0.0, 0.0
 
         # Scale by ellipse axes (with scale factor for margins)
         scaled_axes = self.axes * self.scale_factor
