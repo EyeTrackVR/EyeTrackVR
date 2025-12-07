@@ -121,11 +121,10 @@ class var:
 
 @Async
 def center_overlay_calibrate(self):
-    tools = Path("Tools")
     # try:
     if var.overlay_active != True:
         
-        overlay_path = resource_path("tools/EyeTrackVR-Overlay.exe")
+        overlay_path = resource_path("Tools/EyeTrackVR-Overlay.exe")
         # Set working directory to the tools folder so overlay can find assets/Purple_Dot.png
         tools_dir = Path(overlay_path).parent
         subprocess.Popen([overlay_path, "center"], cwd=str(tools_dir))
@@ -151,7 +150,7 @@ def center_overlay_calibrate(self):
 def overlay_calibrate_3d(self):
     try:
         if var.overlay_active != True:
-            overlay_path = resource_path("tools/EyeTrackVR-Overlay.exe")
+            overlay_path = resource_path("Tools/EyeTrackVR-Overlay.exe")
             # Set working directory to the tools folder so overlay can find assets/Purple_Dot.png
             tools_dir = Path(overlay_path).parent
             subprocess.Popen([overlay_path], cwd=str(tools_dir))
