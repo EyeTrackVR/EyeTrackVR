@@ -16,31 +16,40 @@ The bug occurred in the calibration flow:
 
 ## Solution
 
-The fix implements three layers of protection:
+The fix implements three layers of protection, plus a fix for "Recenter Eyes" functionality:
 
 ### 1. Prevent Saving Invalid Calibration Data (osc_calibrate_filter.py)
 
-**Location**: `EyeTrackApp/osc_calibrate_filter.py`, lines 198-211
+**Location**: `EyeTrackApp/osc_calibrate_filter.py`, lines 202-220
 
-**Change**: Before saving calibration data, check if `fit_ellipse()` returned valid data or `(0, 0)`:
+**Change**: Separate handling of offset (XOFF/YOFF) and ellipse calibration (evecs/axes):
 
 ```python
 if self.calibration_frame_counter == 0:
     self.calibration_frame_counter = None
-    # Only save calibration data if samples were actually collected
+    # Always save offset (XOFF/YOFF) for recenter functionality
+    self.config.calib_XOFF = cx
+    self.config.calib_YOFF = cy
+    
+    # Only save ellipse calibration data if samples were actually collected
     evecs, axes = self.cal.fit_ellipse()
     # Check if fit was successful (returns (0, 0) on failure)
     if not (isinstance(evecs, int) and isinstance(axes, int) and evecs == 0 and axes == 0):
-        self.config.calib_XOFF = cx
-        self.config.calib_YOFF = cy
+        # Valid calibration data - save it
         self.config.calib_evecs, self.config.calib_axes = evecs, axes
         self.baseconfig.save()
         PlaySound(resource_path("Audio/completed.wav"), SND_FILENAME | SND_ASYNC)
     else:
-        print("\033[93m[WARN] Calibration stopped without collecting samples. Previous calibration data preserved.\033[0m")
+        # No samples collected - only save the offset (for Recenter Eyes)
+        # Don't overwrite existing ellipse calibration
+        print("\033[93m[WARN] Calibration stopped without collecting samples. Ellipse calibration preserved, offset updated.\033[0m")
+        self.baseconfig.save()  # Still save to persist the offset changes
 ```
 
-**Effect**: When "Stop Calibration" is clicked without "Start Calibration", the old valid calibration data is preserved instead of being overwritten with zeros.
+**Effect**: 
+- When "Stop Calibration" is clicked without "Start Calibration", the ellipse calibration is preserved while the offset is still updated
+- "Recenter Eyes" functionality now works correctly - it updates the offset without affecting ellipse calibration
+- Normal calibration (with samples) saves both offset and ellipse data
 
 ### 2. Validate Loaded Calibration Data (calibration_elipse.py - init_from_save)
 
