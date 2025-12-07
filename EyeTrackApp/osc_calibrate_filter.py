@@ -174,7 +174,17 @@ def overlay_calibrate_3d(self):
 
 class cal:
     def cal_osc(self, cx, cy, angle):
-        if self.config.calib_evecs is not None and self.config.calib_XOFF != None:
+        # Check if calibration data exists and is valid (list/array, not scalar like 0)
+        has_valid_calib = (
+            self.config.calib_evecs is not None and 
+            self.config.calib_axes is not None and
+            self.config.calib_XOFF is not None and
+            # Ensure evecs and axes are lists/arrays, not scalars (e.g., not the integer 0)
+            isinstance(self.config.calib_evecs, (list, tuple)) and
+            isinstance(self.config.calib_axes, (list, tuple))
+        )
+        
+        if has_valid_calib:
             # Validate and load saved calibration data
             if not self.cal.init_from_save(self.config.calib_evecs, self.config.calib_axes):
                 # If init_from_save fails, treat as uncalibrated

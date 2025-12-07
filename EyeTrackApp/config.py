@@ -65,8 +65,12 @@ class EyeTrackCameraConfig(BaseModel):
     @field_validator('calib_axes', 'calib_evecs', 'calib_center', mode='before')
     @classmethod
     def convert_numpy_to_list(cls, v):
-        """Convert NumPy arrays to lists for JSON serialization"""
+        """Convert NumPy arrays to lists for JSON serialization and handle invalid values"""
         if v is None:
+            return None
+        # Handle invalid scalar values (e.g., integer 0 from corrupted config files)
+        # These should be treated as None (uncalibrated)
+        if isinstance(v, (int, float)) and v == 0:
             return None
         if isinstance(v, np.ndarray):
             return v.tolist()
