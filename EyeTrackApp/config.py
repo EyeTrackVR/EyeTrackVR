@@ -70,7 +70,7 @@ class EyeTrackCameraConfig(BaseModel):
             return None
         # Handle invalid scalar values (e.g., integer 0 from corrupted config files)
         # These should be treated as None (uncalibrated)
-        if isinstance(v, (int, float)) and v == 0:
+        if isinstance(v, int) and v == 0:
             return None
         if isinstance(v, np.ndarray):
             return v.tolist()
