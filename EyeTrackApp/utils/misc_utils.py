@@ -1,11 +1,11 @@
 import os
 import typing
 import sys
-
 from pathlib import Path
 from typing import Union
 
 is_nt = True if os.name == "nt" else False
+is_macos = True if os.name == "Darwin" else False
 
 
 def PlaySound(*args, **kwargs):
@@ -77,6 +77,7 @@ def resource_path(relative_path: Union[str, Path]) -> str:
         # PyInstaller creates a temp folder and stores path in _MEIPASS
         base_path = Path(sys._MEIPASS)
     except AttributeError:
-        base_path = Path(".")
+        # In development, use the directory where this file is located (EyeTrackApp/)
+        base_path = Path(__file__).parent.parent
 
     return str(base_path / relative_path)
