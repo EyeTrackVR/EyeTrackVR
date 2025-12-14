@@ -37,8 +37,7 @@ from settings.general_settings_widget import SettingsWidget
 from settings.algo_settings_widget import AlgoSettingsWidget
 from osc.osc import OSCManager
 from osc.OSCMessage import OSCMessage
-from utils.misc_utils import is_nt, is_macos, resource_path
-
+from utils.misc_utils import is_nt, resource_path
 import cv2
 import numpy as np
 import uuid
@@ -63,7 +62,7 @@ WINDOW_NAME = "EyeTrackApp"
 
 
 page_url = "https://github.com/EyeTrackVR/EyeTrackVR/releases/latest"
-appversion = "EyeTrackApp 0.2.6"
+appversion = "EyeTrackApp 0.2.0"
 
 
 class KeyManager:
@@ -84,7 +83,6 @@ class KeyManager:
         self.ALGO_SETTINGS_RADIO_NAME = f"-ALGOSETTINGSRADIO{unique_id}-"
         self.VRCFT_MODULE_SETTINGS_RADIO_NAME = f"-VRCFTSETTINGSRADIO{unique_id}-"
         self.GUIOFF_RADIO_NAME = f"-GUIOFF{unique_id}-"
-
 
 # Create an instance of the KeyManager
 key_manager = KeyManager()
@@ -228,22 +226,6 @@ def main():
     config.save()
 
     cancellation_event = threading.Event()
-    # Ensure we always have a local reference, even if OpenVR autostart is disabled
-    openvr_service = None
-
-    # Start openvr service if autostart with openvr option is enabled
-    # Allow the app to be closed when SteamVR closes
-    if config.settings.gui_openvr_autostart and not is_macos:
-        from OVR.OpenVRService import openvr_service as _openvr_service, OpenVRException
-        try:
-            _openvr_service.initialize()
-        except OpenVRException:
-            pass
-        # keep a local reference only if import succeeded
-        openvr_service = _openvr_service
-        config.register_listener_callback(openvr_service.on_config_update)
-
-
     # Check to see if we can connect to our video source first. If not, bring up camera finding
     # dialog.
     try:
@@ -302,7 +284,6 @@ def main():
     config.register_listener_callback(eyes[0].on_config_update)
     config.register_listener_callback(eyes[1].on_config_update)
 
-
     osc_manager.register_listeners(
         config.settings.gui_osc_recenter_address,
         [
@@ -351,23 +332,19 @@ def main():
 
         # First off, check for any events from the GUI
         window = create_window(config, settings, eyes)
-
-        # Allow openvr service to access the window to dynamically update the settings (uncheck autostart box)
-        if (not is_macos) and (openvr_service is not None):
-            openvr_service.window = window
+        
 
         while True:
             event, values = window.read(timeout=tint) # this higher timeout saves some cpu usage
 
             # If we're in either mode and someone hits q, quit immediately
             if event in ("Exit", sg.WIN_CLOSED) and not config.settings.gui_disable_gui:
-                print("\033[94m[INFO] Exiting EyeTrackApp\033[0m")
                 for eye in eyes:
                     eye.stop()
                 cancellation_event.set()
                 osc_manager.shutdown()
                 timerResolution(False)
-
+                print("\033[94m[INFO] Exiting EyeTrackApp\033[0m")
                 window.close()
                 os._exit(0)  # I do not like this, but for now this fixes app hang on close
                 return
@@ -483,13 +460,8 @@ def main():
                 window[key_manager.ALGO_SETTINGS_NAME].update(visible=False)
                 config.eye_display_id = EyeId.VRCFTMODULESETTINGS
                 config.save()
-
-
-
-
-
-
             else:
+
                 # Otherwise, render all
                 for eye in eyes:
                     if eye.started():
@@ -514,9 +486,6 @@ def main():
                 config.save()
                 window.close()
                 break
-
-
-
 
 if __name__ == "__main__":
     main()

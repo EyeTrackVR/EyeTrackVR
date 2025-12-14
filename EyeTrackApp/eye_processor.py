@@ -49,9 +49,6 @@ from intensity_based_openness import *
 from ellipse_based_pupil_dilation import *
 from AHSF import *
 from osc.OSCMessage import OSCMessageType, OSCMessage
-from utils.calibration_elipse import *
-
-
 os.environ["OMP_NUM_THREADS"] = "1"
 sys.path.append(".")
 
@@ -169,8 +166,6 @@ class EyeProcessor:
         self.avg_velocity = 0.0
         self.angle = 621
         self.er_ahsf = None
-        self.cal = CalibrationEllipse()
-        self.AHSF = PupilDetectorHaar()
 
 
         try:
@@ -417,7 +412,7 @@ class EyeProcessor:
             self.rawx,
             self.rawy,
             self.radius,
-        ) = self.er_ahsf.detect_etvr(self.current_image_gray)
+        ) = self.er_ahsf.External_Run_AHSF(self.current_image_gray)
         self.current_image_gray_clean = resize_img.copy()
 
         self.thresh = resize_img
@@ -533,7 +528,7 @@ class EyeProcessor:
             self.rawx,
             self.rawy,
             self.radius,
-        ) =  self.er_ahsf.detect_etvr(self.current_image_gray)
+        ) =  self.er_ahsf.External_Run_AHSF(self.current_image_gray)
         self.thresh = self.current_image_gray
         self.out_x, self.out_y, self.avg_velocity = cal.cal_osc(self, self.rawx, self.rawy, self.angle)
         self.current_algorithm = EyeInfoOrigin.HSF
@@ -609,12 +604,12 @@ class EyeProcessor:
         # set algo priorities
         if self.settings.gui_AHSFRAC:
             if self.er_ahsf is None:
-                self.er_ahsf = self.AHSF
+                self.er_ahsf = AHSF(self.current_image_gray)
             algolist[self.settings.gui_AHSFRACP] = self.AHSFRACM
 
         if self.settings.gui_AHSF:
             if self.er_ahsf is None:
-                self.er_ahsf = self.AHSF
+                self.er_ahsf = AHSF(self.current_image_gray)
             algolist[self.settings.gui_AHSFP] = self.AHSFM
 
         if self.settings.gui_HSF:
