@@ -228,16 +228,19 @@ def main():
     config.save()
 
     cancellation_event = threading.Event()
+    # Ensure we always have a local reference, even if OpenVR autostart is disabled
+    openvr_service = None
 
     # Start openvr service if autostart with openvr option is enabled
     # Allow the app to be closed when SteamVR closes
     if config.settings.gui_openvr_autostart and not is_macos:
-        from OVR.OpenVRService import openvr_service, OpenVRException
+        from OVR.OpenVRService import openvr_service as _openvr_service, OpenVRException
         try:
-            openvr_service.initialize()
+            _openvr_service.initialize()
         except OpenVRException:
             pass
-
+        # keep a local reference only if import succeeded
+        openvr_service = _openvr_service
         config.register_listener_callback(openvr_service.on_config_update)
 
 
@@ -349,8 +352,8 @@ def main():
         # First off, check for any events from the GUI
         window = create_window(config, settings, eyes)
 
-        # Allow openvr service to access the windows to dynamically update the settings (uncheck autostart box)
-        if not is_macos:
+        # Allow openvr service to access the window to dynamically update the settings (uncheck autostart box)
+        if (not is_macos) and (openvr_service is not None):
             openvr_service.window = window
 
         while True:

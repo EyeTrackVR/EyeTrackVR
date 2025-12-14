@@ -5,7 +5,7 @@ from pathlib import Path
 from typing import Union
 
 is_nt = True if os.name == "nt" else False
-is_macos = True if os.uname().sysname == "Darwin" else False
+is_macos = True if os.name == "Darwin" else False
 
 
 def PlaySound(*args, **kwargs):
