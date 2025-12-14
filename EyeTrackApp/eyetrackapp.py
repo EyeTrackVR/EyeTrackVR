@@ -62,7 +62,7 @@ WINDOW_NAME = "EyeTrackApp"
 
 
 page_url = "https://github.com/EyeTrackVR/EyeTrackVR/releases/latest"
-appversion = "EyeTrackApp 0.2.0"
+appversion = "EyeTrackApp 0.2.6"
 
 
 class KeyManager:
@@ -83,6 +83,7 @@ class KeyManager:
         self.ALGO_SETTINGS_RADIO_NAME = f"-ALGOSETTINGSRADIO{unique_id}-"
         self.VRCFT_MODULE_SETTINGS_RADIO_NAME = f"-VRCFTSETTINGSRADIO{unique_id}-"
         self.GUIOFF_RADIO_NAME = f"-GUIOFF{unique_id}-"
+
 
 # Create an instance of the KeyManager
 key_manager = KeyManager()
@@ -339,12 +340,13 @@ def main():
 
             # If we're in either mode and someone hits q, quit immediately
             if event in ("Exit", sg.WIN_CLOSED) and not config.settings.gui_disable_gui:
+                print("\033[94m[INFO] Exiting EyeTrackApp\033[0m")
                 for eye in eyes:
                     eye.stop()
                 cancellation_event.set()
                 osc_manager.shutdown()
                 timerResolution(False)
-                print("\033[94m[INFO] Exiting EyeTrackApp\033[0m")
+
                 window.close()
                 os._exit(0)  # I do not like this, but for now this fixes app hang on close
                 return
@@ -460,8 +462,13 @@ def main():
                 window[key_manager.ALGO_SETTINGS_NAME].update(visible=False)
                 config.eye_display_id = EyeId.VRCFTMODULESETTINGS
                 config.save()
-            else:
 
+
+
+
+
+
+            else:
                 # Otherwise, render all
                 for eye in eyes:
                     if eye.started():
@@ -486,6 +493,9 @@ def main():
                 config.save()
                 window.close()
                 break
+
+
+
 
 if __name__ == "__main__":
     main()
