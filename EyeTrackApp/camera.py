@@ -36,7 +36,8 @@ from config import EyeTrackCameraConfig
 from enum import Enum
 import psutil, os
 import sys
-
+from PIL import Image
+from io import BytesIO
 
 process = psutil.Process(os.getpid())  # set process priority to low
 try:
@@ -241,20 +242,22 @@ class Camera:
         beg = -1
         while beg == -1:
             self.buffer += self.serial_connection.read(2048)
-            beg = self.buffer.find(ETVR_HEADER + ETVR_HEADER_FRAME)
+            beg = self.buffer.find(b"\xff\xd8\xff")
         # Discard any data before the frame header.
         if beg > 0:
             self.buffer = self.buffer[beg:]
             beg = 0
-        # We know exactly how long the jpeg packet is
-        end = int.from_bytes(self.buffer[4:6], signed=False, byteorder="little")
-        self.buffer += self.serial_connection.read(end - len(self.buffer))
+        
+        end = -1
+        while end == -1:
+            self.buffer += self.serial_connection.read(128)
+            end = self.buffer.find(b"\xff\xd9")
         return beg, end
 
     def get_next_jpeg_frame(self):
         beg, end = self.get_next_packet_bounds()
-        jpeg = self.buffer[beg + ETVR_HEADER_LEN : end + ETVR_HEADER_LEN]
-        self.buffer = self.buffer[end + ETVR_HEADER_LEN :]
+        jpeg = self.buffer[beg: end + 2]
+        self.buffer = self.buffer[end + 2 :]
         return jpeg
 
 
@@ -268,8 +271,9 @@ class Camera:
                 jpeg = self.get_next_jpeg_frame()
                 if jpeg:
                     # Create jpeg frame from byte string
-                    image = cv2.imdecode(np.fromstring(jpeg, dtype=np.uint8), cv2.IMREAD_UNCHANGED)
-                    if image is None:
+                    try:
+                        image = np.array(Image.open(BytesIO(jpeg)))
+                    except Exception:
                         print(f"{Fore.YELLOW}[WARN] Frame drop. Corrupted JPEG.{Fore.RESET}")
                         return
                     # Discard the serial buffer. This is due to the fact that it
