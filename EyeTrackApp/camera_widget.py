@@ -432,6 +432,7 @@ class CameraWidget:
             if event == "{}+UP".format(self.gui_roi_selection):
                 # Event for mouse button up in ROI mode
                 self.is_mouse_up = True
+                print("UP")
                 self.xy0 = np.clip(self.xy0, self.clip_pos, self.clip_pos + self.clip_size)
                 self.xy1 = np.clip(self.xy1, self.clip_pos, self.clip_pos + self.clip_size)
                 self._cartesian_to_polar()

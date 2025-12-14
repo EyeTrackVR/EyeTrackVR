@@ -77,7 +77,6 @@ def resource_path(relative_path: Union[str, Path]) -> str:
         # PyInstaller creates a temp folder and stores path in _MEIPASS
         base_path = Path(sys._MEIPASS)
     except AttributeError:
-        # In development, use the directory where this file is located (EyeTrackApp/)
-        base_path = Path(__file__).parent.parent
+        base_path = Path(".")
 
     return str(base_path / relative_path)

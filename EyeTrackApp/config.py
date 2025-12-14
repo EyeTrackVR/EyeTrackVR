@@ -27,20 +27,17 @@ LICENSE: Babble Software Distribution License 1.0
 import json
 import os.path
 import shutil
-import numpy as np
+
 from colorama import Fore
-from pydantic import BaseModel, field_validator
+from pydantic import BaseModel
 from typing import Any, Union, List
 import os
+
 from eye import EyeId
 
 CONFIG_FILE_NAME: str = "eyetrack_settings.json"
 BACKUP_CONFIG_FILE_NAME: str = "eyetrack_settings.backup"
 
-
-from pydantic import BaseModel, field_validator, field_serializer
-from typing import Any, Union, List
-import numpy as np
 
 class EyeTrackCameraConfig(BaseModel):
     gui_rotation_ui_padding: bool = True
@@ -51,9 +48,10 @@ class EyeTrackCameraConfig(BaseModel):
     roi_window_h: int = 240
     focal_length: int = 30
     capture_source: Union[int, str, None] = None
-    calib_axes: Union[List[float], None] = None
-    calib_evecs: Union[List[List[float]], None] = None
-    calib_center: Union[List[float], None] = None
+    calib_XMAX: Union[float, None] = None
+    calib_XMIN: Union[float, None] = None
+    calib_YMAX: Union[float, None] = None
+    calib_YMIN: Union[float, None] = None
     calib_XOFF: Union[float, None] = None
     calib_YOFF: Union[float, None] = None
     calibration_points: List[List[Union[float, None]]] = []
@@ -62,62 +60,6 @@ class EyeTrackCameraConfig(BaseModel):
     leap_calibration_percentile_2: float = 0
     leap_calibrated: bool = False
 
-    @field_validator('calib_axes', 'calib_evecs', 'calib_center', mode='before')
-    @classmethod
-    def convert_numpy_to_list(cls, v):
-        """Convert NumPy arrays to lists for JSON serialization and handle invalid values"""
-        if v is None:
-            return None
-        # Handle invalid scalar values (e.g., integer 0 from corrupted config files)
-        # These should be treated as None (uncalibrated)
-        if isinstance(v, int) and v == 0:
-            return None
-        if isinstance(v, np.ndarray):
-            return v.tolist()
-        if hasattr(v, 'tolist') and callable(v.tolist):
-            return v.tolist()
-        return v
-
-    @field_serializer('calib_axes', 'calib_evecs', 'calib_center')
-    def serialize_arrays(self, value):
-        """Serialize arrays to lists when saving"""
-        if value is None:
-            return None
-        if isinstance(value, np.ndarray):
-            return value.tolist()
-        if hasattr(value, 'tolist') and callable(value.tolist):
-            return value.tolist()
-        return value
-
-    def get_calib_axes_array(self) -> Union[np.ndarray, None]:
-        """Get calib_axes as a NumPy array"""
-        if self.calib_axes is None:
-            return None
-        return np.array(self.calib_axes, dtype=float)
-
-    def get_calib_evecs_array(self) -> Union[np.ndarray, None]:
-        """Get calib_evecs as a NumPy array"""
-        if self.calib_evecs is None:
-            return None
-        return np.array(self.calib_evecs, dtype=float)
-
-    def get_calib_center_array(self) -> Union[np.ndarray, None]:
-        """Get calib_center as a NumPy array"""
-        if self.calib_center is None:
-            return None
-        return np.array(self.calib_center, dtype=float)
-
-    def set_calibration_data(self, axes: np.ndarray, evecs: np.ndarray, center: np.ndarray):
-        """Set all calibration data from NumPy arrays (auto-converts to lists)"""
-        self.calib_axes = axes.tolist()
-        self.calib_evecs = evecs.tolist()
-        self.calib_center = center.tolist()
-
-    def has_calibration_data(self) -> bool:
-        """Check if calibration data is present"""
-        return (self.calib_axes is not None and
-                self.calib_evecs is not None and
-                self.calib_center is not None)
 
     def update_capture_source(self, new_camera_address: str):
         if not new_camera_address:
@@ -140,6 +82,29 @@ class EyeTrackCameraConfig(BaseModel):
     def update(self, data: dict[str, Any]) -> bool:
         """
         Updates the model one field at a time based on the provided data dict.
+        The dict has to be defined like
+        ```
+        data = {
+          "model_field": value
+        }
+        ```
+
+        If stale data is provided,
+        ex. User clicked on save and restart but didn't provide a new field
+
+        we skip it, assuming that it was just a call to restart the tracking, or a miss-click.
+
+        Some fields may require more validation, we take care of that with special methods.
+        defining a method like
+
+        ```
+        def update_custom_field(value: type):
+            pass
+        ```
+
+        will cause it to be picked up by this method and called with the current value.
+        Return values are ignored.
+
         """
         for key, value in data.items():
             old_value = getattr(self, key, None)
@@ -152,11 +117,12 @@ class EyeTrackCameraConfig(BaseModel):
                 if callable(update_attr):
                     update_attr(value)
                 else:
-                    setattr(self, key, value)
+                    setattr(self, "key", value)
                 return True
             else:
                 print(f"\033[93m[WARN] Field {key} does not exist on {self}.\033[0m")
                 return False
+
 
 class EyeTrackSettingsConfig(BaseModel):
     gui_flip_x_axis_left: bool = False
@@ -256,7 +222,6 @@ class EyeTrackConfig(BaseModel):
     version: int = 1
     right_eye: EyeTrackCameraConfig = EyeTrackCameraConfig()
     left_eye: EyeTrackCameraConfig = EyeTrackCameraConfig()
-    bsb2e: EyeTrackCameraConfig = EyeTrackCameraConfig() # should we do independent per bsb eye?
     settings: EyeTrackSettingsConfig = EyeTrackSettingsConfig()
     eye_display_id: EyeId = EyeId.RIGHT
     __listeners = []

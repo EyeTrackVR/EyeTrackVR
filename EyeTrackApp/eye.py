@@ -36,7 +36,6 @@ class EyeId(IntEnum):
     ALGOSETTINGS = 4
     VRCFTMODULESETTINGS = 5
     GUIOFF = 6
-    BSB2E = 7
 
 
 class EyeInfoOrigin(Enum):

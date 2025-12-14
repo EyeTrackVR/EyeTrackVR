@@ -37,7 +37,6 @@ import os
 import subprocess
 import math
 from utils.calibration_3d import receive_calibration_data, converge_3d
-from utils.calibration_elipse import *
 from utils.misc_utils import resource_path
 from pathlib import Path
 
@@ -121,13 +120,12 @@ class var:
 
 @Async
 def center_overlay_calibrate(self):
+    tools = Path("Tools")
     # try:
     if var.overlay_active != True:
         
-        overlay_path = resource_path("Tools/EyeTrackVR-Overlay.exe")
-        # Set working directory to the tools folder so overlay can find assets/Purple_Dot.png
-        tools_dir = Path(overlay_path).parent
-        subprocess.Popen([overlay_path, "center"], cwd=str(tools_dir))
+        overlay_path = resource_path("tools/ETVR_SteamVR_Calibration_Overlay.exe")
+        os.startfile(overlay_path, arguments="center")
         var.overlay_active = True
         sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         server_address = ("localhost", 2112)
@@ -150,10 +148,8 @@ def center_overlay_calibrate(self):
 def overlay_calibrate_3d(self):
     try:
         if var.overlay_active != True:
-            overlay_path = resource_path("Tools/EyeTrackVR-Overlay.exe")
-            # Set working directory to the tools folder so overlay can find assets/Purple_Dot.png
-            tools_dir = Path(overlay_path).parent
-            subprocess.Popen([overlay_path], cwd=str(tools_dir))
+            overlay_path = resource_path("tools/EyeTrackVR-Overlay.exe")
+            os.startfile(overlay_path)
             var.overlay_active = True
             while var.overlay_active:
                 sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
@@ -177,28 +173,8 @@ def overlay_calibrate_3d(self):
 
 class cal:
     def cal_osc(self, cx, cy, angle):
-        # Check if calibration data exists and is valid (list/array, not scalar like 0)
-        has_valid_calib = (
-            self.config.calib_evecs is not None and 
-            self.config.calib_axes is not None and
-            self.config.calib_XOFF is not None and
-            # Ensure evecs and axes are lists/arrays, not scalars (e.g., not the integer 0)
-            isinstance(self.config.calib_evecs, (list, tuple)) and
-            isinstance(self.config.calib_axes, (list, tuple))
-        )
-        
-        if has_valid_calib:
-            # Validate and load saved calibration data
-            if not self.cal.init_from_save(self.config.calib_evecs, self.config.calib_axes):
-                # If init_from_save fails, treat as uncalibrated
-                if self.printcal:
-                    print("\033[91m[ERROR] Failed to load calibration data. Please recalibrate.\033[0m")
-                    self.printcal = False
 
-        else:
-            if self.printcal:
-                print("\033[91m[ERROR] Please Calibrate Eye(s).\033[0m")
-                self.printcal = False
+        # print(self.eye_id)
 
         if cx == None or cy == None:
             return 0, 0
@@ -210,40 +186,75 @@ class cal:
             flipx = self.settings.gui_flip_x_axis_right
         else:
             flipx = self.settings.gui_flip_x_axis_left
+        if self.calibration_3d_frame_counter == -621:  # or self.settings.gui_3d_calibration:
 
+            self.calibration_3d_frame_counter = self.calibration_3d_frame_counter - 1
+            overlay_calibrate_3d(self)
+            self.config.calibration_points_3d = []
+
+        #  print(self.eye_id, cx, cy)
+        # self.settings.gui_3d_calibration = False
+
+        if self.settings.grab_3d_point:
+            # Check if both calibrations are done
+            if var.left_calib and var.right_calib:
+                self.settings.grab_3d_point = False
+                var.left_calib = False
+                var.right_calib = False
+                print("end", len(self.config.calibration_points_3d), self.config.calibration_points_3d)
+
+            else:
+                # Check if it's the left eye and left calibration is not done yet
+                if self.eye_id == EyeId.LEFT and not var.left_calib:
+                    var.left_calib = True
+                    self.config.calibration_points_3d.append((cx, cy, 1))
+                # Check if it's the right eye and right calibration is not done yet
+                elif self.eye_id == EyeId.RIGHT and not var.right_calib:
+                    var.right_calib = True
+                    self.config.calibration_points_3d.append((cx, cy, 0))
+
+        if self.eye_id == EyeId.LEFT and len(self.config.calibration_points_3d) == 9 and var.left_calib == False:
+            var.left_calib = True
+            receive_calibration_data(self.config.calibration_points_3d, self.eye_id)
+            print("SENT LEFT EYE POINTS")
+            var.completed_3d_calib += 1
+
+        if self.eye_id == EyeId.RIGHT and len(self.config.calibration_points_3d) == 9 and var.right_calib == False:
+            var.right_calib = True
+            receive_calibration_data(self.config.calibration_points_3d, self.eye_id)
+            print("SENT RIGHT EYE POINTS")
+            var.completed_3d_calib += 1
+        # print(len(self.config.calibration_points), self.eye_id)
+
+        if var.completed_3d_calib >= 2:
+            converge_3d()
+        # pass
 
         if self.calibration_frame_counter == 0:
             self.calibration_frame_counter = None
-            # Always save offset (XOFF/YOFF) for recenter functionality
             self.config.calib_XOFF = cx
             self.config.calib_YOFF = cy
-            
-            # Only save ellipse calibration data if samples were actually collected
-            evecs, axes = self.cal.fit_ellipse()
-            # Check if fit was successful (returns (0, 0) on failure)
-            if not (isinstance(evecs, int) and isinstance(axes, int) and evecs == 0 and axes == 0):
-                # Valid calibration data - save it
-                self.config.calib_evecs, self.config.calib_axes = evecs, axes
-                self.baseconfig.save()
-                PlaySound(resource_path("Audio/completed.wav"), SND_FILENAME | SND_ASYNC)
-            else:
-                # No samples collected - only save the offset (for Recenter Eyes)
-                # Don't overwrite existing ellipse calibration
-                print("\033[93m[WARN] Calibration stopped without collecting samples. Ellipse calibration preserved, offset updated.\033[0m")
-                self.baseconfig.save()  # Still save to persist the offset changes
-
+            self.baseconfig.save()
+            PlaySound(resource_path("Audio/completed.wav"), SND_FILENAME | SND_ASYNC)
         if self.calibration_frame_counter == self.settings.calibration_samples:
+            self.config.calib_XMAX = -69420
+            self.config.calib_XMIN = 69420
+            self.config.calib_YMAX = -69420
+            self.config.calib_YMIN = 69420
             self.blink_clear = True
             self.calibration_frame_counter -= 1
         elif self.calibration_frame_counter != None:
-
-            self.cal.add_sample(cx, cy)
-
-
-
-
             self.blink_clear = False
             self.settings.gui_recenter_eyes = False
+            if cx > self.config.calib_XMAX:
+                self.config.calib_XMAX = cx
+            if cx < self.config.calib_XMIN:
+                self.config.calib_XMIN = cx
+            if cy > self.config.calib_YMAX:
+                self.config.calib_YMAX = cy
+            if cy < self.config.calib_YMIN:
+                self.config.calib_YMIN = cy
+
             self.calibration_frame_counter -= 1
 
         if self.settings.gui_recenter_eyes == True:
@@ -262,45 +273,83 @@ class cal:
         out_x = 0.5
         out_y = 0.5
 
+        if self.config.calib_XMAX != None and self.config.calib_XOFF != None:
 
+            calib_diff_x_MAX = self.config.calib_XMAX - self.config.calib_XOFF
+            if calib_diff_x_MAX == 0:
+                calib_diff_x_MAX = 1
 
-        out_x, out_y = self.cal.normalize((cx, cy), (self.config.calib_XOFF, self.config.calib_YOFF))
+            calib_diff_x_MIN = self.config.calib_XMIN - self.config.calib_XOFF
+            if calib_diff_x_MIN == 0:
+                calib_diff_x_MIN = 1
 
-        if self.settings.gui_flip_y_axis:  # check config on flipped values settings and apply accordingly
-            out_y = -out_y # flip
+            calib_diff_y_MAX = self.config.calib_YMAX - self.config.calib_YOFF
+            if calib_diff_y_MAX == 0:
+                calib_diff_y_MAX = 1
 
-        if flipx:
-            out_x = -out_x
+            calib_diff_y_MIN = self.config.calib_YMIN - self.config.calib_YOFF
+            if calib_diff_y_MIN == 0:
+                calib_diff_y_MIN = 1
 
-        if self.settings.gui_outer_side_falloff:
+            xl = float((cx - self.config.calib_XOFF) / calib_diff_x_MAX)
+            xr = float((cx - self.config.calib_XOFF) / calib_diff_x_MIN)
+            yu = float((cy - self.config.calib_YOFF) / calib_diff_y_MIN)
+            yd = float((cy - self.config.calib_YOFF) / calib_diff_y_MAX)
 
-            run_time = time.time()
-            out_x_mult = out_x * 100
-            out_y_mult = out_y * 100
-            velocity = abs(
-                np.sqrt(abs(np.square(out_x_mult - var.past_x) - np.square(out_y_mult - var.past_y)))
-                / ((var.start_time - run_time) * 10)
-            )
-            if len(var.velocity_rolling_list) < 15:
-                var.velocity_rolling_list.append(float(velocity))
+            if self.settings.gui_flip_y_axis:  # check config on flipped values settings and apply accordingly
+                if yd >= 0:
+                    out_y = max(0.0, min(1.0, yd))
+                if yu > 0:
+                    out_y = -abs(max(0.0, min(1.0, yu)))
             else:
-                var.velocity_rolling_list.pop(0)
-                var.velocity_rolling_list.append(float(velocity))
-            var.average_velocity = sum(var.velocity_rolling_list) / len(var.velocity_rolling_list)
-            var.past_x = out_x_mult
-            var.past_y = out_y_mult
+                if yd >= 0:
+                    out_y = -abs(max(0.0, min(1.0, yd)))
+                if yu > 0:
+                    out_y = max(0.0, min(1.0, yu))
 
-        out_x, out_y = velocity_falloff(self, var, out_x, out_y)
+            if flipx:
+                if xr >= 0:
+                    out_x = -abs(max(0.0, min(1.0, xr)))
+                if xl > 0:
+                    out_x = max(0.0, min(1.0, xl))
+            else:
+                if xr >= 0:
+                    out_x = max(0.0, min(1.0, xr))
+                if xl > 0:
+                    out_x = -abs(max(0.0, min(1.0, xl)))
 
-        try:
-            noisy_point = np.array([float(out_x), float(out_y)])  # fliter our values with a One Euro Filter
-            point_hat = self.one_euro_filter(noisy_point)
-            out_x = point_hat[0]
-            out_y = point_hat[1]
+            if self.settings.gui_outer_side_falloff:
 
-        except:
-            pass
+                run_time = time.time()
+                out_x_mult = out_x * 100
+                out_y_mult = out_y * 100
+                velocity = abs(
+                    np.sqrt(abs(np.square(out_x_mult - var.past_x) - np.square(out_y_mult - var.past_y)))
+                    / ((var.start_time - run_time) * 10)
+                )
+                if len(var.velocity_rolling_list) < 15:
+                    var.velocity_rolling_list.append(float(velocity))
+                else:
+                    var.velocity_rolling_list.pop(0)
+                    var.velocity_rolling_list.append(float(velocity))
+                var.average_velocity = sum(var.velocity_rolling_list) / len(var.velocity_rolling_list)
+                var.past_x = out_x_mult
+                var.past_y = out_y_mult
 
-        return out_x, out_y, var.average_velocity
+            out_x, out_y = velocity_falloff(self, var, out_x, out_y)
 
+            try:
+                noisy_point = np.array([float(out_x), float(out_y)])  # fliter our values with a One Euro Filter
+                point_hat = self.one_euro_filter(noisy_point)
+                out_x = point_hat[0]
+                out_y = point_hat[1]
 
+            except:
+                pass
+
+            return out_x, out_y, var.average_velocity
+        else:
+            if self.printcal:
+                print("\033[91m[ERROR] Please Calibrate Eye(s).\033[0m")
+                self.printcal = False
+        return 0, 0, 0
