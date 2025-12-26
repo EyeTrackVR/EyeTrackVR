@@ -32,15 +32,18 @@ class CSVLogger:
 
     def start_recording(self, camera_connected: bool = True, left_test = False, right_test = False) -> bool:
         """
-        Start a new recording session.
-        Creates a new CSV file with headers.
+        Starts a new CSV recording session for the specified eye.
         
         Args:
-            camera_connected: Whether the camera is connected and ready. 
-                            Recording will only start if True.
+            camera_connected: bool, optional (default=True)
+                Whether the camera is connected or not. If False, cannot start recording.
+            left_test: bool, optional (default=False)
+                If True, will record left eye orientation gaze test
+            right_test: bool, optional (default=False)
+                If True, will record right eye orientation gaze test
         
         Returns:
-            bool: True if recording started successfully, False otherwise
+            bool: True if recording was started, False otherwise
         """
         if not camera_connected:
             print("\033[93m[WARN] Cannot start recording - camera not connected\033[0m")
@@ -55,14 +58,11 @@ class CSVLogger:
                 # Reset time for this session
                 self.start_time_ms = int(round(time.time() * 1000))
 
-                # Create session folder with timestamp
                 formatted_timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
                 session_folder = os.path.join(self.base_folder, f"session_{formatted_timestamp}")
-
-                # Create directories if they don't exist
+                
                 Path(session_folder).mkdir(parents=True, exist_ok=True)
 
-                # Create CSV file path
                 if left_test:
                     filename = f"{formatted_timestamp}_{self.eye_id.name}_Left_Orientation_Gaze_Test_eye_data.csv"
                 elif right_test:
@@ -103,17 +103,14 @@ class CSVLogger:
 
     def log_eye_data(self, eye_id: EyeId, eye_info: EyeInfo) -> bool:
         """
-        Log a single frame of eye data to CSV.
-        
-        This method should be called directly from the OSC sender thread
-        with fresh EyeInfo data to avoid data race conditions.
+        Log the current eye data from the specified eye to the CSV file.
         
         Args:
-            eye_id: The eye being logged (LEFT, RIGHT, or BOTH)
-            eye_info: EyeInfo dataclass containing x, y, pupil_dilation, blink
-            
+            eye_id: EyeId of the eye to log data from
+            eye_info: EyeInfo containing the data to log
+        
         Returns:
-            bool: True if log was written, False otherwise
+            bool: True if data was logged successfully, False otherwise
         """
         if not self.is_recording:
             return False
@@ -153,17 +150,18 @@ class CSVLogger:
             print(f"\033[91m[ERROR] CSV write failed for {self.eye_id.name}: {e}\033[0m")
             return False
 
-    def get_recording_status(self) -> dict:
-        """
-        Get current recording status.
+    ## Current inclusion can be debated, but leaving for now.
+    # def get_recording_status(self) -> dict:
+    #     """
+    #     Get current recording status.
         
-        Returns:
-            dict: Contains is_recording, csv_file path, eye_id, and session start time
-        """
-        with self._lock:
-            return {
-                'is_recording': self.is_recording,
-                'csv_file': self.csv_file,
-                'eye_id': self.eye_id.name,
-                'start_time_ms': self.start_time_ms
-            }
+    #     Returns:
+    #         dict: Contains is_recording, csv_file path, eye_id, and session start time
+    #     """
+    #     with self._lock:
+    #         return {
+    #             'is_recording': self.is_recording,
+    #             'csv_file': self.csv_file,
+    #             'eye_id': self.eye_id.name,
+    #             'start_time_ms': self.start_time_ms
+    #         }

@@ -350,6 +350,7 @@ class EyeProcessor:
             ),
         )
 
+        # EyeInfo collection of values to send via OSC
         osc_message = OSCMessage(
             type=OSCMessageType.EYE_INFO,
             data=(

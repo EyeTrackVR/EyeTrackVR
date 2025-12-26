@@ -160,6 +160,7 @@ class CameraWidget:
                 ),
             ],
             [
+                ## New CSV Logger buttons
                 sg.Button(
                     "Recording (CSV)",
                     key=self.gui_record_csv_data,
