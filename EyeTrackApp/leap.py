@@ -124,7 +124,6 @@ class LEAP_C:
 
         self.eye_config: EyeTrackCameraConfig = eye_config
         self.config: EyeTrackConfig = config
-        self.use_gpu = True
         self.ort_session_cpu = onnxruntime.InferenceSession(self.model_path, opts, providers=["CPUExecutionProvider"])
 
         available_providers = onnxruntime.get_available_providers()
@@ -136,8 +135,7 @@ class LEAP_C:
             "CoreMLExecutionProvider"
         ]
         providers = [p for p in preferred_order if p in available_providers]
-        providers.append("CPUExecutionProvider")
-        print(f"Active Providers for this session: {providers}")
+        print(f"Active ONNX GPU Providers for this session: {providers}")
 
         self.ort_session_gpu = onnxruntime.InferenceSession(
             self.model_path,
@@ -145,10 +143,10 @@ class LEAP_C:
             providers=providers
         )
         for i in range(self.num_threads):
-            if self.use_gpu:
+            if self.config.settings.gui_use_gpu:
                 thread = threading.Thread(
                     target = run_model,
-                    args = (self.queues[i], self.output_queue, self.ort_session_cpu),
+                    args = (self.queues[i], self.output_queue, self.ort_session_gpu),
                     name = f"Thread {i}",
                 )
             else:
@@ -167,7 +165,7 @@ class LEAP_C:
 
         frame = cv2.resize(img, (112, 112))
         imgvis = self.current_image_gray.copy()
-        if self.use_gpu:
+        if self.config.settings.gui_use_gpu:
             run_onnx_model(self.queues, self.ort_session_gpu, frame)
         else:
             run_onnx_model(self.queues, self.ort_session_cpu, frame)
