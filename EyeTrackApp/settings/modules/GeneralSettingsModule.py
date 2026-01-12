@@ -75,14 +75,14 @@ class GeneralSettingsModule(BaseSettingsModule):
             ],
             [
                 sg.Checkbox(
-                    "Start and stop with SteamVR",
+                    "Start and Stop With SteamVR",
                     default=self.config.gui_openvr_autostart,
                     key=self.gui_openvr_autostart,
                     background_color="#424042",
                     tooltip="Start the EyeTrackVR app when SteamVR starts, Stop the EyeTrackVRApp when SteamVR stops. Needs SteamVR running to be enabled",
                 ),
                 sg.Checkbox(
-                    "Use GPU acceleration",
+                    "Use GPU Acceleration",
                     default=self.config.gui_use_gpu,
                     key=self.gui_use_gpu,
                     background_color="#424042",

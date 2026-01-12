@@ -20,13 +20,20 @@ pyserial = "^3.5"
 winotify = [
     { version = "^1.1.0", platform = 'win32' }
 ]
-onnxruntime = "^1.13.1"
 colorama = "^0.4.6"
 taskipy = "^1.10.4"
 pytest = "^8.0.0"
 pytest-cov = "^4.1.0"
 matplotlib = "^3.10.7"
 numba = "~0.63.1"
+
+# LINUX: Uses CUDA/ROCm (NVIDIA/AMD)
+onnxruntime-gpu = { version = "*", source = "ort-cuda-13", markers = "sys_platform == 'linux'" }
+# WINDOWS: Uses DirectML (NVIDIA/AMD/Intel)
+onnxruntime-directml = { version = "^1.20.0", markers = "sys_platform == 'win32'" }
+# MACOS: Uses CoreML/MPS (Neural Engine & Metal)
+onnxruntime = { version = "^1.20.0", markers = "sys_platform == 'darwin'" }
+
 [tool.poetry.group.dev.dependencies]
 black = "^22.10.0"
 pyinstaller = "^6.17.0"

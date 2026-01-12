@@ -39,12 +39,27 @@ from one_euro_filter import OneEuroFilter
 import psutil
 from utils.misc_utils import resource_path
 from pathlib import Path
+import sys
 
 os.environ["OMP_NUM_THREADS"] = "1" # on slower systems this can cause issues due to slow single core perf. in such cases, it is better to use GPU compute
 
 frames = 0
 models = Path("Models")
 
+if sys.platform.startswith('linux'):
+    # Detect if we are already in the right path to avoid infinite loops
+    cuda_path = "/usr/local/cuda/lib64"
+    current_ld = os.environ.get("LD_LIBRARY_PATH", "")
+
+    if cuda_path not in current_ld:
+        os.environ["LD_LIBRARY_PATH"] = f"/usr/lib:{cuda_path}:{current_ld}"
+
+        # IMPORTANT: Linux caches LD_LIBRARY_PATH when the process starts.
+        # To make it "take effect" inside the same script, we often have to
+        # re-execute the script once if the path was missing.
+        if "RESTART_FOR_CUDA" not in os.environ:
+            os.environ["RESTART_FOR_CUDA"] = "1"
+            os.execv(sys.executable, [sys.executable] + sys.argv)
 
 def run_model(input_queue, output_queue, session):
     while True:
@@ -112,23 +127,28 @@ class LEAP_C:
         self.use_gpu = True
         self.ort_session_cpu = onnxruntime.InferenceSession(self.model_path, opts, providers=["CPUExecutionProvider"])
 
+        available_providers = onnxruntime.get_available_providers()
+        preferred_order = [
+            "CUDAExecutionProvider",
+            "OpenVINOExecutionProvider",
+            "ROCMExecutionProvider",
+            "DmlExecutionProvider",
+            "CoreMLExecutionProvider"
+        ]
+        providers = [p for p in preferred_order if p in available_providers]
+        providers.append("CPUExecutionProvider")
+        print(f"Active Providers for this session: {providers}")
+
         self.ort_session_gpu = onnxruntime.InferenceSession(
             self.model_path,
             opts,
-            providers=[
-                "CUDAExecutionProvider",  # NVIDIA
-                "OpenVINOExecutionProvider",  # Intel
-                "ROCMExecutionProvider",  # AMD
-                "DmlExecutionProvider",  # DirectML (Generic Windows)
-                "VulkanExecutionProvider",  # Vulkan Generic for Linux
-                "CPUExecutionProvider"  # CPU Fallback
-            ]
+            providers=providers
         )
         for i in range(self.num_threads):
             if self.use_gpu:
                 thread = threading.Thread(
                     target = run_model,
-                    args = (self.queues[i], self.output_queue, self.ort_session_gpu),
+                    args = (self.queues[i], self.output_queue, self.ort_session_cpu),
                     name = f"Thread {i}",
                 )
             else:
