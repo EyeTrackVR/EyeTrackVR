@@ -13,6 +13,7 @@ class GeneralSettingsValidationModel(BaseValidationModel):
     gui_left_eye_dominant: bool
     gui_eye_dominant_diff_thresh: float
     gui_openvr_autostart: bool
+    gui_use_gpu: bool
 
 
 class GeneralSettingsModule(BaseSettingsModule):
@@ -28,6 +29,7 @@ class GeneralSettingsModule(BaseSettingsModule):
         self.gui_right_eye_dominant = f"-RIGHTEYEDOMINANT{widget_id}-"
         self.gui_update_check = f"-UPDATECHECK{widget_id}-"
         self.gui_openvr_autostart = f"-OPENVRAUTOSTART{widget_id}-"
+        self.gui_use_gpu = f"-USEGPU{widget_id}-"
 
     # gui_right_eye_dominant: bool = False
     # gui_left_eye_dominant: bool = False
@@ -79,6 +81,14 @@ class GeneralSettingsModule(BaseSettingsModule):
                     background_color="#424042",
                     tooltip="Start the EyeTrackVR app when SteamVR starts, Stop the EyeTrackVRApp when SteamVR stops. Needs SteamVR running to be enabled",
                 ),
+                sg.Checkbox(
+                    "Use GPU acceleration",
+                    default=self.config.gui_use_gpu,
+                    key=self.gui_use_gpu,
+                    background_color="#424042",
+                    tooltip="Use GPU to process LEAP model inference. Restart REQUIRED after change.",
+                ),
+
             ],
             [
                 sg.Text("Eye Falloff Settings:", background_color="#242224"),

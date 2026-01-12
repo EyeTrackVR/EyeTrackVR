@@ -40,7 +40,7 @@ import psutil
 from utils.misc_utils import resource_path
 from pathlib import Path
 
-os.environ["OMP_NUM_THREADS"] = "1"
+os.environ["OMP_NUM_THREADS"] = "1" # on slower systems this can cause issues due to slow single core perf. in such cases, it is better to use GPU compute
 
 frames = 0
 models = Path("Models")
@@ -106,16 +106,37 @@ class LEAP_C:
         self.total_velocity_old = 0
         self.old_per = 0.0
         self.delta_per_neg = 0.0
-        self.ort_session1 = onnxruntime.InferenceSession(self.model_path, opts, providers=["CPUExecutionProvider"])
+
         self.eye_config: EyeTrackCameraConfig = eye_config
         self.config: EyeTrackConfig = config
+        self.use_gpu = True
+        self.ort_session_cpu = onnxruntime.InferenceSession(self.model_path, opts, providers=["CPUExecutionProvider"])
 
+        self.ort_session_gpu = onnxruntime.InferenceSession(
+            self.model_path,
+            opts,
+            providers=[
+                "CUDAExecutionProvider",  # NVIDIA
+                "OpenVINOExecutionProvider",  # Intel
+                "ROCMExecutionProvider",  # AMD
+                "DmlExecutionProvider",  # DirectML (Generic Windows)
+                "VulkanExecutionProvider",  # Vulkan Generic for Linux
+                "CPUExecutionProvider"  # CPU Fallback
+            ]
+        )
         for i in range(self.num_threads):
-            thread = threading.Thread(
-                target=run_model,
-                args=(self.queues[i], self.output_queue, self.ort_session1),
-                name=f"Thread {i}",
-            )
+            if self.use_gpu:
+                thread = threading.Thread(
+                    target = run_model,
+                    args = (self.queues[i], self.output_queue, self.ort_session_gpu),
+                    name = f"Thread {i}",
+                )
+            else:
+                thread = threading.Thread(
+                    target=run_model,
+                    args=(self.queues[i], self.output_queue, self.ort_session_cpu),
+                    name=f"Thread {i}",
+                )
             self.threads.append(thread)
             thread.start()
 
@@ -126,7 +147,10 @@ class LEAP_C:
 
         frame = cv2.resize(img, (112, 112))
         imgvis = self.current_image_gray.copy()
-        run_onnx_model(self.queues, self.ort_session1, frame)
+        if self.use_gpu:
+            run_onnx_model(self.queues, self.ort_session_gpu, frame)
+        else:
+            run_onnx_model(self.queues, self.ort_session_cpu, frame)
 
         if not self.output_queue.empty():
             frame, pre_landmark = self.output_queue.get()
@@ -185,9 +209,10 @@ class External_Run_LEAP:
     def __init__(self, eye_config: EyeTrackCameraConfig, config: EyeTrackConfig):
         self.algo = LEAP_C(eye_config, config)
 
-    def run(self, current_image_gray, current_image_gray_clean, calib):
+    def run(self, current_image_gray, current_image_gray_clean, calib, use_gpu):
         self.algo.current_image_gray = current_image_gray
         self.algo.current_image_gray_clean = current_image_gray_clean
         self.algo.calib = calib
+        self.use_gpu = use_gpu
         img, x, y, per = self.algo.leap_run()
         return img, x, y, per

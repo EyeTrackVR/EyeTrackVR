@@ -250,6 +250,7 @@ class EyeTrackSettingsConfig(BaseModel):
     gui_EyebrowThresholdLowering: float = 0.15
     gui_OutputMultiplier: float = 1
     gui_use_module: bool = False
+    gui_use_gpu: bool = True # simple checkbox vs drop down with cuda, openvino etc.
 
     gui_openvr_autostart: bool = False
 
