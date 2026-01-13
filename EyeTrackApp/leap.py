@@ -45,6 +45,8 @@ os.environ["OMP_NUM_THREADS"] = "1" # on slower systems this can cause issues du
 
 frames = 0
 models = Path("Models")
+# Global lock to prevent DML race conditions between eye threads
+dml_lock = threading.Lock()
 
 if sys.platform.startswith('linux'):
     # Detect if we are already in the right path to avoid infinite loops
@@ -73,7 +75,8 @@ def run_model(input_queue, output_queue, session):
         gray_img = np.expand_dims(np.expand_dims(gray_img, axis=0), axis=0)
 
         ort_inputs = {session.get_inputs()[0].name: gray_img}
-        pre_landmark = session.run(None, ort_inputs)
+        with dml_lock:
+            pre_landmark = session.run(None, ort_inputs)
         pre_landmark = np.reshape(pre_landmark, (-1, 2))
         output_queue.put((frame, pre_landmark))
 
@@ -134,7 +137,15 @@ class LEAP_C:
             "DmlExecutionProvider",
             "CoreMLExecutionProvider"
         ]
-        providers = [p for p in preferred_order if p in available_providers]
+
+        providers = []
+        for p in preferred_order:
+            if p in available_providers:
+                if p == "DmlExecutionProvider":
+                    providers.append((p, {'enable_share_strategy': True}))
+                else:
+                    providers.append(p)
+
         print(f"Active ONNX GPU Providers for this session: {providers}")
 
         self.ort_session_gpu = onnxruntime.InferenceSession(
