@@ -28,11 +28,11 @@ matplotlib = "^3.10.7"
 numba = "~0.63.1"
 
 # LINUX: Uses CUDA/ROCm (NVIDIA/AMD)
-onnxruntime-gpu = { version = "*", source = "ort-cuda-13", markers = "sys_platform == 'linux'" }
+onnxruntime-gpu = { version = "*", source = "ort-cuda-13",  platform = 'linux' }
 # WINDOWS: Uses DirectML (NVIDIA/AMD/Intel)
-onnxruntime-directml = { version = "^1.20.0", markers = "sys_platform == 'win32'" }
+onnxruntime-directml = { version = "^1.20.0", platform = 'win32' }
 # MACOS: Uses CoreML/MPS (Neural Engine & Metal)
-onnxruntime = { version = "^1.20.0", markers = "sys_platform == 'darwin'" }
+onnxruntime = { version = "^1.20.0", platform = 'darwin' }
 
 [tool.poetry.group.dev.dependencies]
 black = "^22.10.0"
@@ -58,3 +58,7 @@ pythonpath = "."
 python_files = [
     "test_*.py"
 ]
+[[tool.poetry.source]]
+name = "ort-cuda-13"
+url = "https://aiinfra.pkgs.visualstudio.com/PublicPackages/_packaging/onnxruntime-cuda-12/pypi/simple/"
+priority = "explicit"
