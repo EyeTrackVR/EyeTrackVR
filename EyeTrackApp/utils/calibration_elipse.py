@@ -8,7 +8,7 @@ class CalibrationEllipse:
         self.n_std_devs = float(n_std_devs)
         self.fitted = False
 
-        self.scale_factor = 0.75
+        self.scale_factor = 0.80
 
         self.flip_y = False  # Set to True if up/down are backwards
         self.flip_x = False  # Adjust if left/right are backwards
