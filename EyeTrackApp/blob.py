@@ -22,7 +22,7 @@
 BLOB By: Prohurtz 
 Algorithm App Implimentations By: Prohurtz, qdot (Inital App Creator)
 
-Copyright (c) 2025 EyeTrackVR <3
+Copyright (c) 2026 EyeTrackVR <3
 LICENSE: Babble Software Distribution License 1.0
 ------------------------------------------------------------------------------------------------------
 """

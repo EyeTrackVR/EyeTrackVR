@@ -22,7 +22,7 @@
 DADDY By: PallasNeko Optimization
 Algorithm App Implementations By: PallasNeko, Prohurtz
 
-Copyright (c) 2025 EyeTrackVR <3
+Copyright (c) 2026 EyeTrackVR <3
 LICENSE: Babble Software Distribution License 1.0
 ------------------------------------------------------------------------------------------------------
 """

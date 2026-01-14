@@ -22,7 +22,7 @@
 Adaptive Haar Surround Feature: Summer
 Algorithm App Implementations and Tweaks By: Prohurtz
 
-Copyright (c) 2025 EyeTrackVR <3
+Copyright (c) 2026 EyeTrackVR <3
 
 LICENSE: Summer Software Distribution License 1.0
 ------------------------------------------------------------------------------------------------------
