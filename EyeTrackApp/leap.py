@@ -196,6 +196,7 @@ class LEAP_C:
             d = (d1 + d2) / 2
 
             if self.calib == 0:
+                self.calib = time.time()
                 self.openlist = []
                 self.eye_config.leap_calibrated = False
 
@@ -203,7 +204,7 @@ class LEAP_C:
                 self.openlist.append(d)
                 self.eye_config.leap_calibration_percentile_90 = np.percentile(self.openlist, 90) if len(self.openlist) >= 10 else 0.8
                 self.eye_config.leap_calibration_percentile_2 = np.percentile(self.openlist, 2) - self.eye_config.leap_calibration_percentile_90
-                if len(self.openlist) >= self.config.settings.leap_calibration_samples:
+                if isinstance(self.calib, float) and time.time() - self.calib >= self.config.settings.leap_calibration_duration:
                     self.eye_config.leap_calibrated = True
                     self.config.save()
                     print(f"[INFO] {'Left' if self.eye_config is self.config.left_eye else 'Right'} eye calibrated")

@@ -29,6 +29,7 @@ from config import EyeTrackConfig
 from collections import deque
 from threading import Event, Thread
 import math
+import time
 from eye import EyeId
 from eye_processor import EyeProcessor, EyeInfoOrigin
 from queue import Queue, Empty
@@ -352,7 +353,7 @@ class CameraWidget:
         self.settings.gui_recenter_eyes = True
 
     def recalibrate_eyes(self):
-        self.ransac.calibration_frame_counter = self.settings.calibration_samples
+        self.ransac.calibration_start_time = time.time()
         self.ransac.ibo.clear_filter()
         PlaySound(resource_path("Audio/start.wav"), SND_FILENAME | SND_ASYNC)
 
@@ -466,7 +467,7 @@ class CameraWidget:
                 self.recalibrate_eyes()
 
             if event == self.gui_stop_calibration:
-                self.ransac.calibration_frame_counter = 0
+                self.ransac.calibration_start_time = None
 
             if event == self.gui_recenter_eyes:
                 self.recenter_eyes()
@@ -487,7 +488,7 @@ class CameraWidget:
 
             elif needs_roi_set:
                 window[self.gui_mode_readout].update("Awaiting Eye Crop")
-            elif self.ransac.calibration_frame_counter != None:
+            elif self.ransac.calibration_start_time != None:
                 window[self.gui_mode_readout].update("Calibration")
             else:
                 window[self.gui_mode_readout].update("Tracking")

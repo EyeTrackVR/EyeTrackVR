@@ -13,11 +13,11 @@ class BlinkAlgoSettingsValidationModel(BaseValidationModel):
     gui_BLINK: bool
     gui_LEAP_lid: bool
     ibo_filter_samples: int
-    calibration_samples: int
+    calibration_duration: int
     ibo_fully_close_eye_threshold: Annotated[str, AfterValidator(check_is_float_convertible)]
     gui_circular_crop_left: bool
     gui_circular_crop_right: bool
-    leap_calibration_samples: int
+    leap_calibration_duration: int
 
 
 class BlinkAlgoSettingsModule(BaseSettingsModule):
@@ -30,11 +30,11 @@ class BlinkAlgoSettingsModule(BaseSettingsModule):
         self.gui_BLINK = f"-BLINK{widget_id}-"
         self.gui_LEAP_lid = f"-LEAPLID{widget_id}-"
         self.ibo_filter_samples = f"-IBOFILTERSAMPLE{widget_id}-"
-        self.calibration_samples = f"-CALIBRATIONSAMPLES{widget_id}-"
+        self.calibration_duration = f"-CALIBRATIONDURATION{widget_id}-"
         self.ibo_fully_close_eye_threshold = f"-CLOSETHRESH{widget_id}-"
         self.gui_circular_crop_left = f"-CIRCLECROPLEFT{widget_id}-"
         self.gui_circular_crop_right = f"-CIRCLECROPRIGHT{widget_id}-"
-        self.leap_calibration_samples = f"-LEAPCALIBRATION{widget_id}-"
+        self.leap_calibration_duration = f"-LEAPCALIBRATION{widget_id}-"
 
     def get_layout(self):
         return [
@@ -66,10 +66,10 @@ class BlinkAlgoSettingsModule(BaseSettingsModule):
                 ),
             ],
             [
-                sg.Text("LEAP Calibration Samples", background_color="#424042"),
+                sg.Text("LEAP Calibration Duration (Seconds)", background_color="#424042"),
                 sg.InputText(
-                    self.config.leap_calibration_samples,
-                    key=self.leap_calibration_samples,
+                    self.config.leap_calibration_duration,
+                    key=self.leap_calibration_duration,
                     size=(0, 10),
                 ),
             ],
@@ -80,10 +80,10 @@ class BlinkAlgoSettingsModule(BaseSettingsModule):
                     key=self.ibo_filter_samples,
                     size=(0, 10),
                 ),
-                sg.Text("Calibration Samples", background_color="#424042"),
+                sg.Text("Calibration Duration (Seconds)", background_color="#424042"),
                 sg.InputText(
-                    self.config.calibration_samples,
-                    key=self.calibration_samples,
+                    self.config.calibration_duration,
+                    key=self.calibration_duration,
                     size=(0, 10),
                 ),
                 sg.Text("IBO Close Threshold", background_color="#424042"),

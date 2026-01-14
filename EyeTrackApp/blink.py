@@ -39,7 +39,7 @@ def BLINK(self):
 
     intensity = np.sum(self.current_image_gray_clean)
 
-    if self.calibration_frame_counter == 300:
+    if self.calibration_start_time is not None:
         self.filterlist = []  # clear filter
     if len(self.filterlist) < 300:
         self.filterlist.append(intensity)

@@ -16,7 +16,7 @@ from config import EyeTrackCameraConfig
 
 def test_recenter_eyes_saves_offset():
     """
-    Test that when calibration_frame_counter == 0 without samples (Recenter Eyes scenario),
+    Test that when calibration stops without samples (Recenter Eyes scenario),
     it saves the offset (XOFF/YOFF) but doesn't overwrite existing ellipse calibration.
     """
     print("=" * 80)
@@ -41,7 +41,7 @@ def test_recenter_eyes_saves_offset():
     cal = CalibrationEllipse()
     # No samples added (Recenter Eyes doesn't collect samples)
     
-    # Simulate what happens when calibration_frame_counter == 0
+    # Simulate what happens when calibration ends
     new_cx, new_cy = 120.0, 130.0
     
     # Step 1: Always save offset
@@ -106,7 +106,7 @@ def test_normal_calibration_saves_everything():
         for y in range(90, 111, 5):
             cal.add_sample(x, y)
     
-    # Simulate what happens when calibration_frame_counter == 0
+    # Simulate what happens when calibration ends
     new_cx, new_cy = 120.0, 130.0
     
     # Step 1: Always save offset

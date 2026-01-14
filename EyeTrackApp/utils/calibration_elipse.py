@@ -100,6 +100,13 @@ class CalibrationEllipse:
             self.evecs = evecs_cov[:, [1, 0]]
             std_devs = np.sqrt(evals_cov[[1, 0]])
 
+        # Soft limit rotation to ±85 degrees to prevent 180-degree flips
+        # This ensures the X-aligned eigenvector always points generally in the positive X direction
+        # and the Y-aligned one in the positive Y direction.
+        for i in range(2):
+            if self.evecs[i, i] < 0:
+                self.evecs[:, i] *= -1
+
         self.axes = std_devs * self.n_std_devs
 
         if self.axes[0] < 1e-12: self.axes[0] = 1e-12

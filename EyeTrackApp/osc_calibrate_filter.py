@@ -135,7 +135,7 @@ def center_overlay_calibrate(self):
         received_int = struct.unpack("!l", data)[0]
         message = received_int
         self.settings.gui_recenter_eyes = False
-        self.calibration_frame_counter = 0
+        self.calibration_start_time = None
         var.overlay_active = False
 
 
@@ -211,39 +211,31 @@ class cal:
             flipx = self.settings.gui_flip_x_axis_left
 
 
-        if self.calibration_frame_counter == 0:
-            self.calibration_frame_counter = None
-            # Always save offset (XOFF/YOFF) for recenter functionality
-            self.config.calib_XOFF = cx
-            self.config.calib_YOFF = cy
-            
-            # Only save ellipse calibration data if samples were actually collected
-            evecs, axes = self.cal.fit_ellipse()
-            # Check if fit was successful (returns (0, 0) on failure)
-            if not (isinstance(evecs, int) and isinstance(axes, int) and evecs == 0 and axes == 0):
-                # Valid calibration data - save it
-                self.config.calib_evecs, self.config.calib_axes = evecs, axes
-                self.baseconfig.save()
-                PlaySound(resource_path("Audio/completed.wav"), SND_FILENAME | SND_ASYNC)
+        if self.calibration_start_time is not None:
+            if time.time() - self.calibration_start_time >= self.settings.calibration_duration:
+                self.calibration_start_time = None
+                # Always save offset (XOFF/YOFF) for recenter functionality
+                self.config.calib_XOFF = cx
+                self.config.calib_YOFF = cy
+                
+                # Only save ellipse calibration data if samples were actually collected
+                evecs, axes = self.cal.fit_ellipse()
+                # Check if fit was successful (returns (0, 0) on failure)
+                if not (isinstance(evecs, int) and isinstance(axes, int) and evecs == 0 and axes == 0):
+                    # Valid calibration data - save it
+                    self.config.calib_evecs, self.config.calib_axes = evecs, axes
+                    self.baseconfig.save()
+                    PlaySound(resource_path("Audio/completed.wav"), SND_FILENAME | SND_ASYNC)
+                else:
+                    # No samples collected - only save the offset (for Recenter Eyes)
+                    # Don't overwrite existing ellipse calibration
+                    print("\033[93m[WARN] Calibration stopped without collecting samples. Ellipse calibration preserved, offset updated.\033[0m")
+                    self.baseconfig.save()  # Still save to persist the offset changes
+                self.blink_clear = False
             else:
-                # No samples collected - only save the offset (for Recenter Eyes)
-                # Don't overwrite existing ellipse calibration
-                print("\033[93m[WARN] Calibration stopped without collecting samples. Ellipse calibration preserved, offset updated.\033[0m")
-                self.baseconfig.save()  # Still save to persist the offset changes
-
-        if self.calibration_frame_counter == self.settings.calibration_samples:
-            self.blink_clear = True
-            self.calibration_frame_counter -= 1
-        elif self.calibration_frame_counter != None:
-
-            self.cal.add_sample(cx, cy)
-
-
-
-
-            self.blink_clear = False
-            self.settings.gui_recenter_eyes = False
-            self.calibration_frame_counter -= 1
+                self.cal.add_sample(cx, cy)
+                self.blink_clear = False
+                self.settings.gui_recenter_eyes = False
 
         if self.settings.gui_recenter_eyes == True:
             self.config.calib_XOFF = cx
