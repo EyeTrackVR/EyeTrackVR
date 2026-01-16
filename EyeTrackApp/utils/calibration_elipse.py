@@ -100,12 +100,13 @@ class CalibrationEllipse:
             self.evecs = evecs_cov[:, [1, 0]]
             std_devs = np.sqrt(evals_cov[[1, 0]])
 
-        # Soft limit rotation to ±85 degrees to prevent 180-degree flips
-        # This ensures the X-aligned eigenvector always points generally in the positive X direction
-        # and the Y-aligned one in the positive Y direction.
-        for i in range(2):
-            if self.evecs[i, i] < 0:
-                self.evecs[:, i] *= -1
+        # Ensure each eigenvector points in the positive direction of its dominant axis
+        # For the X-aligned eigenvector (column 0), ensure it points in +X
+        # For the Y-aligned eigenvector (column 1), ensure it points in +Y
+        if self.evecs[0, 0] < 0:
+            self.evecs[:, 0] *= -1
+        if self.evecs[1, 1] < 0:
+            self.evecs[:, 1] *= -1
 
         self.axes = std_devs * self.n_std_devs
 
@@ -117,7 +118,7 @@ class CalibrationEllipse:
         self.rotation = np.arctan2(major_vec[1], major_vec[0])
 
         self.fitted = True
-        return self.evecs.T, self.axes
+        return self.evecs, self.axes
 
 
         # Scale by ellipse axes (with scale factor for margins)
@@ -202,6 +203,11 @@ class CalibrationEllipse:
 
         # Vector from reference to current pupil position
         p_centered = p - reference
+        
+        # If evecs was loaded from an older version, it might be (2,2) but transposed.
+        # But we now consistently store eigenvectors as COLUMNS.
+        # To rotate into ellipse space, we multiply by evecs.T (which has basis vectors as ROWS).
+        # p_rot = B.T @ p_centered
 
         # Rotate into ellipse principal axes space
         try:
@@ -219,7 +225,7 @@ class CalibrationEllipse:
 
         # Apply coordinate flips for eye tracking conventions
         norm_x = -norm[0] if self.flip_x else norm[0]
-        norm_y = -norm[1] if self.flip_y else norm[1]
+        norm_y = norm[1] if self.flip_y else -norm[1]
 
         if clip:
             norm_x = np.clip(norm_x, -1.0, 1.0)
@@ -234,13 +240,13 @@ class CalibrationEllipse:
 
         # Apply inverse flips
         nx = -norm_x if self.flip_x else norm_x
-        ny = -norm_y if self.flip_y else norm_y
+        ny = norm_y if self.flip_y else -norm_y
 
         # Scale by ellipse axes
         scaled_axes = self.axes * self.scale_factor
         p_rot = np.array([nx, ny]) * scaled_axes
 
-        # Rotate back to world space
+        # Rotate back to world space: v = B @ c (where B has basis vectors as COLUMNS)
         p_centered = self.evecs @ p_rot
 
         # Add reference point
