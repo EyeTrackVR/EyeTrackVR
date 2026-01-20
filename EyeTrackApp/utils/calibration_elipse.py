@@ -11,12 +11,8 @@ class CalibrationEllipse:
 
         self.scale_factor = 0.80
 
-        # --- FLIP SETTINGS ---
-        # flip_x=True:  Mirrors the X output. Useful if camera image is mirrored.
-        #               (e.g., Eye moves Right on screen, but Left in camera pixel coords)
-        # flip_y=False: Standard Cartesian (Looking UP returns Positive Y)
         self.flip_y = False
-        self.flip_x = True  # <--- CHANGED TO TRUE
+        self.flip_x = True
 
         # Parameters
         self.center = None
