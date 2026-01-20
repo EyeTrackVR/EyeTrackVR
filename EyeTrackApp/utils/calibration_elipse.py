@@ -11,10 +11,12 @@ class CalibrationEllipse:
 
         self.scale_factor = 0.80
 
-        # FLIP FLAGS
-        # flip_y=False means: looking UP (screen y decreases) returns Positive value (Standard Cartesian)
+        # --- FLIP SETTINGS ---
+        # flip_x=True:  Mirrors the X output. Useful if camera image is mirrored.
+        #               (e.g., Eye moves Right on screen, but Left in camera pixel coords)
+        # flip_y=False: Standard Cartesian (Looking UP returns Positive Y)
         self.flip_y = False
-        self.flip_x = False
+        self.flip_x = True  # <--- CHANGED TO TRUE
 
         # Parameters
         self.center = None
@@ -33,8 +35,7 @@ class CalibrationEllipse:
     def init_from_save(self, evecs, axes):
         """
         Initialize from save.
-        NOTE: We ignore the saved 'evecs' rotation to ensure strict axis alignment
-        if you are migrating old data. We force the Identity matrix.
+        NOTE: We ignore the saved 'evecs' rotation to ensure strict axis alignment.
         """
         try:
             axes_array = np.asarray(axes, dtype=float)
@@ -47,7 +48,7 @@ class CalibrationEllipse:
                 print("[ERROR] Saved data contains zero or NaN values.")
                 return False
 
-            # Force Identity Matrix (No Rotation) even if saved file had rotation
+            # Force Identity Matrix (No Rotation)
             self.evecs = np.eye(2)
             self.axes = axes_array
 
@@ -62,7 +63,6 @@ class CalibrationEllipse:
     def fit_ellipse(self):
         """
         Fits an axis-aligned ellipse (no rotation) using standard deviation.
-        This prevents axis flipping issues caused by diagonal head tilts.
         """
         N = len(self.xs)
         if N < 2:
@@ -76,7 +76,6 @@ class CalibrationEllipse:
         self.center = np.array([mean_x, mean_y])
 
         # 2. Calculate Axis Lengths (Standard Deviation)
-        # We calculate std dev for X and Y independently.
         std_x = np.std(self.xs)
         std_y = np.std(self.ys)
 
@@ -84,15 +83,13 @@ class CalibrationEllipse:
         radius_x = std_x * self.n_std_devs
         radius_y = std_y * self.n_std_devs
 
-        # Safety clamp to prevent divide-by-zero
+        # Safety clamp
         if radius_x < 1e-12: radius_x = 1e-12
         if radius_y < 1e-12: radius_y = 1e-12
 
         self.axes = np.array([radius_x, radius_y])
 
         # 3. Force Identity Matrix (Strict Horizontal/Vertical alignment)
-        # Col 0 = X axis (1, 0)
-        # Col 1 = Y axis (0, 1)
         self.evecs = np.eye(2)
 
         self.fitted = True
@@ -104,13 +101,12 @@ class CalibrationEllipse:
 
         x, y = float(pupil_pos[0]), float(pupil_pos[1])
 
-        # Determine reference center
         if target_pos is None:
             cx, cy = self.center
         else:
             cx, cy = target_pos
 
-        # Calculate deltas (Screen Space)
+        # Calculate deltas
         dx = x - cx
         dy = y - cy
 
@@ -118,17 +114,15 @@ class CalibrationEllipse:
         rx, ry = self.axes * self.scale_factor
 
         # Normalize
-        # Screen X increases Right -> Positive output (Left is Left)
         norm_x = dx / rx
-
-        # Screen Y increases Down.
-        # If we want "Up" to be positive (Standard Cartesian), we must invert Y.
-        # dy is positive when looking down.
         norm_y = dy / ry
 
-        # Apply output mapping
+        # --- APPLY FLIPS ---
+        # If flip_x is True: Inverts the sign.
         final_x = -norm_x if self.flip_x else norm_x
-        final_y = norm_y if self.flip_y else -norm_y  # Default: Inverts Screen Y to be Cartesian
+
+        # If flip_y is False: Inverts Screen Y (so Up is Positive).
+        final_y = norm_y if self.flip_y else -norm_y
 
         if clip:
             final_x = np.clip(final_x, -1.0, 1.0)
@@ -142,7 +136,7 @@ class CalibrationEllipse:
 
         # 1. Reverse the Output Mapping
         nx = -norm_x if self.flip_x else norm_x
-        ny = norm_y if self.flip_y else -norm_y  # Reverses the Cartesian inversion
+        ny = norm_y if self.flip_y else -norm_y
 
         # 2. Scale back up
         rx, ry = self.axes * self.scale_factor
@@ -160,12 +154,11 @@ class CalibrationEllipse:
     def fit_and_visualize(self):
         plt.figure(figsize=(10, 8))
 
-        # Plot raw points
         plt.plot(self.xs, self.ys, 'k.', label='Samples', alpha=0.5)
         plt.axis('equal')
         plt.grid(True, alpha=0.3)
 
-        # Invert plot Y axis so it looks like a screen (Top-Left 0,0)
+        # Invert plot Y axis to match screen coordinates
         plt.gca().invert_yaxis()
 
         if not self.fitted:
@@ -175,28 +168,23 @@ class CalibrationEllipse:
             scaled_axes = self.axes * self.scale_factor
             t = np.linspace(0, 2 * np.pi, 200)
 
-            # Simple parametric ellipse (No Rotation Matrix needed)
-            # x = h + a*cos(t)
-            # y = k + b*sin(t)
             el_x = self.center[0] + scaled_axes[0] * np.cos(t)
             el_y = self.center[1] + scaled_axes[1] * np.sin(t)
 
             plt.plot(el_x, el_y, 'b-', linewidth=2, label='Axis-Aligned Fit')
             plt.plot(self.center[0], self.center[1], 'r+', markersize=15, label='Center')
 
-            # Draw Axes (Horizontal and Vertical only)
-            # X Axis
             plt.hlines(self.center[1],
                        self.center[0] - scaled_axes[0],
                        self.center[0] + scaled_axes[0],
                        colors='g', linestyles='-', label='Width (X)')
-            # Y Axis
+
             plt.vlines(self.center[0],
                        self.center[1] - scaled_axes[1],
                        self.center[1] + scaled_axes[1],
                        colors='m', linestyles='-', label='Height (Y)')
 
-            plt.title(f'Axis-Aligned Calibration ({self.n_std_devs}σ)')
+            plt.title(f'Axis-Aligned Calibration (FlipX={self.flip_x})')
         else:
             plt.title("Fit FAILED")
 
