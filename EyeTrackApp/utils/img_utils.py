@@ -18,11 +18,13 @@ def safe_crop(img, x, y, x2, y2, keepsize=False):
             raise
 
 def circle_crop(img, xc, yc, radius, cct):
-
-    avg_color_per_row = np.average(img, axis=0)
-    avg_color = np.average(avg_color_per_row, axis=0)
     if cct <= 0:
         try:
+            # Optimize average color calculation
+            # Use a very small version of the image to get average color
+            small_img = cv2.resize(img, (1, 1))
+            avg_color = small_img[0, 0]
+
             ht, wd = img.shape[:2]
 
             if radius < 10: #minimum size

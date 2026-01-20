@@ -235,14 +235,6 @@ class EyeProcessor:
                 borderValue=(255, 255, 255),
             )
 
-            self.current_image_white = cv2.warpAffine(
-                self.current_image,
-                matrix,
-                (roi_w, roi_h),
-                borderMode=cv2.BORDER_CONSTANT,
-                borderValue=(255, 255, 255),
-            )
-
             inv_matrix = np.linalg.inv(np.vstack((matrix, [0, 0, 1])))[:-1]
             # calculate crop corner locations in original image space
             corners = np.matmul([[0, 0, 1], [roi_w, 0, 1], [0, roi_h, 1], [roi_w, roi_h, 1]], np.transpose(inv_matrix))
@@ -685,7 +677,6 @@ class EyeProcessor:
             algolist[self.settings.gui_BLOBP] = self.BLOBM
 
         (
-            _,
             self.firstalgo,
             self.secondalgo,
             self.thirdalgo,
@@ -694,7 +685,7 @@ class EyeProcessor:
             self.sixthalgo,
             self.seventhalgo,
             self.eigthalgo,
-        ) = algolist
+        ) = algolist[:8]
 
         while True:
 
@@ -742,6 +733,10 @@ class EyeProcessor:
                 continue
 
             self.current_image_gray = cv2.cvtColor(self.current_image, cv2.COLOR_BGR2GRAY)
+            # Only copy if we are using an algorithm that might modify current_image_gray
+            # and we need a clean version for others.
+            # Currently LEAP and HSF seem to use it.
+            # RANSAC and BLINK use current_image_gray_clean.
             self.current_image_gray_clean = (
                 self.current_image_gray.copy()
             )  # copy this frame to have a clean image for blink algo
