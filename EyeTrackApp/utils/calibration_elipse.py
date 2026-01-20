@@ -11,14 +11,15 @@ class CalibrationEllipse:
 
         self.scale_factor = 0.80
 
-        self.flip_y = False  # Set to True if up/down are backwards
-        self.flip_x = False  # Adjust if left/right are backwards
+        # FLIP FLAGS
+        # flip_y=False means: looking UP (screen y decreases) returns Positive value (Standard Cartesian)
+        self.flip_y = False
+        self.flip_x = False
 
-        # Ellipse parameters
-        self.center = None  # Mean pupil position (ellipse center)
-        self.axes = None  # Semi-axes (std_dev based)
-        self.rotation = None  # Rotation angle
-        self.evecs = None  # Eigenvectors
+        # Parameters
+        self.center = None
+        self.axes = None
+        self.evecs = None
 
     def add_sample(self, x, y):
         self.xs.append(float(x))
@@ -30,201 +31,175 @@ class CalibrationEllipse:
         self.scale_factor = 1.0 - (clamped_percent / 100.0)
 
     def init_from_save(self, evecs, axes):
-        """Initialize calibration from saved data with validation"""
+        """
+        Initialize from save.
+        NOTE: We ignore the saved 'evecs' rotation to ensure strict axis alignment
+        if you are migrating old data. We force the Identity matrix.
+        """
         try:
-            evecs_array = np.asarray(evecs, dtype=float)
             axes_array = np.asarray(axes, dtype=float)
 
-            # Validate evecs shape
-            if evecs_array.shape != (2, 2):
-                print(
-                    f"\033[91m[ERROR] Invalid evecs shape in saved data: {evecs_array.shape}. Expected (2, 2).\033[0m")
-                self.fitted = False
-                return False
-
-            # Validate axes shape
             if axes_array.shape != (2,):
-                print(f"\033[91m[ERROR] Invalid axes shape in saved data: {axes_array.shape}. Expected (2,).\033[0m")
-                self.fitted = False
+                print(f"[ERROR] Invalid axes shape: {axes_array.shape}.")
                 return False
 
-            # Check for zero or invalid values
-            if np.all(axes_array == 0) or np.any(np.isnan(axes_array)) or np.any(np.isnan(evecs_array)):
-                print("\033[91m[ERROR] Saved calibration data contains zero or NaN values.\033[0m")
-                self.fitted = False
+            if np.all(axes_array == 0) or np.any(np.isnan(axes_array)):
+                print("[ERROR] Saved data contains zero or NaN values.")
                 return False
 
-            self.evecs = evecs_array
+            # Force Identity Matrix (No Rotation) even if saved file had rotation
+            self.evecs = np.eye(2)
             self.axes = axes_array
+
             self.fitted = True
             return True
 
         except (ValueError, TypeError) as e:
-            print(f"\033[91m[ERROR] Failed to load calibration data: {e}\033[0m")
+            print(f"[ERROR] Failed to load calibration data: {e}")
             self.fitted = False
             return False
 
     def fit_ellipse(self):
+        """
+        Fits an axis-aligned ellipse (no rotation) using standard deviation.
+        This prevents axis flipping issues caused by diagonal head tilts.
+        """
         N = len(self.xs)
         if N < 2:
-            print("Warning: Need >= 2 samples to fit PCA. Fit failed.")
+            print("Warning: Need >= 2 samples to fit.")
             self.fitted = False
             return 0, 0
 
-        points = np.column_stack([self.xs, self.ys])
-        self.center = np.mean(points, axis=0)
-        centered_points = points - self.center
+        # 1. Calculate Center (Mean)
+        mean_x = np.mean(self.xs)
+        mean_y = np.mean(self.ys)
+        self.center = np.array([mean_x, mean_y])
 
-        cov = np.cov(centered_points, rowvar=False)
+        # 2. Calculate Axis Lengths (Standard Deviation)
+        # We calculate std dev for X and Y independently.
+        std_x = np.std(self.xs)
+        std_y = np.std(self.ys)
 
-        try:
-            evals_cov, evecs_cov = np.linalg.eigh(cov)
-        except np.linalg.LinAlgError as e:
-            self.fitted = False
-            return 0, 0
+        # Apply sigma multiplier
+        radius_x = std_x * self.n_std_devs
+        radius_y = std_y * self.n_std_devs
 
-        # Sort eigenvectors by alignment with screen axes (X, Y)
-        x_alignment = np.abs(evecs_cov[0, :])  # How much each evec points in X direction
+        # Safety clamp to prevent divide-by-zero
+        if radius_x < 1e-12: radius_x = 1e-12
+        if radius_y < 1e-12: radius_y = 1e-12
 
-        if x_alignment[0] > x_alignment[1]:
-            # evec 0 is more X-aligned, evec 1 is more Y-aligned
-            self.evecs = evecs_cov
-            std_devs = np.sqrt(evals_cov)
-        else:
-            # evec 1 is more X-aligned, swap them
-            self.evecs = evecs_cov[:, [1, 0]]
-            std_devs = np.sqrt(evals_cov[[1, 0]])
+        self.axes = np.array([radius_x, radius_y])
 
-        # --- FIX STARTS HERE ---
-        # 1. Ensure the X-aligned eigenvector points Right (Positive X)
-        if self.evecs[0, 0] < 0:
-            self.evecs[:, 0] *= -1
-
-        # 2. Ensure Y-aligned eigenvector maintains a Right-Handed Coordinate System.
-        #    Instead of checking Y-sign independently, check the Determinant.
-        #    In screen coords (Y down), X=(1,0) and Y=(0,1) gives det = 1.
-        #    If det < 0, the axes are mirrored; we flip Y to fix it.
-        det = (self.evecs[0, 0] * self.evecs[1, 1]) - (self.evecs[0, 1] * self.evecs[1, 0])
-
-        if det < 0:
-            self.evecs[:, 1] *= -1
-        # --- FIX ENDS HERE ---
-
-        self.axes = std_devs * self.n_std_devs
-
-        if self.axes[0] < 1e-12: self.axes[0] = 1e-12
-        if self.axes[1] < 1e-12: self.axes[1] = 1e-12
-
-        major_index = np.argmax(std_devs)
-        major_vec = self.evecs[:, major_index]
-        self.rotation = np.arctan2(major_vec[1], major_vec[0])
+        # 3. Force Identity Matrix (Strict Horizontal/Vertical alignment)
+        # Col 0 = X axis (1, 0)
+        # Col 1 = Y axis (0, 1)
+        self.evecs = np.eye(2)
 
         self.fitted = True
         return self.evecs, self.axes
 
+    def normalize(self, pupil_pos, target_pos=None, clip=True):
+        if not self.fitted:
+            return 0.0, 0.0
+
+        x, y = float(pupil_pos[0]), float(pupil_pos[1])
+
+        # Determine reference center
+        if target_pos is None:
+            cx, cy = self.center
+        else:
+            cx, cy = target_pos
+
+        # Calculate deltas (Screen Space)
+        dx = x - cx
+        dy = y - cy
+
+        # Get calibration radii
+        rx, ry = self.axes * self.scale_factor
+
+        # Normalize
+        # Screen X increases Right -> Positive output (Left is Left)
+        norm_x = dx / rx
+
+        # Screen Y increases Down.
+        # If we want "Up" to be positive (Standard Cartesian), we must invert Y.
+        # dy is positive when looking down.
+        norm_y = dy / ry
+
+        # Apply output mapping
+        final_x = -norm_x if self.flip_x else norm_x
+        final_y = norm_y if self.flip_y else -norm_y  # Default: Inverts Screen Y to be Cartesian
+
+        if clip:
+            final_x = np.clip(final_x, -1.0, 1.0)
+            final_y = np.clip(final_y, -1.0, 1.0)
+
+        return float(final_x), float(final_y)
+
+    def denormalize(self, norm_x, norm_y, target_pos=None):
+        if not self.fitted:
+            return 0.0, 0.0
+
+        # 1. Reverse the Output Mapping
+        nx = -norm_x if self.flip_x else norm_x
+        ny = norm_y if self.flip_y else -norm_y  # Reverses the Cartesian inversion
+
+        # 2. Scale back up
+        rx, ry = self.axes * self.scale_factor
+        dx = nx * rx
+        dy = ny * ry
+
+        # 3. Add Center
+        if target_pos is None:
+            cx, cy = self.center
+        else:
+            cx, cy = target_pos
+
+        return float(cx + dx), float(cy + dy)
+
     def fit_and_visualize(self):
         plt.figure(figsize=(10, 8))
-        plt.plot(self.xs, self.ys, 'k.', label='Calibration Samples', alpha=0.5, markersize=8)
+
+        # Plot raw points
+        plt.plot(self.xs, self.ys, 'k.', label='Samples', alpha=0.5)
         plt.axis('equal')
         plt.grid(True, alpha=0.3)
-        plt.xlabel('Pupil X (pixels)')
-        plt.ylabel('Pupil Y (pixels)')
+
+        # Invert plot Y axis so it looks like a screen (Top-Left 0,0)
+        plt.gca().invert_yaxis()
 
         if not self.fitted:
             self.fit_ellipse()
 
         if self.fitted:
             scaled_axes = self.axes * self.scale_factor
-
             t = np.linspace(0, 2 * np.pi, 200)
-            local_coords = np.column_stack([scaled_axes[0] * np.cos(t),
-                                            scaled_axes[1] * np.sin(t)])
-            world_coords = (self.evecs @ local_coords.T).T + self.center
 
-            plt.plot(world_coords[:, 0], world_coords[:, 1], 'b-',
-                     linewidth=2, label=f'Calibration Ellipse ({self.scale_factor * 100:.0f}% scale)')
-            plt.plot(self.center[0], self.center[1], 'r+',
-                     markersize=15, markeredgewidth=3, label='Ellipse Center (Mean)')
+            # Simple parametric ellipse (No Rotation Matrix needed)
+            # x = h + a*cos(t)
+            # y = k + b*sin(t)
+            el_x = self.center[0] + scaled_axes[0] * np.cos(t)
+            el_y = self.center[1] + scaled_axes[1] * np.sin(t)
 
-            # Draw principal axes
-            for i, (axis_len, color, name) in enumerate([(scaled_axes[0], 'g', 'Major'),
-                                                         (scaled_axes[1], 'm', 'Minor')]):
-                axis_vec = self.evecs[:, i] * axis_len
-                plt.arrow(self.center[0], self.center[1], axis_vec[0], axis_vec[1],
-                          head_width=5, head_length=7, fc=color, ec=color, alpha=0.6,
-                          label=f'{name} Axis')
+            plt.plot(el_x, el_y, 'b-', linewidth=2, label='Axis-Aligned Fit')
+            plt.plot(self.center[0], self.center[1], 'r+', markersize=15, label='Center')
 
-            plt.title(f'Eye Tracking Calibration Ellipse (PCA, {self.n_std_devs}σ)')
+            # Draw Axes (Horizontal and Vertical only)
+            # X Axis
+            plt.hlines(self.center[1],
+                       self.center[0] - scaled_axes[0],
+                       self.center[0] + scaled_axes[0],
+                       colors='g', linestyles='-', label='Width (X)')
+            # Y Axis
+            plt.vlines(self.center[0],
+                       self.center[1] - scaled_axes[1],
+                       self.center[1] + scaled_axes[1],
+                       colors='m', linestyles='-', label='Height (Y)')
+
+            plt.title(f'Axis-Aligned Calibration ({self.n_std_devs}σ)')
         else:
-            plt.title("Ellipse Fit FAILED (Not enough points)")
+            plt.title("Fit FAILED")
 
         plt.legend()
         plt.tight_layout()
         plt.show()
-
-    def normalize(self, pupil_pos, target_pos=None, clip=True):
-        if not self.fitted:
-            return 0.0, 0.0
-
-        if self.evecs is None or self.axes is None:
-            print("\033[91m[ERROR] Calibration data (evecs/axes) is None. Please calibrate.\033[0m")
-            return 0.0, 0.0
-
-        if not isinstance(self.evecs, np.ndarray) or self.evecs.shape != (2, 2):
-            print(f"\033[91m[ERROR] Invalid evecs shape. Expected (2, 2). Please recalibrate.\033[0m")
-            return 0.0, 0.0
-
-        if not isinstance(self.axes, np.ndarray) or self.axes.shape != (2,):
-            print(f"\033[91m[ERROR] Invalid axes shape. Expected (2,). Please recalibrate.\033[0m")
-            return 0.0, 0.0
-
-        if np.all(self.axes == 0) or np.any(np.isnan(self.axes)):
-            print("\033[91m[ERROR] Calibration axes are zero or invalid. Please recalibrate.\033[0m")
-            return 0.0, 0.0
-
-        x, y = float(pupil_pos[0]), float(pupil_pos[1])
-        p = np.array([x, y], dtype=float)
-
-        if target_pos is None:
-            reference = self.center
-        else:
-            reference = np.asarray(target_pos, dtype=float)
-
-        p_centered = p - reference
-
-        try:
-            p_rot = self.evecs.T @ p_centered
-        except (ValueError, TypeError) as e:
-            print(f"\033[91m[ERROR] Matrix multiplication failed in normalize: {e}. Please recalibrate.\033[0m")
-            return 0.0, 0.0
-
-        scaled_axes = self.axes * self.scale_factor
-        scaled_axes[scaled_axes < 1e-12] = 1e-12
-
-        norm = p_rot / scaled_axes
-
-        norm_x = -norm[0] if self.flip_x else norm[0]
-        norm_y = norm[1] if self.flip_y else -norm[1]
-
-        if clip:
-            norm_x = np.clip(norm_x, -1.0, 1.0)
-            norm_y = np.clip(norm_y, -1.0, 1.0)
-
-        return float(norm_x), float(norm_y)
-
-    def denormalize(self, norm_x, norm_y, target_pos=None):
-        if not self.fitted:
-            print("ERROR: Ellipse not fitted yet.")
-            return 0.0, 0.0
-
-        nx = -norm_x if self.flip_x else norm_x
-        ny = norm_y if self.flip_y else -norm_y
-
-        scaled_axes = self.axes * self.scale_factor
-        p_rot = np.array([nx, ny]) * scaled_axes
-
-        p_centered = self.evecs @ p_rot
-        reference = self.center if target_pos is None else np.asarray(target_pos, dtype=float)
-        p = p_centered + reference
-
-        return float(p[0]), float(p[1])
