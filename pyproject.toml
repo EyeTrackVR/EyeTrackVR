@@ -28,7 +28,7 @@ matplotlib = "^3.10.7"
 numba = "~0.63.1"
 
 # LINUX: Uses CUDA/ROCm (NVIDIA/AMD)
-onnxruntime-gpu = { version = "*", source = "ort-cuda-13",  platform = 'linux' }
+onnxruntime-gpu = { version = "^1.20.0", source = "ort-cuda-13",  platform = 'linux' }
 # WINDOWS: Uses DirectML (NVIDIA/AMD/Intel)
 onnxruntime-directml = { version = "^1.20.0", platform = 'win32' }
 # MACOS: Uses CoreML/MPS (Neural Engine & Metal)
