@@ -63,7 +63,7 @@ WINDOW_NAME = "EyeTrackApp"
 
 
 page_url = "https://github.com/EyeTrackVR/EyeTrackVR/releases/latest"
-appversion = "EyeTrackApp 0.2.4"
+appversion = "EyeTrackApp 0.2.4 (Eye-Data CSV Logger)"
 
 
 class KeyManager:
@@ -84,6 +84,7 @@ class KeyManager:
         self.ALGO_SETTINGS_RADIO_NAME = f"-ALGOSETTINGSRADIO{unique_id}-"
         self.VRCFT_MODULE_SETTINGS_RADIO_NAME = f"-VRCFTSETTINGSRADIO{unique_id}-"
         self.GUIOFF_RADIO_NAME = f"-GUIOFF{unique_id}-"
+        self.PARTICIPANT_ID_NAME = f"-PARTICIPANTID{unique_id}-"
 
 
 # Create an instance of the KeyManager
@@ -142,6 +143,13 @@ def create_window(config, settings, eyes):
                 background_color="#292929",
                 default=(config.eye_display_id == EyeId.VRCFTMODULESETTINGS),
                 key=key_manager.VRCFT_MODULE_SETTINGS_RADIO_NAME,
+            ),
+            sg.Text("Participant ID", background_color="#292929"),
+            sg.Input(
+                default_text=config.settings.gui_csv_participant_id or "",
+                key=key_manager.PARTICIPANT_ID_NAME,
+                size=(8, 1),
+                tooltip="Optional. Used for folder: {date}_Participant_{id}",
             ),
         ],
         [
@@ -306,7 +314,7 @@ def main():
     # Creating our instances of CSVLogger here, send info to our OSCSender 
     osc_manager.osc_sender.add_csv_logger(eye_id=EyeId.LEFT, logger=eyes[1].csv_logger)
     osc_manager.osc_sender.add_csv_logger(eye_id=EyeId.RIGHT, logger=eyes[0].csv_logger)
-    both_eyes_logger = CSVLogger(EyeId.BOTH)
+    both_eyes_logger = CSVLogger(EyeId.BOTH, config=config)
 
     osc_manager.osc_sender.add_csv_logger(eye_id=EyeId.BOTH, logger=both_eyes_logger)
 
@@ -365,6 +373,12 @@ def main():
                 window.close()
                 os._exit(0)  # I do not like this, but for now this fixes app hang on close
                 return
+
+            # Sync participant ID from input to config (used for CSV folder naming)
+            participant_id = values.get(key_manager.PARTICIPANT_ID_NAME, "") or ""
+            if config.settings.gui_csv_participant_id != participant_id:
+                config.settings.gui_csv_participant_id = participant_id
+                config.save()
 
             try:
                 # If window isn't in focus increase timeout and stop loop early

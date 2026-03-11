@@ -216,6 +216,7 @@ class EyeTrackSettingsConfig(BaseModel):
     gui_EyebrowThresholdLowering: float = 0.15
     gui_OutputMultiplier: float = 1
     gui_use_module: bool = False
+    gui_csv_participant_id: str = ""  # e.g. "001" for folder 2025-03-10_Participant_001
 
 
 class EyeTrackConfig(BaseModel):

@@ -5,7 +5,10 @@ from datetime import datetime
 from pathlib import Path
 from eye import EyeId, EyeInfo
 from threading import Lock
-from typing import Optional
+from typing import Optional, TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from config import EyeTrackConfig
 
 
 class CSVLogger:
@@ -16,21 +19,37 @@ class CSVLogger:
     Logs: timestamp_ms, eye_id, x, y, pupil_dilation, eye_blink
     """
 
-    def __init__(self, eye_id: EyeId):
+    def __init__(self, eye_id: EyeId, config: Optional["EyeTrackConfig"] = None):
         """
         Initialize CSV logger for a specific eye.
-        
+
         Args:
             eye_id: EyeId.LEFT, EyeId.RIGHT, or EyeId.BOTH
+            config: Optional config to read gui_csv_participant_id from (shared across all loggers)
         """
         self.eye_id = eye_id
+        self.config = config
         self.start_time_ms: Optional[int] = None
         self.csv_file: Optional[str] = None
         self.is_recording = False
         self._lock = Lock()
         self.base_folder = "csv_files"
+        self.participant_id: Optional[str] = None  # Override: use this if set, else config
 
-    def start_recording(self, camera_connected: bool = True, left_test = False, right_test = False) -> bool:
+    def set_participant_id(self, participant_id: Optional[str]) -> None:
+        """Set participant ID for organizing recordings. Use None to use config value or disable."""
+        self.participant_id = participant_id
+
+    def _get_participant_id(self) -> Optional[str]:
+        """Get participant ID from override, config, or None."""
+        if self.participant_id is not None and self.participant_id.strip():
+            return self.participant_id.strip()
+        if self.config and getattr(self.config.settings, "gui_csv_participant_id", ""):
+            pid = self.config.settings.gui_csv_participant_id.strip()
+            return pid if pid else None
+        return None
+
+    def start_recording(self, camera_connected: bool = True, left_test=False, right_test=False) -> bool:
         """
         Starts a new CSV recording session for the specified eye.
         
@@ -58,8 +77,14 @@ class CSVLogger:
                 # Reset time for this session
                 self.start_time_ms = int(round(time.time() * 1000))
 
-                formatted_timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
-                session_folder = os.path.join(self.base_folder, f"session_{formatted_timestamp}")
+                formatted_timestamp = datetime.now().strftime("%Y-%m-%d")
+                participant_id = self._get_participant_id()
+                if participant_id:
+                    session_folder = os.path.join(
+                        self.base_folder, f"{formatted_timestamp}_Participant_{participant_id}"
+                    )
+                else:
+                    session_folder = os.path.join(self.base_folder, f"session_{formatted_timestamp}")
                 
                 Path(session_folder).mkdir(parents=True, exist_ok=True)
 
@@ -69,7 +94,7 @@ class CSVLogger:
                     filename = f"{formatted_timestamp}_{self.eye_id.name}_Right_Orientation_Gaze_Test_eye_data.csv"
                 else:
                     filename = f"{formatted_timestamp}_{self.eye_id.name}_Main_Recording_eye_data.csv"
-                    self.csv_file = os.path.join(session_folder, filename)
+                self.csv_file = os.path.join(session_folder, filename)
 
                 # Write CSV header
                 with open(self.csv_file, 'w', newline='') as f:

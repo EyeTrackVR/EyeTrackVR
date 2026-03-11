@@ -11,3 +11,11 @@ class OSCMessageType(IntEnum):
 class OSCMessage:
     type: OSCMessageType
     data: any
+
+    @property
+    def eye_id(self):
+        return getattr(self.data, 'eye_id', None)
+
+    @property
+    def eye_info(self):
+        return self.data

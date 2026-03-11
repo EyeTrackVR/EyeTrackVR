@@ -161,20 +161,19 @@ class OSCSender:
                             config=self.config,
                         )
                         # CSV logging based on current eye display mode
-                        eye_side = osc_message.eye_id
-                        
-                        # Log to the specific eye's logger if it exists and is recording
+                        eye_side = self.main_config.eye_display_id
+                        eye_info = osc_message.data[1]  # data is (eye_id, eye_info) tuple
+
                         if eye_side in self.csv_loggers:
                             logger = self.csv_loggers[eye_side]
-                            if logger.is_recording and osc_message.eye_info is not None:
-                                logger.log_eye_data(eye_side, osc_message.eye_info)
-                        
-                        # If we're in BOTH mode, also log to the BOTH logger
+                            if logger.is_recording and eye_info is not None:
+                                logger.log_eye_data(eye_side, eye_info)
+
                         if self.main_config.eye_display_id == EyeId.BOTH:
                             if EyeId.BOTH in self.csv_loggers:
                                 both_logger = self.csv_loggers[EyeId.BOTH]
-                                if both_logger.is_recording and osc_message.eye_info is not None:
-                                    both_logger.log_eye_data(eye_side, osc_message.eye_info)
+                                if both_logger.is_recording and eye_info is not None:
+                                    both_logger.log_eye_data(eye_side, eye_info)
                     case OSCMessageType.VRCFT_MODULE_INFO:
                         self.module_sender.send(osc_message=osc_message, client=self.vrcft_client)
                     case _:
