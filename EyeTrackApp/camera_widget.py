@@ -24,7 +24,9 @@ LICENSE: Babble Software Distribution License 1.0
 ------------------------------------------------------------------------------------------------------
 """
 
-import PySimpleGUI as sg
+import base64
+import tkinter as tk
+from tkinter import ttk
 from config import EyeTrackConfig
 from collections import deque
 from threading import Event, Thread
@@ -134,159 +136,156 @@ class CameraWidget:
         self.in_roi_mode = False
         self.movavg_fps_queue = deque(maxlen=120)
         self.movavg_bps_queue = deque(maxlen=120)
+        self._tracking_photo = None
+        self._roi_photo = None
+        self.frame = None
+        self.preview_ppm_bytes = None
 
-    def get_widget_layout(self):
-        self.widget_layout = [
-            [
-                sg.Text("Camera Address", background_color="#424042"),
-                sg.InputText(
-                    self.config.capture_source,
-                    key=self.gui_camera_addr,
-                    tooltip="Enter the IP address or UVC port of your camera. (Include the 'http://')",
-                ),
-            ],
-            [
-                sg.Button(
-                    "Save and Restart Tracking",
-                    key=self.gui_save_tracking_button,
-                    button_color="#6f4ca1",
-                ),
-            ],
-            [
-                sg.Button(
-                    "Tracking Mode",
-                    key=self.gui_tracking_button,
-                    button_color="#6f4ca1",
-                    tooltip="Go here to track your eye.",
-                ),
-                sg.Button(
-                    "Cropping Mode",
-                    key=self.gui_roi_button,
-                    button_color="#6f4ca1",
-                    tooltip="Go here to crop out your eye.",
-                ),
-            ],
-            [
-                sg.Column(
-                    self.tracking_layout,
-                    key=self.gui_tracking_layout,
-                    background_color="#424042",
-                ),
-                sg.Column(
-                    self.roi_layout,
-                    key=self.gui_roi_layout,
-                    background_color="#424042",
-                    visible=False,
-                ),
-            ],
-        ]
+    def build(self, parent, show_camera_controls=True):
+        self.frame = ttk.Frame(parent)
 
-    def get_roi_layout(self):
-        self.roi_layout = [
-            [
-                # sg.Button(
-                #    "Mark Out",
-                #     key=self.gui_mask_markup,
-                #      button_color="#6f4ca1",
-                #       tooltip="Mark out stuff that is not your eye.",
-                #    ),
-                #    sg.Button(
-                #        "Lighten",
-                #        key=self.gui_mask_lighten,
-                #       button_color="#6f4ca1",
-                #      tooltip="Lighten shadowed areas.",
-                #    ),
-                sg.Text("Rotation", background_color="#424042"),
-                sg.Slider(
-                    range=(0, 360),
-                    default_value=self.config.rotation_angle,
-                    orientation="h",
-                    key=self.gui_rotation_slider,
-                    background_color="#424042",
-                    tooltip="Adjust the rotation of your cameras, make them level.",
-                ),
-                sg.Checkbox(
-                    "Camera Widget Padding",
-                    default=self.config.gui_rotation_ui_padding,
-                    tooltip="Pad the camera view widget enough to allow a full rotation.",
-                    key=self.gui_rotation_ui_padding,
-                    background_color="#424042",
-                ),
-            ],
-            [
-                sg.Graph(
-                    (640, 480),
-                    (0, 480),
-                    (640, 0),
-                    key=self.gui_roi_selection,
-                    drag_submits=True,
-                    enable_events=True,
-                    motion_events=True,
-                    background_color="#424042",
-                ),
-            ],
-        ]
+        if show_camera_controls:
+            top_row = ttk.Frame(self.frame)
+            top_row.pack(fill="x", padx=8, pady=4)
+            ttk.Label(top_row, text="Camera Address").pack(side="left")
+            self.camera_addr_var = tk.StringVar(value=str(self.config.capture_source or ""))
+            ttk.Entry(top_row, textvariable=self.camera_addr_var, width=36).pack(side="left", padx=8)
+            ttk.Button(top_row, text="Save and Restart Tracking", command=self._save_tracking).pack(side="left", padx=8)
 
-    def get_tracking_layout(self):
-        # Define the window's contents
-        self.tracking_layout = [
-            [
-                sg.Button(
-                    "Start Calibration",
-                    key=self.gui_restart_calibration,
-                    button_color="#6f4ca1",
-                    tooltip="Start eye calibration. Look all arround to all extreams without blinking until sound is heard.",
-                ),
-                sg.Button(
-                    "Stop Calibration",
-                    key=self.gui_stop_calibration,
-                    button_color="#6f4ca1",
-                    tooltip="Stop eye calibration manualy.",
-                ),
-                sg.Button(
-                    "Recenter Eyes",
-                    key=self.gui_recenter_eyes,
-                    button_color="#6f4ca1",
-                    tooltip="Make your eyes center again.",
-                ),
-            ],
-            [
-                sg.Text("Mode:", background_color="#424042"),
-                sg.Text("Calibrating", key=self.gui_mode_readout, background_color="#424042"),
-                sg.Text("", key=self.gui_tracking_fps, background_color="#424042"),
-                sg.Text("", key=self.gui_tracking_bps, background_color="#424042"),
-                #    sg.Checkbox(
-                #        "Circle crop:",
-                #        default=self.config.gui_circular_crop,
-                #        key=self.gui_circular_crop,
-                #        background_color='#424042',
-                #        tooltip = "Circle crop only applies to RANSAC3D and Blob.",
-                #    ),
-            ],
-            [sg.Image(filename="", key=self.gui_tracking_image)],
-            [
-                sg.Graph(
-                    (200, 200),
-                    (-100, 100),
-                    (100, -100),
-                    background_color="white",
-                    key=self.gui_output_graph,
-                    drag_submits=True,
-                    enable_events=True,
-                ),
-                sg.Text(
-                    "Please set an Eye Cropping.",
-                    key=self.gui_roi_message,
-                    background_color="#424042",
-                    visible=False,
-                ),
-            ],
-        ]
+        mode_row = ttk.Frame(self.frame)
+        mode_row.pack(fill="x", padx=8, pady=4)
+        ttk.Button(mode_row, text="Tracking Mode", command=self._set_tracking_mode).pack(side="left", padx=4)
+        ttk.Button(mode_row, text="Cropping Mode", command=self._set_roi_mode).pack(side="left", padx=4)
 
-    def update_layouts(self):
-        self.get_roi_layout()
-        self.get_tracking_layout()
-        self.get_widget_layout()
+        self.tracking_frame = ttk.Frame(self.frame)
+        self.roi_frame = ttk.Frame(self.frame)
+        self.tracking_frame.pack(fill="both", expand=True)
+
+        tracking_controls = ttk.Frame(self.tracking_frame)
+        tracking_controls.pack(fill="x", padx=8, pady=4)
+        ttk.Button(tracking_controls, text="Start Calibration", command=self.recalibrate_eyes).pack(side="left", padx=4)
+        ttk.Button(tracking_controls, text="Stop Calibration", command=self._stop_calibration).pack(side="left", padx=4)
+        ttk.Button(tracking_controls, text="Recenter Eyes", command=self.recenter_eyes).pack(side="left", padx=4)
+
+        status_row = ttk.Frame(self.tracking_frame)
+        status_row.pack(fill="x", padx=8, pady=4)
+        ttk.Label(status_row, text="Mode:").pack(side="left")
+        self.mode_var = tk.StringVar(value="Calibrating")
+        self.fps_var = tk.StringVar(value="")
+        self.bps_var = tk.StringVar(value="")
+        ttk.Label(status_row, textvariable=self.mode_var).pack(side="left", padx=4)
+        ttk.Label(status_row, textvariable=self.fps_var).pack(side="left", padx=8)
+        ttk.Label(status_row, textvariable=self.bps_var).pack(side="left", padx=8)
+
+        self.tracking_image_widget = tk.Label(self.tracking_frame)
+        self.tracking_image_widget.pack(padx=8, pady=4, anchor="w")
+
+        graph_row = ttk.Frame(self.tracking_frame)
+        graph_row.pack(fill="x", padx=8, pady=4)
+        self.output_canvas = tk.Canvas(graph_row, width=200, height=200, bg="white", highlightthickness=0)
+        self.output_canvas.pack(side="left")
+        self.roi_message_var = tk.StringVar(value="Please set an Eye Cropping.")
+        self.roi_message_label = ttk.Label(graph_row, textvariable=self.roi_message_var)
+        self.roi_message_label.pack(side="left", padx=10)
+        self.roi_message_label.pack_forget()
+
+        roi_controls = ttk.Frame(self.roi_frame)
+        roi_controls.pack(fill="x", padx=8, pady=4)
+        ttk.Label(roi_controls, text="Rotation").pack(side="left")
+        self.rotation_var = tk.IntVar(value=int(self.config.rotation_angle))
+        ttk.Scale(roi_controls, from_=0, to=360, variable=self.rotation_var, orient="horizontal", length=160).pack(
+            side="left", padx=8
+        )
+        self.rotation_readout_var = tk.StringVar(value=str(int(self.rotation_var.get())))
+
+        def sync_rotation_readout(*_args):
+            self.rotation_readout_var.set(str(int(round(float(self.rotation_var.get())))))
+
+        def bump_rotation(delta):
+            next_val = int(round(float(self.rotation_var.get()))) + delta
+            next_val = max(0, min(360, next_val))
+            self.rotation_var.set(next_val)
+
+        ttk.Button(roi_controls, text="-", width=2, command=lambda: bump_rotation(-1)).pack(side="left", padx=(4, 2))
+        ttk.Label(roi_controls, textvariable=self.rotation_readout_var, width=6, anchor="center").pack(side="left", padx=2)
+        ttk.Button(roi_controls, text="+", width=2, command=lambda: bump_rotation(1)).pack(side="left", padx=(2, 8))
+        self.rotation_var.trace_add("write", sync_rotation_readout)
+        self.padding_var = tk.BooleanVar(value=bool(self.config.gui_rotation_ui_padding))
+        ttk.Checkbutton(roi_controls, text="Camera Widget Padding", variable=self.padding_var).pack(side="left", padx=8)
+
+        self.roi_canvas = tk.Canvas(self.roi_frame, width=640, height=480, bg="#424042", highlightthickness=0)
+        self.roi_canvas.pack(padx=8, pady=4, anchor="w")
+        self.roi_canvas.bind("<ButtonPress-1>", self._on_roi_mouse_down)
+        self.roi_canvas.bind("<B1-Motion>", self._on_roi_mouse_drag)
+        self.roi_canvas.bind("<ButtonRelease-1>", self._on_roi_mouse_up)
+        self.roi_canvas.bind("<Motion>", self._on_roi_mouse_move)
+        return self.frame
+
+    def _set_tracking_mode(self):
+        print("\033[94m[INFO] Moving to tracking mode\033[0m")
+        self.in_roi_mode = False
+        self.camera.set_output_queue(self.capture_queue)
+        self.roi_frame.pack_forget()
+        self.tracking_frame.pack(fill="both", expand=True)
+
+    def _set_roi_mode(self):
+        print("\033[94m[INFO] Move to roi mode\033[0m")
+        self.in_roi_mode = True
+        self.camera.set_output_queue(self.roi_queue)
+        self.tracking_frame.pack_forget()
+        self.roi_frame.pack(fill="both", expand=True)
+
+    def _save_tracking(self):
+        value = self.camera_addr_var.get()
+        if value == str(self.config.capture_source):
+            return
+        print("\033[94m[INFO] New value: {}\033[0m".format(value))
+        try:
+            self.config.capture_source = int(value)
+        except ValueError:
+            if value == "":
+                self.config.capture_source = None
+            elif len(value) > 5 and "http" not in value and ".mp4" not in value and "/dev" not in value:
+                self.config.capture_source = f"http://{value}/"
+            else:
+                self.config.capture_source = value
+        self.main_config.save()
+
+    def _stop_calibration(self):
+        self.ransac.calibration_start_time = None
+
+    def _on_roi_mouse_down(self, event):
+        self.hover_pos = None
+        self.is_mouse_up = False
+        self.xy0 = np.array((event.x, event.y))
+        self.xy1 = np.array((event.x, event.y))
+        self._cartesian_to_polar()
+
+    def _on_roi_mouse_drag(self, event):
+        self.hover_pos = None
+        self.xy1 = np.array((event.x, event.y))
+        self._cartesian_to_polar()
+
+    def _on_roi_mouse_up(self, event):
+        self.is_mouse_up = True
+        self.xy1 = np.array((event.x, event.y))
+        if self.xy0 is None or self.clip_pos is None or self.clip_size is None:
+            return
+        self.xy0 = np.clip(self.xy0, self.clip_pos, self.clip_pos + self.clip_size)
+        self.xy1 = np.clip(self.xy1, self.clip_pos, self.clip_pos + self.clip_size)
+        self._cartesian_to_polar()
+        if all(abs(self.xy0 - self.xy1) != 0):
+            xy0, xy1 = self._polar_to_cartesian_at_angle(0)
+            self.config.roi_window_x, self.config.roi_window_y = (np.minimum(xy0, xy1) - self.img_pos).tolist()
+            self.config.roi_window_w, self.config.roi_window_h = (np.abs(xy0 - xy1)).tolist()
+            self.main_config.save()
+
+    def _on_roi_mouse_move(self, event):
+        if not self.is_mouse_up:
+            return
+        self.hover_pos = np.array((event.x, event.y))
+        if self.padded_size is not None and any(self.hover_pos > self.padded_size):
+            self.hover_pos = None
 
     def _movavg_fps(self, next_fps):
         self.movavg_fps_queue.append(next_fps)
@@ -371,39 +370,17 @@ class CameraWidget:
         if osc_message.data:
             self.recalibrate_eyes()
 
-    def render(self, window, event, values):
+    def render_tick(self):
         changed = False
 
         if self.settings.gui_disable_gui == False:
-
-            # If anything has changed in our configuration settings, change/update those.
-            if event == self.gui_save_tracking_button and values[self.gui_camera_addr] != self.config.capture_source:
-                print("\033[94m[INFO] New value: {}\033[0m".format(values[self.gui_camera_addr]))
-                try:
-                    # Try storing ints as ints, for those using wired cameras.
-                    self.config.capture_source = int(values[self.gui_camera_addr])
-                except ValueError:
-                    if values[self.gui_camera_addr] == "":
-                        self.config.capture_source = None
-                    else:
-                        if (
-                            len(values[self.gui_camera_addr]) > 5
-                            and "http" not in values[self.gui_camera_addr]
-                            and ".mp4" not in values[self.gui_camera_addr]
-                            and "/dev" not in values[self.gui_camera_addr]
-                        ):  # If http is not in camera address, add it.
-                            self.config.capture_source = f"http://{values[self.gui_camera_addr]}/"
-                        else:
-                            self.config.capture_source = values[self.gui_camera_addr]
-                changed = True
-
-            if self.config.rotation_angle != int(values[self.gui_rotation_slider]):
-                self.config.rotation_angle = int(values[self.gui_rotation_slider])
+            if self.config.rotation_angle != int(self.rotation_var.get()):
+                self.config.rotation_angle = int(self.rotation_var.get())
                 changed = True
                 self.cartesian_needs_update = True
 
-            if self.config.gui_rotation_ui_padding != bool(values[self.gui_rotation_ui_padding]):
-                self.config.gui_rotation_ui_padding = bool(values[self.gui_rotation_ui_padding])
+            if self.config.gui_rotation_ui_padding != bool(self.padding_var.get()):
+                self.config.gui_rotation_ui_padding = bool(self.padding_var.get())
                 changed = True
                 self.cartesian_needs_update = True
 
@@ -414,86 +391,28 @@ class CameraWidget:
             if changed:
                 self.main_config.save()
 
-            if event == self.gui_tracking_button:
-                self.get_tracking_layout()
-                print("\033[94m[INFO] Moving to tracking mode\033[0m")
-                self.in_roi_mode = False
-                self.camera.set_output_queue(self.capture_queue)
-                window[self.gui_roi_layout].update(visible=False)
-                window[self.gui_tracking_layout].update(visible=True)
-
-            if event == self.gui_roi_button:
-                self.get_roi_layout()
-                print("\033[94m[INFO] Move to roi mode\033[0m")
-                self.in_roi_mode = True
-                self.camera.set_output_queue(self.roi_queue)
-                window[self.gui_roi_layout].update(visible=True)
-                window[self.gui_tracking_layout].update(visible=False)
-
-            if event == "{}+UP".format(self.gui_roi_selection):
-                # Event for mouse button up in ROI mode
-                self.is_mouse_up = True
-                self.xy0 = np.clip(self.xy0, self.clip_pos, self.clip_pos + self.clip_size)
-                self.xy1 = np.clip(self.xy1, self.clip_pos, self.clip_pos + self.clip_size)
-                self._cartesian_to_polar()
-                if all(abs(self.xy0 - self.xy1) != 0):
-                    xy0, xy1 = self._polar_to_cartesian_at_angle(0)
-
-                    self.config.roi_window_x, self.config.roi_window_y = (np.minimum(xy0, xy1) - self.img_pos).tolist()
-                    self.config.roi_window_w, self.config.roi_window_h = (np.abs(xy0 - xy1)).tolist()
-                    self.main_config.save()
-
-            if event == self.gui_roi_selection:
-                # Event for mouse button down or mouse drag in ROI mode
-                self.hover_pos = None
-
-                if self.is_mouse_up:
-                    self.is_mouse_up = False
-                    self.xy0 = np.array(values[self.gui_roi_selection])
-
-                self.xy1 = np.array(values[self.gui_roi_selection])
-
-                self._cartesian_to_polar()
-
-            if event == "{}+MOVE".format(self.gui_roi_selection):
-                if self.is_mouse_up:
-                    self.hover_pos = np.array(values[self.gui_roi_selection])
-
-                    if self.padded_size is not None:
-                        if any(self.hover_pos > self.padded_size):
-                            self.hover_pos = None
-
-            if event == self.gui_restart_calibration:
-                self.recalibrate_eyes()
-
-            if event == self.gui_stop_calibration:
-                self.ransac.calibration_start_time = None
-
-            if event == self.gui_recenter_eyes:
-                self.recenter_eyes()
-
             needs_roi_set = self.config.roi_window_h <= 0 or self.config.roi_window_w <= 0
 
             # TODO: Refactor if statements below...
-            window[self.gui_tracking_fps].update("")
-            window[self.gui_tracking_bps].update("")
+            self.fps_var.set("")
+            self.bps_var.set("")
             if self.config.capture_source is None or self.config.capture_source == "":
-                window[self.gui_mode_readout].update("Waiting for camera address")
-                window[self.gui_roi_message].update(visible=False)
-                window[self.gui_output_graph].update(visible=False)
+                self.mode_var.set("Waiting for camera address")
+                self.roi_message_label.pack_forget()
+                self.output_canvas.pack_forget()
             elif self.camera.camera_status == CameraState.CONNECTING:
-                window[self.gui_mode_readout].update("Camera Connecting")
+                self.mode_var.set("Camera Connecting")
             elif self.camera.camera_status == CameraState.DISCONNECTED:
-                window[self.gui_mode_readout].update("Camera Reconnecting...")
+                self.mode_var.set("Camera Reconnecting...")
 
             elif needs_roi_set:
-                window[self.gui_mode_readout].update("Awaiting Eye Crop")
+                self.mode_var.set("Awaiting Eye Crop")
             elif self.ransac.calibration_start_time != None:
-                window[self.gui_mode_readout].update("Calibration")
+                self.mode_var.set("Calibration")
             else:
-                window[self.gui_mode_readout].update("Tracking")
-                window[self.gui_tracking_fps].update(self._movavg_fps(self.camera.fps))
-                window[self.gui_tracking_bps].update(self._movavg_bps(self.camera.bps))
+                self.mode_var.set("Tracking")
+                self.fps_var.set(self._movavg_fps(self.camera.fps))
+                self.bps_var.set(self._movavg_bps(self.camera.bps))
 
             #    if event == self.gui_mask_lighten:
             #       while True:
@@ -574,18 +493,12 @@ class CameraWidget:
                         maybe_image = (image, *maybe_image[1:])
 
                     imgbytes = cv2.imencode(".ppm", maybe_image[0])[1].tobytes()
-                    graph = window[self.gui_roi_selection]
-                    # INCREDIBLY IMPORTANT ERASE. Drawing images does NOT overwrite the buffer, the fucking
-                    # graph keeps every image fed in until you call this. Therefore we have to make sure we
-                    # erase before we redraw, otherwise we'll leak memory *very* quickly.
-                    graph.erase()
-                    graph.draw_image(data=imgbytes, location=(0, 0))
-
-                    def make_dashed(spawn_item, dark="#000000", light="#ffffff", duty=1):
-                        pixel_duty = math.floor(4 * duty)
-                        for (color, dashoffset) in [(dark, 0), (light, 4)]:
-                            item = spawn_item(color)
-                            graph._TKCanvas2.itemconfig(item, dash=(pixel_duty, 8 - pixel_duty), dashoffset=dashoffset)
+                    preview = cv2.resize(maybe_image[0], (72, 72), interpolation=cv2.INTER_NEAREST)
+                    self.preview_ppm_bytes = cv2.imencode(".ppm", preview)[1].tobytes()
+                    self.roi_canvas.delete("all")
+                    encoded = base64.b64encode(imgbytes).decode("ascii")
+                    self._roi_photo = tk.PhotoImage(data=encoded, format="PPM")
+                    self.roi_canvas.create_image(0, 0, image=self._roi_photo, anchor="nw")
 
                     if self.xy0 is None or self.xy1 is None:
                         # roi_window rotates around roi center, we rotate around image center
@@ -598,82 +511,68 @@ class CameraWidget:
                         self.ca -= math.radians(self.config.rotation_angle)
                         self._polar_to_cartesian()
 
-                    style = {}
-                    if self.is_mouse_up:
-                        style = {"dark": "#7f78ff", "light": "#d002ff", "duty": 0.5}
-                    make_dashed(
-                        lambda color: graph.draw_rectangle(
-                            self.xy0,
-                            self.xy1,
-                            line_color=color,
-                        ),
-                        **style,
-                    )
-                    if self.is_mouse_up and self.hover_pos is not None:
-                        make_dashed(
-                            lambda color: graph.draw_line(
-                                (self.hover_pos[X], 0), (self.hover_pos[X], self.padded_size[Y]), color=color
-                            )
+                    if self.xy0 is not None and self.xy1 is not None:
+                        color = "#7f78ff" if self.is_mouse_up else "#000000"
+                        self.roi_canvas.create_rectangle(
+                            int(self.xy0[X]),
+                            int(self.xy0[Y]),
+                            int(self.xy1[X]),
+                            int(self.xy1[Y]),
+                            outline=color,
                         )
-                        make_dashed(
-                            lambda color: graph.draw_line(
-                                (0, self.hover_pos[Y]), (self.padded_size[X], self.hover_pos[Y]), color=color
-                            )
+                    if self.is_mouse_up and self.hover_pos is not None:
+                        self.roi_canvas.create_line(
+                            int(self.hover_pos[X]), 0, int(self.hover_pos[X]), int(self.padded_size[Y]), fill="#ffffff"
+                        )
+                        self.roi_canvas.create_line(
+                            0, int(self.hover_pos[Y]), int(self.padded_size[X]), int(self.hover_pos[Y]), fill="#ffffff"
                         )
 
                 except Empty:
                     pass
             else:
                 if needs_roi_set:
-                    window[self.gui_roi_message].update(visible=True)
-                    window[self.gui_output_graph].update(visible=False)
+                    self.output_canvas.pack_forget()
+                    self.roi_message_label.pack(side="left", padx=10)
                     return
                 try:
-                    window[self.gui_roi_message].update(visible=False)
-                    window[self.gui_output_graph].update(visible=True)
+                    self.roi_message_label.pack_forget()
+                    if not self.output_canvas.winfo_ismapped():
+                        self.output_canvas.pack(side="left")
                     (maybe_image, eye_info) = self.image_queue.get(block=False)
 
                     imgbytes = cv2.imencode(".ppm", maybe_image)[1].tobytes()
-                    window[self.gui_tracking_image].update(data=imgbytes)
+                    preview = cv2.resize(maybe_image, (72, 72), interpolation=cv2.INTER_NEAREST)
+                    self.preview_ppm_bytes = cv2.imencode(".ppm", preview)[1].tobytes()
+                    encoded = base64.b64encode(imgbytes).decode("ascii")
+                    self._tracking_photo = tk.PhotoImage(data=encoded, format="PPM")
+                    self.tracking_image_widget.configure(image=self._tracking_photo)
 
                     # Update the GUI
-                    graph = window[self.gui_output_graph]
-                    graph.erase()
+                    graph = self.output_canvas
+                    graph.delete("all")
 
                     if eye_info.info_type != EyeInfoOrigin.FAILURE:  # and not eye_info.blink:
-                        graph.update(background_color="white")
+                        graph.configure(bg="white")
                         if not np.isnan(eye_info.x) and not np.isnan(eye_info.y):
-
-                            graph.draw_circle(
-                                (eye_info.x * -100, eye_info.y * -100),
-                                eye_info.pupil_dilation * 25,
-                                fill_color="black",
-                                line_color="white",
-                            )
+                            cx, cy = 100 + int(eye_info.x * -100), 100 + int(eye_info.y * -100)
+                            r = eye_info.pupil_dilation * 25
+                            graph.create_oval(cx - r, cy - r, cx + r, cy + r, fill="black", outline="white")
                         else:
-                            graph.draw_circle(
-                                (0.0 * -100, 0.0 * -100),
-                                20,
-                                fill_color="black",
-                                line_color="white",
-                            )
+                            graph.create_oval(80, 80, 120, 120, fill="black", outline="white")
 
                         if not np.isnan(eye_info.blink):
-                            graph.draw_line(
-                                (-100, 100),  # Start at the bottom (-100)
-                                (-100, (eye_info.blink * 200) - 100),  # Scale and adjust to the -100 to 100 range
-                                color="#6f4ca1",
-                                width=10,
-                            )
+                            y2 = int((eye_info.blink * 200))
+                            graph.create_line(0, 200, 0, max(0, 200 - y2), fill="#6f4ca1", width=10)
 
                         else:
-                            graph.draw_line((-100, 0.5 * 200), (-100, 100), color="#6f4ca1", width=10)
+                            graph.create_line(0, 100, 0, 0, fill="#6f4ca1", width=10)
 
                         if eye_info.blink <= 0.0:
-                            graph.update(background_color="#6f4ca1")
+                            graph.configure(bg="#6f4ca1")
 
                     elif eye_info.info_type == EyeInfoOrigin.FAILURE:
-                        graph.update(background_color="red")
+                        graph.configure(bg="red")
 
                 except Empty:
                     pass
@@ -684,8 +583,8 @@ class CameraWidget:
                 pass
 
             try:
-                window[self.gui_roi_message].update(visible=False)
-                window[self.gui_output_graph].update(visible=False)
+                self.roi_message_label.pack_forget()
+                self.output_canvas.pack_forget()
                 (maybe_image, eye_info) = self.image_queue.get(block=False)
 
             except Empty:

@@ -2,7 +2,8 @@ from pydantic import AfterValidator
 from typing_extensions import Annotated
 
 from settings.modules.BaseModule import BaseSettingsModule, BaseValidationModel
-import PySimpleGUI as sg
+import tkinter as tk
+from tkinter import ttk
 
 from settings.modules.CommonFieldValidators import check_is_float_convertible
 
@@ -36,75 +37,44 @@ class BlinkAlgoSettingsModule(BaseSettingsModule):
         self.gui_circular_crop_right = f"-CIRCLECROPRIGHT{widget_id}-"
         self.leap_calibration_duration = f"-LEAPCALIBRATION{widget_id}-"
 
-    def get_layout(self):
-        return [
-            [sg.Text("Blink Algo Settings:", background_color="#242224")],
-            [
-                sg.Checkbox(
-                    "Intensity Based Openness",
-                    default=self.config.gui_IBO,
-                    key=self.gui_IBO,
-                    background_color="#424042",
-                ),
-                sg.Checkbox(
-                    "RANSAC Quick Blink Algo",
-                    default=self.config.gui_RANSACBLINK,
-                    key=self.gui_RANSACBLINK,
-                    background_color="#424042",
-                ),
-                sg.Checkbox(
-                    "Binary Blink Algo",
-                    default=self.config.gui_BLINK,
-                    key=self.gui_BLINK,
-                    background_color="#424042",
-                ),
-                sg.Checkbox(
-                    "LEAP Lid",
-                    default=self.config.gui_LEAP_lid,
-                    key=self.gui_LEAP_lid,
-                    background_color="#424042",
-                ),
-            ],
-            [
-                sg.Text("LEAP Calibration Duration (Seconds)", background_color="#424042"),
-                sg.InputText(
-                    self.config.leap_calibration_duration,
-                    key=self.leap_calibration_duration,
-                    size=(0, 10),
-                ),
-            ],
-            [
-                sg.Text("IBO Filter Sample Size", background_color="#424042"),
-                sg.InputText(
-                    self.config.ibo_filter_samples,
-                    key=self.ibo_filter_samples,
-                    size=(0, 10),
-                ),
-                sg.Text("Calibration Duration (Seconds)", background_color="#424042"),
-                sg.InputText(
-                    self.config.calibration_duration,
-                    key=self.calibration_duration,
-                    size=(0, 10),
-                ),
-                sg.Text("IBO Close Threshold", background_color="#424042"),
-                sg.InputText(
-                    self.config.ibo_fully_close_eye_threshold,
-                    key=self.ibo_fully_close_eye_threshold,
-                    size=(0, 10),
-                ),
-            ],
-            [
-                sg.Checkbox(
-                    "Left Eye Circle crop",
-                    default=self.config.gui_circular_crop_left,
-                    key=self.gui_circular_crop_left,
-                    background_color="#424042",
-                ),
-                sg.Checkbox(
-                    "Right Eye Circle crop",
-                    default=self.config.gui_circular_crop_right,
-                    key=self.gui_circular_crop_right,
-                    background_color="#424042",
-                ),
-            ],
+    def build(self, parent):
+        row = 0
+        bool_pairs = [
+            (
+                (self.gui_IBO, self.config.gui_IBO, "Intensity Based Openness"),
+                (self.gui_RANSACBLINK, self.config.gui_RANSACBLINK, "RANSAC Quick Blink Algo"),
+            ),
+            (
+                (self.gui_BLINK, self.config.gui_BLINK, "Binary Blink Algo"),
+                (self.gui_LEAP_lid, self.config.gui_LEAP_lid, "LEAP Lid"),
+            ),
+            (
+                (self.gui_circular_crop_left, self.config.gui_circular_crop_left, "Left Eye Circle crop"),
+                (self.gui_circular_crop_right, self.config.gui_circular_crop_right, "Right Eye Circle crop"),
+            ),
         ]
+        for left, right in bool_pairs:
+            for col, field in enumerate((left, right)):
+                key, default, label = field
+                var = tk.BooleanVar(value=default)
+                self.tk_vars[key] = var
+                ttk.Checkbutton(parent, text=label, variable=var).grid(row=row, column=col, sticky="w", padx=8, pady=2)
+            row += 1
+
+        # Unified eyelid calibration duration controls both LEAP and non-LEAP duration values.
+        eyelid_duration_var = tk.StringVar(value=str(self.config.calibration_duration))
+        self.tk_vars[self.leap_calibration_duration] = eyelid_duration_var
+        self.tk_vars[self.calibration_duration] = eyelid_duration_var
+        ttk.Label(parent, text="Eyelid calibration duration (seconds)").grid(row=row, column=0, sticky="w", padx=8, pady=2)
+        ttk.Entry(parent, textvariable=eyelid_duration_var, width=16).grid(row=row, column=1, sticky="w", padx=8, pady=2)
+        row += 1
+
+        ttk.Label(parent, text="IBO Filter Sample Size").grid(row=row, column=0, sticky="w", padx=8, pady=2)
+        ibo_samples_var = tk.StringVar(value=str(self.config.ibo_filter_samples))
+        self.tk_vars[self.ibo_filter_samples] = ibo_samples_var
+        ttk.Entry(parent, textvariable=ibo_samples_var, width=12).grid(row=row, column=1, sticky="w", padx=8, pady=2)
+
+        ttk.Label(parent, text="IBO Close Threshold").grid(row=row, column=2, sticky="w", padx=8, pady=2)
+        ibo_close_var = tk.StringVar(value=str(self.config.ibo_fully_close_eye_threshold))
+        self.tk_vars[self.ibo_fully_close_eye_threshold] = ibo_close_var
+        ttk.Entry(parent, textvariable=ibo_close_var, width=12).grid(row=row, column=3, sticky="w", padx=8, pady=2)

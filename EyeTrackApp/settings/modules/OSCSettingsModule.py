@@ -1,8 +1,8 @@
 from pydantic import model_validator
 
 from settings.modules.BaseModule import BaseSettingsModule, BaseValidationModel
-from settings.constants import BACKGROUND_COLOR
-import PySimpleGUI as sg
+import tkinter as tk
+from tkinter import ttk
 
 
 class OSCValidationModel(BaseValidationModel):
@@ -41,97 +41,67 @@ class OSCSettingsModule(BaseSettingsModule):
         self.gui_osc_recenter_address = f"OSCRECENTERADDRESS{widget_id}-"
         self.gui_osc_recalibrate_address = f"OSCRECALIBRATEADDRESS{widget_id}-"
         self.gui_vrc_native = f"-VRCNATIVE{widget_id}-"
+        self.gui_vrcft = f"-VRCFT{widget_id}-"
         self.gui_osc_vrcft_v1 = f"-OSCVRCFTV1{widget_id}-"
         self.gui_osc_vrcft_v2 = f"-OSCVRCFTV2{widget_id}-"
         self.gui_use_module = f"-OSCUSEMODULE{widget_id}-"
 
-    def get_layout(self):
-        return [
-            [
-                sg.Text("OSC Settings:", background_color="#242224"),
-            ],
-            [
-                sg.Checkbox(
-                    "Use ETVR VRCFT Module",
-                    default=self.config.gui_use_module,
-                    key=self.gui_use_module,
-                    background_color="#424042",
-                    tooltip="Toggle output to VRCFT Module or just regular OSC port",
-                ),
-            ],
-            [
-                sg.Checkbox(
-                    "VRC Native Eyetracking",
-                    default=self.config.gui_vrc_native,
-                    key=self.gui_vrc_native,
-                    background_color="#424042",
-                    tooltip="Toggle VRCFT output or VRC native",
-                ),
-                sg.Checkbox(
-                    "VRCFT v1",
-                    default=self.config.gui_osc_vrcft_v1,
-                    key=self.gui_osc_vrcft_v1,
-                    background_color="#424042",
-                    tooltip="Toggle VRCFT's v1 Eyetracking format.",
-                ),
-                sg.Checkbox(
-                    "VRCFT v2 (UE)",
-                    default=self.config.gui_osc_vrcft_v2,
-                    key=self.gui_osc_vrcft_v2,
-                    background_color="#424042",
-                    tooltip="Toggle VRCFT's v2 (UE) Eyetracking format.",
-                ),
-            ],
-            [
-                sg.Text("Address:", background_color=BACKGROUND_COLOR),
-                sg.InputText(
-                    self.config.gui_osc_address,
-                    key=self.gui_osc_address,
-                    size=(0, 20),
-                    tooltip="IP address we send OSC data to.",
-                ),
-                sg.Text("Port:", background_color=BACKGROUND_COLOR),
-                sg.InputText(
-                    self.config.gui_osc_port,
-                    key=self.gui_osc_port,
-                    size=(0, 10),
-                    tooltip="OSC port we send data to.",
-                ),
-            ],
-            [
-                sg.Text("Receive functions", background_color=BACKGROUND_COLOR),
-                sg.Checkbox(
-                    "",
-                    default=self.config.gui_ROSC,
-                    key=self.gui_ROSC,
-                    background_color=BACKGROUND_COLOR,
-                    size=(0, 10),
-                    tooltip="Toggle OSC receive functions.",
-                ),
-            ],
-            [
-                sg.Text("Receiver Port:", background_color=BACKGROUND_COLOR),
-                sg.InputText(
-                    self.config.gui_osc_receiver_port,
-                    key=self.gui_osc_receiver_port,
-                    size=(0, 10),
-                    tooltip="Port we receive OSC data from (used to recalibrate or recenter app from within VRChat.",
-                ),
-                sg.Text("Recenter Address:", background_color=BACKGROUND_COLOR),
-                sg.InputText(
-                    self.config.gui_osc_recenter_address,
-                    key=self.gui_osc_recenter_address,
-                    size=(0, 10),
-                    tooltip="OSC Address used for recentering your eye.",
-                ),
-            ],
-            [
-                sg.Text("Recalibrate Address:", background_color=BACKGROUND_COLOR),
-                sg.InputText(
-                    self.config.gui_osc_recalibrate_address,
-                    key=self.gui_osc_recalibrate_address,
-                    size=(0, 10),
-                    tooltip="OSC address we use for recalibrating your eye",
-                ),
-            ],
+    def get_values_map(self) -> dict:
+        values = super().get_values_map()
+        vrcft_enabled = bool(values.get(self.gui_vrcft, False))
+        if vrcft_enabled and values.get(self.gui_vrc_native):
+            values[self.gui_vrc_native] = False
+            self.tk_vars[self.gui_vrc_native].set(False)
+        values[self.gui_use_module] = vrcft_enabled
+        values[self.gui_osc_vrcft_v2] = vrcft_enabled
+        values[self.gui_osc_vrcft_v1] = False
+        return values
+
+    def build(self, parent):
+        row = 0
+        toggle_items = [
+            (self.gui_vrc_native, self.config.gui_vrc_native, "VRC Native"),
+            (
+                self.gui_vrcft,
+                self.config.gui_use_module and self.config.gui_osc_vrcft_v2 and not self.config.gui_osc_vrcft_v1,
+                "VRCFT",
+            ),
+            (self.gui_ROSC, self.config.gui_ROSC, "Receive"),
         ]
+        for col, (key, default, label) in enumerate(toggle_items):
+            var = tk.BooleanVar(value=default)
+            self.tk_vars[key] = var
+            ttk.Checkbutton(parent, text=label, variable=var).grid(row=row, column=col, sticky="w", padx=8, pady=2)
+        row += 1
+
+        # Hidden compatibility toggles still validated/saved through existing config fields.
+        self.tk_vars[self.gui_use_module] = tk.BooleanVar(value=bool(self.config.gui_use_module))
+        self.tk_vars[self.gui_osc_vrcft_v1] = tk.BooleanVar(value=bool(self.config.gui_osc_vrcft_v1))
+        self.tk_vars[self.gui_osc_vrcft_v2] = tk.BooleanVar(value=bool(self.config.gui_osc_vrcft_v2))
+
+        paired_fields = [
+            (
+                ("Address", self.gui_osc_address, self.config.gui_osc_address, 18),
+                ("Port", self.gui_osc_port, self.config.gui_osc_port, 10),
+            ),
+            (
+                ("Recenter Address", self.gui_osc_recenter_address, self.config.gui_osc_recenter_address, 16),
+                ("Receiver Port", self.gui_osc_receiver_port, self.config.gui_osc_receiver_port, 10),
+            ),
+            (
+                ("Recalibrate Address", self.gui_osc_recalibrate_address, self.config.gui_osc_recalibrate_address, 28),
+                None,
+            ),
+        ]
+        for left, right in paired_fields:
+            ttk.Label(parent, text=left[0]).grid(row=row, column=0, sticky="w", padx=8, pady=2)
+            left_var = tk.StringVar(value=str(left[2]))
+            self.tk_vars[left[1]] = left_var
+            ttk.Entry(parent, textvariable=left_var, width=left[3]).grid(row=row, column=1, sticky="w", padx=8, pady=2)
+
+            if right is not None:
+                ttk.Label(parent, text=right[0]).grid(row=row, column=2, sticky="w", padx=8, pady=2)
+                right_var = tk.StringVar(value=str(right[2]))
+                self.tk_vars[right[1]] = right_var
+                ttk.Entry(parent, textvariable=right_var, width=right[3]).grid(row=row, column=3, sticky="w", padx=8, pady=2)
+            row += 1

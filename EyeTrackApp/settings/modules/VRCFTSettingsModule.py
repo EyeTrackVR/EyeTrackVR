@@ -1,6 +1,7 @@
 from typing import Iterable
 
-import PySimpleGUI as sg
+import tkinter as tk
+from tkinter import ttk
 
 from pydantic import AfterValidator
 from typing_extensions import Annotated
@@ -50,176 +51,77 @@ class VRCFTSettingsModule(BaseSettingsModule):
         self.gui_EyebrowThresholdLowering = f"-VRCFTSETTINGSEYEBROWTHRESHOLDLOWERING{widget_id}"
         self.gui_OutputMultiplier = f"-VRCFTSETTINGSOUTPUTMULTIPLIER{widget_id}"
 
-    def get_layout(self) -> Iterable:
-        return [
-            [
-                sg.Text("Emulation selection:", background_color="#242224"),
-            ],
-            [
-                sg.Checkbox(
-                    "Emulate Eye Widen",
-                    default=self.config.gui_ShouldEmulateEyeWiden,
-                    key=self.gui_ShouldEmulateEyeWiden,
-                    background_color="#424042",
-                ),
-                sg.Checkbox(
-                    "Emulate Eye Squint",
-                    default=self.config.gui_ShouldEmulateEyeSquint,
-                    key=self.gui_ShouldEmulateEyeSquint,
-                    background_color="#424042",
-                ),
-                sg.Checkbox(
-                    "Emulate Eyebrows",
-                    default=self.config.gui_ShouldEmulateEyebrows,
-                    key=self.gui_ShouldEmulateEyebrows,
-                    background_color="#424042",
-                ),
-            ],
-            [
-                sg.Text("General Module Settings:", background_color="#242224"),
-            ],
-            [
-                sg.Text("VRCFT Module listening IP", background_color="#242224"),
-                sg.InputText(
-                    self.config.gui_VRCFTModuleIPAddress,
-                    key=self.gui_VRCFTModuleIPAddress,
-                    size=(0, 10),
-                    tooltip="Ip on which the module should listen.",
-                ),
-                sg.Text("port", background_color="#242224"),
-                sg.InputText(
-                    self.config.gui_VRCFTModulePort,
-                    key=self.gui_VRCFTModulePort,
-                    size=(0, 10),
-                    tooltip="UDP port on which the module should listen.",
-                ),
-            ],
-            [
-                sg.Text("VRCFT Module output multiplier", background_color="#242224"),
-                sg.InputText(
-                    self.config.gui_OutputMultiplier,
-                    key=self.gui_OutputMultiplier,
-                    size=(0, 10),
-                    tooltip="Output multiplier adjusts the output by the given amount",
-                ),
-            ],
-            [
-                sg.Text("Eye Widen thresholds:", background_color="#424042"),
-            ],
-            [
-                sg.Text("V1 Min:", background_color="#424042"),
-                sg.Slider(
-                    range=(0, 1),
-                    resolution=0.01,
-                    default_value=self.config.gui_WidenThresholdV1_min,
-                    orientation="h",
-                    key=self.gui_WidenThresholdV1_min,
-                    background_color="#424042",
-                    tooltip="Controls the point at which the emulation should start for v1 params, reacts to openness",
-                ),
-                sg.Text("V1 Max:", background_color="#424042"),
-                sg.Slider(
-                    range=(0, 2),
-                    resolution=0.01,
-                    default_value=self.config.gui_WidenThresholdV1_max,
-                    orientation="h",
-                    key=self.gui_WidenThresholdV1_max,
-                    background_color="#424042",
-                    tooltip="Controls the maximum range of widen emulation",
-                ),
-            ],
-            [
-                sg.Text("V2 Min:", background_color="#424042"),
-                sg.Slider(
-                    range=(0, 2),
-                    resolution=0.01,
-                    default_value=self.config.gui_WidenThresholdV2_min,
-                    orientation="h",
-                    key=self.gui_WidenThresholdV2_min,
-                    background_color="#424042",
-                    tooltip="Controls the point at which the emulation should start for v2 params, reacts to openness",
-                ),
-                sg.Text("V2 Max:", background_color="#424042"),
-                sg.Slider(
-                    range=(0, 2),
-                    resolution=0.01,
-                    default_value=self.config.gui_WidenThresholdV2_max,
-                    orientation="h",
-                    key=self.gui_WidenThresholdV2_max,
-                    background_color="#424042",
-                    tooltip="Controls the maximum range of widen emulation",
-                ),
-            ],
-            [
-                sg.Text("Eye Squeeze thresholds:", background_color="#424042"),
-            ],
-            [
-                sg.Text("V1 Min:", background_color="#424042"),
-                sg.Slider(
-                    range=(0, 1),
-                    resolution=0.01,
-                    default_value=self.config.gui_SqueezeThresholdV1_min,
-                    orientation="h",
-                    key=self.gui_SqueezeThresholdV1_min,
-                    background_color="#424042",
-                    tooltip="Controls the point at which the emulation should start for v1 params, reacts to openness",
-                ),
-                sg.Text("V1 Max:", background_color="#424042"),
-                sg.Slider(
-                    range=(0, 2),
-                    resolution=0.01,
-                    default_value=self.config.gui_SqueezeThresholdV1_max,
-                    orientation="h",
-                    key=self.gui_SqueezeThresholdV1_max,
-                    background_color="#424042",
-                    tooltip="Controls the maximum range of squeeze emulation",
-                ),
-            ],
-            [
-                sg.Text("V2 Min:", background_color="#424042"),
-                sg.Slider(
-                    range=(0, 1),
-                    resolution=0.01,
-                    default_value=self.config.gui_SqueezeThresholdV2_min,
-                    orientation="h",
-                    key=self.gui_SqueezeThresholdV2_min,
-                    background_color="#424042",
-                    tooltip="Controls the point at which the emulation should start for v2 params, reacts to openness",
-                ),
-                sg.Text("V2 Max:", background_color="#424042"),
-                sg.Slider(
-                    range=(-2, 0),
-                    resolution=0.01,
-                    default_value=self.config.gui_SqueezeThresholdV2_max,
-                    orientation="h",
-                    key=self.gui_SqueezeThresholdV2_max,
-                    background_color="#424042",
-                    tooltip="Controls the maximum range of squeeze emulation",
-                ),
-            ],
-            [
-                sg.Text("Eyebrow emulation Thresholds:", background_color="#424042"),
-            ],
-            [
-                sg.Text("Rising:", background_color="#424042"),
-                sg.Slider(
-                    range=(0, 1),
-                    resolution=0.01,
-                    default_value=self.config.gui_EyebrowThresholdRising,
-                    orientation="h",
-                    key=self.gui_EyebrowThresholdRising,
-                    background_color="#424042",
-                    tooltip="Controls the point at which the emulation should start, reacts to openness",
-                ),
-                sg.Text("Lowering:", background_color="#424042"),
-                sg.Slider(
-                    range=(0, 2),
-                    resolution=0.01,
-                    default_value=self.config.gui_EyebrowThresholdLowering,
-                    orientation="h",
-                    key=self.gui_EyebrowThresholdLowering,
-                    background_color="#424042",
-                    tooltip="Controls the maximum range of eyebrows emulation",
-                ),
-            ],
+    def _add_slider_with_controls(self, parent, row, label, var, min_v, max_v, step=0.01):
+        slider_length = 160
+        value_label_var = tk.StringVar(value=f"{float(var.get()):.2f}")
+
+        def _snap(value: float) -> float:
+            return round(round(value / step) * step, 2)
+
+        def sync(*_args):
+            value_label_var.set(f"{_snap(float(var.get())):.2f}")
+
+        def bump(delta):
+            next_val = _snap(float(var.get()) + (delta * step))
+            next_val = max(min_v, min(max_v, next_val))
+            var.set(next_val)
+
+        ttk.Label(parent, text=label).grid(row=row, column=0, sticky="w", padx=8, pady=2)
+        ttk.Scale(parent, from_=min_v, to=max_v, variable=var, orient="horizontal", length=slider_length).grid(
+            row=row, column=1, sticky="w", padx=8, pady=2
+        )
+        ttk.Button(parent, text="-", width=2, command=lambda: bump(-1)).grid(row=row, column=2, sticky="w", padx=(4, 2), pady=2)
+        ttk.Label(parent, textvariable=value_label_var, width=6, anchor="center").grid(row=row, column=3, sticky="w", padx=2, pady=2)
+        ttk.Button(parent, text="+", width=2, command=lambda: bump(1)).grid(row=row, column=4, sticky="w", padx=(2, 8), pady=2)
+        var.trace_add("write", sync)
+
+    def build(self, parent) -> Iterable:
+        row = 0
+        for col, (key, default, label) in enumerate([
+            (self.gui_ShouldEmulateEyeWiden, self.config.gui_ShouldEmulateEyeWiden, "Emulate Eye Widen"),
+            (self.gui_ShouldEmulateEyeSquint, self.config.gui_ShouldEmulateEyeSquint, "Emulate Eye Squint"),
+            (self.gui_ShouldEmulateEyebrows, self.config.gui_ShouldEmulateEyebrows, "Emulate Eyebrows"),
+        ]):
+            var = tk.BooleanVar(value=default)
+            self.tk_vars[key] = var
+            ttk.Checkbutton(parent, text=label, variable=var).grid(row=row, column=col, sticky="w", padx=8, pady=2)
+        row += 1
+
+        ttk.Label(parent, text="VRCFT Module listening IP").grid(row=row, column=0, sticky="w", padx=8, pady=2)
+        ip_var = tk.StringVar(value=str(self.config.gui_VRCFTModuleIPAddress))
+        self.tk_vars[self.gui_VRCFTModuleIPAddress] = ip_var
+        ttk.Entry(parent, textvariable=ip_var, width=16).grid(row=row, column=1, sticky="w", padx=8, pady=2)
+
+        ttk.Label(parent, text="VRCFT Module listening port").grid(row=row, column=2, sticky="w", padx=8, pady=2)
+        port_var = tk.StringVar(value=str(self.config.gui_VRCFTModulePort))
+        self.tk_vars[self.gui_VRCFTModulePort] = port_var
+        ttk.Entry(parent, textvariable=port_var, width=10).grid(row=row, column=3, sticky="w", padx=8, pady=2)
+        row += 1
+
+        ttk.Label(parent, text="VRCFT Module output multiplier").grid(row=row, column=0, sticky="w", padx=8, pady=2)
+        out_var = tk.StringVar(value=str(self.config.gui_OutputMultiplier))
+        self.tk_vars[self.gui_OutputMultiplier] = out_var
+        ttk.Entry(parent, textvariable=out_var, width=16).grid(row=row, column=1, sticky="w", padx=8, pady=2)
+        row += 1
+
+        slider_frame = ttk.Frame(parent)
+        slider_frame.grid(row=row, column=0, columnspan=5, sticky="ew", padx=0, pady=(4, 0))
+        row = 0
+
+        slider_specs = [
+            ("Widen V1 Min", self.gui_WidenThresholdV1_min, self.config.gui_WidenThresholdV1_min, 0, 1),
+            ("Widen V1 Max", self.gui_WidenThresholdV1_max, self.config.gui_WidenThresholdV1_max, 0, 2),
+            ("Widen V2 Min", self.gui_WidenThresholdV2_min, self.config.gui_WidenThresholdV2_min, 0, 2),
+            ("Widen V2 Max", self.gui_WidenThresholdV2_max, self.config.gui_WidenThresholdV2_max, 0, 2),
+            ("Squeeze V1 Min", self.gui_SqueezeThresholdV1_min, self.config.gui_SqueezeThresholdV1_min, 0, 1),
+            ("Squeeze V1 Max", self.gui_SqueezeThresholdV1_max, self.config.gui_SqueezeThresholdV1_max, 0, 2),
+            ("Squeeze V2 Min", self.gui_SqueezeThresholdV2_min, self.config.gui_SqueezeThresholdV2_min, 0, 1),
+            ("Squeeze V2 Max", self.gui_SqueezeThresholdV2_max, self.config.gui_SqueezeThresholdV2_max, -2, 0),
+            ("Eyebrow Rising", self.gui_EyebrowThresholdRising, self.config.gui_EyebrowThresholdRising, 0, 1),
+            ("Eyebrow Lowering", self.gui_EyebrowThresholdLowering, self.config.gui_EyebrowThresholdLowering, 0, 2),
         ]
+        for label, key, default, min_v, max_v in slider_specs:
+            var = tk.DoubleVar(value=float(default))
+            self.tk_vars[key] = var
+            self._add_slider_with_controls(slider_frame, row, label, var, min_v, max_v, step=0.01)
+            row += 1

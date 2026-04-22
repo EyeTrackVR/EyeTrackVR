@@ -1,7 +1,8 @@
 from datetime import datetime, timedelta
 from typing import Iterable
 
-import PySimpleGUI as sg
+import tkinter as tk
+from tkinter import ttk
 from colorama import Fore
 from threading import Event
 from eye import EyeId
@@ -19,6 +20,7 @@ class BaseSettingsWidget:
         self.initialized_modules = self._initialize_modules(settings_modules=settings_modules, widget_id=widget_id)
         self.cancellation_event = Event()
         self.cancellation_event.set()
+        self.frame = None
 
     def started(self):
         return not self.cancellation_event.is_set()
@@ -45,7 +47,14 @@ class BaseSettingsWidget:
             messages = [f"{Fore.RED}[ERROR]{Fore.RESET} {error['msg']} \n" for module_errors in errors for error in module_errors]
             print("".join(messages))
 
-    def render(self, window, event, values):
+    def _collect_values(self):
+        values = {}
+        for module in self.initialized_modules:
+            values.update(module.get_values_map())
+        return values
+
+    def render_tick(self):
+        values = self._collect_values()
         validated_data, errors = {}, []
         for module in self.initialized_modules:
             module_validated_data = module.validate(values)
@@ -58,29 +67,23 @@ class BaseSettingsWidget:
             self._update_and_save_config(validated_data)
         if errors:
             self._handle_errors(errors)
-        self.handle_events(event, window)
 
     def _initialize_modules(self, settings_modules, widget_id):
         return [module(config=self.config, settings=self.main_config, widget_id=widget_id) for module in settings_modules]
 
-    def get_layout(self) -> Iterable:
-        general_settings_layout = []
+    def build(self, parent) -> ttk.Frame:
+        self.frame = ttk.Frame(parent)
         for module in self.initialized_modules:
-            general_settings_layout.extend(module.get_layout())
-        widget_layout = [
-            [sg.Column(general_settings_layout, key=f"-GENERALSETTINGSLAYOUT{self.widget_id}-", background_color="#424042")],
-            [sg.Text("", background_color="#424042")],
-            [sg.Button("Reset settings to default", key=self.reset_button_key, button_color="#c40e23")]
-        ]
-        return widget_layout
+            section = ttk.LabelFrame(self.frame, text=module.__class__.__name__.replace("Module", ""))
+            section.pack(fill="x", padx=8, pady=6, anchor="n")
+            module.build(section)
 
-    def handle_events(self, event, window):
-        if event == "__TIMEOUT__":
-            return
-        if event == self.reset_button_key:
-            self.reset_config(window)
+        ttk.Button(self.frame, text="Reset settings to default", command=self.reset_config).pack(
+            anchor="w", padx=10, pady=(6, 10)
+        )
+        return self.frame
 
-    def reset_config(self, window):
+    def reset_config(self):
         default_values = {}
         base_settings = EyeTrackSettingsConfig()
         print(f"\033[92m[INFO] Resetting config to defaults\033[0m")
@@ -89,6 +92,7 @@ class BaseSettingsWidget:
                 default_val = getattr(base_settings, key)
                 widget_key = getattr(module, key)
                 default_values[key] = default_val
-                window[widget_key].update(default_val)
+                if widget_key in module.tk_vars:
+                    module.tk_vars[widget_key].set(default_val)
         print(f"\033[92m[INFO] Config reset, saving\033[0m")
         self._update_and_save_config(default_values)

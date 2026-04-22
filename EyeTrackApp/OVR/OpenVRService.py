@@ -3,10 +3,11 @@ import os
 import sys
 import json
 from logging import getLogger, ERROR, WARN
+import tkinter as tk
+from tkinter import messagebox
 from config import EyeTrackConfig
 from eye import EyeId
 from colorama import Fore
-import PySimpleGUI as sg
 
 class OpenVRException(Exception):
     pass
@@ -93,14 +94,13 @@ class OpenVRService:
                 self.set_autostart(data["gui_openvr_autostart"])
             except OpenVRException as e:
                 # Uncheck the autostart option if we failed to toggle it on
-                self.window[f"-OPENVRAUTOSTART{EyeId.SETTINGS}-"].update(False)
+                if hasattr(self.window, "set_openvr_autostart"):
+                    self.window.set_openvr_autostart(False)
                 self.logger.log(WARN, f"{Fore.YELLOW}[WARN] Cannot enable steamvr autostart: {e.args[0]}")
-                sg.popup_ok(
-                    f"Cannot enable steamvr autostart: {e.args[0]}",
-                    title="Warning",
-                    text_color="#ffae42",
-                    background_color="#292929"
-                )
+                popup_root = tk.Tk()
+                popup_root.withdraw()
+                messagebox.showwarning("Warning", f"Cannot enable steamvr autostart: {e.args[0]}")
+                popup_root.destroy()
 
 
 openvr_service = OpenVRService()

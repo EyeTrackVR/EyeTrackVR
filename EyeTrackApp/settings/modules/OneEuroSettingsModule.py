@@ -2,8 +2,8 @@ from pydantic import AfterValidator
 from typing_extensions import Annotated
 
 from settings.modules.BaseModule import BaseSettingsModule, BaseValidationModel
-from settings.constants import BACKGROUND_COLOR
-import PySimpleGUI as sg
+import tkinter as tk
+from tkinter import ttk
 
 from settings.modules.CommonFieldValidators import check_is_float_convertible
 
@@ -20,23 +20,13 @@ class OneEuroSettingsModule(BaseSettingsModule):
         self.gui_min_cutoff = f"-MINCUTOFF{widget_id}-"
         self.validation_model = OneEuroFilterValidationModel
 
-    def get_layout(self):
-        return [
-            [
-                sg.Text("One Euro Filter Paramaters:", background_color='#242224'),
-            ],
-            [
-                sg.Text("Min Frequency Cutoff", background_color=BACKGROUND_COLOR),
-                sg.InputText(
-                    self.config.gui_min_cutoff,
-                    key=self.gui_min_cutoff,
-                    size=(0, 10),
-                ),
-                sg.Text("Speed Coefficient", background_color=BACKGROUND_COLOR),
-                sg.InputText(
-                    self.config.gui_speed_coefficient,
-                    key=self.gui_speed_coefficient,
-                    size=(0, 10),
-                ),
-            ],
-        ]
+    def build(self, parent):
+        ttk.Label(parent, text="Min Frequency Cutoff").grid(row=0, column=0, sticky="w", padx=8, pady=4)
+        min_cutoff = tk.StringVar(value=str(self.config.gui_min_cutoff))
+        self.tk_vars[self.gui_min_cutoff] = min_cutoff
+        ttk.Entry(parent, textvariable=min_cutoff, width=12).grid(row=0, column=1, sticky="w", padx=8, pady=4)
+
+        ttk.Label(parent, text="Speed Coefficient").grid(row=0, column=2, sticky="w", padx=8, pady=4)
+        speed_coeff = tk.StringVar(value=str(self.config.gui_speed_coefficient))
+        self.tk_vars[self.gui_speed_coefficient] = speed_coeff
+        ttk.Entry(parent, textvariable=speed_coeff, width=12).grid(row=0, column=3, sticky="w", padx=8, pady=4)

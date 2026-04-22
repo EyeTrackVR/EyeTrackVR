@@ -28,6 +28,7 @@ class BaseSettingsModule:
         self.validation_model: BaseValidationModel = BaseValidationModel  # noqa
         self.config = config
         self.widget_id = widget_id
+        self.tk_vars = {}
 
     def get_validation_model(self):
         """Return validation model, can be overridden for custom behaviour"""
@@ -63,6 +64,12 @@ class BaseSettingsModule:
 
     def get_layout(self) -> Iterable:
         raise NotImplementedError
+
+    def build(self, parent):
+        raise NotImplementedError
+
+    def get_values_map(self) -> dict:
+        return {key: var.get() for key, var in self.tk_vars.items()}
 
     def get_key_for_panel_defaults(self) -> dict:
         return self.validation_model.schema().get("properties").keys()

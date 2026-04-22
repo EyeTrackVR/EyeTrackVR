@@ -1,6 +1,7 @@
 from config import EyeTrackSettingsConfig
 from settings.modules.BaseModule import BaseSettingsModule, BaseValidationModel
-import PySimpleGUI as sg
+import tkinter as tk
+from tkinter import ttk
 
 
 class GeneralSettingsValidationModel(BaseValidationModel):
@@ -36,92 +37,45 @@ class GeneralSettingsModule(BaseSettingsModule):
     # gui_outer_side_falloff: bool = True
     # gui_eye_dominant_diff_thresh: float = 0.3
 
-    def get_layout(self):
-        return [
-            [
-                sg.Text("General Settings:", background_color="#242224"),
-            ],
-            [
-                sg.Checkbox(
-                    "Flip Left Eye X Axis",
-                    default=self.config.gui_flip_x_axis_left,
-                    key=self.gui_flip_x_axis_left,
-                    background_color="#424042",
-                    tooltip="Flips the left eye's X axis.",
-                ),
-                sg.Checkbox(
-                    "Flip Right Eye X Axis",
-                    default=self.config.gui_flip_x_axis_right,
-                    key=self.gui_flip_x_axis_right,
-                    background_color="#424042",
-                    tooltip="Flips the right eye's X axis.",
-                ),
-                sg.Checkbox(
-                    "Flip Y Axis",
-                    default=self.config.gui_flip_y_axis,
-                    key=self.gui_flip_y_axis,
-                    background_color="#424042",
-                    tooltip="Flips the eye's Y axis.",
-                ),
-            ],
-            [
-                sg.Checkbox(
-                    "Check For Updates",
-                    default=self.config.gui_update_check,
-                    key=self.gui_update_check,
-                    background_color="#424042",
-                    tooltip="Toggle update check on launch.",
-                ),
-            ],
-            [
-                sg.Checkbox(
-                    "Start and Stop With SteamVR",
-                    default=self.config.gui_openvr_autostart,
-                    key=self.gui_openvr_autostart,
-                    background_color="#424042",
-                    tooltip="Start the EyeTrackVR app when SteamVR starts, Stop the EyeTrackVRApp when SteamVR stops. Needs SteamVR running to be enabled",
-                ),
-                sg.Checkbox(
-                    "Use GPU Acceleration",
-                    default=self.config.gui_use_gpu,
-                    key=self.gui_use_gpu,
-                    background_color="#424042",
-                    tooltip="Use GPU to process LEAP model inference. Restart REQUIRED after change.",
-                ),
+    def build(self, parent):
+        parent.columnconfigure(0, weight=1)
+        parent.columnconfigure(1, weight=1)
 
-            ],
-            [
-                sg.Text("Eye Falloff Settings:", background_color="#242224"),
-            ],
-            [
-                sg.Checkbox(
-                    "Outer Eye Falloff",
-                    default=self.config.gui_outer_side_falloff,
-                    key=self.gui_outer_side_falloff,
-                    background_color="#424042",
-                    tooltip="If one eye's tracking is past a threshold of difference, we assume the eye looking most outward with lowest average velocity in the past x seconds is correct.",
-                ),
-                sg.Text("Eye Difference Threshold", background_color="#424042"),
-                sg.InputText(
-                    self.config.gui_eye_dominant_diff_thresh,
-                    key=self.gui_eye_dominant_diff_thresh,
-                    size=(0, 10),
-                ),
-            ],
-            [
-                sg.Checkbox(
-                    "Force Left Eye Dominant",
-                    default=self.config.gui_left_eye_dominant,
-                    key=self.gui_left_eye_dominant,
-                    background_color="#424042",
-                    tooltip="If one eye is too different than the other, use left eye data",
-                ),
-                sg.Checkbox(
-                    "Force Right Eye Dominant",
-                    default=self.config.gui_right_eye_dominant,
-                    key=self.gui_right_eye_dominant,
-                    background_color="#424042",
-                    tooltip="If one eye is too different than the other, use right eye data",
-                ),
-            ],
+        bool_pairs = [
+            (
+                (self.gui_flip_x_axis_left, self.config.gui_flip_x_axis_left, "Flip Left Eye X Axis"),
+                (self.gui_flip_x_axis_right, self.config.gui_flip_x_axis_right, "Flip Right Eye X Axis"),
+            ),
+            (
+                (self.gui_left_eye_dominant, self.config.gui_left_eye_dominant, "Force Left Eye Dominant"),
+                (self.gui_right_eye_dominant, self.config.gui_right_eye_dominant, "Force Right Eye Dominant"),
+            ),
+            (
+                (self.gui_openvr_autostart, self.config.gui_openvr_autostart, "Start and Stop With SteamVR"),
+                (self.gui_use_gpu, self.config.gui_use_gpu, "Use GPU Acceleration"),
+            ),
+            (
+                (self.gui_flip_y_axis, self.config.gui_flip_y_axis, "Flip Y Axis"),
+                (self.gui_update_check, self.config.gui_update_check, "Check For Updates"),
+            ),
+            (
+                (self.gui_outer_side_falloff, self.config.gui_outer_side_falloff, "Outer Eye Falloff"),
+                None,
+            ),
         ]
+
+        row = 0
+        for left, right in bool_pairs:
+            for col, field in enumerate((left, right)):
+                if field is None:
+                    continue
+                key, default, label = field
+                var = tk.BooleanVar(value=default)
+                self.tk_vars[key] = var
+                ttk.Checkbutton(parent, text=label, variable=var).grid(row=row, column=col, sticky="w", padx=8, pady=2)
+            row += 1
+
+        ttk.Label(parent, text="Eye Difference Threshold").grid(row=row, column=0, sticky="w", padx=8, pady=(8, 2))
+        diff_var = tk.StringVar(value=str(self.config.gui_eye_dominant_diff_thresh))
+        self.tk_vars[self.gui_eye_dominant_diff_thresh] = diff_var
+        ttk.Entry(parent, textvariable=diff_var, width=12).grid(row=row, column=1, sticky="w", padx=8, pady=(8, 2))

@@ -598,16 +598,19 @@ class EyeProcessor:
         # clear HSF values when page is opened to correctly reflect setting changes
         self.er_hsf = None
 
-        # set algo priorities
+        # Build enabled algorithm list (single-select UI sets one True, but this also
+        # gracefully handles multiple enabled values if config is edited manually).
+        enabled_algorithms = []
+
         if self.settings.gui_AHSFRAC:
             if self.er_ahsf is None:
                 self.er_ahsf = self.AHSF
-            algolist[self.settings.gui_AHSFRACP] = self.AHSFRACM
+            enabled_algorithms.append(self.AHSFRACM)
 
         if self.settings.gui_AHSF:
             if self.er_ahsf is None:
                 self.er_ahsf = self.AHSF
-            algolist[self.settings.gui_AHSFP] = self.AHSFM
+            enabled_algorithms.append(self.AHSFM)
 
         if self.settings.gui_HSF:
             if self.er_hsf is None:
@@ -626,7 +629,7 @@ class EyeProcessor:
                 else:
                     pass
 
-            algolist[self.settings.gui_HSFP] = self.HSFM
+            enabled_algorithms.append(self.HSFM)
 
         else:
             if self.er_hsf is not None:
@@ -649,7 +652,7 @@ class EyeProcessor:
                 else:
                     pass
 
-            algolist[self.settings.gui_HSRACP] = self.HSRACM
+            enabled_algorithms.append(self.HSRACM)
         else:
             if not self.settings.gui_HSF and self.er_hsf is not None:
                 self.er_hsf = None
@@ -657,7 +660,7 @@ class EyeProcessor:
         if self.settings.gui_DADDY:
             if self.er_daddy is None:
                 self.er_daddy = External_Run_DADDY()
-            algolist[self.settings.gui_DADDYP] = self.DADDYM
+            enabled_algorithms.append(self.DADDYM)
         else:
             if self.er_daddy is not None:
                 self.er_daddy = None
@@ -665,16 +668,20 @@ class EyeProcessor:
         if self.settings.gui_LEAP or self.settings.gui_LEAP_lid:
             if self.er_leap is None:
                 self.er_leap = External_Run_LEAP(self.config, self.baseconfig)
-            algolist[self.settings.gui_LEAP] = self.LEAPM
+            if self.settings.gui_LEAP:
+                enabled_algorithms.append(self.LEAPM)
         else:
             if self.er_leap is not None:
                 self.er_leap = None
 
         if self.settings.gui_RANSAC3D:
-            algolist[self.settings.gui_RANSAC3DP] = self.RANSAC3DM
+            enabled_algorithms.append(self.RANSAC3DM)
 
         if self.settings.gui_BLOB:
-            algolist[self.settings.gui_BLOBP] = self.BLOBM
+            enabled_algorithms.append(self.BLOBM)
+
+        for idx, algo in enumerate(enabled_algorithms[:8]):
+            algolist[idx] = algo
 
         (
             self.firstalgo,
