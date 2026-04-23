@@ -48,10 +48,12 @@ class TrackingAlgorithmModule(BaseSettingsModule):
         for idx, (label, name, key, config_field) in enumerate(self._algo_entries):
             row = idx % rows_per_column
             col = idx // rows_per_column
-            ttk.Radiobutton(parent, text=label, variable=self.selected_algo, value=name).grid(
-                row=row, column=col, sticky="w", padx=8, pady=2
+            ttk.Radiobutton(
+                parent, text=label, variable=self.selected_algo, value=name
+            ).grid(row=row, column=col, sticky="w", padx=8, pady=2)
+            self.tk_vars[key] = tk.BooleanVar(
+                value=bool(getattr(self.config, config_field, False))
             )
-            self.tk_vars[key] = tk.BooleanVar(value=bool(getattr(self.config, config_field, False)))
 
     def get_values_map(self) -> dict:
         values = super().get_values_map()

@@ -4,6 +4,7 @@
 import numpy as np
 from time import time
 
+
 def smoothing_factor(t_e, cutoff):
     r = 2 * np.pi * cutoff * t_e
     return r / (r + 1)
@@ -14,8 +15,7 @@ def exponential_smoothing(a, x, x_prev):
 
 
 class OneEuroFilter:
-    def __init__(self, x0, dx0=0.0, min_cutoff=1.0, beta=0.0,
-                 d_cutoff=1.0):
+    def __init__(self, x0, dx0=0.0, min_cutoff=1.0, beta=0.0, d_cutoff=1.0):
         """Initialize the one euro filter."""
         # The parameters.
         self.data_shape = x0.shape
@@ -33,7 +33,9 @@ class OneEuroFilter:
         try:
             t = time()
             t_e = t - self.t_prev
-            if t_e != 0.0: #occasionally when switching to HSF this becomes zero causing divide by zero errors crashing the filter.
+            if (
+                t_e != 0.0
+            ):  # occasionally when switching to HSF this becomes zero causing divide by zero errors crashing the filter.
                 t_e = np.full(x.shape, t_e)
 
                 # The filtered derivative of the signal.
@@ -56,4 +58,6 @@ class OneEuroFilter:
                 self.x_prev = x
                 return x
         except:
-            print("\033[91m[ERROR] One Euro Filter Error. Is your system clock running properly?\033[0m")
+            print(
+                "\033[91m[ERROR] One Euro Filter Error. Is your system clock running properly?\033[0m"
+            )

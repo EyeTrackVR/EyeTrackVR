@@ -27,6 +27,7 @@ Copyright (c) 2026 EyeTrackVR <3
 LICENSE: Summer Software Distribution License 1.0
 ------------------------------------------------------------------------------------------------------
 """
+
 from __future__ import annotations
 import cv2
 import numpy as np
@@ -40,9 +41,20 @@ def _get_integral_sum(ii: np.ndarray, x: int, y: int, w: int, h: int) -> float:
 
 
 @numba.njit(cache=True, fastmath=True)
-def _evaluate_single_position(ii: np.ndarray, x: int, y: int, width: int, height: int,
-                              ratio_outer: float, kf: float, use_square: bool,
-                              bx: int, by: int, bw: int, bh: int) -> Tuple[float, int, int, int, int, float, float]:
+def _evaluate_single_position(
+    ii: np.ndarray,
+    x: int,
+    y: int,
+    width: int,
+    height: int,
+    ratio_outer: float,
+    kf: float,
+    use_square: bool,
+    bx: int,
+    by: int,
+    bw: int,
+    bh: int,
+) -> Tuple[float, int, int, int, int, float, float]:
     if use_square:
         ow = oh = int(max(width, height) * ratio_outer)
     else:
@@ -80,11 +92,24 @@ def _evaluate_single_position(ii: np.ndarray, x: int, y: int, width: int, height
 
 
 @numba.njit(cache=True)
-def _coarse_search(ii: np.ndarray,
-                   roi_x: int, roi_y: int, roi_w: int, roi_h: int,
-                   width_min: int, width_max: int, wh_step: int, xy_step: int,
-                   ratio_outer: float, kf: float, use_square: bool,
-                   bx: int, by: int, bw: int, bh: int):
+def _coarse_search(
+    ii: np.ndarray,
+    roi_x: int,
+    roi_y: int,
+    roi_w: int,
+    roi_h: int,
+    width_min: int,
+    width_max: int,
+    wh_step: int,
+    xy_step: int,
+    ratio_outer: float,
+    kf: float,
+    use_square: bool,
+    bx: int,
+    by: int,
+    bw: int,
+    bh: int,
+):
     best_f = -255
     best_pupil = (0, 0, 0, 0)
     best_outer = (0, 0, 0, 0)
@@ -102,7 +127,8 @@ def _coarse_search(ii: np.ndarray,
         for x in range(roi_x, xmax + 1, xy_step):
             for y in range(roi_y, ymax + 1, xy_step):
                 f_val, ox, oy, ow, oh, mu_in, mu_out = _evaluate_single_position(
-                    ii, x, y, width, height, ratio_outer, kf, use_square, bx, by, bw, bh)
+                    ii, x, y, width, height, ratio_outer, kf, use_square, bx, by, bw, bh
+                )
 
                 if f_val > best_f:
                     best_f = f_val
@@ -115,18 +141,19 @@ def _coarse_search(ii: np.ndarray,
 
 
 class PupilDetectorHaar:
-
-    def __init__(self,
-                 ratio_outer: float = 1.4,
-                 kf: float = 1.5,
-                 use_square_haar: bool = False,
-                 use_init_rect: bool = False,
-                 init_rect: Optional[Tuple[int, int, int, int]] = None,
-                 target_resolution: Tuple[int, int] = (320, 240),
-                 width_min: int = 31,
-                 width_max: int = 120,
-                 wh_step: int = 2,
-                 xy_step: int = 2):
+    def __init__(
+        self,
+        ratio_outer: float = 1.4,
+        kf: float = 1.5,
+        use_square_haar: bool = False,
+        use_init_rect: bool = False,
+        init_rect: Optional[Tuple[int, int, int, int]] = None,
+        target_resolution: Tuple[int, int] = (320, 240),
+        width_min: int = 31,
+        width_max: int = 120,
+        wh_step: int = 2,
+        xy_step: int = 2,
+    ):
 
         self.ratio_outer = ratio_outer
         self.kf = kf
@@ -158,7 +185,9 @@ class PupilDetectorHaar:
         self._img_boundary = (0, 0, 0, 0)
         self._init_rect_down = (0, 0, 0, 0)
 
-    def detect_etvr(self, img_gray) -> Tuple[np.ndarray, np.ndarray, float, float, float]:
+    def detect_etvr(
+        self, img_gray
+    ) -> Tuple[np.ndarray, np.ndarray, float, float, float]:
         """
         Runs the full detection and returns a visualized image and ETVR-specific data.
 
@@ -220,7 +249,9 @@ class PupilDetectorHaar:
         # 5. Return the requested 5-tuple
         return vis_img, resize_img, rawx, rawy, radius
 
-    def detect(self, img_gray: np.ndarray) -> Tuple[Tuple[int, int, int, int], Tuple[float, float]]:
+    def detect(
+        self, img_gray: np.ndarray
+    ) -> Tuple[Tuple[int, int, int, int], Tuple[float, float]]:
         if img_gray.dtype != np.uint8:
             raise TypeError("img_gray must be uint8 [0,255]")
 
@@ -234,8 +265,9 @@ class PupilDetectorHaar:
 
     def _preprocess(self, img_gray: np.ndarray) -> np.ndarray:
         h, w = img_gray.shape
-        self._ratio_down = max(w / self.target_resolution[0],
-                               h / self.target_resolution[1], 1.0)
+        self._ratio_down = max(
+            w / self.target_resolution[0], h / self.target_resolution[1], 1.0
+        )
         new_w = int(round(w / self._ratio_down))
         new_h = int(round(h / self._ratio_down))
 
@@ -244,7 +276,7 @@ class PupilDetectorHaar:
 
         if self.use_init_rect and self.frame_num == 1:
             x, y, rw, rh = self.init_rect
-            region = img_gray[y:y + rh, x:x + rw]
+            region = img_gray[y : y + rh, x : x + rw]
             self.mu_inner0 = np.percentile(region, 25)
             self.mu_outer0 = np.percentile(region, 75)
 
@@ -270,10 +302,14 @@ class PupilDetectorHaar:
 
         rx, ry, rw, rh = full
         enlarge = 35
-        if ix < enlarge:                rx, rw = 0, w
-        if iy < enlarge:                ry, rh = 0, h
-        if ix + iw > w - enlarge:         rx, rw = 0, w
-        if iy + ih > h - enlarge:         ry, rh = 0, h
+        if ix < enlarge:
+            rx, rw = 0, w
+        if iy < enlarge:
+            ry, rh = 0, h
+        if ix + iw > w - enlarge:
+            rx, rw = 0, w
+        if iy + ih > h - enlarge:
+            ry, rh = 0, h
         self.roi = (rx, ry, rw, rh)
 
         self.width_min = max(int(iw * 1.0), 24)
@@ -289,10 +325,22 @@ class PupilDetectorHaar:
         # Optimized search
         bx, by, bw, bh = self._img_boundary
         best_f, best_pupil, best_outer, best_mu_in, best_mu_out = _coarse_search(
-            ii, roi_x, roi_y, roi_w, roi_h,
-            self.width_min, self.width_max, self.wh_step, self.xy_step,
-            self.ratio_outer, self.kf, self.use_square_haar,
-            bx, by, bw, bh
+            ii,
+            roi_x,
+            roi_y,
+            roi_w,
+            roi_h,
+            self.width_min,
+            self.width_max,
+            self.wh_step,
+            self.xy_step,
+            self.ratio_outer,
+            self.kf,
+            self.use_square_haar,
+            bx,
+            by,
+            bw,
+            bh,
         )
 
         self.pupil_rect_coarse = best_pupil
@@ -324,7 +372,7 @@ class PupilDetectorHaar:
             self.center_fine = self.center_coarse
             return
 
-        patch = img_down[ey:ey + eh, ex:ex + ew]
+        patch = img_down[ey : ey + eh, ex : ex + ew]
 
         _, bw = cv2.threshold(patch, int(self.mu_inner), 255, cv2.THRESH_BINARY_INV)
         bw = cv2.dilate(bw, cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (5, 5)))
@@ -352,7 +400,7 @@ class PupilDetectorHaar:
                     dark = val
                     comp_idx = idx
 
-        x, y, w, h = stats[comp_idx, cv2.CC_STAT_LEFT: cv2.CC_STAT_HEIGHT + 1]
+        x, y, w, h = stats[comp_idx, cv2.CC_STAT_LEFT : cv2.CC_STAT_HEIGHT + 1]
         x += ex
         y += ey
         self.pupil_rect_fine = (x, y, w, h)

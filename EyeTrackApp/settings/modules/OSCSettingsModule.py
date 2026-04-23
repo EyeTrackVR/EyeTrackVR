@@ -72,13 +72,21 @@ class OSCSettingsModule(BaseSettingsModule):
         osc_bar.grid(row=row, column=0, columnspan=4, sticky="w", pady=2)
         mode_var = tk.StringVar(value=osc_out_initial)
         self.tk_vars[self.gui_osc_output_mode] = mode_var
-        ttk.Radiobutton(osc_bar, text="VRC Native", variable=mode_var, value="native").pack(side="left", padx=(8, 4))
-        ttk.Radiobutton(osc_bar, text="VRCFT (v2)", variable=mode_var, value="vrcft_v2").pack(side="left", padx=4)
-        ttk.Radiobutton(osc_bar, text="VRCFT (v1)", variable=mode_var, value="vrcft_v1").pack(side="left", padx=4)
+        ttk.Radiobutton(
+            osc_bar, text="VRC Native", variable=mode_var, value="native"
+        ).pack(side="left", padx=(8, 4))
+        ttk.Radiobutton(
+            osc_bar, text="VRCFT (v2)", variable=mode_var, value="vrcft_v2"
+        ).pack(side="left", padx=4)
+        ttk.Radiobutton(
+            osc_bar, text="VRCFT (v1)", variable=mode_var, value="vrcft_v1"
+        ).pack(side="left", padx=4)
 
         ros_var = tk.BooleanVar(value=bool(self.config.gui_ROSC))
         self.tk_vars[self.gui_ROSC] = ros_var
-        ttk.Checkbutton(osc_bar, text="Receive", variable=ros_var).pack(side="left", padx=(24, 8))
+        ttk.Checkbutton(osc_bar, text="Receive", variable=ros_var).pack(
+            side="left", padx=(24, 8)
+        )
         row += 1
 
         paired_fields = [
@@ -87,23 +95,46 @@ class OSCSettingsModule(BaseSettingsModule):
                 ("Port", self.gui_osc_port, self.config.gui_osc_port, 10),
             ),
             (
-                ("Recenter Address", self.gui_osc_recenter_address, self.config.gui_osc_recenter_address, 16),
-                ("Receiver Port", self.gui_osc_receiver_port, self.config.gui_osc_receiver_port, 10),
+                (
+                    "Recenter Address",
+                    self.gui_osc_recenter_address,
+                    self.config.gui_osc_recenter_address,
+                    16,
+                ),
+                (
+                    "Receiver Port",
+                    self.gui_osc_receiver_port,
+                    self.config.gui_osc_receiver_port,
+                    10,
+                ),
             ),
             (
-                ("Recalibrate Address", self.gui_osc_recalibrate_address, self.config.gui_osc_recalibrate_address, 28),
+                (
+                    "Recalibrate Address",
+                    self.gui_osc_recalibrate_address,
+                    self.config.gui_osc_recalibrate_address,
+                    28,
+                ),
                 None,
             ),
         ]
         for left, right in paired_fields:
-            ttk.Label(parent, text=left[0]).grid(row=row, column=0, sticky="w", padx=8, pady=2)
+            ttk.Label(parent, text=left[0]).grid(
+                row=row, column=0, sticky="w", padx=8, pady=2
+            )
             left_var = tk.StringVar(value=str(left[2]))
             self.tk_vars[left[1]] = left_var
-            ttk.Entry(parent, textvariable=left_var, width=left[3]).grid(row=row, column=1, sticky="w", padx=8, pady=2)
+            ttk.Entry(parent, textvariable=left_var, width=left[3]).grid(
+                row=row, column=1, sticky="w", padx=8, pady=2
+            )
 
             if right is not None:
-                ttk.Label(parent, text=right[0]).grid(row=row, column=2, sticky="w", padx=8, pady=2)
+                ttk.Label(parent, text=right[0]).grid(
+                    row=row, column=2, sticky="w", padx=8, pady=2
+                )
                 right_var = tk.StringVar(value=str(right[2]))
                 self.tk_vars[right[1]] = right_var
-                ttk.Entry(parent, textvariable=right_var, width=right[3]).grid(row=row, column=3, sticky="w", padx=8, pady=2)
+                ttk.Entry(parent, textvariable=right_var, width=right[3]).grid(
+                    row=row, column=3, sticky="w", padx=8, pady=2
+                )
             row += 1

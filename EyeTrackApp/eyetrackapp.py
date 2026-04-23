@@ -50,6 +50,7 @@ winmm = None
 if is_nt:
     from winotify import Notification
     from ctypes import windll, c_int
+
     try:
         winmm = windll.winmm
     except OSError:
@@ -63,8 +64,7 @@ os.environ["OPENCV_VIDEOIO_MSMF_ENABLE_HW_TRANSFORMS"] = "0"
 WINDOW_NAME = "EyeTrackApp"
 
 
-
-appversion = "EyeTrackApp 0.2.6"
+appversion = "EyeTrackApp 0.2.6 BETA 1"
 
 _pywinstyles_mod = None
 
@@ -83,7 +83,9 @@ def apply_theme_to_titlebar(win: tk.Misc) -> None:
             _pywinstyles_mod = _pws
         except ImportError:
             _pywinstyles_mod = False
-            print("\033[93m[WARN] pywinstyles not installed; title bar theme skipped.\033[0m")
+            print(
+                "\033[93m[WARN] pywinstyles not installed; title bar theme skipped.\033[0m"
+            )
             return
 
     is_dark = sv_ttk.get_theme() == "dark"
@@ -104,9 +106,12 @@ def timerResolution(toggle):
             rc = c_int(winmm.timeBeginPeriod(1))
             if rc.value != 0:
                 # TIMEERR_NOCANDO = 97
-                print(f"\033[93m[WARN] Failed to set timer resolution: {rc.value}\033[0m")
+                print(
+                    f"\033[93m[WARN] Failed to set timer resolution: {rc.value}\033[0m"
+                )
         else:
             winmm.timeEndPeriod(1)
+
 
 def main():
     # Get Configuration
@@ -121,6 +126,7 @@ def main():
     # Allow the app to be closed when SteamVR closes
     if config.settings.gui_openvr_autostart and not is_macos:
         from OVR.OpenVRService import openvr_service as _openvr_service, OpenVRException
+
         try:
             _openvr_service.initialize()
         except OpenVRException:
@@ -129,18 +135,21 @@ def main():
         openvr_service = _openvr_service
         config.register_listener_callback(openvr_service.on_config_update)
 
-
     # Check to see if we can connect to our video source first. If not, bring up camera finding
     # dialog.
     try:
         if config.settings.gui_update_check:
-            response = requests.get("https://api.github.com/repos/EyeTrackVR/EyeTrackVR/releases/latest")
+            response = requests.get(
+                "https://api.github.com/repos/EyeTrackVR/EyeTrackVR/releases/latest"
+            )
             latestversion = response.json()["name"]
 
             if (
                 appversion == latestversion
             ):  # If what we scraped and hardcoded versions are same, assume we are up to date.
-                print(f"\033[92m[INFO] App is the latest version! [{latestversion}]\033[0m")
+                print(
+                    f"\033[92m[INFO] App is the latest version! [{latestversion}]\033[0m"
+                )
             else:
                 print(
                     f"\033[93m[INFO] You have app version [{appversion}] installed. Please update to [{latestversion}] for the newest features.\033[0m"
@@ -163,7 +172,9 @@ def main():
                 except Exception as e:
                     print("[INFO] Toast notifications not supported")
     except:
-        print("\033[91m[INFO] Could not check for updates. Please try again later.\033[0m")
+        print(
+            "\033[91m[INFO] Could not check for updates. Please try again later.\033[0m"
+        )
 
     osc_queue: queue.Queue[OSCMessage] = queue.Queue(maxsize=10)
 
@@ -185,7 +196,6 @@ def main():
     config.register_listener_callback(osc_manager.update)
     config.register_listener_callback(eyes[0].on_config_update)
     config.register_listener_callback(eyes[1].on_config_update)
-
 
     osc_manager.register_listeners(
         config.settings.gui_osc_recenter_address,
@@ -230,7 +240,9 @@ def main():
                 ("algo", "Algo Settings"),
                 ("vrcft", "VRCFT Module Settings"),
             ):
-                btn = ttk.Button(nav, text=label, command=lambda p=page_id: self.show_page(p))
+                btn = ttk.Button(
+                    nav, text=label, command=lambda p=page_id: self.show_page(p)
+                )
                 btn.pack(side="left", padx=4)
                 self._nav_buttons[page_id] = btn
 
@@ -283,7 +295,9 @@ def main():
             issues_btn_row.pack(anchor="w", padx=12, pady=8)
 
             def _open_data_submission():
-                webbrowser.open("https://github.com/RedHawk989/ETVR-Data-Collection/releases/latest")
+                webbrowser.open(
+                    "https://github.com/RedHawk989/ETVR-Data-Collection/releases/latest"
+                )
 
             def _open_discord():
                 webbrowser.open("https://discord.gg/kkXYbVykZX")
@@ -294,7 +308,9 @@ def main():
                 command=_open_data_submission,
                 style="Accent.TButton",
             ).pack(side="left", padx=(0, 8))
-            ttk.Button(issues_btn_row, text="Discord", command=_open_discord).pack(side="left")
+            ttk.Button(issues_btn_row, text="Discord", command=_open_discord).pack(
+                side="left"
+            )
 
             tracking_outer = ttk.Frame(self.tracking_tab, padding=4)
             tracking_outer.pack(fill="both", expand=True)
@@ -306,27 +322,51 @@ def main():
 
             setup_type = ttk.LabelFrame(tracking_sidebar, text="Setup Type", padding=8)
             setup_type.pack(fill="x", pady=(0, 8))
-            ttk.Radiobutton(setup_type, text="ETVR Setup", variable=self.mode_var, value="etvr", command=self.on_mode_change).pack(
-                anchor="w"
-            )
             ttk.Radiobutton(
-                setup_type, text="Bigscreen Beyond", variable=self.mode_var, value="bigscreen", command=self.on_mode_change
+                setup_type,
+                text="ETVR Setup",
+                variable=self.mode_var,
+                value="etvr",
+                command=self.on_mode_change,
+            ).pack(anchor="w")
+            ttk.Radiobutton(
+                setup_type,
+                text="Bigscreen Beyond",
+                variable=self.mode_var,
+                value="bigscreen",
+                command=self.on_mode_change,
             ).pack(anchor="w")
 
-            tracking_controls = ttk.LabelFrame(tracking_sidebar, text="Camera Settings", padding=8)
+            tracking_controls = ttk.LabelFrame(
+                tracking_sidebar, text="Camera Settings", padding=8
+            )
             tracking_controls.pack(fill="x", pady=(0, 8))
-            self.left_camera_var = tk.StringVar(value=str(config.left_eye.capture_source or ""))
-            self.right_camera_var = tk.StringVar(value=str(config.right_eye.capture_source or ""))
-            self.left_camera_label = ttk.Label(tracking_controls, text="Left (UVC / COM port / URL):")
+            self.left_camera_var = tk.StringVar(
+                value=str(config.left_eye.capture_source or "")
+            )
+            self.right_camera_var = tk.StringVar(
+                value=str(config.right_eye.capture_source or "")
+            )
+            self.left_camera_label = ttk.Label(
+                tracking_controls, text="Left (UVC / COM port / URL):"
+            )
             self.left_camera_label.pack(anchor="w")
-            ttk.Entry(tracking_controls, textvariable=self.left_camera_var).pack(fill="x", pady=(2, 8))
-            self.right_camera_label = ttk.Label(tracking_controls, text="Right (UVC / COM port / URL):")
-            self.right_camera_entry = ttk.Entry(tracking_controls, textvariable=self.right_camera_var)
+            ttk.Entry(tracking_controls, textvariable=self.left_camera_var).pack(
+                fill="x", pady=(2, 8)
+            )
+            self.right_camera_label = ttk.Label(
+                tracking_controls, text="Right (UVC / COM port / URL):"
+            )
+            self.right_camera_entry = ttk.Entry(
+                tracking_controls, textvariable=self.right_camera_var
+            )
             self.right_camera_label.pack(anchor="w")
             self.right_camera_entry.pack(fill="x", pady=(2, 8))
             camera_button_row = ttk.Frame(tracking_controls)
             camera_button_row.pack(fill="x")
-            ttk.Button(camera_button_row, text="Scan", width=8, command=self.scan_sources).pack(side="left", padx=(0, 4))
+            ttk.Button(
+                camera_button_row, text="Scan", width=8, command=self.scan_sources
+            ).pack(side="left", padx=(0, 4))
             ttk.Button(
                 camera_button_row,
                 text="Connect",
@@ -338,15 +378,28 @@ def main():
             status_group.pack(fill="both", expand=True)
             self.mode_label_var = tk.StringVar(value="")
             self.status_var = tk.StringVar(value="Ready.")
-            ttk.Label(status_group, textvariable=self.status_var, wraplength=190, justify="left", anchor="w").pack(
-                anchor="w", fill="x"
-            )
-            ttk.Label(status_group, textvariable=self.mode_label_var, wraplength=190, justify="left").pack(anchor="w", pady=(6, 0))
+            ttk.Label(
+                status_group,
+                textvariable=self.status_var,
+                wraplength=190,
+                justify="left",
+                anchor="w",
+            ).pack(anchor="w", fill="x")
+            ttk.Label(
+                status_group,
+                textvariable=self.mode_label_var,
+                wraplength=190,
+                justify="left",
+            ).pack(anchor="w", pady=(6, 0))
 
             self.tracking_eyes_row = ttk.Frame(tracking_main)
             self.tracking_eyes_row.pack(fill="both", expand=True)
-            self.left_frame = eyes[1].build(self.tracking_eyes_row, show_camera_controls=False)
-            self.right_frame = eyes[0].build(self.tracking_eyes_row, show_camera_controls=False)
+            self.left_frame = eyes[1].build(
+                self.tracking_eyes_row, show_camera_controls=False
+            )
+            self.right_frame = eyes[0].build(
+                self.tracking_eyes_row, show_camera_controls=False
+            )
             # Hug the natural widget width (tracking image is 300 px + small paddings) and
             # pool any slack on the right of the row. Expanding here stretched each panel
             # to half of tracking_main, leaving a wide empty gutter after the status row.
@@ -356,7 +409,9 @@ def main():
             bottom = ttk.Frame(self.root)
             bottom.pack(fill="x", padx=8, pady=4)
             ttk.Button(bottom, text="GUI OFF", command=self.gui_off).pack(side="left")
-            ttk.Button(bottom, text="Having Issues?", command=lambda: self.show_page("issues")).pack(side="left", padx=(10, 0))
+            ttk.Button(
+                bottom, text="Having Issues?", command=lambda: self.show_page("issues")
+            ).pack(side="left", padx=(10, 0))
             self.focus_label = ttk.Label(bottom, text="- - -  Interface Paused  - - -")
             self.focus_label.pack(side="left", padx=12)
             self.focus_label.pack_forget()
@@ -370,7 +425,11 @@ def main():
         def _sync_nav_buttons(self):
             """Highlight the current page with Sun Valley accent (blue) vs default TButton."""
             for page_id, btn in self._nav_buttons.items():
-                btn.configure(style="Accent.TButton" if page_id == self.current_page else "TButton")
+                btn.configure(
+                    style="Accent.TButton"
+                    if page_id == self.current_page
+                    else "TButton"
+                )
 
         def _apply_initial_window_geometry(self):
             # Tracking tab packs two full camera panels; still set a floor so the window opens usable.
@@ -383,7 +442,9 @@ def main():
         def set_openvr_autostart(self, value):
             for module in settings[0].initialized_modules:
                 if hasattr(module, "gui_openvr_autostart"):
-                    module.tk_vars[getattr(module, "gui_openvr_autostart")].set(bool(value))
+                    module.tk_vars[getattr(module, "gui_openvr_autostart")].set(
+                        bool(value)
+                    )
 
         def _normalize_camera_input(self, raw_value: str):
             value = (raw_value or "").strip()
@@ -392,7 +453,12 @@ def main():
             try:
                 return int(value)
             except ValueError:
-                if len(value) > 5 and "http" not in value and ".mp4" not in value and "/dev" not in value:
+                if (
+                    len(value) > 5
+                    and "http" not in value
+                    and ".mp4" not in value
+                    and "/dev" not in value
+                ):
                     return f"http://{value}/"
                 return value
 
@@ -418,7 +484,10 @@ def main():
                         found.append(i)
                     cap.release()
                 listing = ", ".join(str(i) for i in found) if found else "none"
-                self.root.after(0, lambda: self.status_var.set(f"Available camera indices: {listing}"))
+                self.root.after(
+                    0,
+                    lambda: self.status_var.set(f"Available camera indices: {listing}"),
+                )
 
             threading.Thread(target=_scan, daemon=True).start()
 
@@ -446,7 +515,9 @@ def main():
             left_source = self._normalize_camera_input(self.left_camera_var.get())
             if self.mode_var.get() == "bigscreen":
                 right_source = left_source
-                self.right_camera_var.set("" if left_source is None else str(left_source))
+                self.right_camera_var.set(
+                    "" if left_source is None else str(left_source)
+                )
             else:
                 right_source = self._normalize_camera_input(self.right_camera_var.get())
             config.left_eye.capture_source = left_source
@@ -514,7 +585,13 @@ def main():
             self._nav_teardown_seq += 1
             seq = self._nav_teardown_seq
             self.current_page = page_name
-            for frame in [self.tracking_tab, self.settings_frame, self.algo_frame, self.vrcft_frame, self.issues_frame]:
+            for frame in [
+                self.tracking_tab,
+                self.settings_frame,
+                self.algo_frame,
+                self.vrcft_frame,
+                self.issues_frame,
+            ]:
                 frame.pack_forget()
 
             if page_name == "tracking":
@@ -594,7 +671,9 @@ def main():
 
         def gui_off(self):
             config.settings.gui_disable_gui = True
-            settings[0].stop(); settings[1].stop(); settings[2].stop()
+            settings[0].stop()
+            settings[1].stop()
+            settings[2].stop()
             config.save()
             self.root.withdraw()
             dialog = tk.Toplevel()
@@ -609,7 +688,9 @@ def main():
                 dialog.destroy()
                 self.root.deiconify()
 
-            ttk.Button(dialog, text="Enable GUI", command=enable_gui).pack(padx=12, pady=(0, 8))
+            ttk.Button(dialog, text="Enable GUI", command=enable_gui).pack(
+                padx=12, pady=(0, 8)
+            )
             dialog.protocol("WM_DELETE_WINDOW", enable_gui)
 
         def _tick(self):
@@ -649,8 +730,6 @@ def main():
     if (not is_macos) and (openvr_service is not None):
         openvr_service.window = app
     app.root.mainloop()
-
-
 
 
 if __name__ == "__main__":

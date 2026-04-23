@@ -15,14 +15,18 @@ class BlinkAlgoSettingsValidationModel(BaseValidationModel):
     gui_LEAP_lid: bool
     ibo_filter_samples: int
     calibration_duration: int
-    ibo_fully_close_eye_threshold: Annotated[str, AfterValidator(check_is_float_convertible)]
+    ibo_fully_close_eye_threshold: Annotated[
+        str, AfterValidator(check_is_float_convertible)
+    ]
     leap_lid_close_threshold: float
     leap_lid_widen_threshold: float
     gui_circular_crop_left: bool
     gui_circular_crop_right: bool
     leap_calibration_duration: int
 
-    @field_validator("leap_lid_close_threshold", "leap_lid_widen_threshold", mode="before")
+    @field_validator(
+        "leap_lid_close_threshold", "leap_lid_widen_threshold", mode="before"
+    )
     @classmethod
     def _coerce_leap_lid_threshold(cls, v):
         if isinstance(v, str):
@@ -52,11 +56,23 @@ class BlinkAlgoSettingsModule(BaseSettingsModule):
     def build(self, parent):
         checkbox_fields = [
             (self.gui_IBO, self.config.gui_IBO, "Intensity Based Openness"),
-            (self.gui_RANSACBLINK, self.config.gui_RANSACBLINK, "RANSAC Quick Blink Algo"),
+            (
+                self.gui_RANSACBLINK,
+                self.config.gui_RANSACBLINK,
+                "RANSAC Quick Blink Algo",
+            ),
             (self.gui_BLINK, self.config.gui_BLINK, "Binary Blink Algo"),
             (self.gui_LEAP_lid, self.config.gui_LEAP_lid, "LEAP Lid"),
-            (self.gui_circular_crop_left, self.config.gui_circular_crop_left, "Left Eye Circle crop"),
-            (self.gui_circular_crop_right, self.config.gui_circular_crop_right, "Right Eye Circle crop"),
+            (
+                self.gui_circular_crop_left,
+                self.config.gui_circular_crop_left,
+                "Left Eye Circle crop",
+            ),
+            (
+                self.gui_circular_crop_right,
+                self.config.gui_circular_crop_right,
+                "Right Eye Circle crop",
+            ),
         ]
         ncol = 3
         rows_per_column = (len(checkbox_fields) + ncol - 1) // ncol
@@ -65,34 +81,58 @@ class BlinkAlgoSettingsModule(BaseSettingsModule):
             col = idx // rows_per_column
             var = tk.BooleanVar(value=default)
             self.tk_vars[key] = var
-            ttk.Checkbutton(parent, text=label, variable=var).grid(row=row, column=col, sticky="w", padx=8, pady=2)
+            ttk.Checkbutton(parent, text=label, variable=var).grid(
+                row=row, column=col, sticky="w", padx=8, pady=2
+            )
         row = rows_per_column
 
         # Unified eyelid calibration duration controls both LEAP and non-LEAP duration values.
         eyelid_duration_var = tk.StringVar(value=str(self.config.calibration_duration))
         self.tk_vars[self.leap_calibration_duration] = eyelid_duration_var
         self.tk_vars[self.calibration_duration] = eyelid_duration_var
-        ttk.Label(parent, text="Eyelid calibration duration (seconds)").grid(row=row, column=0, sticky="w", padx=8, pady=2)
-        ttk.Entry(parent, textvariable=eyelid_duration_var, width=16).grid(row=row, column=1, sticky="w", padx=8, pady=2)
+        ttk.Label(parent, text="Eyelid calibration duration (seconds)").grid(
+            row=row, column=0, sticky="w", padx=8, pady=2
+        )
+        ttk.Entry(parent, textvariable=eyelid_duration_var, width=16).grid(
+            row=row, column=1, sticky="w", padx=8, pady=2
+        )
         row += 1
 
-        ttk.Label(parent, text="LEAP Lid Close Threshold").grid(row=row, column=0, sticky="w", padx=8, pady=2)
+        ttk.Label(parent, text="LEAP Lid Close Threshold").grid(
+            row=row, column=0, sticky="w", padx=8, pady=2
+        )
         leap_close_var = tk.StringVar(value=str(self.config.leap_lid_close_threshold))
         self.tk_vars[self.leap_lid_close_threshold] = leap_close_var
-        ttk.Entry(parent, textvariable=leap_close_var, width=12).grid(row=row, column=1, sticky="w", padx=8, pady=2)
+        ttk.Entry(parent, textvariable=leap_close_var, width=12).grid(
+            row=row, column=1, sticky="w", padx=8, pady=2
+        )
 
-        ttk.Label(parent, text="LEAP Lid Widen Threshold").grid(row=row, column=2, sticky="w", padx=8, pady=2)
+        ttk.Label(parent, text="LEAP Lid Widen Threshold").grid(
+            row=row, column=2, sticky="w", padx=8, pady=2
+        )
         leap_widen_var = tk.StringVar(value=str(self.config.leap_lid_widen_threshold))
         self.tk_vars[self.leap_lid_widen_threshold] = leap_widen_var
-        ttk.Entry(parent, textvariable=leap_widen_var, width=12).grid(row=row, column=3, sticky="w", padx=8, pady=2)
+        ttk.Entry(parent, textvariable=leap_widen_var, width=12).grid(
+            row=row, column=3, sticky="w", padx=8, pady=2
+        )
         row += 1
 
-        ttk.Label(parent, text="IBO Filter Sample Size").grid(row=row, column=0, sticky="w", padx=8, pady=2)
+        ttk.Label(parent, text="IBO Filter Sample Size").grid(
+            row=row, column=0, sticky="w", padx=8, pady=2
+        )
         ibo_samples_var = tk.StringVar(value=str(self.config.ibo_filter_samples))
         self.tk_vars[self.ibo_filter_samples] = ibo_samples_var
-        ttk.Entry(parent, textvariable=ibo_samples_var, width=12).grid(row=row, column=1, sticky="w", padx=8, pady=2)
+        ttk.Entry(parent, textvariable=ibo_samples_var, width=12).grid(
+            row=row, column=1, sticky="w", padx=8, pady=2
+        )
 
-        ttk.Label(parent, text="IBO Close Threshold").grid(row=row, column=2, sticky="w", padx=8, pady=2)
-        ibo_close_var = tk.StringVar(value=str(self.config.ibo_fully_close_eye_threshold))
+        ttk.Label(parent, text="IBO Close Threshold").grid(
+            row=row, column=2, sticky="w", padx=8, pady=2
+        )
+        ibo_close_var = tk.StringVar(
+            value=str(self.config.ibo_fully_close_eye_threshold)
+        )
         self.tk_vars[self.ibo_fully_close_eye_threshold] = ibo_close_var
-        ttk.Entry(parent, textvariable=ibo_close_var, width=12).grid(row=row, column=3, sticky="w", padx=8, pady=2)
+        ttk.Entry(parent, textvariable=ibo_close_var, width=12).grid(
+            row=row, column=3, sticky="w", padx=8, pady=2
+        )

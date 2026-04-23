@@ -8,7 +8,12 @@ from settings.modules.VRCFTSettingsModule import VRCFTSettingsModule
 
 
 class VRCFTSettingsWidget(BaseSettingsWidget):
-    def __init__(self, widget_id: EyeId, main_config: EyeTrackConfig, osc_queue_in: Queue[OSCMessage]):
+    def __init__(
+        self,
+        widget_id: EyeId,
+        main_config: EyeTrackConfig,
+        osc_queue_in: Queue[OSCMessage],
+    ):
         self.osc_queue = osc_queue_in
         settings_modules = [
             VRCFTSettingsModule,

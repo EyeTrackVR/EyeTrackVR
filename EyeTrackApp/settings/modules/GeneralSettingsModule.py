@@ -43,20 +43,44 @@ class GeneralSettingsModule(BaseSettingsModule):
 
         bool_pairs = [
             (
-                (self.gui_flip_x_axis_left, self.config.gui_flip_x_axis_left, "Flip Left Eye X Axis"),
-                (self.gui_flip_x_axis_right, self.config.gui_flip_x_axis_right, "Flip Right Eye X Axis"),
+                (
+                    self.gui_flip_x_axis_left,
+                    self.config.gui_flip_x_axis_left,
+                    "Flip Left Eye X Axis",
+                ),
+                (
+                    self.gui_flip_x_axis_right,
+                    self.config.gui_flip_x_axis_right,
+                    "Flip Right Eye X Axis",
+                ),
             ),
             (
-                (self.gui_left_eye_dominant, self.config.gui_left_eye_dominant, "Force Left Eye Dominant"),
-                (self.gui_right_eye_dominant, self.config.gui_right_eye_dominant, "Force Right Eye Dominant"),
+                (
+                    self.gui_left_eye_dominant,
+                    self.config.gui_left_eye_dominant,
+                    "Force Left Eye Dominant",
+                ),
+                (
+                    self.gui_right_eye_dominant,
+                    self.config.gui_right_eye_dominant,
+                    "Force Right Eye Dominant",
+                ),
             ),
             (
-                (self.gui_openvr_autostart, self.config.gui_openvr_autostart, "Start and Stop With SteamVR"),
+                (
+                    self.gui_openvr_autostart,
+                    self.config.gui_openvr_autostart,
+                    "Start and Stop With SteamVR",
+                ),
                 (self.gui_use_gpu, self.config.gui_use_gpu, "Use GPU Acceleration"),
             ),
             (
                 (self.gui_flip_y_axis, self.config.gui_flip_y_axis, "Flip Y Axis"),
-                (self.gui_update_check, self.config.gui_update_check, "Check For Updates"),
+                (
+                    self.gui_update_check,
+                    self.config.gui_update_check,
+                    "Check For Updates",
+                ),
             ),
         ]
 
@@ -68,7 +92,9 @@ class GeneralSettingsModule(BaseSettingsModule):
                 key, default, label = field
                 var = tk.BooleanVar(value=default)
                 self.tk_vars[key] = var
-                ttk.Checkbutton(parent, text=label, variable=var).grid(row=row, column=col, sticky="w", padx=8, pady=2)
+                ttk.Checkbutton(parent, text=label, variable=var).grid(
+                    row=row, column=col, sticky="w", padx=8, pady=2
+                )
             row += 1
 
         falloff_var = tk.BooleanVar(value=self.config.gui_outer_side_falloff)
@@ -78,7 +104,9 @@ class GeneralSettingsModule(BaseSettingsModule):
         )
         diff_row = ttk.Frame(parent)
         diff_row.grid(row=row, column=1, sticky="w", padx=8, pady=2)
-        ttk.Label(diff_row, text="Eye Difference Threshold").pack(side="left", padx=(0, 6))
+        ttk.Label(diff_row, text="Eye Difference Threshold").pack(
+            side="left", padx=(0, 6)
+        )
         diff_var = tk.StringVar(value=str(self.config.gui_eye_dominant_diff_thresh))
         self.tk_vars[self.gui_eye_dominant_diff_thresh] = diff_var
         ttk.Entry(diff_row, textvariable=diff_var, width=12).pack(side="left")

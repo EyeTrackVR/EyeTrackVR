@@ -83,7 +83,9 @@ class CameraWidget:
         elif self.eye_id == EyeId.LEFT:
             self.config = main_config.left_eye
         else:
-            raise RuntimeError("\033[91m[WARN] Cannot have a camera widget represent both eyes!\033[0m")
+            raise RuntimeError(
+                "\033[91m[WARN] Cannot have a camera widget represent both eyes!\033[0m"
+            )
 
         self.cancellation_event = Event()
         # Set the event until start is called, otherwise we can block if shutdown is called.
@@ -157,15 +159,25 @@ class CameraWidget:
             top_row = ttk.Frame(self.frame)
             top_row.pack(fill="x", padx=8, pady=4)
             ttk.Label(top_row, text="Camera Address").pack(side="left")
-            self.camera_addr_var = tk.StringVar(value=str(self.config.capture_source or ""))
-            ttk.Entry(top_row, textvariable=self.camera_addr_var, width=36).pack(side="left", padx=8)
-            ttk.Button(top_row, text="Save and Restart Tracking", command=self._save_tracking).pack(side="left", padx=8)
+            self.camera_addr_var = tk.StringVar(
+                value=str(self.config.capture_source or "")
+            )
+            ttk.Entry(top_row, textvariable=self.camera_addr_var, width=36).pack(
+                side="left", padx=8
+            )
+            ttk.Button(
+                top_row, text="Save and Restart Tracking", command=self._save_tracking
+            ).pack(side="left", padx=8)
 
         mode_row = ttk.Frame(self.frame)
         mode_row.pack(fill="x", padx=8, pady=4)
-        self._mode_tracking_btn = ttk.Button(mode_row, text="Tracking Mode", command=self._set_tracking_mode)
+        self._mode_tracking_btn = ttk.Button(
+            mode_row, text="Tracking Mode", command=self._set_tracking_mode
+        )
         self._mode_tracking_btn.pack(side="left", padx=4)
-        self._mode_roi_btn = ttk.Button(mode_row, text="Cropping Mode", command=self._set_roi_mode)
+        self._mode_roi_btn = ttk.Button(
+            mode_row, text="Cropping Mode", command=self._set_roi_mode
+        )
         self._mode_roi_btn.pack(side="left", padx=4)
         self._sync_mode_tab_buttons()
 
@@ -181,7 +193,9 @@ class CameraWidget:
             command=self._on_calibration_toggle,
         )
         self._calibration_toggle_btn.pack(side="left", padx=2)
-        ttk.Button(tracking_controls, text="Recenter Eyes", command=self.recenter_eyes).pack(side="left", padx=2)
+        ttk.Button(
+            tracking_controls, text="Recenter Eyes", command=self.recenter_eyes
+        ).pack(side="left", padx=2)
 
         status_row = ttk.Frame(self.tracking_frame)
         status_row.pack(fill="x", padx=4, pady=2)
@@ -198,15 +212,13 @@ class CameraWidget:
         # so no eye-panel boundary moves. Fixed widths sized to the longest readouts:
         #   fps — "120 Fps 8 ms"  (12 chars typical, 13 worst)
         #   bps — "99.999 Mbps"   (11 chars max)
-        ttk.Label(
-            status_row, textvariable=self.mode_var, anchor="w"
-        ).pack(side="left")
-        ttk.Label(
-            status_row, textvariable=self.fps_var, width=13, anchor="w"
-        ).pack(side="left", padx=(4, 0))
-        ttk.Label(
-            status_row, textvariable=self.bps_var, width=11, anchor="w"
-        ).pack(side="left", padx=(4, 0))
+        ttk.Label(status_row, textvariable=self.mode_var, anchor="w").pack(side="left")
+        ttk.Label(status_row, textvariable=self.fps_var, width=13, anchor="w").pack(
+            side="left", padx=(4, 0)
+        )
+        ttk.Label(status_row, textvariable=self.bps_var, width=11, anchor="w").pack(
+            side="left", padx=(4, 0)
+        )
 
         # Source stack from processor is 300×150; compact display for dual-eye layout
         self._tracking_display_size = (300, 150)
@@ -215,7 +227,9 @@ class CameraWidget:
         self._viz_gaze = 148
         self._viz_gaze_gap = 10
         self._viz_blink_w = 24
-        self._viz_canvas_w = self._viz_pad * 2 + self._viz_gaze + self._viz_gaze_gap + self._viz_blink_w
+        self._viz_canvas_w = (
+            self._viz_pad * 2 + self._viz_gaze + self._viz_gaze_gap + self._viz_blink_w
+        )
         self._viz_canvas_h = self._viz_pad * 2 + self._viz_gaze
 
         # Reserve the final slot size up-front so the layout doesn't jitter when the first
@@ -263,27 +277,51 @@ class CameraWidget:
         roi_controls.pack(fill="x", padx=8, pady=4)
         ttk.Label(roi_controls, text="Rotation").pack(side="left")
         self.rotation_var = tk.IntVar(value=int(self.config.rotation_angle))
-        ttk.Scale(roi_controls, from_=0, to=360, variable=self.rotation_var, orient="horizontal", length=160).pack(
-            side="left", padx=8
+        ttk.Scale(
+            roi_controls,
+            from_=0,
+            to=360,
+            variable=self.rotation_var,
+            orient="horizontal",
+            length=160,
+        ).pack(side="left", padx=8)
+        self.rotation_readout_var = tk.StringVar(
+            value=str(int(self.rotation_var.get()))
         )
-        self.rotation_readout_var = tk.StringVar(value=str(int(self.rotation_var.get())))
 
         def sync_rotation_readout(*_args):
-            self.rotation_readout_var.set(str(int(round(float(self.rotation_var.get())))))
+            self.rotation_readout_var.set(
+                str(int(round(float(self.rotation_var.get()))))
+            )
 
         def bump_rotation(delta):
             next_val = int(round(float(self.rotation_var.get()))) + delta
             next_val = max(0, min(360, next_val))
             self.rotation_var.set(next_val)
 
-        ttk.Button(roi_controls, text="-", width=2, command=lambda: bump_rotation(-1)).pack(side="left", padx=(4, 2))
-        ttk.Label(roi_controls, textvariable=self.rotation_readout_var, width=6, anchor="center").pack(side="left", padx=2)
-        ttk.Button(roi_controls, text="+", width=2, command=lambda: bump_rotation(1)).pack(side="left", padx=(2, 8))
+        ttk.Button(
+            roi_controls, text="-", width=2, command=lambda: bump_rotation(-1)
+        ).pack(side="left", padx=(4, 2))
+        ttk.Label(
+            roi_controls,
+            textvariable=self.rotation_readout_var,
+            width=6,
+            anchor="center",
+        ).pack(side="left", padx=2)
+        ttk.Button(
+            roi_controls, text="+", width=2, command=lambda: bump_rotation(1)
+        ).pack(side="left", padx=(2, 8))
         self.rotation_var.trace_add("write", sync_rotation_readout)
-        self.padding_var = tk.BooleanVar(value=bool(self.config.gui_rotation_ui_padding))
-        ttk.Checkbutton(roi_controls, text="Camera Widget Padding", variable=self.padding_var).pack(side="left", padx=8)
+        self.padding_var = tk.BooleanVar(
+            value=bool(self.config.gui_rotation_ui_padding)
+        )
+        ttk.Checkbutton(
+            roi_controls, text="Camera Widget Padding", variable=self.padding_var
+        ).pack(side="left", padx=8)
 
-        self.roi_canvas = tk.Canvas(self.roi_frame, width=640, height=480, bg="#424042", highlightthickness=0)
+        self.roi_canvas = tk.Canvas(
+            self.roi_frame, width=640, height=480, bg="#424042", highlightthickness=0
+        )
         self.roi_canvas.pack(padx=8, pady=4, anchor="w")
         self.roi_canvas.bind("<ButtonPress-1>", self._on_roi_mouse_down)
         self.roi_canvas.bind("<B1-Motion>", self._on_roi_mouse_drag)
@@ -305,7 +343,9 @@ class CameraWidget:
             self._mode_tracking_btn.configure(style="Accent.TButton")
             self._mode_roi_btn.configure(style="TButton")
 
-    def _tk_photo_from_bgr(self, image: np.ndarray, master: tk.Misc) -> ImageTk.PhotoImage | None:
+    def _tk_photo_from_bgr(
+        self, image: np.ndarray, master: tk.Misc
+    ) -> ImageTk.PhotoImage | None:
         if image is None or image.size == 0 or image.shape[0] < 1 or image.shape[1] < 1:
             return None
         try:
@@ -350,16 +390,47 @@ class CameraWidget:
         ring_col = "#b49cff"
         c.configure(bg=bg)
         self._viz_item_ids = {
-            "fail_bg": c.create_rectangle(0, 0, W, H, outline="", fill=fail_bg, tags="viz_fail"),
-            "fail_txt": c.create_text(W // 2, H // 2, text="No track", fill=fail_fg, font=("Segoe UI", 9), tags="viz_fail"),
+            "fail_bg": c.create_rectangle(
+                0, 0, W, H, outline="", fill=fail_bg, tags="viz_fail"
+            ),
+            "fail_txt": c.create_text(
+                W // 2,
+                H // 2,
+                text="No track",
+                fill=fail_fg,
+                font=("Segoe UI", 9),
+                tags="viz_fail",
+            ),
             "bg": c.create_rectangle(0, 0, W, H, outline="", fill=bg, tags="viz_main"),
-            "panel": c.create_rectangle(0, 0, 0, 0, outline=panel_border, width=1, fill=panel, tags="viz_main"),
+            "panel": c.create_rectangle(
+                0, 0, 0, 0, outline=panel_border, width=1, fill=panel, tags="viz_main"
+            ),
             "cross_v": c.create_line(0, 0, 0, 0, fill=cross, width=1, tags="viz_main"),
             "cross_h": c.create_line(0, 0, 0, 0, fill=cross, width=1, tags="viz_main"),
-            "ring": c.create_oval(0, 0, 0, 0, outline=ring_col, width=2, fill="", tags="viz_main"),
+            "ring": c.create_oval(
+                0, 0, 0, 0, outline=ring_col, width=2, fill="", tags="viz_main"
+            ),
             "dot": c.create_oval(0, 0, 0, 0, fill=dot, outline=dot, tags="viz_main"),
-            "blink_track": c.create_rectangle(0, 0, 0, 0, outline=track_border, width=1, fill=track_fill, tags="viz_main"),
-            "blink_bar": c.create_rectangle(0, 0, 0, 0, fill=blink_fill_col, outline="", tags="viz_main", state="hidden"),
+            "blink_track": c.create_rectangle(
+                0,
+                0,
+                0,
+                0,
+                outline=track_border,
+                width=1,
+                fill=track_fill,
+                tags="viz_main",
+            ),
+            "blink_bar": c.create_rectangle(
+                0,
+                0,
+                0,
+                0,
+                fill=blink_fill_col,
+                outline="",
+                tags="viz_main",
+                state="hidden",
+            ),
             "tick_t": c.create_line(0, 0, 0, 0, fill=tick, width=1, tags="viz_main"),
             "tick_b": c.create_line(0, 0, 0, 0, fill=tick, width=1, tags="viz_main"),
         }
@@ -440,8 +511,20 @@ class CameraWidget:
         else:
             c.itemconfigure(ids["blink_bar"], state="hidden")
 
-        c.coords(ids["tick_t"], bx0 + bw // 2 - 4, by0 + inset, bx0 + bw // 2 + 4, by0 + inset)
-        c.coords(ids["tick_b"], bx0 + bw // 2 - 4, by0 + bh - inset, bx0 + bw // 2 + 4, by0 + bh - inset)
+        c.coords(
+            ids["tick_t"],
+            bx0 + bw // 2 - 4,
+            by0 + inset,
+            bx0 + bw // 2 + 4,
+            by0 + inset,
+        )
+        c.coords(
+            ids["tick_b"],
+            bx0 + bw // 2 - 4,
+            by0 + bh - inset,
+            bx0 + bw // 2 + 4,
+            by0 + bh - inset,
+        )
 
     def _set_tracking_mode(self):
         print("\033[94m[INFO] Moving to tracking mode\033[0m")
@@ -470,7 +553,12 @@ class CameraWidget:
         except ValueError:
             if value == "":
                 new_source = None
-            elif len(value) > 5 and "http" not in value and ".mp4" not in value and "/dev" not in value:
+            elif (
+                len(value) > 5
+                and "http" not in value
+                and ".mp4" not in value
+                and "/dev" not in value
+            ):
                 new_source = f"http://{value}/"
             else:
                 new_source = value
@@ -489,9 +577,13 @@ class CameraWidget:
                     self.eye_id, {"capture_source": new_source}
                 )
             except Exception as exc:
-                print(f"\033[93m[WARN] Failed to apply new capture source: {exc}\033[0m")
+                print(
+                    f"\033[93m[WARN] Failed to apply new capture source: {exc}\033[0m"
+                )
 
-        Thread(target=_apply, daemon=True, name=f"CameraSourceApply-{self.eye_id}").start()
+        Thread(
+            target=_apply, daemon=True, name=f"CameraSourceApply-{self.eye_id}"
+        ).start()
 
     def _stop_calibration(self):
         self.ransac.calibration_start_time = None
@@ -561,8 +653,12 @@ class CameraWidget:
         self._cartesian_to_polar()
         if all(abs(self.xy0 - self.xy1) != 0):
             xy0, xy1 = self._polar_to_cartesian_at_angle(0)
-            self.config.roi_window_x, self.config.roi_window_y = (np.minimum(xy0, xy1) - self.img_pos).tolist()
-            self.config.roi_window_w, self.config.roi_window_h = (np.abs(xy0 - xy1)).tolist()
+            self.config.roi_window_x, self.config.roi_window_y = (
+                np.minimum(xy0, xy1) - self.img_pos
+            ).tolist()
+            self.config.roi_window_w, self.config.roi_window_h = (
+                np.abs(xy0 - xy1)
+            ).tolist()
             self._schedule_main_config_save()
 
     def _on_roi_mouse_move(self, event):
@@ -586,7 +682,9 @@ class CameraWidget:
         if not (self.xy0 is None or self.xy1 is None):
             roi_center = (self.xy0 + self.xy1) / 2 - self.roi_image_center
             self.cr = np.linalg.norm(roi_center)
-            self.ca = math.atan2(roi_center[Y], roi_center[X]) + math.radians(self.config.rotation_angle)
+            self.ca = math.atan2(roi_center[Y], roi_center[X]) + math.radians(
+                self.config.rotation_angle
+            )
             self.roi_size = np.abs(self.xy1 - self.xy0)
 
     def _polar_to_cartesian_at_angle(self, rotation_angle_radians):
@@ -601,7 +699,9 @@ class CameraWidget:
 
     def _polar_to_cartesian(self):
         if not (self.cr is None or self.ca is None or self.roi_size is None):
-            (self.xy0), (self.xy1) = self._polar_to_cartesian_at_angle(math.radians(self.config.rotation_angle))
+            (self.xy0), (self.xy1) = self._polar_to_cartesian_at_angle(
+                math.radians(self.config.rotation_angle)
+            )
 
     def started(self):
         return not self.cancellation_event.is_set()
@@ -684,7 +784,9 @@ class CameraWidget:
             if changed:
                 self._schedule_main_config_save()
 
-            needs_roi_set = self.config.roi_window_h <= 0 or self.config.roi_window_w <= 0
+            needs_roi_set = (
+                self.config.roi_window_h <= 0 or self.config.roi_window_w <= 0
+            )
 
             mode_readout = ""
             fps_readout = ""
@@ -765,11 +867,21 @@ class CameraWidget:
                         # calculate crop corner locations in original image space
                         x_coords, y_coords = np.matmul(
                             rotation_matrix,
-                            np.transpose([[0, 0, 1], [img_w, 0, 1], [0, img_h, 1], [img_w, img_h, 1]]),
+                            np.transpose(
+                                [
+                                    [0, 0, 1],
+                                    [img_w, 0, 1],
+                                    [0, img_h, 1],
+                                    [img_w, img_h, 1],
+                                ]
+                            ),
                         )
 
                         self.clip_size = np.array(
-                            [math.ceil(max(x_coords) - min(x_coords)), math.ceil(max(y_coords) - min(y_coords))]
+                            [
+                                math.ceil(max(x_coords) - min(x_coords)),
+                                math.ceil(max(y_coords) - min(y_coords)),
+                            ]
                         )
                         if self.config.gui_rotation_ui_padding:
                             self.padded_size = np.array([hyp, hyp])
@@ -777,9 +889,13 @@ class CameraWidget:
                         else:
                             self.padded_size = self.clip_size
 
-                        self.img_pos = ((self.padded_size - (img_w, img_h)) / 2).astype(np.int32)
+                        self.img_pos = ((self.padded_size - (img_w, img_h)) / 2).astype(
+                            np.int32
+                        )
 
-                        self.clip_pos = ((self.padded_size - self.clip_size) / 2).astype(np.int32)
+                        self.clip_pos = (
+                            (self.padded_size - self.clip_size) / 2
+                        ).astype(np.int32)
 
                         self.roi_image_center = self.padded_size / 2
 
@@ -788,7 +904,13 @@ class CameraWidget:
                             self._polar_to_cartesian()
                             self.cartesian_needs_update = False
 
-                        pad_matrix = np.float32([[1, 0, self.img_pos[X]], [0, 1, self.img_pos[Y]], [0, 0, 1]])
+                        pad_matrix = np.float32(
+                            [
+                                [1, 0, self.img_pos[X]],
+                                [0, 1, self.img_pos[Y]],
+                                [0, 0, 1],
+                            ]
+                        )
                         rotation_matrix_padded = cv2.getRotationMatrix2D(
                             self.roi_image_center, self.config.rotation_angle, 1
                         )
@@ -816,17 +938,27 @@ class CameraWidget:
                         if photo is not None:
                             self._roi_photo = photo
                             if self._roi_canvas_image_id is None:
-                                self._roi_canvas_image_id = self.roi_canvas.create_image(
-                                    0, 0, image=self._roi_photo, anchor="nw"
+                                self._roi_canvas_image_id = (
+                                    self.roi_canvas.create_image(
+                                        0, 0, image=self._roi_photo, anchor="nw"
+                                    )
                                 )
                             else:
-                                self.roi_canvas.itemconfigure(self._roi_canvas_image_id, image=self._roi_photo)
+                                self.roi_canvas.itemconfigure(
+                                    self._roi_canvas_image_id, image=self._roi_photo
+                                )
 
                         if self.xy0 is None or self.xy1 is None:
                             # roi_window rotates around roi center, we rotate around image center
                             # TODO: it would be nice if they were more consistent
-                            roi_window_pos = (self.config.roi_window_x, self.config.roi_window_y)
-                            roi_window_size = (self.config.roi_window_w, self.config.roi_window_h)
+                            roi_window_pos = (
+                                self.config.roi_window_x,
+                                self.config.roi_window_y,
+                            )
+                            roi_window_size = (
+                                self.config.roi_window_w,
+                                self.config.roi_window_h,
+                            )
                             self.xy0 = roi_window_pos + self.img_pos
                             self.xy1 = self.xy0 + roi_window_size
                             self._cartesian_to_polar()
@@ -876,7 +1008,9 @@ class CameraWidget:
                     (maybe_image, eye_info) = self.image_queue.get(block=False)
 
                     tw, th = self._tracking_display_size
-                    disp = cv2.resize(maybe_image, (tw, th), interpolation=cv2.INTER_LINEAR)
+                    disp = cv2.resize(
+                        maybe_image, (tw, th), interpolation=cv2.INTER_LINEAR
+                    )
                     photo = self._tk_photo_from_bgr(disp, self.tracking_image_widget)
                     if photo is not None:
                         self._tracking_photo = photo

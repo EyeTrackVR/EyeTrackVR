@@ -41,14 +41,16 @@ from utils.misc_utils import resource_path
 from pathlib import Path
 import sys
 
-os.environ["OMP_NUM_THREADS"] = "1" # on slower systems this can cause issues due to slow single core perf. in such cases, it is better to use GPU compute
+os.environ["OMP_NUM_THREADS"] = (
+    "1"  # on slower systems this can cause issues due to slow single core perf. in such cases, it is better to use GPU compute
+)
 
 frames = 0
 models = Path("Models")
 # Global lock to prevent DML race conditions between eye threads
 dml_lock = threading.Lock()
 
-if sys.platform.startswith('linux'):
+if sys.platform.startswith("linux"):
     # Detect if we are already in the right path to avoid infinite loops
     cuda_path = "/usr/local/cuda/lib64"
     current_ld = os.environ.get("LD_LIBRARY_PATH", "")
@@ -63,6 +65,7 @@ if sys.platform.startswith('linux'):
             os.environ["RESTART_FOR_CUDA"] = "1"
             os.execv(sys.executable, [sys.executable] + sys.argv)
 
+
 def run_model(input_queue, output_queue, session):
     while True:
         frame = input_queue.get()
@@ -70,7 +73,9 @@ def run_model(input_queue, output_queue, session):
             break
 
         img_np = np.array(frame, dtype=np.float32) / 255.0
-        gray_img = 0.299 * img_np[:, :, 0] + 0.587 * img_np[:, :, 1] + 0.114 * img_np[:, :, 2]
+        gray_img = (
+            0.299 * img_np[:, :, 0] + 0.587 * img_np[:, :, 1] + 0.114 * img_np[:, :, 2]
+        )
 
         gray_img = np.expand_dims(np.expand_dims(gray_img, axis=0), axis=0)
 
@@ -100,7 +105,9 @@ class LEAP_C:
 
         self.print_fps = False
         self.frames = 0
-        self.queues = [Queue(maxsize=self.queue_max_size) for _ in range(self.num_threads)]
+        self.queues = [
+            Queue(maxsize=self.queue_max_size) for _ in range(self.num_threads)
+        ]
         self.threads = []
         self.model_output = np.zeros((12, 2))
         self.output_queue = Queue(maxsize=self.queue_max_size)
@@ -109,10 +116,14 @@ class LEAP_C:
         opts = onnxruntime.SessionOptions()
         opts.inter_op_num_threads = 1
         opts.intra_op_num_threads = 1
-        opts.graph_optimization_level = onnxruntime.GraphOptimizationLevel.ORT_ENABLE_ALL
+        opts.graph_optimization_level = (
+            onnxruntime.GraphOptimizationLevel.ORT_ENABLE_ALL
+        )
         opts.enable_mem_pattern = False
 
-        self.one_euro_filter_float = OneEuroFilter(np.random.rand(1, 2), min_cutoff=0.0004, beta=0.9)
+        self.one_euro_filter_float = OneEuroFilter(
+            np.random.rand(1, 2), min_cutoff=0.0004, beta=0.9
+        )
         self.dmax = 0
         self.dmin = 0
         self.openlist = []
@@ -127,7 +138,9 @@ class LEAP_C:
 
         self.eye_config: EyeTrackCameraConfig = eye_config
         self.config: EyeTrackConfig = config
-        self.ort_session_cpu = onnxruntime.InferenceSession(self.model_path, opts, providers=["CPUExecutionProvider"])
+        self.ort_session_cpu = onnxruntime.InferenceSession(
+            self.model_path, opts, providers=["CPUExecutionProvider"]
+        )
 
         available_providers = onnxruntime.get_available_providers()
         preferred_order = [
@@ -135,30 +148,28 @@ class LEAP_C:
             "OpenVINOExecutionProvider",
             "ROCMExecutionProvider",
             "DmlExecutionProvider",
-            "CoreMLExecutionProvider"
+            "CoreMLExecutionProvider",
         ]
 
         providers = []
         for p in preferred_order:
             if p in available_providers:
                 if p == "DmlExecutionProvider":
-                    providers.append((p, {'enable_share_strategy': True}))
+                    providers.append((p, {"enable_share_strategy": True}))
                 else:
                     providers.append(p)
 
         print(f"Active ONNX GPU Providers for this session: {providers}")
 
         self.ort_session_gpu = onnxruntime.InferenceSession(
-            self.model_path,
-            opts,
-            providers=providers
+            self.model_path, opts, providers=providers
         )
         for i in range(self.num_threads):
             if self.config.settings.gui_use_gpu:
                 thread = threading.Thread(
-                    target = run_model,
-                    args = (self.queues[i], self.output_queue, self.ort_session_gpu),
-                    name = f"Thread {i}",
+                    target=run_model,
+                    args=(self.queues[i], self.output_queue, self.ort_session_gpu),
+                    name=f"Thread {i}",
                 )
             else:
                 thread = threading.Thread(
@@ -202,16 +213,31 @@ class LEAP_C:
 
             if not self.eye_config.leap_calibrated:
                 self.openlist.append(d)
-                self.eye_config.leap_calibration_percentile_90 = np.percentile(self.openlist, 90) if len(self.openlist) >= 10 else 0.8
-                self.eye_config.leap_calibration_percentile_2 = np.percentile(self.openlist, 2) - self.eye_config.leap_calibration_percentile_90
-                if isinstance(self.calib, float) and time.time() - self.calib >= self.config.settings.leap_calibration_duration:
+                self.eye_config.leap_calibration_percentile_90 = (
+                    np.percentile(self.openlist, 90)
+                    if len(self.openlist) >= 10
+                    else 0.8
+                )
+                self.eye_config.leap_calibration_percentile_2 = (
+                    np.percentile(self.openlist, 2)
+                    - self.eye_config.leap_calibration_percentile_90
+                )
+                if (
+                    isinstance(self.calib, float)
+                    and time.time() - self.calib
+                    >= self.config.settings.leap_calibration_duration
+                ):
                     self.eye_config.leap_calibrated = True
                     self.config.save()
-                    print(f"[INFO] {'Left' if self.eye_config is self.config.left_eye else 'Right'} eye calibrated")
+                    print(
+                        f"[INFO] {'Left' if self.eye_config is self.config.left_eye else 'Right'} eye calibrated"
+                    )
 
             try:
                 if len(self.openlist) > 0 or self.eye_config.leap_calibrated:
-                    per = (d - self.eye_config.leap_calibration_percentile_90) / self.eye_config.leap_calibration_percentile_2
+                    per = (
+                        d - self.eye_config.leap_calibration_percentile_90
+                    ) / self.eye_config.leap_calibration_percentile_2
                     per = 1 - per
                     per = np.clip(per, 0.0, 1.0)
                 else:
@@ -229,7 +255,7 @@ class LEAP_C:
             if per <= 0.25:
                 per = 0.0
 
-            return imgvis, float(x*img_width), float(y*img_height), per
+            return imgvis, float(x * img_width), float(y * img_height), per
 
         imgvis = cv2.cvtColor(img, cv2.COLOR_RGB2GRAY)
         return imgvis, 0, 0, 0

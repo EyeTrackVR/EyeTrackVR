@@ -60,7 +60,9 @@ def is_serial_capture_source(addr: str) -> bool:
     Returns True if the capture source address is a serial port.
     """
     return (
-        addr.startswith("COM") or addr.startswith("/dev/cu") or addr.startswith("/dev/tty")  # Windows  # macOS  # Linux
+        addr.startswith("COM")
+        or addr.startswith("/dev/cu")
+        or addr.startswith("/dev/tty")  # Windows  # macOS  # Linux
     )
 
 
@@ -167,7 +169,10 @@ class Camera:
 
     def _is_local_file_video_cached(self, capture_source) -> bool:
         key = capture_source
-        if self._file_video_source_cache is not None and self._file_video_source_cache[0] == key:
+        if (
+            self._file_video_source_cache is not None
+            and self._file_video_source_cache[0] == key
+        ):
             return self._file_video_source_cache[1]
         v = is_local_file_video_capture_source(capture_source)
         self._file_video_source_cache = (key, v)
@@ -333,7 +338,9 @@ class Camera:
 
     def get_cv2_camera_picture(self, should_push):
         try:
-            is_file_video = self._is_local_file_video_cached(self.current_capture_source)
+            is_file_video = self._is_local_file_video_cached(
+                self.current_capture_source
+            )
             is_http = is_http_capture_source(str(self.current_capture_source))
             # HTTP MJPEG cams (esp. ESP32) and local files can hand cv2 frames as fast
             # as the link / disk allows. Both deserve the same throttle; UVC paces
@@ -363,7 +370,10 @@ class Camera:
                 ok, jpeg_buf = cv2.imencode(
                     ".jpg",
                     image,
-                    [int(cv2.IMWRITE_JPEG_QUALITY), _HTTP_WIRE_BYTES_PROXY_JPEG_QUALITY],
+                    [
+                        int(cv2.IMWRITE_JPEG_QUALITY),
+                        _HTTP_WIRE_BYTES_PROXY_JPEG_QUALITY,
+                    ],
                 )
                 frame_bytes = int(jpeg_buf.size) if ok else int(image.nbytes)
             else:
@@ -418,7 +428,7 @@ class Camera:
         beg, end = self.get_next_packet_bounds()
         if beg < 0 or end < 0:
             return None
-        jpeg = self.buffer[beg: end + 2]
+        jpeg = self.buffer[beg : end + 2]
         self.buffer = self.buffer[end + 2 :]
         return jpeg
 
@@ -434,12 +444,16 @@ class Camera:
                     try:
                         image = np.array(Image.open(BytesIO(jpeg)))
                     except Exception:
-                        print(f"{Fore.YELLOW}[WARN] Frame drop. Corrupted JPEG.{Fore.RESET}")
+                        print(
+                            f"{Fore.YELLOW}[WARN] Frame drop. Corrupted JPEG.{Fore.RESET}"
+                        )
                         return
                     # Discard the serial buffer. This is due to the fact that it
                     # may build up some outdated frames. A bit of a workaround here tbh.
                     if conn.in_waiting >= 32768:
-                        print(f"{Fore.CYAN}[INFO] Discarding the serial buffer ({conn.in_waiting} bytes){Fore.RESET}")
+                        print(
+                            f"{Fore.CYAN}[INFO] Discarding the serial buffer ({conn.in_waiting} bytes){Fore.RESET}"
+                        )
                         conn.reset_input_buffer()
                         self.buffer = b""
                     # True wire bytes: len(jpeg) is the compressed payload the tracker
@@ -476,7 +490,9 @@ class Camera:
             self.camera_status = CameraState.DISCONNECTED
             return
         try:
-            rate = 115200 if sys.platform == "darwin" else 3000000  # Higher baud rate not working on macOS
+            rate = (
+                115200 if sys.platform == "darwin" else 3000000
+            )  # Higher baud rate not working on macOS
             # Short read timeout so get_next_packet_bounds() rechecks cancellation / source
             # changes promptly; otherwise stop()/apply_camera_inputs can hang for seconds.
             conn = serial.Serial(
@@ -492,7 +508,9 @@ class Camera:
                 buffer_size = 32768
                 conn.set_buffer_size(rx_size=buffer_size, tx_size=buffer_size)
 
-            print(f"{Fore.CYAN}[INFO] ETVR Serial Tracker device connected on {port}{Fore.RESET}")
+            print(
+                f"{Fore.CYAN}[INFO] ETVR Serial Tracker device connected on {port}{Fore.RESET}"
+            )
             self.serial_connection = conn
             self.camera_status = CameraState.CONNECTED
         except Exception:
@@ -520,7 +538,9 @@ class Camera:
             print(
                 f"{Fore.YELLOW}[WARN] CAPTURE QUEUE BACKPRESSURE OF {qsize}. CHECK FOR CRASH OR TIMING ISSUES IN ALGORITHM.{Fore.RESET}"
             )
-        self._put_frame_drop_oldest(self.camera_output_outgoing, (image, frame_number, fps))
+        self._put_frame_drop_oldest(
+            self.camera_output_outgoing, (image, frame_number, fps)
+        )
         for extra_q in self._extra_output_queues:
             self._put_frame_drop_oldest(extra_q, (image.copy(), frame_number, fps))
         self.capture_event.clear()

@@ -46,7 +46,7 @@ class BaseSettingsModule:
         return validation_model(**field_mapping)
 
     def validate(self, values, raise_exception=False) -> Optional[ValidationResult]:
-        """Return """
+        """Return"""
         if not self.config:
             raise MissingValidationConfigException()
         try:

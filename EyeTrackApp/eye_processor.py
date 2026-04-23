@@ -1,24 +1,24 @@
 """
-------------------------------------------------------------------------------------------------------                                                                                                    
-                                                                                                    
-                                               ,@@@@@@                                              
-                                            @@@@@@@@@@@            @@@                              
-                                          @@@@@@@@@@@@      @@@@@@@@@@@                             
-                                        @@@@@@@@@@@@@   @@@@@@@@@@@@@@                              
-                                      @@@@@@@/         ,@@@@@@@@@@@@@                               
-                                         /@@@@@@@@@@@@@@@  @@@@@@@@                                 
-                                    @@@@@@@@@@@@@@@@@@@@@@@@ @@@@@                                  
-                                @@@@@@@@                @@@@@                                       
-                              ,@@@                        @@@@&                                     
-                                             @@@@@@.       @@@@                                     
-                                   @@@     @@@@@@@@@/      @@@@@                                    
-                                   ,@@@.     @@@@@@((@     @@@@(                                    
-                                   //@@@        ,,  @@@@  @@@@@                                     
-                                   @@@(                @@@@@@@                                      
-                                   @@@  @          @@@@@@@@#                                        
-                                       @@@@@@@@@@@@@@@@@                                            
-                                      @@@@@@@@@@@@@(     
-                                      
+------------------------------------------------------------------------------------------------------
+
+                                               ,@@@@@@
+                                            @@@@@@@@@@@            @@@
+                                          @@@@@@@@@@@@      @@@@@@@@@@@
+                                        @@@@@@@@@@@@@   @@@@@@@@@@@@@@
+                                      @@@@@@@/         ,@@@@@@@@@@@@@
+                                         /@@@@@@@@@@@@@@@  @@@@@@@@
+                                    @@@@@@@@@@@@@@@@@@@@@@@@ @@@@@
+                                @@@@@@@@                @@@@@
+                              ,@@@                        @@@@&
+                                             @@@@@@.       @@@@
+                                   @@@     @@@@@@@@@/      @@@@@
+                                   ,@@@.     @@@@@@((@     @@@@(
+                                   //@@@        ,,  @@@@  @@@@@
+                                   @@@(                @@@@@@@
+                                   @@@  @          @@@@@@@@#
+                                       @@@@@@@@@@@@@@@@@
+                                      @@@@@@@@@@@@@(
+
 Algorithm App Implementations By: Prohurtz, qdot (GUI, Initial Implementations), PallasNeko (Optimizations), Summer (Algorithim Engineer)
 
 Additional Contributors: [Assassin], Summer404NotFound, lorow, ZanzyTHEbar
@@ -53,6 +53,7 @@ from utils.calibration_elipse import *
 
 os.environ["OMP_NUM_THREADS"] = "1"
 sys.path.append(".")
+
 
 def run_once(f):
     def wrapper(*args, **kwargs):
@@ -198,7 +199,6 @@ class EyeProcessor:
         self.cal = CalibrationEllipse()
         self.AHSF = PupilDetectorHaar()
 
-
         try:
             min_cutoff = float(self.settings.gui_min_cutoff)  # 0.0004
             beta = float(self.settings.gui_speed_coefficient)  # 0.9
@@ -207,7 +207,9 @@ class EyeProcessor:
             min_cutoff = 0.0004
             beta = 0.9
         noisy_point = np.array([1, 1])
-        self.one_euro_filter = OneEuroFilter(noisy_point, min_cutoff=min_cutoff, beta=beta)
+        self.one_euro_filter = OneEuroFilter(
+            noisy_point, min_cutoff=min_cutoff, beta=beta
+        )
         self._crop_geom_cache_key = None
         self._crop_matrix = None
         self._crop_fits_in_bounds = None
@@ -225,8 +227,12 @@ class EyeProcessor:
         if self.image_queue_outgoing.qsize() > 0:
             return
 
-        self.current_image_gray = cv2.resize(self.current_image_gray, (150, 150), interpolation=cv2.INTER_AREA)
-        threshold_image = cv2.resize(threshold_image, (150, 150), interpolation=cv2.INTER_AREA)
+        self.current_image_gray = cv2.resize(
+            self.current_image_gray, (150, 150), interpolation=cv2.INTER_AREA
+        )
+        threshold_image = cv2.resize(
+            threshold_image, (150, 150), interpolation=cv2.INTER_AREA
+        )
         image_stack = np.concatenate(
             (
                 cv2.cvtColor(self.current_image_gray, cv2.COLOR_GRAY2BGR),
@@ -260,15 +266,30 @@ class EyeProcessor:
             # fill with avg color + 10.
             # fill with white (self.current_image_white) and average in-bounds color (self.current_image).
 
-            geom_key = (roi_x, roi_y, roi_w, roi_h, int(self.config.rotation_angle), img_w, img_h)
+            geom_key = (
+                roi_x,
+                roi_y,
+                roi_w,
+                roi_h,
+                int(self.config.rotation_angle),
+                img_w,
+                img_h,
+            )
             if self._crop_geom_cache_key != geom_key:
                 crop_matrix = np.float32([[1, 0, -roi_x], [0, 1, -roi_y], [0, 0, 1]])
                 img_center = (roi_w / 2, roi_h / 2)
-                rotation_matrix = cv2.getRotationMatrix2D(img_center, self.config.rotation_angle, 1)
+                rotation_matrix = cv2.getRotationMatrix2D(
+                    img_center, self.config.rotation_angle, 1
+                )
                 matrix = np.matmul(rotation_matrix, crop_matrix)
                 inv_matrix = np.linalg.inv(np.vstack((matrix, [0, 0, 1])))[:-1]
-                corners = np.matmul([[0, 0, 1], [roi_w, 0, 1], [0, roi_h, 1], [roi_w, roi_h, 1]], np.transpose(inv_matrix))
-                fits_in_bounds = all(0 <= x <= img_w and 0 <= y <= img_h for (x, y) in corners)
+                corners = np.matmul(
+                    [[0, 0, 1], [roi_w, 0, 1], [0, roi_h, 1], [roi_w, roi_h, 1]],
+                    np.transpose(inv_matrix),
+                )
+                fits_in_bounds = all(
+                    0 <= x <= img_w and 0 <= y <= img_h for (x, y) in corners
+                )
                 self._crop_geom_cache_key = geom_key
                 self._crop_matrix = matrix
                 self._crop_fits_in_bounds = fits_in_bounds
@@ -313,7 +334,8 @@ class EyeProcessor:
             rgb_ch = self.current_image[:, :, :3]
             inv_alpha_ch = 255 - self.current_image[:, :, 3]
             self.current_image = rgb_ch + np.stack(
-                np.uint8([inv_alpha_ch * ar, inv_alpha_ch * ag, inv_alpha_ch * ab]), axis=-1
+                np.uint8([inv_alpha_ch * ar, inv_alpha_ch * ag, inv_alpha_ch * ab]),
+                axis=-1,
             )
 
             return True
@@ -358,20 +380,31 @@ class EyeProcessor:
                 print("blinks")
                 pass
 
-        if self.settings.gui_LEAP_lid and self.eyeopen != 0.0 and not self.settings.gui_LEAP:
+        if (
+            self.settings.gui_LEAP_lid
+            and self.eyeopen != 0.0
+            and not self.settings.gui_LEAP
+        ):
             (
                 self.current_image_gray,
                 self.rawx,
                 self.rawy,
                 self.eyeopen,
-            ) = self.er_leap.run(self.current_image_gray, self.current_image_gray_clean, self.calibration_start_time, self.settings.gui_use_gpu)
+            ) = self.er_leap.run(
+                self.current_image_gray,
+                self.current_image_gray_clean,
+                self.calibration_start_time,
+                self.settings.gui_use_gpu,
+            )
             self.eyeopen = remap_leap_lid_openness(
                 self.eyeopen,
                 float(self.settings.leap_lid_close_threshold),
                 float(self.settings.leap_lid_widen_threshold),
             )
 
-        if len(self.prev_y_list) >= 100:  # "lock" eye when close/blink IN TESTING, kinda broke
+        if (
+            len(self.prev_y_list) >= 100
+        ):  # "lock" eye when close/blink IN TESTING, kinda broke
             self.prev_y_list.pop(0)
             self.prev_y_list.append(self.out_y)
         else:
@@ -435,8 +468,16 @@ class EyeProcessor:
 
     def LEAPM(self):
         self.thresh = self.current_image_gray.copy()
-        (self.current_image_gray, self.rawx, self.rawy, eyeopen,) = self.er_leap.run(
-            self.current_image_gray, self.current_image_gray_clean, self.calibration_start_time, self.settings.gui_use_gpu
+        (
+            self.current_image_gray,
+            self.rawx,
+            self.rawy,
+            eyeopen,
+        ) = self.er_leap.run(
+            self.current_image_gray,
+            self.current_image_gray_clean,
+            self.calibration_start_time,
+            self.settings.gui_use_gpu,
         )  # TODO: make own self var and LEAP toggle
         if self.settings.gui_LEAP_lid:
             self.eyeopen = remap_leap_lid_openness(
@@ -446,7 +487,9 @@ class EyeProcessor:
             )
         self.thresh = self.current_image_gray.copy()
         # todo: lorow, fix this as well
-        self.out_x, self.out_y, self.avg_velocity = cal.cal_osc(self, self.rawx, self.rawy, self.angle)
+        self.out_x, self.out_y, self.avg_velocity = cal.cal_osc(
+            self, self.rawx, self.rawy, self.angle
+        )
         self.current_algorithm = EyeInfoOrigin.LEAP
 
     def DADDYM(self):
@@ -455,7 +498,9 @@ class EyeProcessor:
         self.thresh = self.current_image_gray.copy()
         self.rawx, self.rawy, self.radius = self.er_daddy.run(self.current_image_gray)
         # Daddy also uses a one euro filter, so I'll have to use it twice, but I'm not going to think too much about it.
-        self.out_x, self.out_y, self.avg_velocity = cal.cal_osc(self, self.rawx, self.rawy, self.angle)
+        self.out_x, self.out_y, self.avg_velocity = cal.cal_osc(
+            self, self.rawx, self.rawy, self.angle
+        )
         self.current_algorithm = EyeInfoOrigin.DADDY
 
     def AHSFRACM(self):
@@ -495,7 +540,9 @@ class EyeProcessor:
         if self.settings.gui_RANSACBLINK:  # might be redundant
             self.eyeopen = ranblink
 
-        self.out_x, self.out_y, self.avg_velocity = cal.cal_osc(self, self.rawx, self.rawy, self.angle)
+        self.out_x, self.out_y, self.avg_velocity = cal.cal_osc(
+            self, self.rawx, self.rawy, self.angle
+        )
         self.current_algorithm = EyeInfoOrigin.HSRAC
 
     def HSRACM(self):
@@ -513,7 +560,9 @@ class EyeProcessor:
             pass
 
         self.hasrac_en = True
-        self.rawx, self.rawy, self.thresh, self.radius = self.er_hsf.run(self.current_image_gray)
+        self.rawx, self.rawy, self.thresh, self.radius = self.er_hsf.run(
+            self.current_image_gray
+        )
         (
             self.rawx,
             self.rawy,
@@ -526,7 +575,9 @@ class EyeProcessor:
         if self.settings.gui_RANSACBLINK:  # might be redundant
             self.eyeopen = ranblink
 
-        self.out_x, self.out_y, self.avg_velocity = cal.cal_osc(self, self.rawx, self.rawy, self.angle)
+        self.out_x, self.out_y, self.avg_velocity = cal.cal_osc(
+            self, self.rawx, self.rawy, self.angle
+        )
         self.current_algorithm = EyeInfoOrigin.HSRAC
 
     def HSFM(self):
@@ -543,8 +594,12 @@ class EyeProcessor:
         else:
             pass
         # todo: add process to initialise er_hsf when resolution changes
-        self.rawx, self.rawy, self.thresh, self.radius = self.er_hsf.run(self.current_image_gray)
-        self.out_x, self.out_y, self.avg_velocity = cal.cal_osc(self, self.rawx, self.rawy, self.angle)
+        self.rawx, self.rawy, self.thresh, self.radius = self.er_hsf.run(
+            self.current_image_gray
+        )
+        self.out_x, self.out_y, self.avg_velocity = cal.cal_osc(
+            self, self.rawx, self.rawy, self.angle
+        )
         self.current_algorithm = EyeInfoOrigin.HSF
 
     def RANSAC3DM(self):
@@ -561,7 +616,9 @@ class EyeProcessor:
         else:
             pass
         self.hasrac_en = False
-        current_image_gray_copy = self.current_image_gray.copy()  # Duplicate before overwriting in RANSAC3D.
+        current_image_gray_copy = (
+            self.current_image_gray.copy()
+        )  # Duplicate before overwriting in RANSAC3D.
         (
             self.rawx,
             self.rawy,
@@ -573,7 +630,9 @@ class EyeProcessor:
         ) = RANSAC3D(self, True)
         if self.settings.gui_RANSACBLINK:
             self.eyeopen = ranblink
-        self.out_x, self.out_y, self.avg_velocity = cal.cal_osc(self, self.rawx, self.rawy, self.angle)
+        self.out_x, self.out_y, self.avg_velocity = cal.cal_osc(
+            self, self.rawx, self.rawy, self.angle
+        )
         self.current_algorithm = EyeInfoOrigin.RANSAC
 
     def AHSFM(self):
@@ -595,9 +654,11 @@ class EyeProcessor:
             self.rawx,
             self.rawy,
             self.radius,
-        ) =  self.er_ahsf.detect_etvr(self.current_image_gray)
+        ) = self.er_ahsf.detect_etvr(self.current_image_gray)
         self.thresh = self.current_image_gray
-        self.out_x, self.out_y, self.avg_velocity = cal.cal_osc(self, self.rawx, self.rawy, self.angle)
+        self.out_x, self.out_y, self.avg_velocity = cal.cal_osc(
+            self, self.rawx, self.rawy, self.angle
+        )
         self.current_algorithm = EyeInfoOrigin.HSF
 
     def ALGOSELECT(self):
@@ -744,7 +805,6 @@ class EyeProcessor:
         ) = algolist[:8]
 
         while True:
-
             # Check to make sure we haven't been requested to close
             if self.cancellation_event.is_set():
                 print("\033[94m[INFO] Exiting Tracking thread\033[0m")
@@ -770,10 +830,15 @@ class EyeProcessor:
                     focal_length=self.config.focal_length,
                     resolution=(self.config.roi_window_w, self.config.roi_window_h),
                 )
-                self.detector_3d = Detector3D(camera=self.camera_model, long_term_mode=DetectorMode.blocking)
+                self.detector_3d = Detector3D(
+                    camera=self.camera_model, long_term_mode=DetectorMode.blocking
+                )
 
             try:
-                if not self.suppress_auto_capture_signal and self.capture_queue_incoming.empty():
+                if (
+                    not self.suppress_auto_capture_signal
+                    and self.capture_queue_incoming.empty()
+                ):
                     self.capture_event.set()
                 # Wait a bit for images here. If we don't get one, just try again.
                 (
@@ -788,7 +853,9 @@ class EyeProcessor:
             if not self.capture_crop_rotate_image():
                 continue
 
-            self.current_image_gray = cv2.cvtColor(self.current_image, cv2.COLOR_BGR2GRAY)
+            self.current_image_gray = cv2.cvtColor(
+                self.current_image, cv2.COLOR_BGR2GRAY
+            )
             if self._needs_gray_clean_copy():
                 self.current_image_gray_clean = self.current_image_gray.copy()
             else:

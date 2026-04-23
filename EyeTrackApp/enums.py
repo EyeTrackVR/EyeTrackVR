@@ -57,10 +57,18 @@ def _create_value_cls(name: str, comparable: bool):
     cls.__repr__ = lambda self: f"<{name}.{self.name}: {self.value!r}>"  # type: ignore
     cls.__str__ = lambda self: f"{name}.{self.name}"  # type: ignore
     if comparable:
-        cls.__le__ = lambda self, other: isinstance(other, self.__class__) and self.value <= other.value  # type: ignore
-        cls.__ge__ = lambda self, other: isinstance(other, self.__class__) and self.value >= other.value  # type: ignore
-        cls.__lt__ = lambda self, other: isinstance(other, self.__class__) and self.value < other.value  # type: ignore
-        cls.__gt__ = lambda self, other: isinstance(other, self.__class__) and self.value > other.value  # type: ignore
+        cls.__le__ = lambda self, other: (
+            isinstance(other, self.__class__) and self.value <= other.value
+        )  # type: ignore
+        cls.__ge__ = lambda self, other: (
+            isinstance(other, self.__class__) and self.value >= other.value
+        )  # type: ignore
+        cls.__lt__ = lambda self, other: (
+            isinstance(other, self.__class__) and self.value < other.value
+        )  # type: ignore
+        cls.__gt__ = lambda self, other: (
+            isinstance(other, self.__class__) and self.value > other.value
+        )  # type: ignore
     return cls
 
 

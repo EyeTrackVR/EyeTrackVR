@@ -41,6 +41,8 @@ from utils.misc_utils import resource_path
 from pathlib import Path
 
 tool = Path("Tools")
+
+
 class TimeoutError(RuntimeError):
     pass
 
@@ -51,7 +53,9 @@ class AsyncCall(object):
         self.Callback = callback
 
     def __call__(self, *args, **kwargs):
-        self.Thread = threading.Thread(target=self.run, name=self.Callable.__name__, args=args, kwargs=kwargs)
+        self.Thread = threading.Thread(
+            target=self.run, name=self.Callable.__name__, args=args, kwargs=kwargs
+        )
         self.Thread.start()
         return self
 
@@ -122,7 +126,6 @@ class var:
 def center_overlay_calibrate(self):
     # try:
     if var.overlay_active != True:
-        
         overlay_path = resource_path("Tools/EyeTrackVR-Overlay.exe")
         # Set working directory to the tools folder so overlay can find assets/Purple_Dot.png
         tools_dir = os.path.dirname(overlay_path)
@@ -178,20 +181,25 @@ class cal:
     def cal_osc(self, cx, cy, angle):
         # Check if calibration data exists and is valid (list/array, not scalar like 0)
         has_valid_calib = (
-            self.config.calib_evecs is not None and 
-            self.config.calib_axes is not None and
-            self.config.calib_XOFF is not None and
+            self.config.calib_evecs is not None
+            and self.config.calib_axes is not None
+            and self.config.calib_XOFF is not None
+            and
             # Ensure evecs and axes are lists/arrays, not scalars (e.g., not the integer 0)
-            isinstance(self.config.calib_evecs, (list, tuple)) and
-            isinstance(self.config.calib_axes, (list, tuple))
+            isinstance(self.config.calib_evecs, (list, tuple))
+            and isinstance(self.config.calib_axes, (list, tuple))
         )
-        
+
         if has_valid_calib:
             # Validate and load saved calibration data
-            if not self.cal.init_from_save(self.config.calib_evecs, self.config.calib_axes):
+            if not self.cal.init_from_save(
+                self.config.calib_evecs, self.config.calib_axes
+            ):
                 # If init_from_save fails, treat as uncalibrated
                 if self.printcal:
-                    print("\033[91m[ERROR] Failed to load calibration data. Please recalibrate.\033[0m")
+                    print(
+                        "\033[91m[ERROR] Failed to load calibration data. Please recalibrate.\033[0m"
+                    )
                     self.printcal = False
 
         else:
@@ -210,26 +218,37 @@ class cal:
         else:
             flipx = self.settings.gui_flip_x_axis_left
 
-
         if self.calibration_start_time is not None:
-            if time.time() - self.calibration_start_time >= self.settings.calibration_duration:
+            if (
+                time.time() - self.calibration_start_time
+                >= self.settings.calibration_duration
+            ):
                 self.calibration_start_time = None
                 # Always save offset (XOFF/YOFF) for recenter functionality
                 self.config.calib_XOFF = cx
                 self.config.calib_YOFF = cy
-                
+
                 # Only save ellipse calibration data if samples were actually collected
                 evecs, axes = self.cal.fit_ellipse()
                 # Check if fit was successful (returns (0, 0) on failure)
-                if not (isinstance(evecs, int) and isinstance(axes, int) and evecs == 0 and axes == 0):
+                if not (
+                    isinstance(evecs, int)
+                    and isinstance(axes, int)
+                    and evecs == 0
+                    and axes == 0
+                ):
                     # Valid calibration data - save it
                     self.config.calib_evecs, self.config.calib_axes = evecs, axes
                     self.baseconfig.save()
-                    PlaySound(resource_path("Audio/completed.wav"), SND_FILENAME | SND_ASYNC)
+                    PlaySound(
+                        resource_path("Audio/completed.wav"), SND_FILENAME | SND_ASYNC
+                    )
                 else:
                     # No samples collected - only save the offset (for Recenter Eyes)
                     # Don't overwrite existing ellipse calibration
-                    print("\033[93m[WARN] Calibration stopped without collecting samples. Ellipse calibration preserved, offset updated.\033[0m")
+                    print(
+                        "\033[93m[WARN] Calibration stopped without collecting samples. Ellipse calibration preserved, offset updated.\033[0m"
+                    )
                     self.baseconfig.save()  # Still save to persist the offset changes
                 self.blink_clear = False
             else:
@@ -243,7 +262,9 @@ class cal:
             if self.ts == 0:
                 center_overlay_calibrate(self)  # TODO, only call on windows machines?
                 self.settings.gui_recenter_eyes = False
-                PlaySound(resource_path("Audio/completed.wav"), SND_FILENAME | SND_ASYNC)
+                PlaySound(
+                    resource_path("Audio/completed.wav"), SND_FILENAME | SND_ASYNC
+                )
             else:
                 self.ts = self.ts - 1
 
@@ -253,23 +274,29 @@ class cal:
         out_x = 0.5
         out_y = 0.5
 
+        out_x, out_y = self.cal.normalize(
+            (cx, cy), (self.config.calib_XOFF, self.config.calib_YOFF)
+        )
 
-
-        out_x, out_y = self.cal.normalize((cx, cy), (self.config.calib_XOFF, self.config.calib_YOFF))
-
-        if self.settings.gui_flip_y_axis:  # check config on flipped values settings and apply accordingly
-            out_y = -out_y # flip
+        if (
+            self.settings.gui_flip_y_axis
+        ):  # check config on flipped values settings and apply accordingly
+            out_y = -out_y  # flip
 
         if flipx:
             out_x = -out_x
 
         if self.settings.gui_outer_side_falloff:
-
             run_time = time.time()
             out_x_mult = out_x * 100
             out_y_mult = out_y * 100
             velocity = abs(
-                np.sqrt(abs(np.square(out_x_mult - var.past_x) - np.square(out_y_mult - var.past_y)))
+                np.sqrt(
+                    abs(
+                        np.square(out_x_mult - var.past_x)
+                        - np.square(out_y_mult - var.past_y)
+                    )
+                )
                 / ((var.start_time - run_time) * 10)
             )
             if len(var.velocity_rolling_list) < 15:
@@ -277,14 +304,18 @@ class cal:
             else:
                 var.velocity_rolling_list.pop(0)
                 var.velocity_rolling_list.append(float(velocity))
-            var.average_velocity = sum(var.velocity_rolling_list) / len(var.velocity_rolling_list)
+            var.average_velocity = sum(var.velocity_rolling_list) / len(
+                var.velocity_rolling_list
+            )
             var.past_x = out_x_mult
             var.past_y = out_y_mult
 
         out_x, out_y = velocity_falloff(self, var, out_x, out_y)
 
         try:
-            noisy_point = np.array([float(out_x), float(out_y)])  # fliter our values with a One Euro Filter
+            noisy_point = np.array(
+                [float(out_x), float(out_y)]
+            )  # fliter our values with a One Euro Filter
             point_hat = self.one_euro_filter(noisy_point)
             out_x = point_hat[0]
             out_y = point_hat[1]
@@ -293,5 +324,3 @@ class cal:
             pass
 
         return out_x, out_y, var.average_velocity
-
-

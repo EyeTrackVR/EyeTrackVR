@@ -42,6 +42,7 @@ from pydantic import BaseModel, field_validator, field_serializer
 from typing import Any, Union, List
 import numpy as np
 
+
 class EyeTrackCameraConfig(BaseModel):
     gui_rotation_ui_padding: bool = False
     rotation_angle: int = 0
@@ -62,7 +63,7 @@ class EyeTrackCameraConfig(BaseModel):
     leap_calibration_percentile_2: float = 0
     leap_calibrated: bool = False
 
-    @field_validator('calib_axes', 'calib_evecs', 'calib_center', mode='before')
+    @field_validator("calib_axes", "calib_evecs", "calib_center", mode="before")
     @classmethod
     def convert_numpy_to_list(cls, v):
         """Convert NumPy arrays to lists for JSON serialization and handle invalid values"""
@@ -74,18 +75,18 @@ class EyeTrackCameraConfig(BaseModel):
             return None
         if isinstance(v, np.ndarray):
             return v.tolist()
-        if hasattr(v, 'tolist') and callable(v.tolist):
+        if hasattr(v, "tolist") and callable(v.tolist):
             return v.tolist()
         return v
 
-    @field_serializer('calib_axes', 'calib_evecs', 'calib_center')
+    @field_serializer("calib_axes", "calib_evecs", "calib_center")
     def serialize_arrays(self, value):
         """Serialize arrays to lists when saving"""
         if value is None:
             return None
         if isinstance(value, np.ndarray):
             return value.tolist()
-        if hasattr(value, 'tolist') and callable(value.tolist):
+        if hasattr(value, "tolist") and callable(value.tolist):
             return value.tolist()
         return value
 
@@ -107,7 +108,9 @@ class EyeTrackCameraConfig(BaseModel):
             return None
         return np.array(self.calib_center, dtype=float)
 
-    def set_calibration_data(self, axes: np.ndarray, evecs: np.ndarray, center: np.ndarray):
+    def set_calibration_data(
+        self, axes: np.ndarray, evecs: np.ndarray, center: np.ndarray
+    ):
         """Set all calibration data from NumPy arrays (auto-converts to lists)"""
         self.calib_axes = axes.tolist()
         self.calib_evecs = evecs.tolist()
@@ -115,9 +118,11 @@ class EyeTrackCameraConfig(BaseModel):
 
     def has_calibration_data(self) -> bool:
         """Check if calibration data is present"""
-        return (self.calib_axes is not None and
-                self.calib_evecs is not None and
-                self.calib_center is not None)
+        return (
+            self.calib_axes is not None
+            and self.calib_evecs is not None
+            and self.calib_center is not None
+        )
 
     def update_capture_source(self, new_camera_address: str):
         if not new_camera_address:
@@ -130,7 +135,8 @@ class EyeTrackCameraConfig(BaseModel):
 
         # we were passed an IP, probably, lets add HTTP:// to it
         if len(new_camera_address) > 5 and not (
-            not new_camera_address.startswith(("http", "/dev")) or not new_camera_address.endswith(".mp4")
+            not new_camera_address.startswith(("http", "/dev"))
+            or not new_camera_address.endswith(".mp4")
         ):
             self.capture_source = f"http://{new_camera_address}"
             return
@@ -157,6 +163,7 @@ class EyeTrackCameraConfig(BaseModel):
             else:
                 print(f"\033[93m[WARN] Field {key} does not exist on {self}.\033[0m")
                 return False
+
 
 class EyeTrackSettingsConfig(BaseModel):
     gui_flip_x_axis_left: bool = False
@@ -244,7 +251,7 @@ class EyeTrackSettingsConfig(BaseModel):
     gui_EyebrowThresholdLowering: float = 0.15
     gui_OutputMultiplier: float = 1
     gui_use_module: bool = False
-    gui_use_gpu: bool = True # simple checkbox vs drop down with cuda, openvino etc.
+    gui_use_gpu: bool = True  # simple checkbox vs drop down with cuda, openvino etc.
 
     gui_openvr_autostart: bool = False
 
@@ -253,7 +260,9 @@ class EyeTrackConfig(BaseModel):
     version: int = 1
     right_eye: EyeTrackCameraConfig = EyeTrackCameraConfig()
     left_eye: EyeTrackCameraConfig = EyeTrackCameraConfig()
-    bsb2e: EyeTrackCameraConfig = EyeTrackCameraConfig() # should we do independent per bsb eye?
+    bsb2e: EyeTrackCameraConfig = (
+        EyeTrackCameraConfig()
+    )  # should we do independent per bsb eye?
     settings: EyeTrackSettingsConfig = EyeTrackSettingsConfig()
     eye_display_id: EyeId = EyeId.RIGHT
     __listeners = []
@@ -299,7 +308,9 @@ class EyeTrackConfig(BaseModel):
                 return False
         return True
 
-    def update_eye_model_config(self, eye_id: EyeId, data: dict, should_save=True, should_notify=True) -> bool:
+    def update_eye_model_config(
+        self, eye_id: EyeId, data: dict, should_save=True, should_notify=True
+    ) -> bool:
         """
         A more granular method for updating a particular model so that everything that relies on it
         will get notified about any changes. Note, it acts a bit like pub-sub,
@@ -310,7 +321,9 @@ class EyeTrackConfig(BaseModel):
 
         # The app really doesn't like address clashes, so we have to validate it as soon as possible
         # otherwise we crash
-        if "capture_source" in data and not self.validate_camera_address_conflict(eye_id, data["capture_source"]):
+        if "capture_source" in data and not self.validate_camera_address_conflict(
+            eye_id, data["capture_source"]
+        ):
             return False
 
         match eye_id:

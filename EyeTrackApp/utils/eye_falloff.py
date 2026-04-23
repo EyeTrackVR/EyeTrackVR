@@ -11,7 +11,9 @@ def velocity_falloff(self, var, out_x, out_y):
         or self.settings.gui_outer_side_falloff
     ):
         # Calculate the distance between the two eyes
-        dist = np.sqrt(np.square(var.l_eye_x - var.r_eye_x) + np.square(var.left_y - var.right_y))
+        dist = np.sqrt(
+            np.square(var.l_eye_x - var.r_eye_x) + np.square(var.left_y - var.right_y)
+        )
         if self.eye_id == EyeId.LEFT:
             var.l_eye_x = out_x
             var.left_y = out_y
@@ -22,7 +24,6 @@ def velocity_falloff(self, var, out_x, out_y):
 
         # Check if the distance is greater than the threshold
         if dist > self.settings.gui_eye_dominant_diff_thresh:
-
             if self.settings.gui_right_eye_dominant:
                 out_x, out_y = var.r_eye_x, var.right_y
 

@@ -9,8 +9,11 @@ from threading import Event
 from eye import EyeId
 from config import EyeTrackConfig, EyeTrackSettingsConfig
 
+
 class BaseSettingsWidget:
-    def __init__(self, widget_id: EyeId, main_config: EyeTrackConfig, settings_modules: Iterable):
+    def __init__(
+        self, widget_id: EyeId, main_config: EyeTrackConfig, settings_modules: Iterable
+    ):
         self.widget_id = widget_id
         self.main_config = main_config
         self.config = main_config.settings
@@ -18,7 +21,9 @@ class BaseSettingsWidget:
         self.error_printout_timeout = 2
         self.reset_button_key = f"RESET_SETTINGS{widget_id}"
         self.is_saving = False
-        self.initialized_modules = self._initialize_modules(settings_modules=settings_modules, widget_id=widget_id)
+        self.initialized_modules = self._initialize_modules(
+            settings_modules=settings_modules, widget_id=widget_id
+        )
         self.cancellation_event = Event()
         self.cancellation_event.set()
         self.frame = None
@@ -111,7 +116,11 @@ class BaseSettingsWidget:
         elapsed_seconds = (datetime.now() - self.last_error_printout).seconds
         if elapsed_seconds > self.error_printout_timeout:
             self.last_error_printout = now
-            messages = [f"{Fore.RED}[ERROR]{Fore.RESET} {error['msg']} \n" for module_errors in errors for error in module_errors]
+            messages = [
+                f"{Fore.RED}[ERROR]{Fore.RESET} {error['msg']} \n"
+                for module_errors in errors
+                for error in module_errors
+            ]
             print("".join(messages))
 
     def _collect_values(self):
@@ -141,12 +150,17 @@ class BaseSettingsWidget:
             self._schedule_debounced_settings_save(validated_data)
 
     def _initialize_modules(self, settings_modules, widget_id):
-        return [module(config=self.config, settings=self.main_config, widget_id=widget_id) for module in settings_modules]
+        return [
+            module(config=self.config, settings=self.main_config, widget_id=widget_id)
+            for module in settings_modules
+        ]
 
     def build(self, parent) -> ttk.Frame:
         self.frame = ttk.Frame(parent)
         for module in self.initialized_modules:
-            section = ttk.LabelFrame(self.frame, text=module.__class__.__name__.replace("Module", ""))
+            section = ttk.LabelFrame(
+                self.frame, text=module.__class__.__name__.replace("Module", "")
+            )
             section.pack(fill="x", padx=8, pady=6, anchor="n")
             module.build(section)
 
