@@ -218,6 +218,7 @@ def main():
             self.mode_var = tk.StringVar(value="etvr")
             self._last_camera_tracking_key = None
             self._timer_high_res = False
+            self._nav_teardown_seq = 0
 
             nav = ttk.Frame(self.root)
             nav.pack(fill="x", padx=8, pady=(8, 4))
@@ -303,7 +304,6 @@ def main():
 
             self.root.protocol("WM_DELETE_WINDOW", self.shutdown)
             self.on_mode_change()
-            self.apply_camera_inputs()
             self.show_page("tracking")
             self._apply_initial_window_geometry()
             self._tick()
@@ -316,7 +316,7 @@ def main():
         def _apply_initial_window_geometry(self):
             # Tracking tab packs two full camera panels; still set a floor so the window opens usable.
             self.root.update_idletasks()
-            min_w, min_h = 920, 580
+            min_w, min_h = 920, 660
             w = max(self.root.winfo_reqwidth(), min_w)
             h = max(self.root.winfo_reqheight(), min_h)
             self.root.geometry(f"{w}x{h}")
@@ -451,39 +451,71 @@ def main():
             self._sync_timer_resolution()
 
         def show_page(self, page_name: str):
+            """Switch tabs. Heavy work (camera thread joins, config apply) is deferred so the UI can redraw first."""
+            self._nav_teardown_seq += 1
+            seq = self._nav_teardown_seq
             self.current_page = page_name
             for frame in [self.tracking_tab, self.settings_frame, self.algo_frame, self.vrcft_frame]:
                 frame.pack_forget()
 
             if page_name == "tracking":
                 self.tracking_tab.pack(fill="both", expand=True)
-                settings[0].stop()
-                settings[1].stop()
-                settings[2].stop()
-                self.apply_camera_inputs()
+                self._sync_nav_buttons()
+                self.root.update_idletasks()
+                self.root.after(0, lambda s=seq: self._deferred_enter_tracking(s))
             elif page_name == "settings":
                 self.settings_frame.pack(fill="both", expand=True)
-                eyes[0].stop()
-                eyes[1].stop()
-                settings[1].stop()
-                settings[2].stop()
-                settings[0].start()
+                self._sync_nav_buttons()
+                self.root.update_idletasks()
+                self.root.after(0, lambda s=seq: self._deferred_enter_settings(s))
             elif page_name == "algo":
                 self.algo_frame.pack(fill="both", expand=True)
-                eyes[0].stop()
-                eyes[1].stop()
-                settings[0].stop()
-                settings[2].stop()
-                settings[1].start()
+                self._sync_nav_buttons()
+                self.root.update_idletasks()
+                self.root.after(0, lambda s=seq: self._deferred_enter_algo(s))
             elif page_name == "vrcft":
                 self.vrcft_frame.pack(fill="both", expand=True)
-                eyes[0].stop()
-                eyes[1].stop()
-                settings[0].stop()
-                settings[1].stop()
-                settings[2].start()
+                self._sync_nav_buttons()
+                self.root.update_idletasks()
+                self.root.after(0, lambda s=seq: self._deferred_enter_vrcft(s))
 
-            self._sync_nav_buttons()
+        def _deferred_enter_tracking(self, seq: int) -> None:
+            if seq != self._nav_teardown_seq:
+                return
+            settings[0].stop()
+            settings[1].stop()
+            settings[2].stop()
+            self.apply_camera_inputs()
+            self._sync_timer_resolution()
+
+        def _deferred_enter_settings(self, seq: int) -> None:
+            if seq != self._nav_teardown_seq:
+                return
+            eyes[0].stop()
+            eyes[1].stop()
+            settings[1].stop()
+            settings[2].stop()
+            settings[0].start()
+            self._sync_timer_resolution()
+
+        def _deferred_enter_algo(self, seq: int) -> None:
+            if seq != self._nav_teardown_seq:
+                return
+            eyes[0].stop()
+            eyes[1].stop()
+            settings[0].stop()
+            settings[2].stop()
+            settings[1].start()
+            self._sync_timer_resolution()
+
+        def _deferred_enter_vrcft(self, seq: int) -> None:
+            if seq != self._nav_teardown_seq:
+                return
+            eyes[0].stop()
+            eyes[1].stop()
+            settings[0].stop()
+            settings[1].stop()
+            settings[2].start()
             self._sync_timer_resolution()
 
         def gui_off(self):
@@ -540,7 +572,6 @@ def main():
             os._exit(0)
 
     app = AppUI()
-    app.show_page("tracking")
     if (not is_macos) and (openvr_service is not None):
         openvr_service.window = app
     app.root.mainloop()

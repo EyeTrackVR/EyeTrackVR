@@ -221,9 +221,6 @@ class EyeTrackSettingsConfig(BaseModel):
     gui_outer_side_falloff: bool = False
     gui_eye_dominant_diff_thresh: float = 0.3
 
-    gui_legacy_ransac: bool = False
-    gui_legacy_ransac_thresh_right: int = 80
-    gui_legacy_ransac_thresh_left: int = 80
     gui_LEAP_lid: bool = True
     gui_osc_vrcft_v1: bool = False
     gui_osc_vrcft_v2: bool = False

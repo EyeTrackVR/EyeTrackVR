@@ -11,7 +11,6 @@ class TrackingAlgorithmValidationModel(BaseValidationModel):
     gui_LEAP: bool
     gui_RANSAC3D: bool
     gui_AHSFRAC: bool
-    gui_legacy_ransac: bool
 
 
 class TrackingAlgorithmModule(BaseSettingsModule):
@@ -25,7 +24,6 @@ class TrackingAlgorithmModule(BaseSettingsModule):
         self.gui_AHSF = f"-AHSF{widget_id}-"
         self.gui_AHSFRAC = f"-gui_AHSFRAC{widget_id}-"
         self.gui_RANSAC3D = f"-RANSAC3D{widget_id}-"
-        self.gui_legacy_ransac = f"-LEGACYRANSACTHRESH{widget_id}-"
 
         self._algo_entries = [
             ("LEAP", "leap", self.gui_LEAP, "gui_LEAP"),
@@ -45,7 +43,8 @@ class TrackingAlgorithmModule(BaseSettingsModule):
                 break
         self.selected_algo = tk.StringVar(value=selected)
 
-        rows_per_column = (len(self._algo_entries) + 1) // 2
+        ncol = 3
+        rows_per_column = (len(self._algo_entries) + ncol - 1) // ncol
         for idx, (label, name, key, config_field) in enumerate(self._algo_entries):
             row = idx % rows_per_column
             col = idx // rows_per_column
@@ -53,12 +52,6 @@ class TrackingAlgorithmModule(BaseSettingsModule):
                 row=row, column=col, sticky="w", padx=8, pady=2
             )
             self.tk_vars[key] = tk.BooleanVar(value=bool(getattr(self.config, config_field, False)))
-
-        legacy_var = tk.BooleanVar(value=self.config.gui_legacy_ransac)
-        self.tk_vars[self.gui_legacy_ransac] = legacy_var
-        ttk.Checkbutton(parent, text="Legacy RANSAC Thresh", variable=legacy_var).grid(
-            row=rows_per_column + 1, column=0, sticky="w", padx=8, pady=4
-        )
 
     def get_values_map(self) -> dict:
         values = super().get_values_map()

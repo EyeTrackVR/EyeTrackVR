@@ -6,8 +6,6 @@ from tkinter import ttk
 class AdvancedTrackingAlgoSettingsValidationModel(BaseValidationModel):
     gui_HSF_radius_left: int
     gui_HSF_radius_right: int
-    gui_legacy_ransac_thresh_left: int
-    gui_legacy_ransac_thresh_right: int
     gui_skip_autoradius: bool
     gui_thresh_add: int
     gui_pupil_dilation: bool
@@ -22,9 +20,6 @@ class AdvancedTrackingAlgoSettingsModule(BaseSettingsModule):
         self.gui_thresh_add = f"-THRESHADD{widget_id}-"
         self.gui_HSF_radius_left = f"-HSFRADIUSLEFT{widget_id}-"
         self.gui_HSF_radius_right = f"-HSFRADIUSRIGHT{widget_id}-"
-
-        self.gui_legacy_ransac_thresh_right = f"-THRESHRIGHT{widget_id}-"
-        self.gui_legacy_ransac_thresh_left = f"-THRESHLEFT{widget_id}-"
         self.gui_pupil_dilation = f"-EBPD{widget_id}-"
 
     def _add_slider_with_controls(self, parent, row, label, var, min_v, max_v):
@@ -63,8 +58,6 @@ class AdvancedTrackingAlgoSettingsModule(BaseSettingsModule):
             ("Left HSF Radius", self.gui_HSF_radius_left, self.config.gui_HSF_radius_left, 1, 50),
             ("Right HSF Radius", self.gui_HSF_radius_right, self.config.gui_HSF_radius_right, 1, 50),
             ("RANSAC Thresh Add", self.gui_thresh_add, self.config.gui_thresh_add, 1, 50),
-            ("Right Eye Thresh", self.gui_legacy_ransac_thresh_right, self.config.gui_legacy_ransac_thresh_right, 1, 120),
-            ("Left Eye Thresh", self.gui_legacy_ransac_thresh_left, self.config.gui_legacy_ransac_thresh_left, 1, 120),
         ]
         for label, key, default, min_v, max_v in slider_specs:
             var = tk.IntVar(value=int(default))

@@ -50,28 +50,23 @@ class BlinkAlgoSettingsModule(BaseSettingsModule):
         self.leap_calibration_duration = f"-LEAPCALIBRATION{widget_id}-"
 
     def build(self, parent):
-        row = 0
-        bool_pairs = [
-            (
-                (self.gui_IBO, self.config.gui_IBO, "Intensity Based Openness"),
-                (self.gui_RANSACBLINK, self.config.gui_RANSACBLINK, "RANSAC Quick Blink Algo"),
-            ),
-            (
-                (self.gui_BLINK, self.config.gui_BLINK, "Binary Blink Algo"),
-                (self.gui_LEAP_lid, self.config.gui_LEAP_lid, "LEAP Lid"),
-            ),
-            (
-                (self.gui_circular_crop_left, self.config.gui_circular_crop_left, "Left Eye Circle crop"),
-                (self.gui_circular_crop_right, self.config.gui_circular_crop_right, "Right Eye Circle crop"),
-            ),
+        checkbox_fields = [
+            (self.gui_IBO, self.config.gui_IBO, "Intensity Based Openness"),
+            (self.gui_RANSACBLINK, self.config.gui_RANSACBLINK, "RANSAC Quick Blink Algo"),
+            (self.gui_BLINK, self.config.gui_BLINK, "Binary Blink Algo"),
+            (self.gui_LEAP_lid, self.config.gui_LEAP_lid, "LEAP Lid"),
+            (self.gui_circular_crop_left, self.config.gui_circular_crop_left, "Left Eye Circle crop"),
+            (self.gui_circular_crop_right, self.config.gui_circular_crop_right, "Right Eye Circle crop"),
         ]
-        for left, right in bool_pairs:
-            for col, field in enumerate((left, right)):
-                key, default, label = field
-                var = tk.BooleanVar(value=default)
-                self.tk_vars[key] = var
-                ttk.Checkbutton(parent, text=label, variable=var).grid(row=row, column=col, sticky="w", padx=8, pady=2)
-            row += 1
+        ncol = 3
+        rows_per_column = (len(checkbox_fields) + ncol - 1) // ncol
+        for idx, (key, default, label) in enumerate(checkbox_fields):
+            row = idx % rows_per_column
+            col = idx // rows_per_column
+            var = tk.BooleanVar(value=default)
+            self.tk_vars[key] = var
+            ttk.Checkbutton(parent, text=label, variable=var).grid(row=row, column=col, sticky="w", padx=8, pady=2)
+        row = rows_per_column
 
         # Unified eyelid calibration duration controls both LEAP and non-LEAP duration values.
         eyelid_duration_var = tk.StringVar(value=str(self.config.calibration_duration))
