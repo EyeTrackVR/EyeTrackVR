@@ -34,21 +34,9 @@ import time
 from colorama import Fore
 from config import EyeTrackCameraConfig
 from enum import Enum
-import psutil, os
 import sys
 from PIL import Image
 from io import BytesIO
-
-process = psutil.Process(os.getpid())  # set process priority to low
-try:
-    sys.getwindowsversion()
-except AttributeError:
-    process.nice(10)  # UNIX: 0 low 10 high
-    process.nice()
-else:
-    process.nice(psutil.HIGH_PRIORITY_CLASS)  # Windows
-    process.nice()
-    # See https://learn.microsoft.com/en-us/windows/win32/api/processthreadsapi/nf-processthreadsapi-getpriorityclass#return-value for values
 
 WAIT_TIME = 0.1
 # Serial communication protocol:
@@ -127,10 +115,12 @@ class Camera:
         self.camera_address = config.capture_source
         self.camera_status_outgoing = camera_status_outgoing
         self.camera_output_outgoing = camera_output_outgoing
+        self._extra_output_queues: list[queue.Queue] = []
         self.capture_event = capture_event
         self.cancellation_event = cancellation_event
         self.current_capture_source = config.capture_source
         self.cv2_camera: "cv2.VideoCapture" = None
+        self._http_or_file_source_cache: tuple[object, bool] | None = None
 
         self.serial_connection = None
         self.last_frame_time = time.time()
@@ -153,6 +143,18 @@ class Camera:
 
     def set_output_queue(self, camera_output_outgoing: "queue.Queue"):
         self.camera_output_outgoing = camera_output_outgoing
+
+    def set_extra_output_queues(self, queues: list["queue.Queue"] | None) -> None:
+        """Duplicate each captured frame into these queues (BGR numpy frames). Used for dual-eye same physical camera."""
+        self._extra_output_queues = list(queues) if queues else []
+
+    def _is_http_or_file_cached(self, capture_source) -> bool:
+        key = capture_source
+        if self._http_or_file_source_cache is not None and self._http_or_file_source_cache[0] == key:
+            return self._http_or_file_source_cache[1]
+        v = is_http_or_file_video_capture_source(capture_source)
+        self._http_or_file_source_cache = (key, v)
+        return v
 
     def run(self):
         OPENCV_PARAMS = [
@@ -218,7 +220,7 @@ class Camera:
             # Assuming we can access our capture source, wait for another thread to request a capture.
             # Cycle every so often to see if our cancellation token has fired. This basically uses a
             # python event as a context-less, resettable one-shot channel.
-            if should_push and not self.capture_event.wait(timeout=0.001):
+            if should_push and not self.capture_event.wait(timeout=0.05):
                 continue
             if self.config.capture_source != None:
                 addr = str(self.current_capture_source)
@@ -232,7 +234,8 @@ class Camera:
 
     def get_cv2_camera_picture(self, should_push):
         try:
-            if should_push and is_http_or_file_video_capture_source(self.current_capture_source):
+            is_http_or_file = self._is_http_or_file_cached(self.current_capture_source)
+            if should_push and is_http_or_file:
                 now = time.time()
                 last = self._last_cv_cap_frame_time
                 if last > 0.0:
@@ -241,6 +244,9 @@ class Camera:
                         time.sleep(wait)
 
             ret, image = self.cv2_camera.read()
+            if not ret or image is None:
+                self.cv2_camera.set(cv2.CAP_PROP_POS_FRAMES, 0)
+                raise RuntimeError("Problem while getting frame")
             height, width = image.shape[:2]  # Calculate the aspect ratio
             if int(width) > 680:
                 aspect_ratio = float(width) / float(
@@ -248,10 +254,7 @@ class Camera:
                 )  # Determine the new height based on the desired maximum width
                 new_height = int(680 / aspect_ratio)
                 image = cv2.resize(image, (680, new_height))
-            if not ret:
-                self.cv2_camera.set(cv2.CAP_PROP_POS_FRAMES, 0)
-                raise RuntimeError("Problem while getting frame")
-            if should_push and is_http_or_file_video_capture_source(self.current_capture_source):
+            if should_push and is_http_or_file:
                 self._last_cv_cap_frame_time = time.time()
             frame_number = self.cv2_camera.get(cv2.CAP_PROP_POS_FRAMES)
             current_frame_time = time.time()
@@ -364,7 +367,14 @@ class Camera:
             return
         try:
             rate = 115200 if sys.platform == "darwin" else 3000000  # Higher baud rate not working on macOS
-            conn = serial.Serial(baudrate=rate, port=port, xonxoff=False, dsrdtr=False, rtscts=False)
+            conn = serial.Serial(
+                baudrate=rate,
+                port=port,
+                xonxoff=False,
+                dsrdtr=False,
+                rtscts=False,
+                timeout=2.0,
+            )
             # Set explicit buffer size for serial.
             if sys.platform == "win32":
                 buffer_size = 32768
@@ -377,6 +387,19 @@ class Camera:
             print(f"{Fore.CYAN}[INFO] Failed to connect on {port}{Fore.RESET}")
             self.camera_status = CameraState.DISCONNECTED
 
+    def _put_frame_drop_oldest(self, q: "queue.Queue", item: tuple) -> None:
+        try:
+            q.put_nowait(item)
+        except queue.Full:
+            try:
+                q.get_nowait()
+            except queue.Empty:
+                pass
+            try:
+                q.put_nowait(item)
+            except queue.Full:
+                pass
+
     def push_image_to_queue(self, image, frame_number, fps):
         # If there's backpressure, just yell. We really shouldn't have this unless we start getting
         # some sort of capture event conflict though.
@@ -385,5 +408,7 @@ class Camera:
             print(
                 f"{Fore.YELLOW}[WARN] CAPTURE QUEUE BACKPRESSURE OF {qsize}. CHECK FOR CRASH OR TIMING ISSUES IN ALGORITHM.{Fore.RESET}"
             )
-        self.camera_output_outgoing.put((image, frame_number, fps))
+        self._put_frame_drop_oldest(self.camera_output_outgoing, (image, frame_number, fps))
+        for extra_q in self._extra_output_queues:
+            self._put_frame_drop_oldest(extra_q, (image.copy(), frame_number, fps))
         self.capture_event.clear()

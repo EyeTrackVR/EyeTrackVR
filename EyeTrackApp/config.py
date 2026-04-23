@@ -206,6 +206,8 @@ class EyeTrackSettingsConfig(BaseModel):
     ibo_filter_samples: int = 400
     ibo_average_output_samples: int = 0
     ibo_fully_close_eye_threshold: float = 0.3
+    leap_lid_close_threshold: float = 0.1
+    leap_lid_widen_threshold: float = 0.9
     leap_calibration_duration: int = 15
     calibration_duration: int = 15
     osc_right_eye_close_address: str = "/avatar/parameters/RightEyeLidExpandedSqueeze"
@@ -350,15 +352,10 @@ class EyeTrackConfig(BaseModel):
         # make sure this is only called if there is a change
         if os.path.exists(CONFIG_FILE_NAME):
             try:
-                # Verify existing configuration files.
-                with open(CONFIG_FILE_NAME, "r") as settings_file:
-                    EyeTrackConfig(**json.load(settings_file))
                 shutil.copy(CONFIG_FILE_NAME, BACKUP_CONFIG_FILE_NAME)
-                # print("Backed up settings files.") # Comment out because it's too loud.
             except shutil.SameFileError:
                 pass
-            except json.JSONDecodeError:
-                # No backup because the saved settings file is broken.
+            except (OSError, IOError):
                 pass
         with open(CONFIG_FILE_NAME, "w") as settings_file:
             json.dump(obj=self.model_dump(warnings=False), fp=settings_file)

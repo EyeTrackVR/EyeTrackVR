@@ -65,24 +65,34 @@ WINDOW_NAME = "EyeTrackApp"
 
 appversion = "EyeTrackApp 0.2.5.6"
 
+_pywinstyles_mod = None
+
+
 def apply_theme_to_titlebar(win: tk.Misc) -> None:
     """Match the Windows 10/11 caption bar to sv-ttk dark or light (requires pywinstyles on Windows)."""
+    global _pywinstyles_mod
     if not is_nt:
         return
-    try:
-        import pywinstyles
-    except ImportError:
-        print("\033[93m[WARN] pywinstyles not installed; title bar theme skipped.\033[0m")
+    if _pywinstyles_mod is False:
         return
+    if _pywinstyles_mod is None:
+        try:
+            import pywinstyles as _pws
+
+            _pywinstyles_mod = _pws
+        except ImportError:
+            _pywinstyles_mod = False
+            print("\033[93m[WARN] pywinstyles not installed; title bar theme skipped.\033[0m")
+            return
 
     is_dark = sv_ttk.get_theme() == "dark"
     version = sys.getwindowsversion()
 
     if version.major == 10 and version.build >= 22000:
         header = "#1c1c1c" if is_dark else "#fafafa"
-        pywinstyles.change_header_color(win, header)
+        _pywinstyles_mod.change_header_color(win, header)
     elif version.major == 10:
-        pywinstyles.apply_style(win, "dark" if is_dark else "normal")
+        _pywinstyles_mod.apply_style(win, "dark" if is_dark else "normal")
         win.wm_attributes("-alpha", 0.99)
         win.wm_attributes("-alpha", 1)
 
@@ -154,8 +164,6 @@ def main():
     except:
         print("\033[91m[INFO] Could not check for updates. Please try again later.\033[0m")
 
-    timerResolution(True)
-
     osc_queue: queue.Queue[OSCMessage] = queue.Queue(maxsize=10)
 
     eyes = [
@@ -208,6 +216,8 @@ def main():
             self.focus_paused = False
             self.current_page = "tracking"
             self.mode_var = tk.StringVar(value="etvr")
+            self._last_camera_tracking_key = None
+            self._timer_high_res = False
 
             nav = ttk.Frame(self.root)
             nav.pack(fill="x", padx=8, pady=(8, 4))
@@ -346,14 +356,32 @@ def main():
                 for i in range(10):
                     cap = cv2.VideoCapture(i)
                     if cap.isOpened():
-                        ok, _ = cap.read()
-                        if ok:
-                            found.append(i)
+                        found.append(i)
                     cap.release()
                 listing = ", ".join(str(i) for i in found) if found else "none"
                 self.root.after(0, lambda: self.status_var.set(f"Available camera indices: {listing}"))
 
             threading.Thread(target=_scan, daemon=True).start()
+
+        def _camera_tracking_state_key(self, left_source, right_source):
+            if not left_source and not right_source:
+                return ("none",)
+            if left_source and not right_source:
+                return ("left", left_source)
+            if right_source and not left_source:
+                return ("right", right_source)
+            return ("dual", left_source, right_source, left_source == right_source)
+
+        def _sync_timer_resolution(self):
+            active = any(e.started() for e in eyes)
+            if active:
+                if not self._timer_high_res:
+                    timerResolution(True)
+                    self._timer_high_res = True
+            else:
+                if self._timer_high_res:
+                    timerResolution(False)
+                    self._timer_high_res = False
 
         def apply_camera_inputs(self):
             left_source = self._normalize_camera_input(self.left_camera_var.get())
@@ -365,23 +393,48 @@ def main():
             config.left_eye.capture_source = left_source
             config.right_eye.capture_source = right_source
 
+            new_key = self._camera_tracking_state_key(left_source, right_source)
+            if new_key != self._last_camera_tracking_key:
+                eyes[1].stop()
+                eyes[0].stop()
+                self._last_camera_tracking_key = new_key
+
             if left_source and right_source:
-                eyes[0].start()
-                eyes[1].start()
+                shared = left_source == right_source
+                already_running = eyes[0].started() and eyes[1].started()
+                if not already_running:
+                    eyes[0].camera.set_extra_output_queues([])
+                    eyes[1].detach_shared_capture_event()
+                    if shared:
+                        eyes[0].camera.set_extra_output_queues([eyes[1].capture_queue])
+                        eyes[1].capture_event = eyes[0].capture_event
+                        eyes[1].ransac.capture_event = eyes[0].capture_event
+                        eyes[1].uses_shared_capture_event = True
+                        eyes[0].start()
+                        eyes[1].start(run_camera_thread=False)
+                    else:
+                        eyes[0].start()
+                        eyes[1].start()
                 config.settings.tracker_single_eye = 0
                 config.eye_display_id = EyeId.BOTH
                 self.mode_label_var.set("Mode: Dual-eye tracking")
                 self.status_var.set("Tracking both eyes.")
             elif left_source:
-                eyes[0].stop()
-                eyes[1].start()
+                if not eyes[1].started():
+                    eyes[0].camera.set_extra_output_queues([])
+                    eyes[1].detach_shared_capture_event()
+                    eyes[0].stop()
+                    eyes[1].start()
                 config.settings.tracker_single_eye = 1
                 config.eye_display_id = EyeId.LEFT
                 self.mode_label_var.set("Mode: Single-eye (left)")
                 self.status_var.set("Tracking left eye only.")
             elif right_source:
-                eyes[1].stop()
-                eyes[0].start()
+                if not eyes[0].started():
+                    eyes[0].camera.set_extra_output_queues([])
+                    eyes[1].detach_shared_capture_event()
+                    eyes[1].stop()
+                    eyes[0].start()
                 config.settings.tracker_single_eye = 2
                 config.eye_display_id = EyeId.RIGHT
                 self.mode_label_var.set("Mode: Single-eye (right)")
@@ -395,6 +448,7 @@ def main():
                 self.status_var.set("Enter at least one camera source.")
 
             config.save()
+            self._sync_timer_resolution()
 
         def show_page(self, page_name: str):
             self.current_page = page_name
@@ -430,6 +484,7 @@ def main():
                 settings[2].start()
 
             self._sync_nav_buttons()
+            self._sync_timer_resolution()
 
         def gui_off(self):
             config.settings.gui_disable_gui = True
@@ -479,7 +534,8 @@ def main():
                 eye.stop()
             cancellation_event.set()
             osc_manager.shutdown()
-            timerResolution(False)
+            if getattr(self, "_timer_high_res", False):
+                timerResolution(False)
             self.root.destroy()
             os._exit(0)
 

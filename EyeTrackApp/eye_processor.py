@@ -71,6 +71,30 @@ async def delayed_setting_change(setting, value):
     PlaySound(resource_path("Audio/completed.wav"), SND_FILENAME | SND_ASYNC)
 
 
+def remap_leap_lid_openness(raw: float, close_t: float, wide_t: float) -> float:
+    """Remap LEAP lid openness (0 closed .. 1 open): snap closed at/below close_t; cap at 0.75 until wide_t; then map to 0.95 at fully open."""
+    r = float(np.clip(raw, 0.0, 1.0))
+    ct = float(np.clip(close_t, 0.0, 0.99))
+    wt = float(np.clip(wide_t, 0.0, 1.0))
+    if wt <= ct:
+        wt = min(1.0, ct + 1e-3)
+    if r <= ct:
+        return 0.0
+    if r >= 1.0:
+        return 0.95
+    if r >= wt:
+        span = 1.0 - wt
+        if span <= 1e-9:
+            return 0.95
+        t = (r - wt) / span
+        return 0.75 + t * (0.95 - 0.75)
+    span_mid = wt - ct
+    if span_mid <= 1e-9:
+        return 0.0
+    t = (r - ct) / span_mid
+    return float(t * 0.75)
+
+
 class EyeProcessor:
     def __init__(
         self,
@@ -184,9 +208,22 @@ class EyeProcessor:
             beta = 0.9
         noisy_point = np.array([1, 1])
         self.one_euro_filter = OneEuroFilter(noisy_point, min_cutoff=min_cutoff, beta=beta)
+        self._crop_geom_cache_key = None
+        self._crop_matrix = None
+        self._crop_fits_in_bounds = None
+
+    def _needs_gray_clean_copy(self) -> bool:
+        s = self.settings
+        if s.gui_BLINK or s.gui_LEAP or s.gui_LEAP_lid:
+            return True
+        if s.gui_HSRAC or s.gui_AHSFRAC or s.gui_RANSAC3D:
+            return True
+        return False
 
     def output_images_and_update(self, threshold_image, output_information: EyeInfo):
         #  try:  # I do not like this try.
+        if self.image_queue_outgoing.qsize() > 0:
+            return
 
         self.current_image_gray = cv2.resize(self.current_image_gray, (150, 150), interpolation=cv2.INTER_AREA)
         threshold_image = cv2.resize(threshold_image, (150, 150), interpolation=cv2.INTER_AREA)
@@ -223,12 +260,22 @@ class EyeProcessor:
             # fill with avg color + 10.
             # fill with white (self.current_image_white) and average in-bounds color (self.current_image).
 
-            crop_matrix = np.float32([[1, 0, -roi_x], [0, 1, -roi_y], [0, 0, 1]])
-            img_center = (roi_w / 2, roi_h / 2)
+            geom_key = (roi_x, roi_y, roi_w, roi_h, int(self.config.rotation_angle), img_w, img_h)
+            if self._crop_geom_cache_key != geom_key:
+                crop_matrix = np.float32([[1, 0, -roi_x], [0, 1, -roi_y], [0, 0, 1]])
+                img_center = (roi_w / 2, roi_h / 2)
+                rotation_matrix = cv2.getRotationMatrix2D(img_center, self.config.rotation_angle, 1)
+                matrix = np.matmul(rotation_matrix, crop_matrix)
+                inv_matrix = np.linalg.inv(np.vstack((matrix, [0, 0, 1])))[:-1]
+                corners = np.matmul([[0, 0, 1], [roi_w, 0, 1], [0, roi_h, 1], [roi_w, roi_h, 1]], np.transpose(inv_matrix))
+                fits_in_bounds = all(0 <= x <= img_w and 0 <= y <= img_h for (x, y) in corners)
+                self._crop_geom_cache_key = geom_key
+                self._crop_matrix = matrix
+                self._crop_fits_in_bounds = fits_in_bounds
+            else:
+                matrix = self._crop_matrix
+                fits_in_bounds = self._crop_fits_in_bounds
 
-            rotation_matrix = cv2.getRotationMatrix2D(img_center, self.config.rotation_angle, 1)
-
-            matrix = np.matmul(rotation_matrix, crop_matrix)
             self.current_image_white = cv2.warpAffine(
                 self.current_image,
                 matrix,
@@ -237,11 +284,6 @@ class EyeProcessor:
                 borderValue=(255, 255, 255),
             )
 
-            inv_matrix = np.linalg.inv(np.vstack((matrix, [0, 0, 1])))[:-1]
-            # calculate crop corner locations in original image space
-            corners = np.matmul([[0, 0, 1], [roi_w, 0, 1], [0, roi_h, 1], [roi_w, roi_h, 1]], np.transpose(inv_matrix))
-            fits_in_bounds = all(0 <= x <= img_w and 0 <= y <= img_h for (x, y) in corners)
-
             if fits_in_bounds:
                 # crop is entirely within original image bounds so average color and white are identical
                 self.current_image = self.current_image_white
@@ -249,12 +291,13 @@ class EyeProcessor:
 
             # image does not fit in bounds, so warp, calculate average color of covered pixels, and apply that to the outside region.
 
-            # warp image with alpha
-            alpha = np.full(self.current_image.shape[:2], 255, dtype=np.uint8)
-            self.current_image = np.dstack((self.current_image, alpha))
+            # warp image with alpha (use fresh BGR frame; do not mutate the alpha-warp input across calls)
+            bgr = self.current_image
+            alpha = np.full(bgr.shape[:2], 255, dtype=np.uint8)
+            bgra = np.dstack((bgr, alpha))
 
             self.current_image = cv2.warpAffine(
-                self.current_image,
+                bgra,
                 matrix,
                 (roi_w, roi_h),
                 borderMode=cv2.BORDER_CONSTANT,
@@ -307,6 +350,11 @@ class EyeProcessor:
                 self.rawy,
                 self.eyeopen,
             ) = self.er_leap.run(self.current_image_gray, self.current_image_gray_clean, self.calibration_start_time, self.settings.gui_use_gpu)
+            self.eyeopen = remap_leap_lid_openness(
+                self.eyeopen,
+                float(self.settings.leap_lid_close_threshold),
+                float(self.settings.leap_lid_widen_threshold),
+            )
 
         if len(self.prev_y_list) >= 100:  # "lock" eye when close/blink IN TESTING, kinda broke
             self.prev_y_list.pop(0)
@@ -375,7 +423,11 @@ class EyeProcessor:
             self.current_image_gray, self.current_image_gray_clean, self.calibration_start_time, self.settings.gui_use_gpu
         )  # TODO: make own self var and LEAP toggle
         if self.settings.gui_LEAP_lid:
-            self.eyeopen = eyeopen
+            self.eyeopen = remap_leap_lid_openness(
+                eyeopen,
+                float(self.settings.leap_lid_close_threshold),
+                float(self.settings.leap_lid_widen_threshold),
+            )
         self.thresh = self.current_image_gray.copy()
         # todo: lorow, fix this as well
         self.out_x, self.out_y, self.avg_velocity = cal.cal_osc(self, self.rawx, self.rawy, self.angle)
@@ -742,13 +794,10 @@ class EyeProcessor:
                 continue
 
             self.current_image_gray = cv2.cvtColor(self.current_image, cv2.COLOR_BGR2GRAY)
-            # Only copy if we are using an algorithm that might modify current_image_gray
-            # and we need a clean version for others.
-            # Currently LEAP and HSF seem to use it.
-            # RANSAC and BLINK use current_image_gray_clean.
-            self.current_image_gray_clean = (
-                self.current_image_gray.copy()
-            )  # copy this frame to have a clean image for blink algo
+            if self._needs_gray_clean_copy():
+                self.current_image_gray_clean = self.current_image_gray.copy()
+            else:
+                self.current_image_gray_clean = self.current_image_gray
 
             if self.cancellation_event.is_set():
                 print("\033[94m[INFO] Exiting Tracking thread\033[0m")

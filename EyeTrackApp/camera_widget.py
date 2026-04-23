@@ -24,7 +24,6 @@ LICENSE: Babble Software Distribution License 1.0
 ------------------------------------------------------------------------------------------------------
 """
 
-import base64
 import tkinter as tk
 from tkinter import ttk
 from config import EyeTrackConfig
@@ -40,6 +39,7 @@ import cv2
 from osc.OSCMessage import OSCMessageType, OSCMessage
 from utils.misc_utils import PlaySound, SND_FILENAME, SND_ASYNC, resource_path
 import numpy as np
+from PIL import Image, ImageTk
 
 
 # for clarity when indexing
@@ -89,10 +89,11 @@ class CameraWidget:
         # Set the event until start is called, otherwise we can block if shutdown is called.
         self.cancellation_event.set()
         self.capture_event = Event()
-        self.capture_queue = Queue()
-        self.roi_queue = Queue()
+        self.capture_queue = Queue(maxsize=2)
+        self.roi_queue = Queue(maxsize=2)
 
-        self.image_queue = Queue()
+        self.image_queue = Queue(maxsize=2)
+        self.uses_shared_capture_event = False
 
         self.ransac = EyeProcessor(
             self.config,
@@ -139,6 +140,15 @@ class CameraWidget:
         self._tracking_photo = None
         self._roi_photo = None
         self.frame = None
+        self._config_save_after_id = None
+        self._last_fps_readout = ""
+        self._last_bps_readout = ""
+        self._last_mode_readout = ""
+        self._last_calibration_btn_text = None
+        self._viz_item_ids = None
+        self._roi_canvas_image_id = None
+        self._roi_overlay_tag = "roi_overlay"
+        self.camera_thread: Thread | None = None
 
     def build(self, parent, show_camera_controls=True):
         self.frame = ttk.Frame(parent)
@@ -252,74 +262,92 @@ class CameraWidget:
             self._mode_tracking_btn.configure(style="Accent.TButton")
             self._mode_roi_btn.configure(style="TButton")
 
-    @staticmethod
-    def _encode_bgr_as_png(image: np.ndarray) -> bytes | None:
-        """PNG bytes for Tk PhotoImage (-data expects base64 of file payload; Tcl 9 rejects some PPM)."""
+    def _tk_photo_from_bgr(self, image: np.ndarray, master: tk.Misc) -> ImageTk.PhotoImage | None:
         if image is None or image.size == 0 or image.shape[0] < 1 or image.shape[1] < 1:
             return None
-        if image.ndim == 2:
-            image = cv2.cvtColor(image, cv2.COLOR_GRAY2BGR)
-        elif image.ndim == 3 and image.shape[2] == 4:
-            image = cv2.cvtColor(image, cv2.COLOR_BGRA2BGR)
-        elif image.ndim != 3 or image.shape[2] != 3:
-            return None
-        ok, buf = cv2.imencode(".png", image, (cv2.IMWRITE_PNG_COMPRESSION, 3))
-        if not ok or buf is None or len(buf) == 0:
-            return None
-        return buf.tobytes()
-
-    def _tk_photo_from_bgr(self, image: np.ndarray, master: tk.Misc) -> tk.PhotoImage | None:
-        png_bytes = self._encode_bgr_as_png(image)
-        if not png_bytes:
-            return None
-        data = base64.b64encode(png_bytes).decode("ascii")
         try:
-            return tk.PhotoImage(master=master, data=data, format="png")
-        except tk.TclError:
+            if image.ndim == 2:
+                pil_img = Image.fromarray(image, mode="L").convert("RGB")
+            elif image.ndim == 3 and image.shape[2] == 4:
+                bgr = cv2.cvtColor(image, cv2.COLOR_BGRA2BGR)
+                rgb = cv2.cvtColor(bgr, cv2.COLOR_BGR2RGB)
+                pil_img = Image.fromarray(rgb)
+            elif image.ndim == 3 and image.shape[2] == 3:
+                rgb = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+                pil_img = Image.fromarray(rgb)
+            else:
+                return None
+            return ImageTk.PhotoImage(pil_img, master=master)
+        except (ValueError, TypeError, tk.TclError):
             return None
 
-    def _draw_output_visualization(self, eye_info: EyeInfo) -> None:
-        """Dark-mode compact gaze dot + vertical blink bar (right)."""
+    def _ensure_output_viz_canvas_items(self) -> None:
+        if self._viz_item_ids is not None:
+            return
         c = self.output_canvas
         W, H = self._viz_canvas_w, self._viz_canvas_h
-        pad = self._viz_pad
-        G = self._viz_gaze
-        gap = self._viz_gaze_gap
-        bw = self._viz_blink_w
-
+        fail_bg = "#3a2428"
+        fail_fg = "#ff9aaa"
         bg = "#1e1f23"
         panel = "#2a2c33"
         panel_border = "#454859"
         cross = "#3d4049"
         track_fill = "#32353d"
         track_border = "#4a4e5c"
-        blink_fill = "#c4a5ff"
+        blink_fill_col = "#c4a5ff"
         tick = "#6d7285"
         dot = "#f4f2ff"
-        fail_bg = "#3a2428"
-        fail_fg = "#ff9aaa"
-
-        c.delete("all")
+        ring_col = "#b49cff"
         c.configure(bg=bg)
+        self._viz_item_ids = {
+            "fail_bg": c.create_rectangle(0, 0, W, H, outline="", fill=fail_bg, tags="viz_fail"),
+            "fail_txt": c.create_text(W // 2, H // 2, text="No track", fill=fail_fg, font=("Segoe UI", 9), tags="viz_fail"),
+            "bg": c.create_rectangle(0, 0, W, H, outline="", fill=bg, tags="viz_main"),
+            "panel": c.create_rectangle(0, 0, 0, 0, outline=panel_border, width=1, fill=panel, tags="viz_main"),
+            "cross_v": c.create_line(0, 0, 0, 0, fill=cross, width=1, tags="viz_main"),
+            "cross_h": c.create_line(0, 0, 0, 0, fill=cross, width=1, tags="viz_main"),
+            "ring": c.create_oval(0, 0, 0, 0, outline=ring_col, width=2, fill="", tags="viz_main"),
+            "dot": c.create_oval(0, 0, 0, 0, fill=dot, outline=dot, tags="viz_main"),
+            "blink_track": c.create_rectangle(0, 0, 0, 0, outline=track_border, width=1, fill=track_fill, tags="viz_main"),
+            "blink_bar": c.create_rectangle(0, 0, 0, 0, fill=blink_fill_col, outline="", tags="viz_main", state="hidden"),
+            "tick_t": c.create_line(0, 0, 0, 0, fill=tick, width=1, tags="viz_main"),
+            "tick_b": c.create_line(0, 0, 0, 0, fill=tick, width=1, tags="viz_main"),
+        }
+        c.itemconfigure("viz_fail", state="hidden")
+
+    def _draw_output_visualization(self, eye_info: EyeInfo) -> None:
+        """Dark-mode compact gaze dot + vertical blink bar (right)."""
+        self._ensure_output_viz_canvas_items()
+        c = self.output_canvas
+        ids = self._viz_item_ids
+        W, H = self._viz_canvas_w, self._viz_canvas_h
+        pad = self._viz_pad
+        G = self._viz_gaze
+        gap = self._viz_gaze_gap
+        bw = self._viz_blink_w
 
         if eye_info.info_type == EyeInfoOrigin.FAILURE:
-            c.create_rectangle(0, 0, W, H, outline="", fill=fail_bg)
-            c.create_text(W // 2, H // 2, text="No track", fill=fail_fg, font=("Segoe UI", 9))
+            c.itemconfigure("viz_main", state="hidden")
+            c.coords(ids["fail_bg"], 0, 0, W, H)
+            c.coords(ids["fail_txt"], W // 2, H // 2)
+            c.itemconfigure("viz_fail", state="normal")
             return
+
+        c.itemconfigure("viz_fail", state="hidden")
+        c.itemconfigure("viz_main", state="normal")
 
         gx0, gy0 = pad, pad
         bx0 = gx0 + G + gap
         by0, bh = gy0, G
 
-        c.create_rectangle(0, 0, W, H, outline="", fill=bg)
-        c.create_rectangle(gx0, gy0, gx0 + G, gy0 + G, outline=panel_border, width=1, fill=panel)
+        c.coords(ids["bg"], 0, 0, W, H)
+        c.coords(ids["panel"], gx0, gy0, gx0 + G, gy0 + G)
 
         gc_x = gx0 + G // 2
         gc_y = gy0 + G // 2
-        c.create_line(gc_x, gy0 + 5, gc_x, gy0 + G - 5, fill=cross, width=1)
-        c.create_line(gx0 + 5, gc_y, gx0 + G - 5, gc_y, fill=cross, width=1)
+        c.coords(ids["cross_v"], gc_x, gy0 + 5, gc_x, gy0 + G - 5)
+        c.coords(ids["cross_h"], gx0 + 5, gc_y, gx0 + G - 5, gc_y)
 
-        # Normalized gaze is often small (±0.05); amplify for on-screen motion (OSC still uses true values).
         half = max(12.0, (G / 2) - 10.0)
         gaze_gain = 2.75
         if not np.isnan(eye_info.x) and not np.isnan(eye_info.y):
@@ -332,7 +360,6 @@ class CameraWidget:
         cx = int(np.clip(cx, gx0 + margin, gx0 + G - margin))
         cy = int(np.clip(cy, gy0 + margin, gy0 + G - margin))
 
-        # Pupil size: ring radius from dilation (same idea as legacy oval, but ring + center dot)
         if not np.isnan(eye_info.pupil_dilation):
             pd = float(np.clip(eye_info.pupil_dilation, 0.0, 1.5))
         else:
@@ -340,24 +367,26 @@ class CameraWidget:
         r_ring = int(round(7 + pd * 34))
         r_max = min(cx - gx0, gx0 + G - cx, cy - gy0, gy0 + G - cy) - 2
         r_ring = min(r_ring, max(8, r_max))
-        ring_col = "#b49cff"
-        c.create_oval(cx - r_ring, cy - r_ring, cx + r_ring, cy + r_ring, outline=ring_col, width=2, fill="")
+        c.coords(ids["ring"], cx - r_ring, cy - r_ring, cx + r_ring, cy + r_ring)
 
         r = 5
-        c.create_oval(cx - r, cy - r, cx + r, cy + r, fill=dot, outline=dot)
+        c.coords(ids["dot"], cx - r, cy - r, cx + r, cy + r)
 
         inset = 3
-        c.create_rectangle(bx0, by0, bx0 + bw, by0 + bh, outline=track_border, width=1, fill=track_fill)
+        c.coords(ids["blink_track"], bx0, by0, bx0 + bw, by0 + bh)
         if not np.isnan(eye_info.blink):
             b = float(np.clip(eye_info.blink, 0.0, 1.0))
             inner_h = bh - inset * 2
             fill_h = max(2, int(round(b * inner_h)))
             y_top = by0 + bh - inset - fill_h
             y_bot = by0 + bh - inset
-            c.create_rectangle(bx0 + inset, y_top, bx0 + bw - inset, y_bot, fill=blink_fill, outline="")
+            c.coords(ids["blink_bar"], bx0 + inset, y_top, bx0 + bw - inset, y_bot)
+            c.itemconfigure(ids["blink_bar"], state="normal")
+        else:
+            c.itemconfigure(ids["blink_bar"], state="hidden")
 
-        c.create_line(bx0 + bw // 2 - 4, by0 + inset, bx0 + bw // 2 + 4, by0 + inset, fill=tick, width=1)
-        c.create_line(bx0 + bw // 2 - 4, by0 + bh - inset, bx0 + bw // 2 + 4, by0 + bh - inset, fill=tick, width=1)
+        c.coords(ids["tick_t"], bx0 + bw // 2 - 4, by0 + inset, bx0 + bw // 2 + 4, by0 + inset)
+        c.coords(ids["tick_b"], bx0 + bw // 2 - 4, by0 + bh - inset, bx0 + bw // 2 + 4, by0 + bh - inset)
 
     def _set_tracking_mode(self):
         print("\033[94m[INFO] Moving to tracking mode\033[0m")
@@ -397,14 +426,41 @@ class CameraWidget:
         self.ransac.calibration_start_time = None
         self._sync_calibration_toggle_button()
 
+    def detach_shared_capture_event(self) -> None:
+        if not self.uses_shared_capture_event:
+            return
+        ev = Event()
+        self.capture_event = ev
+        self.ransac.capture_event = ev
+        self.uses_shared_capture_event = False
+
+    def _schedule_main_config_save(self) -> None:
+        if self.frame is None:
+            return
+        top = self.frame.winfo_toplevel()
+        if self._config_save_after_id is not None:
+            try:
+                top.after_cancel(self._config_save_after_id)
+            except tk.TclError:
+                pass
+
+        def _flush():
+            self._config_save_after_id = None
+            self.main_config.save()
+
+        self._config_save_after_id = top.after(450, _flush)
+
     def _sync_calibration_toggle_button(self) -> None:
         btn = getattr(self, "_calibration_toggle_btn", None)
         if btn is None:
             return
         if self.ransac.calibration_start_time is not None:
-            btn.configure(text="Stop Calibration")
+            text = "Stop Calibration"
         else:
-            btn.configure(text="Start Calibration")
+            text = "Start Calibration"
+        if text != self._last_calibration_btn_text:
+            self._last_calibration_btn_text = text
+            btn.configure(text=text)
 
     def _on_calibration_toggle(self) -> None:
         if self.ransac.calibration_start_time is not None:
@@ -436,7 +492,7 @@ class CameraWidget:
             xy0, xy1 = self._polar_to_cartesian_at_angle(0)
             self.config.roi_window_x, self.config.roi_window_y = (np.minimum(xy0, xy1) - self.img_pos).tolist()
             self.config.roi_window_w, self.config.roi_window_h = (np.abs(xy0 - xy1)).tolist()
-            self.main_config.save()
+            self._schedule_main_config_save()
 
     def _on_roi_mouse_move(self, event):
         if not self.is_mouse_up:
@@ -479,23 +535,30 @@ class CameraWidget:
     def started(self):
         return not self.cancellation_event.is_set()
 
-    def start(self):
+    def start(self, run_camera_thread: bool = True):
         # If we're already running, bail
         if not self.cancellation_event.is_set():
             return
         self.cancellation_event.clear()
         self.ransac_thread = Thread(target=self.ransac.run)
         self.ransac_thread.start()
-        self.camera_thread = Thread(target=self.camera.run)
-        self.camera_thread.start()
+        if run_camera_thread:
+            self.camera_thread = Thread(target=self.camera.run)
+            self.camera_thread.start()
+        else:
+            self.camera_thread = None
 
     def stop(self):
         # If we're not running yet, bail
         if self.cancellation_event.is_set():
             return
+        self.detach_shared_capture_event()
+        self.camera.set_extra_output_queues([])
         self.cancellation_event.set()
         self.ransac_thread.join()
-        self.camera_thread.join()
+        if self.camera_thread is not None:
+            self.camera_thread.join()
+            self.camera_thread = None
 
     def on_config_update(self, data):
         keys = set(data.keys())
@@ -548,30 +611,40 @@ class CameraWidget:
             #    changed = True
 
             if changed:
-                self.main_config.save()
+                self._schedule_main_config_save()
 
             needs_roi_set = self.config.roi_window_h <= 0 or self.config.roi_window_w <= 0
 
-            # TODO: Refactor if statements below...
-            self.fps_var.set("")
-            self.bps_var.set("")
+            mode_readout = ""
+            fps_readout = ""
+            bps_readout = ""
             if self.config.capture_source is None or self.config.capture_source == "":
-                self.mode_var.set("Waiting for camera address")
+                mode_readout = "Waiting for camera address"
                 self.roi_message_label.pack_forget()
                 self.output_canvas.pack_forget()
             elif self.camera.camera_status == CameraState.CONNECTING:
-                self.mode_var.set("Camera Connecting")
+                mode_readout = "Camera Connecting"
             elif self.camera.camera_status == CameraState.DISCONNECTED:
-                self.mode_var.set("Camera Reconnecting...")
+                mode_readout = "Camera Reconnecting..."
 
             elif needs_roi_set:
-                self.mode_var.set("Awaiting Eye Crop")
+                mode_readout = "Awaiting Eye Crop"
             elif self.ransac.calibration_start_time != None:
-                self.mode_var.set("Calibration")
+                mode_readout = "Calibration"
             else:
-                self.mode_var.set("Tracking")
-                self.fps_var.set(self._movavg_fps(self.camera.fps))
-                self.bps_var.set(self._movavg_bps(self.camera.bps))
+                mode_readout = "Tracking"
+                fps_readout = self._movavg_fps(self.camera.fps)
+                bps_readout = self._movavg_bps(self.camera.bps)
+
+            if mode_readout != self._last_mode_readout:
+                self._last_mode_readout = mode_readout
+                self.mode_var.set(mode_readout)
+            if fps_readout != self._last_fps_readout:
+                self._last_fps_readout = fps_readout
+                self.fps_var.set(fps_readout)
+            if bps_readout != self._last_bps_readout:
+                self._last_bps_readout = bps_readout
+                self.bps_var.set(bps_readout)
 
             self._sync_calibration_toggle_button()
 
@@ -657,11 +730,23 @@ class CameraWidget:
 
                         maybe_image = (image, *maybe_image[1:])
 
+                        ps = tuple(int(x) for x in self.padded_size)
+                        if getattr(self, "_last_roi_padded_size", None) != ps:
+                            self.roi_canvas.delete("all")
+                            self._roi_canvas_image_id = None
+                            self._last_roi_padded_size = ps
+                        else:
+                            self.roi_canvas.delete(self._roi_overlay_tag)
+
                         photo = self._tk_photo_from_bgr(maybe_image[0], self.roi_canvas)
                         if photo is not None:
                             self._roi_photo = photo
-                            self.roi_canvas.delete("all")
-                            self.roi_canvas.create_image(0, 0, image=self._roi_photo, anchor="nw")
+                            if self._roi_canvas_image_id is None:
+                                self._roi_canvas_image_id = self.roi_canvas.create_image(
+                                    0, 0, image=self._roi_photo, anchor="nw"
+                                )
+                            else:
+                                self.roi_canvas.itemconfigure(self._roi_canvas_image_id, image=self._roi_photo)
 
                         if self.xy0 is None or self.xy1 is None:
                             # roi_window rotates around roi center, we rotate around image center
@@ -682,13 +767,24 @@ class CameraWidget:
                                 int(self.xy1[X]),
                                 int(self.xy1[Y]),
                                 outline=color,
+                                tags=self._roi_overlay_tag,
                             )
                         if self.is_mouse_up and self.hover_pos is not None:
                             self.roi_canvas.create_line(
-                                int(self.hover_pos[X]), 0, int(self.hover_pos[X]), int(self.padded_size[Y]), fill="#ffffff"
+                                int(self.hover_pos[X]),
+                                0,
+                                int(self.hover_pos[X]),
+                                int(self.padded_size[Y]),
+                                fill="#ffffff",
+                                tags=self._roi_overlay_tag,
                             )
                             self.roi_canvas.create_line(
-                                0, int(self.hover_pos[Y]), int(self.padded_size[X]), int(self.hover_pos[Y]), fill="#ffffff"
+                                0,
+                                int(self.hover_pos[Y]),
+                                int(self.padded_size[X]),
+                                int(self.hover_pos[Y]),
+                                fill="#ffffff",
+                                tags=self._roi_overlay_tag,
                             )
                 finally:
                     # Pace the capture thread to the GUI tick; only the ROI branch should signal while in ROI mode.

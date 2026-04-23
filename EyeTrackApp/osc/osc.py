@@ -55,10 +55,25 @@ class OSCManager:
         self.osc_receiver = None
         self.osc_sender_thread: Optional[threading.Thread] = None
         self.osc_receiver_thread: Optional[threading.Thread] = None
+        self._last_sender_sig: tuple | None = None
+        self._last_receiver_sig: tuple | None = None
 
     def start(self):
         self.setup_sender()
         self.setup_receiver()
+
+    def _sender_signature(self) -> tuple:
+        s = self.settings
+        return (
+            int(s.gui_osc_port),
+            str(s.gui_VRCFTModuleIPAddress).strip(),
+            int(s.gui_VRCFTModulePort),
+            bool(s.gui_use_module),
+        )
+
+    def _receiver_signature(self) -> tuple:
+        s = self.settings
+        return (bool(s.gui_ROSC), int(s.gui_osc_receiver_port), str(s.gui_osc_address).strip())
 
     def setup_sender(self):
         print(f"\033[92m[INFO] Setting up OSC sender\033[0m")
@@ -66,6 +81,7 @@ class OSCManager:
         self.osc_sender = OSCSender(self.sender_cancellation_event, self.osc_message_in_queue, self.config)
         self.osc_sender_thread = threading.Thread(target=self.osc_sender.run)
         self.osc_sender_thread.start()
+        self._last_sender_sig = self._sender_signature()
 
     def setup_receiver(self):
         if self.settings.gui_ROSC:
@@ -74,6 +90,10 @@ class OSCManager:
             self.osc_receiver = OSCReceiver(self.receiver_cancellation_event, self.config, self.listeners)
             self.osc_receiver_thread = threading.Thread(target=self.osc_receiver.run)
             self.osc_receiver_thread.start()
+        else:
+            self.osc_receiver = None
+            self.osc_receiver_thread = None
+        self._last_receiver_sig = self._receiver_signature()
 
     def register_listeners(self, osc_address: str, callbacks: Iterable[Callable]):
         if not self.listeners.get(osc_address):
@@ -90,16 +110,21 @@ class OSCManager:
             "gui_use_module",
         }
         if sender_trigger_keys.intersection(keys):
-            self.stop_sender()
-            self.setup_sender()
+            new_sig = self._sender_signature()
+            if new_sig != self._last_sender_sig:
+                self.stop_sender()
+                self.setup_sender()
 
         receiver_trigger_keys = {
             "gui_ROSC",
             "gui_osc_receiver_port",
+            "gui_osc_address",
         }
         if receiver_trigger_keys.intersection(keys):
-            self.stop_receiver()
-            self.setup_receiver()
+            new_r = self._receiver_signature()
+            if new_r != self._last_receiver_sig:
+                self.stop_receiver()
+                self.setup_receiver()
 
     def shutdown(self):
         self.stop_sender()

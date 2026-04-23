@@ -1,4 +1,5 @@
 from datetime import datetime, timedelta
+import time
 from typing import Iterable
 
 import tkinter as tk
@@ -21,6 +22,10 @@ class BaseSettingsWidget:
         self.cancellation_event = Event()
         self.cancellation_event.set()
         self.frame = None
+        self._settings_render_interval_s = 0.2
+        self._last_settings_render_mono = 0.0
+        self._pending_validated: dict | None = None
+        self._config_save_after_id = None
 
     def started(self):
         return not self.cancellation_event.is_set()
@@ -39,6 +44,33 @@ class BaseSettingsWidget:
         self.main_config.update(validated_data, save=True)
         self.is_saving = False
 
+    def _cancel_debounced_settings_save(self):
+        if self._config_save_after_id is not None and self.frame is not None:
+            try:
+                self.frame.winfo_toplevel().after_cancel(self._config_save_after_id)
+            except tk.TclError:
+                pass
+        self._config_save_after_id = None
+        self._pending_validated = None
+
+    def _schedule_debounced_settings_save(self, validated_data: dict):
+        self._pending_validated = {**(self._pending_validated or {}), **validated_data}
+        if self.frame is None:
+            return
+        top = self.frame.winfo_toplevel()
+        if self._config_save_after_id is not None:
+            top.after_cancel(self._config_save_after_id)
+
+        def _flush():
+            self._config_save_after_id = None
+            pending = self._pending_validated
+            self._pending_validated = None
+            if pending:
+                self.is_saving = True
+                self._update_and_save_config(pending)
+
+        self._config_save_after_id = top.after(450, _flush)
+
     def _handle_errors(self, errors):
         now = datetime.now()
         elapsed_seconds = (datetime.now() - self.last_error_printout).seconds
@@ -54,6 +86,11 @@ class BaseSettingsWidget:
         return values
 
     def render_tick(self):
+        now = time.monotonic()
+        if now - self._last_settings_render_mono < self._settings_render_interval_s:
+            return
+        self._last_settings_render_mono = now
+
         values = self._collect_values()
         validated_data, errors = {}, []
         for module in self.initialized_modules:
@@ -62,11 +99,11 @@ class BaseSettingsWidget:
                 validated_data.update(module_validated_data.changes)
             if module_validated_data.errors:
                 errors.append(module_validated_data.errors)
-        if not errors and validated_data and not self.is_saving:
-            self.is_saving = True
-            self._update_and_save_config(validated_data)
         if errors:
+            self._cancel_debounced_settings_save()
             self._handle_errors(errors)
+        elif validated_data and not self.is_saving:
+            self._schedule_debounced_settings_save(validated_data)
 
     def _initialize_modules(self, settings_modules, widget_id):
         return [module(config=self.config, settings=self.main_config, widget_id=widget_id) for module in settings_modules]
@@ -108,4 +145,6 @@ class BaseSettingsWidget:
                 if widget_key in module.tk_vars:
                     module.tk_vars[widget_key].set(default_val)
         print(f"\033[92m[INFO] Config reset, saving\033[0m")
+        self._cancel_debounced_settings_save()
+        self.is_saving = True
         self._update_and_save_config(default_values)

@@ -23,6 +23,8 @@ class OutputType(IntEnum):
 
 class VRChatOSCSender:
     def __init__(self):
+        self._osc_output_sig = None
+        self._cached_output_method = None
         self.is_single_eye = False
         self.falloff_enabled = False
         self.left_y = 621
@@ -48,15 +50,18 @@ class VRChatOSCSender:
         eye_id, eye_info = osc_message.data
         self.is_single_eye = self.get_is_single_eye(main_config.eye_display_id)
 
-
-        output_method = None
-
-        if config.gui_vrc_native:
-            output_method = self.output_native
-        if config.gui_osc_vrcft_v1:
-            output_method = self.output_v1_params
-        if config.gui_osc_vrcft_v2:
-            output_method = self.output_v2_params
+        sig = (bool(config.gui_vrc_native), bool(config.gui_osc_vrcft_v1), bool(config.gui_osc_vrcft_v2))
+        if sig != self._osc_output_sig:
+            self._osc_output_sig = sig
+            output_method = None
+            if config.gui_vrc_native:
+                output_method = self.output_native
+            if config.gui_osc_vrcft_v1:
+                output_method = self.output_v1_params
+            if config.gui_osc_vrcft_v2:
+                output_method = self.output_v2_params
+            self._cached_output_method = output_method
+        output_method = self._cached_output_method
 
         if output_method:
             output_method(
