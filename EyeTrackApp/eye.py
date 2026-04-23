@@ -41,7 +41,6 @@ class EyeId(IntEnum):
 
 class EyeInfoOrigin(Enum):
     RANSAC = 1
-    BLOB = 2
     FAILURE = 3
     HSF = 4
     HSRAC = 5

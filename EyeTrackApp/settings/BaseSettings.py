@@ -35,9 +35,44 @@ class BaseSettingsWidget:
             return
         self.cancellation_event.clear()
 
+    def flush_pending_save(self) -> None:
+        """Cancel debounce timer, merge pending edits with current UI, and save immediately.
+        Call when leaving a settings tab so changes are not lost to throttling or after()."""
+        if self._config_save_after_id is not None and self.frame is not None:
+            try:
+                self.frame.winfo_toplevel().after_cancel(self._config_save_after_id)
+            except tk.TclError:
+                pass
+        self._config_save_after_id = None
+
+        if self.frame is None:
+            self._pending_validated = None
+            return
+
+        values = self._collect_values()
+        validated_data: dict = {}
+        errors = []
+        for module in self.initialized_modules:
+            module_validated_data = module.validate(values)
+            if module_validated_data.changes:
+                validated_data.update(module_validated_data.changes)
+            if module_validated_data.errors:
+                errors.append(module_validated_data.errors)
+
+        merged = {**(self._pending_validated or {}), **validated_data}
+        self._pending_validated = None
+
+        if errors:
+            self._handle_errors(errors)
+            return
+        if merged:
+            self.is_saving = True
+            self._update_and_save_config(merged)
+
     def stop(self):
         if self.cancellation_event.is_set():
             return
+        self.flush_pending_save()
         self.cancellation_event.set()
 
     def _update_and_save_config(self, validated_data: dict):
@@ -102,7 +137,7 @@ class BaseSettingsWidget:
         if errors:
             self._cancel_debounced_settings_save()
             self._handle_errors(errors)
-        elif validated_data and not self.is_saving:
+        elif validated_data:
             self._schedule_debounced_settings_save(validated_data)
 
     def _initialize_modules(self, settings_modules, widget_id):

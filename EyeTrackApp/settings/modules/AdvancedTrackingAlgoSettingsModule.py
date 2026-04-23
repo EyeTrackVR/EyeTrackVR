@@ -6,13 +6,10 @@ from tkinter import ttk
 class AdvancedTrackingAlgoSettingsValidationModel(BaseValidationModel):
     gui_HSF_radius_left: int
     gui_HSF_radius_right: int
-    gui_blob_maxsize: int
-    gui_blob_minsize: int
     gui_legacy_ransac_thresh_left: int
     gui_legacy_ransac_thresh_right: int
     gui_skip_autoradius: bool
     gui_thresh_add: int
-    gui_threshold: int
     gui_pupil_dilation: bool
 
 
@@ -21,11 +18,8 @@ class AdvancedTrackingAlgoSettingsModule(BaseSettingsModule):
         super().__init__(config=config, widget_id=widget_id, **kwargs)
         self.validation_model = AdvancedTrackingAlgoSettingsValidationModel
 
-        self.gui_blob_maxsize = f"-BLOBMAXSIZE{widget_id}-"
-        self.gui_blob_minsize = f"-BLOBMINSIZE{widget_id}-"
         self.gui_skip_autoradius = f"-SKIPAUTORADIUS{widget_id}-"
         self.gui_thresh_add = f"-THRESHADD{widget_id}-"
-        self.gui_threshold = f"-BLOBTHRESHOLD{widget_id}-"
         self.gui_HSF_radius_left = f"-HSFRADIUSLEFT{widget_id}-"
         self.gui_HSF_radius_right = f"-HSFRADIUSRIGHT{widget_id}-"
 
@@ -69,9 +63,6 @@ class AdvancedTrackingAlgoSettingsModule(BaseSettingsModule):
             ("Left HSF Radius", self.gui_HSF_radius_left, self.config.gui_HSF_radius_left, 1, 50),
             ("Right HSF Radius", self.gui_HSF_radius_right, self.config.gui_HSF_radius_right, 1, 50),
             ("RANSAC Thresh Add", self.gui_thresh_add, self.config.gui_thresh_add, 1, 50),
-            ("Blob Threshold", self.gui_threshold, self.config.gui_threshold, 0, 110),
-            ("Min Blob Size", self.gui_blob_minsize, self.config.gui_blob_minsize, 1, 50),
-            ("Max Blob Size", self.gui_blob_maxsize, self.config.gui_blob_maxsize, 1, 50),
             ("Right Eye Thresh", self.gui_legacy_ransac_thresh_right, self.config.gui_legacy_ransac_thresh_right, 1, 120),
             ("Left Eye Thresh", self.gui_legacy_ransac_thresh_left, self.config.gui_legacy_ransac_thresh_left, 1, 120),
         ]

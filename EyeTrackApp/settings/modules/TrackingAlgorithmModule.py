@@ -4,7 +4,6 @@ from tkinter import ttk
 
 
 class TrackingAlgorithmValidationModel(BaseValidationModel):
-    gui_BLOB: bool
     gui_DADDY: bool
     gui_HSF: bool
     gui_HSRAC: bool
@@ -19,7 +18,6 @@ class TrackingAlgorithmModule(BaseSettingsModule):
     def __init__(self, config, widget_id, **kwargs):
         super().__init__(config=config, widget_id=widget_id, **kwargs)
         self.validation_model = TrackingAlgorithmValidationModel
-        self.gui_BLOB = f"-BLOBFALLBACK{widget_id}-"
         self.gui_DADDY = f"-DADDY{widget_id}-"
         self.gui_HSF = f"-HSF{widget_id}-"
         self.gui_HSRAC = f"-HSRAC{widget_id}-"
@@ -37,7 +35,6 @@ class TrackingAlgorithmModule(BaseSettingsModule):
             ("HSRAC", "hsrac", self.gui_HSRAC, "gui_HSRAC"),
             ("HSF", "hsf", self.gui_HSF, "gui_HSF"),
             ("RANSAC 3D", "ransac3d", self.gui_RANSAC3D, "gui_RANSAC3D"),
-            ("Blob", "blob", self.gui_BLOB, "gui_BLOB"),
         ]
 
     def build(self, parent):

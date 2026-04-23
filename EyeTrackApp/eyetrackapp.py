@@ -63,7 +63,7 @@ WINDOW_NAME = "EyeTrackApp"
 
 
 
-appversion = "EyeTrackApp 0.2.5.6"
+appversion = "EyeTrackApp 0.2.6"
 
 _pywinstyles_mod = None
 

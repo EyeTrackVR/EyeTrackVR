@@ -40,7 +40,6 @@ from osc_calibrate_filter import *
 from daddy import External_Run_DADDY
 from leap import External_Run_LEAP
 from haar_surround_feature import External_Run_HSF
-from blob import *
 from ransac import *
 from blink import *
 from utils.img_utils import circle_crop
@@ -584,24 +583,6 @@ class EyeProcessor:
         self.out_x, self.out_y, self.avg_velocity = cal.cal_osc(self, self.rawx, self.rawy, self.angle)
         self.current_algorithm = EyeInfoOrigin.HSF
 
-    def BLOBM(self):
-        if self.eye_id in [EyeId.LEFT] and self.settings.gui_circular_crop_left:
-            self.current_image_gray, self.cct = circle_crop(
-                self.current_image_gray, self.xc, self.yc, self.cc_radius, self.cct
-            )
-        else:
-            pass
-        if self.eye_id in [EyeId.RIGHT] and self.settings.gui_circular_crop_right:
-            self.current_image_gray, self.cct = circle_crop(
-                self.current_image_gray, self.xc, self.yc, self.cc_radius, self.cct
-            )
-        else:
-            pass
-        self.rawx, self.rawy, self.thresh = BLOB(self)
-
-        self.out_x, self.out_y, self.avg_velocity = cal.cal_osc(self, self.rawx, self.rawy, self.angle)
-        self.current_algorithm = EyeInfoOrigin.BLOB
-
     def ALGOSELECT(self):
         # send the tracking algos previous fail number, in algo if we pass set to 0, if fail, + 1
         if self.failed == 0 and self.firstalgo != None:
@@ -730,9 +711,6 @@ class EyeProcessor:
 
         if self.settings.gui_RANSAC3D:
             enabled_algorithms.append(self.RANSAC3DM)
-
-        if self.settings.gui_BLOB:
-            enabled_algorithms.append(self.BLOBM)
 
         for idx, algo in enumerate(enabled_algorithms[:8]):
             algolist[idx] = algo
