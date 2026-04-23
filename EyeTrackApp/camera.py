@@ -76,6 +76,40 @@ def is_serial_capture_source(addr: str) -> bool:
     )
 
 
+# Cap decode rate for sources that can deliver unbounded frames per wall second (files / HTTP).
+_CV_HTTP_OR_FILE_MAX_FPS = 120.0
+_CV_HTTP_OR_FILE_MIN_INTERVAL = 1.0 / _CV_HTTP_OR_FILE_MAX_FPS
+_CV_FILE_VIDEO_EXTENSIONS = (
+    ".mp4",
+    ".avi",
+    ".mkv",
+    ".mov",
+    ".webm",
+    ".m4v",
+    ".wmv",
+    ".flv",
+    ".mpeg",
+    ".mpg",
+    ".m2v",
+    ".3gp",
+)
+
+
+def is_http_or_file_video_capture_source(capture_source) -> bool:
+    """True for http(s) URLs or local video file paths — UVC indices and other strings are False."""
+    if capture_source is None:
+        return False
+    if isinstance(capture_source, int):
+        return False
+    s = str(capture_source).strip()
+    if not s:
+        return False
+    sl = s.lower()
+    if sl.startswith("http://") or sl.startswith("https://"):
+        return True
+    return any(sl.endswith(ext) for ext in _CV_FILE_VIDEO_EXTENSIONS)
+
+
 class Camera:
     def __init__(
         self,
@@ -109,8 +143,7 @@ class Camera:
         self.prevft = 0
         self.newft = 0
         self.fl = [0]
-
-
+        self._last_cv_cap_frame_time = 0.0
 
         self.error_message = f"{Fore.YELLOW}[WARN] Capture source {{}} not found, retrying...{Fore.RESET}"
 
@@ -199,6 +232,14 @@ class Camera:
 
     def get_cv2_camera_picture(self, should_push):
         try:
+            if should_push and is_http_or_file_video_capture_source(self.current_capture_source):
+                now = time.time()
+                last = self._last_cv_cap_frame_time
+                if last > 0.0:
+                    wait = _CV_HTTP_OR_FILE_MIN_INTERVAL - (now - last)
+                    if wait > 0:
+                        time.sleep(wait)
+
             ret, image = self.cv2_camera.read()
             height, width = image.shape[:2]  # Calculate the aspect ratio
             if int(width) > 680:
@@ -210,6 +251,8 @@ class Camera:
             if not ret:
                 self.cv2_camera.set(cv2.CAP_PROP_POS_FRAMES, 0)
                 raise RuntimeError("Problem while getting frame")
+            if should_push and is_http_or_file_video_capture_source(self.current_capture_source):
+                self._last_cv_cap_frame_time = time.time()
             frame_number = self.cv2_camera.get(cv2.CAP_PROP_POS_FRAMES)
             current_frame_time = time.time()
             delta_time = current_frame_time - self.last_frame_time
@@ -236,6 +279,7 @@ class Camera:
                 f"{Fore.YELLOW}[WARN] Capture source problem, assuming camera disconnected, waiting for reconnect.{Fore.RESET}"
             )
             self.camera_status = CameraState.DISCONNECTED
+            self._last_cv_cap_frame_time = 0.0
             pass
 
     def get_next_packet_bounds(self):

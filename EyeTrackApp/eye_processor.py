@@ -93,6 +93,8 @@ class EyeProcessor:
         self.image_queue_outgoing = image_queue_outgoing
         self.cancellation_event = cancellation_event
         self.capture_event = capture_event
+        # When True, camera feeds roi_queue only; GUI paces capture_event — do not signal from this thread.
+        self.suppress_auto_capture_signal = False
         self.eye_id = eye_id
         self.baseconfig = baseconfig
         self.filterlist = []
@@ -724,7 +726,7 @@ class EyeProcessor:
                 self.detector_3d = Detector3D(camera=self.camera_model, long_term_mode=DetectorMode.blocking)
 
             try:
-                if self.capture_queue_incoming.empty():
+                if not self.suppress_auto_capture_signal and self.capture_queue_incoming.empty():
                     self.capture_event.set()
                 # Wait a bit for images here. If we don't get one, just try again.
                 (

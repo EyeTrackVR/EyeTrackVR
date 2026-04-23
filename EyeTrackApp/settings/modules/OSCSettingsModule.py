@@ -41,43 +41,45 @@ class OSCSettingsModule(BaseSettingsModule):
         self.gui_osc_recenter_address = f"OSCRECENTERADDRESS{widget_id}-"
         self.gui_osc_recalibrate_address = f"OSCRECALIBRATEADDRESS{widget_id}-"
         self.gui_vrc_native = f"-VRCNATIVE{widget_id}-"
-        self.gui_vrcft = f"-VRCFT{widget_id}-"
+        self.gui_osc_output_mode = f"-OSCOUTMODE{widget_id}-"
         self.gui_osc_vrcft_v1 = f"-OSCVRCFTV1{widget_id}-"
         self.gui_osc_vrcft_v2 = f"-OSCVRCFTV2{widget_id}-"
         self.gui_use_module = f"-OSCUSEMODULE{widget_id}-"
 
     def get_values_map(self) -> dict:
-        values = super().get_values_map()
-        vrcft_enabled = bool(values.get(self.gui_vrcft, False))
-        if vrcft_enabled and values.get(self.gui_vrc_native):
-            values[self.gui_vrc_native] = False
-            self.tk_vars[self.gui_vrc_native].set(False)
-        values[self.gui_use_module] = vrcft_enabled
-        values[self.gui_osc_vrcft_v2] = vrcft_enabled
-        values[self.gui_osc_vrcft_v1] = False
+        values = {}
+        for key, var in self.tk_vars.items():
+            if key == self.gui_osc_output_mode:
+                continue
+            values[key] = var.get()
+        mode = self.tk_vars[self.gui_osc_output_mode].get()
+        values[self.gui_vrc_native] = mode == "native"
+        values[self.gui_use_module] = mode in ("vrcft_v1", "vrcft_v2")
+        values[self.gui_osc_vrcft_v1] = mode == "vrcft_v1"
+        values[self.gui_osc_vrcft_v2] = mode == "vrcft_v2"
         return values
 
     def build(self, parent):
         row = 0
-        toggle_items = [
-            (self.gui_vrc_native, self.config.gui_vrc_native, "VRC Native"),
-            (
-                self.gui_vrcft,
-                self.config.gui_use_module and self.config.gui_osc_vrcft_v2 and not self.config.gui_osc_vrcft_v1,
-                "VRCFT",
-            ),
-            (self.gui_ROSC, self.config.gui_ROSC, "Receive"),
-        ]
-        for col, (key, default, label) in enumerate(toggle_items):
-            var = tk.BooleanVar(value=default)
-            self.tk_vars[key] = var
-            ttk.Checkbutton(parent, text=label, variable=var).grid(row=row, column=col, sticky="w", padx=8, pady=2)
-        row += 1
+        if self.config.gui_vrc_native:
+            osc_out_initial = "native"
+        elif self.config.gui_osc_vrcft_v1:
+            osc_out_initial = "vrcft_v1"
+        else:
+            osc_out_initial = "vrcft_v2"
 
-        # Hidden compatibility toggles still validated/saved through existing config fields.
-        self.tk_vars[self.gui_use_module] = tk.BooleanVar(value=bool(self.config.gui_use_module))
-        self.tk_vars[self.gui_osc_vrcft_v1] = tk.BooleanVar(value=bool(self.config.gui_osc_vrcft_v1))
-        self.tk_vars[self.gui_osc_vrcft_v2] = tk.BooleanVar(value=bool(self.config.gui_osc_vrcft_v2))
+        osc_bar = ttk.Frame(parent)
+        osc_bar.grid(row=row, column=0, columnspan=4, sticky="w", pady=2)
+        mode_var = tk.StringVar(value=osc_out_initial)
+        self.tk_vars[self.gui_osc_output_mode] = mode_var
+        ttk.Radiobutton(osc_bar, text="VRC Native", variable=mode_var, value="native").pack(side="left", padx=(8, 4))
+        ttk.Radiobutton(osc_bar, text="VRCFT (v2)", variable=mode_var, value="vrcft_v2").pack(side="left", padx=4)
+        ttk.Radiobutton(osc_bar, text="VRCFT (v1)", variable=mode_var, value="vrcft_v1").pack(side="left", padx=4)
+
+        ros_var = tk.BooleanVar(value=bool(self.config.gui_ROSC))
+        self.tk_vars[self.gui_ROSC] = ros_var
+        ttk.Checkbutton(osc_bar, text="Receive", variable=ros_var).pack(side="left", padx=(24, 8))
+        row += 1
 
         paired_fields = [
             (

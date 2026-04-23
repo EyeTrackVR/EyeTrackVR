@@ -78,9 +78,22 @@ class BaseSettingsWidget:
             section.pack(fill="x", padx=8, pady=6, anchor="n")
             module.build(section)
 
-        ttk.Button(self.frame, text="Reset settings to default", command=self.reset_config).pack(
-            anchor="w", padx=10, pady=(6, 10)
-        )
+        tk.Button(
+            self.frame,
+            text="Reset settings to default",
+            command=self.reset_config,
+            font=("Segoe UI", 9),
+            fg="#000000",
+            bg="#d9a3a3",
+            activebackground="#c99393",
+            activeforeground="#000000",
+            relief="flat",
+            padx=12,
+            pady=6,
+            cursor="hand2",
+            border=0,
+            highlightthickness=0,
+        ).pack(anchor="w", padx=10, pady=(6, 10))
         return self.frame
 
     def reset_config(self):

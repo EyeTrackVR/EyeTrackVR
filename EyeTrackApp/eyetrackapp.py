@@ -25,6 +25,7 @@ LICENSE: Babble Software Distribution License 1.0
 """
 
 import os
+import sys
 import tkinter as tk
 from tkinter import ttk
 import sv_ttk
@@ -32,7 +33,6 @@ import queue
 import cv2
 import requests
 import threading
-import base64
 from camera_widget import CameraWidget
 from config import EyeTrackConfig
 from eye import EyeId
@@ -64,6 +64,28 @@ WINDOW_NAME = "EyeTrackApp"
 
 
 appversion = "EyeTrackApp 0.2.5.6"
+
+def apply_theme_to_titlebar(win: tk.Misc) -> None:
+    """Match the Windows 10/11 caption bar to sv-ttk dark or light (requires pywinstyles on Windows)."""
+    if not is_nt:
+        return
+    try:
+        import pywinstyles
+    except ImportError:
+        print("\033[93m[WARN] pywinstyles not installed; title bar theme skipped.\033[0m")
+        return
+
+    is_dark = sv_ttk.get_theme() == "dark"
+    version = sys.getwindowsversion()
+
+    if version.major == 10 and version.build >= 22000:
+        header = "#1c1c1c" if is_dark else "#fafafa"
+        pywinstyles.change_header_color(win, header)
+    elif version.major == 10:
+        pywinstyles.apply_style(win, "dark" if is_dark else "normal")
+        win.wm_attributes("-alpha", 0.99)
+        win.wm_attributes("-alpha", 1)
+
 
 def timerResolution(toggle):
     if winmm != None:
@@ -182,21 +204,23 @@ def main():
             except Exception:
                 pass
             sv_ttk.set_theme("dark")
+            apply_theme_to_titlebar(self.root)
             self.focus_paused = False
             self.current_page = "tracking"
-            self.preview_left_photo = None
-            self.preview_right_photo = None
             self.mode_var = tk.StringVar(value="etvr")
-            self.preview_labels = []
-            self.preview_eye_order = []
-            self.preview_blank_photos = []
 
             nav = ttk.Frame(self.root)
             nav.pack(fill="x", padx=8, pady=(8, 4))
-            ttk.Button(nav, text="Tracking", command=lambda: self.show_page("tracking")).pack(side="left", padx=4)
-            ttk.Button(nav, text="Settings", command=lambda: self.show_page("settings")).pack(side="left", padx=4)
-            ttk.Button(nav, text="Algo Settings", command=lambda: self.show_page("algo")).pack(side="left", padx=4)
-            ttk.Button(nav, text="VRCFT Module Settings", command=lambda: self.show_page("vrcft")).pack(side="left", padx=4)
+            self._nav_buttons = {}
+            for page_id, label in (
+                ("tracking", "Tracking"),
+                ("settings", "Settings"),
+                ("algo", "Algo Settings"),
+                ("vrcft", "VRCFT Module Settings"),
+            ):
+                btn = ttk.Button(nav, text=label, command=lambda p=page_id: self.show_page(p))
+                btn.pack(side="left", padx=4)
+                self._nav_buttons[page_id] = btn
 
             self.content = ttk.Frame(self.root)
             self.content.pack(fill="both", expand=True, padx=8, pady=8)
@@ -237,7 +261,12 @@ def main():
             camera_button_row = ttk.Frame(tracking_controls)
             camera_button_row.pack(fill="x")
             ttk.Button(camera_button_row, text="Scan", width=8, command=self.scan_sources).pack(side="left", padx=(0, 4))
-            ttk.Button(camera_button_row, text="Connect", command=self.apply_camera_inputs).pack(side="left", fill="x", expand=True)
+            ttk.Button(
+                camera_button_row,
+                text="Connect",
+                command=self.apply_camera_inputs,
+                style="Accent.TButton",
+            ).pack(side="left", fill="x", expand=True)
 
             status_group = ttk.LabelFrame(tracking_sidebar, text="Status", padding=8)
             status_group.pack(fill="both", expand=True)
@@ -248,15 +277,12 @@ def main():
             )
             ttk.Label(status_group, textvariable=self.mode_label_var, wraplength=190, justify="left").pack(anchor="w", pady=(6, 0))
 
-            self.preview_content = ttk.LabelFrame(tracking_main, text="Camera Previews", padding=6)
-            self.preview_content.pack(fill="x", expand=False, anchor="n")
-            self.preview_row = ttk.Frame(self.preview_content)
-            self.preview_row.pack(fill="x", expand=False)
-            self._setup_preview_panes(2)
-
-            self.hidden_eyes_container = ttk.Frame(self.tracking_tab)
-            self.left_frame = eyes[1].build(self.hidden_eyes_container, show_camera_controls=False)
-            self.right_frame = eyes[0].build(self.hidden_eyes_container, show_camera_controls=False)
+            self.tracking_eyes_row = ttk.Frame(tracking_main)
+            self.tracking_eyes_row.pack(fill="both", expand=True)
+            self.left_frame = eyes[1].build(self.tracking_eyes_row, show_camera_controls=False)
+            self.right_frame = eyes[0].build(self.tracking_eyes_row, show_camera_controls=False)
+            self.left_frame.pack(side="left", fill="both", expand=True, padx=(0, 6))
+            self.right_frame.pack(side="left", fill="both", expand=True, padx=(6, 0))
 
             bottom = ttk.Frame(self.root)
             bottom.pack(fill="x", padx=8, pady=4)
@@ -272,9 +298,13 @@ def main():
             self._apply_initial_window_geometry()
             self._tick()
 
+        def _sync_nav_buttons(self):
+            """Highlight the current page with Sun Valley accent (blue) vs default TButton."""
+            for page_id, btn in self._nav_buttons.items():
+                btn.configure(style="Accent.TButton" if page_id == self.current_page else "TButton")
+
         def _apply_initial_window_geometry(self):
-            # Tracking hides full camera UIs in an unpacked container, so winfo_req* stays small
-            # while other tabs size naturally. Nudge the default window to a comfortable minimum.
+            # Tracking tab packs two full camera panels; still set a floor so the window opens usable.
             self.root.update_idletasks()
             min_w, min_h = 920, 580
             w = max(self.root.winfo_reqwidth(), min_w)
@@ -308,26 +338,6 @@ def main():
                 self.left_camera_label.configure(text="Left (UVC / COM port / URL):")
                 self.right_camera_label.configure(text="Right (UVC / COM port / URL):")
 
-        def _setup_preview_panes(self, count):
-            for child in self.preview_row.winfo_children():
-                child.destroy()
-            self.preview_labels = []
-            self.preview_blank_photos = []
-            if count == 2:
-                titles = ["Left Eye", "Right Eye"]
-            else:
-                titles = ["Left Eye"] if self.preview_eye_order and self.preview_eye_order[0] == EyeId.LEFT else ["Right Eye"]
-            for idx in range(count):
-                pane = ttk.Frame(self.preview_row)
-                pane.pack(side="left", fill="both", expand=True, padx=6, pady=2, anchor="n")
-                ttk.Label(pane, text=titles[idx]).pack(pady=(0, 4))
-                blank = tk.PhotoImage(width=72, height=72)
-                self.preview_blank_photos.append(blank)
-                label = tk.Label(pane, image=blank, bg="#1c1c1c", relief="flat", bd=0)
-                label.image = blank
-                label.pack()
-                self.preview_labels.append(label)
-
         def scan_sources(self):
             self.status_var.set("Scanning camera indices...")
 
@@ -358,8 +368,6 @@ def main():
             if left_source and right_source:
                 eyes[0].start()
                 eyes[1].start()
-                self.preview_eye_order = [EyeId.LEFT, EyeId.RIGHT]
-                self._setup_preview_panes(2)
                 config.settings.tracker_single_eye = 0
                 config.eye_display_id = EyeId.BOTH
                 self.mode_label_var.set("Mode: Dual-eye tracking")
@@ -367,8 +375,6 @@ def main():
             elif left_source:
                 eyes[0].stop()
                 eyes[1].start()
-                self.preview_eye_order = [EyeId.LEFT]
-                self._setup_preview_panes(1)
                 config.settings.tracker_single_eye = 1
                 config.eye_display_id = EyeId.LEFT
                 self.mode_label_var.set("Mode: Single-eye (left)")
@@ -376,8 +382,6 @@ def main():
             elif right_source:
                 eyes[1].stop()
                 eyes[0].start()
-                self.preview_eye_order = [EyeId.RIGHT]
-                self._setup_preview_panes(1)
                 config.settings.tracker_single_eye = 2
                 config.eye_display_id = EyeId.RIGHT
                 self.mode_label_var.set("Mode: Single-eye (right)")
@@ -385,8 +389,6 @@ def main():
             else:
                 eyes[0].stop()
                 eyes[1].stop()
-                self.preview_eye_order = [EyeId.LEFT, EyeId.RIGHT]
-                self._setup_preview_panes(2)
                 config.settings.tracker_single_eye = 0
                 config.eye_display_id = EyeId.BOTH
                 self.mode_label_var.set("Mode: No active camera")
@@ -427,24 +429,7 @@ def main():
                 settings[1].stop()
                 settings[2].start()
 
-        def _update_previews(self):
-            photos = []
-            for idx, eye_id in enumerate(self.preview_eye_order):
-                if idx >= len(self.preview_labels):
-                    break
-                widget = eyes[1] if eye_id == EyeId.LEFT else eyes[0]
-                if widget.preview_ppm_bytes:
-                    encoded = base64.b64encode(widget.preview_ppm_bytes).decode("ascii")
-                    photo = tk.PhotoImage(data=encoded, format="PPM")
-                    self.preview_labels[idx].configure(image=photo)
-                    self.preview_labels[idx].image = photo
-                    photos.append(photo)
-                else:
-                    self.preview_labels[idx].configure(image="")
-                    self.preview_labels[idx].image = None
-            if photos:
-                self.preview_left_photo = photos[0]
-                self.preview_right_photo = photos[-1]
+            self._sync_nav_buttons()
 
         def gui_off(self):
             config.settings.gui_disable_gui = True
@@ -453,6 +438,7 @@ def main():
             self.root.withdraw()
             dialog = tk.Toplevel()
             dialog.title("ETVR")
+            apply_theme_to_titlebar(dialog)
             ttk.Label(dialog, text="GUI Disabled!").pack(padx=12, pady=8)
 
             def enable_gui():
@@ -476,7 +462,6 @@ def main():
                     for eye in eyes:
                         if eye.started():
                             eye.render_tick()
-                    self._update_previews()
                 for setting in settings:
                     if setting.started():
                         setting.render_tick()

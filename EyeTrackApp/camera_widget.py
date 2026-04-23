@@ -32,7 +32,7 @@ from collections import deque
 from threading import Event, Thread
 import math
 import time
-from eye import EyeId
+from eye import EyeId, EyeInfo
 from eye_processor import EyeProcessor, EyeInfoOrigin
 from queue import Queue, Empty
 from camera import Camera, CameraState
@@ -139,7 +139,6 @@ class CameraWidget:
         self._tracking_photo = None
         self._roi_photo = None
         self.frame = None
-        self.preview_ppm_bytes = None
 
     def build(self, parent, show_camera_controls=True):
         self.frame = ttk.Frame(parent)
@@ -154,8 +153,11 @@ class CameraWidget:
 
         mode_row = ttk.Frame(self.frame)
         mode_row.pack(fill="x", padx=8, pady=4)
-        ttk.Button(mode_row, text="Tracking Mode", command=self._set_tracking_mode).pack(side="left", padx=4)
-        ttk.Button(mode_row, text="Cropping Mode", command=self._set_roi_mode).pack(side="left", padx=4)
+        self._mode_tracking_btn = ttk.Button(mode_row, text="Tracking Mode", command=self._set_tracking_mode)
+        self._mode_tracking_btn.pack(side="left", padx=4)
+        self._mode_roi_btn = ttk.Button(mode_row, text="Cropping Mode", command=self._set_roi_mode)
+        self._mode_roi_btn.pack(side="left", padx=4)
+        self._sync_mode_tab_buttons()
 
         self.tracking_frame = ttk.Frame(self.frame)
         self.roi_frame = ttk.Frame(self.frame)
@@ -163,8 +165,12 @@ class CameraWidget:
 
         tracking_controls = ttk.Frame(self.tracking_frame)
         tracking_controls.pack(fill="x", padx=8, pady=4)
-        ttk.Button(tracking_controls, text="Start Calibration", command=self.recalibrate_eyes).pack(side="left", padx=4)
-        ttk.Button(tracking_controls, text="Stop Calibration", command=self._stop_calibration).pack(side="left", padx=4)
+        self._calibration_toggle_btn = ttk.Button(
+            tracking_controls,
+            text="Start Calibration",
+            command=self._on_calibration_toggle,
+        )
+        self._calibration_toggle_btn.pack(side="left", padx=4)
         ttk.Button(tracking_controls, text="Recenter Eyes", command=self.recenter_eyes).pack(side="left", padx=4)
 
         status_row = ttk.Frame(self.tracking_frame)
@@ -177,12 +183,28 @@ class CameraWidget:
         ttk.Label(status_row, textvariable=self.fps_var).pack(side="left", padx=8)
         ttk.Label(status_row, textvariable=self.bps_var).pack(side="left", padx=8)
 
+        # Source stack from processor is 300×150; compact display for dual-eye layout
+        self._tracking_display_size = (300, 150)
+
+        self._viz_pad = 8
+        self._viz_gaze = 148
+        self._viz_gaze_gap = 10
+        self._viz_blink_w = 24
+        self._viz_canvas_w = self._viz_pad * 2 + self._viz_gaze + self._viz_gaze_gap + self._viz_blink_w
+        self._viz_canvas_h = self._viz_pad * 2 + self._viz_gaze
+
         self.tracking_image_widget = tk.Label(self.tracking_frame)
         self.tracking_image_widget.pack(padx=8, pady=4, anchor="w")
 
         graph_row = ttk.Frame(self.tracking_frame)
         graph_row.pack(fill="x", padx=8, pady=4)
-        self.output_canvas = tk.Canvas(graph_row, width=200, height=200, bg="white", highlightthickness=0)
+        self.output_canvas = tk.Canvas(
+            graph_row,
+            width=self._viz_canvas_w,
+            height=self._viz_canvas_h,
+            bg="#1e1f23",
+            highlightthickness=0,
+        )
         self.output_canvas.pack(side="left")
         self.roi_message_var = tk.StringVar(value="Please set an Eye Cropping.")
         self.roi_message_label = ttk.Label(graph_row, textvariable=self.roi_message_var)
@@ -221,19 +243,139 @@ class CameraWidget:
         self.roi_canvas.bind("<Motion>", self._on_roi_mouse_move)
         return self.frame
 
+    def _sync_mode_tab_buttons(self) -> None:
+        """Sun Valley accent on the active Tracking vs Cropping tab."""
+        if self.in_roi_mode:
+            self._mode_roi_btn.configure(style="Accent.TButton")
+            self._mode_tracking_btn.configure(style="TButton")
+        else:
+            self._mode_tracking_btn.configure(style="Accent.TButton")
+            self._mode_roi_btn.configure(style="TButton")
+
+    @staticmethod
+    def _encode_bgr_as_png(image: np.ndarray) -> bytes | None:
+        """PNG bytes for Tk PhotoImage (-data expects base64 of file payload; Tcl 9 rejects some PPM)."""
+        if image is None or image.size == 0 or image.shape[0] < 1 or image.shape[1] < 1:
+            return None
+        if image.ndim == 2:
+            image = cv2.cvtColor(image, cv2.COLOR_GRAY2BGR)
+        elif image.ndim == 3 and image.shape[2] == 4:
+            image = cv2.cvtColor(image, cv2.COLOR_BGRA2BGR)
+        elif image.ndim != 3 or image.shape[2] != 3:
+            return None
+        ok, buf = cv2.imencode(".png", image, (cv2.IMWRITE_PNG_COMPRESSION, 3))
+        if not ok or buf is None or len(buf) == 0:
+            return None
+        return buf.tobytes()
+
+    def _tk_photo_from_bgr(self, image: np.ndarray, master: tk.Misc) -> tk.PhotoImage | None:
+        png_bytes = self._encode_bgr_as_png(image)
+        if not png_bytes:
+            return None
+        data = base64.b64encode(png_bytes).decode("ascii")
+        try:
+            return tk.PhotoImage(master=master, data=data, format="png")
+        except tk.TclError:
+            return None
+
+    def _draw_output_visualization(self, eye_info: EyeInfo) -> None:
+        """Dark-mode compact gaze dot + vertical blink bar (right)."""
+        c = self.output_canvas
+        W, H = self._viz_canvas_w, self._viz_canvas_h
+        pad = self._viz_pad
+        G = self._viz_gaze
+        gap = self._viz_gaze_gap
+        bw = self._viz_blink_w
+
+        bg = "#1e1f23"
+        panel = "#2a2c33"
+        panel_border = "#454859"
+        cross = "#3d4049"
+        track_fill = "#32353d"
+        track_border = "#4a4e5c"
+        blink_fill = "#c4a5ff"
+        tick = "#6d7285"
+        dot = "#f4f2ff"
+        fail_bg = "#3a2428"
+        fail_fg = "#ff9aaa"
+
+        c.delete("all")
+        c.configure(bg=bg)
+
+        if eye_info.info_type == EyeInfoOrigin.FAILURE:
+            c.create_rectangle(0, 0, W, H, outline="", fill=fail_bg)
+            c.create_text(W // 2, H // 2, text="No track", fill=fail_fg, font=("Segoe UI", 9))
+            return
+
+        gx0, gy0 = pad, pad
+        bx0 = gx0 + G + gap
+        by0, bh = gy0, G
+
+        c.create_rectangle(0, 0, W, H, outline="", fill=bg)
+        c.create_rectangle(gx0, gy0, gx0 + G, gy0 + G, outline=panel_border, width=1, fill=panel)
+
+        gc_x = gx0 + G // 2
+        gc_y = gy0 + G // 2
+        c.create_line(gc_x, gy0 + 5, gc_x, gy0 + G - 5, fill=cross, width=1)
+        c.create_line(gx0 + 5, gc_y, gx0 + G - 5, gc_y, fill=cross, width=1)
+
+        # Normalized gaze is often small (±0.05); amplify for on-screen motion (OSC still uses true values).
+        half = max(12.0, (G / 2) - 10.0)
+        gaze_gain = 2.75
+        if not np.isnan(eye_info.x) and not np.isnan(eye_info.y):
+            cx = int(round(gc_x - float(eye_info.x) * half * gaze_gain))
+            cy = int(round(gc_y - float(eye_info.y) * half * gaze_gain))
+        else:
+            cx, cy = gc_x, gc_y
+
+        margin = 7
+        cx = int(np.clip(cx, gx0 + margin, gx0 + G - margin))
+        cy = int(np.clip(cy, gy0 + margin, gy0 + G - margin))
+
+        # Pupil size: ring radius from dilation (same idea as legacy oval, but ring + center dot)
+        if not np.isnan(eye_info.pupil_dilation):
+            pd = float(np.clip(eye_info.pupil_dilation, 0.0, 1.5))
+        else:
+            pd = 0.5
+        r_ring = int(round(7 + pd * 34))
+        r_max = min(cx - gx0, gx0 + G - cx, cy - gy0, gy0 + G - cy) - 2
+        r_ring = min(r_ring, max(8, r_max))
+        ring_col = "#b49cff"
+        c.create_oval(cx - r_ring, cy - r_ring, cx + r_ring, cy + r_ring, outline=ring_col, width=2, fill="")
+
+        r = 5
+        c.create_oval(cx - r, cy - r, cx + r, cy + r, fill=dot, outline=dot)
+
+        inset = 3
+        c.create_rectangle(bx0, by0, bx0 + bw, by0 + bh, outline=track_border, width=1, fill=track_fill)
+        if not np.isnan(eye_info.blink):
+            b = float(np.clip(eye_info.blink, 0.0, 1.0))
+            inner_h = bh - inset * 2
+            fill_h = max(2, int(round(b * inner_h)))
+            y_top = by0 + bh - inset - fill_h
+            y_bot = by0 + bh - inset
+            c.create_rectangle(bx0 + inset, y_top, bx0 + bw - inset, y_bot, fill=blink_fill, outline="")
+
+        c.create_line(bx0 + bw // 2 - 4, by0 + inset, bx0 + bw // 2 + 4, by0 + inset, fill=tick, width=1)
+        c.create_line(bx0 + bw // 2 - 4, by0 + bh - inset, bx0 + bw // 2 + 4, by0 + bh - inset, fill=tick, width=1)
+
     def _set_tracking_mode(self):
         print("\033[94m[INFO] Moving to tracking mode\033[0m")
         self.in_roi_mode = False
+        self.ransac.suppress_auto_capture_signal = False
         self.camera.set_output_queue(self.capture_queue)
         self.roi_frame.pack_forget()
         self.tracking_frame.pack(fill="both", expand=True)
+        self._sync_mode_tab_buttons()
 
     def _set_roi_mode(self):
         print("\033[94m[INFO] Move to roi mode\033[0m")
         self.in_roi_mode = True
+        self.ransac.suppress_auto_capture_signal = True
         self.camera.set_output_queue(self.roi_queue)
         self.tracking_frame.pack_forget()
         self.roi_frame.pack(fill="both", expand=True)
+        self._sync_mode_tab_buttons()
 
     def _save_tracking(self):
         value = self.camera_addr_var.get()
@@ -253,6 +395,22 @@ class CameraWidget:
 
     def _stop_calibration(self):
         self.ransac.calibration_start_time = None
+        self._sync_calibration_toggle_button()
+
+    def _sync_calibration_toggle_button(self) -> None:
+        btn = getattr(self, "_calibration_toggle_btn", None)
+        if btn is None:
+            return
+        if self.ransac.calibration_start_time is not None:
+            btn.configure(text="Stop Calibration")
+        else:
+            btn.configure(text="Start Calibration")
+
+    def _on_calibration_toggle(self) -> None:
+        if self.ransac.calibration_start_time is not None:
+            self._stop_calibration()
+        else:
+            self.recalibrate_eyes()
 
     def _on_roi_mouse_down(self, event):
         self.hover_pos = None
@@ -355,6 +513,7 @@ class CameraWidget:
         self.ransac.calibration_start_time = time.time()
         self.ransac.ibo.clear_filter()
         PlaySound(resource_path("Audio/start.wav"), SND_FILENAME | SND_ASYNC)
+        self._sync_calibration_toggle_button()
 
     def osc_recenter_eyes(self, osc_message: OSCMessage):
         if not isinstance(osc_message.data, bool):
@@ -414,6 +573,8 @@ class CameraWidget:
                 self.fps_var.set(self._movavg_fps(self.camera.fps))
                 self.bps_var.set(self._movavg_bps(self.camera.bps))
 
+            self._sync_calibration_toggle_button()
+
             #    if event == self.gui_mask_lighten:
             #       while True:
             #          try:
@@ -433,11 +594,15 @@ class CameraWidget:
             #    print("markup")
 
             if self.in_roi_mode:
+                # Drain to latest frame: tracking thread does not consume capture_queue in ROI mode, but it was
+                # still calling capture_event.set() every loop while capture_queue stayed empty — flooding this queue.
+                maybe_image = None
                 try:
-                    if self.roi_queue.empty():
-                        self.capture_event.set()
-                    maybe_image = self.roi_queue.get(block=False)
-
+                    while True:
+                        try:
+                            maybe_image = self.roi_queue.get(block=False)
+                        except Empty:
+                            break
                     if maybe_image:
                         image = maybe_image[0]
 
@@ -492,44 +657,42 @@ class CameraWidget:
 
                         maybe_image = (image, *maybe_image[1:])
 
-                    imgbytes = cv2.imencode(".ppm", maybe_image[0])[1].tobytes()
-                    preview = cv2.resize(maybe_image[0], (72, 72), interpolation=cv2.INTER_NEAREST)
-                    self.preview_ppm_bytes = cv2.imencode(".ppm", preview)[1].tobytes()
-                    self.roi_canvas.delete("all")
-                    encoded = base64.b64encode(imgbytes).decode("ascii")
-                    self._roi_photo = tk.PhotoImage(data=encoded, format="PPM")
-                    self.roi_canvas.create_image(0, 0, image=self._roi_photo, anchor="nw")
+                        photo = self._tk_photo_from_bgr(maybe_image[0], self.roi_canvas)
+                        if photo is not None:
+                            self._roi_photo = photo
+                            self.roi_canvas.delete("all")
+                            self.roi_canvas.create_image(0, 0, image=self._roi_photo, anchor="nw")
 
-                    if self.xy0 is None or self.xy1 is None:
-                        # roi_window rotates around roi center, we rotate around image center
-                        # TODO: it would be nice if they were more consistent
-                        roi_window_pos = (self.config.roi_window_x, self.config.roi_window_y)
-                        roi_window_size = (self.config.roi_window_w, self.config.roi_window_h)
-                        self.xy0 = roi_window_pos + self.img_pos
-                        self.xy1 = self.xy0 + roi_window_size
-                        self._cartesian_to_polar()
-                        self.ca -= math.radians(self.config.rotation_angle)
-                        self._polar_to_cartesian()
+                        if self.xy0 is None or self.xy1 is None:
+                            # roi_window rotates around roi center, we rotate around image center
+                            # TODO: it would be nice if they were more consistent
+                            roi_window_pos = (self.config.roi_window_x, self.config.roi_window_y)
+                            roi_window_size = (self.config.roi_window_w, self.config.roi_window_h)
+                            self.xy0 = roi_window_pos + self.img_pos
+                            self.xy1 = self.xy0 + roi_window_size
+                            self._cartesian_to_polar()
+                            self.ca -= math.radians(self.config.rotation_angle)
+                            self._polar_to_cartesian()
 
-                    if self.xy0 is not None and self.xy1 is not None:
-                        color = "#7f78ff" if self.is_mouse_up else "#000000"
-                        self.roi_canvas.create_rectangle(
-                            int(self.xy0[X]),
-                            int(self.xy0[Y]),
-                            int(self.xy1[X]),
-                            int(self.xy1[Y]),
-                            outline=color,
-                        )
-                    if self.is_mouse_up and self.hover_pos is not None:
-                        self.roi_canvas.create_line(
-                            int(self.hover_pos[X]), 0, int(self.hover_pos[X]), int(self.padded_size[Y]), fill="#ffffff"
-                        )
-                        self.roi_canvas.create_line(
-                            0, int(self.hover_pos[Y]), int(self.padded_size[X]), int(self.hover_pos[Y]), fill="#ffffff"
-                        )
-
-                except Empty:
-                    pass
+                        if self.xy0 is not None and self.xy1 is not None:
+                            color = "#7f78ff" if self.is_mouse_up else "#000000"
+                            self.roi_canvas.create_rectangle(
+                                int(self.xy0[X]),
+                                int(self.xy0[Y]),
+                                int(self.xy1[X]),
+                                int(self.xy1[Y]),
+                                outline=color,
+                            )
+                        if self.is_mouse_up and self.hover_pos is not None:
+                            self.roi_canvas.create_line(
+                                int(self.hover_pos[X]), 0, int(self.hover_pos[X]), int(self.padded_size[Y]), fill="#ffffff"
+                            )
+                            self.roi_canvas.create_line(
+                                0, int(self.hover_pos[Y]), int(self.padded_size[X]), int(self.hover_pos[Y]), fill="#ffffff"
+                            )
+                finally:
+                    # Pace the capture thread to the GUI tick; only the ROI branch should signal while in ROI mode.
+                    self.capture_event.set()
             else:
                 if needs_roi_set:
                     self.output_canvas.pack_forget()
@@ -541,38 +704,14 @@ class CameraWidget:
                         self.output_canvas.pack(side="left")
                     (maybe_image, eye_info) = self.image_queue.get(block=False)
 
-                    imgbytes = cv2.imencode(".ppm", maybe_image)[1].tobytes()
-                    preview = cv2.resize(maybe_image, (72, 72), interpolation=cv2.INTER_NEAREST)
-                    self.preview_ppm_bytes = cv2.imencode(".ppm", preview)[1].tobytes()
-                    encoded = base64.b64encode(imgbytes).decode("ascii")
-                    self._tracking_photo = tk.PhotoImage(data=encoded, format="PPM")
-                    self.tracking_image_widget.configure(image=self._tracking_photo)
+                    tw, th = self._tracking_display_size
+                    disp = cv2.resize(maybe_image, (tw, th), interpolation=cv2.INTER_LINEAR)
+                    photo = self._tk_photo_from_bgr(disp, self.tracking_image_widget)
+                    if photo is not None:
+                        self._tracking_photo = photo
+                        self.tracking_image_widget.configure(image=self._tracking_photo)
 
-                    # Update the GUI
-                    graph = self.output_canvas
-                    graph.delete("all")
-
-                    if eye_info.info_type != EyeInfoOrigin.FAILURE:  # and not eye_info.blink:
-                        graph.configure(bg="white")
-                        if not np.isnan(eye_info.x) and not np.isnan(eye_info.y):
-                            cx, cy = 100 + int(eye_info.x * -100), 100 + int(eye_info.y * -100)
-                            r = eye_info.pupil_dilation * 25
-                            graph.create_oval(cx - r, cy - r, cx + r, cy + r, fill="black", outline="white")
-                        else:
-                            graph.create_oval(80, 80, 120, 120, fill="black", outline="white")
-
-                        if not np.isnan(eye_info.blink):
-                            y2 = int((eye_info.blink * 200))
-                            graph.create_line(0, 200, 0, max(0, 200 - y2), fill="#6f4ca1", width=10)
-
-                        else:
-                            graph.create_line(0, 100, 0, 0, fill="#6f4ca1", width=10)
-
-                        if eye_info.blink <= 0.0:
-                            graph.configure(bg="#6f4ca1")
-
-                    elif eye_info.info_type == EyeInfoOrigin.FAILURE:
-                        graph.configure(bg="red")
+                    self._draw_output_visualization(eye_info)
 
                 except Empty:
                     pass

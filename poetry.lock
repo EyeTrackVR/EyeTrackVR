@@ -1973,6 +1973,19 @@ files = [
 ]
 
 [[package]]
+name = "pywinstyles"
+version = "1.8"
+description = "Customize window styles in windows 11"
+optional = false
+python-versions = ">=3.8"
+groups = ["main"]
+markers = "sys_platform == \"win32\""
+files = [
+    {file = "pywinstyles-1.8-py3-none-any.whl", hash = "sha256:17d89c6bc91569b676b71c00400ec958548302809858966c4cf447bb16a7e407"},
+    {file = "pywinstyles-1.8.tar.gz", hash = "sha256:7a087b1f45ef8d572b440712817dbbef8ae90793ab7fcc51b060851d2d6f301c"},
+]
+
+[[package]]
 name = "requests"
 version = "2.33.1"
 description = "Python HTTP for Humans."
@@ -2387,4 +2400,4 @@ files = [
 [metadata]
 lock-version = "2.1"
 python-versions = "~3.14.0"
-content-hash = "689c27cdfdeba502d125345fe6a8fcc9b2ab5b82415a4d946e4d7994e4bb26e8"
+content-hash = "9555d4e023dd6f93f9b84ddb0cf8719ad1f65437e4dece70e5846deca4bb2e16"

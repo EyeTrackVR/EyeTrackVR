@@ -15,7 +15,7 @@ binaries=[
     (os.path.abspath(openvr.__file__ + "\\..\\libopenvr_api_64.dll"), "openvr"),
 ],
 datas=resources,
-hiddenimports=['cv2', 'numpy', 'sv_ttk', 'tkinter', 'tkinter.ttk', 'pkg_resources.extern'],
+hiddenimports=['cv2', 'numpy', 'sv_ttk', 'tkinter', 'tkinter.ttk', 'pkg_resources.extern', 'pywinstyles'],
 hookspath=[],
 hooksconfig={},
 runtime_hooks=[],

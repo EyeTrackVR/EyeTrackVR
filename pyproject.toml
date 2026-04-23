@@ -20,6 +20,7 @@ pyserial = "^3.5"
 winotify = [
     { version = "^1.1.0", platform = 'win32' }
 ]
+pywinstyles = {version = "^1.8.0", platform = "win32"}
 colorama = "^0.4.6"
 taskipy = "^1.10.4"
 pytest = "^8.0.0"
