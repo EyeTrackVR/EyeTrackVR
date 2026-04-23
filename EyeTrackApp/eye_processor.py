@@ -189,6 +189,7 @@ class EyeProcessor:
         self.ran_blink_check_for_file = True
         self.bd_blink = False
         self.current_algo = EyeInfoOrigin.HSRAC
+        self.current_algorithm = EyeInfoOrigin.HSRAC
         self.pupil_width = 0.0
         self.pupil_height = 0.0
         self.avg_velocity = 0.0
@@ -319,7 +320,22 @@ class EyeProcessor:
         except:
             pass
 
+    def _ensure_pupil_axes_for_dilation(self) -> None:
+        """EBPD expects ellipse axes in pixels; RANSAC3D sets pupil_width/height, other trackers only set radius."""
+        if self.pupil_width > 1e-3 and self.pupil_height > 1e-3:
+            return
+        try:
+            r = float(abs(self.radius))
+        except (TypeError, ValueError):
+            r = 0.0
+        if r < 1.0:
+            r = 10.0
+        d = 2.0 * r
+        self.pupil_width = d
+        self.pupil_height = d
+
     def UPDATE(self):
+        self.current_algo = self.current_algorithm
 
         if self.settings.gui_BLINK:
             self.eyeopen = BLINK(self)
@@ -368,6 +384,7 @@ class EyeProcessor:
             self.out_y = sum(self.prev_y_list) / len(self.prev_y_list)
 
         if self.settings.gui_pupil_dilation:
+            self._ensure_pupil_axes_for_dilation()
             self.pupil_dilation = self.ebpd.intense(
                 self.pupil_width,
                 self.pupil_height,

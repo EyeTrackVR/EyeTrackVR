@@ -43,7 +43,7 @@ from typing import Any, Union, List
 import numpy as np
 
 class EyeTrackCameraConfig(BaseModel):
-    gui_rotation_ui_padding: bool = True
+    gui_rotation_ui_padding: bool = False
     rotation_angle: int = 0
     roi_window_x: int = 0
     roi_window_y: int = 0

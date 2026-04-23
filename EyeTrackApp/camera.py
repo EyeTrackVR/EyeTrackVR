@@ -156,6 +156,28 @@ class Camera:
         self._http_or_file_source_cache = (key, v)
         return v
 
+    def _release_cv2_camera(self) -> None:
+        cam = self.cv2_camera
+        if cam is None:
+            return
+        try:
+            cam.release()
+        except Exception:
+            pass
+        self.cv2_camera = None
+
+    def _close_serial_connection(self) -> None:
+        conn = self.serial_connection
+        if conn is None:
+            return
+        try:
+            if conn.is_open:
+                conn.close()
+        except Exception:
+            pass
+        self.serial_connection = None
+        self.buffer = b""
+
     def run(self):
         OPENCV_PARAMS = [
             cv2.CAP_PROP_OPEN_TIMEOUT_MSEC,
@@ -166,63 +188,82 @@ class Camera:
         while True:
             if self.cancellation_event.is_set():
                 print(f"{Fore.CYAN}[INFO] Exiting Capture thread{Fore.RESET}")
-                # openCV won't switch to a new source if provided with one
-                # so, we have to manually release the camera on exit
-
-                addr = str(self.current_capture_source)
-                if is_serial_capture_source(addr):
-                    pass # TODO: find a nicer way to stop the com port
-                  #  self.serial_connection.close()
-                else:
-                    self.cv2_camera.release()
-
+                # Release BOTH backends regardless of which one is active, since we may be mid-
+                # transition between them. Guarded against None so early shutdown doesn't crash.
+                self._release_cv2_camera()
+                self._close_serial_connection()
                 return
             should_push = True
             # If things aren't open, retry until they are. Don't let read requests come in any earlier
             # than this, otherwise we can deadlock ourselves.
-            if self.config.capture_source != None and self.config.capture_source != "":
-                self.current_capture_source = self.config.capture_source
-                addr = str(self.current_capture_source)
+            new_source = self.config.capture_source
+            if new_source is not None and new_source != "":
+                source_changed = new_source != self.current_capture_source
+                addr = str(new_source)
                 if is_serial_capture_source(addr):
+                    # Switching from a cv2 source to serial: release the cv2 handle first.
+                    if source_changed:
+                        self._release_cv2_camera()
                     if (
                         self.serial_connection is None
                         or self.camera_status == CameraState.DISCONNECTED
-                        or self.config.capture_source != self.current_capture_source
+                        or source_changed
                     ):
-                        port = self.config.capture_source
-                        self.current_capture_source = port
-                        self.start_serial_connection(port)
+                        self.current_capture_source = new_source
+                        self.start_serial_connection(new_source)
+                        should_push = False
                 else:
+                    # Switching from serial to a cv2 source: close the serial port first.
+                    if source_changed:
+                        self._close_serial_connection()
                     if (
                         self.cv2_camera is None
                         or not self.cv2_camera.isOpened()
                         or self.camera_status == CameraState.DISCONNECTED
-                        or self.config.capture_source != self.current_capture_source
+                        or source_changed
                     ):
-                        print(self.error_message.format(self.config.capture_source))
+                        print(self.error_message.format(new_source))
                         # This requires a wait, otherwise we can error and possible screw up the camera
                         # firmware. Fickle things.
                         if self.cancellation_event.wait(WAIT_TIME):
                             return
-                        self.current_capture_source = self.config.capture_source
-                        #   self.cv2_camera = cv2.VideoCapture(self.current_capture_source)
-
-                        self.cv2_camera = cv2.VideoCapture()
-                        self.cv2_camera.setExceptionMode(True)
+                        # Release any previously opened handle before replacing it, otherwise we
+                        # leak OS resources and can block the new open on busy backends (DSHOW/MSMF).
+                        self._release_cv2_camera()
+                        self._http_or_file_source_cache = None
+                        self.current_capture_source = new_source
+                        cam = cv2.VideoCapture()
+                        cam.setExceptionMode(True)
+                        self.cv2_camera = cam
                         # https://github.com/opencv/opencv/blob/4.8.0/modules/videoio/include/opencv2/videoio.hpp#L803
-                        self.cv2_camera.open(self.current_capture_source)
+                        try:
+                            cam.open(new_source, cv2.CAP_ANY, OPENCV_PARAMS)
+                        except cv2.error as e:
+                            print(
+                                f"{Fore.YELLOW}[WARN] Failed to open capture source {new_source}: {e}{Fore.RESET}"
+                            )
+                            self.camera_status = CameraState.DISCONNECTED
+                            self._release_cv2_camera()
+                            if self.cancellation_event.wait(WAIT_TIME):
+                                return
+                            continue
                         should_push = False
             else:
                 # We don't have a capture source to try yet, wait for one to show up in the GUI.
+                # Release any lingering handles so swapping "no source" then "new source" works cleanly.
+                self._release_cv2_camera()
+                self._close_serial_connection()
+                self.current_capture_source = None
+                self.camera_status = CameraState.DISCONNECTED
                 if self.cancellation_event.wait(WAIT_TIME):
-                    self.camera_status = CameraState.DISCONNECTED
                     return
+                continue
             # Assuming we can access our capture source, wait for another thread to request a capture.
             # Cycle every so often to see if our cancellation token has fired. This basically uses a
             # python event as a context-less, resettable one-shot channel.
             if should_push and not self.capture_event.wait(timeout=0.05):
                 continue
-            if self.config.capture_source != None:
+            if self.config.capture_source is not None:
                 addr = str(self.current_capture_source)
                 if is_serial_capture_source(addr):
                     self.get_serial_camera_picture(should_push)
@@ -288,21 +329,31 @@ class Camera:
     def get_next_packet_bounds(self):
         beg = -1
         while beg == -1:
+            if self.cancellation_event.is_set() or self.serial_connection is None:
+                return -1, -1
+            # Bail early if the capture source was changed out from under us.
+            if self.config.capture_source != self.current_capture_source:
+                return -1, -1
             self.buffer += self.serial_connection.read(2048)
             beg = self.buffer.find(b"\xff\xd8\xff")
-        # Discard any data before the frame header.
         if beg > 0:
             self.buffer = self.buffer[beg:]
             beg = 0
 
         end = -1
         while end == -1:
+            if self.cancellation_event.is_set() or self.serial_connection is None:
+                return -1, -1
+            if self.config.capture_source != self.current_capture_source:
+                return -1, -1
             self.buffer += self.serial_connection.read(128)
             end = self.buffer.find(b"\xff\xd9")
         return beg, end
 
     def get_next_jpeg_frame(self):
         beg, end = self.get_next_packet_bounds()
+        if beg < 0 or end < 0:
+            return None
         jpeg = self.buffer[beg: end + 2]
         self.buffer = self.buffer[end + 2 :]
         return jpeg
@@ -358,22 +409,31 @@ class Camera:
         if self.serial_connection is not None and self.serial_connection.is_open:
             # Do nothing. The connection is already open on this port.
             if self.serial_connection.port == port:
+                self.camera_status = CameraState.CONNECTED
                 return
             # Otherwise, close the connection before trying to reopen.
-            self.serial_connection.close()
+            try:
+                self.serial_connection.close()
+            except Exception:
+                pass
+            self.serial_connection = None
+            self.buffer = b""
         com_ports = [tuple(p) for p in list(serial.tools.list_ports.comports())]
         # Do not try connecting if no such port i.e. device was unplugged.
         if not any(p for p in com_ports if port in p):
+            self.camera_status = CameraState.DISCONNECTED
             return
         try:
             rate = 115200 if sys.platform == "darwin" else 3000000  # Higher baud rate not working on macOS
+            # Short read timeout so get_next_packet_bounds() rechecks cancellation / source
+            # changes promptly; otherwise stop()/apply_camera_inputs can hang for seconds.
             conn = serial.Serial(
                 baudrate=rate,
                 port=port,
                 xonxoff=False,
                 dsrdtr=False,
                 rtscts=False,
-                timeout=2.0,
+                timeout=0.25,
             )
             # Set explicit buffer size for serial.
             if sys.platform == "win32":

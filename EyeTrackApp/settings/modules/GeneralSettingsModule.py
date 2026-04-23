@@ -58,10 +58,6 @@ class GeneralSettingsModule(BaseSettingsModule):
                 (self.gui_flip_y_axis, self.config.gui_flip_y_axis, "Flip Y Axis"),
                 (self.gui_update_check, self.config.gui_update_check, "Check For Updates"),
             ),
-            (
-                (self.gui_outer_side_falloff, self.config.gui_outer_side_falloff, "Outer Eye Falloff"),
-                None,
-            ),
         ]
 
         row = 0
@@ -75,7 +71,14 @@ class GeneralSettingsModule(BaseSettingsModule):
                 ttk.Checkbutton(parent, text=label, variable=var).grid(row=row, column=col, sticky="w", padx=8, pady=2)
             row += 1
 
-        ttk.Label(parent, text="Eye Difference Threshold").grid(row=row, column=0, sticky="w", padx=8, pady=(8, 2))
+        falloff_var = tk.BooleanVar(value=self.config.gui_outer_side_falloff)
+        self.tk_vars[self.gui_outer_side_falloff] = falloff_var
+        ttk.Checkbutton(parent, text="Outer Eye Falloff", variable=falloff_var).grid(
+            row=row, column=0, sticky="w", padx=8, pady=2
+        )
+        diff_row = ttk.Frame(parent)
+        diff_row.grid(row=row, column=1, sticky="w", padx=8, pady=2)
+        ttk.Label(diff_row, text="Eye Difference Threshold").pack(side="left", padx=(0, 6))
         diff_var = tk.StringVar(value=str(self.config.gui_eye_dominant_diff_thresh))
         self.tk_vars[self.gui_eye_dominant_diff_thresh] = diff_var
-        ttk.Entry(parent, textvariable=diff_var, width=12).grid(row=row, column=1, sticky="w", padx=8, pady=(8, 2))
+        ttk.Entry(diff_row, textvariable=diff_var, width=12).pack(side="left")

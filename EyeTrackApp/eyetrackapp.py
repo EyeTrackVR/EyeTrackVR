@@ -26,6 +26,7 @@ LICENSE: Babble Software Distribution License 1.0
 
 import os
 import sys
+import webbrowser
 import tkinter as tk
 from tkinter import ttk
 import sv_ttk
@@ -241,6 +242,60 @@ def main():
             self.algo_frame = settings[1].build(self.content)
             self.vrcft_frame = settings[2].build(self.content)
 
+            self.issues_frame = ttk.Frame(self.content)
+            issues_wrap = 720
+            _issues_hdr_font = ("Segoe UI", 14, "bold")
+            _hdr_bg = self.root.cget("background")
+            tk.Label(
+                self.issues_frame,
+                text="Having tracking issues?",
+                font=_issues_hdr_font,
+                bg=_hdr_bg,
+                fg="#e8e8e8",
+            ).pack(anchor="w", padx=12, pady=(12, 6))
+            ttk.Label(
+                self.issues_frame,
+                text=(
+                    "Please ensure your cameras are well lit, focused, rotated and cropped correctly. "
+                    "Please ask in our discord for assistance if needed. We are here to help!"
+                ),
+                wraplength=issues_wrap,
+                justify="left",
+            ).pack(anchor="w", padx=12, pady=(0, 16))
+            tk.Label(
+                self.issues_frame,
+                text="Improve your experiance",
+                font=_issues_hdr_font,
+                bg=_hdr_bg,
+                fg="#e8e8e8",
+            ).pack(anchor="w", padx=12, pady=(0, 6))
+            ttk.Label(
+                self.issues_frame,
+                text=(
+                    "Please consider contributing data to our training to improve future models for much better "
+                    "tracking and features. It only takes a few minutes. Every submission helps and we really want "
+                    "data on setups that work poorly, as well as ones that work well. Thank you!"
+                ),
+                wraplength=issues_wrap,
+                justify="left",
+            ).pack(anchor="w", padx=12, pady=(0, 16))
+            issues_btn_row = ttk.Frame(self.issues_frame)
+            issues_btn_row.pack(anchor="w", padx=12, pady=8)
+
+            def _open_data_submission():
+                webbrowser.open("https://github.com/RedHawk989/ETVR-Data-Collection/releases/latest")
+
+            def _open_discord():
+                webbrowser.open("https://discord.gg/kkXYbVykZX")
+
+            ttk.Button(
+                issues_btn_row,
+                text="Data Submission App",
+                command=_open_data_submission,
+                style="Accent.TButton",
+            ).pack(side="left", padx=(0, 8))
+            ttk.Button(issues_btn_row, text="Discord", command=_open_discord).pack(side="left")
+
             tracking_outer = ttk.Frame(self.tracking_tab, padding=8)
             tracking_outer.pack(fill="both", expand=True)
             tracking_sidebar = ttk.Frame(tracking_outer, width=220)
@@ -298,6 +353,7 @@ def main():
             bottom = ttk.Frame(self.root)
             bottom.pack(fill="x", padx=8, pady=4)
             ttk.Button(bottom, text="GUI OFF", command=self.gui_off).pack(side="left")
+            ttk.Button(bottom, text="Having Issues?", command=lambda: self.show_page("issues")).pack(side="left", padx=(10, 0))
             self.focus_label = ttk.Label(bottom, text="- - -  Interface Paused  - - -")
             self.focus_label.pack(side="left", padx=12)
             self.focus_label.pack_forget()
@@ -455,7 +511,7 @@ def main():
             self._nav_teardown_seq += 1
             seq = self._nav_teardown_seq
             self.current_page = page_name
-            for frame in [self.tracking_tab, self.settings_frame, self.algo_frame, self.vrcft_frame]:
+            for frame in [self.tracking_tab, self.settings_frame, self.algo_frame, self.vrcft_frame, self.issues_frame]:
                 frame.pack_forget()
 
             if page_name == "tracking":
@@ -478,6 +534,11 @@ def main():
                 self._sync_nav_buttons()
                 self.root.update_idletasks()
                 self.root.after(0, lambda s=seq: self._deferred_enter_vrcft(s))
+            elif page_name == "issues":
+                self.issues_frame.pack(fill="both", expand=True)
+                self._sync_nav_buttons()
+                self.root.update_idletasks()
+                self.root.after(0, lambda s=seq: self._deferred_enter_issues(s))
 
         def _deferred_enter_tracking(self, seq: int) -> None:
             if seq != self._nav_teardown_seq:
@@ -516,6 +577,16 @@ def main():
             settings[0].stop()
             settings[1].stop()
             settings[2].start()
+            self._sync_timer_resolution()
+
+        def _deferred_enter_issues(self, seq: int) -> None:
+            if seq != self._nav_teardown_seq:
+                return
+            eyes[0].stop()
+            eyes[1].stop()
+            settings[0].stop()
+            settings[1].stop()
+            settings[2].stop()
             self._sync_timer_resolution()
 
         def gui_off(self):

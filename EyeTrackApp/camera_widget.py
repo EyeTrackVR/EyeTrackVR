@@ -360,8 +360,13 @@ class CameraWidget:
         cx = int(np.clip(cx, gx0 + margin, gx0 + G - margin))
         cy = int(np.clip(cy, gy0 + margin, gy0 + G - margin))
 
-        if not np.isnan(eye_info.pupil_dilation):
-            pd = float(np.clip(eye_info.pupil_dilation, 0.0, 1.5))
+        try:
+            pd_raw = float(eye_info.pupil_dilation)
+        except (TypeError, ValueError):
+            pd_raw = float("nan")
+        if np.isfinite(pd_raw):
+            # EBPD / OSC use ~0..1; clamp for ring so the viz matches shipped dilation semantics.
+            pd = float(np.clip(pd_raw, 0.0, 1.0))
         else:
             pd = 0.5
         r_ring = int(round(7 + pd * 34))
@@ -408,19 +413,35 @@ class CameraWidget:
 
     def _save_tracking(self):
         value = self.camera_addr_var.get()
-        if value == str(self.config.capture_source):
+        if value == str(self.config.capture_source or ""):
             return
-        print("\033[94m[INFO] New value: {}\033[0m".format(value))
         try:
-            self.config.capture_source = int(value)
+            new_source = int(value)
         except ValueError:
             if value == "":
-                self.config.capture_source = None
+                new_source = None
             elif len(value) > 5 and "http" not in value and ".mp4" not in value and "/dev" not in value:
-                self.config.capture_source = f"http://{value}/"
+                new_source = f"http://{value}/"
             else:
-                self.config.capture_source = value
-        self.main_config.save()
+                new_source = value
+
+        if new_source == self.config.capture_source:
+            return
+
+        print("\033[94m[INFO] New value: {}\033[0m".format(new_source))
+
+        # Run the apply/restart off the Tk thread: update_eye_model_config notifies listeners
+        # (including on_config_update, which stops/starts the camera), and stop() joins the
+        # camera thread — which can block briefly on close/open. We don't want to freeze the GUI.
+        def _apply():
+            try:
+                self.main_config.update_eye_model_config(
+                    self.eye_id, {"capture_source": new_source}
+                )
+            except Exception as exc:
+                print(f"\033[93m[WARN] Failed to apply new capture source: {exc}\033[0m")
+
+        Thread(target=_apply, daemon=True, name=f"CameraSourceApply-{self.eye_id}").start()
 
     def _stop_calibration(self):
         self.ransac.calibration_start_time = None
