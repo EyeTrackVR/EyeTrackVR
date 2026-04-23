@@ -64,9 +64,28 @@ def is_serial_capture_source(addr: str) -> bool:
     )
 
 
-# Cap decode rate for sources that can deliver unbounded frames per wall second (files / HTTP).
-_CV_HTTP_OR_FILE_MAX_FPS = 120.0
-_CV_HTTP_OR_FILE_MIN_INTERVAL = 1.0 / _CV_HTTP_OR_FILE_MAX_FPS
+def is_http_capture_source(addr: str) -> bool:
+    """Returns True if the capture source is an http(s) URL. HTTP sources go through
+    cv2.VideoCapture (which has a battle-tested FFmpeg-backed MJPEG parser) but we
+    flag them here so get_cv2_camera_picture can pick a compressed-byte proxy for
+    the bandwidth readout instead of the decoded pixel rate."""
+    s = addr.strip().lower()
+    return s.startswith("http://") or s.startswith("https://")
+
+
+# Cap decode rate for sources that can deliver frames faster than the tracker
+# pipeline can usefully consume: local video files (disk-speed) and HTTP MJPEG
+# cams configured for high fps. Above this, we sleep before reading so we stop
+# burning CPU on frames we'd drop anyway.
+_FAST_CAPTURE_MAX_FPS = 120.0
+_FAST_CAPTURE_MIN_INTERVAL = 1.0 / _FAST_CAPTURE_MAX_FPS
+# Re-encode quality used as a compressed-byte proxy for HTTP MJPEG streams.
+# cv2.VideoCapture only hands us decoded BGR frames, so we can't see the original
+# on-wire JPEG length; re-encoding each frame to JPEG at this quality gives a
+# stable, CPU-cheap proxy. It will differ from the server's actual compression
+# (typical ESP32-CAM encodes at ~10-15, so 80 overestimates) but tracks frame
+# complexity and is far closer to reality than decoded pixel rate.
+_HTTP_WIRE_BYTES_PROXY_JPEG_QUALITY = 80
 _CV_FILE_VIDEO_EXTENSIONS = (
     ".mp4",
     ".avi",
@@ -83,8 +102,9 @@ _CV_FILE_VIDEO_EXTENSIONS = (
 )
 
 
-def is_http_or_file_video_capture_source(capture_source) -> bool:
-    """True for http(s) URLs or local video file paths — UVC indices and other strings are False."""
+def is_local_file_video_capture_source(capture_source) -> bool:
+    """True for local video file paths (by extension). UVC indices, HTTP URLs,
+    serial ports, and empty/None are all False."""
     if capture_source is None:
         return False
     if isinstance(capture_source, int):
@@ -93,8 +113,6 @@ def is_http_or_file_video_capture_source(capture_source) -> bool:
     if not s:
         return False
     sl = s.lower()
-    if sl.startswith("http://") or sl.startswith("https://"):
-        return True
     return any(sl.endswith(ext) for ext in _CV_FILE_VIDEO_EXTENSIONS)
 
 
@@ -120,19 +138,18 @@ class Camera:
         self.cancellation_event = cancellation_event
         self.current_capture_source = config.capture_source
         self.cv2_camera: "cv2.VideoCapture" = None
-        self._http_or_file_source_cache: tuple[object, bool] | None = None
+        self._file_video_source_cache: tuple[object, bool] | None = None
 
         self.serial_connection = None
-        self.last_frame_time = time.time()
         self.frame_number = 0
-        self.fps = 0
-        self.bps = 0
-        self.start = True
+        self.fps = 0.0
+        self.bps = 0.0
         self.buffer = b""
-        self.pf_fps = 0
-        self.prevft = 0
-        self.newft = 0
-        self.fl = [0]
+        # last_frame_time == 0.0 is a "no prior frame" sentinel: the next frame seeds
+        # timing without contributing a delta. Keeps the first frame after connect /
+        # reconnect / source-change from feeding a multi-second gap into the fps MA.
+        self.last_frame_time = 0.0
+        self.fl: list[float] = []
         self._last_cv_cap_frame_time = 0.0
 
         self.error_message = f"{Fore.YELLOW}[WARN] Capture source {{}} not found, retrying...{Fore.RESET}"
@@ -148,12 +165,12 @@ class Camera:
         """Duplicate each captured frame into these queues (BGR numpy frames). Used for dual-eye same physical camera."""
         self._extra_output_queues = list(queues) if queues else []
 
-    def _is_http_or_file_cached(self, capture_source) -> bool:
+    def _is_local_file_video_cached(self, capture_source) -> bool:
         key = capture_source
-        if self._http_or_file_source_cache is not None and self._http_or_file_source_cache[0] == key:
-            return self._http_or_file_source_cache[1]
-        v = is_http_or_file_video_capture_source(capture_source)
-        self._http_or_file_source_cache = (key, v)
+        if self._file_video_source_cache is not None and self._file_video_source_cache[0] == key:
+            return self._file_video_source_cache[1]
+        v = is_local_file_video_capture_source(capture_source)
+        self._file_video_source_cache = (key, v)
         return v
 
     def _release_cv2_camera(self) -> None:
@@ -178,6 +195,45 @@ class Camera:
         self.serial_connection = None
         self.buffer = b""
 
+    def _reset_frame_stats(self) -> None:
+        """Clear fps / bps moving-average state. Called on source change so the readouts
+        don't blend the old source's rate with the new source's frame timing."""
+        self.fl = []
+        self.last_frame_time = 0.0
+        self.fps = 0.0
+        self.bps = 0.0
+        self.frame_number = 0
+
+    def _update_frame_rate(self, frame_bytes: int) -> None:
+        """Update fps / bps moving averages for the most recently received frame.
+
+        ``frame_bytes`` is the best available byte-count for this frame:
+          - Serial path: ``len(jpeg)`` — true compressed bytes on the UART wire.
+          - cv2 HTTP:    length of a re-encoded JPEG at a fixed quality — a stable
+                         compressed-byte proxy (cv2.VideoCapture hides the original
+                         on-wire JPEG length from us). Approximates wire bandwidth.
+          - cv2 UVC/file: ``image.nbytes`` pre-resize — decoded pixel bytes, since
+                         there's no compressed source to measure. Decoded pixel-rate
+                         proxy, not true wire bandwidth.
+
+        The first call after a reset / reconnect only seeds ``last_frame_time`` and
+        does NOT contribute an fps sample, which avoids polluting the MA with a
+        multi-second gap between camera init and the first frame.
+        """
+        current_time = time.time()
+        if self.last_frame_time > 0.0:
+            delta = current_time - self.last_frame_time
+            if delta > 0:
+                current_fps = 1.0 / delta
+                if len(self.fl) < 60:
+                    self.fl.append(current_fps)
+                else:
+                    self.fl.pop(0)
+                    self.fl.append(current_fps)
+                self.fps = sum(self.fl) / len(self.fl)
+                self.bps = frame_bytes * self.fps
+        self.last_frame_time = current_time
+
     def run(self):
         OPENCV_PARAMS = [
             cv2.CAP_PROP_OPEN_TIMEOUT_MSEC,
@@ -188,7 +244,7 @@ class Camera:
         while True:
             if self.cancellation_event.is_set():
                 print(f"{Fore.CYAN}[INFO] Exiting Capture thread{Fore.RESET}")
-                # Release BOTH backends regardless of which one is active, since we may be mid-
+                # Release ALL backends regardless of which one is active, since we may be mid-
                 # transition between them. Guarded against None so early shutdown doesn't crash.
                 self._release_cv2_camera()
                 self._close_serial_connection()
@@ -201,9 +257,10 @@ class Camera:
                 source_changed = new_source != self.current_capture_source
                 addr = str(new_source)
                 if is_serial_capture_source(addr):
-                    # Switching from a cv2 source to serial: release the cv2 handle first.
+                    # Switching to serial from any other backend: release their handles.
                     if source_changed:
                         self._release_cv2_camera()
+                        self._reset_frame_stats()
                     if (
                         self.serial_connection is None
                         or self.camera_status == CameraState.DISCONNECTED
@@ -213,9 +270,10 @@ class Camera:
                         self.start_serial_connection(new_source)
                         should_push = False
                 else:
-                    # Switching from serial to a cv2 source: close the serial port first.
+                    # Switching to cv2 (local UVC / HTTP MJPEG / file) from any other backend.
                     if source_changed:
                         self._close_serial_connection()
+                        self._reset_frame_stats()
                     if (
                         self.cv2_camera is None
                         or not self.cv2_camera.isOpened()
@@ -230,7 +288,7 @@ class Camera:
                         # Release any previously opened handle before replacing it, otherwise we
                         # leak OS resources and can block the new open on busy backends (DSHOW/MSMF).
                         self._release_cv2_camera()
-                        self._http_or_file_source_cache = None
+                        self._file_video_source_cache = None
                         self.current_capture_source = new_source
                         cam = cv2.VideoCapture()
                         cam.setExceptionMode(True)
@@ -275,12 +333,17 @@ class Camera:
 
     def get_cv2_camera_picture(self, should_push):
         try:
-            is_http_or_file = self._is_http_or_file_cached(self.current_capture_source)
-            if should_push and is_http_or_file:
+            is_file_video = self._is_local_file_video_cached(self.current_capture_source)
+            is_http = is_http_capture_source(str(self.current_capture_source))
+            # HTTP MJPEG cams (esp. ESP32) and local files can hand cv2 frames as fast
+            # as the link / disk allows. Both deserve the same throttle; UVC paces
+            # itself on hardware fps.
+            throttle_source = is_file_video or is_http
+            if should_push and throttle_source:
                 now = time.time()
                 last = self._last_cv_cap_frame_time
                 if last > 0.0:
-                    wait = _CV_HTTP_OR_FILE_MIN_INTERVAL - (now - last)
+                    wait = _FAST_CAPTURE_MIN_INTERVAL - (now - last)
                     if wait > 0:
                         time.sleep(wait)
 
@@ -288,6 +351,23 @@ class Camera:
             if not ret or image is None:
                 self.cv2_camera.set(cv2.CAP_PROP_POS_FRAMES, 0)
                 raise RuntimeError("Problem while getting frame")
+            # Byte count for bps readout. Captured BEFORE downscale so the number
+            # reflects what the backend actually delivered, not what we resized to.
+            #   - HTTP MJPEG: we never see the server's JPEG; re-encode at fixed
+            #     quality as a stable compressed-byte proxy. Approximates wire
+            #     bandwidth (factor of ~2-5x off typical low-Q ESP32 streams, but
+            #     tracks frame complexity correctly).
+            #   - UVC / file: no compressed source to measure; ``image.nbytes`` is
+            #     the decoded pixel-rate proxy.
+            if is_http:
+                ok, jpeg_buf = cv2.imencode(
+                    ".jpg",
+                    image,
+                    [int(cv2.IMWRITE_JPEG_QUALITY), _HTTP_WIRE_BYTES_PROXY_JPEG_QUALITY],
+                )
+                frame_bytes = int(jpeg_buf.size) if ok else int(image.nbytes)
+            else:
+                frame_bytes = image.nbytes
             height, width = image.shape[:2]  # Calculate the aspect ratio
             if int(width) > 680:
                 aspect_ratio = float(width) / float(
@@ -295,26 +375,10 @@ class Camera:
                 )  # Determine the new height based on the desired maximum width
                 new_height = int(680 / aspect_ratio)
                 image = cv2.resize(image, (680, new_height))
-            if should_push and is_http_or_file:
+            if should_push and throttle_source:
                 self._last_cv_cap_frame_time = time.time()
             frame_number = self.cv2_camera.get(cv2.CAP_PROP_POS_FRAMES)
-            current_frame_time = time.time()
-            delta_time = current_frame_time - self.last_frame_time
-            if delta_time > 0:
-                current_fps = 1 / delta_time
-            else:
-                current_fps = 0
-            self.last_frame_time = current_frame_time
-
-            if len(self.fl) < 60:
-                self.fl.append(current_fps)
-            else:
-                self.fl.pop(0)
-                self.fl.append(current_fps)
-
-            self.fps = sum(self.fl) / len(self.fl)
-            self.bps = image.nbytes * self.fps
-
+            self._update_frame_rate(frame_bytes)
 
             if should_push:
                 self.push_image_to_queue(image, frame_number, self.fps)
@@ -378,22 +442,10 @@ class Camera:
                         print(f"{Fore.CYAN}[INFO] Discarding the serial buffer ({conn.in_waiting} bytes){Fore.RESET}")
                         conn.reset_input_buffer()
                         self.buffer = b""
-                    # Calculate the fps.
-                    current_frame_time = time.time()
-                    delta_time = current_frame_time - self.last_frame_time
-                    self.last_frame_time = current_frame_time
-                    self.fps = (self.fps + self.pf_fps) / 2
-                    self.newft = time.time()
-                    self.fps = 1 / (self.newft - self.prevft)
-                    self.prevft = self.newft
-                    self.fps = int(self.fps)
-                    if len(self.fl) < 60:
-                        self.fl.append(self.fps)
-                    else:
-                        self.fl.pop(0)
-                        self.fl.append(self.fps)
-                    self.fps = sum(self.fl) / len(self.fl)
-                    self.bps = image.nbytes * self.fps
+                    # True wire bytes: len(jpeg) is the compressed payload the tracker
+                    # pushed over UART, so the Mbps readout matches physical link
+                    # bandwidth instead of decoded-pixel throughput.
+                    self._update_frame_rate(len(jpeg))
                     self.frame_number = self.frame_number + 1
                     if should_push:
                         self.push_image_to_queue(image, self.frame_number, self.fps)

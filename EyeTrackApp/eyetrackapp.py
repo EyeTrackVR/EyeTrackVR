@@ -296,11 +296,11 @@ def main():
             ).pack(side="left", padx=(0, 8))
             ttk.Button(issues_btn_row, text="Discord", command=_open_discord).pack(side="left")
 
-            tracking_outer = ttk.Frame(self.tracking_tab, padding=8)
+            tracking_outer = ttk.Frame(self.tracking_tab, padding=4)
             tracking_outer.pack(fill="both", expand=True)
             tracking_sidebar = ttk.Frame(tracking_outer, width=220)
             tracking_sidebar.pack_propagate(False)
-            tracking_sidebar.pack(side="left", fill="y", padx=(0, 12))
+            tracking_sidebar.pack(side="left", fill="y", padx=(0, 8))
             tracking_main = ttk.Frame(tracking_outer)
             tracking_main.pack(side="left", fill="both", expand=True)
 
@@ -347,8 +347,11 @@ def main():
             self.tracking_eyes_row.pack(fill="both", expand=True)
             self.left_frame = eyes[1].build(self.tracking_eyes_row, show_camera_controls=False)
             self.right_frame = eyes[0].build(self.tracking_eyes_row, show_camera_controls=False)
-            self.left_frame.pack(side="left", fill="both", expand=True, padx=(0, 6))
-            self.right_frame.pack(side="left", fill="both", expand=True, padx=(6, 0))
+            # Hug the natural widget width (tracking image is 300 px + small paddings) and
+            # pool any slack on the right of the row. Expanding here stretched each panel
+            # to half of tracking_main, leaving a wide empty gutter after the status row.
+            self.left_frame.pack(side="left", fill="y", padx=(0, 4))
+            self.right_frame.pack(side="left", fill="y", padx=(4, 0))
 
             bottom = ttk.Frame(self.root)
             bottom.pack(fill="x", padx=8, pady=4)

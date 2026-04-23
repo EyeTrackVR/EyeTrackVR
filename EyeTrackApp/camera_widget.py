@@ -174,24 +174,39 @@ class CameraWidget:
         self.tracking_frame.pack(fill="both", expand=True)
 
         tracking_controls = ttk.Frame(self.tracking_frame)
-        tracking_controls.pack(fill="x", padx=8, pady=4)
+        tracking_controls.pack(fill="x", padx=4, pady=2)
         self._calibration_toggle_btn = ttk.Button(
             tracking_controls,
             text="Start Calibration",
             command=self._on_calibration_toggle,
         )
-        self._calibration_toggle_btn.pack(side="left", padx=4)
-        ttk.Button(tracking_controls, text="Recenter Eyes", command=self.recenter_eyes).pack(side="left", padx=4)
+        self._calibration_toggle_btn.pack(side="left", padx=2)
+        ttk.Button(tracking_controls, text="Recenter Eyes", command=self.recenter_eyes).pack(side="left", padx=2)
 
         status_row = ttk.Frame(self.tracking_frame)
-        status_row.pack(fill="x", padx=8, pady=4)
-        ttk.Label(status_row, text="Mode:").pack(side="left")
+        status_row.pack(fill="x", padx=4, pady=2)
         self.mode_var = tk.StringVar(value="Calibrating")
         self.fps_var = tk.StringVar(value="")
         self.bps_var = tk.StringVar(value="")
-        ttk.Label(status_row, textvariable=self.mode_var).pack(side="left", padx=4)
-        ttk.Label(status_row, textvariable=self.fps_var).pack(side="left", padx=8)
-        ttk.Label(status_row, textvariable=self.bps_var).pack(side="left", padx=8)
+        # Layout: [mode  fps  bps                     ]
+        # mode_var has no fixed width so "Tracking" doesn't trail empty chars.
+        # fps / bps keep their fixed widths so their *own* reqwidth never flips with the
+        # digit count, and they sit immediately to the right of mode so the gap between
+        # "Tracking" and the fps readout is just the 4 px padx. When mode's text length
+        # changes (e.g. "Tracking" -> "Reconnecting..."), fps/bps slide within the row,
+        # but the panel itself stays 300 px wide (pinned by the tracking image below),
+        # so no eye-panel boundary moves. Fixed widths sized to the longest readouts:
+        #   fps — "120 Fps 8 ms"  (12 chars typical, 13 worst)
+        #   bps — "99.999 Mbps"   (11 chars max)
+        ttk.Label(
+            status_row, textvariable=self.mode_var, anchor="w"
+        ).pack(side="left")
+        ttk.Label(
+            status_row, textvariable=self.fps_var, width=13, anchor="w"
+        ).pack(side="left", padx=(4, 0))
+        ttk.Label(
+            status_row, textvariable=self.bps_var, width=11, anchor="w"
+        ).pack(side="left", padx=(4, 0))
 
         # Source stack from processor is 300×150; compact display for dual-eye layout
         self._tracking_display_size = (300, 150)
@@ -203,11 +218,34 @@ class CameraWidget:
         self._viz_canvas_w = self._viz_pad * 2 + self._viz_gaze + self._viz_gaze_gap + self._viz_blink_w
         self._viz_canvas_h = self._viz_pad * 2 + self._viz_gaze
 
-        self.tracking_image_widget = tk.Label(self.tracking_frame)
-        self.tracking_image_widget.pack(padx=8, pady=4, anchor="w")
+        # Reserve the final slot size up-front so the layout doesn't jitter when the first
+        # frame arrives (Label would otherwise start at 0x0 and suddenly grow to 300x150,
+        # shifting every widget below it — visible as "the right eye moves around at launch").
+        tw, th = self._tracking_display_size
+        self._tracking_image_holder = tk.Frame(
+            self.tracking_frame,
+            width=tw,
+            height=th,
+            bg="#1e1f23",
+            highlightthickness=0,
+            bd=0,
+        )
+        self._tracking_image_holder.pack(padx=4, pady=2, anchor="w")
+        self._tracking_image_holder.pack_propagate(False)
+        self.tracking_image_widget = tk.Label(
+            self._tracking_image_holder,
+            bg="#1e1f23",
+            bd=0,
+            highlightthickness=0,
+        )
+        self.tracking_image_widget.pack(fill="both", expand=True)
 
-        graph_row = ttk.Frame(self.tracking_frame)
-        graph_row.pack(fill="x", padx=8, pady=4)
+        # Keep the viz row at a fixed height regardless of whether the canvas, the ROI
+        # placeholder message, or nothing is visible. pack_propagate(False) means children
+        # can't resize the row, so showing/hiding them no longer reflows the layout.
+        graph_row = ttk.Frame(self.tracking_frame, height=self._viz_canvas_h)
+        graph_row.pack(fill="x", padx=4, pady=2)
+        graph_row.pack_propagate(False)
         self.output_canvas = tk.Canvas(
             graph_row,
             width=self._viz_canvas_w,
@@ -218,8 +256,8 @@ class CameraWidget:
         self.output_canvas.pack(side="left")
         self.roi_message_var = tk.StringVar(value="Please set an Eye Cropping.")
         self.roi_message_label = ttk.Label(graph_row, textvariable=self.roi_message_var)
-        self.roi_message_label.pack(side="left", padx=10)
-        self.roi_message_label.pack_forget()
+        # roi_message_label is packed/unpacked dynamically in render_tick; the fixed-height
+        # parent absorbs the change so nothing downstream moves.
 
         roi_controls = ttk.Frame(self.roi_frame)
         roi_controls.pack(fill="x", padx=8, pady=4)
@@ -251,6 +289,11 @@ class CameraWidget:
         self.roi_canvas.bind("<B1-Motion>", self._on_roi_mouse_drag)
         self.roi_canvas.bind("<ButtonRelease-1>", self._on_roi_mouse_up)
         self.roi_canvas.bind("<Motion>", self._on_roi_mouse_move)
+
+        # Create viz items up-front and hide them so the canvas shows as a clean dark
+        # rectangle at launch (same as its final "waiting for first frame" look), rather
+        # than briefly exposing unfilled primitives when items are first created mid-run.
+        self._hide_output_viz()
         return self.frame
 
     def _sync_mode_tab_buttons(self) -> None:
@@ -280,6 +323,13 @@ class CameraWidget:
             return ImageTk.PhotoImage(pil_img, master=master)
         except (ValueError, TypeError, tk.TclError):
             return None
+
+    def _hide_output_viz(self) -> None:
+        """Hide all visualization items inside the canvas without unpacking the canvas."""
+        self._ensure_output_viz_canvas_items()
+        c = self.output_canvas
+        c.itemconfigure("viz_main", state="hidden")
+        c.itemconfigure("viz_fail", state="hidden")
 
     def _ensure_output_viz_canvas_items(self) -> None:
         if self._viz_item_ids is not None:
@@ -640,16 +690,19 @@ class CameraWidget:
             fps_readout = ""
             bps_readout = ""
             if self.config.capture_source is None or self.config.capture_source == "":
-                mode_readout = "Waiting for camera address"
+                mode_readout = "No camera set"
                 self.roi_message_label.pack_forget()
-                self.output_canvas.pack_forget()
+                # Don't pack_forget the canvas — the fixed-height graph_row absorbs size
+                # changes but the canvas would still briefly vanish and reappear, which
+                # reads as "the widget is moving" when it's not. Hide its viz contents
+                # instead so the area stays reserved and visually stable.
+                self._hide_output_viz()
             elif self.camera.camera_status == CameraState.CONNECTING:
-                mode_readout = "Camera Connecting"
+                mode_readout = "Connecting..."
             elif self.camera.camera_status == CameraState.DISCONNECTED:
-                mode_readout = "Camera Reconnecting..."
-
+                mode_readout = "Reconnecting..."
             elif needs_roi_set:
-                mode_readout = "Awaiting Eye Crop"
+                mode_readout = "Awaiting Crop"
             elif self.ransac.calibration_start_time != None:
                 mode_readout = "Calibration"
             else:
@@ -812,13 +865,14 @@ class CameraWidget:
                     self.capture_event.set()
             else:
                 if needs_roi_set:
-                    self.output_canvas.pack_forget()
-                    self.roi_message_label.pack(side="left", padx=10)
+                    # Keep the canvas mapped (fixed-height row, no layout shift). Hide its
+                    # viz contents and show the hint label next to it.
+                    self._hide_output_viz()
+                    if not self.roi_message_label.winfo_ismapped():
+                        self.roi_message_label.pack(side="left", padx=10)
                     return
                 try:
                     self.roi_message_label.pack_forget()
-                    if not self.output_canvas.winfo_ismapped():
-                        self.output_canvas.pack(side="left")
                     (maybe_image, eye_info) = self.image_queue.get(block=False)
 
                     tw, th = self._tracking_display_size
@@ -840,7 +894,7 @@ class CameraWidget:
 
             try:
                 self.roi_message_label.pack_forget()
-                self.output_canvas.pack_forget()
+                self._hide_output_viz()
                 (maybe_image, eye_info) = self.image_queue.get(block=False)
 
             except Empty:
