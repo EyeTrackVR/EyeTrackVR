@@ -24,6 +24,7 @@ LICENSE: Babble Software Distribution License 1.0
 ------------------------------------------------------------------------------------------------------
 """
 
+import logging
 import cv2
 import numpy as np
 import queue
@@ -31,7 +32,6 @@ import serial
 import serial.tools.list_ports
 import threading
 import time
-from colorama import Fore
 from config import EyeTrackCameraConfig
 from enum import Enum
 import sys
@@ -39,6 +39,7 @@ from PIL import Image
 from io import BytesIO
 
 WAIT_TIME = 0.1
+logger = logging.getLogger(__name__)
 # Serial communication protocol:
 # header-begin (2 bytes)
 # header-type (2 bytes)
@@ -154,7 +155,7 @@ class Camera:
         self.fl: list[float] = []
         self._last_cv_cap_frame_time = 0.0
 
-        self.error_message = f"{Fore.YELLOW}[WARN] Capture source {{}} not found, retrying...{Fore.RESET}"
+        self.error_message = "Capture source {} not found, retrying..."
 
     def __del__(self):
         if self.serial_connection is not None:
@@ -248,7 +249,7 @@ class Camera:
         ]
         while True:
             if self.cancellation_event.is_set():
-                print(f"{Fore.CYAN}[INFO] Exiting Capture thread{Fore.RESET}")
+                logger.info("Exiting capture thread")
                 # Release ALL backends regardless of which one is active, since we may be mid-
                 # transition between them. Guarded against None so early shutdown doesn't crash.
                 self._release_cv2_camera()
@@ -285,7 +286,7 @@ class Camera:
                         or self.camera_status == CameraState.DISCONNECTED
                         or source_changed
                     ):
-                        print(self.error_message.format(new_source))
+                        logger.info(self.error_message.format(new_source))
                         # This requires a wait, otherwise we can error and possible screw up the camera
                         # firmware. Fickle things.
                         if self.cancellation_event.wait(WAIT_TIME):
@@ -302,8 +303,8 @@ class Camera:
                         try:
                             cam.open(new_source, cv2.CAP_ANY, OPENCV_PARAMS)
                         except cv2.error as e:
-                            print(
-                                f"{Fore.YELLOW}[WARN] Failed to open capture source {new_source}: {e}{Fore.RESET}"
+                            logger.warning(
+                                "Failed to open capture source %s: %s", new_source, e
                             )
                             self.camera_status = CameraState.DISCONNECTED
                             self._release_cv2_camera()
@@ -392,9 +393,9 @@ class Camera:
 
             if should_push:
                 self.push_image_to_queue(image, frame_number, self.fps)
-        except:
-            print(
-                f"{Fore.YELLOW}[WARN] Capture source problem, assuming camera disconnected, waiting for reconnect.{Fore.RESET}"
+        except Exception:
+            logger.warning(
+                "Capture source problem, assuming camera disconnected and waiting for reconnect."
             )
             self.camera_status = CameraState.DISCONNECTED
             self._last_cv_cap_frame_time = 0.0
@@ -444,15 +445,13 @@ class Camera:
                     try:
                         image = np.array(Image.open(BytesIO(jpeg)))
                     except Exception:
-                        print(
-                            f"{Fore.YELLOW}[WARN] Frame drop. Corrupted JPEG.{Fore.RESET}"
-                        )
+                        logger.warning("Frame drop. Corrupted JPEG.")
                         return
                     # Discard the serial buffer. This is due to the fact that it
                     # may build up some outdated frames. A bit of a workaround here tbh.
                     if conn.in_waiting >= 32768:
-                        print(
-                            f"{Fore.CYAN}[INFO] Discarding the serial buffer ({conn.in_waiting} bytes){Fore.RESET}"
+                        logger.info(
+                            "Discarding the serial buffer (%s bytes)", conn.in_waiting
                         )
                         conn.reset_input_buffer()
                         self.buffer = b""
@@ -464,8 +463,8 @@ class Camera:
                     if should_push:
                         self.push_image_to_queue(image, self.frame_number, self.fps)
         except Exception:
-            print(
-                f"{Fore.YELLOW}[WARN] Serial capture source problem, assuming camera disconnected, waiting for reconnect.{Fore.RESET}"
+            logger.warning(
+                "Serial capture source problem, assuming camera disconnected and waiting for reconnect."
             )
             conn.close()
             self.camera_status = CameraState.DISCONNECTED
@@ -508,13 +507,11 @@ class Camera:
                 buffer_size = 32768
                 conn.set_buffer_size(rx_size=buffer_size, tx_size=buffer_size)
 
-            print(
-                f"{Fore.CYAN}[INFO] ETVR Serial Tracker device connected on {port}{Fore.RESET}"
-            )
+            logger.info("ETVR Serial Tracker device connected on %s", port)
             self.serial_connection = conn
             self.camera_status = CameraState.CONNECTED
         except Exception:
-            print(f"{Fore.CYAN}[INFO] Failed to connect on {port}{Fore.RESET}")
+            logger.info("Failed to connect on %s", port)
             self.camera_status = CameraState.DISCONNECTED
 
     def _put_frame_drop_oldest(self, q: "queue.Queue", item: tuple) -> None:
@@ -535,8 +532,9 @@ class Camera:
         # some sort of capture event conflict though.
         qsize = self.camera_output_outgoing.qsize()
         if qsize > 1:
-            print(
-                f"{Fore.YELLOW}[WARN] CAPTURE QUEUE BACKPRESSURE OF {qsize}. CHECK FOR CRASH OR TIMING ISSUES IN ALGORITHM.{Fore.RESET}"
+            logger.warning(
+                "Capture queue backpressure of %s. Check for crash or timing issues in algorithm.",
+                qsize,
             )
         self._put_frame_drop_oldest(
             self.camera_output_outgoing, (image, frame_number, fps)

@@ -24,6 +24,7 @@ LICENSE: Babble Software Distribution License 1.0
 ------------------------------------------------------------------------------------------------------
 """
 
+import logging
 import os
 import sys
 import webbrowser
@@ -42,9 +43,13 @@ from settings.general_settings_widget import SettingsWidget
 from settings.algo_settings_widget import AlgoSettingsWidget
 from osc.osc import OSCManager
 from osc.OSCMessage import OSCMessage
+from utils.logging_utils import setup_logging
 from utils.misc_utils import is_nt, is_macos, resource_path
 
 
+appversion = "EyeTrackApp 0.2.6 BETA 1"
+setup_logging(appversion)
+logger = logging.getLogger(__name__)
 winmm = None
 
 if is_nt:
@@ -54,17 +59,13 @@ if is_nt:
     try:
         winmm = windll.winmm
     except OSError:
-        print("\033[91m[WARN] Failed to load winmm.dll\033[0m")
-os.system("color")  # init ANSI color
+        logger.warning("Failed to load winmm.dll")
 
 
 # Random environment variable to speed up webcam opening on the MSMF backend.
 # https://github.com/opencv/opencv/issues/17687
 os.environ["OPENCV_VIDEOIO_MSMF_ENABLE_HW_TRANSFORMS"] = "0"
 WINDOW_NAME = "EyeTrackApp"
-
-
-appversion = "EyeTrackApp 0.2.6 BETA 1"
 
 _pywinstyles_mod = None
 
@@ -83,9 +84,7 @@ def apply_theme_to_titlebar(win: tk.Misc) -> None:
             _pywinstyles_mod = _pws
         except ImportError:
             _pywinstyles_mod = False
-            print(
-                "\033[93m[WARN] pywinstyles not installed; title bar theme skipped.\033[0m"
-            )
+            logger.warning("pywinstyles not installed; title bar theme skipped.")
             return
 
     is_dark = sv_ttk.get_theme() == "dark"
@@ -106,9 +105,7 @@ def timerResolution(toggle):
             rc = c_int(winmm.timeBeginPeriod(1))
             if rc.value != 0:
                 # TIMEERR_NOCANDO = 97
-                print(
-                    f"\033[93m[WARN] Failed to set timer resolution: {rc.value}\033[0m"
-                )
+                logger.warning("Failed to set timer resolution: %s", rc.value)
         else:
             winmm.timeEndPeriod(1)
 
@@ -140,19 +137,21 @@ def main():
     try:
         if config.settings.gui_update_check:
             response = requests.get(
-                "https://api.github.com/repos/EyeTrackVR/EyeTrackVR/releases/latest"
+                "https://api.github.com/repos/EyeTrackVR/EyeTrackVR/releases/latest",
+                timeout=(3, 10),
             )
+            response.raise_for_status()
             latestversion = response.json()["name"]
 
             if (
                 appversion == latestversion
             ):  # If what we scraped and hardcoded versions are same, assume we are up to date.
-                print(
-                    f"\033[92m[INFO] App is the latest version! [{latestversion}]\033[0m"
-                )
+                logger.info("App is the latest version: %s", latestversion)
             else:
-                print(
-                    f"\033[93m[INFO] You have app version [{appversion}] installed. Please update to [{latestversion}] for the newest features.\033[0m"
+                logger.warning(
+                    "You have app version %s installed. Please update to %s for the newest features.",
+                    appversion,
+                    latestversion,
                 )
                 try:
                     if is_nt:
@@ -169,12 +168,10 @@ def main():
                             launch="https://github.com/EyeTrackVR/EyeTrackVR/releases/latest",
                         )
                         toast.show()
-                except Exception as e:
-                    print("[INFO] Toast notifications not supported")
-    except:
-        print(
-            "\033[91m[INFO] Could not check for updates. Please try again later.\033[0m"
-        )
+                except Exception:
+                    logger.info("Toast notifications not supported", exc_info=True)
+    except (requests.RequestException, KeyError, ValueError):
+        logger.info("Could not check for updates. Please try again later.", exc_info=True)
 
     osc_queue: queue.Queue[OSCMessage] = queue.Queue(maxsize=10)
 
@@ -453,11 +450,12 @@ def main():
             try:
                 return int(value)
             except ValueError:
+                lower_value = value.lower()
                 if (
                     len(value) > 5
-                    and "http" not in value
-                    and ".mp4" not in value
-                    and "/dev" not in value
+                    and "://" not in value
+                    and not value.startswith(("COM", "/dev"))
+                    and not lower_value.endswith((".mp4", ".avi", ".mkv", ".mov"))
                 ):
                     return f"http://{value}/"
                 return value
@@ -684,7 +682,7 @@ def main():
             def enable_gui():
                 config.settings.gui_disable_gui = False
                 config.save()
-                print("GUI Enabled")
+                logger.info("GUI enabled")
                 dialog.destroy()
                 self.root.deiconify()
 
@@ -716,7 +714,7 @@ def main():
             self.root.after(interval, self._tick)
 
         def shutdown(self):
-            print("\033[94m[INFO] Exiting EyeTrackApp\033[0m")
+            logger.info("Exiting EyeTrackApp")
             for eye in eyes:
                 eye.stop()
             cancellation_event.set()

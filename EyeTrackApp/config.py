@@ -25,22 +25,26 @@ LICENSE: Babble Software Distribution License 1.0
 """
 
 import json
+import logging
 import os.path
 import shutil
 import numpy as np
-from colorama import Fore
-from pydantic import BaseModel, field_validator
+from pydantic import (
+    BaseModel,
+    PrivateAttr,
+    ValidationError,
+    field_serializer,
+    field_validator,
+    model_validator,
+)
 from typing import Any, Union, List
 import os
 from eye import EyeId
 
+logger = logging.getLogger(__name__)
+
 CONFIG_FILE_NAME: str = "eyetrack_settings.json"
 BACKUP_CONFIG_FILE_NAME: str = "eyetrack_settings.backup"
-
-
-from pydantic import BaseModel, field_validator, field_serializer
-from typing import Any, Union, List
-import numpy as np
 
 
 class EyeTrackCameraConfig(BaseModel):
@@ -129,16 +133,27 @@ class EyeTrackCameraConfig(BaseModel):
             self.capture_source = None
             return
 
+        if isinstance(new_camera_address, int):
+            self.capture_source = new_camera_address
+            return
+
+        new_camera_address = str(new_camera_address).strip()
+
         if new_camera_address.isnumeric():
             self.capture_source = int(new_camera_address)
             return
 
-        # we were passed an IP, probably, lets add HTTP:// to it
-        if len(new_camera_address) > 5 and not (
-            not new_camera_address.startswith(("http", "/dev"))
-            or not new_camera_address.endswith(".mp4")
-        ):
-            self.capture_source = f"http://{new_camera_address}"
+        if new_camera_address.startswith(("COM", "/dev")) or "://" in new_camera_address:
+            self.capture_source = new_camera_address
+            return
+
+        if new_camera_address.endswith(".mp4"):
+            self.capture_source = new_camera_address
+            return
+
+        # We were passed a host/IP camera address; normalize it to a URL once.
+        if len(new_camera_address) > 5:
+            self.capture_source = f"http://{new_camera_address}/"
             return
 
         self.capture_source = new_camera_address
@@ -147,22 +162,26 @@ class EyeTrackCameraConfig(BaseModel):
         """
         Updates the model one field at a time based on the provided data dict.
         """
+        changed = False
         for key, value in data.items():
+            update_attr = getattr(self, f"update_{key}", None)
+            if not callable(update_attr) and key not in type(self).model_fields:
+                logger.warning("Field %s does not exist on %s.", key, self)
+                continue
+
             old_value = getattr(self, key, None)
             # no reason to update if it's the same value
             if old_value == value:
-                return False
+                continue
 
-            if hasattr(self, f"update_{key}"):
-                update_attr = getattr(self, f"update_{key}")
-                if callable(update_attr):
-                    update_attr(value)
-                else:
-                    setattr(self, key, value)
-                return True
+            if callable(update_attr):
+                update_attr(value)
             else:
-                print(f"\033[93m[WARN] Field {key} does not exist on {self}.\033[0m")
-                return False
+                setattr(self, key, value)
+
+            changed = changed or old_value != getattr(self, key, None)
+
+        return changed
 
 
 class EyeTrackSettingsConfig(BaseModel):
@@ -210,6 +229,10 @@ class EyeTrackSettingsConfig(BaseModel):
     ibo_fully_close_eye_threshold: float = 0.3
     leap_lid_close_threshold: float = 0.1
     leap_lid_widen_threshold: float = 0.9
+    leap_lid_close_threshold_left: float = 0.1
+    leap_lid_close_threshold_right: float = 0.1
+    leap_lid_widen_threshold_left: float = 0.9
+    leap_lid_widen_threshold_right: float = 0.9
     leap_calibration_duration: int = 15
     calibration_duration: int = 15
     osc_right_eye_close_address: str = "/avatar/parameters/RightEyeLidExpandedSqueeze"
@@ -255,6 +278,28 @@ class EyeTrackSettingsConfig(BaseModel):
 
     gui_openvr_autostart: bool = False
 
+    @model_validator(mode="before")
+    @classmethod
+    def copy_legacy_leap_lid_thresholds(cls, data):
+        if not isinstance(data, dict):
+            return data
+
+        if "leap_lid_close_threshold" in data:
+            data.setdefault(
+                "leap_lid_close_threshold_left", data["leap_lid_close_threshold"]
+            )
+            data.setdefault(
+                "leap_lid_close_threshold_right", data["leap_lid_close_threshold"]
+            )
+        if "leap_lid_widen_threshold" in data:
+            data.setdefault(
+                "leap_lid_widen_threshold_left", data["leap_lid_widen_threshold"]
+            )
+            data.setdefault(
+                "leap_lid_widen_threshold_right", data["leap_lid_widen_threshold"]
+            )
+        return data
+
 
 class EyeTrackConfig(BaseModel):
     version: int = 1
@@ -265,28 +310,28 @@ class EyeTrackConfig(BaseModel):
     )  # should we do independent per bsb eye?
     settings: EyeTrackSettingsConfig = EyeTrackSettingsConfig()
     eye_display_id: EyeId = EyeId.RIGHT
-    __listeners = []
+    _listeners: list = PrivateAttr(default_factory=list)
 
     @staticmethod
     def load():
         if not os.path.exists(CONFIG_FILE_NAME):
-            print("No settings file, using base settings")
+            logger.info("No settings file, using base settings")
             return EyeTrackConfig()
         try:
             with open(CONFIG_FILE_NAME, "r") as settings_file:
                 return EyeTrackConfig(**json.load(settings_file))
-        except json.JSONDecodeError:
-            print("[INFO] Failed to load settings file")
+        except (json.JSONDecodeError, ValidationError):
+            logger.info("Failed to load settings file")
             load_config = None
             if os.path.exists(BACKUP_CONFIG_FILE_NAME):
                 try:
                     with open(BACKUP_CONFIG_FILE_NAME, "r") as settings_file:
                         load_config = EyeTrackConfig(**json.load(settings_file))
-                    print("[INFO] Using backup settings")
-                except json.JSONDecodeError:
+                    logger.info("Using backup settings")
+                except (json.JSONDecodeError, ValidationError):
                     pass
             if load_config is None:
-                print("[INFO] using base settings")
+                logger.info("Using base settings")
                 load_config = EyeTrackConfig()
             return load_config
 
@@ -294,14 +339,16 @@ class EyeTrackConfig(BaseModel):
         match eye_id:
             case EyeId.RIGHT:
                 if self.left_eye.capture_source == capture_source:
-                    print(
-                        f"{Fore.YELLOW}[WARN] Capture source {capture_source} already in use by the left camera.{Fore.RESET}"
+                    logger.warning(
+                        "Capture source %s already in use by the left camera.",
+                        capture_source,
                     )
                     return False
             case EyeId.LEFT:
                 if self.right_eye.capture_source == capture_source:
-                    print(
-                        f"{Fore.YELLOW}[WARN] Capture source {capture_source} already in use by the right camera.{Fore.RESET}"
+                    logger.warning(
+                        "Capture source %s already in use by the right camera.",
+                        capture_source,
                     )
                     return False
             case _:
@@ -364,12 +411,12 @@ class EyeTrackConfig(BaseModel):
                 pass
         with open(CONFIG_FILE_NAME, "w") as settings_file:
             json.dump(obj=self.model_dump(warnings=False), fp=settings_file)
-        print(f"\033[92m[INFO] Config Saved Successfully\033[0m")
+        logger.info("Config saved successfully")
 
     def register_listener_callback(self, callback):
-        print(f"[DEBUG] Registering listener {callback}")
-        self.__listeners.append(callback)
+        logger.debug("Registering listener %s", callback)
+        self._listeners.append(callback)
 
     def __notify_listeners(self, data: dict):
-        for listener in self.__listeners:
+        for listener in self._listeners:
             listener(data)

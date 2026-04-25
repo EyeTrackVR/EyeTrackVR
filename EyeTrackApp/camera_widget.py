@@ -24,6 +24,7 @@ LICENSE: Babble Software Distribution License 1.0
 ------------------------------------------------------------------------------------------------------
 """
 
+import logging
 import tkinter as tk
 from tkinter import ttk
 from config import EyeTrackConfig
@@ -40,6 +41,8 @@ from osc.OSCMessage import OSCMessageType, OSCMessage
 from utils.misc_utils import PlaySound, SND_FILENAME, SND_ASYNC, resource_path
 import numpy as np
 from PIL import Image, ImageTk
+
+logger = logging.getLogger(__name__)
 
 
 # for clarity when indexing
@@ -527,7 +530,7 @@ class CameraWidget:
         )
 
     def _set_tracking_mode(self):
-        print("\033[94m[INFO] Moving to tracking mode\033[0m")
+        logger.info("Moving to tracking mode")
         self.in_roi_mode = False
         self.ransac.suppress_auto_capture_signal = False
         self.camera.set_output_queue(self.capture_queue)
@@ -536,7 +539,7 @@ class CameraWidget:
         self._sync_mode_tab_buttons()
 
     def _set_roi_mode(self):
-        print("\033[94m[INFO] Move to roi mode\033[0m")
+        logger.info("Moving to ROI mode")
         self.in_roi_mode = True
         self.ransac.suppress_auto_capture_signal = True
         self.camera.set_output_queue(self.roi_queue)
@@ -551,13 +554,14 @@ class CameraWidget:
         try:
             new_source = int(value)
         except ValueError:
+            lower_value = value.lower()
             if value == "":
                 new_source = None
             elif (
                 len(value) > 5
-                and "http" not in value
-                and ".mp4" not in value
-                and "/dev" not in value
+                and "://" not in value
+                and not value.startswith(("COM", "/dev"))
+                and not lower_value.endswith((".mp4", ".avi", ".mkv", ".mov"))
             ):
                 new_source = f"http://{value}/"
             else:
@@ -566,7 +570,7 @@ class CameraWidget:
         if new_source == self.config.capture_source:
             return
 
-        print("\033[94m[INFO] New value: {}\033[0m".format(new_source))
+        logger.info("New capture source value: %s", new_source)
 
         # Run the apply/restart off the Tk thread: update_eye_model_config notifies listeners
         # (including on_config_update, which stops/starts the camera), and stop() joins the
@@ -577,9 +581,7 @@ class CameraWidget:
                     self.eye_id, {"capture_source": new_source}
                 )
             except Exception as exc:
-                print(
-                    f"\033[93m[WARN] Failed to apply new capture source: {exc}\033[0m"
-                )
+                logger.warning("Failed to apply new capture source: %s", exc)
 
         Thread(
             target=_apply, daemon=True, name=f"CameraSourceApply-{self.eye_id}"

@@ -72,4 +72,4 @@ class BaseSettingsModule:
         return {key: var.get() for key, var in self.tk_vars.items()}
 
     def get_key_for_panel_defaults(self) -> dict:
-        return self.validation_model.schema().get("properties").keys()
+        return self.validation_model.model_fields.keys()

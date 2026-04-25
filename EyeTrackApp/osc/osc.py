@@ -24,6 +24,7 @@ LICENSE: Babble Software Distribution License 1.0
 ------------------------------------------------------------------------------------------------------
 """
 
+import logging
 from time import sleep
 from typing import Dict, Optional, Iterable, Callable
 
@@ -37,6 +38,8 @@ from osc.VRCFTModuleMessenger import VRCFTModuleSender
 from osc.VRChatOSCSender import VRChatOSCSender
 import queue
 import threading
+
+logger = logging.getLogger(__name__)
 
 
 class OSCManager:
@@ -80,7 +83,7 @@ class OSCManager:
         )
 
     def setup_sender(self):
-        print(f"\033[92m[INFO] Setting up OSC sender\033[0m")
+        logger.info("Setting up OSC sender")
         self.sender_cancellation_event.clear()
         self.osc_sender = OSCSender(
             self.sender_cancellation_event, self.osc_message_in_queue, self.config
@@ -92,7 +95,7 @@ class OSCManager:
     def setup_receiver(self):
         if self.settings.gui_ROSC:
             self.receiver_cancellation_event.clear()
-            print(f"\033[92m[INFO] Setting up OSC receiver\033[0m")
+            logger.info("Setting up OSC receiver")
             self.osc_receiver = OSCReceiver(
                 self.receiver_cancellation_event, self.config, self.listeners
             )
@@ -215,6 +218,7 @@ class OSCReceiver:
         self.dispatcher = dispatcher.Dispatcher()
         self.listeners = listeners
         self.server_thread = None
+        self.server = None
         try:
             # this thing sucks ass god fucking damn it.
             # like, there is no way of shutting it down UNLESS you run it in a thread
@@ -224,16 +228,21 @@ class OSCReceiver:
                 (self.config.gui_osc_address, int(self.config.gui_osc_receiver_port)),
                 self.dispatcher,
             )
-        except Exception:  # noqa
-            print(
-                f"\033[91m[ERROR] OSC Receive port: {self.config.gui_osc_receiver_port} occupied.\033[0m"
+        except Exception as exc:  # noqa
+            logger.error(
+                "Failed to start OSC receiver on %s:%s: %s",
+                self.config.gui_osc_address,
+                self.config.gui_osc_receiver_port,
+                exc,
             )
 
     def shutdown(self):
-        print("\033[94m[INFO] Exiting OSC Receiver\033[0m")
+        logger.info("Exiting OSC receiver")
         try:
-            self.server.shutdown()
-            self.server_thread.join()
+            if self.server is not None:
+                self.server.shutdown()
+            if self.server_thread is not None:
+                self.server_thread.join()
         except Exception:  # noqa
             pass
 
@@ -242,13 +251,12 @@ class OSCReceiver:
             listener(OSCMessage(type=OSCMessageType.EYE_INFO, data=value))
 
     def run(self):
+        if self.server is None:
+            return
+
         try:
             self.dispatcher.set_default_handler(self.handle_osc_message)
-            print(
-                "\033[92m[INFO] OSC Listening on {}\033[0m".format(
-                    self.server.server_address
-                )
-            )
+            logger.info("OSC listening on %s", self.server.server_address)
             self.server_thread = threading.Thread(target=self.server.serve_forever)
             self.server_thread.start()
 
@@ -256,7 +264,5 @@ class OSCReceiver:
                 sleep(10)
 
             self.shutdown()
-        except Exception:  # noqa:
-            print(
-                f"\033[91m[ERROR] OSC Receive port: {self.config.gui_osc_receiver_port} occupied.\033[0m"
-            )
+        except Exception as exc:  # noqa:
+            logger.error("OSC receiver stopped unexpectedly: %s", exc)

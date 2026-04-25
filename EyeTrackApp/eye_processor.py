@@ -28,6 +28,7 @@ LICENSE: Babble Software Distribution License 1.0
 ------------------------------------------------------------------------------------------------------
 """
 
+import logging
 import sys
 import asyncio
 import os
@@ -43,7 +44,7 @@ from haar_surround_feature import External_Run_HSF
 from ransac import *
 from blink import *
 from utils.img_utils import circle_crop
-from eye import EyeInfo, EyeInfoOrigin
+from eye import EyeId, EyeInfo, EyeInfoOrigin
 from intensity_based_openness import *
 from ellipse_based_pupil_dilation import *
 from AHSF import *
@@ -53,6 +54,8 @@ from utils.calibration_elipse import *
 
 os.environ["OMP_NUM_THREADS"] = "1"
 sys.path.append(".")
+
+logger = logging.getLogger(__name__)
 
 
 def run_once(f):
@@ -93,6 +96,20 @@ def remap_leap_lid_openness(raw: float, close_t: float, wide_t: float) -> float:
         return 0.0
     t = (r - ct) / span_mid
     return float(t * 0.75)
+
+
+def leap_lid_thresholds_for_eye(
+    settings: "EyeTrackSettingsConfig", eye_id: EyeId
+) -> tuple[float, float]:
+    if eye_id == EyeId.LEFT:
+        return (
+            float(settings.leap_lid_close_threshold_left),
+            float(settings.leap_lid_widen_threshold_left),
+        )
+    return (
+        float(settings.leap_lid_close_threshold_right),
+        float(settings.leap_lid_widen_threshold_right),
+    )
 
 
 class EyeProcessor:
@@ -203,7 +220,7 @@ class EyeProcessor:
             min_cutoff = float(self.settings.gui_min_cutoff)  # 0.0004
             beta = float(self.settings.gui_speed_coefficient)  # 0.9
         except:
-            print("\033[93m[WARN] OneEuroFilter values must be a legal number.\033[0m")
+            logger.warning("OneEuroFilter values must be a legal number.")
             min_cutoff = 0.0004
             beta = 0.9
         noisy_point = np.array([1, 1])
@@ -253,7 +270,13 @@ class EyeProcessor:
     def capture_crop_rotate_image(self):
         # Get our current frame
 
-        self.ibo.change_roi(self.config.dict(include=self.roi_include_set))
+        self.ibo.change_roi(
+            {
+                "rotation_angle": self.config.rotation_angle,
+                "roi_window_x": self.config.roi_window_x,
+                "roi_window_y": self.config.roi_window_y,
+            }
+        )
         roi_x = self.config.roi_window_x
         roi_y = self.config.roi_window_y
         roi_w = self.config.roi_window_w
@@ -356,6 +379,23 @@ class EyeProcessor:
         self.pupil_width = d
         self.pupil_height = d
 
+    def _enqueue_osc_message(self, osc_message: OSCMessage) -> None:
+        try:
+            self.osc_queue.put_nowait(osc_message)
+            return
+        except queue.Full:
+            pass
+
+        try:
+            self.osc_queue.get_nowait()
+        except queue.Empty:
+            pass
+
+        try:
+            self.osc_queue.put_nowait(osc_message)
+        except queue.Full:
+            pass
+
     def UPDATE(self):
         self.current_algo = self.current_algorithm
 
@@ -377,7 +417,7 @@ class EyeProcessor:
                 self.eyeopen = 0.0
 
             if self.bd_blink == True:
-                print("blinks")
+                logger.debug("Blink detected")
                 pass
 
         if (
@@ -396,11 +436,8 @@ class EyeProcessor:
                 self.calibration_start_time,
                 self.settings.gui_use_gpu,
             )
-            self.eyeopen = remap_leap_lid_openness(
-                self.eyeopen,
-                float(self.settings.leap_lid_close_threshold),
-                float(self.settings.leap_lid_widen_threshold),
-            )
+            close_t, wide_t = leap_lid_thresholds_for_eye(self.settings, self.eye_id)
+            self.eyeopen = remap_leap_lid_openness(self.eyeopen, close_t, wide_t)
 
         if (
             len(self.prev_y_list) >= 100
@@ -460,7 +497,7 @@ class EyeProcessor:
                 ),
             ),
         )
-        self.osc_queue.put(osc_message)
+        self._enqueue_osc_message(osc_message)
         self.eyeopen = 0.8  # TODO: remove this by fixing checks if is 0.0
 
     def BLINKM(self):
@@ -480,11 +517,8 @@ class EyeProcessor:
             self.settings.gui_use_gpu,
         )  # TODO: make own self var and LEAP toggle
         if self.settings.gui_LEAP_lid:
-            self.eyeopen = remap_leap_lid_openness(
-                eyeopen,
-                float(self.settings.leap_lid_close_threshold),
-                float(self.settings.leap_lid_widen_threshold),
-            )
+            close_t, wide_t = leap_lid_thresholds_for_eye(self.settings, self.eye_id)
+            self.eyeopen = remap_leap_lid_openness(eyeopen, close_t, wide_t)
         self.thresh = self.current_image_gray.copy()
         # todo: lorow, fix this as well
         self.out_x, self.out_y, self.avg_velocity = cal.cal_osc(
@@ -807,7 +841,7 @@ class EyeProcessor:
         while True:
             # Check to make sure we haven't been requested to close
             if self.cancellation_event.is_set():
-                print("\033[94m[INFO] Exiting Tracking thread\033[0m")
+                logger.info("Exiting tracking thread")
                 return
 
             if self.config.roi_window_w <= 0 or self.config.roi_window_h <= 0:
@@ -862,7 +896,7 @@ class EyeProcessor:
                 self.current_image_gray_clean = self.current_image_gray
 
             if self.cancellation_event.is_set():
-                print("\033[94m[INFO] Exiting Tracking thread\033[0m")
+                logger.info("Exiting tracking thread")
                 return
             else:
                 self.ALGOSELECT()  # run our algos in priority order set in settings

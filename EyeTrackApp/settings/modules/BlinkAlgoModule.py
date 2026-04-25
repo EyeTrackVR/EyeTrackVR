@@ -18,14 +18,20 @@ class BlinkAlgoSettingsValidationModel(BaseValidationModel):
     ibo_fully_close_eye_threshold: Annotated[
         str, AfterValidator(check_is_float_convertible)
     ]
-    leap_lid_close_threshold: float
-    leap_lid_widen_threshold: float
+    leap_lid_close_threshold_left: float
+    leap_lid_close_threshold_right: float
+    leap_lid_widen_threshold_left: float
+    leap_lid_widen_threshold_right: float
     gui_circular_crop_left: bool
     gui_circular_crop_right: bool
     leap_calibration_duration: int
 
     @field_validator(
-        "leap_lid_close_threshold", "leap_lid_widen_threshold", mode="before"
+        "leap_lid_close_threshold_left",
+        "leap_lid_close_threshold_right",
+        "leap_lid_widen_threshold_left",
+        "leap_lid_widen_threshold_right",
+        mode="before",
     )
     @classmethod
     def _coerce_leap_lid_threshold(cls, v):
@@ -47,8 +53,10 @@ class BlinkAlgoSettingsModule(BaseSettingsModule):
         self.ibo_filter_samples = f"-IBOFILTERSAMPLE{widget_id}-"
         self.calibration_duration = f"-CALIBRATIONDURATION{widget_id}-"
         self.ibo_fully_close_eye_threshold = f"-CLOSETHRESH{widget_id}-"
-        self.leap_lid_close_threshold = f"-LEAPLIDCLOSE{widget_id}-"
-        self.leap_lid_widen_threshold = f"-LEAPLIDWIDEN{widget_id}-"
+        self.leap_lid_close_threshold_left = f"-LEAPLIDCLOSELEFT{widget_id}-"
+        self.leap_lid_close_threshold_right = f"-LEAPLIDCLOSERIGHT{widget_id}-"
+        self.leap_lid_widen_threshold_left = f"-LEAPLIDWIDENLEFT{widget_id}-"
+        self.leap_lid_widen_threshold_right = f"-LEAPLIDWIDENRIGHT{widget_id}-"
         self.gui_circular_crop_left = f"-CIRCLECROPLEFT{widget_id}-"
         self.gui_circular_crop_right = f"-CIRCLECROPRIGHT{widget_id}-"
         self.leap_calibration_duration = f"-LEAPCALIBRATION{widget_id}-"
@@ -98,21 +106,48 @@ class BlinkAlgoSettingsModule(BaseSettingsModule):
         )
         row += 1
 
-        ttk.Label(parent, text="LEAP Lid Close Threshold").grid(
+        ttk.Label(parent, text="Left LEAP Lid Close Threshold").grid(
             row=row, column=0, sticky="w", padx=8, pady=2
         )
-        leap_close_var = tk.StringVar(value=str(self.config.leap_lid_close_threshold))
-        self.tk_vars[self.leap_lid_close_threshold] = leap_close_var
-        ttk.Entry(parent, textvariable=leap_close_var, width=12).grid(
+        leap_left_close_var = tk.StringVar(
+            value=str(self.config.leap_lid_close_threshold_left)
+        )
+        self.tk_vars[self.leap_lid_close_threshold_left] = leap_left_close_var
+        ttk.Entry(parent, textvariable=leap_left_close_var, width=12).grid(
             row=row, column=1, sticky="w", padx=8, pady=2
         )
 
-        ttk.Label(parent, text="LEAP Lid Widen Threshold").grid(
+        ttk.Label(parent, text="Right LEAP Lid Close Threshold").grid(
             row=row, column=2, sticky="w", padx=8, pady=2
         )
-        leap_widen_var = tk.StringVar(value=str(self.config.leap_lid_widen_threshold))
-        self.tk_vars[self.leap_lid_widen_threshold] = leap_widen_var
-        ttk.Entry(parent, textvariable=leap_widen_var, width=12).grid(
+        leap_right_close_var = tk.StringVar(
+            value=str(self.config.leap_lid_close_threshold_right)
+        )
+        self.tk_vars[self.leap_lid_close_threshold_right] = leap_right_close_var
+        ttk.Entry(parent, textvariable=leap_right_close_var, width=12).grid(
+            row=row, column=3, sticky="w", padx=8, pady=2
+        )
+        row += 1
+
+        ttk.Label(parent, text="Left LEAP Lid Widen Threshold").grid(
+            row=row, column=0, sticky="w", padx=8, pady=2
+        )
+        leap_left_widen_var = tk.StringVar(
+            value=str(self.config.leap_lid_widen_threshold_left)
+        )
+        self.tk_vars[self.leap_lid_widen_threshold_left] = leap_left_widen_var
+        ttk.Entry(parent, textvariable=leap_left_widen_var, width=12).grid(
+            row=row, column=1, sticky="w", padx=8, pady=2
+        )
+
+        ttk.Label(parent, text="Right LEAP Lid Widen Threshold").grid(
+            row=row, column=2, sticky="w", padx=8, pady=2
+        )
+        leap_right_widen_var = tk.StringVar(
+            value=str(self.config.leap_lid_widen_threshold_right)
+        )
+        self.tk_vars[self.leap_lid_widen_threshold_right] = leap_right_widen_var
+        ttk.Entry(parent, textvariable=leap_right_widen_var, width=12).grid(
             row=row, column=3, sticky="w", padx=8, pady=2
         )
         row += 1
