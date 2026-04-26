@@ -48,7 +48,7 @@ from utils.misc_utils import is_nt, is_macos, resource_path
 
 
 
-APP_VERSION = "EyeTrackApp 0.3.0 BETA 1"
+APP_VERSION = "EyeTrackApp 0.3.0 BETA 2"
 setup_logging(APP_VERSION)
 logger = logging.getLogger(__name__)
 winmm = None
