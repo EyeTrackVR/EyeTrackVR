@@ -158,8 +158,9 @@ class CameraWidget:
             top_row = ttk.Frame(self.frame)
             top_row.pack(fill="x", padx=8, pady=4)
             ttk.Label(top_row, text="Camera Address").pack(side="left")
+            initial_source = self.config.capture_source
             self.camera_addr_var = tk.StringVar(
-                value=str(self.config.capture_source or "")
+                value="" if initial_source is None or initial_source == "" else str(initial_source)
             )
             ttk.Entry(top_row, textvariable=self.camera_addr_var, width=36).pack(
                 side="left", padx=8
@@ -544,7 +545,13 @@ class CameraWidget:
 
     def _save_tracking(self):
         value = self.camera_addr_var.get()
-        if value == str(self.config.capture_source or ""):
+        # Render the current source identically to the initial-value population above so the
+        # "no change" comparison handles UVC index 0 (which is falsy in Python) correctly.
+        current_source = self.config.capture_source
+        current_str = (
+            "" if current_source is None or current_source == "" else str(current_source)
+        )
+        if value == current_str:
             return
         try:
             new_source = int(value)

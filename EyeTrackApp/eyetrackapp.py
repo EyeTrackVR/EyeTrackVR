@@ -339,11 +339,13 @@ def main():
                 tracking_sidebar, text="Camera Settings", padding=8
             )
             tracking_controls.pack(fill="x", pady=(0, 8))
+            left_initial = config.left_eye.capture_source
+            right_initial = config.right_eye.capture_source
             self.left_camera_var = tk.StringVar(
-                value=str(config.left_eye.capture_source or "")
+                value="" if left_initial is None or left_initial == "" else str(left_initial)
             )
             self.right_camera_var = tk.StringVar(
-                value=str(config.right_eye.capture_source or "")
+                value="" if right_initial is None or right_initial == "" else str(right_initial)
             )
             self.left_camera_label = ttk.Label(
                 tracking_controls, text="Left (UVC / COM port / URL):"
@@ -491,11 +493,15 @@ def main():
             threading.Thread(target=_scan, daemon=True).start()
 
         def _camera_tracking_state_key(self, left_source, right_source):
-            if not left_source and not right_source:
+            # Use explicit None checks — UVC index 0 is a valid source but is falsy in Python,
+            # so `not left_source` would mis-classify it as "no source" and skip starting trackers.
+            has_left = left_source is not None and left_source != ""
+            has_right = right_source is not None and right_source != ""
+            if not has_left and not has_right:
                 return ("none",)
-            if left_source and not right_source:
+            if has_left and not has_right:
                 return ("left", left_source)
-            if right_source and not left_source:
+            if has_right and not has_left:
                 return ("right", right_source)
             return ("dual", left_source, right_source, left_source == right_source)
 
@@ -528,7 +534,11 @@ def main():
                 eyes[0].stop()
                 self._last_camera_tracking_key = new_key
 
-            if left_source and right_source:
+            # UVC index 0 is falsy but valid; check for explicit "set" rather than truthiness.
+            has_left = left_source is not None and left_source != ""
+            has_right = right_source is not None and right_source != ""
+
+            if has_left and has_right:
                 shared = left_source == right_source
                 already_running = eyes[0].started() and eyes[1].started()
                 if not already_running:
@@ -548,7 +558,7 @@ def main():
                 config.eye_display_id = EyeId.BOTH
                 self.mode_label_var.set("Mode: Dual-eye tracking")
                 self.status_var.set("Tracking both eyes.")
-            elif left_source:
+            elif has_left:
                 if not eyes[1].started():
                     eyes[0].camera.set_extra_output_queues([])
                     eyes[1].detach_shared_capture_event()
@@ -558,7 +568,7 @@ def main():
                 config.eye_display_id = EyeId.LEFT
                 self.mode_label_var.set("Mode: Single-eye (left)")
                 self.status_var.set("Tracking left eye only.")
-            elif right_source:
+            elif has_right:
                 if not eyes[0].started():
                     eyes[0].camera.set_extra_output_queues([])
                     eyes[1].detach_shared_capture_event()
