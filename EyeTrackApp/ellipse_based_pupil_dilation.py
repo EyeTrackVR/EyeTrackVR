@@ -103,7 +103,7 @@ def newdata(frameshape):
 # EBPD
 class EllipseBasedPupilDilation:
     def __init__(self, eye_id):
-        # todo: It is necessary to consider whether the filename can be changed in the configuration file, etc.
+        # TODO: Move calibration image paths into configurable storage.
         if eye_id in [EyeId.LEFT]:
             self.imgfile = "EBPD_LEFT.png"
         else:
@@ -180,7 +180,7 @@ class EllipseBasedPupilDilation:
                 self.img_roi, self.now_roi
             ):
                 # If the ROI recorded in the image file differs from the current ROI
-                # todo: Using the previous and current frame sizes and centre positions from the original, etc., the data can be ported to some extent, but there may be many areas where code changes are required.
+                # TODO: Migrate compatible calibration data instead of resetting on ROI/frame size changes.
                 print("[INFO] \033[94mFrame size changed.\033[0m")
                 req_newdata = True
         if req_newdata:
@@ -194,7 +194,6 @@ class EllipseBasedPupilDilation:
         self.data[0, -1] = self.maxval
         self.data[1:4, -1] = self.now_roi
         cv2.imwrite(self.imgfile, u32_1ch_to_u16_3ch(self.data))
-        # print("SAVED: {}".format(self.imgfile))
 
     def change_roi(self, roiinfo: dict):
         self.now_roi[:] = [v for v in roiinfo.values()]
@@ -212,9 +211,8 @@ class EllipseBasedPupilDilation:
         int_x, int_y = int(x), int(y)
         if int_x < 0 or int_y < 0:
             return self.prev_val
-        upper_x = min(
-            int_x + 25, frame.shape[1] - 1
-        )  # TODO make this a setting NEEDS TO BE BASED ON HSF RADIUS if possible
+        # TODO: Base this sample radius on the active tracking radius.
+        upper_x = min(int_x + 25, frame.shape[1] - 1)
         lower_x = max(int_x - 25, 0)
         upper_y = min(int_y + 25, frame.shape[0] - 1)
         lower_y = max(int_y - 25, 0)
@@ -232,7 +230,6 @@ class EllipseBasedPupilDilation:
             if pupil_area >= np.percentile(
                 self.filterlist, 99
             ):  # filter abnormally high values
-                # print('filter, assume blink')
                 pupil_area = self.maxval
 
         except:

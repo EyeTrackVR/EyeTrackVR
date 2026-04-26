@@ -29,7 +29,7 @@ class VRCFTSettingsModuleValidationModel(BaseValidationModel):
     gui_SqueezeThresholdV2_max: float
     gui_EyebrowThresholdRising: float
     gui_EyebrowThresholdLowering: float
-    # this is a hack. I don't like it, but that's what I gotta do to make both, Pydantic and PySimpleGUI happy
+    # Accept string-backed UI values while keeping the validated setting as a float.
     gui_OutputMultiplier: Annotated[float, AfterValidator(try_convert_to_float)]
 
 

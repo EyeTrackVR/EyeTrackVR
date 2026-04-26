@@ -47,10 +47,8 @@ else:
     process.nice()
 
 
-# higher intensity means more closed/ more white/less pupil
-
-# Hm I need an acronym for this, any ideas?
-# IBO Intensity Based Openess
+# Higher intensity means more eyelid coverage and less visible pupil.
+# IBO: Intensity Based Openness.
 
 # HOW THIS WORKS:
 # we get the intensity of pupil area from HSF crop, When the eyelid starts to close, the pupil starts being obstructed by skin which is generally lighter than the pupil.
@@ -123,7 +121,7 @@ def newdata(frameshape):
 
 class IntensityBasedOpeness:
     def __init__(self, eye_id):
-        # todo: It is necessary to consider whether the filename can be changed in the configuration file, etc.
+        # TODO: Move calibration image paths into configurable storage.
         if eye_id in [EyeId.LEFT]:
             self.imgfile = "IBO_LEFT.png"
         else:
@@ -199,7 +197,7 @@ class IntensityBasedOpeness:
                 self.img_roi, self.now_roi
             ):
                 # If the ROI recorded in the image file differs from the current ROI
-                # todo: Using the previous and current frame sizes and centre positions from the original, etc., the data can be ported to some extent, but there may be many areas where code changes are required.
+                # TODO: Migrate compatible calibration data instead of resetting on ROI/frame size changes.
                 print("[INFO] \033[94mFrame size changed.\033[0m")
                 req_newdata = True
         if req_newdata:
@@ -213,7 +211,6 @@ class IntensityBasedOpeness:
         self.data[0, -1] = self.maxval
         self.data[1:4, -1] = self.now_roi
         cv2.imwrite(self.imgfile, u32_1ch_to_u16_3ch(self.data))
-        # print("SAVED: {}".format(self.imgfile))
 
     def change_roi(self, roiinfo: dict):
         self.now_roi[:] = [v for v in roiinfo.values()]
@@ -231,7 +228,7 @@ class IntensityBasedOpeness:
         int_x, int_y = int(x), int(y)
         if int_x < 0 or int_y < 0:
             return self.prev_val
-        upper_x = min(int_x + 25, frame.shape[1] - 1)  # TODO make this a setting
+        upper_x = min(int_x + 25, frame.shape[1] - 1)  # TODO: Make radius configurable.
         lower_x = max(int_x - 25, 0)
         upper_y = min(int_y + 25, frame.shape[0] - 1)
         lower_y = max(int_y - 25, 0)
@@ -272,22 +269,18 @@ class IntensityBasedOpeness:
         if int_x >= frame.shape[1]:
             int_x = frame.shape[1] - 1
             oob = True
-        #  print('CAUGHT X OUT OF BOUNDS')
 
         if int_x < 0:
             int_x = True
             oob = True
-        #  print('CAUGHT X UNDER BOUNDS')
 
         if int_y >= frame.shape[0]:
             int_y = frame.shape[0] - 1
             oob = True
-        #  print('CAUGHT Y OUT OF BOUNDS')
 
         if int_y < 0:
             int_y = 1
             oob = True
-        #  print('CAUGHT Y UNDER BOUNDS')
 
         if oob != True and self.data.any():
             data_val = self.data[int_y, int_x]
@@ -326,7 +319,6 @@ class IntensityBasedOpeness:
                     (self.maxval - 5), 1
                 )  # continuously adjust closed intensity, will be set when user blink, used to allow eyes to close when lighting changes
                 self.maxval = intensityd  # set value at 0 index
-        #     print(intensityd, intensity)
 
         if newval_flg:
             # Do the same thing as in the original version.

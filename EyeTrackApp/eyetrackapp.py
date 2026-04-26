@@ -47,8 +47,9 @@ from utils.logging_utils import setup_logging
 from utils.misc_utils import is_nt, is_macos, resource_path
 
 
-appversion = "EyeTrackApp 0.2.6 BETA 1"
-setup_logging(appversion)
+
+APP_VERSION = "EyeTrackApp 0.3.0 BETA 1"
+setup_logging(APP_VERSION)
 logger = logging.getLogger(__name__)
 winmm = None
 
@@ -99,9 +100,9 @@ def apply_theme_to_titlebar(win: tk.Misc) -> None:
         win.wm_attributes("-alpha", 1)
 
 
-def timerResolution(toggle):
-    if winmm != None:
-        if toggle:
+def set_timer_resolution(enabled):
+    if winmm is not None:
+        if enabled:
             rc = c_int(winmm.timeBeginPeriod(1))
             if rc.value != 0:
                 # TIMEERR_NOCANDO = 97
@@ -144,13 +145,13 @@ def main():
             latestversion = response.json()["name"]
 
             if (
-                appversion == latestversion
-            ):  # If what we scraped and hardcoded versions are same, assume we are up to date.
+                APP_VERSION == latestversion
+            ):  # GitHub release name matches the local application version.
                 logger.info("App is the latest version: %s", latestversion)
             else:
                 logger.warning(
                     "You have app version %s installed. Please update to %s for the newest features.",
-                    appversion,
+                    APP_VERSION,
                     latestversion,
                 )
                 try:
@@ -214,7 +215,7 @@ def main():
     class AppUI:
         def __init__(self):
             self.root = tk.Tk()
-            self.root.title(appversion)
+            self.root.title(APP_VERSION)
             try:
                 self.root.iconbitmap(resource_path("Images/logo.ico"))
             except Exception:
@@ -273,7 +274,7 @@ def main():
             ).pack(anchor="w", padx=12, pady=(0, 16))
             tk.Label(
                 self.issues_frame,
-                text="Improve your experiance",
+                text="Improve your experience",
                 font=_issues_hdr_font,
                 bg=_hdr_bg,
                 fg="#e8e8e8",
@@ -502,11 +503,11 @@ def main():
             active = any(e.started() for e in eyes)
             if active:
                 if not self._timer_high_res:
-                    timerResolution(True)
+                    set_timer_resolution(True)
                     self._timer_high_res = True
             else:
                 if self._timer_high_res:
-                    timerResolution(False)
+                    set_timer_resolution(False)
                     self._timer_high_res = False
 
         def apply_camera_inputs(self):
@@ -720,7 +721,7 @@ def main():
             cancellation_event.set()
             osc_manager.shutdown()
             if getattr(self, "_timer_high_res", False):
-                timerResolution(False)
+                set_timer_resolution(False)
             self.root.destroy()
             os._exit(0)
 

@@ -223,12 +223,11 @@ class VRChatOSCSender:
             y = (self.right_y + self.left_y) / 2
             client.send_message(config.osc_eyes_y_address, y)
 
-            avg_dilation = (
-                self.r_dilation + self.l_dilation
-            ) / 2  # i am unsure of this tbh.
+            # V1 exposes one pupil dilation parameter, so dual-eye mode sends the average.
+            avg_dilation = (self.r_dilation + self.l_dilation) / 2
             client.send_message(
                 config.osc_eyes_pupil_dilation_address, avg_dilation
-            )  # single param for both eyes.
+            )
 
     def output_v2_params(
         self,
@@ -409,6 +408,6 @@ class VRChatOSCSender:
         if eye_id == EyeId.BOTH and self.r_eye_blink != 621 and self.r_eye_blink != 621:
             if self.r_eye_blink == 0.0 or self.l_eye_blink == 0.0:
                 send_native_binary_blink(blink_address, active_eye_blink)
-            # this has a nasty habit of permanent-squint FIXME
+            # FIXME: This path can stick in a squint state after a full blink.
             averaged_eye_blink = (self.r_eye_blink + self.l_eye_blink) / 2
             client.send_message(blink_address, float(1 - averaged_eye_blink))

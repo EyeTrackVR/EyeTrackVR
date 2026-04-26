@@ -66,6 +66,7 @@ class EyeTrackCameraConfig(BaseModel):
     leap_calibration_percentile_90: float = 0
     leap_calibration_percentile_2: float = 0
     leap_calibrated: bool = False
+    leap_lid_metric_version: int = 1
 
     @field_validator("calib_axes", "calib_evecs", "calib_center", mode="before")
     @classmethod
@@ -143,7 +144,10 @@ class EyeTrackCameraConfig(BaseModel):
             self.capture_source = int(new_camera_address)
             return
 
-        if new_camera_address.startswith(("COM", "/dev")) or "://" in new_camera_address:
+        if (
+            new_camera_address.startswith(("COM", "/dev"))
+            or "://" in new_camera_address
+        ):
             self.capture_source = new_camera_address
             return
 
@@ -233,6 +237,7 @@ class EyeTrackSettingsConfig(BaseModel):
     leap_lid_close_threshold_right: float = 0.1
     leap_lid_widen_threshold_left: float = 0.9
     leap_lid_widen_threshold_right: float = 0.9
+    leap_lid_min_calibration_span: float = 0.02
     leap_calibration_duration: int = 15
     calibration_duration: int = 15
     osc_right_eye_close_address: str = "/avatar/parameters/RightEyeLidExpandedSqueeze"
@@ -360,10 +365,8 @@ class EyeTrackConfig(BaseModel):
     ) -> bool:
         """
         A more granular method for updating a particular model so that everything that relies on it
-        will get notified about any changes. Note, it acts a bit like pub-sub,
-        we don't care what changes got passed, we will notify the listeners with them.
-
-        It's the listeners job to check if they want that update.
+        will get notified about any changes. This acts like a small pub-sub layer:
+        listeners receive the changed keys and decide whether they are relevant.
         """
 
         # The app really doesn't like address clashes, so we have to validate it as soon as possible

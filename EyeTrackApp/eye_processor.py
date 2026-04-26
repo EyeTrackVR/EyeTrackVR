@@ -33,6 +33,7 @@ import sys
 import asyncio
 import os
 from config import EyeTrackCameraConfig
+from config import EyeTrackConfig
 from config import EyeTrackSettingsConfig
 from pye3d.camera import CameraModel
 from pye3d.detector_3d import Detector3D, DetectorMode
@@ -117,7 +118,7 @@ class EyeProcessor:
         self,
         config: "EyeTrackCameraConfig",
         settings: "EyeTrackSettingsConfig",
-        baseconfig: "EyetrackConfig",
+        baseconfig: "EyeTrackConfig",
         cancellation_event: "threading.Event",
         capture_event: "threading.Event",
         capture_queue_incoming: "queue.Queue(maxsize=2)",
@@ -125,7 +126,6 @@ class EyeProcessor:
         eye_id,
         osc_queue: queue.Queue,
     ):
-        self.main_config = EyeTrackSettingsConfig
         self.config = config
         self.settings = settings
         self.eye_id = eye_id
@@ -138,16 +138,13 @@ class EyeProcessor:
         self.suppress_auto_capture_signal = False
         self.eye_id = eye_id
         self.baseconfig = baseconfig
-        self.filterlist = []
-        self.left_eye_data = [(0.351, 0.399, 1), (0.352, 0.400, 1)]  # Example data
-        self.right_eye_data = [(0.351, 0.399, 1), (0.352, 0.400, 1)]  # Example data
         self.osc_queue = osc_queue
 
-        # Cross algo state
-        self.lkg_projected_sphere = None
-        self.xc = 20
-        self.yc = 20
-        self.cc_radius = 40
+        # Cross-algorithm state
+        self.last_projected_sphere = None
+        self.circle_crop_center_x = 20
+        self.circle_crop_center_y = 20
+        self.circle_crop_radius = 40
 
         # Image state
         self.previous_image = None
@@ -158,29 +155,24 @@ class EyeProcessor:
         self.threshold_image = None
         self.thresh = None
         # Calibration Values
-        self.xoff = 1
-        self.yoff = 1
         # Keep large in order to recenter correctly
         self.calibration_start_time = None
         self.calibration_3d_frame_counter = None
-        self.eyeoffx = 1
-        self.printcal = True
+        self.should_print_calibration_warning = True
         self.grab_3d_point = False
         self.xmax = -69420
         self.xmin = 69420
         self.ymax = -69420
         self.ymin = 69420
         self.blink_clear = False
-        self.cct = 200
-        self.cccs = False
-        self.ts = 10
+        self.circle_crop_delay_frames = 200
+        self.recenter_delay_frames = 10
         self.previous_rotation = self.config.rotation_angle
         self.camera_model = None
         self.detector_3d = None
-        self.er_hsf = None
-        self.er_hsrac = None
-        self.er_daddy = None
-        self.er_leap = None
+        self.hsf_runner = None
+        self.daddy_runner = None
+        self.leap_runner = None
         self.ibo = IntensityBasedOpeness(self.eye_id)
         self.ebpd = EllipseBasedPupilDilation(self.eye_id)
         self.roi_include_set = {"rotation_angle", "roi_window_x", "roi_window_y"}
@@ -196,7 +188,7 @@ class EyeProcessor:
         self.min_int = 4000000000000
         self.frames = 0
         self.blinkvalue = False
-        self.hasrac_en = False
+        self.hsrac_enabled = False
         self.radius = 10
         self.past_blink = 0.7
         self.prev_x = None
@@ -212,9 +204,9 @@ class EyeProcessor:
         self.pupil_height = 0.0
         self.avg_velocity = 0.0
         self.angle = 621
-        self.er_ahsf = None
+        self.ahsf_runner = None
         self.cal = CalibrationEllipse()
-        self.AHSF = PupilDetectorHaar()
+        self.ahsf_detector = PupilDetectorHaar()
 
         try:
             min_cutoff = float(self.settings.gui_min_cutoff)  # 0.0004
@@ -240,7 +232,6 @@ class EyeProcessor:
         return False
 
     def output_images_and_update(self, threshold_image, output_information: EyeInfo):
-        #  try:  # I do not like this try.
         if self.image_queue_outgoing.qsize() > 0:
             return
 
@@ -250,22 +241,13 @@ class EyeProcessor:
         threshold_image = cv2.resize(
             threshold_image, (150, 150), interpolation=cv2.INTER_AREA
         )
-        image_stack = np.concatenate(
-            (
-                cv2.cvtColor(self.current_image_gray, cv2.COLOR_GRAY2BGR),
-                cv2.cvtColor(threshold_image, cv2.COLOR_GRAY2BGR),
-            ),
-            axis=1,
-        )
+        image_stack = np.concatenate((self.current_image_gray, threshold_image), axis=1)
         self.image_queue_outgoing.put((image_stack, output_information))
         if self.image_queue_outgoing.qsize() > 1:
             self.image_queue_outgoing.get()
 
         self.previous_image = self.current_image
         self.previous_rotation = self.config.rotation_angle
-
-    #       except:  # If this fails it likely means that the images are not the same size for some reason.
-    #    print("\033[91m[ERROR] Size of frames to display are of unequal sizes.\033[0m")
 
     def capture_crop_rotate_image(self):
         # Get our current frame
@@ -282,12 +264,29 @@ class EyeProcessor:
         roi_w = self.config.roi_window_w
         roi_h = self.config.roi_window_h
 
-        img_w, img_h, _ = self.current_image.shape
+        img_h, img_w = self.current_image.shape[:2]
 
         try:
             # Apply rotation to cropped area. For any rotation area outside of the bounds of the image,
             # fill with avg color + 10.
             # fill with white (self.current_image_white) and average in-bounds color (self.current_image).
+            normalized_rotation = float(self.config.rotation_angle) % 360.0
+            no_rotation = (
+                normalized_rotation < 1e-6 or 360.0 - normalized_rotation < 1e-6
+            )
+            integer_roi = all(
+                float(v).is_integer() for v in (roi_x, roi_y, roi_w, roi_h)
+            )
+            if no_rotation and integer_roi:
+                x0 = int(roi_x)
+                y0 = int(roi_y)
+                x1 = x0 + int(roi_w)
+                y1 = y0 + int(roi_h)
+                if 0 <= x0 and 0 <= y0 and x1 <= img_w and y1 <= img_h:
+                    cropped = self.current_image[y0:y1, x0:x1].copy()
+                    self.current_image_white = cropped
+                    self.current_image = cropped
+                    return True
 
             geom_key = (
                 roi_x,
@@ -396,6 +395,22 @@ class EyeProcessor:
         except queue.Full:
             pass
 
+    def _apply_circular_crop_if_enabled(self) -> None:
+        circular_crop_enabled = (
+            (self.eye_id == EyeId.LEFT and self.settings.gui_circular_crop_left)
+            or (self.eye_id == EyeId.RIGHT and self.settings.gui_circular_crop_right)
+        )
+        if not circular_crop_enabled:
+            return
+
+        self.current_image_gray, self.circle_crop_delay_frames = circle_crop(
+            self.current_image_gray,
+            self.circle_crop_center_x,
+            self.circle_crop_center_y,
+            self.circle_crop_radius,
+            self.circle_crop_delay_frames,
+        )
+
     def UPDATE(self):
         self.current_algo = self.current_algorithm
 
@@ -404,7 +419,8 @@ class EyeProcessor:
 
         if (
             self.settings.gui_IBO and self.eyeopen != 0.0
-        ):  # TODO make ransac blink it's pwn self var to rid of this non-sense
+        ):
+            # TODO: Separate RANSAC blink state from the shared eye openness guard.
             self.eyeopen = self.ibo.intense(
                 self.rawx,
                 self.rawy,
@@ -418,7 +434,6 @@ class EyeProcessor:
 
             if self.bd_blink == True:
                 logger.debug("Blink detected")
-                pass
 
         if (
             self.settings.gui_LEAP_lid
@@ -430,7 +445,7 @@ class EyeProcessor:
                 self.rawx,
                 self.rawy,
                 self.eyeopen,
-            ) = self.er_leap.run(
+            ) = self.leap_runner.run(
                 self.current_image_gray,
                 self.current_image_gray_clean,
                 self.calibration_start_time,
@@ -441,7 +456,7 @@ class EyeProcessor:
 
         if (
             len(self.prev_y_list) >= 100
-        ):  # "lock" eye when close/blink IN TESTING, kinda broke
+        ):
             self.prev_y_list.pop(0)
             self.prev_y_list.append(self.out_y)
         else:
@@ -498,7 +513,8 @@ class EyeProcessor:
             ),
         )
         self._enqueue_osc_message(osc_message)
-        self.eyeopen = 0.8  # TODO: remove this by fixing checks if is 0.0
+        # TODO: Remove this reset after callers handle 0.0 openness explicitly.
+        self.eyeopen = 0.8
 
     def BLINKM(self):
         self.eyeopen = BLINK(self)
@@ -510,55 +526,42 @@ class EyeProcessor:
             self.rawx,
             self.rawy,
             eyeopen,
-        ) = self.er_leap.run(
+        ) = self.leap_runner.run(
             self.current_image_gray,
             self.current_image_gray_clean,
             self.calibration_start_time,
             self.settings.gui_use_gpu,
-        )  # TODO: make own self var and LEAP toggle
+        )
         if self.settings.gui_LEAP_lid:
             close_t, wide_t = leap_lid_thresholds_for_eye(self.settings, self.eye_id)
             self.eyeopen = remap_leap_lid_openness(eyeopen, close_t, wide_t)
         self.thresh = self.current_image_gray.copy()
-        # todo: lorow, fix this as well
         self.out_x, self.out_y, self.avg_velocity = cal.cal_osc(
             self, self.rawx, self.rawy, self.angle
         )
         self.current_algorithm = EyeInfoOrigin.LEAP
 
     def DADDYM(self):
-        # todo: We should have a proper variable for drawing.
-        # self.thresh = self.current_image_gray.copy()
         self.thresh = self.current_image_gray.copy()
-        self.rawx, self.rawy, self.radius = self.er_daddy.run(self.current_image_gray)
-        # Daddy also uses a one euro filter, so I'll have to use it twice, but I'm not going to think too much about it.
+        self.rawx, self.rawy, self.radius = self.daddy_runner.run(
+            self.current_image_gray
+        )
         self.out_x, self.out_y, self.avg_velocity = cal.cal_osc(
             self, self.rawx, self.rawy, self.angle
         )
         self.current_algorithm = EyeInfoOrigin.DADDY
 
     def AHSFRACM(self):
-        if self.eye_id in [EyeId.LEFT] and self.settings.gui_circular_crop_left:
-            self.current_image_gray, self.cct = circle_crop(
-                self.current_image_gray, self.xc, self.yc, self.cc_radius, self.cct
-            )
-        else:
-            pass
-        if self.eye_id in [EyeId.RIGHT] and self.settings.gui_circular_crop_right:
-            self.current_image_gray, self.cct = circle_crop(
-                self.current_image_gray, self.xc, self.yc, self.cc_radius, self.cct
-            )
-        else:
-            pass
+        self._apply_circular_crop_if_enabled()
 
-        self.hasrac_en = True
+        self.hsrac_enabled = True
         (
             self.current_image_gray,
             resize_img,
             self.rawx,
             self.rawy,
             self.radius,
-        ) = self.er_ahsf.detect_etvr(self.current_image_gray)
+        ) = self.ahsf_runner.detect_etvr(self.current_image_gray)
         self.current_image_gray_clean = resize_img.copy()
 
         self.thresh = resize_img
@@ -580,21 +583,10 @@ class EyeProcessor:
         self.current_algorithm = EyeInfoOrigin.HSRAC
 
     def HSRACM(self):
-        if self.eye_id in [EyeId.LEFT] and self.settings.gui_circular_crop_left:
-            self.current_image_gray, self.cct = circle_crop(
-                self.current_image_gray, self.xc, self.yc, self.cc_radius, self.cct
-            )
-        else:
-            pass
-        if self.eye_id in [EyeId.RIGHT] and self.settings.gui_circular_crop_right:
-            self.current_image_gray, self.cct = circle_crop(
-                self.current_image_gray, self.xc, self.yc, self.cc_radius, self.cct
-            )
-        else:
-            pass
+        self._apply_circular_crop_if_enabled()
 
-        self.hasrac_en = True
-        self.rawx, self.rawy, self.thresh, self.radius = self.er_hsf.run(
+        self.hsrac_enabled = True
+        self.rawx, self.rawy, self.thresh, self.radius = self.hsf_runner.run(
             self.current_image_gray
         )
         (
@@ -615,20 +607,9 @@ class EyeProcessor:
         self.current_algorithm = EyeInfoOrigin.HSRAC
 
     def HSFM(self):
-        if self.eye_id in [EyeId.LEFT] and self.settings.gui_circular_crop_left:
-            self.current_image_gray, self.cct = circle_crop(
-                self.current_image_gray, self.xc, self.yc, self.cc_radius, self.cct
-            )
-        else:
-            pass
-        if self.eye_id in [EyeId.RIGHT] and self.settings.gui_circular_crop_right:
-            self.current_image_gray, self.cct = circle_crop(
-                self.current_image_gray, self.xc, self.yc, self.cc_radius, self.cct
-            )
-        else:
-            pass
-        # todo: add process to initialise er_hsf when resolution changes
-        self.rawx, self.rawy, self.thresh, self.radius = self.er_hsf.run(
+        self._apply_circular_crop_if_enabled()
+        # TODO: Reinitialize the HSF runner when the ROI resolution changes.
+        self.rawx, self.rawy, self.thresh, self.radius = self.hsf_runner.run(
             self.current_image_gray
         )
         self.out_x, self.out_y, self.avg_velocity = cal.cal_osc(
@@ -637,22 +618,8 @@ class EyeProcessor:
         self.current_algorithm = EyeInfoOrigin.HSF
 
     def RANSAC3DM(self):
-        if self.eye_id in [EyeId.LEFT] and self.settings.gui_circular_crop_left:
-            self.current_image_gray, self.cct = circle_crop(
-                self.current_image_gray, self.xc, self.yc, self.cc_radius, self.cct
-            )
-        else:
-            pass
-        if self.eye_id in [EyeId.RIGHT] and self.settings.gui_circular_crop_right:
-            self.current_image_gray, self.cct = circle_crop(
-                self.current_image_gray, self.xc, self.yc, self.cc_radius, self.cct
-            )
-        else:
-            pass
-        self.hasrac_en = False
-        current_image_gray_copy = (
-            self.current_image_gray.copy()
-        )  # Duplicate before overwriting in RANSAC3D.
+        self._apply_circular_crop_if_enabled()
+        self.hsrac_enabled = False
         (
             self.rawx,
             self.rawy,
@@ -670,25 +637,14 @@ class EyeProcessor:
         self.current_algorithm = EyeInfoOrigin.RANSAC
 
     def AHSFM(self):
-        if self.eye_id in [EyeId.LEFT] and self.settings.gui_circular_crop_left:
-            self.current_image_gray, self.cct = circle_crop(
-                self.current_image_gray, self.xc, self.yc, self.cc_radius, self.cct
-            )
-        else:
-            pass
-        if self.eye_id in [EyeId.RIGHT] and self.settings.gui_circular_crop_right:
-            self.current_image_gray, self.cct = circle_crop(
-                self.current_image_gray, self.xc, self.yc, self.cc_radius, self.cct
-            )
-        else:
-            pass
+        self._apply_circular_crop_if_enabled()
         (
             self.current_image_gray,
             resize_img,
             self.rawx,
             self.rawy,
             self.radius,
-        ) = self.er_ahsf.detect_etvr(self.current_image_gray)
+        ) = self.ahsf_runner.detect_etvr(self.current_image_gray)
         self.thresh = self.current_image_gray
         self.out_x, self.out_y, self.avg_velocity = cal.cal_osc(
             self, self.rawx, self.rawy, self.angle
@@ -696,80 +652,80 @@ class EyeProcessor:
         self.current_algorithm = EyeInfoOrigin.HSF
 
     def ALGOSELECT(self):
-        # send the tracking algos previous fail number, in algo if we pass set to 0, if fail, + 1
-        if self.failed == 0 and self.firstalgo != None:
-            self.firstalgo()
+        # Advance through enabled algorithms until one succeeds and resets self.failed.
+        if self.failed == 0 and self.first_algorithm is not None:
+            self.first_algorithm()
         else:
             self.failed = self.failed + 1
-        if self.failed == 1 and self.secondalgo != None:
-            self.secondalgo()
+        if self.failed == 1 and self.second_algorithm is not None:
+            self.second_algorithm()
         else:
             self.failed = self.failed + 1
-        if self.failed == 2 and self.thirdalgo != None:
-            self.thirdalgo()
+        if self.failed == 2 and self.third_algorithm is not None:
+            self.third_algorithm()
         else:
             self.failed = self.failed + 1
-        if self.failed == 3 and self.fourthalgo != None:
-            self.fourthalgo()
+        if self.failed == 3 and self.fourth_algorithm is not None:
+            self.fourth_algorithm()
         else:
             self.failed = self.failed + 1
-        if self.failed == 4 and self.fithalgo != None:
-            self.fithalgo()
+        if self.failed == 4 and self.fifth_algorithm is not None:
+            self.fifth_algorithm()
         else:
             self.failed = self.failed + 1
-        if self.failed == 5 and self.sixthalgo != None:
-            self.sixthalgo()
+        if self.failed == 5 and self.sixth_algorithm is not None:
+            self.sixth_algorithm()
         else:
             self.failed = self.failed + 1
-        if self.failed == 6 and self.seventhalgo != None:
-            self.seventhalgo()
+        if self.failed == 6 and self.seventh_algorithm is not None:
+            self.seventh_algorithm()
         else:
             self.failed = self.failed + 1
-        if self.failed == 7 and self.eigthalgo != None:
-            self.eigthalgo()
+        if self.failed == 7 and self.eighth_algorithm is not None:
+            self.eighth_algorithm()
         else:
-            self.failed = 0  # we have reached last possible algo and it is disabled, move to first algo
+            self.failed = 0  # Move back to the first algorithm after the last slot.
 
     def run(self):
 
-        self.firstalgo = None
-        self.secondalgo = None
-        self.thirdalgo = None
-        self.fourthalgo = None
-        self.fithalgo = None
-        self.sixthalgo = None
-        self.seventhalgo = None
-        self.eigthalgo = None
-        algolist = [None, None, None, None, None, None, None, None, None]
+        self.first_algorithm = None
+        self.second_algorithm = None
+        self.third_algorithm = None
+        self.fourth_algorithm = None
+        self.fifth_algorithm = None
+        self.sixth_algorithm = None
+        self.seventh_algorithm = None
+        self.eighth_algorithm = None
+        algorithm_slots = [None, None, None, None, None, None, None, None, None]
 
-        # clear HSF values when page is opened to correctly reflect setting changes
-        self.er_hsf = None
+        # Clear HSF values when the page opens so setting changes are reflected.
+        self.hsf_runner = None
 
         # Build enabled algorithm list (single-select UI sets one True, but this also
         # gracefully handles multiple enabled values if config is edited manually).
         enabled_algorithms = []
 
         if self.settings.gui_AHSFRAC:
-            if self.er_ahsf is None:
-                self.er_ahsf = self.AHSF
+            if self.ahsf_runner is None:
+                self.ahsf_runner = self.ahsf_detector
             enabled_algorithms.append(self.AHSFRACM)
 
         if self.settings.gui_AHSF:
-            if self.er_ahsf is None:
-                self.er_ahsf = self.AHSF
+            if self.ahsf_runner is None:
+                self.ahsf_runner = self.ahsf_detector
             enabled_algorithms.append(self.AHSFM)
 
         if self.settings.gui_HSF:
-            if self.er_hsf is None:
+            if self.hsf_runner is None:
                 if self.eye_id in [EyeId.LEFT]:
-                    self.er_hsf = External_Run_HSF(
+                    self.hsf_runner = External_Run_HSF(
                         self.settings.gui_skip_autoradius,
                         self.settings.gui_HSF_radius_left,
                     )
                 else:
                     pass
                 if self.eye_id in [EyeId.RIGHT]:
-                    self.er_hsf = External_Run_HSF(
+                    self.hsf_runner = External_Run_HSF(
                         self.settings.gui_skip_autoradius,
                         self.settings.gui_HSF_radius_right,
                     )
@@ -779,20 +735,20 @@ class EyeProcessor:
             enabled_algorithms.append(self.HSFM)
 
         else:
-            if self.er_hsf is not None:
-                self.er_hsf = None
+            if self.hsf_runner is not None:
+                self.hsf_runner = None
 
         if self.settings.gui_HSRAC:
-            if self.er_hsf is None:
+            if self.hsf_runner is None:
                 if self.eye_id in [EyeId.LEFT]:
-                    self.er_hsf = External_Run_HSF(
+                    self.hsf_runner = External_Run_HSF(
                         self.settings.gui_skip_autoradius,
                         self.settings.gui_HSF_radius_left,
                     )
                 else:
                     pass
                 if self.eye_id in [EyeId.RIGHT]:
-                    self.er_hsf = External_Run_HSF(
+                    self.hsf_runner = External_Run_HSF(
                         self.settings.gui_skip_autoradius,
                         self.settings.gui_HSF_radius_right,
                     )
@@ -801,42 +757,42 @@ class EyeProcessor:
 
             enabled_algorithms.append(self.HSRACM)
         else:
-            if not self.settings.gui_HSF and self.er_hsf is not None:
-                self.er_hsf = None
+            if not self.settings.gui_HSF and self.hsf_runner is not None:
+                self.hsf_runner = None
 
         if self.settings.gui_DADDY:
-            if self.er_daddy is None:
-                self.er_daddy = External_Run_DADDY()
+            if self.daddy_runner is None:
+                self.daddy_runner = External_Run_DADDY()
             enabled_algorithms.append(self.DADDYM)
         else:
-            if self.er_daddy is not None:
-                self.er_daddy = None
+            if self.daddy_runner is not None:
+                self.daddy_runner = None
 
         if self.settings.gui_LEAP or self.settings.gui_LEAP_lid:
-            if self.er_leap is None:
-                self.er_leap = External_Run_LEAP(self.config, self.baseconfig)
+            if self.leap_runner is None:
+                self.leap_runner = External_Run_LEAP(self.config, self.baseconfig)
             if self.settings.gui_LEAP:
                 enabled_algorithms.append(self.LEAPM)
         else:
-            if self.er_leap is not None:
-                self.er_leap = None
+            if self.leap_runner is not None:
+                self.leap_runner = None
 
         if self.settings.gui_RANSAC3D:
             enabled_algorithms.append(self.RANSAC3DM)
 
         for idx, algo in enumerate(enabled_algorithms[:8]):
-            algolist[idx] = algo
+            algorithm_slots[idx] = algo
 
         (
-            self.firstalgo,
-            self.secondalgo,
-            self.thirdalgo,
-            self.fourthalgo,
-            self.fithalgo,
-            self.sixthalgo,
-            self.seventhalgo,
-            self.eigthalgo,
-        ) = algolist[:8]
+            self.first_algorithm,
+            self.second_algorithm,
+            self.third_algorithm,
+            self.fourth_algorithm,
+            self.fifth_algorithm,
+            self.sixth_algorithm,
+            self.seventh_algorithm,
+            self.eighth_algorithm,
+        ) = algorithm_slots[:8]
 
         while True:
             # Check to make sure we haven't been requested to close
@@ -881,7 +837,6 @@ class EyeProcessor:
                     self.current_fps,
                 ) = self.capture_queue_incoming.get(block=True, timeout=0.1)
             except queue.Empty:
-                # print("No image available")
                 continue
 
             if not self.capture_crop_rotate_image():

@@ -19,11 +19,10 @@ def safe_crop(img, x, y, x2, y2, keepsize=False):
             raise
 
 
-def circle_crop(img, xc, yc, radius, cct):
-    if cct <= 0:
+def circle_crop(img, center_x, center_y, radius, delay_frames):
+    if delay_frames <= 0:
         try:
-            # Optimize average color calculation
-            # Use a very small version of the image to get average color
+            # Sample a 1x1 resize as a cheap average color estimate.
             small_img = cv2.resize(img, (1, 1))
             avg_color = small_img[0, 0]
 
@@ -33,7 +32,7 @@ def circle_crop(img, xc, yc, radius, cct):
                 radius = 10
             # draw filled circle in white on black background as mask
             mask = np.zeros((ht, wd), dtype=np.uint8)
-            mask = cv2.circle(mask, (xc, yc), radius, 255, -1)
+            mask = cv2.circle(mask, (center_x, center_y), radius, 255, -1)
             # create white colored background
             color = np.full_like(img, (avg_color))
             # apply mask to image
@@ -42,10 +41,9 @@ def circle_crop(img, xc, yc, radius, cct):
             masked_color = cv2.bitwise_and(color, color, mask=255 - mask)
             # combine the two masked images
             outimg = cv2.add(masked_img, masked_color)
-            return outimg, cct
+            return outimg, delay_frames
         except:
-            return img, cct
-            pass
+            return img, delay_frames
     else:
-        cct = cct - 1
-        return img, cct
+        delay_frames = delay_frames - 1
+        return img, delay_frames

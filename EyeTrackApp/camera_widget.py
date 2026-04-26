@@ -70,16 +70,11 @@ class CameraWidget:
         self.gui_recenter_eyes = f"-RECENTEREYES{widget_id}-"
         self.gui_mode_readout = f"-APPMODE{widget_id}-"
         self.gui_roi_message = f"-ROIMESSAGE{widget_id}-"
-        self.gui_mask_markup = f"-MARKUP{widget_id}-"
-        self.gui_mask_lighten = f"-LIGHTEN{widget_id}-"
-
         self.last_eye_info = None
         self.osc_queue = osc_queue
         self.main_config = main_config
         self.eye_id = widget_id
         self.settings_config = main_config.settings
-        self.configl = main_config.left_eye
-        self.configr = main_config.right_eye
         self.settings = main_config.settings
         if self.eye_id == EyeId.RIGHT:
             self.config = main_config.right_eye
@@ -154,6 +149,7 @@ class CameraWidget:
         self._roi_canvas_image_id = None
         self._roi_overlay_tag = "roi_overlay"
         self.camera_thread: Thread | None = None
+        self.tracking_thread: Thread | None = None
 
     def build(self, parent, show_camera_controls=True):
         self.frame = ttk.Frame(parent)
@@ -355,8 +351,7 @@ class CameraWidget:
             if image.ndim == 2:
                 pil_img = Image.fromarray(image, mode="L").convert("RGB")
             elif image.ndim == 3 and image.shape[2] == 4:
-                bgr = cv2.cvtColor(image, cv2.COLOR_BGRA2BGR)
-                rgb = cv2.cvtColor(bgr, cv2.COLOR_BGR2RGB)
+                rgb = cv2.cvtColor(image, cv2.COLOR_BGRA2RGB)
                 pil_img = Image.fromarray(rgb)
             elif image.ndim == 3 and image.shape[2] == 3:
                 rgb = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
@@ -713,8 +708,8 @@ class CameraWidget:
         if not self.cancellation_event.is_set():
             return
         self.cancellation_event.clear()
-        self.ransac_thread = Thread(target=self.ransac.run)
-        self.ransac_thread.start()
+        self.tracking_thread = Thread(target=self.ransac.run)
+        self.tracking_thread.start()
         if run_camera_thread:
             self.camera_thread = Thread(target=self.camera.run)
             self.camera_thread.start()
@@ -728,7 +723,9 @@ class CameraWidget:
         self.detach_shared_capture_event()
         self.camera.set_extra_output_queues([])
         self.cancellation_event.set()
-        self.ransac_thread.join()
+        if self.tracking_thread is not None:
+            self.tracking_thread.join()
+            self.tracking_thread = None
         if self.camera_thread is not None:
             self.camera_thread.join()
             self.camera_thread = None
@@ -736,8 +733,7 @@ class CameraWidget:
     def on_config_update(self, data):
         keys = set(data.keys())
         model_keys = set(self.config.model_fields.keys())
-        # we only want to restart our stuff, if our stuff got updated
-        # at the model level
+        # Restart only when this eye's camera config changed.
         if model_keys.intersection(keys):
             self.stop()
             self.start()
@@ -825,24 +821,6 @@ class CameraWidget:
                 self.bps_var.set(bps_readout)
 
             self._sync_calibration_toggle_button()
-
-            #    if event == self.gui_mask_lighten:
-            #       while True:
-            #          try:
-            #             maybe_image = self.roi_queue.get(block=False)
-            #            imgbytes = cv2.imencode(".ppm", maybe_image[0])[1].tobytes()
-            #           image = cv2.imdecode(
-            #              np.frombuffer(imgbytes, np.uint8), cv2.IMREAD_COLOR
-            #         )
-
-            #        cv2.imshow("Image", image)
-            #       cv2.waitKey(1)
-            #      cv2.destroyAllWindows()
-            #     print("lighen")
-            # except Empty:
-            #   pass
-            # if event == self.gui_mask_markup:
-            #    print("markup")
 
             if self.in_roi_mode:
                 # Drain to latest frame: tracking thread does not consume capture_queue in ROI mode, but it was
@@ -952,7 +930,6 @@ class CameraWidget:
 
                         if self.xy0 is None or self.xy1 is None:
                             # roi_window rotates around roi center, we rotate around image center
-                            # TODO: it would be nice if they were more consistent
                             roi_window_pos = (
                                 self.config.roi_window_x,
                                 self.config.roi_window_y,
@@ -1010,9 +987,12 @@ class CameraWidget:
                     (maybe_image, eye_info) = self.image_queue.get(block=False)
 
                     tw, th = self._tracking_display_size
-                    disp = cv2.resize(
-                        maybe_image, (tw, th), interpolation=cv2.INTER_LINEAR
-                    )
+                    if maybe_image.shape[1] == tw and maybe_image.shape[0] == th:
+                        disp = maybe_image
+                    else:
+                        disp = cv2.resize(
+                            maybe_image, (tw, th), interpolation=cv2.INTER_LINEAR
+                        )
                     photo = self._tk_photo_from_bgr(disp, self.tracking_image_widget)
                     if photo is not None:
                         self._tracking_photo = photo

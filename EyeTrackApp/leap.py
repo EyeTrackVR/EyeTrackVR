@@ -47,6 +47,7 @@ os.environ["OMP_NUM_THREADS"] = (
 
 frames = 0
 models = Path("Models")
+LEAP_LID_METRIC_VERSION = 1
 # Global lock to prevent DML race conditions between eye threads
 dml_lock = threading.Lock()
 
@@ -72,10 +73,17 @@ def run_model(input_queue, output_queue, session):
         if frame is None:
             break
 
-        img_np = np.array(frame, dtype=np.float32) / 255.0
-        gray_img = (
-            0.299 * img_np[:, :, 0] + 0.587 * img_np[:, :, 1] + 0.114 * img_np[:, :, 2]
-        )
+        if frame.ndim == 2:
+            gray_img = frame.astype(np.float32)
+            gray_img *= 1.0 / 255.0
+        else:
+            img_np = np.asarray(frame, dtype=np.float32)
+            img_np *= 1.0 / 255.0
+            gray_img = (
+                0.299 * img_np[:, :, 0]
+                + 0.587 * img_np[:, :, 1]
+                + 0.114 * img_np[:, :, 2]
+            )
 
         gray_img = np.expand_dims(np.expand_dims(gray_img, axis=0), axis=0)
 
@@ -181,12 +189,8 @@ class LEAP_C:
             thread.start()
 
     def leap_run(self):
-        img = self.current_image_gray_clean.copy()
-        img = cv2.cvtColor(img, cv2.COLOR_GRAY2RGB)
-        img_height, img_width = img.shape[:2]
-
-        frame = cv2.resize(img, (112, 112))
-        imgvis = self.current_image_gray.copy()
+        img_height, img_width = self.current_image_gray_clean.shape[:2]
+        frame = cv2.resize(self.current_image_gray_clean, (112, 112))
         if self.config.settings.gui_use_gpu:
             run_onnx_model(self.queues, self.ort_session_gpu, frame)
         else:
@@ -194,6 +198,7 @@ class LEAP_C:
 
         if not self.output_queue.empty():
             frame, pre_landmark = self.output_queue.get()
+            imgvis = self.current_image_gray.copy()
 
             for point in pre_landmark:
                 x, y = point
@@ -202,36 +207,63 @@ class LEAP_C:
                 cv2.circle(imgvis, (x, y), 3, (255, 255, 0), -1)
                 cv2.circle(imgvis, (x, y), 1, (0, 0, 255), -1)
 
-            d1 = math.dist(pre_landmark[1], pre_landmark[3])
-            d2 = math.dist(pre_landmark[2], pre_landmark[4])
-            d = (d1 + d2) / 2
+            if self.eye_config.leap_lid_metric_version != LEAP_LID_METRIC_VERSION:
+                self.calib = 0
+                self.eye_config.leap_lid_metric_version = LEAP_LID_METRIC_VERSION
+                self.eye_config.leap_calibrated = False
 
             if self.calib == 0:
                 self.calib = time.time()
                 self.openlist = []
                 self.eye_config.leap_calibrated = False
 
+            d1 = math.dist(pre_landmark[1], pre_landmark[3])
+            d2 = math.dist(pre_landmark[2], pre_landmark[4])
+            d = (d1 + d2) / 2
+
             if not self.eye_config.leap_calibrated:
                 self.openlist.append(d)
-                self.eye_config.leap_calibration_percentile_90 = (
-                    np.percentile(self.openlist, 90)
-                    if len(self.openlist) >= 10
-                    else 0.8
-                )
+                if len(self.openlist) >= 10:
+                    open_percentile = float(np.percentile(self.openlist, 90))
+                    closed_percentile = float(np.percentile(self.openlist, 2))
+                else:
+                    open_percentile = 0.8
+                    closed_percentile = 0.8
+                calibration_span = open_percentile - closed_percentile
+                self.eye_config.leap_calibration_percentile_90 = open_percentile
                 self.eye_config.leap_calibration_percentile_2 = (
-                    np.percentile(self.openlist, 2)
-                    - self.eye_config.leap_calibration_percentile_90
+                    closed_percentile - open_percentile
                 )
                 if (
                     isinstance(self.calib, float)
                     and time.time() - self.calib
                     >= self.config.settings.leap_calibration_duration
                 ):
-                    self.eye_config.leap_calibrated = True
-                    self.config.save()
-                    print(
-                        f"[INFO] {'Left' if self.eye_config is self.config.left_eye else 'Right'} eye calibrated"
+                    min_span = float(self.config.settings.leap_lid_min_calibration_span)
+                    eye_name = (
+                        "Left" if self.eye_config is self.config.left_eye else "Right"
                     )
+                    sample_count = len(self.openlist)
+                    if calibration_span >= min_span:
+                        self.eye_config.leap_calibrated = True
+                        self.config.save()
+                        print(
+                            f"[INFO] {eye_name} eye LEAP lid calibrated: "
+                            f"samples={sample_count}, open_p90={open_percentile:.4f}, "
+                            f"closed_p2={closed_percentile:.4f}, "
+                            f"span={calibration_span:.4f}, min_span={min_span:.4f}"
+                        )
+                    else:
+                        self.calib = 0
+                        self.openlist = []
+                        self.eye_config.leap_calibration_percentile_90 = 0
+                        self.eye_config.leap_calibration_percentile_2 = 0
+                        print(
+                            f"[WARN] {eye_name} eye LEAP lid calibration rejected: "
+                            f"samples={sample_count}, open_p90={open_percentile:.4f}, "
+                            f"closed_p2={closed_percentile:.4f}, "
+                            f"span={calibration_span:.4f}, min_span={min_span:.4f}"
+                        )
 
             try:
                 if len(self.openlist) > 0 or self.eye_config.leap_calibrated:
@@ -252,13 +284,9 @@ class LEAP_C:
             calib_array = np.array([per, per]).reshape(1, 2)
             per = self.one_euro_filter_float(calib_array)[0][0]
 
-            if per <= 0.25:
-                per = 0.0
-
             return imgvis, float(x * img_width), float(y * img_height), per
 
-        imgvis = cv2.cvtColor(img, cv2.COLOR_RGB2GRAY)
-        return imgvis, 0, 0, 0
+        return self.current_image_gray, 0, 0, 0
 
 
 class External_Run_LEAP:

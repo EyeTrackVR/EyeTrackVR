@@ -213,7 +213,7 @@ class BEER(object):
     def ear_norm(self, ear):
         return (ear - self.ear_min) / (
             self.ear_max - self.ear_min
-        )  # todo:It is better to add very small values to avoid zero division.
+        )  # TODO: Add a small epsilon to avoid division by zero.
 
 
 #
@@ -286,7 +286,7 @@ class DADDY_cls(object):
     def single_run(self):
         # Temporary implementation to run
 
-        # todo: If it's the left hand eye, flip the image left to right.
+        # TODO: Flip left-eye frames horizontally if model orientation requires it.
 
         gray_frame = self.current_image_gray.copy()
 
@@ -337,7 +337,7 @@ class DADDY_cls(object):
                 color = 128
             else:
                 color = (255, 0, 0)
-            # todo: We should have a proper variable for drawing.
+            # TODO: Move draw colors to named constants if this visualization stays.
             cv2.circle(self.current_image_gray, (kps[i, 0], kps[i, 1]), 1, color, 2)
             # cv2.putText(self.current_image_gray, str(i), (kps[i, 0] - 10,  kps[i, 1] - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.35, (0, 0, 255), 1)
         # cv2.putText(self.current_image_gray, "EAR: "+str(ear), (self.current_image_gray.shape[1]//10, self.current_image_gray.shape[0]//10), cv2.FONT_HERSHEY_SIMPLEX, 0.75, (255,0,0), 1)

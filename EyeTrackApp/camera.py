@@ -85,10 +85,11 @@ _FAST_CAPTURE_MIN_INTERVAL = 1.0 / _FAST_CAPTURE_MAX_FPS
 # Re-encode quality used as a compressed-byte proxy for HTTP MJPEG streams.
 # cv2.VideoCapture only hands us decoded BGR frames, so we can't see the original
 # on-wire JPEG length; re-encoding each frame to JPEG at this quality gives a
-# stable, CPU-cheap proxy. It will differ from the server's actual compression
-# (typical ESP32-CAM encodes at ~10-15, so 80 overestimates) but tracks frame
-# complexity and is far closer to reality than decoded pixel rate.
+# stable proxy. It will differ from the server's actual compression (typical
+# ESP32-CAM encodes at ~10-15, so 80 overestimates), but sampled periodically it
+# is far cheaper than re-encoding every frame and closer than decoded pixel rate.
 _HTTP_WIRE_BYTES_PROXY_JPEG_QUALITY = 80
+_HTTP_WIRE_BYTES_PROXY_SAMPLE_INTERVAL = 10
 _CV_FILE_VIDEO_EXTENSIONS = (
     ".mp4",
     ".avi",
@@ -154,6 +155,8 @@ class Camera:
         self.last_frame_time = 0.0
         self.fl: list[float] = []
         self._last_cv_cap_frame_time = 0.0
+        self._last_http_wire_bytes_proxy = 0
+        self._http_wire_bytes_proxy_frame_count = 0
 
         self.error_message = "Capture source {} not found, retrying..."
 
@@ -209,6 +212,8 @@ class Camera:
         self.fps = 0.0
         self.bps = 0.0
         self.frame_number = 0
+        self._last_http_wire_bytes_proxy = 0
+        self._http_wire_bytes_proxy_frame_count = 0
 
     def _update_frame_rate(self, frame_bytes: int) -> None:
         """Update fps / bps moving averages for the most recently received frame.
@@ -287,8 +292,7 @@ class Camera:
                         or source_changed
                     ):
                         logger.info(self.error_message.format(new_source))
-                        # This requires a wait, otherwise we can error and possible screw up the camera
-                        # firmware. Fickle things.
+                        # Give camera firmware time to settle before retrying the backend open.
                         if self.cancellation_event.wait(WAIT_TIME):
                             return
                         # Release any previously opened handle before replacing it, otherwise we
@@ -368,15 +372,26 @@ class Camera:
             #   - UVC / file: no compressed source to measure; ``image.nbytes`` is
             #     the decoded pixel-rate proxy.
             if is_http:
-                ok, jpeg_buf = cv2.imencode(
-                    ".jpg",
-                    image,
-                    [
-                        int(cv2.IMWRITE_JPEG_QUALITY),
-                        _HTTP_WIRE_BYTES_PROXY_JPEG_QUALITY,
-                    ],
+                should_sample_proxy = (
+                    self._last_http_wire_bytes_proxy <= 0
+                    or self._http_wire_bytes_proxy_frame_count
+                    % _HTTP_WIRE_BYTES_PROXY_SAMPLE_INTERVAL
+                    == 0
                 )
-                frame_bytes = int(jpeg_buf.size) if ok else int(image.nbytes)
+                self._http_wire_bytes_proxy_frame_count += 1
+                if should_sample_proxy:
+                    ok, jpeg_buf = cv2.imencode(
+                        ".jpg",
+                        image,
+                        [
+                            int(cv2.IMWRITE_JPEG_QUALITY),
+                            _HTTP_WIRE_BYTES_PROXY_JPEG_QUALITY,
+                        ],
+                    )
+                    self._last_http_wire_bytes_proxy = (
+                        int(jpeg_buf.size) if ok else int(image.nbytes)
+                    )
+                frame_bytes = self._last_http_wire_bytes_proxy
             else:
                 frame_bytes = image.nbytes
             height, width = image.shape[:2]  # Calculate the aspect ratio
@@ -447,8 +462,7 @@ class Camera:
                     except Exception:
                         logger.warning("Frame drop. Corrupted JPEG.")
                         return
-                    # Discard the serial buffer. This is due to the fact that it
-                    # may build up some outdated frames. A bit of a workaround here tbh.
+                    # Discard stale serial frames when the tracker falls behind.
                     if conn.in_waiting >= 32768:
                         logger.info(
                             "Discarding the serial buffer (%s bytes)", conn.in_waiting

@@ -49,45 +49,45 @@ class TimeoutError(RuntimeError):
 
 class AsyncCall(object):
     def __init__(self, fnc, callback=None):
-        self.Callable = fnc
-        self.Callback = callback
+        self.callable = fnc
+        self.callback = callback
 
     def __call__(self, *args, **kwargs):
-        self.Thread = threading.Thread(
-            target=self.run, name=self.Callable.__name__, args=args, kwargs=kwargs
+        self.thread = threading.Thread(
+            target=self.run, name=self.callable.__name__, args=args, kwargs=kwargs
         )
-        self.Thread.start()
+        self.thread.start()
         return self
 
     def wait(self, timeout=None):
-        self.Thread.join(timeout)
-        if self.Thread.isAlive():
+        self.thread.join(timeout)
+        if self.thread.is_alive():
             raise TimeoutError()
         else:
-            return self.Result
+            return self.result
 
     def run(self, *args, **kwargs):
-        self.Result = self.Callable(*args, **kwargs)
-        if self.Callback:
-            self.Callback(self.Result)
+        self.result = self.callable(*args, **kwargs)
+        if self.callback:
+            self.callback(self.result)
 
 
 class AsyncMethod(object):
     def __init__(self, fnc, callback=None):
-        self.Callable = fnc
-        self.Callback = callback
+        self.callable = fnc
+        self.callback = callback
 
     def __call__(self, *args, **kwargs):
-        return AsyncCall(self.Callable, self.Callback)(*args, **kwargs)
+        return AsyncCall(self.callable, self.callback)(*args, **kwargs)
 
 
 def Async(fnc=None, callback=None):
-    if fnc == None:
+    if fnc is None:
 
-        def AddAsyncCallback(fnc):
+        def add_async_callback(fnc):
             return AsyncMethod(fnc, callback)
 
-        return AddAsyncCallback
+        return add_async_callback
     else:
         return AsyncMethod(fnc, callback)
 
@@ -143,7 +143,6 @@ def center_overlay_calibrate(self):
 
 
 #  except:
-#  print("[WARN] Calibration overlay error. Make sure SteamVR is Running.")
 #   self.settings.gui_recenter_eyes = False
 #   var.overlay_active = False
 
@@ -196,16 +195,16 @@ class cal:
                 self.config.calib_evecs, self.config.calib_axes
             ):
                 # If init_from_save fails, treat as uncalibrated
-                if self.printcal:
+                if self.should_print_calibration_warning:
                     print(
                         "\033[91m[ERROR] Failed to load calibration data. Please recalibrate.\033[0m"
                     )
-                    self.printcal = False
+                    self.should_print_calibration_warning = False
 
         else:
-            if self.printcal:
+            if self.should_print_calibration_warning:
                 print("\033[91m[ERROR] Please Calibrate Eye(s).\033[0m")
-                self.printcal = False
+                self.should_print_calibration_warning = False
 
         if cx == None or cy == None:
             return 0, 0
@@ -259,17 +258,17 @@ class cal:
         if self.settings.gui_recenter_eyes == True:
             self.config.calib_XOFF = cx
             self.config.calib_YOFF = cy
-            if self.ts == 0:
-                center_overlay_calibrate(self)  # TODO, only call on windows machines?
+            if self.recenter_delay_frames == 0:
+                center_overlay_calibrate(self)  # TODO: Only call on supported desktop platforms.
                 self.settings.gui_recenter_eyes = False
                 PlaySound(
                     resource_path("Audio/completed.wav"), SND_FILENAME | SND_ASYNC
                 )
             else:
-                self.ts = self.ts - 1
+                self.recenter_delay_frames = self.recenter_delay_frames - 1
 
         else:
-            self.ts = 10
+            self.recenter_delay_frames = 10
 
         out_x = 0.5
         out_y = 0.5

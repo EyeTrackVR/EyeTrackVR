@@ -220,10 +220,8 @@ class OSCReceiver:
         self.server_thread = None
         self.server = None
         try:
-            # this thing sucks ass god fucking damn it.
-            # like, there is no way of shutting it down UNLESS you run it in a thread
-            # which is kinda dumb, but oh well.
-            # Also, it doesn't shutdown properly. It's STILL connected to the port
+            # OSCUDPServer needs a dedicated serve_forever thread so shutdown can be
+            # requested from the manager thread.
             self.server = osc_server.OSCUDPServer(
                 (self.config.gui_osc_address, int(self.config.gui_osc_receiver_port)),
                 self.dispatcher,

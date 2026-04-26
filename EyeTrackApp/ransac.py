@@ -164,7 +164,6 @@ def fit_rotated_ellipse(data, P):
     cx = (2 * c * d - b * e) / cxy
     cy = (2 * a * e - b * d) / cxy
 
-    # I just want to clear things up around here.
     cu = a * cx**2 + b * cx * cy + c * cy**2 - f
     cu_r = np.array([(a * tc2 + b_tcs + c * ts2), (a * ts2 - b_tcs + c * tc2)])
     if cu > 1:  # negatives can get thrown which cause errors, just ignore them
@@ -173,9 +172,6 @@ def fit_rotated_ellipse(data, P):
         pass
 
     w, h = wh[0], wh[1]
-
-    error_sum = np.sum(data)
-    # print("fitting error = %.3f" % (error_sum))
 
     return (cx, cy, w, h, theta)
 
@@ -205,9 +201,6 @@ def get_center_noclamp(center_xy, radius):
         ransac_upper_y,
         ransac_xy_offset,
     )
-
-
-cct = 300
 
 
 def RANSAC3D(self, hsrac_en):
@@ -242,9 +235,15 @@ def RANSAC3D(self, hsrac_en):
 
     else:
         frame = self.current_image_gray_clean
-    kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (3, 3))
+    kernel = getattr(self, "_ransac_morph_kernel", None)
+    if kernel is None:
+        kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (3, 3))
+        self._ransac_morph_kernel = kernel
 
-    rng = np.random.default_rng()
+    rng = getattr(self, "_ransac_rng", None)
+    if rng is None:
+        rng = np.random.default_rng()
+        self._ransac_rng = rng
     newFrame2 = self.current_image_gray.copy()
     # Convert the image to grayscale, and set up thresholding. Thresholds here are basically a
     # low-pass filter that will set any pixel < the threshold value to 0. Thresholding is user
@@ -258,10 +257,6 @@ def RANSAC3D(self, hsrac_en):
     # Crop first to reduce the amount of data to process.
 
     # frame = self.current_image_gray
-    # For measuring processing time of image processing
-    # Crop first to reduce the amount of data to process.
-    # frame = frame[0:len(frame) - 5, :]
-    # To reduce the processing data, blur.
     if frame is None:
         print("[WARN] Frame is empty")
         self.failed = self.failed + 1  # we have failed, move onto next algo
@@ -269,14 +264,9 @@ def RANSAC3D(self, hsrac_en):
     else:
         frame_gray = cv2.GaussianBlur(frame, (9, 9), 10)
 
-    # this will need to be adjusted everytime hardware is changed (brightness of IR, Camera postion, etc)m
+    # This threshold depends on hardware, IR brightness, camera position, and lensing.
     min_val, max_val, min_loc, max_loc = cv2.minMaxLoc(frame_gray)
 
-    maxloc0_hf, maxloc1_hf = int(0.5 * max_loc[0]), int(0.5 * max_loc[1])
-
-    # crop 15% sqare around min_loc
-    # frame_gray = frame_gray[max_loc[1] - maxloc1_hf:max_loc[1] + maxloc1_hf,
-    #               max_loc[0] - maxloc0_hf:max_loc[0] + maxloc0_hf]
     threshold_value = min_val + self.settings.gui_thresh_add
 
     _, thresh = cv2.threshold(frame_gray, threshold_value, 255, cv2.THRESH_BINARY)
@@ -285,39 +275,25 @@ def RANSAC3D(self, hsrac_en):
         closing = cv2.morphologyEx(opening, cv2.MORPH_CLOSE, kernel)
         th_frame = 255 - closing
     except:
-        # I want to eliminate try here because try tends to be slow in execution.
         th_frame = 255 - frame_gray
 
     contours, _ = cv2.findContours(th_frame, cv2.RETR_TREE, cv2.CHAIN_APPROX_NONE)
-    hull = []
-    # print(contours)
-    # This way is faster than contours[i]
-    # But maybe this one is faster. hull = [cv2.convexHull(cnt, False) for cnt in contours]
+    maxcnt = None
+    max_area = -1.0
     for cnt in contours:
-        hull.append(cv2.convexHull(cnt, False))
-    if not hull:
-        # If empty, go to next loop
-        pass
+        hull = cv2.convexHull(cnt, False)
+        area = cv2.contourArea(hull)
+        if area > max_area:
+            max_area = area
+            maxcnt = hull
     try:
-        cnt = sorted(hull, key=cv2.contourArea)
-        maxcnt = cnt[-1]
-        # ellipse = cv2.fitEllipse(maxcnt)
+        if maxcnt is None:
+            raise ValueError("No contours found")
         ransac_data = fit_rotated_ellipse_ransac(maxcnt.reshape(-1, 2), rng)
         if ransac_data is None:
-            # ransac_data is None==maxcnt.shape[0]<sample_num
-            # go to next loop
             pass
 
         cx, cy, w, h, theta = ransac_data
-        # print(cx, cy)
-        # cxi, cyi, wi, hi = int(cx), int(cy), int(w), int(h)
-
-        # cv2.drawContours(self.current_image_gray, contours, -1, (255, 0, 0), 1)
-    # cv2.circle(self.current_image_gray, (cx, cy), 2, (0, 0, 255), -1)
-    # cx1, cy1, w1, h1, theta1 = fit_rotated_ellipse(maxcnt.reshape(-1, 2))
-    # cv2.ellipse(self.current_image_gray, (cx, cy), (w, h), theta * 180.0 / np.pi, 0.0, 360.0, (50, 250, 200), 1, )
-
-    # img = newImage2[y1:y2, x1:x2]
     except:
         ranf = True
         pass
@@ -355,16 +331,15 @@ def RANSAC3D(self, hsrac_en):
         # Now we have our pupil
         ellipse_3d = result_3d["ellipse"]
         # And our eyeball that the pupil is on the surface of
-        self.lkg_projected_sphere = result_3d["projected_sphere"]
+        self.last_projected_sphere = result_3d["projected_sphere"]
 
         # Record our pupil center
         exm = ellipse_3d["center"][0]
         eym = ellipse_3d["center"][1]
-        #  print(result_2d["angle"])
         d = result_3d["diameter_3d"]
-        self.cc_radius = int(float(self.lkg_projected_sphere["axes"][0]))
-        self.xc = int(float(self.lkg_projected_sphere["center"][0]))
-        self.yc = int(float(self.lkg_projected_sphere["center"][1]))
+        self.circle_crop_radius = int(float(self.last_projected_sphere["axes"][0]))
+        self.circle_crop_center_x = int(float(self.last_projected_sphere["center"][0]))
+        self.circle_crop_center_y = int(float(self.last_projected_sphere["center"][1]))
 
     except:
         f = True
@@ -376,21 +351,13 @@ def RANSAC3D(self, hsrac_en):
             cx = self.rawx
             cy = self.rawy
         else:
-            #  print(int(cx), int(clamp(cx + ransac_lower_x, 0, csx)), ransac_lower_x, csx, "y", int(cy), int(clamp(cy + ransac_lower_y, 0, csy)), ransac_lower_y, csy)
-            cx = int(
-                clamp(cx + ransac_lower_x, 0, csx)
-            )  # dunno why this is being weird
+            cx = int(clamp(cx + ransac_lower_x, 0, csx))
             cy = int(clamp(cy + ransac_lower_y, 0, csy))
 
-    # print(contours)
     for cnt in contours:
         (x, y, w, h) = cv2.boundingRect(cnt)
         perscalarw = w / csx
         perscalarh = h / csy
-        #  print(abs(perscalarw-perscalarh))
-        # if abs(perscalarw-perscalarh) >= 0.2: # TODO setting
-        #    blink = 0.0
-
         if self.settings.gui_RANSACBLINK:
             if self.ran_blink_check_for_file:
                 if self.eye_id in [EyeId.LEFT]:
@@ -409,7 +376,7 @@ def RANSAC3D(self, hsrac_en):
                     )
                 self.ran_blink_check_for_file = False
 
-            if len(self.blink_list) == 10000:  # self calibrate ransac blink IN TESTING
+            if len(self.blink_list) == 10000:
                 if self.eye_id in [EyeId.LEFT]:
                     with open("RANSAC_BLINK_LEFT.cfg", "w") as file:
                         for item in self.blink_list:
@@ -420,9 +387,6 @@ def RANSAC3D(self, hsrac_en):
                         for item in self.blink_list:
                             file.write(str(item) + "\n")
 
-                # print("SAVE")
-
-                # self.blink_list.pop(0)
                 self.blink_list.append(abs(perscalarw - perscalarh))
 
             elif len(self.blink_list) < 10000:
@@ -439,28 +403,12 @@ def RANSAC3D(self, hsrac_en):
     except:
         pass
 
-    # try:  #for some reason the pye3d visualizations are wack, im going to just not visualize it for now..
-    #   cv2.ellipse(
-    #       self.current_image_gray,
-    #     tuple(int(v) for v in ellipse_3d["center"]),
-    #      tuple(int(v) for v in ellipse_3d["axes"]),
-    #     ellipse_3d["angle"],
-    #      0,
-    #      360,  # start/end angle for drawing
-    #      (0, 255, 0),  # color (BGR): red
-    #  )
-    # except Exception:
-    # Sometimes we get bogus axes and trying to draw this throws. Ideally we should check for
-    # validity beforehand, but for now just pass. It usually fixes itself on the next frame.
-    #    pass
-
     try:
-        # print(self.lkg_projected_sphere["angle"], self.lkg_projected_sphere["axes"], self.lkg_projected_sphere["center"])
         cv2.ellipse(
             newFrame2,
-            tuple(int(v) for v in self.lkg_projected_sphere["center"]),
-            tuple(int(v) for v in self.lkg_projected_sphere["axes"]),
-            self.lkg_projected_sphere["angle"],
+            tuple(int(v) for v in self.last_projected_sphere["center"]),
+            tuple(int(v) for v in self.last_projected_sphere["axes"]),
+            self.last_projected_sphere["angle"],
             0,
             360,  # start/end angle for drawing
             (0, 255, 0),  # color (BGR): red
@@ -469,7 +417,7 @@ def RANSAC3D(self, hsrac_en):
         # draw line from center of eyeball to center of pupil
         cv2.line(
             self.current_image_gray,
-            tuple(int(v) for v in self.lkg_projected_sphere["center"]),
+            tuple(int(v) for v in self.last_projected_sphere["center"]),
             tuple(int(v) for v in ellipse_3d["center"]),
             (0, 255, 0),  # color (BGR): red
         )

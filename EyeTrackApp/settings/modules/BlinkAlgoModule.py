@@ -22,6 +22,7 @@ class BlinkAlgoSettingsValidationModel(BaseValidationModel):
     leap_lid_close_threshold_right: float
     leap_lid_widen_threshold_left: float
     leap_lid_widen_threshold_right: float
+    leap_lid_min_calibration_span: float
     gui_circular_crop_left: bool
     gui_circular_crop_right: bool
     leap_calibration_duration: int
@@ -31,6 +32,7 @@ class BlinkAlgoSettingsValidationModel(BaseValidationModel):
         "leap_lid_close_threshold_right",
         "leap_lid_widen_threshold_left",
         "leap_lid_widen_threshold_right",
+        "leap_lid_min_calibration_span",
         mode="before",
     )
     @classmethod
@@ -57,9 +59,33 @@ class BlinkAlgoSettingsModule(BaseSettingsModule):
         self.leap_lid_close_threshold_right = f"-LEAPLIDCLOSERIGHT{widget_id}-"
         self.leap_lid_widen_threshold_left = f"-LEAPLIDWIDENLEFT{widget_id}-"
         self.leap_lid_widen_threshold_right = f"-LEAPLIDWIDENRIGHT{widget_id}-"
+        self.leap_lid_min_calibration_span = f"-LEAPLIDMINCALSPAN{widget_id}-"
         self.gui_circular_crop_left = f"-CIRCLECROPLEFT{widget_id}-"
         self.gui_circular_crop_right = f"-CIRCLECROPRIGHT{widget_id}-"
         self.leap_calibration_duration = f"-LEAPCALIBRATION{widget_id}-"
+
+    def _build_threshold_entry(self, parent, var, step=0.05):
+        """Entry field with - / + bump buttons matching slider control styling."""
+        frame = ttk.Frame(parent)
+
+        def bump(delta):
+            try:
+                current = float(var.get())
+            except (ValueError, TypeError):
+                current = 0.0
+            next_val = round(current + (delta * step), 2)
+            var.set(f"{next_val:.2f}")
+
+        ttk.Entry(frame, textvariable=var, width=8).grid(
+            row=0, column=0, sticky="w"
+        )
+        ttk.Button(frame, text="-", width=2, command=lambda: bump(-1)).grid(
+            row=0, column=1, sticky="w", padx=(4, 2)
+        )
+        ttk.Button(frame, text="+", width=2, command=lambda: bump(1)).grid(
+            row=0, column=2, sticky="w", padx=(2, 0)
+        )
+        return frame
 
     def build(self, parent):
         checkbox_fields = [
@@ -113,7 +139,7 @@ class BlinkAlgoSettingsModule(BaseSettingsModule):
             value=str(self.config.leap_lid_close_threshold_left)
         )
         self.tk_vars[self.leap_lid_close_threshold_left] = leap_left_close_var
-        ttk.Entry(parent, textvariable=leap_left_close_var, width=12).grid(
+        self._build_threshold_entry(parent, leap_left_close_var).grid(
             row=row, column=1, sticky="w", padx=8, pady=2
         )
 
@@ -124,7 +150,7 @@ class BlinkAlgoSettingsModule(BaseSettingsModule):
             value=str(self.config.leap_lid_close_threshold_right)
         )
         self.tk_vars[self.leap_lid_close_threshold_right] = leap_right_close_var
-        ttk.Entry(parent, textvariable=leap_right_close_var, width=12).grid(
+        self._build_threshold_entry(parent, leap_right_close_var).grid(
             row=row, column=3, sticky="w", padx=8, pady=2
         )
         row += 1
@@ -136,7 +162,7 @@ class BlinkAlgoSettingsModule(BaseSettingsModule):
             value=str(self.config.leap_lid_widen_threshold_left)
         )
         self.tk_vars[self.leap_lid_widen_threshold_left] = leap_left_widen_var
-        ttk.Entry(parent, textvariable=leap_left_widen_var, width=12).grid(
+        self._build_threshold_entry(parent, leap_left_widen_var).grid(
             row=row, column=1, sticky="w", padx=8, pady=2
         )
 
@@ -147,8 +173,20 @@ class BlinkAlgoSettingsModule(BaseSettingsModule):
             value=str(self.config.leap_lid_widen_threshold_right)
         )
         self.tk_vars[self.leap_lid_widen_threshold_right] = leap_right_widen_var
-        ttk.Entry(parent, textvariable=leap_right_widen_var, width=12).grid(
+        self._build_threshold_entry(parent, leap_right_widen_var).grid(
             row=row, column=3, sticky="w", padx=8, pady=2
+        )
+        row += 1
+
+        ttk.Label(parent, text="LEAP Lid Min Calibration Span").grid(
+            row=row, column=0, sticky="w", padx=8, pady=2
+        )
+        leap_min_span_var = tk.StringVar(
+            value=str(self.config.leap_lid_min_calibration_span)
+        )
+        self.tk_vars[self.leap_lid_min_calibration_span] = leap_min_span_var
+        ttk.Entry(parent, textvariable=leap_min_span_var, width=12).grid(
+            row=row, column=1, sticky="w", padx=8, pady=2
         )
         row += 1
 
