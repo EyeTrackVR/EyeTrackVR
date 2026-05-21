@@ -100,11 +100,14 @@ class EyeId(IntEnum):
 
 
 class var:
-    average_velocity = 0
-    velocity_rolling_list = []
-    past_x = 0
-    past_y = 0
-    start_time = time.time()
+    # Per-eye velocity state. Both eye threads call cal_osc concurrently, so
+    # everything that's read across eyes (velocity, last-seen position) must
+    # be stored per side; otherwise eye B's "delta from previous frame"
+    # computation silently uses eye A's last position as the baseline.
+    # Keyed by EyeId.LEFT / EyeId.RIGHT.
+    past_xy: dict = {}
+    last_t: dict = {}
+    velocity_rolling: dict = {}
     r_eye_x = 0.0
     l_eye_x = 0.0
     left_y = 0.0
@@ -120,6 +123,44 @@ class var:
     left_calib = False
     right_calib = False
     completed_3d_calib = 0
+
+
+_VEL_WINDOW = 15
+# Cap dt at 1s to keep a long pause (tab switch, breakpoint, etc.) from
+# producing a single divide-by-tiny-dt that pollutes the rolling average.
+_MAX_DT = 1.0
+
+
+def _update_eye_velocity(eye_id, out_x, out_y, now):
+    """Compute a smoothed per-eye velocity and write it into ``var.{l,r}_eye_velocity``
+    so the downstream falloff heuristic has real numbers to compare. Returns
+    the instantaneous magnitude (used by the noise map)."""
+    prev = var.past_xy.get(eye_id)
+    last_t = var.last_t.get(eye_id, now)
+    var.past_xy[eye_id] = (out_x, out_y)
+    var.last_t[eye_id] = now
+    if prev is None:
+        return 0.0
+    dt = now - last_t
+    if dt <= 0 or dt > _MAX_DT:
+        return 0.0
+    dx = out_x - prev[0]
+    dy = out_y - prev[1]
+    # Magnitude in normalized-gaze units per second. Scale-free; the falloff
+    # comparison is relative between the two eyes so absolute units don't matter.
+    inst = math.sqrt(dx * dx + dy * dy) / dt
+
+    bucket = var.velocity_rolling.setdefault(eye_id, [])
+    bucket.append(inst)
+    if len(bucket) > _VEL_WINDOW:
+        del bucket[0]
+    smoothed = sum(bucket) / len(bucket)
+
+    if eye_id == EyeId.LEFT:
+        var.l_eye_velocity = smoothed
+    elif eye_id == EyeId.RIGHT:
+        var.r_eye_velocity = smoothed
+    return inst
 
 
 @Async
@@ -285,31 +326,23 @@ class cal:
         if flipx:
             out_x = -out_x
 
-        if self.settings.gui_outer_side_falloff:
-            run_time = time.time()
-            out_x_mult = out_x * 100
-            out_y_mult = out_y * 100
-            velocity = abs(
-                np.sqrt(
-                    abs(
-                        np.square(out_x_mult - var.past_x)
-                        - np.square(out_y_mult - var.past_y)
-                    )
-                )
-                / ((var.start_time - run_time) * 10)
+        # Per-eye velocity must be tracked whenever any falloff/dominance mode
+        # is on, since velocity_falloff() compares the two eyes' velocities to
+        # pick the cleaner one. The noise map also feeds on the instantaneous
+        # magnitude returned here.
+        inst_velocity = 0.0
+        if (
+            self.settings.gui_outer_side_falloff
+            or self.settings.gui_left_eye_dominant
+            or self.settings.gui_right_eye_dominant
+        ):
+            inst_velocity = _update_eye_velocity(
+                self.eye_id, float(out_x), float(out_y), time.time()
             )
-            if len(var.velocity_rolling_list) < 15:
-                var.velocity_rolling_list.append(float(velocity))
-            else:
-                var.velocity_rolling_list.pop(0)
-                var.velocity_rolling_list.append(float(velocity))
-            var.average_velocity = sum(var.velocity_rolling_list) / len(
-                var.velocity_rolling_list
-            )
-            var.past_x = out_x_mult
-            var.past_y = out_y_mult
 
-        out_x, out_y = velocity_falloff(self, var, out_x, out_y)
+        out_x, out_y = velocity_falloff(
+            self, var, out_x, out_y, inst_velocity=inst_velocity
+        )
 
         try:
             noisy_point = np.array(
@@ -322,4 +355,10 @@ class cal:
         except:
             pass
 
-        return out_x, out_y, var.average_velocity
+        # Report this eye's own smoothed velocity (was previously a single
+        # shared scalar across both eyes, which made the downstream falloff
+        # comparison meaningless).
+        my_velocity = (
+            var.l_eye_velocity if self.eye_id == EyeId.LEFT else var.r_eye_velocity
+        )
+        return out_x, out_y, my_velocity

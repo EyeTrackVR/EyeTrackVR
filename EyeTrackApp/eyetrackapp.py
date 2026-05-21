@@ -36,6 +36,7 @@ import cv2
 import requests
 import threading
 from camera_widget import CameraWidget
+from camera_enum import format_uvc_named_source, list_uvc_cameras
 from config import EyeTrackConfig
 from eye import EyeId
 from settings.VRCFTModuleSettings import VRCFTSettingsWidget
@@ -351,14 +352,20 @@ def main():
                 tracking_controls, text="Left (UVC / COM port / URL):"
             )
             self.left_camera_label.pack(anchor="w")
-            ttk.Entry(tracking_controls, textvariable=self.left_camera_var).pack(
-                fill="x", pady=(2, 8)
+            # Combobox (not Entry) so Scan can populate a dropdown of detected
+            # UVC cameras while still letting the user type a COM port / URL /
+            # index by hand. Picked dropdown entries are written as
+            # ``uvc:<name>@<address>`` strings, which the capture thread
+            # re-resolves to a live cv2 index every loop.
+            self.left_camera_entry = ttk.Combobox(
+                tracking_controls, textvariable=self.left_camera_var, values=()
             )
+            self.left_camera_entry.pack(fill="x", pady=(2, 8))
             self.right_camera_label = ttk.Label(
                 tracking_controls, text="Right (UVC / COM port / URL):"
             )
-            self.right_camera_entry = ttk.Entry(
-                tracking_controls, textvariable=self.right_camera_var
+            self.right_camera_entry = ttk.Combobox(
+                tracking_controls, textvariable=self.right_camera_var, values=()
             )
             self.right_camera_label.pack(anchor="w")
             self.right_camera_entry.pack(fill="x", pady=(2, 8))
@@ -457,7 +464,7 @@ def main():
                 if (
                     len(value) > 5
                     and "://" not in value
-                    and not value.startswith(("COM", "/dev"))
+                    and not value.startswith(("COM", "/dev", "uvc:"))
                     and not lower_value.endswith((".mp4", ".avi", ".mkv", ".mov"))
                 ):
                     return f"http://{value}/"
@@ -475,20 +482,28 @@ def main():
                 self.right_camera_label.configure(text="Right (UVC / COM port / URL):")
 
         def scan_sources(self):
-            self.status_var.set("Scanning camera indices...")
+            self.status_var.set("Scanning UVC cameras...")
 
             def _scan():
-                found = []
-                for i in range(10):
-                    cap = cv2.VideoCapture(i)
-                    if cap.isOpened():
-                        found.append(i)
-                    cap.release()
-                listing = ", ".join(str(i) for i in found) if found else "none"
-                self.root.after(
-                    0,
-                    lambda: self.status_var.set(f"Available camera indices: {listing}"),
-                )
+                cams = list_uvc_cameras()
+                # Dropdown values are the encoded ``uvc:<name>@<address>`` form
+                # — that's what the capture thread expects. The visible-display
+                # text includes the live cv2 index purely as a human hint
+                # ("OBS Virtual Camera, 0"), but the index isn't load-bearing:
+                # rebinding always happens via address.
+                values = [
+                    format_uvc_named_source(c["name"], c["address"]) for c in cams
+                ]
+                display_hint = ", ".join(
+                    f"{c['name']} ({c['index']})" for c in cams
+                ) or "none"
+
+                def _apply():
+                    self.left_camera_entry.configure(values=values)
+                    self.right_camera_entry.configure(values=values)
+                    self.status_var.set(f"Detected UVC: {display_hint}")
+
+                self.root.after(0, _apply)
 
             threading.Thread(target=_scan, daemon=True).start()
 

@@ -46,6 +46,54 @@ logger = logging.getLogger(__name__)
 CONFIG_FILE_NAME: str = "eyetrack_settings.json"
 BACKUP_CONFIG_FILE_NAME: str = "eyetrack_settings.backup"
 
+# Bump this whenever a release changes the *semantics* of an existing field
+# (renames, metric reworks, etc.) so that configs from older versions can be
+# migrated rather than silently misinterpreted. New fields with safe defaults
+# do NOT need a bump — pydantic fills those in automatically.
+#
+# Migration history:
+#   1 -> 2: leap lid metric was reworked alongside per-eye lid thresholds. Old
+#           configs may carry stale leap_calibration_percentile_* values whose
+#           semantics no longer match leap.py's expectations, but the new
+#           leap_lid_metric_version field defaults to the current version on
+#           load — so the in-code "metric changed, recalibrate" guard misses
+#           them. Wipe the stored calibration on this hop to force a fresh one.
+CURRENT_CONFIG_VERSION: int = 2
+
+
+def _migrate_config_dict(data: dict) -> dict:
+    """Apply forward migrations to a raw config dict so it conforms to the
+    current schema's semantic expectations. Mutates and returns ``data``.
+
+    Migrations are idempotent and stack: a config at v1 will run every
+    migration step in order up to ``CURRENT_CONFIG_VERSION``."""
+    if not isinstance(data, dict):
+        return data
+    stored = data.get("version", 1)
+    try:
+        stored = int(stored)
+    except (TypeError, ValueError):
+        stored = 1
+
+    if stored < 2:
+        # Reset leap lid calibration on every eye-config-shaped subtree.
+        # We don't enumerate them by name because bsb2e exists and future
+        # eyes may be added; we just clear any dict that looks like an eye
+        # camera config.
+        for key in ("left_eye", "right_eye", "bsb2e"):
+            eye = data.get(key)
+            if isinstance(eye, dict):
+                eye["leap_calibrated"] = False
+                eye["leap_calibration_percentile_90"] = 0
+                eye["leap_calibration_percentile_2"] = 0
+                # Force the in-code metric-version guard to recognise this as
+                # pre-versioning data; leap.py will bump it on the next frame.
+                eye["leap_lid_metric_version"] = 0
+        logger.info("Migrated config from v1: reset leap lid calibration")
+
+    data["version"] = CURRENT_CONFIG_VERSION
+    return data
+
 
 class EyeTrackCameraConfig(BaseModel):
     gui_rotation_ui_padding: bool = False
@@ -253,7 +301,10 @@ class EyeTrackSettingsConfig(BaseModel):
 
     gui_right_eye_dominant: bool = False
     gui_left_eye_dominant: bool = False
-    gui_outer_side_falloff: bool = False
+    # Enabled by default: velocity-based falloff mirrors the cleaner eye when
+    # the two tracked positions diverge, which is the right behavior for almost
+    # every dual-eye setup. Users with very mismatched cameras can disable.
+    gui_outer_side_falloff: bool = True
     gui_eye_dominant_diff_thresh: float = 0.3
 
     gui_LEAP_lid: bool = True
@@ -307,7 +358,7 @@ class EyeTrackSettingsConfig(BaseModel):
 
 
 class EyeTrackConfig(BaseModel):
-    version: int = 1
+    version: int = CURRENT_CONFIG_VERSION
     right_eye: EyeTrackCameraConfig = EyeTrackCameraConfig()
     left_eye: EyeTrackCameraConfig = EyeTrackCameraConfig()
     bsb2e: EyeTrackCameraConfig = (
@@ -324,14 +375,16 @@ class EyeTrackConfig(BaseModel):
             return EyeTrackConfig()
         try:
             with open(CONFIG_FILE_NAME, "r") as settings_file:
-                return EyeTrackConfig(**json.load(settings_file))
+                raw = json.load(settings_file)
+            return EyeTrackConfig(**_migrate_config_dict(raw))
         except (json.JSONDecodeError, ValidationError):
             logger.info("Failed to load settings file")
             load_config = None
             if os.path.exists(BACKUP_CONFIG_FILE_NAME):
                 try:
                     with open(BACKUP_CONFIG_FILE_NAME, "r") as settings_file:
-                        load_config = EyeTrackConfig(**json.load(settings_file))
+                        raw = json.load(settings_file)
+                    load_config = EyeTrackConfig(**_migrate_config_dict(raw))
                     logger.info("Using backup settings")
                 except (json.JSONDecodeError, ValidationError):
                     pass

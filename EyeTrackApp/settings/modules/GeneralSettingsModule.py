@@ -32,10 +32,6 @@ class GeneralSettingsModule(BaseSettingsModule):
         self.gui_openvr_autostart = f"-OPENVRAUTOSTART{widget_id}-"
         self.gui_use_gpu = f"-USEGPU{widget_id}-"
 
-    # gui_right_eye_dominant: bool = False
-    # gui_left_eye_dominant: bool = False
-    # gui_outer_side_falloff: bool = True
-    # gui_eye_dominant_diff_thresh: float = 0.3
 
     def build(self, parent):
         parent.columnconfigure(0, weight=1)

@@ -32,6 +32,11 @@ import serial
 import serial.tools.list_ports
 import threading
 import time
+from camera_enum import (
+    is_uvc_named_source,
+    parse_uvc_named_source,
+    resolve_uvc_address_to_index,
+)
 from config import EyeTrackCameraConfig
 from enum import Enum
 import sys
@@ -141,6 +146,12 @@ class Camera:
         self.capture_event = capture_event
         self.cancellation_event = cancellation_event
         self.current_capture_source = config.capture_source
+        # Cache for uvc:<name>@<address> sources: (encoded_string -> int index).
+        # Re-running list_uvc_cameras() every loop iteration would call
+        # cv2.VideoCapture across every index each tick — expensive and would
+        # collide with our own open handle. Cache while connected; invalidate on
+        # disconnect so an unplug/replug forces a fresh scan.
+        self._uvc_resolution_cache: tuple[str, int] | None = None
         self.cv2_camera: "cv2.VideoCapture" = None
         self._file_video_source_cache: tuple[object, bool] | None = None
 
@@ -264,6 +275,42 @@ class Camera:
             # If things aren't open, retry until they are. Don't let read requests come in any earlier
             # than this, otherwise we can deadlock ourselves.
             new_source = self.config.capture_source
+            # uvc:<name>@<address> sources are resolved to a live cv2 index here
+            # so that an unplug/replug or index reshuffle picks up the same
+            # physical camera without the user editing the field. Serial/URL
+            # sources pass through untouched.
+            if isinstance(new_source, str) and is_uvc_named_source(new_source):
+                encoded = new_source
+                cached = self._uvc_resolution_cache
+                connected = (
+                    self.cv2_camera is not None
+                    and self.cv2_camera.isOpened()
+                    and self.camera_status == CameraState.CONNECTED
+                )
+                # Re-enumerate only when the saved source changed OR we aren't
+                # currently connected. Scanning during a healthy session would
+                # probe (and briefly open) every index, fighting our own handle.
+                if cached and cached[0] == encoded and connected:
+                    new_source = cached[1]
+                else:
+                    name, address = parse_uvc_named_source(encoded)
+                    resolved = resolve_uvc_address_to_index(name, address)
+                    if resolved is None:
+                        if self.current_capture_source != encoded:
+                            logger.info(
+                                "UVC camera '%s' (%s) not currently present; waiting...",
+                                name, address,
+                            )
+                        self._release_cv2_camera()
+                        self._close_serial_connection()
+                        self.current_capture_source = encoded
+                        self._uvc_resolution_cache = None
+                        self.camera_status = CameraState.DISCONNECTED
+                        if self.cancellation_event.wait(WAIT_TIME):
+                            return
+                        continue
+                    self._uvc_resolution_cache = (encoded, resolved)
+                    new_source = resolved
             if new_source is not None and new_source != "":
                 source_changed = new_source != self.current_capture_source
                 addr = str(new_source)
