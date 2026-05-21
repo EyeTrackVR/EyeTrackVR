@@ -94,6 +94,11 @@ class CameraWidget:
 
         self.image_queue = Queue(maxsize=2)
         self.uses_shared_capture_event = False
+        # When sharing a capture thread (Bigscreen / dual-eye on one source),
+        # this widget's own ``self.camera`` never runs — its camera_status
+        # stays at CONNECTING and the readout would lie. Track the upstream
+        # camera here so the mode readout can read its real status.
+        self._shared_capture_source: "Camera | None" = None
 
         self.ransac = EyeProcessor(
             self.config,
@@ -135,14 +140,12 @@ class CameraWidget:
         self.is_mouse_up = True
         self.hover_pos = None
         self.in_roi_mode = False
-        self.movavg_fps_queue = deque(maxlen=120)
-        self.movavg_bps_queue = deque(maxlen=120)
         self._tracking_photo = None
         self._roi_photo = None
         self.frame = None
         self._config_save_after_id = None
         self._last_fps_readout = ""
-        self._last_bps_readout = ""
+        self._last_latency_readout = ""
         self._last_mode_readout = ""
         self._last_calibration_btn_text = None
         self._viz_item_ids = None
@@ -201,22 +204,18 @@ class CameraWidget:
         status_row.pack(fill="x", padx=4, pady=2)
         self.mode_var = tk.StringVar(value="Calibrating")
         self.fps_var = tk.StringVar(value="")
-        self.bps_var = tk.StringVar(value="")
-        # Layout: [mode  fps  bps                     ]
-        # mode_var has no fixed width so "Tracking" doesn't trail empty chars.
-        # fps / bps keep their fixed widths so their *own* reqwidth never flips with the
-        # digit count, and they sit immediately to the right of mode so the gap between
-        # "Tracking" and the fps readout is just the 4 px padx. When mode's text length
-        # changes (e.g. "Tracking" -> "Reconnecting..."), fps/bps slide within the row,
-        # but the panel itself stays 300 px wide (pinned by the tracking image below),
-        # so no eye-panel boundary moves. Fixed widths sized to the longest readouts:
-        #   fps — "120 Fps 8 ms"  (12 chars typical, 13 worst)
-        #   bps — "99.999 Mbps"   (11 chars max)
+        self.latency_var = tk.StringVar(value="")
+        # Layout: [mode  tracking_fps  latency_ms                     ]
+        # fps reports tracker output rate (includes camera + algo cost); latency
+        # is end-to-end frame-in → tracking-out, both moving-averaged in
+        # eye_processor. Widths sized for the worst-case readouts:
+        #   fps     — "120 Fps"     (7 chars)
+        #   latency — "999 ms lat"  (10 chars)
         ttk.Label(status_row, textvariable=self.mode_var, anchor="w").pack(side="left")
-        ttk.Label(status_row, textvariable=self.fps_var, width=13, anchor="w").pack(
+        ttk.Label(status_row, textvariable=self.fps_var, width=8, anchor="w").pack(
             side="left", padx=(4, 0)
         )
-        ttk.Label(status_row, textvariable=self.bps_var, width=11, anchor="w").pack(
+        ttk.Label(status_row, textvariable=self.latency_var, width=11, anchor="w").pack(
             side="left", padx=(4, 0)
         )
 
@@ -593,6 +592,11 @@ class CameraWidget:
         self.ransac.calibration_start_time = None
         self._sync_calibration_toggle_button()
 
+    def _effective_camera_status(self):
+        if self.uses_shared_capture_event and self._shared_capture_source is not None:
+            return self._shared_capture_source.camera_status
+        return self.camera.camera_status
+
     def detach_shared_capture_event(self) -> None:
         if not self.uses_shared_capture_event:
             return
@@ -600,6 +604,7 @@ class CameraWidget:
         self.capture_event = ev
         self.ransac.capture_event = ev
         self.uses_shared_capture_event = False
+        self._shared_capture_source = None
 
     def _schedule_main_config_save(self) -> None:
         if self.frame is None:
@@ -672,15 +677,15 @@ class CameraWidget:
         if self.padded_size is not None and any(self.hover_pos > self.padded_size):
             self.hover_pos = None
 
-    def _movavg_fps(self, next_fps):
-        self.movavg_fps_queue.append(next_fps)
-        fps = round(sum(self.movavg_fps_queue) / len(self.movavg_fps_queue))
-        millisec = round((1 / fps if fps else 0) * 1000)
-        return f"{fps} Fps {millisec} ms"
+    def _format_fps(self, fps):
+        return f"{round(fps)} Fps"
 
-    def _movavg_bps(self, next_bps):
-        self.movavg_bps_queue.append(next_bps)
-        return f"{sum(self.movavg_bps_queue) / len(self.movavg_bps_queue) * 0.001 * 0.001 * 8:.3f} Mbps"
+    def _format_latency(self, latency_ms):
+        # Tracking pipeline can be sub-ms when algos are light, so show one
+        # decimal under 10ms and round above — keeps the readout honest.
+        if latency_ms < 10.0:
+            return f"{latency_ms:.1f} ms lat"
+        return f"{latency_ms:.0f} ms lat"
 
     def _cartesian_to_polar(self):
         if not (self.xy0 is None or self.xy1 is None):
@@ -795,7 +800,7 @@ class CameraWidget:
 
             mode_readout = ""
             fps_readout = ""
-            bps_readout = ""
+            latency_readout = ""
             if self.config.capture_source is None or self.config.capture_source == "":
                 mode_readout = "No camera set"
                 self.roi_message_label.pack_forget()
@@ -804,9 +809,9 @@ class CameraWidget:
                 # reads as "the widget is moving" when it's not. Hide its viz contents
                 # instead so the area stays reserved and visually stable.
                 self._hide_output_viz()
-            elif self.camera.camera_status == CameraState.CONNECTING:
+            elif self._effective_camera_status() == CameraState.CONNECTING:
                 mode_readout = "Connecting..."
-            elif self.camera.camera_status == CameraState.DISCONNECTED:
+            elif self._effective_camera_status() == CameraState.DISCONNECTED:
                 mode_readout = "Reconnecting..."
             elif needs_roi_set:
                 mode_readout = "Awaiting Crop"
@@ -814,8 +819,8 @@ class CameraWidget:
                 mode_readout = "Calibration"
             else:
                 mode_readout = "Tracking"
-                fps_readout = self._movavg_fps(self.camera.fps)
-                bps_readout = self._movavg_bps(self.camera.bps)
+                fps_readout = self._format_fps(self.ransac.output_fps)
+                latency_readout = self._format_latency(self.ransac.output_latency_ms)
 
             if mode_readout != self._last_mode_readout:
                 self._last_mode_readout = mode_readout
@@ -823,9 +828,9 @@ class CameraWidget:
             if fps_readout != self._last_fps_readout:
                 self._last_fps_readout = fps_readout
                 self.fps_var.set(fps_readout)
-            if bps_readout != self._last_bps_readout:
-                self._last_bps_readout = bps_readout
-                self.bps_var.set(bps_readout)
+            if latency_readout != self._last_latency_readout:
+                self._last_latency_readout = latency_readout
+                self.latency_var.set(latency_readout)
 
             self._sync_calibration_toggle_button()
 

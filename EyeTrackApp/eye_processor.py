@@ -32,6 +32,8 @@ import logging
 import sys
 import asyncio
 import os
+import time
+from collections import deque
 from config import EyeTrackCameraConfig
 from config import EyeTrackConfig
 from config import EyeTrackSettingsConfig
@@ -152,6 +154,17 @@ class EyeProcessor:
         self.current_image_gray = None
         self.current_frame_number = None
         self.current_fps = None
+        self.current_capture_ts: float | None = None
+        # Tracking-output metrics. Both are time-windowed (last N seconds) so
+        # the readout is stable and matches what the eye can perceive — not a
+        # noisy single-frame number. output_fps = iterations / window; latency
+        # = mean of per-frame (tracking_done_ts - capture_push_ts).
+        self._metrics_window_s: float = 3.0
+        self._tracking_tick_times: deque = deque()
+        # Each entry: (sample_time, latency_ms_for_that_frame).
+        self._tracking_latency_samples: deque = deque()
+        self.output_fps: float = 0.0
+        self.output_latency_ms: float = 0.0
         self.threshold_image = None
         self.thresh = None
         # Calibration Values
@@ -230,6 +243,35 @@ class EyeProcessor:
         if s.gui_HSRAC or s.gui_AHSFRAC or s.gui_RANSAC3D:
             return True
         return False
+
+    def _record_tracking_metrics(self):
+        now = time.perf_counter()
+        cutoff = now - self._metrics_window_s
+
+        self._tracking_tick_times.append(now)
+        while self._tracking_tick_times and self._tracking_tick_times[0] < cutoff:
+            self._tracking_tick_times.popleft()
+        if len(self._tracking_tick_times) >= 2:
+            span = self._tracking_tick_times[-1] - self._tracking_tick_times[0]
+            if span > 0:
+                self.output_fps = (len(self._tracking_tick_times) - 1) / span
+
+        if self.current_capture_ts is not None:
+            latency_ms = (now - self.current_capture_ts) * 1000.0
+            # Guard against absurd values from clock anomalies / first frame
+            # after a long stall — keep them out of the moving average so the
+            # readout isn't anchored to an outlier for the rest of the window.
+            if 0.0 <= latency_ms < 10_000.0:
+                self._tracking_latency_samples.append((now, latency_ms))
+            while (
+                self._tracking_latency_samples
+                and self._tracking_latency_samples[0][0] < cutoff
+            ):
+                self._tracking_latency_samples.popleft()
+            if self._tracking_latency_samples:
+                self.output_latency_ms = sum(
+                    s[1] for s in self._tracking_latency_samples
+                ) / len(self._tracking_latency_samples)
 
     def output_images_and_update(self, threshold_image, output_information: EyeInfo):
         if self.image_queue_outgoing.qsize() > 0:
@@ -835,6 +877,7 @@ class EyeProcessor:
                     self.current_image,
                     self.current_frame_number,
                     self.current_fps,
+                    self.current_capture_ts,
                 ) = self.capture_queue_incoming.get(block=True, timeout=0.1)
             except queue.Empty:
                 continue
@@ -856,3 +899,4 @@ class EyeProcessor:
             else:
                 self.ALGOSELECT()  # run our algos in priority order set in settings
                 self.UPDATE()
+                self._record_tracking_metrics()

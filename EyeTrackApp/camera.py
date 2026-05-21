@@ -159,6 +159,10 @@ class Camera:
         self.frame_number = 0
         self.fps = 0.0
         self.bps = 0.0
+        # (width, height) of the most recently captured frame, or None if no
+        # frame has arrived yet. Bigscreen auto-crop reads this to derive a
+        # left/right half ROI without having to peek into the queue.
+        self.current_frame_size: tuple[int, int] | None = None
         self.buffer = b""
         # last_frame_time == 0.0 is a "no prior frame" sentinel: the next frame seeds
         # timing without contributing a delta. Keeps the first frame after connect /
@@ -602,6 +606,13 @@ class Camera:
                 pass
 
     def push_image_to_queue(self, image, frame_number, fps):
+        if image is not None and hasattr(image, "shape") and len(image.shape) >= 2:
+            self.current_frame_size = (int(image.shape[1]), int(image.shape[0]))
+        # capture_ts: perf_counter at the moment the frame leaves the capture
+        # thread, used downstream by eye_processor to compute end-to-end
+        # frame-in → tracking-out latency. perf_counter is monotonic so it's
+        # safe to subtract across threads.
+        capture_ts = time.perf_counter()
         # If there's backpressure, just yell. We really shouldn't have this unless we start getting
         # some sort of capture event conflict though.
         qsize = self.camera_output_outgoing.qsize()
@@ -611,8 +622,10 @@ class Camera:
                 qsize,
             )
         self._put_frame_drop_oldest(
-            self.camera_output_outgoing, (image, frame_number, fps)
+            self.camera_output_outgoing, (image, frame_number, fps, capture_ts)
         )
         for extra_q in self._extra_output_queues:
-            self._put_frame_drop_oldest(extra_q, (image.copy(), frame_number, fps))
+            self._put_frame_drop_oldest(
+                extra_q, (image.copy(), frame_number, fps, capture_ts)
+            )
         self.capture_event.clear()

@@ -102,6 +102,11 @@ class EyeTrackCameraConfig(BaseModel):
     roi_window_y: int = 0
     roi_window_w: int = 240
     roi_window_h: int = 240
+    # Stamp set by the Bigscreen auto-crop so we know which (frame_w, frame_h)
+    # the current ROI was derived from. None means "user-set or not yet auto-
+    # cropped" — auto-crop refuses to touch an ROI unless the stamp matches a
+    # previous auto-apply we made, or the ROI looks untouched-default.
+    bigscreen_auto_crop_frame: Union[List[int], None] = None
     focal_length: int = 30
     capture_source: Union[int, str, None] = None
     calib_axes: Union[List[float], None] = None
@@ -251,8 +256,13 @@ class EyeTrackSettingsConfig(BaseModel):
     gui_HSF_radius: int = 15
     gui_HSF_radius_left: int = 10
     gui_HSF_radius_right: int = 10
-    gui_min_cutoff: str = "0.0004"
-    gui_speed_coefficient: str = "0.9"
+    # Raw OneEuroFilter parameters. Surface in the GUI is a single
+    # "Smoothing Intensity" slider (0..100) that derives these via the curve in
+    # OneEuroSettingsModule. Kept as fields here because eye_processor / leap /
+    # ibo all read them directly on startup.
+    gui_min_cutoff: str = "0.003162"
+    gui_speed_coefficient: str = "1.5250"
+    gui_smoothing_intensity: int = 50
     gui_osc_address: str = "127.0.0.1"
     gui_osc_port: int = 9000
     gui_osc_receiver_port: int = 9001

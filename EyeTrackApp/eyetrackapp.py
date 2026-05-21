@@ -27,6 +27,7 @@ LICENSE: Babble Software Distribution License 1.0
 import logging
 import os
 import sys
+import time
 import webbrowser
 import tkinter as tk
 from tkinter import ttk
@@ -49,7 +50,7 @@ from utils.misc_utils import is_nt, is_macos, resource_path
 
 
 
-APP_VERSION = "EyeTrackApp 0.3.0 BETA 2"
+APP_VERSION = "EyeTrackApp 0.3.0 BETA 3"
 setup_logging(APP_VERSION)
 logger = logging.getLogger(__name__)
 winmm = None
@@ -563,6 +564,8 @@ def main():
             has_left = left_source is not None and left_source != ""
             has_right = right_source is not None and right_source != ""
 
+            bigscreen_mode = self.mode_var.get() == "bigscreen"
+
             if has_left and has_right:
                 shared = left_source == right_source
                 already_running = eyes[0].started() and eyes[1].started()
@@ -574,6 +577,7 @@ def main():
                         eyes[1].capture_event = eyes[0].capture_event
                         eyes[1].ransac.capture_event = eyes[0].capture_event
                         eyes[1].uses_shared_capture_event = True
+                        eyes[1]._shared_capture_source = eyes[0].camera
                         eyes[0].start()
                         eyes[1].start(run_camera_thread=False)
                     else:
@@ -613,6 +617,76 @@ def main():
 
             config.save()
             self._sync_timer_resolution()
+
+            if bigscreen_mode and has_left and has_right and left_source == right_source:
+                self._schedule_bigscreen_auto_crop()
+
+        def _schedule_bigscreen_auto_crop(self):
+            """Wait for the first frame from the shared camera, then split the
+            ROI down the middle: left half -> LEFT eye, right half -> RIGHT eye.
+            Polls because we don't know the frame resolution until capture has
+            actually started. Bails (without retrying forever) if the camera
+            doesn't produce a frame within ~10s — the user can re-trigger by
+            re-entering Bigscreen mode."""
+            self._bigscreen_auto_crop_deadline = time.time() + 10.0
+            self.root.after(200, self._try_bigscreen_auto_crop)
+
+        def _try_bigscreen_auto_crop(self):
+            size = getattr(eyes[0].camera, "current_frame_size", None)
+            if size is None:
+                if time.time() < getattr(self, "_bigscreen_auto_crop_deadline", 0):
+                    self.root.after(200, self._try_bigscreen_auto_crop)
+                return
+
+            frame_w, frame_h = size
+            if frame_w < 2 or frame_h < 1:
+                return
+
+            half = frame_w // 2
+            left_box = (0, 0, half, frame_h)
+            right_box = (half, 0, frame_w - half, frame_h)
+
+            def _looks_safe_to_overwrite(eye_cfg, target_box):
+                # Either ROI is at the spawn defaults (untouched by user) or it
+                # matches a stamp from a previous auto-apply for this same
+                # frame size. Anything else = user has hand-tuned, leave alone.
+                default_like = (
+                    eye_cfg.roi_window_x == 0
+                    and eye_cfg.roi_window_y == 0
+                    and eye_cfg.roi_window_w == 240
+                    and eye_cfg.roi_window_h == 240
+                )
+                stamp = eye_cfg.bigscreen_auto_crop_frame
+                stamped_match = (
+                    isinstance(stamp, list)
+                    and len(stamp) == 2
+                    and stamp[0] == frame_w
+                    and stamp[1] == frame_h
+                )
+                already = (
+                    eye_cfg.roi_window_x == target_box[0]
+                    and eye_cfg.roi_window_y == target_box[1]
+                    and eye_cfg.roi_window_w == target_box[2]
+                    and eye_cfg.roi_window_h == target_box[3]
+                )
+                return default_like or stamped_match or already
+
+            applied = False
+            for eye_cfg, box in (
+                (config.left_eye, left_box),
+                (config.right_eye, right_box),
+            ):
+                if not _looks_safe_to_overwrite(eye_cfg, box):
+                    continue
+                eye_cfg.roi_window_x = box[0]
+                eye_cfg.roi_window_y = box[1]
+                eye_cfg.roi_window_w = box[2]
+                eye_cfg.roi_window_h = box[3]
+                eye_cfg.bigscreen_auto_crop_frame = [frame_w, frame_h]
+                applied = True
+
+            if applied:
+                config.save()
 
         def show_page(self, page_name: str):
             """Switch tabs. Heavy work (camera thread joins, config apply) is deferred so the UI can redraw first."""
@@ -666,8 +740,13 @@ def main():
         def _deferred_enter_settings(self, seq: int) -> None:
             if seq != self._nav_teardown_seq:
                 return
-            eyes[0].stop()
-            eyes[1].stop()
+            # Keep eye trackers running while on a settings page so users can
+            # see live effects of tweaks. Camera-config changes that require
+            # a thread restart (capture_source, ROI, rotation, focal length)
+            # are handled via on_config_update which soft-restarts only the
+            # affected eye. Algo/filter toggles are read live by eye_processor
+            # each iteration and apply without restart.
+            self.apply_camera_inputs()
             settings[1].stop()
             settings[2].stop()
             settings[0].start()
@@ -676,8 +755,7 @@ def main():
         def _deferred_enter_algo(self, seq: int) -> None:
             if seq != self._nav_teardown_seq:
                 return
-            eyes[0].stop()
-            eyes[1].stop()
+            self.apply_camera_inputs()
             settings[0].stop()
             settings[2].stop()
             settings[1].start()
@@ -686,8 +764,7 @@ def main():
         def _deferred_enter_vrcft(self, seq: int) -> None:
             if seq != self._nav_teardown_seq:
                 return
-            eyes[0].stop()
-            eyes[1].stop()
+            self.apply_camera_inputs()
             settings[0].stop()
             settings[1].stop()
             settings[2].start()
@@ -696,6 +773,8 @@ def main():
         def _deferred_enter_issues(self, seq: int) -> None:
             if seq != self._nav_teardown_seq:
                 return
+            # Issues page has no live preview to maintain — stop trackers to
+            # free the camera for unrelated diagnostics.
             eyes[0].stop()
             eyes[1].stop()
             settings[0].stop()
@@ -763,6 +842,11 @@ def main():
     app = AppUI()
     if (not is_macos) and (openvr_service is not None):
         openvr_service.window = app
+    # Populate the UVC dropdowns at launch so the user sees the current
+    # cameras without having to click "Scan". after(0) defers it until the
+    # event loop is running; scan_sources itself does the enumeration on a
+    # background thread.
+    app.root.after(0, app.scan_sources)
     app.root.mainloop()
 
 

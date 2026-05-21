@@ -244,14 +244,20 @@ class BaseSettingsWidget:
         )
 
         # Hand off to the main window's shutdown sequence so camera threads,
-        # OSC, etc. unwind cleanly. Fall back to a hard exit if we can't reach
-        # the root (shouldn't happen during normal UI interaction).
+        # OSC, etc. unwind cleanly. The root's WM_DELETE_WINDOW protocol is
+        # bound to AppUI.shutdown() which stops eye threads, the OSC server,
+        # and calls os._exit(0) — sys.exit() would hang here because those
+        # threads are non-daemon.
         if parent is not None:
             try:
+                shutdown_cb = parent.protocol("WM_DELETE_WINDOW")
+                if shutdown_cb:
+                    parent.tk.call(shutdown_cb)
+                    return
                 parent.destroy()
             except tk.TclError:
                 pass
-        sys.exit(0)
+        os._exit(0)
 
     def reset_config(self):
         default_values = {}
