@@ -151,6 +151,13 @@ class CameraWidget:
         self._viz_item_ids = None
         self._roi_canvas_image_id = None
         self._roi_overlay_tag = "roi_overlay"
+        # Display scale used to fit the (warped/padded) ROI image into a
+        # compact preview canvas. xy0/xy1 are kept in IMAGE coordinates; we
+        # multiply by this when drawing on the canvas and divide by it when
+        # translating mouse events back to image space. 1.0 = native.
+        # Target: ~2x the tracking-mode preview (300x150 → 600 px cap).
+        self._roi_display_scale = 1.0
+        self._ROI_CANVAS_MAX_DIM = 600
         self.camera_thread: Thread | None = None
         self.tracking_thread: Thread | None = None
 
@@ -188,17 +195,10 @@ class CameraWidget:
         self.roi_frame = ttk.Frame(self.frame)
         self.tracking_frame.pack(fill="both", expand=True)
 
-        tracking_controls = ttk.Frame(self.tracking_frame)
-        tracking_controls.pack(fill="x", padx=4, pady=2)
-        self._calibration_toggle_btn = ttk.Button(
-            tracking_controls,
-            text="Start Calibration",
-            command=self._on_calibration_toggle,
-        )
-        self._calibration_toggle_btn.pack(side="left", padx=2)
-        ttk.Button(
-            tracking_controls, text="Recenter Eyes", command=self.recenter_eyes
-        ).pack(side="left", padx=2)
+        # Per-eye Start Calibration / Recenter buttons used to live here; they're
+        # now a single global pair in eyetrackapp.py (below the tracking row) so
+        # both eyes calibrate together. _calibration_toggle_btn stays unset and
+        # _sync_calibration_toggle_button() no-ops via its getattr guard.
 
         status_row = ttk.Frame(self.tracking_frame)
         status_row.pack(fill="x", padx=4, pady=2)
@@ -318,8 +318,11 @@ class CameraWidget:
             roi_controls, text="Camera Widget Padding", variable=self.padding_var
         ).pack(side="left", padx=8)
 
+        # Canvas auto-resizes to the scaled padded_size in render_tick once
+        # the first frame arrives. Initial size is a small placeholder ~2x
+        # tracking preview so the tab doesn't open with a huge empty box.
         self.roi_canvas = tk.Canvas(
-            self.roi_frame, width=640, height=480, bg="#424042", highlightthickness=0
+            self.roi_frame, width=600, height=300, bg="#424042", highlightthickness=0
         )
         self.roi_canvas.pack(padx=8, pady=4, anchor="w")
         self.roi_canvas.bind("<ButtonPress-1>", self._on_roi_mouse_down)
@@ -524,23 +527,57 @@ class CameraWidget:
             by0 + bh - inset,
         )
 
+    def _route_capture_to(self, target_queue: "Queue") -> None:
+        """Point the camera that actually feeds this widget at ``target_queue``.
+
+        Normal case: this widget owns its camera, so we just remap its main
+        output queue.
+
+        Bigscreen case: the *secondary* eye reuses the primary eye's camera
+        (see apply_camera_inputs), and frames reach it via the shared
+        camera's ``extra_output_queues``. The secondary widget's own
+        ``self.camera`` is idle — calling ``set_output_queue`` on it does
+        nothing — so we retarget the shared camera's extras instead.
+        """
+        if self.uses_shared_capture_event and self._shared_capture_source is not None:
+            self._shared_capture_source.set_extra_output_queues([target_queue])
+        else:
+            self.camera.set_output_queue(target_queue)
+
     def _set_tracking_mode(self):
         logger.info("Moving to tracking mode")
-        self.in_roi_mode = False
+        # Order: route frames BEFORE clearing suppress so ransac doesn't
+        # request a frame that lands in the wrong queue mid-transition.
+        # Drain any stale frames the ROI canvas left behind so the tracker
+        # doesn't process a 0.5s-old image as "live" the moment we resume.
+        self._route_capture_to(self.capture_queue)
+        self._drain_queue(self.roi_queue)
+        self._drain_queue(self.capture_queue)
         self.ransac.suppress_auto_capture_signal = False
-        self.camera.set_output_queue(self.capture_queue)
+        self.in_roi_mode = False
         self.roi_frame.pack_forget()
         self.tracking_frame.pack(fill="both", expand=True)
         self._sync_mode_tab_buttons()
 
     def _set_roi_mode(self):
         logger.info("Moving to ROI mode")
-        self.in_roi_mode = True
+        # Suppress ransac BEFORE re-routing — otherwise it can request a
+        # frame that ends up in roi_queue (because the route just changed)
+        # while ransac is still trying to read capture_queue.
         self.ransac.suppress_auto_capture_signal = True
-        self.camera.set_output_queue(self.roi_queue)
+        self._route_capture_to(self.roi_queue)
+        self.in_roi_mode = True
         self.tracking_frame.pack_forget()
         self.roi_frame.pack(fill="both", expand=True)
         self._sync_mode_tab_buttons()
+
+    @staticmethod
+    def _drain_queue(q: "Queue") -> None:
+        try:
+            while True:
+                q.get_nowait()
+        except Empty:
+            pass
 
     def _save_tracking(self):
         value = self.camera_addr_var.get()
@@ -640,21 +677,28 @@ class CameraWidget:
         else:
             self.recalibrate_eyes()
 
+    def _event_to_image_xy(self, event) -> np.ndarray:
+        """Convert a canvas-space Tk event to image-space coordinates. xy0/xy1
+        are stored in image space so the existing rotation / clip / config-save
+        math is invariant to the display scale."""
+        s = self._roi_display_scale or 1.0
+        return np.array((event.x / s, event.y / s))
+
     def _on_roi_mouse_down(self, event):
         self.hover_pos = None
         self.is_mouse_up = False
-        self.xy0 = np.array((event.x, event.y))
-        self.xy1 = np.array((event.x, event.y))
+        self.xy0 = self._event_to_image_xy(event)
+        self.xy1 = self.xy0.copy()
         self._cartesian_to_polar()
 
     def _on_roi_mouse_drag(self, event):
         self.hover_pos = None
-        self.xy1 = np.array((event.x, event.y))
+        self.xy1 = self._event_to_image_xy(event)
         self._cartesian_to_polar()
 
     def _on_roi_mouse_up(self, event):
         self.is_mouse_up = True
-        self.xy1 = np.array((event.x, event.y))
+        self.xy1 = self._event_to_image_xy(event)
         if self.xy0 is None or self.clip_pos is None or self.clip_size is None:
             return
         self.xy0 = np.clip(self.xy0, self.clip_pos, self.clip_pos + self.clip_size)
@@ -668,12 +712,18 @@ class CameraWidget:
             self.config.roi_window_w, self.config.roi_window_h = (
                 np.abs(xy0 - xy1)
             ).tolist()
+            # Mark the ROI as user-edited so the bigscreen auto-crop in
+            # eyetrackapp.py won't silently overwrite it on the next Connect.
+            # Without this clear, the stamp from the most recent auto-crop
+            # still matches the current frame size and _looks_safe_to_overwrite
+            # returns True — wiping the user's manual crop on every restart.
+            self.config.bigscreen_auto_crop_frame = None
             self._schedule_main_config_save()
 
     def _on_roi_mouse_move(self, event):
         if not self.is_mouse_up:
             return
-        self.hover_pos = np.array((event.x, event.y))
+        self.hover_pos = self._event_to_image_xy(event)
         if self.padded_size is not None and any(self.hover_pos > self.padded_size):
             self.hover_pos = None
 
@@ -688,23 +738,33 @@ class CameraWidget:
         return f"{latency_ms:.0f} ms lat"
 
     def _cartesian_to_polar(self):
-        if not (self.xy0 is None or self.xy1 is None):
-            roi_center = (self.xy0 + self.xy1) / 2 - self.roi_image_center
-            self.cr = np.linalg.norm(roi_center)
-            self.ca = math.atan2(roi_center[Y], roi_center[X]) + math.radians(
-                self.config.rotation_angle
-            )
-            self.roi_size = np.abs(self.xy1 - self.xy0)
+        # roi_image_center is None until the first ROI-mode frame populates it
+        # in render_tick. In bigscreen mode the right eye widget can stay None
+        # past the first user click (shared-camera roi_queue ordering), so a
+        # drag in that window used to crash with `float - NoneType`. Defer the
+        # conversion to the next event with a valid center.
+        if self.xy0 is None or self.xy1 is None or self.roi_image_center is None:
+            return
+        roi_center = (self.xy0 + self.xy1) / 2 - self.roi_image_center
+        self.cr = np.linalg.norm(roi_center)
+        self.ca = math.atan2(roi_center[Y], roi_center[X]) + math.radians(
+            self.config.rotation_angle
+        )
+        self.roi_size = np.abs(self.xy1 - self.xy0)
 
     def _polar_to_cartesian_at_angle(self, rotation_angle_radians):
-        if not (self.cr is None or self.ca is None or self.roi_size is None):
-            ca = self.ca - rotation_angle_radians
-            cx = math.cos(ca) * self.cr + self.roi_image_center[X]
-            cy = math.sin(ca) * self.cr + self.roi_image_center[Y]
-            roi_pos = np.array((int(cx), int(cy))) - self.roi_size // 2
-            return (roi_pos, roi_pos + self.roi_size)
-        else:
+        if (
+            self.cr is None
+            or self.ca is None
+            or self.roi_size is None
+            or self.roi_image_center is None
+        ):
             return (None, None)
+        ca = self.ca - rotation_angle_radians
+        cx = math.cos(ca) * self.cr + self.roi_image_center[X]
+        cy = math.sin(ca) * self.cr + self.roi_image_center[Y]
+        roi_pos = np.array((int(cx), int(cy))) - self.roi_size // 2
+        return (roi_pos, roi_pos + self.roi_size)
 
     def _polar_to_cartesian(self):
         if not (self.cr is None or self.ca is None or self.roi_size is None):
@@ -917,13 +977,33 @@ class CameraWidget:
                             borderValue=(128, 128, 128),
                         )
 
+                        # Fit the (possibly large) warped image into the compact
+                        # ROI canvas. Scale uniformly so longest side ≤ cap; we
+                        # never upscale (>1.0) — tiny cams should display
+                        # native, not pixel-doubled. xy0/xy1 stay in image
+                        # coords; only the displayed pixels are scaled.
+                        ps_img = tuple(int(x) for x in self.padded_size)
+                        max_dim = max(ps_img) if max(ps_img) > 0 else 1
+                        scale = min(1.0, self._ROI_CANVAS_MAX_DIM / max_dim)
+                        canvas_size = (
+                            max(1, int(round(ps_img[0] * scale))),
+                            max(1, int(round(ps_img[1] * scale))),
+                        )
+                        if scale != 1.0:
+                            image = cv2.resize(
+                                image, canvas_size, interpolation=cv2.INTER_AREA
+                            )
+                        self._roi_display_scale = scale
+
                         maybe_image = (image, *maybe_image[1:])
 
-                        ps = tuple(int(x) for x in self.padded_size)
-                        if getattr(self, "_last_roi_padded_size", None) != ps:
+                        if getattr(self, "_last_roi_padded_size", None) != canvas_size:
                             self.roi_canvas.delete("all")
                             self._roi_canvas_image_id = None
-                            self._last_roi_padded_size = ps
+                            self._last_roi_padded_size = canvas_size
+                            self.roi_canvas.configure(
+                                width=canvas_size[0], height=canvas_size[1]
+                            )
                         else:
                             self.roi_canvas.delete(self._roi_overlay_tag)
 
@@ -957,30 +1037,29 @@ class CameraWidget:
                             self.ca -= math.radians(self.config.rotation_angle)
                             self._polar_to_cartesian()
 
+                        # xy0/xy1/hover_pos are in image coords; multiply by
+                        # _roi_display_scale to land on canvas pixels.
+                        s = self._roi_display_scale
                         if self.xy0 is not None and self.xy1 is not None:
                             color = "#7f78ff" if self.is_mouse_up else "#000000"
                             self.roi_canvas.create_rectangle(
-                                int(self.xy0[X]),
-                                int(self.xy0[Y]),
-                                int(self.xy1[X]),
-                                int(self.xy1[Y]),
+                                int(self.xy0[X] * s),
+                                int(self.xy0[Y] * s),
+                                int(self.xy1[X] * s),
+                                int(self.xy1[Y] * s),
                                 outline=color,
                                 tags=self._roi_overlay_tag,
                             )
                         if self.is_mouse_up and self.hover_pos is not None:
+                            hx = int(self.hover_pos[X] * s)
+                            hy = int(self.hover_pos[Y] * s)
                             self.roi_canvas.create_line(
-                                int(self.hover_pos[X]),
-                                0,
-                                int(self.hover_pos[X]),
-                                int(self.padded_size[Y]),
+                                hx, 0, hx, canvas_size[1],
                                 fill="#ffffff",
                                 tags=self._roi_overlay_tag,
                             )
                             self.roi_canvas.create_line(
-                                0,
-                                int(self.hover_pos[Y]),
-                                int(self.padded_size[X]),
-                                int(self.hover_pos[Y]),
+                                0, hy, canvas_size[0], hy,
                                 fill="#ffffff",
                                 tags=self._roi_overlay_tag,
                             )

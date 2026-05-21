@@ -37,7 +37,11 @@ import cv2
 import requests
 import threading
 from camera_widget import CameraWidget
-from camera_enum import format_uvc_named_source, list_uvc_cameras
+from camera_enum import (
+    discover_etvr_mdns_sources,
+    format_uvc_named_source,
+    list_uvc_cameras,
+)
 from config import EyeTrackConfig
 from eye import EyeId
 from settings.VRCFTModuleSettings import VRCFTSettingsWidget
@@ -373,6 +377,17 @@ def main():
             )
             self.right_camera_label.pack(anchor="w")
             self.right_camera_entry.pack(fill="x", pady=(2, 8))
+            # Picking a value from the dropdown auto-connects (matches what
+            # users expect after running Scan). Typed input intentionally does
+            # NOT auto-connect — that's what the Connect button is for, and
+            # firing on every keystroke would thrash the capture thread.
+            # <<ComboboxSelected>> only fires on dropdown selection, not edits.
+            self.left_camera_entry.bind(
+                "<<ComboboxSelected>>", lambda _e: self.apply_camera_inputs()
+            )
+            self.right_camera_entry.bind(
+                "<<ComboboxSelected>>", lambda _e: self.apply_camera_inputs()
+            )
             camera_button_row = ttk.Frame(tracking_controls)
             camera_button_row.pack(fill="x")
             ttk.Button(
@@ -404,7 +419,10 @@ def main():
             ).pack(anchor="w", pady=(6, 0))
 
             self.tracking_eyes_row = ttk.Frame(tracking_main)
-            self.tracking_eyes_row.pack(fill="both", expand=True)
+            # fill="x" only (not "both", no expand): lets the action row below
+            # sit snug against the visualization instead of being pushed to the
+            # bottom of tracking_main by an expanding eyes row.
+            self.tracking_eyes_row.pack(fill="x")
             self.left_frame = eyes[1].build(
                 self.tracking_eyes_row, show_camera_controls=False
             )
@@ -416,6 +434,30 @@ def main():
             # to half of tracking_main, leaving a wide empty gutter after the status row.
             self.left_frame.pack(side="left", fill="y", padx=(0, 4))
             self.right_frame.pack(side="left", fill="y", padx=(4, 0))
+
+            # Global calibration / recenter row. Replaces the per-eye buttons
+            # that used to live in each camera widget — left/right always need
+            # to calibrate together, and two pairs of buttons made it ambiguous
+            # which eye's state was being toggled.
+            # fill="x" on the outer frame so the inner button group can center
+            # within the full tracking_main width. Tight top padding keeps the
+            # buttons close to the visualization above.
+            tracking_actions = ttk.Frame(tracking_main)
+            tracking_actions.pack(fill="x", pady=(2, 0))
+            actions_inner = ttk.Frame(tracking_actions)
+            actions_inner.pack(anchor="center")
+            self._calibration_btn_text = tk.StringVar(value="Start Calibration")
+            self._global_calibration_btn = ttk.Button(
+                actions_inner,
+                textvariable=self._calibration_btn_text,
+                command=self._on_global_calibration_toggle,
+            )
+            self._global_calibration_btn.pack(side="left", padx=(0, 4))
+            ttk.Button(
+                actions_inner,
+                text="Recenter Eyes",
+                command=self._on_global_recenter,
+            ).pack(side="left", padx=4)
 
             bottom = ttk.Frame(self.root)
             bottom.pack(fill="x", padx=8, pady=4)
@@ -493,7 +535,7 @@ def main():
                 config.save()
 
         def scan_sources(self):
-            self.status_var.set("Scanning UVC cameras...")
+            self.status_var.set("Scanning UVC cameras and mDNS...")
 
             def _scan():
                 cams = list_uvc_cameras()
@@ -502,17 +544,28 @@ def main():
                 # text includes the live cv2 index purely as a human hint
                 # ("OBS Virtual Camera, 0"), but the index isn't load-bearing:
                 # rebinding always happens via address.
-                values = [
+                uvc_values = [
                     format_uvc_named_source(c["name"], c["address"]) for c in cams
                 ]
-                display_hint = ", ".join(
+                # mDNS lookup is blocking; this whole _scan runs on a worker
+                # thread already, so it's fine here. Network trackers go to the
+                # *top* of the dropdown because they're typically the user's
+                # primary capture source — UVC is the fallback / debug case.
+                mdns_values = discover_etvr_mdns_sources()
+
+                values = mdns_values + uvc_values
+
+                uvc_hint = ", ".join(
                     f"{c['name']} ({c['index']})" for c in cams
                 ) or "none"
+                mdns_hint = ", ".join(mdns_values) or "none"
 
                 def _apply():
                     self.left_camera_entry.configure(values=values)
                     self.right_camera_entry.configure(values=values)
-                    self.status_var.set(f"Detected UVC: {display_hint}")
+                    self.status_var.set(
+                        f"Detected mDNS: {mdns_hint} | UVC: {uvc_hint}"
+                    )
 
                 self.root.after(0, _apply)
 
@@ -806,6 +859,42 @@ def main():
             )
             dialog.protocol("WM_DELETE_WINDOW", enable_gui)
 
+        def _any_eye_calibrating(self):
+            for eye in eyes:
+                rs = getattr(eye, "ransac", None)
+                if rs is not None and rs.calibration_start_time is not None:
+                    return True
+            return False
+
+        def _on_global_calibration_toggle(self):
+            # Mirror the per-eye toggle: if anything is already calibrating,
+            # stop all eyes; otherwise start calibration on every started eye.
+            # Starting calibration on a stopped eye is a no-op so this is safe
+            # to call regardless of capture state.
+            if self._any_eye_calibrating():
+                for eye in eyes:
+                    rs = getattr(eye, "ransac", None)
+                    if rs is not None:
+                        rs.calibration_start_time = None
+            else:
+                for eye in eyes:
+                    if eye.started():
+                        eye.recalibrate_eyes()
+
+        def _on_global_recenter(self):
+            for eye in eyes:
+                if eye.started():
+                    eye.recenter_eyes()
+
+        def _sync_global_calibration_button(self):
+            text = (
+                "Stop Calibration"
+                if self._any_eye_calibrating()
+                else "Start Calibration"
+            )
+            if self._calibration_btn_text.get() != text:
+                self._calibration_btn_text.set(text)
+
         def _tick(self):
             has_focus = self.root.focus_displayof() is not None
             interval = 33
@@ -817,6 +906,7 @@ def main():
                     for eye in eyes:
                         if eye.started():
                             eye.render_tick()
+                    self._sync_global_calibration_button()
                 for setting in settings:
                     if setting.started():
                         setting.render_tick()
