@@ -225,7 +225,10 @@ def main():
             apply_theme_to_titlebar(self.root)
             self.focus_paused = False
             self.current_page = "tracking"
-            self.mode_var = tk.StringVar(value="etvr")
+            initial_mode = getattr(config.settings, "gui_setup_mode", "etvr") or "etvr"
+            if initial_mode not in ("etvr", "bigscreen"):
+                initial_mode = "etvr"
+            self.mode_var = tk.StringVar(value=initial_mode)
             self._last_camera_tracking_key = None
             self._timer_high_res = False
             self._nav_teardown_seq = 0
@@ -471,7 +474,8 @@ def main():
                 return value
 
         def on_mode_change(self):
-            is_bigscreen = self.mode_var.get() == "bigscreen"
+            mode = self.mode_var.get()
+            is_bigscreen = mode == "bigscreen"
             if is_bigscreen:
                 self.right_camera_entry.state(["disabled"])
                 self.left_camera_label.configure(text="Source (UVC Index):")
@@ -480,6 +484,12 @@ def main():
                 self.right_camera_entry.state(["!disabled"])
                 self.left_camera_label.configure(text="Left (UVC / COM port / URL):")
                 self.right_camera_label.configure(text="Right (UVC / COM port / URL):")
+            # Persist so the next launch reopens in the same mode rather than
+            # falling back to ETVR (which then reuses the BSB-era right_eye
+            # source — the same camera as the left).
+            if getattr(config.settings, "gui_setup_mode", None) != mode:
+                config.settings.gui_setup_mode = mode
+                config.save()
 
         def scan_sources(self):
             self.status_var.set("Scanning UVC cameras...")

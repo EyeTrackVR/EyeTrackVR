@@ -257,12 +257,20 @@ class Camera:
         self.last_frame_time = current_time
 
     def run(self):
-        OPENCV_PARAMS = [
-            cv2.CAP_PROP_OPEN_TIMEOUT_MSEC,
-            5000,
-            cv2.CAP_PROP_READ_TIMEOUT_MSEC,
-            5000,
-        ]
+        # OPEN/READ timeout params are a DSHOW/V4L2/FFmpeg feature; AVFoundation
+        # on macOS raises -213 ("not implemented") when it sees them, which
+        # aborts the whole open() call. Pass an empty list on macOS so the
+        # open path stays usable there; the timeouts are nice-to-have, not
+        # load-bearing.
+        if sys.platform == "darwin":
+            OPENCV_PARAMS: list[int] = []
+        else:
+            OPENCV_PARAMS = [
+                cv2.CAP_PROP_OPEN_TIMEOUT_MSEC,
+                5000,
+                cv2.CAP_PROP_READ_TIMEOUT_MSEC,
+                5000,
+            ]
         while True:
             if self.cancellation_event.is_set():
                 logger.info("Exiting capture thread")
@@ -282,15 +290,14 @@ class Camera:
             if isinstance(new_source, str) and is_uvc_named_source(new_source):
                 encoded = new_source
                 cached = self._uvc_resolution_cache
-                connected = (
-                    self.cv2_camera is not None
-                    and self.cv2_camera.isOpened()
-                    and self.camera_status == CameraState.CONNECTED
-                )
-                # Re-enumerate only when the saved source changed OR we aren't
-                # currently connected. Scanning during a healthy session would
-                # probe (and briefly open) every index, fighting our own handle.
-                if cached and cached[0] == encoded and connected:
+                # Cache the encoded -> index mapping until the user picks a
+                # different source. Re-resolving on every retry would mean
+                # re-enumerating cameras while transiently disconnected, and
+                # on platforms where the fallback probe opens cv2 indices it
+                # would race with our own open attempt and loop forever.
+                # The OS enumeration is cheap (one shell-out) but still
+                # pointless to repeat per loop tick.
+                if cached and cached[0] == encoded:
                     new_source = cached[1]
                 else:
                     name, address = parse_uvc_named_source(encoded)
@@ -359,6 +366,12 @@ class Camera:
                             )
                             self.camera_status = CameraState.DISCONNECTED
                             self._release_cv2_camera()
+                            # If the failing index came from a cached uvc:
+                            # resolution, the device may have been unplugged
+                            # or reassigned. Drop the cache so the next
+                            # iteration re-queries the OS and picks up the
+                            # new index instead of looping forever.
+                            self._uvc_resolution_cache = None
                             if self.cancellation_event.wait(WAIT_TIME):
                                 return
                             continue

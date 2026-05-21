@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "EyeTrackVR"
-version = "0.2"
+version = "0.3"
 description = "Opensource, affordable VR eye tracker for VRChat"
 authors = ["RedHawk989"]
 license = "LICENSE: Babble Software Distribution License 1.0"
@@ -63,3 +63,4 @@ python_files = [
 name = "ort-cuda-13"
 url = "https://aiinfra.pkgs.visualstudio.com/PublicPackages/_packaging/onnxruntime-cuda-12/pypi/simple/"
 priority = "explicit"
+

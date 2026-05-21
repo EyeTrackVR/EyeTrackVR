@@ -1,13 +1,20 @@
 from datetime import datetime, timedelta
+import os
+import sys
 import time
 from typing import Iterable
 
 import tkinter as tk
-from tkinter import ttk
+from tkinter import messagebox, ttk
 from colorama import Fore
 from threading import Event
 from eye import EyeId
-from config import EyeTrackConfig, EyeTrackSettingsConfig
+from config import (
+    BACKUP_CONFIG_FILE_NAME,
+    CONFIG_FILE_NAME,
+    EyeTrackConfig,
+    EyeTrackSettingsConfig,
+)
 
 
 class BaseSettingsWidget:
@@ -164,8 +171,10 @@ class BaseSettingsWidget:
             section.pack(fill="x", padx=8, pady=6, anchor="n")
             module.build(section)
 
+        button_row = ttk.Frame(self.frame)
+        button_row.pack(fill="x", padx=10, pady=(6, 10))
         tk.Button(
-            self.frame,
+            button_row,
             text="Reset settings to default",
             command=self.reset_config,
             font=("Segoe UI", 9),
@@ -179,8 +188,70 @@ class BaseSettingsWidget:
             cursor="hand2",
             border=0,
             highlightthickness=0,
-        ).pack(anchor="w", padx=10, pady=(6, 10))
+        ).pack(side="left")
+        tk.Button(
+            button_row,
+            text="Delete config",
+            command=self.delete_config,
+            font=("Segoe UI", 9),
+            fg="#ffffff",
+            bg="#a33a3a",
+            activebackground="#8a2a2a",
+            activeforeground="#ffffff",
+            relief="flat",
+            padx=12,
+            pady=6,
+            cursor="hand2",
+            border=0,
+            highlightthickness=0,
+        ).pack(side="left", padx=(8, 0))
         return self.frame
+
+    def delete_config(self):
+        """Wipe the on-disk config (main + backup) and exit. Next launch will
+        start from defaults. We exit rather than re-init the in-memory config
+        because the running app holds references to the existing settings
+        objects in every module, so a hot-swap would leave stale state
+        scattered across the process."""
+        parent = self.frame.winfo_toplevel() if self.frame is not None else None
+        confirmed = messagebox.askyesno(
+            "Delete config",
+            "Delete the config file and quit?\n\n"
+            "All saved settings, calibrations, and camera sources will be lost. "
+            "The app will close; relaunch it to start fresh.",
+            parent=parent,
+            icon="warning",
+        )
+        if not confirmed:
+            return
+
+        # Cancel any pending debounced save so we don't race a write against
+        # the delete we're about to do.
+        self._cancel_debounced_settings_save()
+        self.is_saving = True
+
+        removed = []
+        for path in (CONFIG_FILE_NAME, BACKUP_CONFIG_FILE_NAME):
+            try:
+                if os.path.exists(path):
+                    os.remove(path)
+                    removed.append(path)
+            except OSError as e:
+                print(f"{Fore.RED}[ERROR]{Fore.RESET} Could not delete {path}: {e}")
+        print(
+            f"{Fore.GREEN}[INFO]{Fore.RESET} Deleted config file(s): "
+            f"{', '.join(removed) if removed else 'none found'}"
+        )
+
+        # Hand off to the main window's shutdown sequence so camera threads,
+        # OSC, etc. unwind cleanly. Fall back to a hard exit if we can't reach
+        # the root (shouldn't happen during normal UI interaction).
+        if parent is not None:
+            try:
+                parent.destroy()
+            except tk.TclError:
+                pass
+        sys.exit(0)
 
     def reset_config(self):
         default_values = {}

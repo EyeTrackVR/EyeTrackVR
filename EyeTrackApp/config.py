@@ -334,6 +334,13 @@ class EyeTrackSettingsConfig(BaseModel):
 
     gui_openvr_autostart: bool = False
 
+    # Setup mode picked on the Tracking tab. Persisted so a user who picked
+    # Bigscreen Beyond doesn't relaunch into normal ETVR mode (which would
+    # then load whatever was saved as the right eye's source — in BSB that's
+    # the same camera as the left, producing the "both eyes on one webcam"
+    # state).
+    gui_setup_mode: str = "etvr"
+
     @model_validator(mode="before")
     @classmethod
     def copy_legacy_leap_lid_thresholds(cls, data):
