@@ -107,6 +107,10 @@ class EyeTrackCameraConfig(BaseModel):
     # cropped" — auto-crop refuses to touch an ROI unless the stamp matches a
     # previous auto-apply we made, or the ROI looks untouched-default.
     bigscreen_auto_crop_frame: Union[List[int], None] = None
+    # focal_length is in PIXELS (pye3d's CameraModel expects pixel focal length,
+    # not millimeters). Default 30 px works for the typical low-res IR tracker
+    # cams shipped with ETVR. Field name preserved for backward compatibility
+    # with existing eyetrack_settings.json files.
     focal_length: int = 30
     capture_source: Union[int, str, None] = None
     calib_axes: Union[List[float], None] = None

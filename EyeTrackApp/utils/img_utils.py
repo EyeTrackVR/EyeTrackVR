@@ -19,31 +19,24 @@ def safe_crop(img, x, y, x2, y2, keepsize=False):
             raise
 
 
-def circle_crop(img, center_x, center_y, radius, delay_frames):
-    if delay_frames <= 0:
-        try:
-            # Sample a 1x1 resize as a cheap average color estimate.
-            small_img = cv2.resize(img, (1, 1))
-            avg_color = small_img[0, 0]
+def circle_crop(img, center_x, center_y, radius):
+    """Mask everything outside the circle with the frame's average color.
+    Caller is responsible for warmup gating (previously a frame-count
+    parameter inside this helper)."""
+    try:
+        # Sample a 1x1 resize as a cheap average color estimate.
+        small_img = cv2.resize(img, (1, 1))
+        avg_color = small_img[0, 0]
 
-            ht, wd = img.shape[:2]
+        ht, wd = img.shape[:2]
 
-            if radius < 10:  # minimum size
-                radius = 10
-            # draw filled circle in white on black background as mask
-            mask = np.zeros((ht, wd), dtype=np.uint8)
-            mask = cv2.circle(mask, (center_x, center_y), radius, 255, -1)
-            # create white colored background
-            color = np.full_like(img, (avg_color))
-            # apply mask to image
-            masked_img = cv2.bitwise_and(img, img, mask=mask)
-            # apply inverse mask to colored image
-            masked_color = cv2.bitwise_and(color, color, mask=255 - mask)
-            # combine the two masked images
-            outimg = cv2.add(masked_img, masked_color)
-            return outimg, delay_frames
-        except:
-            return img, delay_frames
-    else:
-        delay_frames = delay_frames - 1
-        return img, delay_frames
+        if radius < 10:  # minimum size
+            radius = 10
+        mask = np.zeros((ht, wd), dtype=np.uint8)
+        mask = cv2.circle(mask, (center_x, center_y), radius, 255, -1)
+        color = np.full_like(img, (avg_color))
+        masked_img = cv2.bitwise_and(img, img, mask=mask)
+        masked_color = cv2.bitwise_and(color, color, mask=255 - mask)
+        return cv2.add(masked_img, masked_color)
+    except cv2.error:
+        return img

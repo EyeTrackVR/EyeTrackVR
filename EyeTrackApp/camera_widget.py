@@ -837,13 +837,14 @@ class CameraWidget:
             if self.in_roi_mode:
                 # Drain to latest frame: tracking thread does not consume capture_queue in ROI mode, but it was
                 # still calling capture_event.set() every loop while capture_queue stayed empty — flooding this queue.
+                # Single try/except cuts ~one Empty-throw per drained frame vs. the nested form.
                 maybe_image = None
                 try:
                     while True:
-                        try:
-                            maybe_image = self.roi_queue.get(block=False)
-                        except Empty:
-                            break
+                        maybe_image = self.roi_queue.get_nowait()
+                except Empty:
+                    pass
+                try:
                     if maybe_image:
                         image = maybe_image[0]
 

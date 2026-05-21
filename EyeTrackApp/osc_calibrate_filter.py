@@ -299,17 +299,20 @@ class cal:
         if self.settings.gui_recenter_eyes == True:
             self.config.calib_XOFF = cx
             self.config.calib_YOFF = cy
-            if self.recenter_delay_frames == 0:
+            # Time-based gate (previously a 10-frame counter tuned for ~50 fps
+            # = 0.2s). Frame-count gates skew with capture rate.
+            now = time.perf_counter()
+            if self._recenter_armed_at is None:
+                self._recenter_armed_at = now
+            if now - self._recenter_armed_at >= self._recenter_delay_s:
                 center_overlay_calibrate(self)  # TODO: Only call on supported desktop platforms.
                 self.settings.gui_recenter_eyes = False
                 PlaySound(
                     resource_path("Audio/completed.wav"), SND_FILENAME | SND_ASYNC
                 )
-            else:
-                self.recenter_delay_frames = self.recenter_delay_frames - 1
-
+                self._recenter_armed_at = None
         else:
-            self.recenter_delay_frames = 10
+            self._recenter_armed_at = None
 
         out_x = 0.5
         out_y = 0.5

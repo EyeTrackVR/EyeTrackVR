@@ -171,8 +171,13 @@ class EyeProcessor:
         self.ymax = -69420
         self.ymin = 69420
         self.blink_clear = False
-        self.circle_crop_delay_frames = 200
-        self.recenter_delay_frames = 10
+        # Time-based warmup gates (previously frame counters tuned for a 50 fps
+        # source). Frame-counter versions silently broke on high-fps cameras
+        # (e.g. 120 fps cut the warmup in half) and low-fps files.
+        self._circle_crop_warmup_s = 4.0  # was circle_crop_delay_frames = 200 @ 50 fps
+        self._circle_crop_ready_at = time.perf_counter() + self._circle_crop_warmup_s
+        self._recenter_delay_s = 0.2  # was recenter_delay_frames = 10 @ 50 fps
+        self._recenter_armed_at = None  # perf_counter when recenter was requested
         self.previous_rotation = self.config.rotation_angle
         self.camera_model = None
         self.detector_3d = None
@@ -191,8 +196,14 @@ class EyeProcessor:
         self.eyeopen = 0.9
         self.max_ints = []
         self.max_int = 0
-        self.min_int = 4000000000000
+        # Sentinel for "no minimum seen yet"; previously a magic 4e12 literal.
+        self.min_int = float("inf")
         self.frames = 0
+        # Preview output is for the GUI only — throttle to 60 Hz so trackers
+        # running >60 fps don't waste cycles on cv2.resize / concatenate /
+        # queue churn that the user can never see.
+        self._preview_min_interval_s = 1.0 / 60.0
+        self._preview_last_emit_ts = 0.0
         self.blinkvalue = False
         self.hsrac_enabled = False
         self.radius = 10
@@ -228,6 +239,8 @@ class EyeProcessor:
         self._crop_geom_cache_key = None
         self._crop_matrix = None
         self._crop_fits_in_bounds = None
+        # Built in run(); pre-set so ALGOSELECT can run safely before then.
+        self._algorithm_slots: list = [None] * 8
 
     def _needs_gray_clean_copy(self) -> bool:
         s = self.settings
@@ -269,6 +282,16 @@ class EyeProcessor:
     def output_images_and_update(self, threshold_image, output_information: EyeInfo):
         if self.image_queue_outgoing.qsize() > 0:
             return
+
+        # Throttle preview emit to ~60 Hz independent of tracking rate. Two
+        # cv2.resize calls + concatenate + queue put on a 120 fps tracker
+        # was costing measurable time for a UI that can't render that fast.
+        now = time.perf_counter()
+        if now - self._preview_last_emit_ts < self._preview_min_interval_s:
+            self.previous_image = self.current_image
+            self.previous_rotation = self.config.rotation_angle
+            return
+        self._preview_last_emit_ts = now
 
         self.current_image_gray = cv2.resize(
             self.current_image_gray, (150, 150), interpolation=cv2.INTER_AREA
@@ -438,12 +461,14 @@ class EyeProcessor:
         if not circular_crop_enabled:
             return
 
-        self.current_image_gray, self.circle_crop_delay_frames = circle_crop(
+        if time.perf_counter() < self._circle_crop_ready_at:
+            return
+
+        self.current_image_gray = circle_crop(
             self.current_image_gray,
             self.circle_crop_center_x,
             self.circle_crop_center_y,
             self.circle_crop_radius,
-            self.circle_crop_delay_frames,
         )
 
     def UPDATE(self):
@@ -687,51 +712,34 @@ class EyeProcessor:
         self.current_algorithm = EyeInfoOrigin.HSF
 
     def ALGOSELECT(self):
-        # Advance through enabled algorithms until one succeeds and resets self.failed.
-        if self.failed == 0 and self.first_algorithm is not None:
-            self.first_algorithm()
-        else:
-            self.failed = self.failed + 1
-        if self.failed == 1 and self.second_algorithm is not None:
-            self.second_algorithm()
-        else:
-            self.failed = self.failed + 1
-        if self.failed == 2 and self.third_algorithm is not None:
-            self.third_algorithm()
-        else:
-            self.failed = self.failed + 1
-        if self.failed == 3 and self.fourth_algorithm is not None:
-            self.fourth_algorithm()
-        else:
-            self.failed = self.failed + 1
-        if self.failed == 4 and self.fifth_algorithm is not None:
-            self.fifth_algorithm()
-        else:
-            self.failed = self.failed + 1
-        if self.failed == 5 and self.sixth_algorithm is not None:
-            self.sixth_algorithm()
-        else:
-            self.failed = self.failed + 1
-        if self.failed == 6 and self.seventh_algorithm is not None:
-            self.seventh_algorithm()
-        else:
-            self.failed = self.failed + 1
-        if self.failed == 7 and self.eighth_algorithm is not None:
-            self.eighth_algorithm()
-        else:
-            self.failed = 0  # Move back to the first algorithm after the last slot.
+        # Replaces an 8-way if/elif chain. Semantics preserved:
+        # - Run the algorithm at slot self.failed (skipping None slots).
+        # - The algorithm signals failure by incrementing self.failed, which
+        #   causes the next non-None slot to run as a same-frame fallback.
+        # - Success leaves self.failed unchanged (or sets it to 0).
+        # - After walking past the last slot, wrap to 0.
+        slots = self._algorithm_slots
+        n = len(slots)
+        for _ in range(n):
+            if self.failed < 0 or self.failed >= n:
+                self.failed = 0
+            algo = slots[self.failed]
+            if algo is None:
+                self.failed += 1
+                continue
+            prev_failed = self.failed
+            algo()
+            if self.failed == prev_failed:
+                # Algorithm did not advance: treat as success and stop.
+                return
+            # Algorithm advanced self.failed (failure): loop and try next slot.
+        # Walked past the end without success — reset for next frame.
+        self.failed = 0
 
     def run(self):
 
-        self.first_algorithm = None
-        self.second_algorithm = None
-        self.third_algorithm = None
-        self.fourth_algorithm = None
-        self.fifth_algorithm = None
-        self.sixth_algorithm = None
-        self.seventh_algorithm = None
-        self.eighth_algorithm = None
-        algorithm_slots = [None, None, None, None, None, None, None, None, None]
+        # Fixed 8 ordered slots; positions in enabled_algorithms[] map by index.
+        algorithm_slots: list = [None] * 8
 
         # Clear HSF values when the page opens so setting changes are reflected.
         self.hsf_runner = None
@@ -817,17 +825,7 @@ class EyeProcessor:
 
         for idx, algo in enumerate(enabled_algorithms[:8]):
             algorithm_slots[idx] = algo
-
-        (
-            self.first_algorithm,
-            self.second_algorithm,
-            self.third_algorithm,
-            self.fourth_algorithm,
-            self.fifth_algorithm,
-            self.sixth_algorithm,
-            self.seventh_algorithm,
-            self.eighth_algorithm,
-        ) = algorithm_slots[:8]
+        self._algorithm_slots = algorithm_slots
 
         while True:
             # Check to make sure we haven't been requested to close
