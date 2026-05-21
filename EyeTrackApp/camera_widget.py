@@ -527,33 +527,39 @@ class CameraWidget:
             by0 + bh - inset,
         )
 
-    def _route_capture_to(self, target_queue: "Queue") -> None:
-        """Point the camera that actually feeds this widget at ``target_queue``.
-
-        Normal case: this widget owns its camera, so we just remap its main
-        output queue.
-
-        Bigscreen case: the *secondary* eye reuses the primary eye's camera
-        (see apply_camera_inputs), and frames reach it via the shared
-        camera's ``extra_output_queues``. The secondary widget's own
-        ``self.camera`` is idle — calling ``set_output_queue`` on it does
-        nothing — so we retarget the shared camera's extras instead.
-        """
+    def _effective_camera(self) -> "Camera":
+        """The camera that actually produces frames for this widget.
+        In bigscreen the secondary eye reuses the primary eye's camera;
+        its own ``self.camera`` never runs (apply_camera_inputs sets
+        ``run_camera_thread=False``)."""
         if self.uses_shared_capture_event and self._shared_capture_source is not None:
-            self._shared_capture_source.set_extra_output_queues([target_queue])
-        else:
-            self.camera.set_output_queue(target_queue)
+            return self._shared_capture_source
+        return self.camera
+
+    def _set_roi_tap(self, enabled: bool) -> None:
+        """Add (or remove) this widget's roi_queue to the *effective* camera's
+        extra output queues. ROI mode is now a TAP, not a reroute: the
+        tracker's capture_queue keeps being fed throughout, so exiting ROI
+        mode doesn't need to wake or unblock anything — the tracker has been
+        running continuously. This eliminates the "one eye frozen after exit"
+        race the rerouting version had.
+
+        Preserves any pre-existing extras (e.g. the secondary eye's
+        capture_queue in bigscreen), so toggling crop mode for one eye
+        doesn't disturb the other eye's frame flow.
+        """
+        cam = self._effective_camera()
+        current = list(cam._extra_output_queues)
+        # Remove our roi_queue first so toggling is idempotent.
+        current = [q for q in current if q is not self.roi_queue]
+        if enabled:
+            current.append(self.roi_queue)
+        cam.set_extra_output_queues(current)
 
     def _set_tracking_mode(self):
         logger.info("Moving to tracking mode")
-        # Order: route frames BEFORE clearing suppress so ransac doesn't
-        # request a frame that lands in the wrong queue mid-transition.
-        # Drain any stale frames the ROI canvas left behind so the tracker
-        # doesn't process a 0.5s-old image as "live" the moment we resume.
-        self._route_capture_to(self.capture_queue)
+        self._set_roi_tap(False)
         self._drain_queue(self.roi_queue)
-        self._drain_queue(self.capture_queue)
-        self.ransac.suppress_auto_capture_signal = False
         self.in_roi_mode = False
         self.roi_frame.pack_forget()
         self.tracking_frame.pack(fill="both", expand=True)
@@ -561,11 +567,7 @@ class CameraWidget:
 
     def _set_roi_mode(self):
         logger.info("Moving to ROI mode")
-        # Suppress ransac BEFORE re-routing — otherwise it can request a
-        # frame that ends up in roi_queue (because the route just changed)
-        # while ransac is still trying to read capture_queue.
-        self.ransac.suppress_auto_capture_signal = True
-        self._route_capture_to(self.roi_queue)
+        self._set_roi_tap(True)
         self.in_roi_mode = True
         self.tracking_frame.pack_forget()
         self.roi_frame.pack(fill="both", expand=True)
@@ -706,18 +708,16 @@ class CameraWidget:
         self._cartesian_to_polar()
         if all(abs(self.xy0 - self.xy1) != 0):
             xy0, xy1 = self._polar_to_cartesian_at_angle(0)
-            self.config.roi_window_x, self.config.roi_window_y = (
-                np.minimum(xy0, xy1) - self.img_pos
-            ).tolist()
-            self.config.roi_window_w, self.config.roi_window_h = (
-                np.abs(xy0 - xy1)
-            ).tolist()
-            # Mark the ROI as user-edited so the bigscreen auto-crop in
-            # eyetrackapp.py won't silently overwrite it on the next Connect.
-            # Without this clear, the stamp from the most recent auto-crop
-            # still matches the current frame size and _looks_safe_to_overwrite
-            # returns True — wiping the user's manual crop on every restart.
-            self.config.bigscreen_auto_crop_frame = None
+            # Cast to int: when the ROI canvas is scaled (bigscreen's shared
+            # frame exceeds _ROI_CANVAS_MAX_DIM), event coords land in image
+            # space as floats. cv2.warpAffine in capture_crop_rotate_image
+            # needs integer (w, h); a float pair raises and is swallowed by
+            # the broad except, freezing the preview because the tracker loop
+            # hits `if not capture_crop_rotate_image(): continue` every frame.
+            roi_xy = (np.minimum(xy0, xy1) - self.img_pos).astype(int).tolist()
+            roi_wh = np.abs(xy0 - xy1).astype(int).tolist()
+            self.config.roi_window_x, self.config.roi_window_y = roi_xy
+            self.config.roi_window_w, self.config.roi_window_h = roi_wh
             self._schedule_main_config_save()
 
     def _on_roi_mouse_move(self, event):

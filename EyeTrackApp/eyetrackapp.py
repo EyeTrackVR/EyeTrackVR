@@ -617,8 +617,6 @@ def main():
             has_left = left_source is not None and left_source != ""
             has_right = right_source is not None and right_source != ""
 
-            bigscreen_mode = self.mode_var.get() == "bigscreen"
-
             if has_left and has_right:
                 shared = left_source == right_source
                 already_running = eyes[0].started() and eyes[1].started()
@@ -670,76 +668,6 @@ def main():
 
             config.save()
             self._sync_timer_resolution()
-
-            if bigscreen_mode and has_left and has_right and left_source == right_source:
-                self._schedule_bigscreen_auto_crop()
-
-        def _schedule_bigscreen_auto_crop(self):
-            """Wait for the first frame from the shared camera, then split the
-            ROI down the middle: left half -> LEFT eye, right half -> RIGHT eye.
-            Polls because we don't know the frame resolution until capture has
-            actually started. Bails (without retrying forever) if the camera
-            doesn't produce a frame within ~10s — the user can re-trigger by
-            re-entering Bigscreen mode."""
-            self._bigscreen_auto_crop_deadline = time.time() + 10.0
-            self.root.after(200, self._try_bigscreen_auto_crop)
-
-        def _try_bigscreen_auto_crop(self):
-            size = getattr(eyes[0].camera, "current_frame_size", None)
-            if size is None:
-                if time.time() < getattr(self, "_bigscreen_auto_crop_deadline", 0):
-                    self.root.after(200, self._try_bigscreen_auto_crop)
-                return
-
-            frame_w, frame_h = size
-            if frame_w < 2 or frame_h < 1:
-                return
-
-            half = frame_w // 2
-            left_box = (0, 0, half, frame_h)
-            right_box = (half, 0, frame_w - half, frame_h)
-
-            def _looks_safe_to_overwrite(eye_cfg, target_box):
-                # Either ROI is at the spawn defaults (untouched by user) or it
-                # matches a stamp from a previous auto-apply for this same
-                # frame size. Anything else = user has hand-tuned, leave alone.
-                default_like = (
-                    eye_cfg.roi_window_x == 0
-                    and eye_cfg.roi_window_y == 0
-                    and eye_cfg.roi_window_w == 240
-                    and eye_cfg.roi_window_h == 240
-                )
-                stamp = eye_cfg.bigscreen_auto_crop_frame
-                stamped_match = (
-                    isinstance(stamp, list)
-                    and len(stamp) == 2
-                    and stamp[0] == frame_w
-                    and stamp[1] == frame_h
-                )
-                already = (
-                    eye_cfg.roi_window_x == target_box[0]
-                    and eye_cfg.roi_window_y == target_box[1]
-                    and eye_cfg.roi_window_w == target_box[2]
-                    and eye_cfg.roi_window_h == target_box[3]
-                )
-                return default_like or stamped_match or already
-
-            applied = False
-            for eye_cfg, box in (
-                (config.left_eye, left_box),
-                (config.right_eye, right_box),
-            ):
-                if not _looks_safe_to_overwrite(eye_cfg, box):
-                    continue
-                eye_cfg.roi_window_x = box[0]
-                eye_cfg.roi_window_y = box[1]
-                eye_cfg.roi_window_w = box[2]
-                eye_cfg.roi_window_h = box[3]
-                eye_cfg.bigscreen_auto_crop_frame = [frame_w, frame_h]
-                applied = True
-
-            if applied:
-                config.save()
 
         def show_page(self, page_name: str):
             """Switch tabs. Heavy work (camera thread joins, config apply) is deferred so the UI can redraw first."""
