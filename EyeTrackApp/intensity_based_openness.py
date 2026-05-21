@@ -27,6 +27,8 @@ LICENSE: LICENSE: Babble Software Distribution License 1.0
 ------------------------------------------------------------------------------------------------------
 """
 
+from collections import deque
+
 import numpy as np
 import time
 import os
@@ -144,7 +146,7 @@ class IntensityBasedOpeness:
         self.color = []
         self.x = []
         self.fc = 0
-        self.filterlist = []
+        self.filterlist = deque()
         self.averageList = []
         self.openlist = []
         self.eye_id = eye_id
@@ -244,11 +246,9 @@ class IntensityBasedOpeness:
         # The same can be done with cv2.integral, but since there is only one area of the rectangle for which we want to know the total value, there is no advantage in terms of computational complexity.
         intensity = frame_crop.sum() + 1
 
-        if len(self.filterlist) < filterSamples:
-            self.filterlist.append(intensity)
-        else:
-            self.filterlist.pop(0)
-            self.filterlist.append(intensity)
+        self.filterlist.append(intensity)
+        while len(self.filterlist) > filterSamples:
+            self.filterlist.popleft()
 
         try:
             if intensity >= np.percentile(

@@ -30,7 +30,6 @@ LICENSE: Babble Software Distribution License 1.0
 
 import logging
 import sys
-import asyncio
 import os
 import time
 from collections import deque
@@ -69,12 +68,6 @@ def run_once(f):
 
     wrapper.has_run = False
     return wrapper
-
-
-async def delayed_setting_change(setting, value):
-    await asyncio.sleep(5)
-    setting = value
-    PlaySound(resource_path("Audio/completed.wav"), SND_FILENAME | SND_ASYNC)
 
 
 def remap_leap_lid_openness(raw: float, close_t: float, wide_t: float) -> float:

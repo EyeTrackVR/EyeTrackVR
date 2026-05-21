@@ -27,6 +27,8 @@ LICENSE: Babble Software Distribution License 1.0
 ------------------------------------------------------------------------------------------------------
 """
 
+from collections import deque
+
 import numpy
 import numpy as np
 import time
@@ -125,7 +127,7 @@ class EllipseBasedPupilDilation:
         self.color = []
         self.x = []
         self.fc = 0
-        self.filterlist = []
+        self.filterlist = deque()
         self.averageList = []
         self.openlist = []
         self.eye_id = eye_id
@@ -220,11 +222,9 @@ class EllipseBasedPupilDilation:
         # The same can be done with cv2.integral, but since there is only one area of the rectangle for which we want to know the total value, there is no advantage in terms of computational complexity.
         pupil_area = numpy.pi * (w / 2) * (h / 2)
 
-        if len(self.filterlist) < filterSamples:
-            self.filterlist.append(pupil_area)
-        else:
-            self.filterlist.pop(0)
-            self.filterlist.append(pupil_area)
+        self.filterlist.append(pupil_area)
+        while len(self.filterlist) > filterSamples:
+            self.filterlist.popleft()
 
         try:
             if pupil_area >= np.percentile(
