@@ -11,9 +11,13 @@ class TrackingAlgorithmValidationModel(BaseValidationModel):
     gui_LEAP: bool
     gui_RANSAC3D: bool
     gui_AHSFRAC: bool
+    gui_max_tracking_speed: int
 
 
 class TrackingAlgorithmModule(BaseSettingsModule):
+    _TRACKING_SPEED_MIN = 1
+    _TRACKING_SPEED_MAX = 200
+
     def __init__(self, config, widget_id, **kwargs):
         super().__init__(config=config, widget_id=widget_id, **kwargs)
         self.validation_model = TrackingAlgorithmValidationModel
@@ -24,6 +28,7 @@ class TrackingAlgorithmModule(BaseSettingsModule):
         self.gui_AHSF = f"-AHSF{widget_id}-"
         self.gui_AHSFRAC = f"-gui_AHSFRAC{widget_id}-"
         self.gui_RANSAC3D = f"-RANSAC3D{widget_id}-"
+        self.gui_max_tracking_speed = f"-MAXTRACKSPEED{widget_id}-"
 
         # Algos shown in the main Tracking Algorithm section.
         self._basic_entries = [
@@ -53,6 +58,19 @@ class TrackingAlgorithmModule(BaseSettingsModule):
             )
         self._render_radio_grid(parent, self._basic_entries, ncol=4)
 
+        speed_var = tk.IntVar(
+            value=int(getattr(self.config, "gui_max_tracking_speed", 60))
+        )
+        self.tk_vars[self.gui_max_tracking_speed] = speed_var
+        self._add_slider_with_controls(
+            parent,
+            row=1,
+            label="Max Tracking Speed (Hz)",
+            var=speed_var,
+            min_v=self._TRACKING_SPEED_MIN,
+            max_v=self._TRACKING_SPEED_MAX,
+        )
+
     def build_advanced(self, parent):
         ttk.Label(parent, text="Tracking Algorithm (advanced)").grid(
             row=0, column=0, columnspan=4, sticky="w", padx=8, pady=(2, 2)
@@ -69,6 +87,42 @@ class TrackingAlgorithmModule(BaseSettingsModule):
             ttk.Radiobutton(
                 parent, text=label, variable=self.selected_algo, value=name
             ).grid(row=row, column=col, sticky="w", padx=8, pady=2)
+
+    def _add_slider_with_controls(self, parent, row, label, var, min_v, max_v):
+        """Compact slider + - / value / + control matching the styling used
+        in the other settings modules (see AdvancedTrackingAlgoSettingsModule)."""
+        slider_length = 160
+        value_label_var = tk.StringVar(value=str(int(var.get())))
+
+        def sync(*_args):
+            value_label_var.set(str(int(round(float(var.get())))))
+
+        def bump(delta):
+            next_val = int(round(float(var.get()))) + delta
+            next_val = max(min_v, min(max_v, next_val))
+            var.set(next_val)
+
+        ttk.Label(parent, text=label).grid(
+            row=row, column=0, sticky="w", padx=8, pady=2
+        )
+        ttk.Scale(
+            parent,
+            from_=min_v,
+            to=max_v,
+            variable=var,
+            orient="horizontal",
+            length=slider_length,
+        ).grid(row=row, column=1, sticky="w", padx=8, pady=2)
+        ttk.Button(parent, text="-", width=2, command=lambda: bump(-1)).grid(
+            row=row, column=2, sticky="w", padx=(4, 2), pady=2
+        )
+        ttk.Label(parent, textvariable=value_label_var, width=6, anchor="center").grid(
+            row=row, column=3, sticky="w", padx=2, pady=2
+        )
+        ttk.Button(parent, text="+", width=2, command=lambda: bump(1)).grid(
+            row=row, column=4, sticky="w", padx=(2, 8), pady=2
+        )
+        var.trace_add("write", sync)
 
     def get_values_map(self) -> dict:
         values = super().get_values_map()

@@ -257,6 +257,11 @@ class EyeTrackSettingsConfig(BaseModel):
     gui_AHSF: bool = False
     gui_DADDY: bool = False
     gui_LEAP: bool = True
+    # Cap on tracking iterations per second. Above this, the tracking thread
+    # sleeps the remainder of the interval and then drains the capture queue
+    # to use the newest frame — keeping latency low without burning cycles on
+    # frames a high-fps camera would otherwise produce faster than useful.
+    gui_max_tracking_speed: int = 60
     gui_HSF_radius: int = 15
     gui_HSF_radius_left: int = 10
     gui_HSF_radius_right: int = 10

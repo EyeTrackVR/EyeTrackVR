@@ -189,6 +189,10 @@ class EyeProcessor:
         self.roi_include_set = {"rotation_angle", "roi_window_x", "roi_window_y"}
         self.failed = 0
         self.skip_blink_detect = False
+        # Last time the main tracking loop finished pulling a frame. Used by
+        # the gui_max_tracking_speed cap to throttle the loop and then drain
+        # the capture queue down to the freshest frame.
+        self._last_tracking_pull_mono: float = 0.0
         self.out_y = 0.0
         self.out_x = 0.0
         self.rawx = 0.0
@@ -886,6 +890,36 @@ class EyeProcessor:
                 ) = self.capture_queue_incoming.get(block=True, timeout=0.1)
             except queue.Empty:
                 continue
+
+            # Cap tracking rate at gui_max_tracking_speed Hz. When the camera
+            # produces faster than the user wants the tracker to run, sleep the
+            # remainder of the interval and then drain the capture queue so we
+            # process the freshest frame available (lower latency than processing
+            # the stale one we just popped).
+            try:
+                max_hz = float(self.settings.gui_max_tracking_speed)
+            except (AttributeError, TypeError, ValueError):
+                max_hz = 60.0
+            if max_hz < 1.0:
+                max_hz = 1.0
+            target_dt = 1.0 / max_hz
+            now_mono = time.perf_counter()
+            elapsed = now_mono - self._last_tracking_pull_mono
+            if self._last_tracking_pull_mono > 0.0 and elapsed < target_dt:
+                wait_for = target_dt - elapsed
+                if self.cancellation_event.wait(wait_for):
+                    return
+                try:
+                    while True:
+                        (
+                            self.current_image,
+                            self.current_frame_number,
+                            self.current_fps,
+                            self.current_capture_ts,
+                        ) = self.capture_queue_incoming.get_nowait()
+                except queue.Empty:
+                    pass
+            self._last_tracking_pull_mono = time.perf_counter()
 
             if not self.capture_crop_rotate_image():
                 continue
