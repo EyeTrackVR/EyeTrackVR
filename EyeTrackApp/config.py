@@ -124,6 +124,11 @@ class EyeTrackCameraConfig(BaseModel):
     leap_calibration_percentile_2: float = 0
     leap_calibrated: bool = False
     leap_lid_metric_version: int = 1
+    # Bumped by the "Redo Eyelid Calib" button. LEAP_C tracks the last value
+    # it saw and resets its sampling window when the two diverge, forcing a
+    # fresh calibration without restarting the app or fiddling with the
+    # metric-version migration mechanism.
+    leap_calib_request_seq: int = 0
 
     @field_validator("calib_axes", "calib_evecs", "calib_center", mode="before")
     @classmethod

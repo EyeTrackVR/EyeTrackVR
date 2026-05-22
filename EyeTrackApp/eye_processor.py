@@ -52,6 +52,7 @@ from ellipse_based_pupil_dilation import *
 from AHSF import *
 from osc.OSCMessage import OSCMessageType, OSCMessage
 from utils.calibration_elipse import *
+from utils.runtime_state import set_value as _set_runtime_value
 
 
 os.environ["OMP_NUM_THREADS"] = "1"
@@ -607,6 +608,9 @@ class EyeProcessor:
             self.calibration_start_time,
             self.settings.gui_use_gpu,
         )
+        # Publish raw lid (pre-remap) so the settings UI visualizer can show
+        # where the user's eye currently sits relative to the close/widen markers.
+        _set_runtime_value(f"raw_lid_{int(self.eye_id)}", float(eyeopen))
         if self.settings.gui_LEAP_lid:
             close_t, wide_t = leap_lid_thresholds_for_eye(self.settings, self.eye_id)
             self.eyeopen = remap_leap_lid_openness(eyeopen, close_t, wide_t)

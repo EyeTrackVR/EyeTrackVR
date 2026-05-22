@@ -107,6 +107,13 @@ def run_onnx_model(queues, session, frame):
 class LEAP_C:
     def __init__(self, eye_config: EyeTrackCameraConfig, config: EyeTrackConfig):
         self.last_lid = None
+        # Mirrors eye_config.leap_calib_request_seq; when the config value
+        # increments (user pressed "Redo Eyelid Calib"), we reset the sampling
+        # window on the next frame. Initialised from the stored value so a
+        # restart doesn't trigger a spurious recalibration.
+        self._seen_calib_request_seq = int(
+            getattr(eye_config, "leap_calib_request_seq", 0)
+        )
         self.current_image_gray = None
         self.current_image_gray_clean = None
         onnxruntime.disable_telemetry_events()
@@ -214,6 +221,22 @@ class LEAP_C:
                 self.calib = 0
                 self.eye_config.leap_lid_metric_version = LEAP_LID_METRIC_VERSION
                 self.eye_config.leap_calibrated = False
+
+            current_seq = int(
+                getattr(self.eye_config, "leap_calib_request_seq", 0)
+            )
+            if current_seq != self._seen_calib_request_seq:
+                # User requested a fresh calibration from the settings UI.
+                self._seen_calib_request_seq = current_seq
+                self.calib = 0
+                self.openlist = []
+                self.eye_config.leap_calibrated = False
+                self.eye_config.leap_calibration_percentile_90 = 0
+                self.eye_config.leap_calibration_percentile_2 = 0
+                eye_name = (
+                    "Left" if self.eye_config is self.config.left_eye else "Right"
+                )
+                logger.info("%s eye LEAP lid calibration restart requested", eye_name)
 
             if self.calib == 0:
                 self.calib = time.time()
