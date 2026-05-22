@@ -39,6 +39,7 @@ import threading
 from camera_widget import CameraWidget
 from camera_enum import (
     discover_etvr_mdns_sources,
+    discover_etvr_serial_cameras,
     format_uvc_named_source,
     list_uvc_cameras,
 )
@@ -623,7 +624,7 @@ def main():
                 config.save()
 
         def scan_sources(self):
-            self.status_var.set("Scanning UVC cameras and mDNS...")
+            self.status_var.set("Scanning UVC, serial, and mDNS sources...")
 
             def _scan():
                 cams = list_uvc_cameras()
@@ -644,18 +645,34 @@ def main():
                     label = n if name_totals[n] == 1 else f"{n} ({seen[n]})"
                     source_map[label] = format_uvc_named_source(n, c["address"])
                     uvc_display_values.append(label)
-                # mDNS lookup is blocking; this whole _scan runs on a worker
-                # thread already, so it's fine here. Network trackers go to the
-                # *top* of the dropdown because they're typically the user's
-                # primary capture source — UVC is the fallback / debug case.
+                # mDNS + serial lookups are blocking; this whole _scan runs on
+                # a worker thread already, so both are fine here. Network
+                # trackers go to the *top* of the dropdown because they're
+                # typically the user's primary capture source — UVC is the
+                # fallback / debug case. Serial sits between the two: the
+                # actively-streaming ones are real trackers, but typing a COM
+                # port by hand is less ergonomic than picking a UVC name.
                 mdns_values = discover_etvr_mdns_sources()
                 for v in mdns_values:
                     source_map[v] = v
 
-                values = mdns_values + uvc_display_values
+                serial_pairs = discover_etvr_serial_cameras()
+                serial_display_values: list[str] = []
+                for label, device in serial_pairs:
+                    # Avoid collisions with UVC labels by namespacing serial
+                    # ones, but keep the device path itself as the stored
+                    # capture source — that's what camera.py already accepts.
+                    display_label = (
+                        label if label not in source_map else f"{label} [serial]"
+                    )
+                    source_map[display_label] = device
+                    serial_display_values.append(display_label)
+
+                values = mdns_values + serial_display_values + uvc_display_values
 
                 uvc_hint = ", ".join(uvc_display_values) or "none"
                 mdns_hint = ", ".join(mdns_values) or "none"
+                serial_hint = ", ".join(serial_display_values) or "none"
 
                 def _apply():
                     self._source_display_map = source_map
@@ -670,7 +687,8 @@ def main():
                         if cur in encoded_to_label:
                             var.set(encoded_to_label[cur])
                     self.status_var.set(
-                        f"Detected mDNS: {mdns_hint} | UVC: {uvc_hint}"
+                        f"Detected mDNS: {mdns_hint} | "
+                        f"Serial: {serial_hint} | UVC: {uvc_hint}"
                     )
 
                 self.root.after(0, _apply)

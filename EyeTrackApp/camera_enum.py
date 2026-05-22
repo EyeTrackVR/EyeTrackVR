@@ -26,6 +26,8 @@ import socket
 import subprocess
 import sys
 import threading
+import time
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import Iterable
 
 import cv2
@@ -284,6 +286,149 @@ def discover_etvr_mdns_sources(
         t.join(timeout_s)
     # Build URLs in the original host order so left/right stay deterministic.
     return [f"http://{h}/" for h in hosts if found.get(h)]
+
+
+# ETVR firmware streams MJPEG over USB-serial at 3 Mbaud on Windows/Linux and
+# 115200 on macOS (the high baud rate isn't reliably supported on darwin USB
+# CDC drivers — keep these aligned with start_serial_connection in camera.py).
+_SERIAL_BAUD_DEFAULT = 3_000_000
+_SERIAL_BAUD_DARWIN = 115_200
+# Total wall-clock budget per port; SOI usually arrives well under this when
+# the firmware is healthy, but a slow-booting tracker can take a bit.
+_SERIAL_PROBE_TIMEOUT_S = 1.2
+# Cap concurrent probes so we don't open dozens of ports at once on machines
+# with many virtual COM ports (USB-CDC modems, debug ports, etc.).
+_SERIAL_PROBE_WORKERS = 4
+# Marker that identifies a JPEG payload — same SOI that camera.py looks for in
+# the live stream. Three bytes is specific enough that random noise from a
+# non-camera device hitting the same baud is vanishingly unlikely to match.
+_JPEG_SOI = b"\xff\xd8\xff"
+
+
+def _looks_like_usable_serial(port_info) -> bool:
+    """Filter out ports we should not probe.
+
+    macOS exposes Bluetooth modem endpoints (``/dev/cu.Bluetooth-*``,
+    ``/dev/cu.debug-console``) as comports — opening them at 3 Mbaud is at
+    best slow and at worst kicks an active Bluetooth session. Anything with a
+    USB vendor ID is fair game; otherwise we look at the device name."""
+    name = (port_info.device or "").lower()
+    if "bluetooth" in name or "debug-console" in name:
+        return False
+    # Trust USB-VID ports unconditionally; serial-over-USB is what ETVR uses.
+    if getattr(port_info, "vid", None):
+        return True
+    # No VID + non-Bluetooth → still try it. Built-in UART headers on Linux
+    # SBCs (Pi, etc.) land here and could be perfectly valid ETVR connections.
+    return True
+
+
+def _probe_serial_for_jpeg(device: str, baud: int, timeout_s: float) -> bool:
+    """Open ``device`` at ``baud`` and look for a JPEG SOI within ``timeout_s``.
+
+    Returns True iff we see ``\\xff\\xd8\\xff`` in the byte stream — that's
+    proof the port is currently emitting MJPEG frames the way ETVR firmware
+    does. Anything that raises (port busy, permission denied, no such device)
+    is silently treated as "not an ETVR cam"; the caller has nothing useful
+    to do with the error and the user already gets a "none" result if no
+    ports match."""
+    try:
+        import serial  # local import keeps camera_enum importable without pyserial in unrelated tools
+    except ImportError:
+        return False
+
+    conn = None
+    try:
+        conn = serial.Serial(
+            port=device,
+            baudrate=baud,
+            xonxoff=False,
+            dsrdtr=False,
+            rtscts=False,
+            timeout=0.15,
+        )
+    except (serial.SerialException, OSError, ValueError):
+        return False
+
+    try:
+        buf = b""
+        deadline = time.monotonic() + timeout_s
+        while time.monotonic() < deadline:
+            try:
+                chunk = conn.read(1024)
+            except (serial.SerialException, OSError):
+                return False
+            if chunk:
+                buf += chunk
+                if _JPEG_SOI in buf:
+                    return True
+                # Cap the scanning buffer so a port spewing noise can't balloon memory.
+                if len(buf) > 8192:
+                    buf = buf[-2048:]
+        return False
+    finally:
+        try:
+            if conn is not None:
+                conn.close()
+        except (Exception,):  # noqa: BLE001 — close failure during scan is irrelevant
+            pass
+
+
+def discover_etvr_serial_cameras(
+    timeout_s: float = _SERIAL_PROBE_TIMEOUT_S,
+) -> list[tuple[str, str]]:
+    """Return ``[(label, device), ...]`` for COM/tty ports currently streaming
+    ETVR-style MJPEG. ``device`` is the raw port path the rest of the app
+    already accepts as a capture source (e.g. ``COM5``, ``/dev/cu.usbserial-0001``).
+
+    Probes run in parallel under a small thread pool so the wall-clock scan
+    stays near ``timeout_s`` even on machines with multiple candidate ports.
+    Ports that are already held by the live capture thread will fail to open
+    and are silently dropped — that's correct, since the user already has
+    them configured.
+
+    Safe to call from a worker thread. Do not call from the UI thread; serial
+    opens can stall for hundreds of milliseconds on some drivers."""
+    try:
+        from serial.tools import list_ports
+    except ImportError:
+        return []
+
+    baud = _SERIAL_BAUD_DARWIN if sys.platform == "darwin" else _SERIAL_BAUD_DEFAULT
+    candidates = [p for p in list_ports.comports() if _looks_like_usable_serial(p)]
+    if not candidates:
+        return []
+
+    results: list[tuple[str, str]] = []
+    with ThreadPoolExecutor(
+        max_workers=min(_SERIAL_PROBE_WORKERS, len(candidates))
+    ) as pool:
+        futures = {
+            pool.submit(_probe_serial_for_jpeg, p.device, baud, timeout_s): p
+            for p in candidates
+        }
+        for fut in as_completed(futures):
+            port = futures[fut]
+            try:
+                ok = fut.result()
+            except Exception as e:  # noqa: BLE001 — defensive; a hung probe shouldn't sink the scan
+                logger.debug("Serial probe %s raised: %s", port.device, e)
+                ok = False
+            if ok:
+                # Friendly label: prefer the OS-supplied description when it's
+                # something more useful than just the device path. PySerial
+                # often returns the device path as description on macOS/Linux,
+                # so de-dup that case.
+                desc = (port.description or "").strip()
+                if desc and desc.lower() != port.device.lower() and desc != "n/a":
+                    label = f"{desc} ({port.device})"
+                else:
+                    label = port.device
+                results.append((label, port.device))
+
+    # Stable ordering so the dropdown doesn't reshuffle between scans.
+    results.sort(key=lambda lv: lv[1])
+    return results
 
 
 def resolve_uvc_address_to_index(name: str, address: str, cameras: Iterable[dict] | None = None) -> int | None:
