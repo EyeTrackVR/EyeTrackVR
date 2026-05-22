@@ -43,3 +43,6 @@ class AlgoSettingsWidget(BaseSettingsWidget):
             AdvancedTrackingAlgoSettingsModule,
         ]
         super().__init__(widget_id, main_config, settings_modules)
+
+    def advanced_module_types(self) -> tuple:
+        return (AdvancedTrackingAlgoSettingsModule,)

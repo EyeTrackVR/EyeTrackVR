@@ -18,6 +18,9 @@ from config import (
 
 
 class BaseSettingsWidget:
+    _SHOW_ADVANCED_TEXT = "Show Advanced  ▾"  # ▾
+    _HIDE_ADVANCED_TEXT = "Hide Advanced  ▴"  # ▴
+
     def __init__(
         self, widget_id: EyeId, main_config: EyeTrackConfig, settings_modules: Iterable
     ):
@@ -38,6 +41,10 @@ class BaseSettingsWidget:
         self._last_settings_render_mono = 0.0
         self._pending_validated: dict | None = None
         self._config_save_after_id = None
+        self._advanced_visible = False
+        self._advanced_section = None
+        self._advanced_toggle_row = None
+        self._advanced_toggle_btn = None
 
     def started(self):
         return not self.cancellation_event.is_set()
@@ -164,13 +171,87 @@ class BaseSettingsWidget:
 
     def build(self, parent) -> ttk.Frame:
         self.frame = ttk.Frame(parent)
-        for module in self.initialized_modules:
-            section = ttk.LabelFrame(
-                self.frame, text=module.__class__.__name__.replace("Module", "")
-            )
-            section.pack(fill="x", padx=8, pady=6, anchor="n")
-            module.build(section)
+        self._build_module_sections()
+        # Reset/Delete buttons live in the persistent bottom row of the app
+        # (see eyetrackapp.AppUI) so they share placement with GUI OFF and
+        # Having Issues. They're only shown when a settings page is active.
+        return self.frame
 
+    def advanced_module_types(self) -> tuple:
+        """Override to mark certain module classes as 'advanced'. Modules of
+        these types are tucked behind a 'Show Advanced' toggle button instead
+        of being rendered inline with the rest."""
+        return ()
+
+    def _build_module_sections(self):
+        advanced_types = tuple(self.advanced_module_types())
+        advanced_modules = []
+        for module in self.initialized_modules:
+            if advanced_types and isinstance(module, advanced_types):
+                advanced_modules.append(module)
+                continue
+            self._build_module_section(module)
+        if advanced_modules:
+            self._build_advanced_section(advanced_modules)
+
+    def _build_module_section(self, module, title=None):
+        section = ttk.LabelFrame(
+            self.frame,
+            text=title or module.__class__.__name__.replace("Module", ""),
+        )
+        section.pack(fill="x", padx=8, pady=6, anchor="n")
+        module.build(section)
+        return section
+
+    def _build_advanced_section(self, advanced_modules):
+        self._advanced_toggle_row = ttk.Frame(self.frame)
+        self._advanced_toggle_row.pack(fill="x", padx=8, pady=(2, 0))
+        self._advanced_toggle_btn = ttk.Button(
+            self._advanced_toggle_row,
+            text=self._SHOW_ADVANCED_TEXT,
+            command=self._toggle_advanced,
+        )
+        self._advanced_toggle_btn.pack(side="left")
+
+        # Build the advanced module(s) eagerly so their tk_vars exist for
+        # validation/save even when the section is hidden. Each contributor
+        # gets its own Frame so grid placements don't collide.
+        self._advanced_section = ttk.LabelFrame(self.frame, text="Advanced")
+        advanced_set = set(id(m) for m in advanced_modules)
+        # First, give already-rendered (non-advanced) modules a chance to
+        # contribute extra rows via build_advanced(parent).
+        for module in self.initialized_modules:
+            if id(module) in advanced_set:
+                continue
+            if hasattr(module, "build_advanced"):
+                sub = ttk.Frame(self._advanced_section)
+                sub.pack(fill="x", padx=2, pady=2, anchor="n")
+                module.build_advanced(sub)
+        # Then render the fully-advanced modules.
+        for module in advanced_modules:
+            sub = ttk.Frame(self._advanced_section)
+            sub.pack(fill="x", padx=2, pady=2, anchor="n")
+            module.build(sub)
+        self._advanced_visible = False
+
+    def _toggle_advanced(self):
+        if self._advanced_section is None or self._advanced_toggle_btn is None:
+            return
+        if self._advanced_visible:
+            self._advanced_section.pack_forget()
+            self._advanced_toggle_btn.config(text=self._SHOW_ADVANCED_TEXT)
+        else:
+            self._advanced_section.pack(
+                fill="x",
+                padx=8,
+                pady=6,
+                anchor="n",
+                after=self._advanced_toggle_row,
+            )
+            self._advanced_toggle_btn.config(text=self._HIDE_ADVANCED_TEXT)
+        self._advanced_visible = not self._advanced_visible
+
+    def _build_action_buttons(self):
         button_row = ttk.Frame(self.frame)
         button_row.pack(fill="x", padx=10, pady=(6, 10))
         tk.Button(
@@ -205,7 +286,7 @@ class BaseSettingsWidget:
             border=0,
             highlightthickness=0,
         ).pack(side="left", padx=(8, 0))
-        return self.frame
+        return button_row
 
     def delete_config(self):
         """Wipe the on-disk config (main + backup) and exit. Next launch will

@@ -4,6 +4,10 @@ from tkinter import ttk
 
 
 class AdvancedTrackingAlgoSettingsValidationModel(BaseValidationModel):
+    gui_BLINK: bool
+    gui_RANSACBLINK: bool
+    gui_circular_crop_left: bool
+    gui_circular_crop_right: bool
     gui_HSF_radius_left: int
     gui_HSF_radius_right: int
     gui_skip_autoradius: bool
@@ -16,6 +20,10 @@ class AdvancedTrackingAlgoSettingsModule(BaseSettingsModule):
         super().__init__(config=config, widget_id=widget_id, **kwargs)
         self.validation_model = AdvancedTrackingAlgoSettingsValidationModel
 
+        self.gui_BLINK = f"-BLINK{widget_id}-"
+        self.gui_RANSACBLINK = f"-RANSACBLINK{widget_id}-"
+        self.gui_circular_crop_left = f"-CIRCLECROPLEFT{widget_id}-"
+        self.gui_circular_crop_right = f"-CIRCLECROPRIGHT{widget_id}-"
         self.gui_skip_autoradius = f"-SKIPAUTORADIUS{widget_id}-"
         self.gui_thresh_add = f"-THRESHADD{widget_id}-"
         self.gui_HSF_radius_left = f"-HSFRADIUSLEFT{widget_id}-"
@@ -57,25 +65,50 @@ class AdvancedTrackingAlgoSettingsModule(BaseSettingsModule):
         var.trace_add("write", sync)
 
     def build(self, parent):
-        row = 0
-        for key, default, label in [
+        checkbox_fields = [
+            (self.gui_BLINK, self.config.gui_BLINK, "Binary Blink Algo"),
             (
-                self.gui_pupil_dilation,
-                self.config.gui_pupil_dilation,
-                "Ellipse Based Pupil Dilation",
+                self.gui_RANSACBLINK,
+                self.config.gui_RANSACBLINK,
+                "RANSAC Quick Blink Algo",
+            ),
+            (
+                self.gui_circular_crop_left,
+                self.config.gui_circular_crop_left,
+                "Left Eye Circle Crop",
+            ),
+            (
+                self.gui_circular_crop_right,
+                self.config.gui_circular_crop_right,
+                "Right Eye Circle Crop",
             ),
             (
                 self.gui_skip_autoradius,
                 self.config.gui_skip_autoradius,
                 "HSF: Skip Auto Radius",
             ),
-        ]:
+            (
+                self.gui_pupil_dilation,
+                self.config.gui_pupil_dilation,
+                "Ellipse Based Pupil Dilation",
+            ),
+        ]
+        ncol = 2
+        rows_per_column = (len(checkbox_fields) + ncol - 1) // ncol
+        for idx, (key, default, label) in enumerate(checkbox_fields):
+            row = idx % rows_per_column
+            col = idx // rows_per_column
             var = tk.BooleanVar(value=default)
             self.tk_vars[key] = var
             ttk.Checkbutton(parent, text=label, variable=var).grid(
-                row=row, column=0, sticky="w", padx=8, pady=2
+                row=row, column=col, sticky="w", padx=8, pady=2
             )
-            row += 1
+        row = rows_per_column
+
+        ttk.Separator(parent, orient="horizontal").grid(
+            row=row, column=0, columnspan=5, sticky="ew", padx=8, pady=(6, 4)
+        )
+        row += 1
 
         slider_specs = [
             (

@@ -25,15 +25,20 @@ class TrackingAlgorithmModule(BaseSettingsModule):
         self.gui_AHSFRAC = f"-gui_AHSFRAC{widget_id}-"
         self.gui_RANSAC3D = f"-RANSAC3D{widget_id}-"
 
-        self._algo_entries = [
+        # Algos shown in the main Tracking Algorithm section.
+        self._basic_entries = [
             ("LEAP", "leap", self.gui_LEAP, "gui_LEAP"),
             ("ASHSFRAC", "ahsfrac", self.gui_AHSFRAC, "gui_AHSFRAC"),
             ("DADDY", "daddy", self.gui_DADDY, "gui_DADDY"),
+            ("RANSAC 3D", "ransac3d", self.gui_RANSAC3D, "gui_RANSAC3D"),
+        ]
+        # Legacy/advanced algos surfaced under the Advanced toggle.
+        self._advanced_entries = [
             ("ASHSF", "ahsf", self.gui_AHSF, "gui_AHSF"),
             ("HSRAC", "hsrac", self.gui_HSRAC, "gui_HSRAC"),
             ("HSF", "hsf", self.gui_HSF, "gui_HSF"),
-            ("RANSAC 3D", "ransac3d", self.gui_RANSAC3D, "gui_RANSAC3D"),
         ]
+        self._algo_entries = self._basic_entries + self._advanced_entries
 
     def build(self, parent):
         selected = "leap"
@@ -42,18 +47,28 @@ class TrackingAlgorithmModule(BaseSettingsModule):
                 selected = name
                 break
         self.selected_algo = tk.StringVar(value=selected)
+        for _label, name, key, config_field in self._algo_entries:
+            self.tk_vars[key] = tk.BooleanVar(
+                value=bool(getattr(self.config, config_field, False))
+            )
+        self._render_radio_grid(parent, self._basic_entries, ncol=4)
 
-        ncol = 3
-        rows_per_column = (len(self._algo_entries) + ncol - 1) // ncol
-        for idx, (label, name, key, config_field) in enumerate(self._algo_entries):
-            row = idx % rows_per_column
+    def build_advanced(self, parent):
+        ttk.Label(parent, text="Tracking Algorithm (advanced)").grid(
+            row=0, column=0, columnspan=4, sticky="w", padx=8, pady=(2, 2)
+        )
+        self._render_radio_grid(
+            parent, self._advanced_entries, ncol=3, row_offset=1
+        )
+
+    def _render_radio_grid(self, parent, entries, ncol, row_offset=0):
+        rows_per_column = (len(entries) + ncol - 1) // ncol
+        for idx, (label, name, _key, _config_field) in enumerate(entries):
+            row = (idx % rows_per_column) + row_offset
             col = idx // rows_per_column
             ttk.Radiobutton(
                 parent, text=label, variable=self.selected_algo, value=name
             ).grid(row=row, column=col, sticky="w", padx=8, pady=2)
-            self.tk_vars[key] = tk.BooleanVar(
-                value=bool(getattr(self.config, config_field, False))
-            )
 
     def get_values_map(self) -> dict:
         values = super().get_values_map()

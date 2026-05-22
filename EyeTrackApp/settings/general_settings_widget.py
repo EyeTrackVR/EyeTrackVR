@@ -28,6 +28,7 @@ from config import EyeTrackConfig
 from eye import EyeId
 
 from settings.BaseSettings import BaseSettingsWidget
+from settings.modules.AdvancedOSCSettingsModule import AdvancedOSCSettingsModule
 from settings.modules.GeneralSettingsModule import GeneralSettingsModule
 from settings.modules.OneEuroSettingsModule import OneEuroSettingsModule
 from settings.modules.OSCSettingsModule import OSCSettingsModule
@@ -39,5 +40,9 @@ class SettingsWidget(BaseSettingsWidget):
             GeneralSettingsModule,
             OneEuroSettingsModule,
             OSCSettingsModule,
+            AdvancedOSCSettingsModule,
         ]
         super().__init__(widget_id, main_config, settings_modules)
+
+    def advanced_module_types(self) -> tuple:
+        return (AdvancedOSCSettingsModule,)

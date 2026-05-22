@@ -495,11 +495,67 @@ def main():
             self.focus_label.pack(side="left", padx=12)
             self.focus_label.pack_forget()
 
+            # Settings-only action buttons. Hosted in the same persistent
+            # bottom row as GUI OFF / Having Issues but right-aligned and only
+            # shown while a settings page is active (toggled in show_page).
+            self._settings_actions_row = ttk.Frame(bottom)
+            tk.Button(
+                self._settings_actions_row,
+                text="Delete config",
+                command=self._active_settings_delete_config,
+                font=("Segoe UI", 9),
+                fg="#ffffff",
+                bg="#a33a3a",
+                activebackground="#8a2a2a",
+                activeforeground="#ffffff",
+                relief="flat",
+                padx=12,
+                pady=6,
+                cursor="hand2",
+                border=0,
+                highlightthickness=0,
+            ).pack(side="right", padx=(8, 0))
+            tk.Button(
+                self._settings_actions_row,
+                text="Reset settings to default",
+                command=self._active_settings_reset_config,
+                font=("Segoe UI", 9),
+                fg="#000000",
+                bg="#d9a3a3",
+                activebackground="#c99393",
+                activeforeground="#000000",
+                relief="flat",
+                padx=12,
+                pady=6,
+                cursor="hand2",
+                border=0,
+                highlightthickness=0,
+            ).pack(side="right")
+
             self.root.protocol("WM_DELETE_WINDOW", self.shutdown)
             self.on_mode_change()
             self.show_page("tracking")
             self._apply_initial_window_geometry()
             self._tick()
+
+        def _active_settings_widget(self):
+            """Return the settings widget that owns the currently visible page,
+            or None if the current page is not a settings page."""
+            return {
+                "settings": settings[0],
+                "algo": settings[1],
+                "vrcft": settings[2],
+            }.get(self.current_page)
+
+        def _active_settings_reset_config(self):
+            widget = self._active_settings_widget()
+            if widget is not None:
+                widget.reset_config()
+
+        def _active_settings_delete_config(self):
+            widget = self._active_settings_widget()
+            if widget is not None:
+                widget.delete_config()
 
         def _sync_nav_buttons(self):
             """Highlight the current page with Sun Valley accent (blue) vs default TButton."""
@@ -734,6 +790,11 @@ def main():
                 self.issues_frame,
             ]:
                 frame.pack_forget()
+
+            if page_name in ("settings", "algo", "vrcft"):
+                self._settings_actions_row.pack(side="right")
+            else:
+                self._settings_actions_row.pack_forget()
 
             if page_name == "tracking":
                 self.tracking_tab.pack(fill="both", expand=True)
