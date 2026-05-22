@@ -1,5 +1,4 @@
-from pydantic import AfterValidator, field_validator
-from typing_extensions import Annotated
+from pydantic import field_validator
 
 from settings.modules.BaseModule import BaseSettingsModule, BaseValidationModel
 import tkinter as tk
@@ -13,11 +12,7 @@ class BlinkAlgoSettingsValidationModel(BaseValidationModel):
     gui_RANSACBLINK: bool
     gui_BLINK: bool
     gui_LEAP_lid: bool
-    ibo_filter_samples: int
     calibration_duration: int
-    ibo_fully_close_eye_threshold: Annotated[
-        str, AfterValidator(check_is_float_convertible)
-    ]
     leap_lid_close_threshold_left: float
     leap_lid_close_threshold_right: float
     leap_lid_widen_threshold_left: float
@@ -52,9 +47,7 @@ class BlinkAlgoSettingsModule(BaseSettingsModule):
         self.gui_RANSACBLINK = f"-RANSACBLINK{widget_id}-"
         self.gui_BLINK = f"-BLINK{widget_id}-"
         self.gui_LEAP_lid = f"-LEAPLID{widget_id}-"
-        self.ibo_filter_samples = f"-IBOFILTERSAMPLE{widget_id}-"
         self.calibration_duration = f"-CALIBRATIONDURATION{widget_id}-"
-        self.ibo_fully_close_eye_threshold = f"-CLOSETHRESH{widget_id}-"
         self.leap_lid_close_threshold_left = f"-LEAPLIDCLOSELEFT{widget_id}-"
         self.leap_lid_close_threshold_right = f"-LEAPLIDCLOSERIGHT{widget_id}-"
         self.leap_lid_widen_threshold_left = f"-LEAPLIDWIDENLEFT{widget_id}-"
@@ -88,15 +81,18 @@ class BlinkAlgoSettingsModule(BaseSettingsModule):
         return frame
 
     def build(self, parent):
+        # IBO and LEAP Lid swapped grid positions — LEAP Lid is the recommended
+        # default openness algo now, so it sits in the prominent top-left slot
+        # IBO used to occupy.
         checkbox_fields = [
-            (self.gui_IBO, self.config.gui_IBO, "Intensity Based Openness"),
+            (self.gui_LEAP_lid, self.config.gui_LEAP_lid, "LEAP Lid Blink Algo"),
             (
                 self.gui_RANSACBLINK,
                 self.config.gui_RANSACBLINK,
                 "RANSAC Quick Blink Algo",
             ),
             (self.gui_BLINK, self.config.gui_BLINK, "Binary Blink Algo"),
-            (self.gui_LEAP_lid, self.config.gui_LEAP_lid, "LEAP Lid"),
+            (self.gui_IBO, self.config.gui_IBO, "Intensity Based Openness"),
             (
                 self.gui_circular_crop_left,
                 self.config.gui_circular_crop_left,
@@ -132,7 +128,7 @@ class BlinkAlgoSettingsModule(BaseSettingsModule):
         )
         row += 1
 
-        ttk.Label(parent, text="Left LEAP Lid Close Threshold").grid(
+        ttk.Label(parent, text="Left Lid Close Threshold").grid(
             row=row, column=0, sticky="w", padx=8, pady=2
         )
         leap_left_close_var = tk.StringVar(
@@ -143,7 +139,7 @@ class BlinkAlgoSettingsModule(BaseSettingsModule):
             row=row, column=1, sticky="w", padx=8, pady=2
         )
 
-        ttk.Label(parent, text="Right LEAP Lid Close Threshold").grid(
+        ttk.Label(parent, text="Right Lid Close Threshold").grid(
             row=row, column=2, sticky="w", padx=8, pady=2
         )
         leap_right_close_var = tk.StringVar(
@@ -155,7 +151,7 @@ class BlinkAlgoSettingsModule(BaseSettingsModule):
         )
         row += 1
 
-        ttk.Label(parent, text="Left LEAP Lid Widen Threshold").grid(
+        ttk.Label(parent, text="Left Lid Widen Threshold").grid(
             row=row, column=0, sticky="w", padx=8, pady=2
         )
         leap_left_widen_var = tk.StringVar(
@@ -166,7 +162,7 @@ class BlinkAlgoSettingsModule(BaseSettingsModule):
             row=row, column=1, sticky="w", padx=8, pady=2
         )
 
-        ttk.Label(parent, text="Right LEAP Lid Widen Threshold").grid(
+        ttk.Label(parent, text="Right Lid Widen Threshold").grid(
             row=row, column=2, sticky="w", padx=8, pady=2
         )
         leap_right_widen_var = tk.StringVar(
@@ -188,24 +184,6 @@ class BlinkAlgoSettingsModule(BaseSettingsModule):
         ttk.Entry(parent, textvariable=leap_min_span_var, width=12).grid(
             row=row, column=1, sticky="w", padx=8, pady=2
         )
-        row += 1
-
-        ttk.Label(parent, text="IBO Filter Sample Size").grid(
-            row=row, column=0, sticky="w", padx=8, pady=2
-        )
-        ibo_samples_var = tk.StringVar(value=str(self.config.ibo_filter_samples))
-        self.tk_vars[self.ibo_filter_samples] = ibo_samples_var
-        ttk.Entry(parent, textvariable=ibo_samples_var, width=12).grid(
-            row=row, column=1, sticky="w", padx=8, pady=2
-        )
-
-        ttk.Label(parent, text="IBO Close Threshold").grid(
-            row=row, column=2, sticky="w", padx=8, pady=2
-        )
-        ibo_close_var = tk.StringVar(
-            value=str(self.config.ibo_fully_close_eye_threshold)
-        )
-        self.tk_vars[self.ibo_fully_close_eye_threshold] = ibo_close_var
-        ttk.Entry(parent, textvariable=ibo_close_var, width=12).grid(
-            row=row, column=3, sticky="w", padx=8, pady=2
-        )
+        # IBO Filter Sample Size and IBO Close Threshold fields removed — IBO
+        # now derives its filter window from the Eyelid calibration duration
+        # (× current FPS) and shares the Lid Close Threshold with LEAP Lid.

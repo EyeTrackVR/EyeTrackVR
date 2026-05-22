@@ -471,6 +471,18 @@ class EyeProcessor:
             self.circle_crop_radius,
         )
 
+    def _ibo_filter_samples(self) -> int:
+        """IBO filter window size in frames, derived from the Eyelid
+        Calibration Duration (seconds) at the current capture FPS. Previously
+        a hand-tuned ``ibo_filter_samples`` field; folding it into the
+        calibration duration eliminates a duplicated setting and makes the
+        window track the actual frame rate (a 50 fps tune was silently too
+        short at 120 fps and too long at 30 fps). 60 fps is used as a safe
+        default before the first capture has set ``current_fps``."""
+        fps = self.current_fps or 60.0
+        seconds = max(1, int(self.settings.calibration_duration))
+        return max(30, int(round(seconds * float(fps))))
+
     def UPDATE(self):
         self.current_algo = self.current_algorithm
 
@@ -485,11 +497,13 @@ class EyeProcessor:
                 self.rawx,
                 self.rawy,
                 self.current_image_white,
-                self.settings.ibo_filter_samples,
+                self._ibo_filter_samples(),
                 self.settings.ibo_average_output_samples,
             )
-            # threshold so the eye fully closes
-            if self.eyeopen < float(self.settings.ibo_fully_close_eye_threshold):
+            # Share the per-eye Lid Close Threshold with LEAP Lid — formerly a
+            # separate ibo_fully_close_eye_threshold field, now consolidated.
+            ibo_close_t, _ = leap_lid_thresholds_for_eye(self.settings, self.eye_id)
+            if self.eyeopen < ibo_close_t:
                 self.eyeopen = 0.0
 
             if self.bd_blink == True:
@@ -536,7 +550,7 @@ class EyeProcessor:
                 self.rawx,
                 self.rawy,
                 self.current_image_white,
-                self.settings.ibo_filter_samples,
+                self._ibo_filter_samples(),
                 self.settings.ibo_average_output_samples,
             )
         else:

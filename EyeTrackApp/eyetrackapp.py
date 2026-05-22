@@ -237,6 +237,11 @@ def main():
             self._last_camera_tracking_key = None
             self._timer_high_res = False
             self._nav_teardown_seq = 0
+            # Maps the friendly display label shown in the camera dropdown to
+            # the actual capture_source string we store/resolve (e.g.
+            # ``"OBS Virtual Camera"`` → ``"uvc:OBS Virtual Camera@\\?\..."``).
+            # Populated by scan_sources; consulted by _normalize_camera_input.
+            self._source_display_map: dict[str, str] = {}
 
             nav = ttk.Frame(self.root)
             nav.pack(fill="x", padx=8, pady=(8, 4))
@@ -418,6 +423,27 @@ def main():
                 justify="left",
             ).pack(anchor="w", pady=(6, 0))
 
+            # Global mode toggle — flips both eyes between Tracking and
+            # Cropping at once. Per-eye buttons used to live inside each
+            # camera widget; users always wanted them paired.
+            mode_row = ttk.Frame(tracking_main)
+            mode_row.pack(fill="x", pady=(0, 4))
+            mode_inner = ttk.Frame(mode_row)
+            mode_inner.pack(anchor="center")
+            self._global_tracking_btn = ttk.Button(
+                mode_inner,
+                text="Tracking Mode",
+                command=self._on_global_tracking_mode,
+            )
+            self._global_tracking_btn.pack(side="left", padx=4)
+            self._global_roi_btn = ttk.Button(
+                mode_inner,
+                text="Cropping Mode",
+                command=self._on_global_roi_mode,
+            )
+            self._global_roi_btn.pack(side="left", padx=4)
+            self._sync_global_mode_buttons()
+
             self.tracking_eyes_row = ttk.Frame(tracking_main)
             # fill="x" only (not "both", no expand): lets the action row below
             # sit snug against the visualization instead of being pushed to the
@@ -503,6 +529,14 @@ def main():
             value = (raw_value or "").strip()
             if value == "":
                 return None
+            # If the user picked (or typed) one of the friendly labels from
+            # the scan dropdown, translate it back to the encoded
+            # uvc:<name>@<address> capture-source string before any further
+            # parsing — otherwise it'd fall through to the "looks like a URL?"
+            # branch below and get http://-prefixed.
+            mapped = self._source_display_map.get(value)
+            if mapped is not None:
+                value = mapped
             try:
                 return int(value)
             except ValueError:
@@ -539,30 +573,48 @@ def main():
 
             def _scan():
                 cams = list_uvc_cameras()
-                # Dropdown values are the encoded ``uvc:<name>@<address>`` form
-                # — that's what the capture thread expects. The visible-display
-                # text includes the live cv2 index purely as a human hint
-                # ("OBS Virtual Camera, 0"), but the index isn't load-bearing:
-                # rebinding always happens via address.
-                uvc_values = [
-                    format_uvc_named_source(c["name"], c["address"]) for c in cams
-                ]
+                # Build friendly labels for the dropdown — just the camera
+                # name, with a "(N)" suffix when two cameras share a name so
+                # the user can still tell them apart. The encoded
+                # uvc:<name>@<address> form stays internal; we map it back
+                # from the label in _normalize_camera_input.
+                name_totals: dict[str, int] = {}
+                for c in cams:
+                    name_totals[c["name"]] = name_totals.get(c["name"], 0) + 1
+                seen: dict[str, int] = {}
+                source_map: dict[str, str] = {}
+                uvc_display_values: list[str] = []
+                for c in cams:
+                    n = c["name"]
+                    seen[n] = seen.get(n, 0) + 1
+                    label = n if name_totals[n] == 1 else f"{n} ({seen[n]})"
+                    source_map[label] = format_uvc_named_source(n, c["address"])
+                    uvc_display_values.append(label)
                 # mDNS lookup is blocking; this whole _scan runs on a worker
                 # thread already, so it's fine here. Network trackers go to the
                 # *top* of the dropdown because they're typically the user's
                 # primary capture source — UVC is the fallback / debug case.
                 mdns_values = discover_etvr_mdns_sources()
+                for v in mdns_values:
+                    source_map[v] = v
 
-                values = mdns_values + uvc_values
+                values = mdns_values + uvc_display_values
 
-                uvc_hint = ", ".join(
-                    f"{c['name']} ({c['index']})" for c in cams
-                ) or "none"
+                uvc_hint = ", ".join(uvc_display_values) or "none"
                 mdns_hint = ", ".join(mdns_values) or "none"
 
                 def _apply():
+                    self._source_display_map = source_map
                     self.left_camera_entry.configure(values=values)
                     self.right_camera_entry.configure(values=values)
+                    # If the currently-shown text is an encoded uvc: form
+                    # (e.g. just loaded from config at launch), rewrite it to
+                    # the friendly label now that the scan knows the mapping.
+                    encoded_to_label = {v: k for k, v in source_map.items()}
+                    for var in (self.left_camera_var, self.right_camera_var):
+                        cur = var.get()
+                        if cur in encoded_to_label:
+                            var.set(encoded_to_label[cur])
                     self.status_var.set(
                         f"Detected mDNS: {mdns_hint} | UVC: {uvc_hint}"
                     )
@@ -808,6 +860,25 @@ def main():
                 for eye in eyes:
                     if eye.started():
                         eye.recalibrate_eyes()
+
+        def _on_global_tracking_mode(self):
+            for eye in eyes:
+                eye._set_tracking_mode()
+            self._sync_global_mode_buttons()
+
+        def _on_global_roi_mode(self):
+            for eye in eyes:
+                eye._set_roi_mode()
+            self._sync_global_mode_buttons()
+
+        def _sync_global_mode_buttons(self):
+            in_roi = any(getattr(e, "in_roi_mode", False) for e in eyes)
+            self._global_roi_btn.configure(
+                style="Accent.TButton" if in_roi else "TButton"
+            )
+            self._global_tracking_btn.configure(
+                style="TButton" if in_roi else "Accent.TButton"
+            )
 
         def _on_global_recenter(self):
             for eye in eyes:

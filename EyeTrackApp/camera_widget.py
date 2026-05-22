@@ -155,9 +155,11 @@ class CameraWidget:
         # compact preview canvas. xy0/xy1 are kept in IMAGE coordinates; we
         # multiply by this when drawing on the canvas and divide by it when
         # translating mouse events back to image space. 1.0 = native.
-        # Target: ~2x the tracking-mode preview (300x150 → 600 px cap).
+        # Sized so both eyes can sit side-by-side in cropping mode without
+        # overflowing typical window widths — roughly matches the tracking
+        # preview's longest side.
         self._roi_display_scale = 1.0
-        self._ROI_CANVAS_MAX_DIM = 600
+        self._ROI_CANVAS_MAX_DIM = 320
         self.camera_thread: Thread | None = None
         self.tracking_thread: Thread | None = None
 
@@ -179,17 +181,8 @@ class CameraWidget:
                 top_row, text="Save and Restart Tracking", command=self._save_tracking
             ).pack(side="left", padx=8)
 
-        mode_row = ttk.Frame(self.frame)
-        mode_row.pack(fill="x", padx=8, pady=4)
-        self._mode_tracking_btn = ttk.Button(
-            mode_row, text="Tracking Mode", command=self._set_tracking_mode
-        )
-        self._mode_tracking_btn.pack(side="left", padx=4)
-        self._mode_roi_btn = ttk.Button(
-            mode_row, text="Cropping Mode", command=self._set_roi_mode
-        )
-        self._mode_roi_btn.pack(side="left", padx=4)
-        self._sync_mode_tab_buttons()
+        # Tracking/Cropping mode buttons are now global (one pair in
+        # eyetrackapp.py drives both eyes together) instead of per-eye.
 
         self.tracking_frame = ttk.Frame(self.frame)
         self.roi_frame = ttk.Frame(self.frame)
@@ -314,15 +307,19 @@ class CameraWidget:
         self.padding_var = tk.BooleanVar(
             value=bool(self.config.gui_rotation_ui_padding)
         )
+        roi_padding_row = ttk.Frame(self.roi_frame)
+        roi_padding_row.pack(fill="x", padx=8, pady=(0, 4))
         ttk.Checkbutton(
-            roi_controls, text="Camera Widget Padding", variable=self.padding_var
-        ).pack(side="left", padx=8)
+            roi_padding_row,
+            text="Camera Widget Padding",
+            variable=self.padding_var,
+        ).pack(side="left")
 
         # Canvas auto-resizes to the scaled padded_size in render_tick once
         # the first frame arrives. Initial size is a small placeholder ~2x
         # tracking preview so the tab doesn't open with a huge empty box.
         self.roi_canvas = tk.Canvas(
-            self.roi_frame, width=600, height=300, bg="#424042", highlightthickness=0
+            self.roi_frame, width=320, height=160, bg="#424042", highlightthickness=0
         )
         self.roi_canvas.pack(padx=8, pady=4, anchor="w")
         self.roi_canvas.bind("<ButtonPress-1>", self._on_roi_mouse_down)
@@ -337,13 +334,8 @@ class CameraWidget:
         return self.frame
 
     def _sync_mode_tab_buttons(self) -> None:
-        """Sun Valley accent on the active Tracking vs Cropping tab."""
-        if self.in_roi_mode:
-            self._mode_roi_btn.configure(style="Accent.TButton")
-            self._mode_tracking_btn.configure(style="TButton")
-        else:
-            self._mode_tracking_btn.configure(style="Accent.TButton")
-            self._mode_roi_btn.configure(style="TButton")
+        """No-op: mode buttons moved to a global pair in eyetrackapp.py."""
+        return
 
     def _tk_photo_from_bgr(
         self, image: np.ndarray, master: tk.Misc
