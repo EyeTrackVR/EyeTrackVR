@@ -495,9 +495,7 @@ def main():
             self.focus_label.pack(side="left", padx=12)
             self.focus_label.pack_forget()
 
-            # Settings-only action buttons. Hosted in the same persistent
-            # bottom row as GUI OFF / Having Issues but right-aligned and only
-            # shown while a settings page is active (toggled in show_page).
+            # Settings-only actions, shown only while a settings page is active.
             self._settings_actions_row = ttk.Frame(bottom)
             tk.Button(
                 self._settings_actions_row,

@@ -73,9 +73,6 @@ class BlinkAlgoSettingsModule(BaseSettingsModule):
         return frame
 
     def build(self, parent):
-        # LEAP Lid is the recommended default openness algo, so it gets the
-        # prominent top-left slot. IBO sits next to it; the remaining blink
-        # algos (Binary, RANSAC Quick) live in Advanced.
         checkbox_fields = [
             (self.gui_LEAP_lid, self.config.gui_LEAP_lid, "LEAP Lid Blink Algo"),
             (self.gui_IBO, self.config.gui_IBO, "Intensity Based Openness"),

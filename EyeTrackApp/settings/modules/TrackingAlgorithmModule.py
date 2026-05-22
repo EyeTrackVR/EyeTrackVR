@@ -30,14 +30,12 @@ class TrackingAlgorithmModule(BaseSettingsModule):
         self.gui_RANSAC3D = f"-RANSAC3D{widget_id}-"
         self.gui_max_tracking_speed = f"-MAXTRACKSPEED{widget_id}-"
 
-        # Algos shown in the main Tracking Algorithm section.
         self._basic_entries = [
             ("LEAP", "leap", self.gui_LEAP, "gui_LEAP"),
             ("ASHSFRAC", "ahsfrac", self.gui_AHSFRAC, "gui_AHSFRAC"),
             ("DADDY", "daddy", self.gui_DADDY, "gui_DADDY"),
             ("RANSAC 3D", "ransac3d", self.gui_RANSAC3D, "gui_RANSAC3D"),
         ]
-        # Legacy/advanced algos surfaced under the Advanced toggle.
         self._advanced_entries = [
             ("ASHSF", "ahsf", self.gui_AHSF, "gui_AHSF"),
             ("HSRAC", "hsrac", self.gui_HSRAC, "gui_HSRAC"),
@@ -89,8 +87,6 @@ class TrackingAlgorithmModule(BaseSettingsModule):
             ).grid(row=row, column=col, sticky="w", padx=8, pady=2)
 
     def _add_slider_with_controls(self, parent, row, label, var, min_v, max_v):
-        """Compact slider + - / value / + control matching the styling used
-        in the other settings modules (see AdvancedTrackingAlgoSettingsModule)."""
         slider_length = 160
         value_label_var = tk.StringVar(value=str(int(var.get())))
 

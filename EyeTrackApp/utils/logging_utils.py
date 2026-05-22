@@ -1,4 +1,6 @@
 import logging
+import os
+import subprocess
 import sys
 import threading
 from datetime import datetime
@@ -8,6 +10,8 @@ from pathlib import Path
 LOG_DIR_NAME = "logs"
 LOG_RETENTION_COUNT = 3
 LOG_NAME_PREFIX = "eyetrackapp"
+
+_current_log_path: Path | None = None
 
 
 class ColorFormatter(logging.Formatter):
@@ -71,12 +75,22 @@ def _install_exception_hooks(logger: logging.Logger) -> None:
         threading.excepthook = handle_thread_exception
 
 
+def _has_usable_console_stream() -> bool:
+    """False when PyInstaller windowed builds leave sys.stderr/stdout as None,
+    which would crash StreamHandler on every emit."""
+    stream = sys.stderr or sys.stdout
+    if stream is None:
+        return False
+    return hasattr(stream, "write")
+
+
 def setup_logging(app_name: str = "EyeTrackApp") -> Path:
+    global _current_log_path
     try:
         from colorama import just_fix_windows_console
 
         just_fix_windows_console()
-    except ImportError:
+    except Exception:
         pass
 
     log_dir = _app_root() / LOG_DIR_NAME
@@ -89,9 +103,11 @@ def setup_logging(app_name: str = "EyeTrackApp") -> Path:
         root_logger.removeHandler(handler)
         handler.close()
 
-    console_handler = logging.StreamHandler()
-    console_handler.setLevel(logging.INFO)
-    console_handler.setFormatter(ColorFormatter("[%(levelname)s] %(message)s"))
+    if _has_usable_console_stream():
+        console_handler = logging.StreamHandler()
+        console_handler.setLevel(logging.INFO)
+        console_handler.setFormatter(ColorFormatter("[%(levelname)s] %(message)s"))
+        root_logger.addHandler(console_handler)
 
     file_handler = logging.FileHandler(log_path, encoding="utf-8")
     file_handler.setLevel(logging.DEBUG)
@@ -101,12 +117,62 @@ def setup_logging(app_name: str = "EyeTrackApp") -> Path:
         )
     )
 
-    root_logger.addHandler(console_handler)
     root_logger.addHandler(file_handler)
 
     logging.captureWarnings(True)
     _install_exception_hooks(root_logger)
     _prune_old_logs(log_dir)
 
+    _current_log_path = log_path
     logging.getLogger(__name__).info("%s logging to %s", app_name, log_path)
     return log_path
+
+
+def current_log_path() -> Path | None:
+    return _current_log_path
+
+
+def log_directory() -> Path:
+    log_dir = _app_root() / LOG_DIR_NAME
+    log_dir.mkdir(parents=True, exist_ok=True)
+    return log_dir
+
+
+def open_logs() -> None:
+    """Reveal the current log in the OS file manager (or open the log
+    directory on Linux, where xdg-open has no reveal-in-folder equivalent)."""
+    log_dir = log_directory()
+    current = current_log_path()
+
+    if sys.platform.startswith("win"):
+        try:
+            if current is not None and current.exists():
+                subprocess.Popen(
+                    ["explorer", "/select,", str(current)], close_fds=True
+                )
+            else:
+                os.startfile(str(log_dir))  # type: ignore[attr-defined]
+            return
+        except OSError:
+            logging.getLogger(__name__).warning(
+                "Failed to open log folder with Explorer", exc_info=True
+            )
+
+    if sys.platform == "darwin":
+        try:
+            if current is not None and current.exists():
+                subprocess.Popen(["open", "-R", str(current)], close_fds=True)
+            else:
+                subprocess.Popen(["open", str(log_dir)], close_fds=True)
+            return
+        except OSError:
+            logging.getLogger(__name__).warning(
+                "Failed to open log folder with `open`", exc_info=True
+            )
+
+    try:
+        subprocess.Popen(["xdg-open", str(log_dir)], close_fds=True)
+    except OSError:
+        logging.getLogger(__name__).warning(
+            "Failed to open log folder with xdg-open", exc_info=True
+        )

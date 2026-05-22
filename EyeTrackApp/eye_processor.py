@@ -189,9 +189,6 @@ class EyeProcessor:
         self.roi_include_set = {"rotation_angle", "roi_window_x", "roi_window_y"}
         self.failed = 0
         self.skip_blink_detect = False
-        # Last time the main tracking loop finished pulling a frame. Used by
-        # the gui_max_tracking_speed cap to throttle the loop and then drain
-        # the capture queue down to the freshest frame.
         self._last_tracking_pull_mono: float = 0.0
         self.out_y = 0.0
         self.out_x = 0.0
@@ -891,11 +888,8 @@ class EyeProcessor:
             except queue.Empty:
                 continue
 
-            # Cap tracking rate at gui_max_tracking_speed Hz. When the camera
-            # produces faster than the user wants the tracker to run, sleep the
-            # remainder of the interval and then drain the capture queue so we
-            # process the freshest frame available (lower latency than processing
-            # the stale one we just popped).
+            # Cap tracking rate at gui_max_tracking_speed Hz, then drain
+            # the capture queue so we process the freshest available frame.
             try:
                 max_hz = float(self.settings.gui_max_tracking_speed)
             except (AttributeError, TypeError, ValueError):

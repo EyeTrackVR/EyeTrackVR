@@ -15,6 +15,7 @@ from config import (
     EyeTrackConfig,
     EyeTrackSettingsConfig,
 )
+from utils.logging_utils import open_logs
 
 
 class BaseSettingsWidget:
@@ -172,15 +173,11 @@ class BaseSettingsWidget:
     def build(self, parent) -> ttk.Frame:
         self.frame = ttk.Frame(parent)
         self._build_module_sections()
-        # Reset/Delete buttons live in the persistent bottom row of the app
-        # (see eyetrackapp.AppUI) so they share placement with GUI OFF and
-        # Having Issues. They're only shown when a settings page is active.
+        # Reset/Delete buttons live in the persistent bottom row (see eyetrackapp.AppUI).
         return self.frame
 
     def advanced_module_types(self) -> tuple:
-        """Override to mark certain module classes as 'advanced'. Modules of
-        these types are tucked behind a 'Show Advanced' toggle button instead
-        of being rendered inline with the rest."""
+        """Module classes returned here are hidden behind the Advanced toggle."""
         return ()
 
     def _build_module_sections(self):
@@ -213,13 +210,10 @@ class BaseSettingsWidget:
         )
         self._advanced_toggle_btn.pack(side="left")
 
-        # Build the advanced module(s) eagerly so their tk_vars exist for
-        # validation/save even when the section is hidden. Each contributor
-        # gets its own Frame so grid placements don't collide.
+        # Build eagerly so tk_vars exist for validation/save while hidden.
+        # Each contributor gets its own Frame to isolate grid placements.
         self._advanced_section = ttk.LabelFrame(self.frame, text="Advanced")
         advanced_set = set(id(m) for m in advanced_modules)
-        # First, give already-rendered (non-advanced) modules a chance to
-        # contribute extra rows via build_advanced(parent).
         for module in self.initialized_modules:
             if id(module) in advanced_set:
                 continue
@@ -227,11 +221,17 @@ class BaseSettingsWidget:
                 sub = ttk.Frame(self._advanced_section)
                 sub.pack(fill="x", padx=2, pady=2, anchor="n")
                 module.build_advanced(sub)
-        # Then render the fully-advanced modules.
         for module in advanced_modules:
             sub = ttk.Frame(self._advanced_section)
             sub.pack(fill="x", padx=2, pady=2, anchor="n")
             module.build(sub)
+
+        diagnostics_row = ttk.Frame(self._advanced_section)
+        diagnostics_row.pack(fill="x", padx=8, pady=(6, 4), anchor="w")
+        ttk.Button(
+            diagnostics_row, text="Open Logs", command=open_logs
+        ).pack(side="left")
+
         self._advanced_visible = False
 
     def _toggle_advanced(self):
