@@ -27,6 +27,8 @@ LICENSE: Summer Software Distribution License 1.0
 ------------------------------------------------------------------------------------------------------
 """
 
+import logging
+
 import cv2
 import numpy as np
 from eye import EyeId
@@ -35,6 +37,8 @@ from utils.misc_utils import clamp
 import os
 import psutil
 import sys
+
+logger = logging.getLogger(__name__)
 
 process = psutil.Process(os.getpid())  # set process priority to low
 try:  # medium chance this does absolutely nothing but eh
@@ -208,6 +212,11 @@ def RANSAC3D(self, hsrac_en):
     ranf = False
     blink = 0.8
     angle = 0
+    # Initialize fit outputs so a failed ellipse fit below can't raise NameError
+    # later when the contour-draw / return path references them.
+    cx = cy = 0
+    w = h = 0
+    theta = 0.0
 
     if hsrac_en:
         (
@@ -258,7 +267,7 @@ def RANSAC3D(self, hsrac_en):
 
     # frame = self.current_image_gray
     if frame is None:
-        print("[WARN] Frame is empty")
+        logger.warning("RANSAC frame is empty")
         self.failed = self.failed + 1  # we have failed, move onto next algo
         return 0, 0, 0, frame, blink, 0, 0
     else:
@@ -274,7 +283,8 @@ def RANSAC3D(self, hsrac_en):
         opening = cv2.morphologyEx(thresh, cv2.MORPH_OPEN, kernel)
         closing = cv2.morphologyEx(opening, cv2.MORPH_CLOSE, kernel)
         th_frame = 255 - closing
-    except:
+    except cv2.error as e:
+        logger.debug("Morphology failed, falling back to raw threshold: %s", e)
         th_frame = 255 - frame_gray
 
     contours, _ = cv2.findContours(th_frame, cv2.RETR_TREE, cv2.CHAIN_APPROX_NONE)
@@ -291,12 +301,11 @@ def RANSAC3D(self, hsrac_en):
             raise ValueError("No contours found")
         ransac_data = fit_rotated_ellipse_ransac(maxcnt.reshape(-1, 2), rng)
         if ransac_data is None:
-            pass
-
+            raise ValueError("RANSAC fit returned no data")
         cx, cy, w, h, theta = ransac_data
-    except:
+    except (ValueError, TypeError, cv2.error) as e:
+        logger.debug("RANSAC ellipse fit failed: %s", e)
         ranf = True
-        pass
 
     self.current_image_gray = frame
     cv2.circle(
@@ -341,7 +350,8 @@ def RANSAC3D(self, hsrac_en):
         self.circle_crop_center_x = int(float(self.last_projected_sphere["center"][0]))
         self.circle_crop_center_y = int(float(self.last_projected_sphere["center"][1]))
 
-    except:
+    except (KeyError, ValueError, TypeError, ZeroDivisionError, cv2.error) as e:
+        logger.debug("3D pupil detection failed: %s", e)
         f = True
 
     csy = newFrame2.shape[0]
@@ -371,8 +381,9 @@ def RANSAC3D(self, hsrac_en):
                     with open(file_path, "r") as file:
                         self.blink_list = [float(line.strip()) for line in file]
                 else:
-                    print(
-                        f"\033[93m[INFO] RANSAC Blink Config '{file_path}' not found. Waiting for calibration.\033[0m"
+                    logger.info(
+                        "RANSAC blink config '%s' not found. Waiting for calibration.",
+                        file_path,
                     )
                 self.ran_blink_check_for_file = False
 
@@ -400,8 +411,8 @@ def RANSAC3D(self, hsrac_en):
             self.current_image_gray, contours, -1, (255, 0, 0), 1
         )  # TODO: fix visualizations with HSRAC
         cv2.circle(self.current_image_gray, (int(cx), int(cy)), 2, (0, 0, 255), -1)
-    except:
-        pass
+    except (cv2.error, ValueError, TypeError) as e:
+        logger.debug("Pupil overlay draw failed: %s", e)
 
     try:
         cv2.ellipse(
@@ -422,15 +433,11 @@ def RANSAC3D(self, hsrac_en):
             (0, 255, 0),  # color (BGR): red
         )
 
-    except:
-        pass
+    except (KeyError, TypeError, ValueError, NameError, cv2.error) as e:
+        logger.debug("Sphere/ellipse overlay draw failed: %s", e)
 
     self.current_image_gray = newFrame2
     y, x = self.current_image_gray.shape
     thresh = cv2.resize(thresh, (x, y))
-    try:
-        self.failed = 0  # we have succeded, continue with this
-        return cx, cy, angle, thresh, blink, w, h
-    except:
-        self.failed = self.failed + 1  # we have failed, move onto next algo
-        return 0, 0, 0, thresh, blink, 0, 0
+    self.failed = 0  # we have succeded, continue with this
+    return cx, cy, angle, thresh, blink, w, h

@@ -27,6 +27,7 @@ LICENSE: Summer Software Distribution License 1.0
 ------------------------------------------------------------------------------------------------------
 """
 
+import logging
 import timeit
 from functools import lru_cache
 
@@ -36,6 +37,8 @@ from utils.img_utils import safe_crop
 import psutil
 import sys
 import os
+
+logger = logging.getLogger(__name__)
 
 process = psutil.Process(os.getpid())  # set process priority to low
 try:  # medium chance this does absolutely nothing but eh
@@ -803,7 +806,10 @@ class HSF_cls(object):
         else:
             if 0 in cropped_image.shape:
                 # If shape contains 0, it is not detected well.
-                print("Something's wrong.")
+                logger.debug(
+                    "HSF cropped_image has zero dimension (shape=%s); skipping detection.",
+                    cropped_image.shape,
+                )
             else:
                 orig_x, orig_y = center_x, center_y
                 if self.blink_detector.enable_detect_flg:

@@ -26,6 +26,7 @@ LICENSE: Babble Software Distribution License 1.0
 ------------------------------------------------------------------------------------------------------
 """
 
+import logging
 import os
 import onnxruntime
 import numpy as np
@@ -36,6 +37,8 @@ from queue import Queue
 import threading
 from config import EyeTrackCameraConfig, EyeTrackConfig
 from one_euro_filter import OneEuroFilter
+
+logger = logging.getLogger(__name__)
 import psutil
 from utils.misc_utils import resource_path
 from pathlib import Path
@@ -167,7 +170,7 @@ class LEAP_C:
                 else:
                     providers.append(p)
 
-        print(f"Active ONNX GPU Providers for this session: {providers}")
+        logger.info("Active ONNX GPU providers for this session: %s", providers)
 
         self.ort_session_gpu = onnxruntime.InferenceSession(
             self.model_path, opts, providers=providers
@@ -247,22 +250,30 @@ class LEAP_C:
                     if calibration_span >= min_span:
                         self.eye_config.leap_calibrated = True
                         self.config.save()
-                        print(
-                            f"[INFO] {eye_name} eye LEAP lid calibrated: "
-                            f"samples={sample_count}, open_p90={open_percentile:.4f}, "
-                            f"closed_p2={closed_percentile:.4f}, "
-                            f"span={calibration_span:.4f}, min_span={min_span:.4f}"
+                        logger.info(
+                            "%s eye LEAP lid calibrated: samples=%d, "
+                            "open_p90=%.4f, closed_p2=%.4f, span=%.4f, min_span=%.4f",
+                            eye_name,
+                            sample_count,
+                            open_percentile,
+                            closed_percentile,
+                            calibration_span,
+                            min_span,
                         )
                     else:
                         self.calib = 0
                         self.openlist = []
                         self.eye_config.leap_calibration_percentile_90 = 0
                         self.eye_config.leap_calibration_percentile_2 = 0
-                        print(
-                            f"[WARN] {eye_name} eye LEAP lid calibration rejected: "
-                            f"samples={sample_count}, open_p90={open_percentile:.4f}, "
-                            f"closed_p2={closed_percentile:.4f}, "
-                            f"span={calibration_span:.4f}, min_span={min_span:.4f}"
+                        logger.warning(
+                            "%s eye LEAP lid calibration rejected: samples=%d, "
+                            "open_p90=%.4f, closed_p2=%.4f, span=%.4f, min_span=%.4f",
+                            eye_name,
+                            sample_count,
+                            open_percentile,
+                            closed_percentile,
+                            calibration_span,
+                            min_span,
                         )
 
             try:
@@ -274,7 +285,8 @@ class LEAP_C:
                     per = np.clip(per, 0.0, 1.0)
                 else:
                     per = 0.8
-            except:
+            except (ZeroDivisionError, TypeError, ValueError, AttributeError) as e:
+                logger.debug("LEAP lid percentile calc fell back to 0.8: %s", e)
                 per = 0.8
 
             x = pre_landmark[6][0]

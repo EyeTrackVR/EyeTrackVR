@@ -24,6 +24,7 @@ LICENSE: Babble Software Distribution License 1.0
 ------------------------------------------------------------------------------------------------------
 """
 
+import logging
 import numpy as np
 import time
 from enum import IntEnum
@@ -39,6 +40,8 @@ from utils.calibration_3d import receive_calibration_data, converge_3d
 from utils.calibration_elipse import *
 from utils.misc_utils import resource_path
 from pathlib import Path
+
+logger = logging.getLogger(__name__)
 
 tool = Path("Tools")
 
@@ -165,54 +168,79 @@ def _update_eye_velocity(eye_id, out_x, out_y, now):
 
 @Async
 def center_overlay_calibrate(self):
-    # try:
-    if var.overlay_active != True:
-        overlay_path = resource_path("Tools/EyeTrackVR-Overlay.exe")
-        # Set working directory to the tools folder so overlay can find assets/Purple_Dot.png
-        tools_dir = os.path.dirname(overlay_path)
-        subprocess.Popen([overlay_path, "center"], cwd=tools_dir)
+    if var.overlay_active:
+        return
+    overlay_path = resource_path("Tools/EyeTrackVR-Overlay.exe")
+    # Set working directory to the tools folder so overlay can find assets/Purple_Dot.png
+    tools_dir = os.path.dirname(overlay_path)
+    sock = None
+    try:
+        subprocess.Popen(
+            [overlay_path, "center"],
+            cwd=tools_dir,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+        )
         var.overlay_active = True
         sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        server_address = ("localhost", 2112)
-        sock.bind(server_address)
-        data, address = sock.recvfrom(4096)
-        received_int = struct.unpack("!l", data)[0]
-        message = received_int
+        sock.bind(("localhost", 2112))
+        data, _ = sock.recvfrom(4096)
+        struct.unpack("!l", data)[0]  # value currently unused; kept for protocol parity
+    except (OSError, FileNotFoundError, struct.error) as e:
+        logger.warning(
+            "Center-overlay calibration failed (%s). Make sure SteamVR is running.",
+            e,
+        )
+    finally:
+        if sock is not None:
+            try:
+                sock.close()
+            except OSError:
+                pass
         self.settings.gui_recenter_eyes = False
         self.calibration_start_time = None
         var.overlay_active = False
 
 
-#  except:
-#   self.settings.gui_recenter_eyes = False
-#   var.overlay_active = False
-
-
 @Async
 def overlay_calibrate_3d(self):
+    if var.overlay_active:
+        return
+    overlay_path = resource_path("Tools/EyeTrackVR-Overlay.exe")
+    # Set working directory to the tools folder so overlay can find assets/Purple_Dot.png
+    tools_dir = os.path.dirname(overlay_path)
+    sock = None
     try:
-        if var.overlay_active != True:
-            overlay_path = resource_path("Tools/EyeTrackVR-Overlay.exe")
-            # Set working directory to the tools folder so overlay can find assets/Purple_Dot.png
-            tools_dir = os.path.dirname(overlay_path)
-            subprocess.Popen([overlay_path], cwd=tools_dir)
-            var.overlay_active = True
-            while var.overlay_active:
-                sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-                server_address = ("localhost", 2112)
-                sock.bind(server_address)
-                data, address = sock.recvfrom(4096)
-                received_int = struct.unpack("!l", data)[0]
-                message = received_int
-                self.settings.gui_recenter_eyes = False
-                self.settings.grab_3d_point = True
-
-                print(message)
-                if message == 9:
-                    var.overlay_active = False
-
-    except:
-        print("[WARN] Calibration overlay error. Make sure SteamVR is Running.")
+        subprocess.Popen(
+            [overlay_path],
+            cwd=tools_dir,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+        )
+        var.overlay_active = True
+        # Bind once and reuse across messages; rebinding the same port every
+        # iteration would race the OS releasing it on close.
+        sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        sock.bind(("localhost", 2112))
+        while var.overlay_active:
+            data, _ = sock.recvfrom(4096)
+            message = struct.unpack("!l", data)[0]
+            self.settings.gui_recenter_eyes = False
+            self.settings.grab_3d_point = True
+            logger.debug("3D overlay calibration message: %s", message)
+            if message == 9:
+                var.overlay_active = False
+    except (OSError, FileNotFoundError, struct.error) as e:
+        logger.warning(
+            "3D calibration overlay error (%s). Make sure SteamVR is running.",
+            e,
+        )
+    finally:
+        if sock is not None:
+            try:
+                sock.close()
+            except OSError:
+                pass
         self.settings.gui_recenter_eyes = False
         var.overlay_active = False
 
@@ -237,14 +265,18 @@ class cal:
             ):
                 # If init_from_save fails, treat as uncalibrated
                 if self.should_print_calibration_warning:
-                    print(
-                        "\033[91m[ERROR] Failed to load calibration data. Please recalibrate.\033[0m"
+                    logger.error(
+                        "Eye %s: failed to load calibration data. Please recalibrate.",
+                        getattr(self, "eye_id", "?"),
                     )
                     self.should_print_calibration_warning = False
 
         else:
             if self.should_print_calibration_warning:
-                print("\033[91m[ERROR] Please Calibrate Eye(s).\033[0m")
+                logger.error(
+                    "Eye %s: please calibrate eye(s).",
+                    getattr(self, "eye_id", "?"),
+                )
                 self.should_print_calibration_warning = False
 
         if cx == None or cy == None:
@@ -286,8 +318,10 @@ class cal:
                 else:
                     # No samples collected - only save the offset (for Recenter Eyes)
                     # Don't overwrite existing ellipse calibration
-                    print(
-                        "\033[93m[WARN] Calibration stopped without collecting samples. Ellipse calibration preserved, offset updated.\033[0m"
+                    logger.warning(
+                        "Eye %s: calibration stopped without collecting samples. "
+                        "Ellipse calibration preserved, offset updated.",
+                        getattr(self, "eye_id", "?"),
                     )
                     self.baseconfig.save()  # Still save to persist the offset changes
                 self.blink_clear = False
@@ -355,8 +389,8 @@ class cal:
             out_x = point_hat[0]
             out_y = point_hat[1]
 
-        except:
-            pass
+        except (TypeError, ValueError, AttributeError) as e:
+            logger.debug("One-euro filter pass failed: %s", e)
 
         # Report this eye's own smoothed velocity (was previously a single
         # shared scalar across both eyes, which made the downstream falloff

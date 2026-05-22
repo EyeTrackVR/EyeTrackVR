@@ -27,6 +27,7 @@ LICENSE: LICENSE: Babble Software Distribution License 1.0
 ------------------------------------------------------------------------------------------------------
 """
 
+import logging
 from collections import deque
 
 import numpy as np
@@ -37,6 +38,8 @@ from eye import EyeId
 from one_euro_filter import OneEuroFilter
 import psutil
 import sys
+
+logger = logging.getLogger(__name__)
 
 process = psutil.Process(os.getpid())  # set process priority to low
 try:  # medium chance this does absolutely nothing but eh
@@ -117,7 +120,7 @@ def u16_3ch_to_u32_1ch(img):
 
 
 def newdata(frameshape):
-    print("\033[94m[INFO] Initialise data for blinking.\033[0m")
+    logger.info("Initialise data for blinking (shape=%s).", frameshape)
     return np.zeros(frameshape, dtype=np.uint32)
 
 
@@ -172,13 +175,16 @@ class IntensityBasedOpeness:
         # Not very clever, but increase the width by 1px to save the maximum value.
         frameshape = (frameshape[0], frameshape[1] + 1)
         if self.data is None:
-            print(f"\033[92m[INFO] Loaded data for blinking: {self.imgfile}\033[0m")
+            logger.info("Loading data for blinking: %s", self.imgfile)
             if os.path.isfile(self.imgfile):
                 try:
                     img = cv2.imread(self.imgfile, flags=cv2.IMREAD_UNCHANGED)
                     # check code: cv2.absdiff(img,u32_1ch_to_u16_3ch(u16_3ch_to_u32_1ch(img)))
-                    if img.shape[:2] != frameshape:
-                        print("[WARN] Size does not match the input frame.")
+                    if img is None or img.shape[:2] != frameshape:
+                        logger.warning(
+                            "Blinking calibration size mismatch or unreadable image (%s).",
+                            self.imgfile,
+                        )
                         req_newdata = True
                     else:
                         self.data = u16_3ch_to_u32_1ch(img)
@@ -188,11 +194,15 @@ class IntensityBasedOpeness:
                             req_newdata = True
                         else:
                             self.maxval = self.data[0, -1]
-                except:
-                    print("[ERROR] File read error: {}".format(self.imgfile))
+                except (cv2.error, OSError, ValueError, AttributeError) as e:
+                    logger.error(
+                        "File read error for blink calibration %s: %s",
+                        self.imgfile,
+                        e,
+                    )
                     req_newdata = True
             else:
-                print("\033[94m[INFO] File does not exist.\033[0m")
+                logger.info("Blink calibration file does not exist: %s", self.imgfile)
                 req_newdata = True
         else:
             if self.data.shape != frameshape or not np.array_equal(
@@ -200,7 +210,7 @@ class IntensityBasedOpeness:
             ):
                 # If the ROI recorded in the image file differs from the current ROI
                 # TODO: Migrate compatible calibration data instead of resetting on ROI/frame size changes.
-                print("[INFO] \033[94mFrame size changed.\033[0m")
+                logger.info("Blink calibration frame size changed; resetting data.")
                 req_newdata = True
         if req_newdata:
             self.data = newdata(frameshape)
@@ -256,8 +266,8 @@ class IntensityBasedOpeness:
             ):  # filter abnormally high values
                 intensity = self.maxval
 
-        except:
-            pass
+        except (ValueError, IndexError) as e:
+            logger.debug("Intensity percentile filter skipped: %s", e)
 
         # numpy:np.sum(),ndarray.sum()
         # opencv:cv2.sumElems()

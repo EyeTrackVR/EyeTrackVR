@@ -1,8 +1,12 @@
 # https://github.com/jaantollander/OneEuroFilter
 # LICENSE: MIT
 
+import logging
+
 import numpy as np
 from time import perf_counter
+
+logger = logging.getLogger(__name__)
 
 
 # Minimum dt the filter trusts: smaller deltas (system clock hiccups, two
@@ -66,7 +70,5 @@ class OneEuroFilter:
                 self.x_prev = x
                 return x
         except (ValueError, FloatingPointError, ZeroDivisionError) as e:
-            print(
-                "\033[91m[ERROR] One Euro Filter Error: {}\033[0m".format(e)
-            )
+            logger.error("One Euro Filter error: %s", e)
             return self.x_prev

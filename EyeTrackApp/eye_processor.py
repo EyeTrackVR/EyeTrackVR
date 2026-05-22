@@ -228,7 +228,7 @@ class EyeProcessor:
         try:
             min_cutoff = float(self.settings.gui_min_cutoff)  # 0.0004
             beta = float(self.settings.gui_speed_coefficient)  # 0.9
-        except:
+        except (TypeError, ValueError):
             logger.warning("OneEuroFilter values must be a legal number.")
             min_cutoff = 0.0004
             beta = 0.9
@@ -419,8 +419,8 @@ class EyeProcessor:
             )
 
             return True
-        except:
-            pass
+        except (cv2.error, ValueError, IndexError, AttributeError) as e:
+            logger.debug("RGBA border blend failed: %s", e)
 
     def _ensure_pupil_axes_for_dilation(self) -> None:
         """EBPD expects ellipse axes in pixels; RANSAC3D sets pupil_width/height, other trackers only set radius."""
@@ -479,8 +479,8 @@ class EyeProcessor:
         window track the actual frame rate (a 50 fps tune was silently too
         short at 120 fps and too long at 30 fps). 60 fps is used as a safe
         default before the first capture has set ``current_fps``."""
-        fps = self.current_fps or 60.0
-        seconds = max(1, int(self.settings.calibration_duration))
+        fps = self.current_fps if self.current_fps and self.current_fps > 0 else 60.0
+        seconds = max(1.0, float(self.settings.calibration_duration))
         return max(30, int(round(seconds * float(fps))))
 
     def UPDATE(self):

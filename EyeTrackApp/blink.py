@@ -36,7 +36,7 @@ _FILTER_MAXLEN = 300
 
 def BLINK(self):
 
-    if self.blink_clear == True:
+    if self.blink_clear:
         self.max_ints = []
         self.max_int = 0
         self.frames = 0
@@ -74,6 +74,3 @@ def BLINK(self):
     if min_max_int is not None and len(self.max_ints) > 1:
         return 0.0 if intensity > min_max_int else 0.8
     return 0.8
-
-
-# print(self.blinkvalue, self.max_int, self.min_int, self.frames, intensity)
