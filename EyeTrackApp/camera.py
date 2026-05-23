@@ -32,14 +32,11 @@ import serial
 import serial.tools.list_ports
 import threading
 import time
-from camera_enum import (
-    is_uvc_named_source,
-    parse_uvc_named_source,
-    resolve_uvc_address_to_index,
-)
 from config import EyeTrackCameraConfig
 from enum import Enum
 import sys
+from PIL import Image
+from io import BytesIO
 
 WAIT_TIME = 0.1
 logger = logging.getLogger(__name__)
@@ -92,13 +89,7 @@ _FAST_CAPTURE_MIN_INTERVAL = 1.0 / _FAST_CAPTURE_MAX_FPS
 # ESP32-CAM encodes at ~10-15, so 80 overestimates), but sampled periodically it
 # is far cheaper than re-encoding every frame and closer than decoded pixel rate.
 _HTTP_WIRE_BYTES_PROXY_JPEG_QUALITY = 80
-# Sample every N frames. Bumped from 10 to 60 because cv2.imencode on a
-# 640x480 BGR frame is multiple ms on a typical CPU; at 60 fps a value of 10
-# spent ~17% of capture-thread time just re-encoding for a UI readout.
-_HTTP_WIRE_BYTES_PROXY_SAMPLE_INTERVAL = 60
-# Log capture-queue backpressure once every N drops instead of every frame
-# so a sustained backlog doesn't drown the log at the per-frame rate.
-_BACKPRESSURE_LOG_EVERY = 60
+_HTTP_WIRE_BYTES_PROXY_SAMPLE_INTERVAL = 10
 _CV_FILE_VIDEO_EXTENSIONS = (
     ".mp4",
     ".avi",
@@ -150,12 +141,6 @@ class Camera:
         self.capture_event = capture_event
         self.cancellation_event = cancellation_event
         self.current_capture_source = config.capture_source
-        # Cache for uvc:<name>@<address> sources: (encoded_string -> int index).
-        # Re-running list_uvc_cameras() every loop iteration would call
-        # cv2.VideoCapture across every index each tick — expensive and would
-        # collide with our own open handle. Cache while connected; invalidate on
-        # disconnect so an unplug/replug forces a fresh scan.
-        self._uvc_resolution_cache: tuple[str, int] | None = None
         self.cv2_camera: "cv2.VideoCapture" = None
         self._file_video_source_cache: tuple[object, bool] | None = None
 
@@ -163,10 +148,6 @@ class Camera:
         self.frame_number = 0
         self.fps = 0.0
         self.bps = 0.0
-        # (width, height) of the most recently captured frame, or None if no
-        # frame has arrived yet. Bigscreen auto-crop reads this to derive a
-        # left/right half ROI without having to peek into the queue.
-        self.current_frame_size: tuple[int, int] | None = None
         self.buffer = b""
         # last_frame_time == 0.0 is a "no prior frame" sentinel: the next frame seeds
         # timing without contributing a delta. Keeps the first frame after connect /
@@ -176,12 +157,6 @@ class Camera:
         self._last_cv_cap_frame_time = 0.0
         self._last_http_wire_bytes_proxy = 0
         self._http_wire_bytes_proxy_frame_count = 0
-        # Counters for adaptive frame-skipping / backpressure visibility. When
-        # the tracking thread can't keep up we drop the oldest queued frame
-        # (see _put_frame_drop_oldest); the counters let users tell "tracker
-        # is fine but slow" from "tracker is silently shedding frames."
-        self._dropped_frame_count = 0
-        self._backpressure_event_count = 0
 
         self.error_message = "Capture source {} not found, retrying..."
 
@@ -213,8 +188,8 @@ class Camera:
             return
         try:
             cam.release()
-        except (cv2.error, RuntimeError, OSError) as e:
-            logger.debug("cv2 release failed: %s", e)
+        except Exception:
+            pass
         self.cv2_camera = None
 
     def _close_serial_connection(self) -> None:
@@ -224,8 +199,8 @@ class Camera:
         try:
             if conn.is_open:
                 conn.close()
-        except (serial.SerialException, OSError) as e:
-            logger.debug("Serial close failed: %s", e)
+        except Exception:
+            pass
         self.serial_connection = None
         self.buffer = b""
 
@@ -271,20 +246,12 @@ class Camera:
         self.last_frame_time = current_time
 
     def run(self):
-        # OPEN/READ timeout params are a DSHOW/V4L2/FFmpeg feature; AVFoundation
-        # on macOS raises -213 ("not implemented") when it sees them, which
-        # aborts the whole open() call. Pass an empty list on macOS so the
-        # open path stays usable there; the timeouts are nice-to-have, not
-        # load-bearing.
-        if sys.platform == "darwin":
-            OPENCV_PARAMS: list[int] = []
-        else:
-            OPENCV_PARAMS = [
-                cv2.CAP_PROP_OPEN_TIMEOUT_MSEC,
-                5000,
-                cv2.CAP_PROP_READ_TIMEOUT_MSEC,
-                5000,
-            ]
+        OPENCV_PARAMS = [
+            cv2.CAP_PROP_OPEN_TIMEOUT_MSEC,
+            5000,
+            cv2.CAP_PROP_READ_TIMEOUT_MSEC,
+            5000,
+        ]
         while True:
             if self.cancellation_event.is_set():
                 logger.info("Exiting capture thread")
@@ -297,41 +264,6 @@ class Camera:
             # If things aren't open, retry until they are. Don't let read requests come in any earlier
             # than this, otherwise we can deadlock ourselves.
             new_source = self.config.capture_source
-            # uvc:<name>@<address> sources are resolved to a live cv2 index here
-            # so that an unplug/replug or index reshuffle picks up the same
-            # physical camera without the user editing the field. Serial/URL
-            # sources pass through untouched.
-            if isinstance(new_source, str) and is_uvc_named_source(new_source):
-                encoded = new_source
-                cached = self._uvc_resolution_cache
-                # Cache the encoded -> index mapping until the user picks a
-                # different source. Re-resolving on every retry would mean
-                # re-enumerating cameras while transiently disconnected, and
-                # on platforms where the fallback probe opens cv2 indices it
-                # would race with our own open attempt and loop forever.
-                # The OS enumeration is cheap (one shell-out) but still
-                # pointless to repeat per loop tick.
-                if cached and cached[0] == encoded:
-                    new_source = cached[1]
-                else:
-                    name, address = parse_uvc_named_source(encoded)
-                    resolved = resolve_uvc_address_to_index(name, address)
-                    if resolved is None:
-                        if self.current_capture_source != encoded:
-                            logger.info(
-                                "UVC camera '%s' (%s) not currently present; waiting...",
-                                name, address,
-                            )
-                        self._release_cv2_camera()
-                        self._close_serial_connection()
-                        self.current_capture_source = encoded
-                        self._uvc_resolution_cache = None
-                        self.camera_status = CameraState.DISCONNECTED
-                        if self.cancellation_event.wait(WAIT_TIME):
-                            return
-                        continue
-                    self._uvc_resolution_cache = (encoded, resolved)
-                    new_source = resolved
             if new_source is not None and new_source != "":
                 source_changed = new_source != self.current_capture_source
                 addr = str(new_source)
@@ -380,12 +312,6 @@ class Camera:
                             )
                             self.camera_status = CameraState.DISCONNECTED
                             self._release_cv2_camera()
-                            # If the failing index came from a cached uvc:
-                            # resolution, the device may have been unplugged
-                            # or reassigned. Drop the cache so the next
-                            # iteration re-queries the OS and picks up the
-                            # new index instead of looping forever.
-                            self._uvc_resolution_cache = None
                             if self.cancellation_event.wait(WAIT_TIME):
                                 return
                             continue
@@ -482,13 +408,13 @@ class Camera:
 
             if should_push:
                 self.push_image_to_queue(image, frame_number, self.fps)
-        except (cv2.error, RuntimeError, OSError) as e:
+        except Exception:
             logger.warning(
-                "Capture source problem (%s), assuming camera disconnected and waiting for reconnect.",
-                e,
+                "Capture source problem, assuming camera disconnected and waiting for reconnect."
             )
             self.camera_status = CameraState.DISCONNECTED
             self._last_cv_cap_frame_time = 0.0
+            pass
 
     def get_next_packet_bounds(self):
         beg = -1
@@ -530,18 +456,11 @@ class Camera:
             if conn.in_waiting:
                 jpeg = self.get_next_jpeg_frame()
                 if jpeg:
-                    # Decode straight through OpenCV (BGR output, single
-                    # allocation). The previous PIL path produced an RGB array
-                    # that downstream eye_processor treats as BGR — silently
-                    # swapping red/blue weights in cvtColor(..., COLOR_BGR2GRAY)
-                    # and degrading every tracking algorithm on serial cams.
+                    # Create jpeg frame from byte string
                     try:
-                        arr = np.frombuffer(jpeg, dtype=np.uint8)
-                        image = cv2.imdecode(arr, cv2.IMREAD_COLOR)
-                        if image is None:
-                            raise ValueError("cv2.imdecode returned None")
-                    except (cv2.error, ValueError) as e:
-                        logger.warning("Frame drop. Corrupted JPEG: %s", e)
+                        image = np.array(Image.open(BytesIO(jpeg)))
+                    except Exception:
+                        logger.warning("Frame drop. Corrupted JPEG.")
                         return
                     # Discard stale serial frames when the tracker falls behind.
                     if conn.in_waiting >= 32768:
@@ -557,16 +476,13 @@ class Camera:
                     self.frame_number = self.frame_number + 1
                     if should_push:
                         self.push_image_to_queue(image, self.frame_number, self.fps)
-        except (serial.SerialException, OSError, ValueError, cv2.error) as e:
+        except Exception:
             logger.warning(
-                "Serial capture source problem (%s), assuming camera disconnected and waiting for reconnect.",
-                e,
+                "Serial capture source problem, assuming camera disconnected and waiting for reconnect."
             )
-            try:
-                conn.close()
-            except (serial.SerialException, OSError):
-                pass
+            conn.close()
             self.camera_status = CameraState.DISCONNECTED
+            pass
 
     def start_serial_connection(self, port):
         if self.serial_connection is not None and self.serial_connection.is_open:
@@ -577,7 +493,7 @@ class Camera:
             # Otherwise, close the connection before trying to reopen.
             try:
                 self.serial_connection.close()
-            except (serial.SerialException, OSError):
+            except Exception:
                 pass
             self.serial_connection = None
             self.buffer = b""
@@ -608,15 +524,13 @@ class Camera:
             logger.info("ETVR Serial Tracker device connected on %s", port)
             self.serial_connection = conn
             self.camera_status = CameraState.CONNECTED
-        except (serial.SerialException, OSError, ValueError) as e:
-            logger.info("Failed to connect on %s: %s", port, e)
+        except Exception:
+            logger.info("Failed to connect on %s", port)
             self.camera_status = CameraState.DISCONNECTED
 
-    def _put_frame_drop_oldest(self, q: "queue.Queue", item: tuple) -> bool:
-        """Returns True if an older frame was evicted to make room (a drop)."""
+    def _put_frame_drop_oldest(self, q: "queue.Queue", item: tuple) -> None:
         try:
             q.put_nowait(item)
-            return False
         except queue.Full:
             try:
                 q.get_nowait()
@@ -626,35 +540,19 @@ class Camera:
                 q.put_nowait(item)
             except queue.Full:
                 pass
-            return True
 
     def push_image_to_queue(self, image, frame_number, fps):
-        if image is not None and hasattr(image, "shape") and len(image.shape) >= 2:
-            self.current_frame_size = (int(image.shape[1]), int(image.shape[0]))
-        # capture_ts: perf_counter at the moment the frame leaves the capture
-        # thread, used downstream by eye_processor to compute end-to-end
-        # frame-in → tracking-out latency. perf_counter is monotonic so it's
-        # safe to subtract across threads.
-        capture_ts = time.perf_counter()
+        # If there's backpressure, just yell. We really shouldn't have this unless we start getting
+        # some sort of capture event conflict though.
         qsize = self.camera_output_outgoing.qsize()
         if qsize > 1:
-            self._backpressure_event_count += 1
-            # Throttle the log so a sustained backlog doesn't spam every frame.
-            if self._backpressure_event_count % _BACKPRESSURE_LOG_EVERY == 1:
-                logger.warning(
-                    "Capture queue backpressure of %s (events=%s drops=%s). Tracker is shedding frames.",
-                    qsize,
-                    self._backpressure_event_count,
-                    self._dropped_frame_count,
-                )
-        dropped = self._put_frame_drop_oldest(
-            self.camera_output_outgoing, (image, frame_number, fps, capture_ts)
+            logger.warning(
+                "Capture queue backpressure of %s. Check for crash or timing issues in algorithm.",
+                qsize,
+            )
+        self._put_frame_drop_oldest(
+            self.camera_output_outgoing, (image, frame_number, fps)
         )
-        if dropped:
-            self._dropped_frame_count += 1
         for extra_q in self._extra_output_queues:
-            if self._put_frame_drop_oldest(
-                extra_q, (image.copy(), frame_number, fps, capture_ts)
-            ):
-                self._dropped_frame_count += 1
+            self._put_frame_drop_oldest(extra_q, (image.copy(), frame_number, fps))
         self.capture_event.clear()

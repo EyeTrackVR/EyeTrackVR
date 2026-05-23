@@ -66,6 +66,14 @@ if is_nt:
     from ctypes import windll, c_int
 
     try:
+        windll.shcore.SetProcessDpiAwareness(1)  # system DPI aware
+    except Exception:
+        try:
+            windll.user32.SetProcessDPIAware()
+        except Exception:
+            pass
+
+    try:
         winmm = windll.winmm
     except OSError:
         logger.warning("Failed to load winmm.dll")
@@ -224,11 +232,34 @@ def main():
         def __init__(self):
             self.root = tk.Tk()
             self.root.title(APP_VERSION)
+            self._dpi_scale = 1.0
+            if is_nt:
+                try:
+                    import tkinter.font as tkfont
+                    dpi = windll.user32.GetDpiForSystem()
+                    self._dpi_scale = dpi / 96.0
+                    self.root.tk.call("tk", "scaling", dpi / 72.0)
+                    logger.info(f"System DPI: {dpi}, scale: {self._dpi_scale:.2f}x")
+                except Exception as e:
+                    logger.warning(f"DPI scaling failed: {e}")
             try:
                 self.root.iconbitmap(resource_path("Images/logo.ico"))
             except Exception:
                 pass
             sv_ttk.set_theme("dark")
+            if is_nt and self._dpi_scale > 1.05:
+                try:
+                    import tkinter.font as tkfont
+                    for name in tkfont.names(root=self.root):
+                        try:
+                            f = tkfont.nametofont(name, root=self.root)
+                            size = f.cget("size")
+                            if size != 0:
+                                f.configure(size=round(size * self._dpi_scale))
+                        except Exception:
+                            pass
+                except Exception as e:
+                    logger.warning(f"Font scaling failed: {e}")
             apply_theme_to_titlebar(self.root)
             self.focus_paused = False
             self.current_page = "tracking"
@@ -328,7 +359,7 @@ def main():
 
             tracking_outer = ttk.Frame(self.tracking_tab, padding=4)
             tracking_outer.pack(fill="both", expand=True)
-            tracking_sidebar = ttk.Frame(tracking_outer, width=220)
+            tracking_sidebar = ttk.Frame(tracking_outer, width=round(220 * self._dpi_scale))
             tracking_sidebar.pack_propagate(False)
             tracking_sidebar.pack(side="left", fill="y", padx=(0, 8))
             tracking_main = ttk.Frame(tracking_outer)
@@ -615,7 +646,8 @@ def main():
         def _apply_initial_window_geometry(self):
             # Tracking tab packs two full camera panels; still set a floor so the window opens usable.
             self.root.update_idletasks()
-            min_w, min_h = 920, 660
+            s = self._dpi_scale
+            min_w, min_h = round(920 * s), round(660 * s)
             w = max(self.root.winfo_reqwidth(), min_w)
             h = max(self.root.winfo_reqheight(), min_h)
             self.root.geometry(f"{w}x{h}")
@@ -793,9 +825,11 @@ def main():
                 already_running = eyes[0].started() and eyes[1].started()
                 if not already_running:
                     eyes[0].camera.set_extra_output_queues([])
+                    eyes[0].camera.is_split = False
                     eyes[1].detach_shared_capture_event()
                     if shared:
                         eyes[0].camera.set_extra_output_queues([eyes[1].capture_queue])
+                        eyes[0].camera.is_split = self.mode_var.get() == "bigscreen"
                         eyes[1].capture_event = eyes[0].capture_event
                         eyes[1].ransac.capture_event = eyes[0].capture_event
                         eyes[1].uses_shared_capture_event = True
