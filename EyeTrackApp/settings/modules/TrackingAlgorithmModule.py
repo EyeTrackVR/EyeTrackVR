@@ -11,8 +11,8 @@ _ALGO_TIPS = {
         "LEAP — neural-network pupil tracker. Best general-purpose choice; "
         "handles low contrast and partial occlusion well."
     ),
-    "ahsfrac": (
-        "AHSFRAC — adaptive HSF + RANSAC. Falls back to RANSAC when HSF can't "
+    "ahrac": (
+        "AHRAC — adaptive HSF + RANSAC. Falls back to RANSAC when HSF can't "
         "lock on. Good middle ground."
     ),
     "daddy": (
@@ -41,7 +41,7 @@ class TrackingAlgorithmValidationModel(BaseValidationModel):
     gui_AHSF: bool
     gui_LEAP: bool
     gui_RANSAC3D: bool
-    gui_AHSFRAC: bool
+    gui_AHRAC: bool
     gui_max_tracking_speed: int
 
 
@@ -57,13 +57,13 @@ class TrackingAlgorithmModule(BaseSettingsModule):
         self.gui_HSRAC = f"-HSRAC{widget_id}-"
         self.gui_LEAP = f"-LEAP{widget_id}-"
         self.gui_AHSF = f"-AHSF{widget_id}-"
-        self.gui_AHSFRAC = f"-gui_AHSFRAC{widget_id}-"
+        self.gui_AHRAC = f"-gui_AHRAC{widget_id}-"
         self.gui_RANSAC3D = f"-RANSAC3D{widget_id}-"
         self.gui_max_tracking_speed = f"-MAXTRACKSPEED{widget_id}-"
 
         self._basic_entries = [
             ("LEAP", "leap", self.gui_LEAP, "gui_LEAP"),
-            ("ASHSFRAC", "ahsfrac", self.gui_AHSFRAC, "gui_AHSFRAC"),
+            ("AHRAC", "ahrac", self.gui_AHRAC, "gui_AHRAC"),
             ("DADDY", "daddy", self.gui_DADDY, "gui_DADDY"),
             ("RANSAC 3D", "ransac3d", self.gui_RANSAC3D, "gui_RANSAC3D"),
         ]
@@ -85,7 +85,12 @@ class TrackingAlgorithmModule(BaseSettingsModule):
             self.tk_vars[key] = tk.BooleanVar(
                 value=bool(getattr(self.config, config_field, False))
             )
-        self._render_radio_grid(parent, self._basic_entries, ncol=4)
+        # Radio buttons live in their own frame so their column widths are
+        # independent of the slider row below (which would otherwise force
+        # column 1 wide via the Scale widget, creating a gap between LEAP and AHRAC).
+        radio_frame = ttk.Frame(parent)
+        radio_frame.grid(row=0, column=0, columnspan=5, sticky="w")
+        self._render_radio_grid(radio_frame, self._basic_entries, ncol=4)
 
         speed_var = tk.IntVar(
             value=int(getattr(self.config, "gui_max_tracking_speed", 60))

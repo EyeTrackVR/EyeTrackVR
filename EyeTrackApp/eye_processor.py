@@ -248,7 +248,7 @@ class EyeProcessor:
         s = self.settings
         if s.gui_BLINK or s.gui_LEAP or s.gui_LEAP_lid:
             return True
-        if s.gui_HSRAC or s.gui_AHSFRAC or s.gui_RANSAC3D:
+        if s.gui_HSRAC or s.gui_AHRAC or s.gui_RANSAC3D:
             return True
         return False
 
@@ -630,7 +630,7 @@ class EyeProcessor:
         )
         self.current_algorithm = EyeInfoOrigin.DADDY
 
-    def AHSFRACM(self):
+    def AHRACM(self):
         self._apply_circular_crop_if_enabled()
 
         self.hsrac_enabled = True
@@ -762,10 +762,10 @@ class EyeProcessor:
         algorithm_slots: list = [None] * 8
         enabled_algorithms = []
 
-        if self.settings.gui_AHSFRAC:
+        if self.settings.gui_AHRAC:
             if self.ahsf_runner is None:
                 self.ahsf_runner = self.ahsf_detector
-            enabled_algorithms.append(self.AHSFRACM)
+            enabled_algorithms.append(self.AHRACM)
 
         if self.settings.gui_AHSF:
             if self.ahsf_runner is None:

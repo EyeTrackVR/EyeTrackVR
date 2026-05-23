@@ -7,6 +7,7 @@ from tkinter import ttk
 from settings.modules.CommonFieldValidators import check_is_float_convertible
 from utils.runtime_state import get_value as _get_runtime_value
 from utils.tooltips import attach_tooltip
+from eye_processor import remap_leap_lid_openness
 
 
 # Centralised tooltip copy so the strings stay short here and easy to tweak.
@@ -68,9 +69,13 @@ class BlinkAlgoSettingsValidationModel(BaseValidationModel):
 
 
 # Canvas geometry for the threshold visualizer.
-_VIZ_W = 240
-_VIZ_H = 22
+_VIZ_W = 280
+_VIZ_H = 36
 _VIZ_PAD = 4
+# Draggable range — extends beyond the 0–1 output clip so thresholds can be
+# pushed into the overshoot region when needed (e.g. forcing always-open).
+_VIZ_RANGE_MIN = -0.3
+_VIZ_RANGE_MAX = 1.3
 # Min gap between close and widen so the remap range never collapses to 0.
 _VIZ_MIN_GAP = 0.02
 # EyeId int values used by eye_processor when publishing raw lid samples.
@@ -127,13 +132,16 @@ class BlinkAlgoSettingsModule(BaseSettingsModule):
     @staticmethod
     def _viz_x_to_value(x):
         span_px = (_VIZ_W - _VIZ_PAD) - _VIZ_PAD
-        v = (x - _VIZ_PAD) / span_px if span_px > 0 else 0.0
-        return max(0.0, min(1.0, v))
+        if span_px <= 0:
+            return _VIZ_RANGE_MIN
+        v = _VIZ_RANGE_MIN + (x - _VIZ_PAD) / span_px * (_VIZ_RANGE_MAX - _VIZ_RANGE_MIN)
+        return max(_VIZ_RANGE_MIN, min(_VIZ_RANGE_MAX, v))
 
     @staticmethod
     def _viz_value_to_x(v):
-        v = max(0.0, min(1.0, v))
-        return _VIZ_PAD + v * ((_VIZ_W - _VIZ_PAD) - _VIZ_PAD)
+        v = max(_VIZ_RANGE_MIN, min(_VIZ_RANGE_MAX, v))
+        span_px = (_VIZ_W - _VIZ_PAD) - _VIZ_PAD
+        return _VIZ_PAD + (v - _VIZ_RANGE_MIN) / (_VIZ_RANGE_MAX - _VIZ_RANGE_MIN) * span_px
 
     @staticmethod
     def _safe_float(var, default):
@@ -158,8 +166,12 @@ class BlinkAlgoSettingsModule(BaseSettingsModule):
             cursor="hand2",
         )
         canvas.grid(row=0, column=0, sticky="w")
-        readout = ttk.Label(wrap, text="raw: --", width=9, foreground="#bbbbbb")
-        readout.grid(row=0, column=1, sticky="w", padx=(6, 0))
+        readout_frame = ttk.Frame(wrap)
+        readout_frame.grid(row=0, column=1, sticky="w", padx=(6, 0))
+        raw_readout = ttk.Label(readout_frame, text="raw: --", width=10, foreground="#bbbbbb")
+        raw_readout.pack(anchor="w")
+        adj_readout = ttk.Label(readout_frame, text="adj: --", width=10, foreground="#9999ff")
+        adj_readout.pack(anchor="w")
         canvas.bind(
             "<ButtonPress-1>",
             lambda e: self._on_viz_press(e, canvas, close_var, widen_var),
@@ -172,7 +184,7 @@ class BlinkAlgoSettingsModule(BaseSettingsModule):
             "<ButtonRelease-1>",
             lambda e: self._on_viz_release(canvas),
         )
-        self._viz.append((canvas, eye_id, close_var, widen_var, readout))
+        self._viz.append((canvas, eye_id, close_var, widen_var, raw_readout, adj_readout))
         return wrap
 
     def _redraw_viz(self, canvas, close_t, widen_t, raw):
@@ -182,35 +194,39 @@ class BlinkAlgoSettingsModule(BaseSettingsModule):
         inner_right = _VIZ_W - _VIZ_PAD
         close_x = self._viz_value_to_x(close_t)
         widen_x = self._viz_value_to_x(widen_t)
+        x_zero = self._viz_value_to_x(0.0)
+        x_one = self._viz_value_to_x(1.0)
+        bar_top = 4
+        bar_bot = h - 12  # leave 12 px at bottom for "0" / "1" labels
 
-        # Three colored zones: closed (muted red), neutral (gray), wide-open (muted green).
-        canvas.create_rectangle(
-            inner_left, 4, close_x, h - 4, fill="#5a2a2a", outline=""
-        )
-        canvas.create_rectangle(
-            close_x, 4, widen_x, h - 4, fill="#3a3a3a", outline=""
-        )
-        canvas.create_rectangle(
-            widen_x, 4, inner_right, h - 4, fill="#2a5a2a", outline=""
-        )
-        # Threshold markers with a small grab-handle nub on top so the
-        # drag affordance is visible.
-        canvas.create_line(close_x, 1, close_x, h - 1, fill="#ff8a8a", width=3)
-        canvas.create_rectangle(
-            close_x - 3, 0, close_x + 3, 4, fill="#ff8a8a", outline=""
-        )
-        canvas.create_line(widen_x, 1, widen_x, h - 1, fill="#8aff8a", width=3)
-        canvas.create_rectangle(
-            widen_x - 3, 0, widen_x + 3, 4, fill="#8aff8a", outline=""
-        )
+        # Base zones (closed / neutral / wide) spanning the full bar width.
+        canvas.create_rectangle(inner_left, bar_top, close_x, bar_bot, fill="#5a2a2a", outline="")
+        canvas.create_rectangle(close_x, bar_top, widen_x, bar_bot, fill="#3a3a3a", outline="")
+        canvas.create_rectangle(widen_x, bar_top, inner_right, bar_bot, fill="#2a5a2a", outline="")
+
+        # Overshoot overlays — distinct dark tint over the regions outside 0–1.
+        canvas.create_rectangle(inner_left, bar_top, x_zero, bar_bot, fill="#251a2e", outline="")
+        canvas.create_rectangle(x_one, bar_top, inner_right, bar_bot, fill="#1a251a", outline="")
+
+        # Boundary lines and labels at 0.0 and 1.0.
+        for bx, lbl in ((x_zero, "0"), (x_one, "1")):
+            canvas.create_line(bx, bar_top, bx, bar_bot + 2, fill="#aaaaaa", width=1)
+            canvas.create_text(
+                bx, bar_bot + 4, text=lbl, fill="#888888",
+                font=("Segoe UI", 7), anchor="n",
+            )
+
+        # Threshold markers with grab-handle nubs — drawn on top of all zones.
+        canvas.create_line(close_x, 1, close_x, bar_bot, fill="#ff8a8a", width=3)
+        canvas.create_rectangle(close_x - 3, 0, close_x + 3, bar_top, fill="#ff8a8a", outline="")
+        canvas.create_line(widen_x, 1, widen_x, bar_bot, fill="#8aff8a", width=3)
+        canvas.create_rectangle(widen_x - 3, 0, widen_x + 3, bar_top, fill="#8aff8a", outline="")
+
         # Live raw lid indicator (yellow ▼ on top + thin vertical guide).
         if raw is not None:
             rx = self._viz_value_to_x(raw)
-            canvas.create_polygon(
-                rx - 4, 0, rx + 4, 0, rx, 7,
-                fill="#ffd84a", outline="",
-            )
-            canvas.create_line(rx, 6, rx, h - 2, fill="#ffd84a", width=1)
+            canvas.create_polygon(rx - 4, 0, rx + 4, 0, rx, 7, fill="#ffd84a", outline="")
+            canvas.create_line(rx, 6, rx, bar_bot, fill="#ffd84a", width=1)
 
     def _tick_viz(self):
         if not self._viz:
@@ -223,12 +239,18 @@ class BlinkAlgoSettingsModule(BaseSettingsModule):
             self._viz_after_id = None
             return
 
-        for canvas, eye_id, close_var, widen_var, readout in self._viz:
+        for canvas, eye_id, close_var, widen_var, raw_readout, adj_readout in self._viz:
             close_t = self._safe_float(close_var, 0.1)
             widen_t = self._safe_float(widen_var, 0.9)
             raw = _get_runtime_value(f"raw_lid_{eye_id}", None)
             self._redraw_viz(canvas, close_t, widen_t, raw)
-            readout.config(text=f"raw: {raw:.2f}" if raw is not None else "raw: --")
+            if raw is not None:
+                adj = remap_leap_lid_openness(raw, close_t, widen_t)
+                raw_readout.config(text=f"raw: {raw:.2f}")
+                adj_readout.config(text=f"adj: {adj:.2f}")
+            else:
+                raw_readout.config(text="raw: --")
+                adj_readout.config(text="adj: --")
 
         self._viz_after_id = self._viz[0][0].after(80, self._tick_viz)
 
@@ -253,10 +275,10 @@ class BlinkAlgoSettingsModule(BaseSettingsModule):
         close_t = self._safe_float(close_var, 0.1)
         widen_t = self._safe_float(widen_var, 0.9)
         if active[1] == "close":
-            v = max(0.0, min(v, widen_t - _VIZ_MIN_GAP))
+            v = max(_VIZ_RANGE_MIN, min(v, widen_t - _VIZ_MIN_GAP))
             close_var.set(f"{v:.2f}")
         else:
-            v = min(1.0, max(v, close_t + _VIZ_MIN_GAP))
+            v = min(_VIZ_RANGE_MAX, max(v, close_t + _VIZ_MIN_GAP))
             widen_var.set(f"{v:.2f}")
 
     def _on_viz_release(self, canvas):

@@ -258,7 +258,7 @@ class EyeTrackSettingsConfig(BaseModel):
     gui_HSF: bool = False
     gui_BLINK: bool = False
     gui_HSRAC: bool = False
-    gui_AHSFRAC: bool = False
+    gui_AHRAC: bool = False
     gui_AHSF: bool = False
     gui_DADDY: bool = False
     gui_LEAP: bool = True
@@ -282,7 +282,7 @@ class EyeTrackSettingsConfig(BaseModel):
     gui_3d_calibration: bool = False
     grab_3d_point: bool = False
     tracker_single_eye: int = 0
-    gui_AHSFRACP: int = 1
+    gui_AHRACP: int = 1
     gui_AHSFP: int = 2
     gui_HSRACP: int = 3
     gui_HSFP: int = 4

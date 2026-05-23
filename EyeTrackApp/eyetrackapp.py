@@ -277,7 +277,7 @@ def main():
             self._source_display_map: dict[str, str] = {}
 
             nav = ttk.Frame(self.root)
-            nav.pack(fill="x", padx=8, pady=(8, 4))
+            nav.pack(fill="x", padx=16, pady=(16, 4))
             self._nav_buttons = {}
             for page_id, label in (
                 ("tracking", "Tracking"),
@@ -292,42 +292,54 @@ def main():
                 self._nav_buttons[page_id] = btn
 
             self.content = ttk.Frame(self.root)
-            self.content.pack(fill="both", expand=True, padx=8, pady=8)
+            self.content.pack(fill="both", expand=True, padx=8, pady=(0, 16))
 
             self.tracking_tab = ttk.Frame(self.content)
             self.settings_frame = settings[0].build(self.content)
             self.algo_frame = settings[1].build(self.content, eye_widgets=eyes, dpi_scale=self._dpi_scale)
             self.vrcft_frame = settings[2].build(self.content)
 
-            self.issues_frame = ttk.Frame(self.content)
-            issues_wrap = 720
-            _issues_hdr_font = ("Segoe UI", 14, "bold")
-            _hdr_bg = self.root.cget("background")
+            # "Having Issues?" popup — floats over the current page, same pattern
+            # as the Advanced Algo Settings popup.
+            self._issues_popup_visible = False
+            self._issues_popup = tk.Toplevel(self.root)
+            self._issues_popup.title("Having Issues?")
+            self._issues_popup.withdraw()
+            self._issues_popup.resizable(False, False)
+            self._issues_popup.protocol("WM_DELETE_WINDOW", self._on_issues_popup_close)
+            apply_theme_to_titlebar(self._issues_popup)
+
+            _issues_hdr_font = ("Segoe UI", 12, "bold")
+            _hdr_bg = self._issues_popup.cget("background")
+            _issues_content = ttk.Frame(self._issues_popup, padding=16)
+            _issues_content.pack(fill="both", expand=True)
+            issues_wrap = 400
+
             tk.Label(
-                self.issues_frame,
+                _issues_content,
                 text="Having tracking issues?",
                 font=_issues_hdr_font,
                 bg=_hdr_bg,
                 fg="#e8e8e8",
-            ).pack(anchor="w", padx=12, pady=(12, 6))
+            ).pack(anchor="w", pady=(0, 6))
             ttk.Label(
-                self.issues_frame,
+                _issues_content,
                 text=(
                     "Please ensure your cameras are well lit, focused, rotated and cropped correctly. "
                     "Please ask in our discord for assistance if needed. We are here to help!"
                 ),
                 wraplength=issues_wrap,
                 justify="left",
-            ).pack(anchor="w", padx=12, pady=(0, 16))
+            ).pack(anchor="w", pady=(0, 16))
             tk.Label(
-                self.issues_frame,
+                _issues_content,
                 text="Improve your experience",
                 font=_issues_hdr_font,
                 bg=_hdr_bg,
                 fg="#e8e8e8",
-            ).pack(anchor="w", padx=12, pady=(0, 6))
+            ).pack(anchor="w", pady=(0, 6))
             ttk.Label(
-                self.issues_frame,
+                _issues_content,
                 text=(
                     "Please consider contributing data to our training to improve future models for much better "
                     "tracking and features. It only takes a few minutes. Every submission helps and we really want "
@@ -335,9 +347,9 @@ def main():
                 ),
                 wraplength=issues_wrap,
                 justify="left",
-            ).pack(anchor="w", padx=12, pady=(0, 16))
-            issues_btn_row = ttk.Frame(self.issues_frame)
-            issues_btn_row.pack(anchor="w", padx=12, pady=8)
+            ).pack(anchor="w", pady=(0, 16))
+            issues_btn_row = ttk.Frame(_issues_content)
+            issues_btn_row.pack(anchor="w", pady=(0, 8))
 
             def _open_data_submission():
                 webbrowser.open(
@@ -353,20 +365,30 @@ def main():
                 command=_open_data_submission,
                 style="Accent.TButton",
             ).pack(side="left", padx=(0, 8))
-            ttk.Button(issues_btn_row, text="Discord", command=_open_discord).pack(
-                side="left"
-            )
+            ttk.Button(issues_btn_row, text="Discord", command=_open_discord).pack(side="left")
 
-            tracking_outer = ttk.Frame(self.tracking_tab, padding=4)
+            _issues_close_row = ttk.Frame(self._issues_popup)
+            _issues_close_row.pack(fill="x", padx=16, pady=(0, 16))
+            ttk.Button(
+                _issues_close_row, text="Close", command=self._on_issues_popup_close
+            ).pack(side="right")
+
+            tracking_outer = ttk.Frame(self.tracking_tab)
             tracking_outer.pack(fill="both", expand=True)
-            tracking_sidebar = ttk.Frame(tracking_outer, width=round(220 * self._dpi_scale))
+            tracking_sidebar = ttk.Frame(tracking_outer, width=round(300 * self._dpi_scale))
             tracking_sidebar.pack_propagate(False)
-            tracking_sidebar.pack(side="left", fill="y", padx=(0, 8))
+            tracking_sidebar.pack(side="left", fill="y", padx=(0, 16))
+            sidebar_inner = ttk.Frame(tracking_sidebar, padding=16)
+            sidebar_inner.pack(fill="both", expand=True)
             tracking_main = ttk.Frame(tracking_outer)
             tracking_main.pack(side="left", fill="both", expand=True)
 
-            setup_type = ttk.LabelFrame(tracking_sidebar, text="Setup Type", padding=8)
-            setup_type.pack(fill="x", pady=(0, 8))
+            _sidebar_hdr_font = ("Segoe UI", round(10 * self._dpi_scale), "bold")
+            _setup_type_outer = ttk.Frame(sidebar_inner)
+            _setup_type_outer.pack(fill="x", pady=(0, 24))
+            ttk.Label(_setup_type_outer, text="Setup Type", font=_sidebar_hdr_font).pack(anchor="w", pady=(0, 4))
+            setup_type = ttk.Frame(_setup_type_outer)
+            setup_type.pack(fill="x")
             etvr_radio = ttk.Radiobutton(
                 setup_type,
                 text="ETVR Setup",
@@ -374,7 +396,7 @@ def main():
                 value="etvr",
                 command=self.on_mode_change,
             )
-            etvr_radio.pack(anchor="w")
+            etvr_radio.pack(anchor="w", pady=4)
             attach_tooltip(
                 etvr_radio,
                 "Standard ETVR mode: two independent cameras (UVC, serial, "
@@ -387,17 +409,18 @@ def main():
                 value="bigscreen",
                 command=self.on_mode_change,
             )
-            bsb_radio.pack(anchor="w")
+            bsb_radio.pack(anchor="w", pady=4)
             attach_tooltip(
                 bsb_radio,
                 "Bigscreen Beyond mode: one camera supplies both eye images "
                 "side-by-side; ETVR splits them internally.",
             )
 
-            tracking_controls = ttk.LabelFrame(
-                tracking_sidebar, text="Camera Settings", padding=8
-            )
-            tracking_controls.pack(fill="x", pady=(0, 8))
+            _tracking_controls_outer = ttk.Frame(sidebar_inner)
+            _tracking_controls_outer.pack(fill="x", pady=(0, 24))
+            ttk.Label(_tracking_controls_outer, text="Camera Settings", font=_sidebar_hdr_font).pack(anchor="w", pady=(0, 4))
+            tracking_controls = ttk.Frame(_tracking_controls_outer)
+            tracking_controls.pack(fill="x")
             left_initial = config.left_eye.capture_source
             right_initial = config.right_eye.capture_source
             self.left_camera_var = tk.StringVar(
@@ -409,16 +432,16 @@ def main():
             self.left_camera_label = ttk.Label(
                 tracking_controls, text="Left (UVC / COM port / URL):"
             )
-            self.left_camera_label.pack(anchor="w")
+            self.left_camera_label.pack(anchor="w", pady=(0, 2))
             # Combobox (not Entry) so Scan can populate a dropdown of detected
             # UVC cameras while still letting the user type a COM port / URL /
             # index by hand. Picked dropdown entries are written as
             # ``uvc:<name>@<address>`` strings, which the capture thread
             # re-resolves to a live cv2 index every loop.
             self.left_camera_entry = ttk.Combobox(
-                tracking_controls, textvariable=self.left_camera_var, values=()
+                tracking_controls, textvariable=self.left_camera_var, values=(), foreground="#e0e0e0"
             )
-            self.left_camera_entry.pack(fill="x", pady=(2, 8))
+            self.left_camera_entry.pack(fill="x", pady=(0, 8))
             attach_tooltip(
                 self.left_camera_entry,
                 "Capture source for the left eye. Pick from the dropdown "
@@ -430,10 +453,10 @@ def main():
                 tracking_controls, text="Right (UVC / COM port / URL):"
             )
             self.right_camera_entry = ttk.Combobox(
-                tracking_controls, textvariable=self.right_camera_var, values=()
+                tracking_controls, textvariable=self.right_camera_var, values=(), foreground="#e0e0e0"
             )
-            self.right_camera_label.pack(anchor="w")
-            self.right_camera_entry.pack(fill="x", pady=(2, 8))
+            self.right_camera_label.pack(anchor="w", pady=(0, 2))
+            self.right_camera_entry.pack(fill="x", pady=(0, 8))
             attach_tooltip(
                 self.right_camera_entry,
                 "Capture source for the right eye. See the Left field for "
@@ -474,21 +497,21 @@ def main():
                 "streams. Required after typing a value by hand.",
             )
 
-            status_group = ttk.LabelFrame(tracking_sidebar, text="Status", padding=8)
+            status_group = ttk.LabelFrame(sidebar_inner, text="Status", padding=8)
             status_group.pack(fill="both", expand=True)
             self.mode_label_var = tk.StringVar(value="")
             self.status_var = tk.StringVar(value="Ready.")
             ttk.Label(
                 status_group,
                 textvariable=self.status_var,
-                wraplength=190,
+                wraplength=240,
                 justify="left",
                 anchor="w",
             ).pack(anchor="w", fill="x")
             ttk.Label(
                 status_group,
                 textvariable=self.mode_label_var,
-                wraplength=190,
+                wraplength=240,
                 justify="left",
             ).pack(anchor="w", pady=(6, 0))
 
@@ -496,7 +519,7 @@ def main():
             # Cropping at once. Per-eye buttons used to live inside each
             # camera widget; users always wanted them paired.
             mode_row = ttk.Frame(tracking_main)
-            mode_row.pack(fill="x", pady=(0, 4))
+            mode_row.pack(fill="x", pady=(0, 32))
             mode_inner = ttk.Frame(mode_row)
             mode_inner.pack(anchor="center")
             self._global_tracking_btn = ttk.Button(
@@ -504,7 +527,7 @@ def main():
                 text="Tracking Mode",
                 command=self._on_global_tracking_mode,
             )
-            self._global_tracking_btn.pack(side="left", padx=4)
+            self._global_tracking_btn.pack(side="left", padx=8)
             attach_tooltip(
                 self._global_tracking_btn,
                 "Run the eye-tracking algorithm on both cameras. Use after "
@@ -515,30 +538,46 @@ def main():
                 text="Cropping Mode",
                 command=self._on_global_roi_mode,
             )
-            self._global_roi_btn.pack(side="left", padx=4)
+            self._global_roi_btn.pack(side="left", padx=8)
             attach_tooltip(
                 self._global_roi_btn,
                 "Draw a rectangle on each camera image to isolate the eye. "
                 "Switch back to Tracking Mode when done.",
             )
+
+            # Eye selector shown below the mode buttons only while in crop mode.
+            self._crop_active_eye = "left"
+            self._crop_eye_row = ttk.Frame(mode_row)
+            _crop_inner = ttk.Frame(self._crop_eye_row)
+            _crop_inner.pack(anchor="center", pady=(12, 0))
+            self._crop_left_btn = ttk.Button(
+                _crop_inner,
+                text="Left Eye",
+                command=lambda: self._on_crop_eye_select("left"),
+                style="Accent.TButton",
+            )
+            self._crop_left_btn.pack(side="left", padx=4)
+            self._crop_right_btn = ttk.Button(
+                _crop_inner,
+                text="Right Eye",
+                command=lambda: self._on_crop_eye_select("right"),
+            )
+            self._crop_right_btn.pack(side="left", padx=4)
+
             self._sync_global_mode_buttons()
 
             self.tracking_eyes_row = ttk.Frame(tracking_main)
-            # fill="x" only (not "both", no expand): lets the action row below
-            # sit snug against the visualization instead of being pushed to the
-            # bottom of tracking_main by an expanding eyes row.
-            self.tracking_eyes_row.pack(fill="x")
+            # anchor="center": keeps both eye panels as a unit in the middle of
+            # tracking_main rather than stretching them edge-to-edge.
+            self.tracking_eyes_row.pack(anchor="center")
             self.left_frame = eyes[1].build(
                 self.tracking_eyes_row, show_camera_controls=False, dpi_scale=self._dpi_scale
             )
             self.right_frame = eyes[0].build(
                 self.tracking_eyes_row, show_camera_controls=False, dpi_scale=self._dpi_scale
             )
-            # Hug the natural widget width (tracking image is 300 px + small paddings) and
-            # pool any slack on the right of the row. Expanding here stretched each panel
-            # to half of tracking_main, leaving a wide empty gutter after the status row.
-            self.left_frame.pack(side="left", fill="y", padx=(0, 4))
-            self.right_frame.pack(side="right", fill="y", padx=(4, 0))
+            self.left_frame.pack(side="left", fill="y", padx=(0, 8))
+            self.right_frame.pack(side="left", fill="y", padx=(8, 0))
 
             # Global calibration / recenter row. Replaces the per-eye buttons
             # that used to live in each camera widget — left/right always need
@@ -548,7 +587,7 @@ def main():
             # within the full tracking_main width. Tight top padding keeps the
             # buttons close to the visualization above.
             self._tracking_actions = ttk.Frame(tracking_main)
-            self._tracking_actions.pack(fill="x", pady=(2, 0))
+            self._tracking_actions.pack(fill="x", pady=(40, 0))
             actions_inner = ttk.Frame(self._tracking_actions)
             actions_inner.pack(anchor="center")
             self._calibration_btn_text = tk.StringVar(value="Start Calibration")
@@ -558,18 +597,18 @@ def main():
                 command=self._on_global_calibration_toggle,
                 style="Accent.TButton",
             )
-            self._global_calibration_btn.pack(side="left", padx=(0, 4))
+            self._global_calibration_btn.pack(side="left", padx=(0, 8))
             ttk.Button(
                 actions_inner,
                 text="Recenter Eyes",
                 command=self._on_global_recenter,
-            ).pack(side="left", padx=4)
+            ).pack(side="left", padx=8)
 
             bottom = ttk.Frame(self.root)
             bottom.pack(fill="x", padx=8, pady=4)
             ttk.Button(bottom, text="GUI OFF", command=self.gui_off).pack(side="left")
             ttk.Button(
-                bottom, text="Having Issues?", command=lambda: self.show_page("issues")
+                bottom, text="Having Issues?", command=self._toggle_issues_popup
             ).pack(side="left", padx=(10, 0))
             self.focus_label = ttk.Label(bottom, text="- - -  Interface Paused  - - -")
             self.focus_label.pack(side="left", padx=12)
@@ -648,7 +687,7 @@ def main():
             # Tracking tab packs two full camera panels; still set a floor so the window opens usable.
             self.root.update_idletasks()
             s = self._dpi_scale
-            min_w, min_h = round(920 * s), round(660 * s)
+            min_w, min_h = round(880 * s), round(660 * s)
             w = max(self.root.winfo_reqwidth(), min_w)
             h = max(self.root.winfo_reqheight(), min_h)
             self.root.geometry(f"{w}x{h}")
@@ -885,7 +924,6 @@ def main():
                 self.settings_frame,
                 self.algo_frame,
                 self.vrcft_frame,
-                self.issues_frame,
             ]:
                 frame.pack_forget()
 
@@ -914,11 +952,6 @@ def main():
                 self._sync_nav_buttons()
                 self.root.update_idletasks()
                 self.root.after(0, lambda s=seq: self._deferred_enter_vrcft(s))
-            elif page_name == "issues":
-                self.issues_frame.pack(fill="both", expand=True)
-                self._sync_nav_buttons()
-                self.root.update_idletasks()
-                self.root.after(0, lambda s=seq: self._deferred_enter_issues(s))
 
         def _deferred_enter_tracking(self, seq: int) -> None:
             if seq != self._nav_teardown_seq:
@@ -962,17 +995,36 @@ def main():
             settings[2].start()
             self._sync_timer_resolution()
 
-        def _deferred_enter_issues(self, seq: int) -> None:
-            if seq != self._nav_teardown_seq:
-                return
-            # Issues page has no live preview to maintain — stop trackers to
-            # free the camera for unrelated diagnostics.
-            eyes[0].stop()
-            eyes[1].stop()
-            settings[0].stop()
-            settings[1].stop()
-            settings[2].stop()
-            self._sync_timer_resolution()
+        def _toggle_issues_popup(self):
+            if self._issues_popup_visible:
+                self._on_issues_popup_close()
+            else:
+                self._show_issues_popup()
+
+        def _show_issues_popup(self):
+            popup = self._issues_popup
+            popup.transient(self.root)
+            popup.update_idletasks()
+            mw = self.root.winfo_width()
+            mh = self.root.winfo_height()
+            mx = self.root.winfo_rootx()
+            my = self.root.winfo_rooty()
+            pw = popup.winfo_reqwidth()
+            ph = popup.winfo_reqheight()
+            x = mx + max(0, (mw - pw) // 2)
+            y = my + max(0, (mh - ph) // 2)
+            popup.geometry(f"+{x}+{y}")
+            popup.deiconify()
+            popup.lift()
+            popup.focus_set()
+            self._issues_popup_visible = True
+
+        def _on_issues_popup_close(self):
+            self._issues_popup_visible = False
+            try:
+                self._issues_popup.withdraw()
+            except tk.TclError:
+                pass
 
         def gui_off(self):
             config.settings.gui_disable_gui = True
@@ -1020,14 +1072,51 @@ def main():
                     if eye.started():
                         eye.recalibrate_eyes()
 
+        def _show_tracking_frames(self):
+            self.left_frame.pack_forget()
+            self.right_frame.pack_forget()
+            self.left_frame.pack(side="left", fill="y", padx=(0, 8))
+            self.right_frame.pack(side="left", fill="y", padx=(8, 0))
+
+        def _show_crop_frames(self, eye_name: str):
+            self.left_frame.pack_forget()
+            self.right_frame.pack_forget()
+            if eye_name == "left":
+                self.left_frame.pack(side="left", fill="y")
+            else:
+                self.right_frame.pack(side="left", fill="y")
+
+        def _on_crop_eye_select(self, eye_name: str):
+            self._crop_active_eye = eye_name
+            self._crop_left_btn.configure(
+                style="Accent.TButton" if eye_name == "left" else "TButton"
+            )
+            self._crop_right_btn.configure(
+                style="Accent.TButton" if eye_name == "right" else "TButton"
+            )
+            if eye_name == "left":
+                eyes[0]._set_tracking_mode()
+                eyes[1]._set_roi_mode()
+            else:
+                eyes[1]._set_tracking_mode()
+                eyes[0]._set_roi_mode()
+            self._show_crop_frames(eye_name)
+
         def _on_global_tracking_mode(self):
             for eye in eyes:
                 eye._set_tracking_mode()
+            self._show_tracking_frames()
             self._sync_global_mode_buttons()
 
         def _on_global_roi_mode(self):
-            for eye in eyes:
-                eye._set_roi_mode()
+            active = self._crop_active_eye
+            if active == "left":
+                eyes[0]._set_tracking_mode()
+                eyes[1]._set_roi_mode()
+            else:
+                eyes[1]._set_tracking_mode()
+                eyes[0]._set_roi_mode()
+            self._show_crop_frames(active)
             self._sync_global_mode_buttons()
 
         def _sync_global_mode_buttons(self):
@@ -1036,7 +1125,12 @@ def main():
                 if in_roi:
                     self._tracking_actions.pack_forget()
                 else:
-                    self._tracking_actions.pack(fill="x", pady=(2, 0))
+                    self._tracking_actions.pack(fill="x", pady=(40, 0))
+            if hasattr(self, "_crop_eye_row"):
+                if in_roi:
+                    self._crop_eye_row.pack(fill="x")
+                else:
+                    self._crop_eye_row.pack_forget()
             self._global_roi_btn.configure(
                 style="Accent.TButton" if in_roi else "TButton"
             )

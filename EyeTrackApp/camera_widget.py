@@ -226,12 +226,10 @@ class CameraWidget:
         self._preview_dim = round(200 * dpi_scale)
 
         self._viz_pad = round(8 * dpi_scale)
-        self._viz_gaze = round(148 * dpi_scale)
         self._viz_gaze_gap = round(10 * dpi_scale)
         self._viz_blink_w = round(24 * dpi_scale)
-        self._viz_canvas_w = (
-            self._viz_pad * 2 + self._viz_gaze + self._viz_gaze_gap + self._viz_blink_w
-        )
+        self._viz_canvas_w = self._preview_dim
+        self._viz_gaze = self._viz_canvas_w - self._viz_pad * 2 - self._viz_gaze_gap - self._viz_blink_w
         self._viz_canvas_h = self._viz_pad * 2 + self._viz_gaze
         tw, th = self._tracking_display_size
         self._ROI_CANVAS_MAX_DIM = tw - round(16 * dpi_scale)
