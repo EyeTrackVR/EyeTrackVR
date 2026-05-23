@@ -173,7 +173,7 @@ def fit_rotated_ellipse(data, P):
     if cu > 1:  # negatives can get thrown which cause errors, just ignore them
         wh = np.sqrt(cu / cu_r)
     else:
-        pass
+        return None
 
     w, h = wh[0], wh[1]
 

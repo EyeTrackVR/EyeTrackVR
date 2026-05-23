@@ -296,7 +296,7 @@ def main():
 
             self.tracking_tab = ttk.Frame(self.content)
             self.settings_frame = settings[0].build(self.content)
-            self.algo_frame = settings[1].build(self.content)
+            self.algo_frame = settings[1].build(self.content, eye_widgets=eyes, dpi_scale=self._dpi_scale)
             self.vrcft_frame = settings[2].build(self.content)
 
             self.issues_frame = ttk.Frame(self.content)
@@ -547,15 +547,16 @@ def main():
             # fill="x" on the outer frame so the inner button group can center
             # within the full tracking_main width. Tight top padding keeps the
             # buttons close to the visualization above.
-            tracking_actions = ttk.Frame(tracking_main)
-            tracking_actions.pack(fill="x", pady=(2, 0))
-            actions_inner = ttk.Frame(tracking_actions)
+            self._tracking_actions = ttk.Frame(tracking_main)
+            self._tracking_actions.pack(fill="x", pady=(2, 0))
+            actions_inner = ttk.Frame(self._tracking_actions)
             actions_inner.pack(anchor="center")
             self._calibration_btn_text = tk.StringVar(value="Start Calibration")
             self._global_calibration_btn = ttk.Button(
                 actions_inner,
                 textvariable=self._calibration_btn_text,
                 command=self._on_global_calibration_toggle,
+                style="Accent.TButton",
             )
             self._global_calibration_btn.pack(side="left", padx=(0, 4))
             ttk.Button(
@@ -1031,6 +1032,11 @@ def main():
 
         def _sync_global_mode_buttons(self):
             in_roi = any(getattr(e, "in_roi_mode", False) for e in eyes)
+            if hasattr(self, "_tracking_actions"):
+                if in_roi:
+                    self._tracking_actions.pack_forget()
+                else:
+                    self._tracking_actions.pack(fill="x", pady=(2, 0))
             self._global_roi_btn.configure(
                 style="Accent.TButton" if in_roi else "TButton"
             )
