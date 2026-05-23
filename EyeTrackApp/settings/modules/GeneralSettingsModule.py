@@ -3,6 +3,52 @@ from settings.modules.BaseModule import BaseSettingsModule, BaseValidationModel
 import tkinter as tk
 from tkinter import ttk
 
+from utils.tooltips import attach_tooltip
+
+
+# Map each gui field name → tooltip text. Centralised so the build loop below
+# stays compact and the strings are easy to tweak.
+_TIPS = {
+    "gui_flip_x_axis_left": (
+        "Mirror the left eye horizontally before reporting X position. "
+        "Use when the left camera is mounted facing the user (most setups)."
+    ),
+    "gui_flip_x_axis_right": (
+        "Mirror the right eye horizontally before reporting X position. "
+        "Use when the right camera is mounted facing the user (most setups)."
+    ),
+    "gui_flip_y_axis": (
+        "Mirror both eyes vertically. Use if your camera is rotated 180°."
+    ),
+    "gui_outer_side_falloff": (
+        "When one eye drifts far from the other, mirror the cleaner eye's "
+        "position. Hides tracking glitches on mismatched cameras. "
+        "Recommended on."
+    ),
+    "gui_left_eye_dominant": (
+        "Force the left eye to drive output when the two eyes disagree. "
+        "Useful if your right camera is significantly less reliable."
+    ),
+    "gui_right_eye_dominant": (
+        "Force the right eye to drive output when the two eyes disagree. "
+        "Useful if your left camera is significantly less reliable."
+    ),
+    "gui_openvr_autostart": (
+        "Start tracking when SteamVR starts and stop when it exits."
+    ),
+    "gui_use_gpu": (
+        "Run the LEAP neural-network model on the GPU when available. "
+        "Disable if you see crashes or driver issues."
+    ),
+    "gui_update_check": (
+        "Check GitHub for a new ETVR release on startup."
+    ),
+    "gui_eye_dominant_diff_thresh": (
+        "How far apart the two eyes' positions must be (normalised, 0–1) "
+        "before Outer Eye Falloff kicks in. Lower = falloff triggers sooner."
+    ),
+}
+
 
 class GeneralSettingsValidationModel(BaseValidationModel):
     gui_flip_x_axis_left: bool
@@ -80,6 +126,18 @@ class GeneralSettingsModule(BaseSettingsModule):
             ),
         ]
 
+        # Map widget-key string → config attr so we can look up the tooltip.
+        key_to_attr = {
+            self.gui_flip_x_axis_left: "gui_flip_x_axis_left",
+            self.gui_flip_x_axis_right: "gui_flip_x_axis_right",
+            self.gui_flip_y_axis: "gui_flip_y_axis",
+            self.gui_left_eye_dominant: "gui_left_eye_dominant",
+            self.gui_right_eye_dominant: "gui_right_eye_dominant",
+            self.gui_openvr_autostart: "gui_openvr_autostart",
+            self.gui_use_gpu: "gui_use_gpu",
+            self.gui_update_check: "gui_update_check",
+        }
+
         row = 0
         for left, right in bool_pairs:
             for col, field in enumerate((left, right)):
@@ -88,21 +146,24 @@ class GeneralSettingsModule(BaseSettingsModule):
                 key, default, label = field
                 var = tk.BooleanVar(value=default)
                 self.tk_vars[key] = var
-                ttk.Checkbutton(parent, text=label, variable=var).grid(
-                    row=row, column=col, sticky="w", padx=8, pady=2
-                )
+                cb = ttk.Checkbutton(parent, text=label, variable=var)
+                cb.grid(row=row, column=col, sticky="w", padx=8, pady=2)
+                attr = key_to_attr.get(key)
+                tip = _TIPS.get(attr) if attr else None
+                if tip:
+                    attach_tooltip(cb, tip)
             row += 1
 
         falloff_var = tk.BooleanVar(value=self.config.gui_outer_side_falloff)
         self.tk_vars[self.gui_outer_side_falloff] = falloff_var
-        ttk.Checkbutton(parent, text="Outer Eye Falloff", variable=falloff_var).grid(
-            row=row, column=0, sticky="w", padx=8, pady=2
-        )
+        falloff_cb = ttk.Checkbutton(parent, text="Outer Eye Falloff", variable=falloff_var)
+        falloff_cb.grid(row=row, column=0, sticky="w", padx=8, pady=2)
+        attach_tooltip(falloff_cb, _TIPS["gui_outer_side_falloff"])
         diff_row = ttk.Frame(parent)
         diff_row.grid(row=row, column=1, sticky="w", padx=8, pady=2)
-        ttk.Label(diff_row, text="Eye Difference Threshold").pack(
-            side="left", padx=(0, 6)
-        )
+        diff_lbl = ttk.Label(diff_row, text="Eye Difference Threshold")
+        diff_lbl.pack(side="left", padx=(0, 6))
+        attach_tooltip(diff_lbl, _TIPS["gui_eye_dominant_diff_thresh"])
         diff_var = tk.StringVar(value=str(self.config.gui_eye_dominant_diff_thresh))
         self.tk_vars[self.gui_eye_dominant_diff_thresh] = diff_var
         ttk.Entry(diff_row, textvariable=diff_var, width=12).pack(side="left")

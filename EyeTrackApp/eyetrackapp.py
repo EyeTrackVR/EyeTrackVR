@@ -52,6 +52,7 @@ from osc.osc import OSCManager
 from osc.OSCMessage import OSCMessage
 from utils.logging_utils import setup_logging
 from utils.misc_utils import is_nt, is_macos, resource_path
+from utils.tooltips import attach_tooltip
 
 
 
@@ -335,20 +336,32 @@ def main():
 
             setup_type = ttk.LabelFrame(tracking_sidebar, text="Setup Type", padding=8)
             setup_type.pack(fill="x", pady=(0, 8))
-            ttk.Radiobutton(
+            etvr_radio = ttk.Radiobutton(
                 setup_type,
                 text="ETVR Setup",
                 variable=self.mode_var,
                 value="etvr",
                 command=self.on_mode_change,
-            ).pack(anchor="w")
-            ttk.Radiobutton(
+            )
+            etvr_radio.pack(anchor="w")
+            attach_tooltip(
+                etvr_radio,
+                "Standard ETVR mode: two independent cameras (UVC, serial, "
+                "or network) drive the left and right eyes.",
+            )
+            bsb_radio = ttk.Radiobutton(
                 setup_type,
                 text="Bigscreen Beyond",
                 variable=self.mode_var,
                 value="bigscreen",
                 command=self.on_mode_change,
-            ).pack(anchor="w")
+            )
+            bsb_radio.pack(anchor="w")
+            attach_tooltip(
+                bsb_radio,
+                "Bigscreen Beyond mode: one camera supplies both eye images "
+                "side-by-side; ETVR splits them internally.",
+            )
 
             tracking_controls = ttk.LabelFrame(
                 tracking_sidebar, text="Camera Settings", padding=8
@@ -375,6 +388,13 @@ def main():
                 tracking_controls, textvariable=self.left_camera_var, values=()
             )
             self.left_camera_entry.pack(fill="x", pady=(2, 8))
+            attach_tooltip(
+                self.left_camera_entry,
+                "Capture source for the left eye. Pick from the dropdown "
+                "(populated by Scan) or type a value: UVC index (e.g. 0), "
+                "COM/serial port (e.g. COM5, /dev/cu.usbserial-0001), or URL "
+                "(e.g. http://etvr-left.local/).",
+            )
             self.right_camera_label = ttk.Label(
                 tracking_controls, text="Right (UVC / COM port / URL):"
             )
@@ -383,6 +403,11 @@ def main():
             )
             self.right_camera_label.pack(anchor="w")
             self.right_camera_entry.pack(fill="x", pady=(2, 8))
+            attach_tooltip(
+                self.right_camera_entry,
+                "Capture source for the right eye. See the Left field for "
+                "accepted formats.",
+            )
             # Picking a value from the dropdown auto-connects (matches what
             # users expect after running Scan). Typed input intentionally does
             # NOT auto-connect — that's what the Connect button is for, and
@@ -396,15 +421,27 @@ def main():
             )
             camera_button_row = ttk.Frame(tracking_controls)
             camera_button_row.pack(fill="x")
-            ttk.Button(
+            scan_btn = ttk.Button(
                 camera_button_row, text="Scan", width=8, command=self.scan_sources
-            ).pack(side="left", padx=(0, 4))
-            ttk.Button(
+            )
+            scan_btn.pack(side="left", padx=(0, 4))
+            attach_tooltip(
+                scan_btn,
+                "Search for connected cameras: USB webcams (UVC), ETVR serial "
+                "trackers on COM ports, and network trackers on the LAN (mDNS).",
+            )
+            connect_btn = ttk.Button(
                 camera_button_row,
                 text="Connect",
                 command=self.apply_camera_inputs,
                 style="Accent.TButton",
-            ).pack(side="left", fill="x", expand=True)
+            )
+            connect_btn.pack(side="left", fill="x", expand=True)
+            attach_tooltip(
+                connect_btn,
+                "Apply the current Left/Right values and (re)open the camera "
+                "streams. Required after typing a value by hand.",
+            )
 
             status_group = ttk.LabelFrame(tracking_sidebar, text="Status", padding=8)
             status_group.pack(fill="both", expand=True)
@@ -437,12 +474,22 @@ def main():
                 command=self._on_global_tracking_mode,
             )
             self._global_tracking_btn.pack(side="left", padx=4)
+            attach_tooltip(
+                self._global_tracking_btn,
+                "Run the eye-tracking algorithm on both cameras. Use after "
+                "setting your crop regions in Cropping Mode.",
+            )
             self._global_roi_btn = ttk.Button(
                 mode_inner,
                 text="Cropping Mode",
                 command=self._on_global_roi_mode,
             )
             self._global_roi_btn.pack(side="left", padx=4)
+            attach_tooltip(
+                self._global_roi_btn,
+                "Draw a rectangle on each camera image to isolate the eye. "
+                "Switch back to Tracking Mode when done.",
+            )
             self._sync_global_mode_buttons()
 
             self.tracking_eyes_row = ttk.Frame(tracking_main)

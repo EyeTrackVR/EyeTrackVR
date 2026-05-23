@@ -2,6 +2,37 @@ from settings.modules.BaseModule import BaseSettingsModule, BaseValidationModel
 import tkinter as tk
 from tkinter import ttk
 
+from utils.tooltips import attach_tooltip
+
+
+# Tooltip text keyed by the algorithm's internal name (the radio button value).
+_ALGO_TIPS = {
+    "leap": (
+        "LEAP — neural-network pupil tracker. Best general-purpose choice; "
+        "handles low contrast and partial occlusion well."
+    ),
+    "ahsfrac": (
+        "AHSFRAC — adaptive HSF + RANSAC. Falls back to RANSAC when HSF can't "
+        "lock on. Good middle ground."
+    ),
+    "daddy": (
+        "DADDY — older neural-network tracker. Heavier than LEAP; usually no "
+        "reason to pick this unless LEAP misbehaves on your camera."
+    ),
+    "ransac3d": (
+        "RANSAC 3D — fits an ellipse to the pupil edge in 3D. Robust to "
+        "lighting changes but slower than LEAP."
+    ),
+    "ahsf": "AHSF — adaptive Haar surround feature. Fast classical tracker.",
+    "hsrac": "HSRAC — Haar surround + RANSAC. Older HSF/RANSAC hybrid.",
+    "hsf": "HSF — Haar surround feature. Classical, very fast, less robust.",
+}
+
+_TIP_MAX_SPEED = (
+    "Maximum frames per second the tracker will process. Lower = less CPU, "
+    "but jerkier motion. 60 Hz is comfortable for most setups."
+)
+
 
 class TrackingAlgorithmValidationModel(BaseValidationModel):
     gui_DADDY: bool
@@ -82,9 +113,13 @@ class TrackingAlgorithmModule(BaseSettingsModule):
         for idx, (label, name, _key, _config_field) in enumerate(entries):
             row = (idx % rows_per_column) + row_offset
             col = idx // rows_per_column
-            ttk.Radiobutton(
+            rb = ttk.Radiobutton(
                 parent, text=label, variable=self.selected_algo, value=name
-            ).grid(row=row, column=col, sticky="w", padx=8, pady=2)
+            )
+            rb.grid(row=row, column=col, sticky="w", padx=8, pady=2)
+            tip = _ALGO_TIPS.get(name)
+            if tip:
+                attach_tooltip(rb, tip)
 
     def _add_slider_with_controls(self, parent, row, label, var, min_v, max_v):
         slider_length = 160
@@ -98,9 +133,9 @@ class TrackingAlgorithmModule(BaseSettingsModule):
             next_val = max(min_v, min(max_v, next_val))
             var.set(next_val)
 
-        ttk.Label(parent, text=label).grid(
-            row=row, column=0, sticky="w", padx=8, pady=2
-        )
+        lbl = ttk.Label(parent, text=label)
+        lbl.grid(row=row, column=0, sticky="w", padx=8, pady=2)
+        attach_tooltip(lbl, _TIP_MAX_SPEED)
         ttk.Scale(
             parent,
             from_=min_v,

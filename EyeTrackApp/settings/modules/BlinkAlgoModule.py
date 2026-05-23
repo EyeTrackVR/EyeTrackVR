@@ -6,6 +6,38 @@ from tkinter import ttk
 
 from settings.modules.CommonFieldValidators import check_is_float_convertible
 from utils.runtime_state import get_value as _get_runtime_value
+from utils.tooltips import attach_tooltip
+
+
+# Centralised tooltip copy so the strings stay short here and easy to tweak.
+_TIP_LEAP_LID = (
+    "Use the LEAP neural-network model to detect eyelid openness. "
+    "Recommended for most users. Disable only if LEAP misbehaves on your camera."
+)
+_TIP_IBO = (
+    "Detect blinks by raw image intensity instead of LEAP. "
+    "Fallback for cameras where LEAP under-performs (low light, occluded lashes)."
+)
+_TIP_BLINK_POINT = (
+    "Below this raw lid value the eye is reported as fully closed (output = 0). "
+    "Raise it to make blinks trigger easier; lower it if the app reports closed when your eye is open."
+)
+_TIP_WIDE_POINT = (
+    "Above this raw lid value the eye starts mapping into the wide-open range (output > 0.75). "
+    "Lower it to make wide-eye/surprise easier to trigger."
+)
+_TIP_REDO = (
+    "Clear the stored eyelid calibration for both eyes and restart the sampling window. "
+    "Use after changing camera position, IR brightness, or if blink detection drifted."
+)
+_TIP_CAL_DURATION = (
+    "How many seconds to record your eyelid motion before locking in the open/closed bounds. "
+    "Longer = more reliable but slower; blink several times during the window."
+)
+_TIP_MIN_SPAN = (
+    "Calibration is rejected and restarted if your eye opened/closed by less than this amount "
+    "during the sampling window. Catches the case where you forgot to blink."
+)
 
 
 class BlinkAlgoSettingsValidationModel(BaseValidationModel):
@@ -237,15 +269,15 @@ class BlinkAlgoSettingsModule(BaseSettingsModule):
         ttk.Label(col, text=label, font=("Segoe UI", 9, "bold")).grid(
             row=0, column=0, columnspan=2, sticky="w", pady=(0, 4)
         )
-        ttk.Label(col, text="Blink point").grid(
-            row=1, column=0, sticky="w", padx=(0, 8), pady=2
-        )
+        blink_lbl = ttk.Label(col, text="Blink point")
+        blink_lbl.grid(row=1, column=0, sticky="w", padx=(0, 8), pady=2)
+        attach_tooltip(blink_lbl, _TIP_BLINK_POINT)
         self._build_threshold_entry(col, close_var).grid(
             row=1, column=1, sticky="w", pady=2
         )
-        ttk.Label(col, text="Wide-eye point").grid(
-            row=2, column=0, sticky="w", padx=(0, 8), pady=2
-        )
+        wide_lbl = ttk.Label(col, text="Wide-eye point")
+        wide_lbl.grid(row=2, column=0, sticky="w", padx=(0, 8), pady=2)
+        attach_tooltip(wide_lbl, _TIP_WIDE_POINT)
         self._build_threshold_entry(col, widen_var).grid(
             row=2, column=1, sticky="w", pady=2
         )
@@ -256,17 +288,17 @@ class BlinkAlgoSettingsModule(BaseSettingsModule):
 
     def build(self, parent):
         # Row 0: algorithm toggles.
-        for idx, (key, default, label) in enumerate(
+        for idx, (key, default, label, tip) in enumerate(
             [
-                (self.gui_LEAP_lid, self.config.gui_LEAP_lid, "LEAP Lid Blink Algo"),
-                (self.gui_IBO, self.config.gui_IBO, "Intensity Based Openness"),
+                (self.gui_LEAP_lid, self.config.gui_LEAP_lid, "LEAP Lid Blink Algo", _TIP_LEAP_LID),
+                (self.gui_IBO, self.config.gui_IBO, "Intensity Based Openness", _TIP_IBO),
             ]
         ):
             var = tk.BooleanVar(value=default)
             self.tk_vars[key] = var
-            ttk.Checkbutton(parent, text=label, variable=var).grid(
-                row=0, column=idx, sticky="w", padx=8, pady=(2, 6)
-            )
+            cb = ttk.Checkbutton(parent, text=label, variable=var)
+            cb.grid(row=0, column=idx, sticky="w", padx=8, pady=(2, 6))
+            attach_tooltip(cb, tip)
 
         # Row 1: hint text — applies to both columns below.
         ttk.Label(
@@ -318,6 +350,7 @@ class BlinkAlgoSettingsModule(BaseSettingsModule):
             command=self._on_redo_eyelid_calib,
         )
         self._redo_button.grid(row=0, column=0, sticky="w", pady=2)
+        attach_tooltip(self._redo_button, _TIP_REDO)
 
         # Kick off polling now that all canvases exist.
         self._tick_viz()
@@ -326,15 +359,15 @@ class BlinkAlgoSettingsModule(BaseSettingsModule):
         ttk.Label(parent, text="Eyelid calibration (advanced)").grid(
             row=0, column=0, columnspan=2, sticky="w", padx=8, pady=(2, 4)
         )
-        ttk.Label(parent, text="Calibration duration (seconds)").grid(
-            row=1, column=0, sticky="w", padx=8, pady=2
-        )
+        cal_dur_lbl = ttk.Label(parent, text="Calibration duration (seconds)")
+        cal_dur_lbl.grid(row=1, column=0, sticky="w", padx=8, pady=2)
+        attach_tooltip(cal_dur_lbl, _TIP_CAL_DURATION)
         ttk.Entry(parent, textvariable=self._eyelid_duration_var, width=8).grid(
             row=1, column=1, sticky="w", pady=2
         )
-        ttk.Label(parent, text="Min blink size during calibration").grid(
-            row=2, column=0, sticky="w", padx=8, pady=2
-        )
+        min_span_lbl = ttk.Label(parent, text="Min blink size during calibration")
+        min_span_lbl.grid(row=2, column=0, sticky="w", padx=8, pady=2)
+        attach_tooltip(min_span_lbl, _TIP_MIN_SPAN)
         ttk.Entry(parent, textvariable=self._leap_min_span_var, width=8).grid(
             row=2, column=1, sticky="w", pady=2
         )

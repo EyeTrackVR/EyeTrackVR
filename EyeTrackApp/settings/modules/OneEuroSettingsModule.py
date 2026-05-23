@@ -27,6 +27,16 @@ from settings.modules.BaseModule import (
 import tkinter as tk
 from tkinter import ttk
 
+from utils.tooltips import attach_tooltip
+
+
+_TIP_SMOOTHING = (
+    "How aggressively the One-Euro filter smooths eye motion. "
+    "0 = almost no smoothing (snappiest, jitter passes through), "
+    "100 = very heavy smoothing (laggy but rock-steady). "
+    "Default 70 matches the historical balanced setting."
+)
+
 
 # Curve endpoints picked so that intensity=70 hits the legacy defaults
 # (min_cutoff=0.0004, beta=0.9) and the extremes still feel like meaningful
@@ -95,9 +105,9 @@ class OneEuroSettingsModule(BaseSettingsModule):
             next_val = max(min_v, min(max_v, next_val))
             intensity.set(next_val)
 
-        ttk.Label(parent, text="Smoothing Intensity").grid(
-            row=0, column=0, sticky="w", padx=8, pady=2
-        )
+        smooth_lbl = ttk.Label(parent, text="Smoothing Intensity")
+        smooth_lbl.grid(row=0, column=0, sticky="w", padx=8, pady=2)
+        attach_tooltip(smooth_lbl, _TIP_SMOOTHING)
         ttk.Scale(
             parent,
             from_=min_v,

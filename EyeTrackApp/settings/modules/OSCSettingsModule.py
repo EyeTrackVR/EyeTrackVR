@@ -4,6 +4,26 @@ from settings.modules.BaseModule import BaseSettingsModule, BaseValidationModel
 import tkinter as tk
 from tkinter import ttk
 
+from utils.tooltips import attach_tooltip
+
+
+_TIP_VRC_NATIVE = (
+    "Send eye data over VRChat's built-in OSC parameters. Use for avatars "
+    "wired to the native eye-look params (no extra mod required)."
+)
+_TIP_VRCFT_V2 = (
+    "Send via VRCFaceTracking v2 params (current). Required for VRCFT-based "
+    "avatars and facial-tracking add-ons."
+)
+_TIP_VRCFT_V1 = (
+    "Send via VRCFaceTracking v1 params (legacy). Only use if your avatar "
+    "was built against the older VRCFT module."
+)
+_TIP_RECEIVE = (
+    "Listen for incoming OSC messages from VRChat (e.g. calibration toggles "
+    "from in-game)."
+)
+
 
 class OSCValidationModel(BaseValidationModel):
     gui_ROSC: bool
@@ -61,18 +81,24 @@ class OSCSettingsModule(BaseSettingsModule):
         osc_bar.grid(row=0, column=0, sticky="w", pady=2)
         mode_var = tk.StringVar(value=osc_out_initial)
         self.tk_vars[self.gui_osc_output_mode] = mode_var
-        ttk.Radiobutton(
+        native_rb = ttk.Radiobutton(
             osc_bar, text="VRC Native", variable=mode_var, value="native"
-        ).pack(side="left", padx=(8, 4))
-        ttk.Radiobutton(
+        )
+        native_rb.pack(side="left", padx=(8, 4))
+        attach_tooltip(native_rb, _TIP_VRC_NATIVE)
+        v2_rb = ttk.Radiobutton(
             osc_bar, text="VRCFT (v2)", variable=mode_var, value="vrcft_v2"
-        ).pack(side="left", padx=4)
-        ttk.Radiobutton(
+        )
+        v2_rb.pack(side="left", padx=4)
+        attach_tooltip(v2_rb, _TIP_VRCFT_V2)
+        v1_rb = ttk.Radiobutton(
             osc_bar, text="VRCFT (v1)", variable=mode_var, value="vrcft_v1"
-        ).pack(side="left", padx=4)
+        )
+        v1_rb.pack(side="left", padx=4)
+        attach_tooltip(v1_rb, _TIP_VRCFT_V1)
 
         ros_var = tk.BooleanVar(value=bool(self.config.gui_ROSC))
         self.tk_vars[self.gui_ROSC] = ros_var
-        ttk.Checkbutton(osc_bar, text="Receive", variable=ros_var).pack(
-            side="left", padx=(24, 8)
-        )
+        receive_cb = ttk.Checkbutton(osc_bar, text="Receive", variable=ros_var)
+        receive_cb.pack(side="left", padx=(24, 8))
+        attach_tooltip(receive_cb, _TIP_RECEIVE)
