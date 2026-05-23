@@ -538,7 +538,7 @@ def main():
             # pool any slack on the right of the row. Expanding here stretched each panel
             # to half of tracking_main, leaving a wide empty gutter after the status row.
             self.left_frame.pack(side="left", fill="y", padx=(0, 4))
-            self.right_frame.pack(side="left", fill="y", padx=(4, 0))
+            self.right_frame.pack(side="right", fill="y", padx=(4, 0))
 
             # Global calibration / recenter row. Replaces the per-eye buttons
             # that used to live in each camera widget — left/right always need
