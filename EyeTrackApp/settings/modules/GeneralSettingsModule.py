@@ -61,6 +61,7 @@ class GeneralSettingsValidationModel(BaseValidationModel):
     gui_eye_dominant_diff_thresh: float
     gui_openvr_autostart: bool
     gui_use_gpu: bool
+    gui_show_et_debug: bool
 
 
 class GeneralSettingsModule(BaseSettingsModule):
@@ -77,6 +78,7 @@ class GeneralSettingsModule(BaseSettingsModule):
         self.gui_update_check = f"-UPDATECHECK{widget_id}-"
         self.gui_openvr_autostart = f"-OPENVRAUTOSTART{widget_id}-"
         self.gui_use_gpu = f"-USEGPU{widget_id}-"
+        self.gui_show_et_debug = f"-SHOWETDEBUG{widget_id}-"
 
 
     def build(self, parent):
@@ -167,3 +169,14 @@ class GeneralSettingsModule(BaseSettingsModule):
         diff_var = tk.StringVar(value=str(self.config.gui_eye_dominant_diff_thresh))
         self.tk_vars[self.gui_eye_dominant_diff_thresh] = diff_var
         ttk.Entry(diff_row, textvariable=diff_var, width=12).pack(side="left")
+
+    def build_advanced(self, parent):
+        debug_var = tk.BooleanVar(value=self.config.gui_show_et_debug)
+        self.tk_vars[self.gui_show_et_debug] = debug_var
+        cb = ttk.Checkbutton(parent, text="Show ET Debug in Tracking", variable=debug_var)
+        cb.pack(side="left", padx=8, pady=2)
+        attach_tooltip(
+            cb,
+            "Show the algorithm debug image (processed eye + threshold) in the tracking view. "
+            "Off by default — the gaze dot and blink bar are always visible regardless.",
+        )

@@ -161,6 +161,9 @@ class CameraWidget:
         self._roi_display_scale = 1.0
         self._ROI_CANVAS_MAX_DIM = 320
         self._dpi_scale = 1.0
+        self._debug_image_visible = None  # None = uninitialized; True/False tracks current pack state
+        self._preview_dim = 200
+        self._eye_preview_photo = None
         # 'new' while drawing a fresh box; a handle id ('tl','tr','bl','br','t','b','l','r') while resizing
         self._drag_handle = "new"
         self._resize_anchor = None   # fixed corner (np.array) for corner drags
@@ -220,6 +223,7 @@ class CameraWidget:
 
         # Source stack from processor is 300×150; compact display for dual-eye layout
         self._tracking_display_size = (round(380 * dpi_scale), round(190 * dpi_scale))
+        self._preview_dim = round(200 * dpi_scale)
 
         self._viz_pad = round(8 * dpi_scale)
         self._viz_gaze = round(148 * dpi_scale)
@@ -243,7 +247,7 @@ class CameraWidget:
             highlightthickness=0,
             bd=0,
         )
-        self._tracking_image_holder.pack(padx=4, pady=2, anchor="w")
+        # Not packed here — render_tick packs it only when Show ET Debug is enabled.
         self._tracking_image_holder.pack_propagate(False)
         self.tracking_image_widget = tk.Label(
             self._tracking_image_holder,
@@ -253,12 +257,33 @@ class CameraWidget:
         )
         self.tracking_image_widget.pack(fill="both", expand=True)
 
+        # Small always-visible eye preview (left half of the image stack = processed eye image).
+        _dim = self._preview_dim
+        self._eye_preview_holder = tk.Frame(
+            self.tracking_frame,
+            width=_dim,
+            height=_dim,
+            bg="#1e1f23",
+            highlightthickness=0,
+            bd=0,
+        )
+        self._eye_preview_holder.pack(padx=4, pady=2, anchor="w")
+        self._eye_preview_holder.pack_propagate(False)
+        self._eye_preview_widget = tk.Label(
+            self._eye_preview_holder,
+            bg="#1e1f23",
+            bd=0,
+            highlightthickness=0,
+        )
+        self._eye_preview_widget.pack(fill="both", expand=True)
+
         # Keep the viz row at a fixed height regardless of whether the canvas, the ROI
         # placeholder message, or nothing is visible. pack_propagate(False) means children
         # can't resize the row, so showing/hiding them no longer reflows the layout.
         graph_row = ttk.Frame(self.tracking_frame, height=self._viz_canvas_h)
         graph_row.pack(fill="x", padx=4, pady=2)
         graph_row.pack_propagate(False)
+        self._graph_row = graph_row
         self.output_canvas = tk.Canvas(
             graph_row,
             width=self._viz_canvas_w,
@@ -1187,17 +1212,39 @@ class CameraWidget:
                     self.roi_message_label.pack_forget()
                     (maybe_image, eye_info) = self.image_queue.get(block=False)
 
-                    tw, th = self._tracking_display_size
-                    if maybe_image.shape[1] == tw and maybe_image.shape[0] == th:
-                        disp = maybe_image
-                    else:
-                        disp = cv2.resize(
-                            maybe_image, (tw, th), interpolation=cv2.INTER_LINEAR
-                        )
-                    photo = self._tk_photo_from_bgr(disp, self.tracking_image_widget)
-                    if photo is not None:
-                        self._tracking_photo = photo
-                        self.tracking_image_widget.configure(image=self._tracking_photo)
+                    # Always update the small eye preview (left half = processed eye image).
+                    _dim = self._preview_dim
+                    _eye_img = maybe_image[:, :maybe_image.shape[1] // 2] if maybe_image.ndim == 2 else maybe_image
+                    _interp = cv2.INTER_AREA if _eye_img.shape[0] > _dim else cv2.INTER_LINEAR
+                    _preview = cv2.resize(_eye_img, (_dim, _dim), interpolation=_interp)
+                    _preview_photo = self._tk_photo_from_bgr(_preview, self._eye_preview_widget)
+                    if _preview_photo is not None:
+                        self._eye_preview_photo = _preview_photo
+                        self._eye_preview_widget.configure(image=self._eye_preview_photo)
+
+                    # Full debug image — only when the setting is on.
+                    debug_on = bool(self.settings_config.gui_show_et_debug)
+                    if self._debug_image_visible != debug_on:
+                        self._debug_image_visible = debug_on
+                        if debug_on:
+                            self._tracking_image_holder.pack(
+                                padx=4, pady=2, anchor="w", before=self._graph_row
+                            )
+                        else:
+                            self._tracking_image_holder.pack_forget()
+
+                    if debug_on:
+                        tw, th = self._tracking_display_size
+                        if maybe_image.shape[1] == tw and maybe_image.shape[0] == th:
+                            disp = maybe_image
+                        else:
+                            disp = cv2.resize(
+                                maybe_image, (tw, th), interpolation=cv2.INTER_LINEAR
+                            )
+                        photo = self._tk_photo_from_bgr(disp, self.tracking_image_widget)
+                        if photo is not None:
+                            self._tracking_photo = photo
+                            self.tracking_image_widget.configure(image=self._tracking_photo)
 
                     self._draw_output_visualization(eye_info)
 

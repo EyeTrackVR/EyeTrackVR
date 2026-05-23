@@ -353,6 +353,7 @@ class EyeTrackSettingsConfig(BaseModel):
     gui_use_gpu: bool = True  # simple checkbox vs drop down with cuda, openvino etc.
 
     gui_openvr_autostart: bool = False
+    gui_show_et_debug: bool = False
 
     # Setup mode picked on the Tracking tab. Persisted so a user who picked
     # Bigscreen Beyond doesn't relaunch into normal ETVR mode (which would
