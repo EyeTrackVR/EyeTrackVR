@@ -219,7 +219,7 @@ class CameraWidget:
         )
 
         # Source stack from processor is 300×150; compact display for dual-eye layout
-        self._tracking_display_size = (round(300 * dpi_scale), round(150 * dpi_scale))
+        self._tracking_display_size = (round(380 * dpi_scale), round(190 * dpi_scale))
 
         self._viz_pad = round(8 * dpi_scale)
         self._viz_gaze = round(148 * dpi_scale)
@@ -229,12 +229,12 @@ class CameraWidget:
             self._viz_pad * 2 + self._viz_gaze + self._viz_gaze_gap + self._viz_blink_w
         )
         self._viz_canvas_h = self._viz_pad * 2 + self._viz_gaze
-        self._ROI_CANVAS_MAX_DIM = round(320 * dpi_scale)
+        tw, th = self._tracking_display_size
+        self._ROI_CANVAS_MAX_DIM = tw - round(16 * dpi_scale)
 
         # Reserve the final slot size up-front so the layout doesn't jitter when the first
         # frame arrives (Label would otherwise start at 0x0 and suddenly grow to 300x150,
         # shifting every widget below it — visible as "the right eye moves around at launch").
-        tw, th = self._tracking_display_size
         self._tracking_image_holder = tk.Frame(
             self.tracking_frame,
             width=tw,
@@ -311,9 +311,6 @@ class CameraWidget:
             roi_controls, text="+", width=2, command=lambda: bump_rotation(1)
         ).pack(side="left", padx=(2, 8))
         self.rotation_var.trace_add("write", sync_rotation_readout)
-        ttk.Button(
-            roi_controls, text="Clear Crop", command=self.clear_crop
-        ).pack(side="right", padx=(8, 0))
         self.padding_var = tk.BooleanVar(
             value=bool(self.config.gui_rotation_ui_padding)
         )
@@ -329,7 +326,7 @@ class CameraWidget:
         # the first frame arrives. Initial size is a small placeholder ~2x
         # tracking preview so the tab doesn't open with a huge empty box.
         self.roi_canvas = tk.Canvas(
-            self.roi_frame, width=round(320 * dpi_scale), height=round(160 * dpi_scale), bg="#424042", highlightthickness=0
+            self.roi_frame, width=self._ROI_CANVAS_MAX_DIM, height=self._ROI_CANVAS_MAX_DIM // 2, bg="#424042", highlightthickness=0
         )
         self.roi_canvas.pack(padx=8, pady=4, anchor="w")
         self.roi_canvas.bind("<ButtonPress-1>", self._on_roi_mouse_down)
@@ -1080,21 +1077,19 @@ class CameraWidget:
                         )
 
                         # Fit the (possibly large) warped image into the compact
-                        # ROI canvas. Scale uniformly so longest side ≤ cap; we
-                        # never upscale (>1.0) — tiny cams should display
-                        # native, not pixel-doubled. xy0/xy1 stay in image
-                        # coords; only the displayed pixels are scaled.
+                        # ROI canvas. Scale uniformly so longest side == cap,
+                        # upscaling small cameras to fill the preview area.
+                        # xy0/xy1 stay in image coords; only displayed pixels scale.
                         ps_img = tuple(int(x) for x in self.padded_size)
                         max_dim = max(ps_img) if max(ps_img) > 0 else 1
-                        scale = min(1.0, self._ROI_CANVAS_MAX_DIM / max_dim)
+                        scale = self._ROI_CANVAS_MAX_DIM / max_dim
                         canvas_size = (
                             max(1, int(round(ps_img[0] * scale))),
                             max(1, int(round(ps_img[1] * scale))),
                         )
                         if scale != 1.0:
-                            image = cv2.resize(
-                                image, canvas_size, interpolation=cv2.INTER_AREA
-                            )
+                            interp = cv2.INTER_AREA if scale < 1.0 else cv2.INTER_LINEAR
+                            image = cv2.resize(image, canvas_size, interpolation=interp)
                         self._roi_display_scale = scale
 
                         maybe_image = (image, *maybe_image[1:])

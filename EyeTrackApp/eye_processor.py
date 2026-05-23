@@ -755,16 +755,11 @@ class EyeProcessor:
         # Walked past the end without success — reset for next frame.
         self.failed = 0
 
-    def run(self):
-
-        # Fixed 8 ordered slots; positions in enabled_algorithms[] map by index.
+    def _rebuild_algorithm_slots(self) -> None:
+        """Rebuild _algorithm_slots from current settings. Called each frame so
+        algo changes take effect immediately without a thread restart. Runner
+        objects lazy-init on first use and are freed when their algo is disabled."""
         algorithm_slots: list = [None] * 8
-
-        # Clear HSF values when the page opens so setting changes are reflected.
-        self.hsf_runner = None
-
-        # Build enabled algorithm list (single-select UI sets one True, but this also
-        # gracefully handles multiple enabled values if config is edited manually).
         enabled_algorithms = []
 
         if self.settings.gui_AHSFRAC:
@@ -784,18 +779,12 @@ class EyeProcessor:
                         self.settings.gui_skip_autoradius,
                         self.settings.gui_HSF_radius_left,
                     )
-                else:
-                    pass
                 if self.eye_id in [EyeId.RIGHT]:
                     self.hsf_runner = External_Run_HSF(
                         self.settings.gui_skip_autoradius,
                         self.settings.gui_HSF_radius_right,
                     )
-                else:
-                    pass
-
             enabled_algorithms.append(self.HSFM)
-
         else:
             if self.hsf_runner is not None:
                 self.hsf_runner = None
@@ -807,16 +796,11 @@ class EyeProcessor:
                         self.settings.gui_skip_autoradius,
                         self.settings.gui_HSF_radius_left,
                     )
-                else:
-                    pass
                 if self.eye_id in [EyeId.RIGHT]:
                     self.hsf_runner = External_Run_HSF(
                         self.settings.gui_skip_autoradius,
                         self.settings.gui_HSF_radius_right,
                     )
-                else:
-                    pass
-
             enabled_algorithms.append(self.HSRACM)
         else:
             if not self.settings.gui_HSF and self.hsf_runner is not None:
@@ -845,6 +829,11 @@ class EyeProcessor:
         for idx, algo in enumerate(enabled_algorithms[:8]):
             algorithm_slots[idx] = algo
         self._algorithm_slots = algorithm_slots
+
+    def run(self):
+        # Reset HSF runner on each thread start so a fresh runner is built from
+        # current settings rather than inheriting stale state from a prior run.
+        self.hsf_runner = None
 
         while True:
             # Check to make sure we haven't been requested to close
@@ -934,6 +923,7 @@ class EyeProcessor:
                 logger.info("Exiting tracking thread")
                 return
             else:
-                self.ALGOSELECT()  # run our algos in priority order set in settings
+                self._rebuild_algorithm_slots()
+                self.ALGOSELECT()
                 self.UPDATE()
                 self._record_tracking_metrics()
