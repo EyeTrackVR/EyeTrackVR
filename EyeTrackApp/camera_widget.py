@@ -160,10 +160,16 @@ class CameraWidget:
         # preview's longest side.
         self._roi_display_scale = 1.0
         self._ROI_CANVAS_MAX_DIM = 320
+        self._dpi_scale = 1.0
+        # 'new' while drawing a fresh box; a handle id ('tl','tr','bl','br','t','b','l','r') while resizing
+        self._drag_handle = "new"
+        self._resize_anchor = None   # fixed corner (np.array) for corner drags
+        self._resize_edge_state = None  # (x0,x1,y_fixed) or (y0,y1,x_fixed) for edge drags
         self.camera_thread: Thread | None = None
         self.tracking_thread: Thread | None = None
 
-    def build(self, parent, show_camera_controls=True):
+    def build(self, parent, show_camera_controls=True, dpi_scale=1.0):
+        self._dpi_scale = dpi_scale
         self.frame = ttk.Frame(parent)
 
         if show_camera_controls:
@@ -213,16 +219,17 @@ class CameraWidget:
         )
 
         # Source stack from processor is 300×150; compact display for dual-eye layout
-        self._tracking_display_size = (300, 150)
+        self._tracking_display_size = (round(300 * dpi_scale), round(150 * dpi_scale))
 
-        self._viz_pad = 8
-        self._viz_gaze = 148
-        self._viz_gaze_gap = 10
-        self._viz_blink_w = 24
+        self._viz_pad = round(8 * dpi_scale)
+        self._viz_gaze = round(148 * dpi_scale)
+        self._viz_gaze_gap = round(10 * dpi_scale)
+        self._viz_blink_w = round(24 * dpi_scale)
         self._viz_canvas_w = (
             self._viz_pad * 2 + self._viz_gaze + self._viz_gaze_gap + self._viz_blink_w
         )
         self._viz_canvas_h = self._viz_pad * 2 + self._viz_gaze
+        self._ROI_CANVAS_MAX_DIM = round(320 * dpi_scale)
 
         # Reserve the final slot size up-front so the layout doesn't jitter when the first
         # frame arrives (Label would otherwise start at 0x0 and suddenly grow to 300x150,
@@ -275,7 +282,7 @@ class CameraWidget:
             to=360,
             variable=self.rotation_var,
             orient="horizontal",
-            length=160,
+            length=round(160 * dpi_scale),
         ).pack(side="left", padx=8)
         self.rotation_readout_var = tk.StringVar(
             value=str(int(self.rotation_var.get()))
@@ -304,6 +311,9 @@ class CameraWidget:
             roi_controls, text="+", width=2, command=lambda: bump_rotation(1)
         ).pack(side="left", padx=(2, 8))
         self.rotation_var.trace_add("write", sync_rotation_readout)
+        ttk.Button(
+            roi_controls, text="Clear Crop", command=self.clear_crop
+        ).pack(side="right", padx=(8, 0))
         self.padding_var = tk.BooleanVar(
             value=bool(self.config.gui_rotation_ui_padding)
         )
@@ -319,7 +329,7 @@ class CameraWidget:
         # the first frame arrives. Initial size is a small placeholder ~2x
         # tracking preview so the tab doesn't open with a huge empty box.
         self.roi_canvas = tk.Canvas(
-            self.roi_frame, width=320, height=160, bg="#424042", highlightthickness=0
+            self.roi_frame, width=round(320 * dpi_scale), height=round(160 * dpi_scale), bg="#424042", highlightthickness=0
         )
         self.roi_canvas.pack(padx=8, pady=4, anchor="w")
         self.roi_canvas.bind("<ButtonPress-1>", self._on_roi_mouse_down)
@@ -678,21 +688,98 @@ class CameraWidget:
         s = self._roi_display_scale or 1.0
         return np.array((event.x / s, event.y / s))
 
+    def _get_bbox_image(self):
+        """Normalized (x0,y0,x1,y1) of the crop box in image coords, or None."""
+        if self.xy0 is None or self.xy1 is None:
+            return None
+        return (
+            min(self.xy0[X], self.xy1[X]),
+            min(self.xy0[Y], self.xy1[Y]),
+            max(self.xy0[X], self.xy1[X]),
+            max(self.xy0[Y], self.xy1[Y]),
+        )
+
+    def _get_handle_at(self, cx, cy):
+        """Return the handle id under canvas point (cx,cy), or None for empty canvas."""
+        bbox = self._get_bbox_image()
+        if bbox is None:
+            return None
+        s = self._roi_display_scale or 1.0
+        tol = round(self._dpi_scale * 10)
+        x0, y0, x1, y1 = (v * s for v in bbox)
+        def near(ax, ay):
+            return abs(cx - ax) <= tol and abs(cy - ay) <= tol
+        if near(x0, y0): return "tl"
+        if near(x1, y0): return "tr"
+        if near(x0, y1): return "bl"
+        if near(x1, y1): return "br"
+        if abs(cy - y0) <= tol and x0 - tol <= cx <= x1 + tol: return "t"
+        if abs(cy - y1) <= tol and x0 - tol <= cx <= x1 + tol: return "b"
+        if abs(cx - x0) <= tol and y0 - tol <= cy <= y1 + tol: return "l"
+        if abs(cx - x1) <= tol and y0 - tol <= cy <= y1 + tol: return "r"
+        return None
+
     def _on_roi_mouse_down(self, event):
         self.hover_pos = None
         self.is_mouse_up = False
-        self.xy0 = self._event_to_image_xy(event)
-        self.xy1 = self.xy0.copy()
-        self._cartesian_to_polar()
+        handle = self._get_handle_at(event.x, event.y)
+        if handle is not None:
+            self._drag_handle = handle
+            bbox = self._get_bbox_image()
+            x0, y0, x1, y1 = bbox
+            if handle == "tl":
+                self._resize_anchor = np.array([x1, y1])
+            elif handle == "tr":
+                self._resize_anchor = np.array([x0, y1])
+            elif handle == "bl":
+                self._resize_anchor = np.array([x1, y0])
+            elif handle == "br":
+                self._resize_anchor = np.array([x0, y0])
+            elif handle == "t":
+                self._resize_edge_state = (x0, x1, y1)
+            elif handle == "b":
+                self._resize_edge_state = (x0, x1, y0)
+            elif handle == "l":
+                self._resize_edge_state = (y0, y1, x1)
+            elif handle == "r":
+                self._resize_edge_state = (y0, y1, x0)
+        else:
+            self._drag_handle = "new"
+            self._resize_anchor = None
+            self._resize_edge_state = None
+            self.xy0 = self._event_to_image_xy(event)
+            self.xy1 = self.xy0.copy()
+            self._cartesian_to_polar()
 
     def _on_roi_mouse_drag(self, event):
         self.hover_pos = None
-        self.xy1 = self._event_to_image_xy(event)
+        pos = self._event_to_image_xy(event)
+        h = self._drag_handle
+        if h == "new":
+            self.xy1 = pos
+        elif h in ("tl", "tr", "bl", "br"):
+            self.xy0 = self._resize_anchor.copy()
+            self.xy1 = pos
+        elif h == "t":
+            a0, a1, y_fixed = self._resize_edge_state
+            self.xy0 = np.array([a0, pos[Y]])
+            self.xy1 = np.array([a1, y_fixed])
+        elif h == "b":
+            a0, a1, y_fixed = self._resize_edge_state
+            self.xy0 = np.array([a0, y_fixed])
+            self.xy1 = np.array([a1, pos[Y]])
+        elif h == "l":
+            a0, a1, x_fixed = self._resize_edge_state
+            self.xy0 = np.array([pos[X], a0])
+            self.xy1 = np.array([x_fixed, a1])
+        elif h == "r":
+            a0, a1, x_fixed = self._resize_edge_state
+            self.xy0 = np.array([x_fixed, a0])
+            self.xy1 = np.array([pos[X], a1])
         self._cartesian_to_polar()
 
-    def _on_roi_mouse_up(self, event):
-        self.is_mouse_up = True
-        self.xy1 = self._event_to_image_xy(event)
+    def _save_roi(self):
+        """Clip xy0/xy1 to valid image area and persist to config."""
         if self.xy0 is None or self.clip_pos is None or self.clip_size is None:
             return
         self.xy0 = np.clip(self.xy0, self.clip_pos, self.clip_pos + self.clip_size)
@@ -700,17 +787,19 @@ class CameraWidget:
         self._cartesian_to_polar()
         if all(abs(self.xy0 - self.xy1) != 0):
             xy0, xy1 = self._polar_to_cartesian_at_angle(0)
-            # Cast to int: when the ROI canvas is scaled (bigscreen's shared
-            # frame exceeds _ROI_CANVAS_MAX_DIM), event coords land in image
-            # space as floats. cv2.warpAffine in capture_crop_rotate_image
-            # needs integer (w, h); a float pair raises and is swallowed by
-            # the broad except, freezing the preview because the tracker loop
-            # hits `if not capture_crop_rotate_image(): continue` every frame.
+            # Cast to int: cv2.warpAffine needs integer (w,h); floats raise and
+            # are swallowed by the broad except, freezing the preview.
             roi_xy = (np.minimum(xy0, xy1) - self.img_pos).astype(int).tolist()
             roi_wh = np.abs(xy0 - xy1).astype(int).tolist()
             self.config.roi_window_x, self.config.roi_window_y = roi_xy
             self.config.roi_window_w, self.config.roi_window_h = roi_wh
             self._schedule_main_config_save()
+
+    def _on_roi_mouse_up(self, event):
+        self.is_mouse_up = True
+        if self._drag_handle == "new":
+            self.xy1 = self._event_to_image_xy(event)
+        self._save_roi()
 
     def _on_roi_mouse_move(self, event):
         if not self.is_mouse_up:
@@ -718,6 +807,27 @@ class CameraWidget:
         self.hover_pos = self._event_to_image_xy(event)
         if self.padded_size is not None and any(self.hover_pos > self.padded_size):
             self.hover_pos = None
+        handle = self._get_handle_at(event.x, event.y)
+        cursors = {
+            "tl": "top_left_corner", "tr": "top_right_corner",
+            "bl": "bottom_left_corner", "br": "bottom_right_corner",
+            "t": "sb_v_double_arrow", "b": "sb_v_double_arrow",
+            "l": "sb_h_double_arrow", "r": "sb_h_double_arrow",
+        }
+        self.roi_canvas.configure(cursor=cursors.get(handle, "crosshair"))
+
+    def clear_crop(self):
+        """Reset the crop box for this eye."""
+        self.xy0 = None
+        self.xy1 = None
+        self.cr = None
+        self.ca = None
+        self.roi_size = None
+        self.config.roi_window_x = 0
+        self.config.roi_window_y = 0
+        self.config.roi_window_w = 0
+        self.config.roi_window_h = 0
+        self._schedule_main_config_save()
 
     def _format_fps(self, fps):
         return f"{round(fps)} Fps"
@@ -1033,15 +1143,27 @@ class CameraWidget:
                         # _roi_display_scale to land on canvas pixels.
                         s = self._roi_display_scale
                         if self.xy0 is not None and self.xy1 is not None:
-                            color = "#7f78ff" if self.is_mouse_up else "#000000"
+                            bx0 = int(min(self.xy0[X], self.xy1[X]) * s)
+                            by0 = int(min(self.xy0[Y], self.xy1[Y]) * s)
+                            bx1 = int(max(self.xy0[X], self.xy1[X]) * s)
+                            by1 = int(max(self.xy0[Y], self.xy1[Y]) * s)
                             self.roi_canvas.create_rectangle(
-                                int(self.xy0[X] * s),
-                                int(self.xy0[Y] * s),
-                                int(self.xy1[X] * s),
-                                int(self.xy1[Y] * s),
-                                outline=color,
+                                bx0, by0, bx1, by1,
+                                outline="#7f78ff",
                                 tags=self._roi_overlay_tag,
                             )
+                            # draw resize handles at corners and edge midpoints
+                            hr = max(3, round(4 * self._dpi_scale))
+                            mx, my = (bx0 + bx1) // 2, (by0 + by1) // 2
+                            for hx, hy in [
+                                (bx0, by0), (bx1, by0), (bx0, by1), (bx1, by1),
+                                (mx, by0), (mx, by1), (bx0, my), (bx1, my),
+                            ]:
+                                self.roi_canvas.create_rectangle(
+                                    hx - hr, hy - hr, hx + hr, hy + hr,
+                                    outline="#ffffff", fill="#7f78ff",
+                                    tags=self._roi_overlay_tag,
+                                )
                         if self.is_mouse_up and self.hover_pos is not None:
                             hx = int(self.hover_pos[X] * s)
                             hy = int(self.hover_pos[Y] * s)

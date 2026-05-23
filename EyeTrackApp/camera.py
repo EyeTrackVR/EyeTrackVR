@@ -550,9 +550,10 @@ class Camera:
                 "Capture queue backpressure of %s. Check for crash or timing issues in algorithm.",
                 qsize,
             )
+        ts = time.perf_counter()
         self._put_frame_drop_oldest(
-            self.camera_output_outgoing, (image, frame_number, fps)
+            self.camera_output_outgoing, (image, frame_number, fps, ts)
         )
         for extra_q in self._extra_output_queues:
-            self._put_frame_drop_oldest(extra_q, (image.copy(), frame_number, fps))
+            self._put_frame_drop_oldest(extra_q, (image.copy(), frame_number, fps, ts))
         self.capture_event.clear()

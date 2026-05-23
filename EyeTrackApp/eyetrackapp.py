@@ -529,10 +529,10 @@ def main():
             # bottom of tracking_main by an expanding eyes row.
             self.tracking_eyes_row.pack(fill="x")
             self.left_frame = eyes[1].build(
-                self.tracking_eyes_row, show_camera_controls=False
+                self.tracking_eyes_row, show_camera_controls=False, dpi_scale=self._dpi_scale
             )
             self.right_frame = eyes[0].build(
-                self.tracking_eyes_row, show_camera_controls=False
+                self.tracking_eyes_row, show_camera_controls=False, dpi_scale=self._dpi_scale
             )
             # Hug the natural widget width (tracking image is 300 px + small paddings) and
             # pool any slack on the right of the row. Expanding here stretched each panel
@@ -747,7 +747,7 @@ def main():
                     source_map[display_label] = device
                     serial_display_values.append(display_label)
 
-                values = mdns_values + serial_display_values + uvc_display_values
+                values = [""] + mdns_values + serial_display_values + uvc_display_values
 
                 uvc_hint = ", ".join(uvc_display_values) or "none"
                 mdns_hint = ", ".join(mdns_values) or "none"
@@ -1053,7 +1053,10 @@ def main():
                 self._calibration_btn_text.set(text)
 
         def _tick(self):
-            has_focus = self.root.focus_displayof() is not None
+            try:
+                has_focus = self.root.focus_displayof() is not None
+            except KeyError:
+                has_focus = True
             interval = 33
             if has_focus:
                 if self.focus_paused:
