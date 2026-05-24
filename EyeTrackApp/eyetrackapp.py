@@ -603,7 +603,6 @@ def main():
                 text="Recenter Eyes",
                 command=self._on_global_recenter,
             ).pack(side="left", padx=8)
-
             bottom = ttk.Frame(self.root)
             bottom.pack(fill="x", padx=8, pady=4)
             ttk.Button(bottom, text="GUI OFF", command=self.gui_off).pack(side="left")
@@ -1058,10 +1057,10 @@ def main():
             return False
 
         def _on_global_calibration_toggle(self):
-            # Mirror the per-eye toggle: if anything is already calibrating,
-            # stop all eyes; otherwise start calibration on every started eye.
-            # Starting calibration on a stopped eye is a no-op so this is safe
-            # to call regardless of capture state.
+            if config.settings.gui_use_overlay_cal:
+                self._on_ellipse_calibration()
+                return
+            # Classic on-screen calibration toggle: stop if running, start if not.
             if self._any_eye_calibrating():
                 for eye in eyes:
                     rs = getattr(eye, "ransac", None)
@@ -1143,6 +1142,18 @@ def main():
                 if eye.started():
                     eye.recenter_eyes()
 
+        def _on_ellipse_calibration(self):
+            from osc_calibrate_filter import overlay_ellipse_calibrate
+            eps = [
+                eye.ransac for eye in eyes
+                if eye.started() and getattr(eye, "ransac", None) is not None
+            ]
+            if not eps:
+                return
+            config.settings.calib_mode = "classic"
+            config.save()
+            overlay_ellipse_calibrate(eps, config.settings, config)
+
         def _sync_global_calibration_button(self):
             text = (
                 "Stop Calibration"
@@ -1167,14 +1178,18 @@ def main():
                         if eye.started():
                             eye.render_tick()
                     self._sync_global_calibration_button()
-                for setting in settings:
-                    if setting.started():
-                        setting.render_tick()
             else:
                 if not self.focus_paused:
                     self.focus_paused = True
                     self.focus_label.pack(side="left", padx=12)
                 interval = 100
+
+            # Run settings validation + debounce-save regardless of focus so
+            # changes made while the SteamVR overlay has focus still apply
+            # within ~650 ms without requiring a page switch.
+            for setting in settings:
+                if setting.started():
+                    setting.render_tick()
 
             self.root.after(interval, self._tick)
 

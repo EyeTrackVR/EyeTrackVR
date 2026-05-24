@@ -47,6 +47,11 @@ _TIPS = {
         "How far apart the two eyes' positions must be (normalised, 0–1) "
         "before Outer Eye Falloff kicks in. Lower = falloff triggers sooner."
     ),
+    "gui_use_overlay_cal": (
+        "Use the SteamVR overlay spiral to calibrate. When on, Start Calibration "
+        "launches the in-headset dot spiral. When off, the classic on-screen "
+        "calibration is used instead."
+    ),
 }
 
 
@@ -62,6 +67,7 @@ class GeneralSettingsValidationModel(BaseValidationModel):
     gui_openvr_autostart: bool
     gui_use_gpu: bool
     gui_show_et_debug: bool
+    gui_use_overlay_cal: bool
 
 
 class GeneralSettingsModule(BaseSettingsModule):
@@ -79,6 +85,7 @@ class GeneralSettingsModule(BaseSettingsModule):
         self.gui_openvr_autostart = f"-OPENVRAUTOSTART{widget_id}-"
         self.gui_use_gpu = f"-USEGPU{widget_id}-"
         self.gui_show_et_debug = f"-SHOWETDEBUG{widget_id}-"
+        self.gui_use_overlay_cal = f"-USEOVERLAYCAL{widget_id}-"
 
 
     def build(self, parent):
@@ -126,6 +133,14 @@ class GeneralSettingsModule(BaseSettingsModule):
                     "Check For Updates",
                 ),
             ),
+            (
+                (
+                    self.gui_use_overlay_cal,
+                    self.config.gui_use_overlay_cal,
+                    "Use SteamVR Overlay for Calibration",
+                ),
+                None,
+            ),
         ]
 
         # Map widget-key string → config attr so we can look up the tooltip.
@@ -138,6 +153,7 @@ class GeneralSettingsModule(BaseSettingsModule):
             self.gui_openvr_autostart: "gui_openvr_autostart",
             self.gui_use_gpu: "gui_use_gpu",
             self.gui_update_check: "gui_update_check",
+            self.gui_use_overlay_cal: "gui_use_overlay_cal",
         }
 
         row = 0

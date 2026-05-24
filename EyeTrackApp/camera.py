@@ -32,7 +32,7 @@ import serial
 import serial.tools.list_ports
 import threading
 import time
-from config import EyeTrackCameraConfig
+from config import EyeTrackCameraConfig, EyeTrackSettingsConfig
 from enum import Enum
 import sys
 from PIL import Image
@@ -124,6 +124,7 @@ class Camera:
     def __init__(
         self,
         config: EyeTrackCameraConfig,
+        settings: EyeTrackSettingsConfig,
         camera_index: int,
         cancellation_event: "threading.Event",
         capture_event: "threading.Event",
@@ -133,6 +134,7 @@ class Camera:
 
         self.camera_status = CameraState.CONNECTING
         self.config = config
+        self.settings = settings
         self.camera_index = camera_index
         self.camera_address = config.capture_source
         self.camera_status_outgoing = camera_status_outgoing
@@ -157,6 +159,7 @@ class Camera:
         self._last_cv_cap_frame_time = 0.0
         self._last_http_wire_bytes_proxy = 0
         self._http_wire_bytes_proxy_frame_count = 0
+        self._last_pushed_frame_mono = time.perf_counter()
 
         self.error_message = "Capture source {} not found, retrying..."
 
@@ -326,20 +329,41 @@ class Camera:
                 if self.cancellation_event.wait(WAIT_TIME):
                     return
                 continue
-            # Assuming we can access our capture source, wait for another thread to request a capture.
-            # Cycle every so often to see if our cancellation token has fired. This basically uses a
-            # python event as a context-less, resettable one-shot channel.
-            if should_push and not self.capture_event.wait(timeout=0.05):
-                continue
+            # Assuming we can access our capture source, cycle periodically.
+            #
+            # [Limiter lag fix] We now pace ourselves based on gui_max_tracking_speed directly
+            # in the capture loop. This ensures we don't back up the camera's internal buffer
+            # (which causes lag) while still respecting the user's desired tracking rate.
+            try:
+                max_hz = float(self.settings.gui_max_tracking_speed)
+            except (AttributeError, TypeError, ValueError):
+                max_hz = 60.0
+
+            if max_hz < 1.0:
+                max_hz = 1.0
+            target_dt = 1.0 / max_hz
+            now_mono = time.perf_counter()
+            elapsed = now_mono - self._last_pushed_frame_mono
+            should_push = elapsed >= target_dt
+
             if self.config.capture_source is not None:
                 addr = str(self.current_capture_source)
                 if is_serial_capture_source(addr):
                     self.get_serial_camera_picture(should_push)
                 else:
                     self.get_cv2_camera_picture(should_push)
-                if not should_push:
+
+                if should_push:
+                    self._last_pushed_frame_mono = now_mono
                     # if we get all the way down here, consider ourselves connected
                     self.camera_status = CameraState.CONNECTED
+                
+                # [Limiter lag fix] We now keep the camera thread running as fast as possible
+                # to keep the hardware buffer empty. We only push at max_hz.
+                # If we're going too fast, sleep a tiny bit to avoid pegged CPU,
+                # but not so much that we let the hardware buffer build up.
+                if not should_push:
+                    time.sleep(0.001)
 
     def get_cv2_camera_picture(self, should_push):
         try:
@@ -352,6 +376,9 @@ class Camera:
             # itself on hardware fps.
             throttle_source = is_file_video or is_http
             if should_push and throttle_source:
+                # [Limiter lag fix] We now handle the main tracking Hz limit in the caller.
+                # However, MJPEG/File sources still need a "fast-path" safety cap to prevent
+                # them from outrunning the loop's own overhead if max_hz is very high.
                 now = time.time()
                 last = self._last_cv_cap_frame_time
                 if last > 0.0:
@@ -453,8 +480,12 @@ class Camera:
         if conn is None:
             return
         try:
-            if conn.in_waiting:
+            # [Limiter lag fix] Always drain the serial buffer to keep it fresh
+            while conn.in_waiting:
                 jpeg = self.get_next_jpeg_frame()
+                if not should_push:
+                    continue
+
                 if jpeg:
                     # Create jpeg frame from byte string
                     try:
@@ -474,8 +505,7 @@ class Camera:
                     # bandwidth instead of decoded-pixel throughput.
                     self._update_frame_rate(len(jpeg))
                     self.frame_number = self.frame_number + 1
-                    if should_push:
-                        self.push_image_to_queue(image, self.frame_number, self.fps)
+                    self.push_image_to_queue(image, self.frame_number, self.fps)
         except Exception:
             logger.warning(
                 "Serial capture source problem, assuming camera disconnected and waiting for reconnect."
@@ -556,4 +586,3 @@ class Camera:
         )
         for extra_q in self._extra_output_queues:
             self._put_frame_drop_oldest(extra_q, (image.copy(), frame_number, fps, ts))
-        self.capture_event.clear()

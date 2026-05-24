@@ -339,6 +339,19 @@ class BlinkAlgoSettingsModule(BaseSettingsModule):
         self.tk_vars[self.leap_lid_close_threshold_right] = right_close
         self.tk_vars[self.leap_lid_widen_threshold_right] = right_widen
 
+        def _live_float(cfg, field, var):
+            def _cb(*_):
+                try:
+                    setattr(cfg, field, float(var.get()))
+                except (ValueError, TypeError):
+                    pass
+            return _cb
+
+        left_close.trace_add("write", _live_float(self.config, "leap_lid_close_threshold_left", left_close))
+        left_widen.trace_add("write", _live_float(self.config, "leap_lid_widen_threshold_left", left_widen))
+        right_close.trace_add("write", _live_float(self.config, "leap_lid_close_threshold_right", right_close))
+        right_widen.trace_add("write", _live_float(self.config, "leap_lid_widen_threshold_right", right_widen))
+
         self._build_eye_column(
             parent, "Left Eye", _EYE_ID_LEFT, left_close, left_widen
         ).grid(row=2, column=0, sticky="nw", padx=(8, 12), pady=4)

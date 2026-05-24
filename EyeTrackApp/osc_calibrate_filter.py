@@ -39,6 +39,8 @@ import math
 from utils.calibration_3d import receive_calibration_data, converge_3d
 from utils.calibration_elipse import *
 from utils.misc_utils import resource_path
+from utils.robust_calibration import RobustCalibrationSession, CalibrationPhase
+from utils.bs_detector import BSDetector
 from pathlib import Path
 
 logger = logging.getLogger(__name__)
@@ -117,6 +119,8 @@ class var:
     right_y = 0.0
     l_eye_velocity = 0.0
     r_eye_velocity = 0.0
+    l_eye_openness = 1.0
+    r_eye_openness = 1.0
     overlay_active = False
     falloff_latch = False
     single_eye = True
@@ -245,6 +249,138 @@ def overlay_calibrate_3d(self):
         var.overlay_active = False
 
 
+# ── DFR output helpers ────────────────────────────────────────────────────────
+# Unclamped gaze vector for Dynamic Foveated Rendering (OpenXR toolkit etc.)
+# Packet format: 1 uint8 (eye_id) + 2 float32 (x, y) = 9 bytes per datagram.
+
+_dfr_socket: socket.socket | None = None
+_dfr_socket_lock = threading.Lock()
+
+
+def _get_dfr_socket() -> socket.socket:
+    global _dfr_socket
+    with _dfr_socket_lock:
+        if _dfr_socket is None:
+            _dfr_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        return _dfr_socket
+
+
+def _dispatch_dfr(settings, eye_id: int, x: float, y: float) -> None:
+    try:
+        addr = getattr(settings, "gui_dfr_address", "127.0.0.1")
+        port = int(getattr(settings, "gui_dfr_port", 9002))
+        payload = struct.pack("!Bff", eye_id & 0xFF, float(x), float(y))
+        _get_dfr_socket().sendto(payload, (addr, port))
+    except Exception:
+        pass
+
+
+# ── Robust calibration persistence helper ─────────────────────────────────────
+
+def _save_robust_calib(eye_processor) -> None:
+    """Serialize RobustCalibrationSession → config → disk."""
+    try:
+        robust_cal: RobustCalibrationSession = eye_processor.robust_cal
+        eye_processor.config.robust_calib_data = robust_cal.to_dict()
+        eye_processor.baseconfig.save()
+    except Exception as e:
+        logger.warning("Failed to save robust calibration: %s", e)
+
+
+# ── Overlay ellipse calibration (port 2112) ───────────────────────────────────
+#
+# The overlay animates the dot in a shrinking spiral and sends two signals:
+#   int32(0) → start continuous per-frame sampling
+#   int32(9) → stop sampling, fit and save the ellipse
+#
+# cal_osc accumulates raw cx/cy into CalibrationEllipse every frame while
+# _ellipse_collect_active is set.  The std-deviation fit benefits from many
+# uniformly distributed samples, so continuous collection is better than
+# per-point IQR grabs.
+
+
+@Async
+def overlay_ellipse_calibrate(eye_processors: list, settings, baseconfig) -> None:
+    """
+    Launch the overlay in ellipse-calibration (spiral) mode and drive classic
+    CalibrationEllipse per eye via continuous frame sampling.
+    """
+    if var.overlay_active:
+        return
+    overlay_path = resource_path("Tools/EyeTrackVR-Overlay.exe")
+    tools_dir = os.path.dirname(overlay_path)
+    sock = None
+    try:
+        subprocess.Popen(
+            [overlay_path, "ellipse"],
+            cwd=tools_dir,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+        )
+        var.overlay_active = True
+        sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        sock.settimeout(30.0)
+        sock.bind(("localhost", 2112))
+
+        # Reset calibration samples so this run starts fresh
+        for ep in eye_processors:
+            ep.cal.xs = []
+            ep.cal.ys = []
+            ep.cal.fitted = False
+
+        while var.overlay_active:
+            try:
+                data, _ = sock.recvfrom(4096)
+            except socket.timeout:
+                logger.warning("Overlay ellipse calibration timed out")
+                break
+            if not data or len(data) < 4:
+                continue
+
+            signal = struct.unpack("!l", data)[0]
+
+            if signal == 0:
+                # Start continuous per-frame sampling
+                for ep in eye_processors:
+                    ep._ellipse_collect_active = True
+
+            elif signal == 9:
+                # Stop sampling, fit, and save
+                for ep in eye_processors:
+                    ep._ellipse_collect_active = False
+                    evecs, axes = ep.cal.fit_ellipse()
+                    if not (isinstance(evecs, int) and isinstance(axes, int)
+                            and evecs == 0 and axes == 0):
+                        ep.config.calib_evecs = list(evecs.tolist()
+                                                     if hasattr(evecs, "tolist") else evecs)
+                        ep.config.calib_axes = list(axes.tolist()
+                                                    if hasattr(axes, "tolist") else axes)
+                        if ep.cal.center is not None:
+                            ep.config.calib_XOFF = float(ep.cal.center[0])
+                            ep.config.calib_YOFF = float(ep.cal.center[1])
+                        ep.baseconfig.save()
+                        logger.info(
+                            "Ellipse cal: fitted from %d samples", len(ep.cal.xs)
+                        )
+                settings.calib_mode = "classic"
+                PlaySound(resource_path("Audio/completed.wav"), SND_FILENAME | SND_ASYNC)
+                var.overlay_active = False
+                break
+
+    except (OSError, FileNotFoundError, struct.error) as e:
+        logger.warning("Ellipse overlay calibration error: %s", e)
+    finally:
+        # Always clear collect flag so cal_osc doesn't keep sampling
+        for ep in eye_processors:
+            ep._ellipse_collect_active = False
+        if sock is not None:
+            try:
+                sock.close()
+            except OSError:
+                pass
+        var.overlay_active = False
+
+
 class cal:
     def cal_osc(self, cx, cy, angle):
         # Check if calibration data exists and is valid (list/array, not scalar like 0)
@@ -279,8 +415,12 @@ class cal:
                 )
                 self.should_print_calibration_warning = False
 
-        if cx == None or cy == None:
-            return 0, 0
+        if cx is None or cy is None:
+            return (
+                getattr(self, "_stable_out_x", 0.0),
+                getattr(self, "_stable_out_y", 0.0),
+                getattr(self, "_stable_velocity", 0.0),
+            )
         if cx == 0:
             cx = 1
         if cy == 0:
@@ -327,6 +467,9 @@ class cal:
                 self.blink_clear = False
             else:
                 self.cal.add_sample(cx, cy)
+                # Restore fitted=True so normalize() returns old calibration during collection.
+                if has_valid_calib:
+                    self.cal.init_from_save(self.config.calib_evecs, self.config.calib_axes)
                 self.blink_clear = False
                 self.settings.gui_recenter_eyes = False
 
@@ -348,25 +491,173 @@ class cal:
         else:
             self._recenter_armed_at = None
 
+        # ── Overlay ellipse continuous sampling ───────────────────────────────────
+        if (getattr(self, "_ellipse_collect_active", False)
+                and cx is not None and cy is not None
+                and self.calibration_start_time is None):
+            self.cal.add_sample(float(cx), float(cy))
+            if has_valid_calib:
+                self.cal.init_from_save(self.config.calib_evecs, self.config.calib_axes)
+
+        # ── Robust calibration frame feeding ─────────────────────────────────────
+        _robust_cal: RobustCalibrationSession | None = getattr(self, "robust_cal", None)
+        if _robust_cal is not None:
+            _eye_frame = getattr(self, "current_image_gray_clean", None)
+            if _eye_frame is None:
+                _eye_frame = getattr(self, "current_image_gray", None)
+            _phase = _robust_cal.phase
+
+            if _phase == CalibrationPhase.EXPRESS:
+                _target_done = _robust_cal.feed_express_frame(cx, cy)
+                if _target_done and _robust_cal.phase == CalibrationPhase.DONE:
+                    _save_robust_calib(self)
+                    PlaySound(resource_path("Audio/completed.wav"), SND_FILENAME | SND_ASYNC)
+
+            elif _phase == CalibrationPhase.BLINK:
+                _blink_done = _robust_cal.feed_blink_frame(_eye_frame)
+                if _blink_done:
+                    PlaySound(resource_path("Audio/completed.wav"), SND_FILENAME | SND_ASYNC)
+
+            elif _phase == CalibrationPhase.BLINK_END:
+                _robust_cal.check_blink_end_timer()
+
+            elif _phase == CalibrationPhase.PURSUIT:
+                _pursuit_done = _robust_cal.feed_pursuit_frame(_eye_frame, float(cx), float(cy))
+                if _pursuit_done and _robust_cal.phase == CalibrationPhase.DONE:
+                    _save_robust_calib(self)
+                    PlaySound(resource_path("Audio/completed.wav"), SND_FILENAME | SND_ASYNC)
+
+        # ── Normalization / routing ───────────────────────────────────────────
         out_x = 0.5
         out_y = 0.5
+        dfr_x = 0.0
+        dfr_y = 0.0
 
-        out_x, out_y = self.cal.normalize(
-            (cx, cy), (self.config.calib_XOFF, self.config.calib_YOFF)
+        _calib_mode = getattr(self.settings, "calib_mode", "classic")
+        _use_robust = (
+            _calib_mode in ("express", "robust")
+            and _robust_cal is not None
+            and (_robust_cal.express_calibrated or _robust_cal.poly_trained)
+            and _robust_cal.phase == CalibrationPhase.DONE
         )
+
+        _bs_valid = True
+        if _use_robust:
+            if _calib_mode == "robust" and _robust_cal.poly_trained:
+                _eye_frame = getattr(self, "current_image_gray_clean", None)
+                if _eye_frame is None:
+                    _eye_frame = getattr(self, "current_image_gray", None)
+                _bs_det: BSDetector | None = getattr(self, "bs_detector", None)
+                if _bs_det is not None:
+                    _bs_valid = _bs_det.check(_eye_frame, cx, cy)
+
+            if _robust_cal.poly_trained and _bs_valid:
+                # Polynomial path — degree-2 regression on raw keypoints
+                _poly_result = _robust_cal.predict_poly(cx, cy, clamp=True)
+                if _poly_result is not None:
+                    out_x, out_y = _poly_result
+                    _dfr_result = _robust_cal.predict_poly(cx, cy, clamp=False)
+                    dfr_x, dfr_y = _dfr_result if _dfr_result is not None else _poly_result
+                else:
+                    out_x, out_y = _robust_cal.normalize_express(cx, cy, clamp=True)
+                    dfr_x, dfr_y = _robust_cal.normalize_express(cx, cy, clamp=False)
+            else:
+                # Express min-max normalization (no poly, or BS detector rejected frame)
+                out_x, out_y = _robust_cal.normalize_express(cx, cy, clamp=True)
+                dfr_x, dfr_y = _robust_cal.normalize_express(cx, cy, clamp=False)
+        else:
+            # Classic ellipse path
+            out_x, out_y = self.cal.normalize(
+                (cx, cy), (self.config.calib_XOFF, self.config.calib_YOFF)
+            )
+            # DFR: unclamped classic normalize
+            dfr_x, dfr_y = self.cal.normalize(
+                (cx, cy), (self.config.calib_XOFF, self.config.calib_YOFF), clip=False
+            )
+
+        # ── Snap-to-center hold ───────────────────────────────────────────────────
+        # When the pupil tracker loses the pupil at an extreme gaze angle it
+        # often reports the image center.  After calibration this maps to
+        # ~(0, 0) — a sudden jump from an extreme position to near-center.
+        # Detect this and hold the last valid calibrated position with a slow drift.
+        if (
+            getattr(self.settings, "gui_snap_hold_enabled", True)
+            and _use_robust
+            and _robust_cal is not None
+            and _robust_cal.express_calibrated
+            and _robust_cal.phase == CalibrationPhase.DONE
+        ):
+            if not hasattr(self, "_last_cal_x"):
+                self._last_cal_x = out_x
+                self._last_cal_y = out_y
+                self._cal_hold_frames = 0
+
+            _was_extreme = abs(self._last_cal_x) >= 0.50 or abs(self._last_cal_y) >= 0.50
+            _now_center = abs(out_x) <= 0.30 and abs(out_y) <= 0.30
+            _jump = math.sqrt(
+                (out_x - self._last_cal_x) ** 2 + (out_y - self._last_cal_y) ** 2
+            )
+            _big_jump = _jump > 0.40
+
+            # In full-robust mode (poly trained) require BS detector confirmation
+            # to avoid false holds on genuine fast saccades.
+            # In express-only mode use geometry alone (no BS detector available).
+            _is_snap = _was_extreme and _now_center and _big_jump
+            if _calib_mode == "robust" and _robust_cal.poly_trained:
+                _is_snap = _is_snap and not _bs_valid
+
+            if _is_snap:
+                # Hold: output last valid position, allow slow drift toward new pos
+                _drift = min(0.5, self._cal_hold_frames / 60.0)
+                out_x = self._last_cal_x + _drift * (out_x - self._last_cal_x)
+                out_y = self._last_cal_y + _drift * (out_y - self._last_cal_y)
+                dfr_x = out_x
+                dfr_y = out_y
+                self._cal_hold_frames = min(self._cal_hold_frames + 1, 120)
+                # Piggyback on velocity_falloff: mark this eye as high-velocity/noisy
+                # so the falloff logic automatically prefers the other (stable) eye
+                # instead of this one which is stuck at center.
+                if self.eye_id == EyeId.LEFT:
+                    var.l_eye_velocity = max(var.l_eye_velocity, var.r_eye_velocity * 2.0 + 0.5)
+                elif self.eye_id == EyeId.RIGHT:
+                    var.r_eye_velocity = max(var.r_eye_velocity, var.l_eye_velocity * 2.0 + 0.5)
+                logger.debug(
+                    "Snap hold (frame %d): holding (%.2f, %.2f)",
+                    self._cal_hold_frames, out_x, out_y,
+                )
+            else:
+                # Valid frame: update last-valid only when not in a BS-flagged state
+                if not (_calib_mode == "robust" and not _bs_valid):
+                    self._last_cal_x = out_x
+                    self._last_cal_y = out_y
+                self._cal_hold_frames = max(0, self._cal_hold_frames - 2)
 
         if (
             self.settings.gui_flip_y_axis
         ):  # check config on flipped values settings and apply accordingly
             out_y = -out_y  # flip
+            dfr_y = -dfr_y
 
         if flipx:
             out_x = -out_x
+            dfr_x = -dfr_x
+
+        # ── DFR output (unclamped, before 1€ filter) ──────────────────────────
+        if getattr(self.settings, "gui_dfr_enabled", False):
+            _dispatch_dfr(self.settings, int(self.eye_id), dfr_x, dfr_y)
 
         # Per-eye velocity must be tracked whenever any falloff/dominance mode
         # is on, since velocity_falloff() compares the two eyes' velocities to
         # pick the cleaner one. The noise map also feeds on the instantaneous
         # magnitude returned here.
+        # Share eye openness so velocity_falloff can mirror the open eye when
+        # the other eye is closed (wink / sustained blink).
+        _eyeopen = getattr(self, "eyeopen", 1.0)
+        if self.eye_id == EyeId.LEFT:
+            var.l_eye_openness = float(_eyeopen)
+        else:
+            var.r_eye_openness = float(_eyeopen)
+
         inst_velocity = 0.0
         if (
             self.settings.gui_outer_side_falloff
@@ -382,6 +673,16 @@ class cal:
         )
 
         try:
+            _oef = self.one_euro_filter
+            try:
+                _mc = float(self.settings.gui_min_cutoff)
+                _b = float(self.settings.gui_speed_coefficient)
+                if _oef.min_cutoff[0] != _mc:
+                    _oef.min_cutoff.fill(_mc)
+                if _oef.beta[0] != _b:
+                    _oef.beta.fill(_b)
+            except (TypeError, ValueError, AttributeError, IndexError):
+                pass
             noisy_point = np.array(
                 [float(out_x), float(out_y)]
             )  # fliter our values with a One Euro Filter
@@ -398,4 +699,7 @@ class cal:
         my_velocity = (
             var.l_eye_velocity if self.eye_id == EyeId.LEFT else var.r_eye_velocity
         )
+        self._stable_out_x = float(out_x)
+        self._stable_out_y = float(out_y)
+        self._stable_velocity = float(my_velocity)
         return out_x, out_y, my_velocity

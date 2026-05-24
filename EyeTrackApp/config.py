@@ -129,6 +129,8 @@ class EyeTrackCameraConfig(BaseModel):
     # fresh calibration without restarting the app or fiddling with the
     # metric-version migration mechanism.
     leap_calib_request_seq: int = 0
+    # Robust calibration session state (serialized RobustCalibrationSession.to_dict())
+    robust_calib_data: Union[dict, None] = None
 
     @field_validator("calib_axes", "calib_evecs", "calib_center", mode="before")
     @classmethod
@@ -354,6 +356,20 @@ class EyeTrackSettingsConfig(BaseModel):
 
     gui_openvr_autostart: bool = False
     gui_show_et_debug: bool = False
+
+    # Calibration mode. "classic" preserves existing ellipse behaviour.
+    # "express" uses 5-point min-max normalization from RobustCalibrationSession.
+    # "robust"  uses BS detector routing: express primary, SVR fallback.
+    calib_mode: str = "classic"
+    # DFR (Dynamic Foveated Rendering) unclamped gaze vector output via UDP.
+    gui_dfr_enabled: bool = False
+    gui_dfr_port: int = 9002
+    gui_dfr_address: str = "127.0.0.1"
+    # Hold last valid calibrated position when the tracker snaps from an extreme
+    # gaze angle back to near-center in a single frame (characteristic failure mode
+    # at extreme angles). Requires robust or express calibration to be active.
+    gui_snap_hold_enabled: bool = True
+    gui_use_overlay_cal: bool = True
 
     # Setup mode picked on the Tracking tab. Persisted so a user who picked
     # Bigscreen Beyond doesn't relaunch into normal ETVR mode (which would

@@ -115,6 +115,7 @@ class CameraWidget:
         self.camera_status_queue = Queue()
         self.camera = Camera(
             self.config,
+            self.settings,
             0,
             self.cancellation_event,
             self.capture_event,

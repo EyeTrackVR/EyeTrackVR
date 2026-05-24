@@ -53,6 +53,8 @@ from AHSF import *
 from osc.OSCMessage import OSCMessageType, OSCMessage
 from utils.calibration_elipse import *
 from utils.runtime_state import set_value as _set_runtime_value
+from utils.robust_calibration import RobustCalibrationSession, CalibrationPhase
+from utils.bs_detector import BSDetector
 
 
 os.environ["OMP_NUM_THREADS"] = "1"
@@ -227,6 +229,15 @@ class EyeProcessor:
         self.cal = CalibrationEllipse()
         self.ahsf_detector = PupilDetectorHaar()
 
+        # Robust calibration pipeline
+        self.robust_cal = RobustCalibrationSession()
+        self.bs_detector = BSDetector()
+        if getattr(config, "robust_calib_data", None):
+            try:
+                self.robust_cal = RobustCalibrationSession.from_dict(config.robust_calib_data)
+            except Exception as _e:
+                logger.warning("Failed to load robust calibration data: %s", _e)
+
         try:
             min_cutoff = float(self.settings.gui_min_cutoff)  # 0.0004
             beta = float(self.settings.gui_speed_coefficient)  # 0.9
@@ -250,7 +261,26 @@ class EyeProcessor:
             return True
         if s.gui_HSRAC or s.gui_AHRAC or s.gui_RANSAC3D:
             return True
+        # Robust calibration phases that sample the eye crop need the pre-algorithm frame.
+        if getattr(self, "robust_cal", None) is not None:
+            _phase = self.robust_cal.phase
+            if _phase == CalibrationPhase.BLINK:
+                return True
         return False
+
+    # ── Robust calibration triggers ──────────────────────────────────────────
+
+    def start_express_calibration(self) -> None:
+        """Begin 5-point express calibration (automatic target advancement)."""
+        self.robust_cal.start_express()
+
+    def start_blink_calibration(self) -> None:
+        """Begin 2-second closed-eye sclera threshold calibration."""
+        self.robust_cal.start_blink()
+
+    def start_pursuit_calibration(self) -> None:
+        """Begin 10-second smooth-pursuit SVR training session."""
+        self.robust_cal.start_pursuit()
 
     def _record_tracking_metrics(self):
         now = time.perf_counter()
@@ -302,6 +332,7 @@ class EyeProcessor:
             threshold_image, (150, 150), interpolation=cv2.INTER_AREA
         )
         image_stack = np.concatenate((self.current_image_gray, threshold_image), axis=1)
+
         self.image_queue_outgoing.put((image_stack, output_information))
         if self.image_queue_outgoing.qsize() > 1:
             self.image_queue_outgoing.get()
@@ -866,11 +897,6 @@ class EyeProcessor:
                 )
 
             try:
-                if (
-                    not self.suppress_auto_capture_signal
-                    and self.capture_queue_incoming.empty()
-                ):
-                    self.capture_event.set()
                 # Wait a bit for images here. If we don't get one, just try again.
                 (
                     self.current_image,
@@ -878,24 +904,9 @@ class EyeProcessor:
                     self.current_fps,
                     self.current_capture_ts,
                 ) = self.capture_queue_incoming.get(block=True, timeout=0.1)
-            except queue.Empty:
-                continue
 
-            # Cap tracking rate at gui_max_tracking_speed Hz, then drain
-            # the capture queue so we process the freshest available frame.
-            try:
-                max_hz = float(self.settings.gui_max_tracking_speed)
-            except (AttributeError, TypeError, ValueError):
-                max_hz = 60.0
-            if max_hz < 1.0:
-                max_hz = 1.0
-            target_dt = 1.0 / max_hz
-            now_mono = time.perf_counter()
-            elapsed = now_mono - self._last_tracking_pull_mono
-            if self._last_tracking_pull_mono > 0.0 and elapsed < target_dt:
-                wait_for = target_dt - elapsed
-                if self.cancellation_event.wait(wait_for):
-                    return
+                # [Limiter lag fix] The camera thread now handles the tracking Hz limit.
+                # We simply drain the queue to ensure we're processing the latest frame.
                 try:
                     while True:
                         (
@@ -906,7 +917,8 @@ class EyeProcessor:
                         ) = self.capture_queue_incoming.get_nowait()
                 except queue.Empty:
                     pass
-            self._last_tracking_pull_mono = time.perf_counter()
+            except queue.Empty:
+                continue
 
             if not self.capture_crop_rotate_image():
                 continue

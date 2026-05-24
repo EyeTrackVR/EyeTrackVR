@@ -5,11 +5,8 @@ the OSC output around.
 
 Two signals drive the mirror decision:
 
-  1. Per-frame velocity. The eye with the LOWER smoothed velocity is the one
-     holding gaze; the higher-velocity one is the one whose tracker is
-     thrashing. Picking the lower-velocity eye is the historical intent — the
-     previous implementation had the comparison inverted (and the velocities
-     it compared were always 0.0, see osc_calibrate_filter.py).
+  1. Per-frame velocity. Bad tracking = high jitter = high velocity. The eye
+     with the LOWER smoothed velocity is the stable one; prefer it.
 
   2. A per-eye, per-region noise map. Some camera placements consistently
      fail in certain gaze zones (e.g. the right eye goes blind when looking
@@ -27,6 +24,7 @@ to populate and add no precision the downstream OSC pipeline can use.
 from __future__ import annotations
 
 import math
+import time
 
 from eye import EyeId
 
@@ -50,6 +48,11 @@ _NOISE_ABS_FLOOR = 0.05
 # estimate.
 _noise: dict = {}
 _counts: dict = {}
+
+# Timestamp of the most recent position stash per eye. Used to detect
+# single-eye mode: if the other eye hasn't stashed in >0.5 s its stored
+# position is stale and cross-eye comparison would be meaningless.
+_last_stash: dict = {}
 
 
 def _bin(value: float) -> int:
@@ -94,25 +97,49 @@ def velocity_falloff(self, var, out_x, out_y, inst_velocity: float = 0.0):
         return out_x, out_y
 
     eye_id = self.eye_id
+    now = time.monotonic()
 
-    # Stash this eye's output for the OTHER eye's next call to consume. Done
-    # before any mirror logic so the cross-eye comparison uses the most
-    # recent paired sample.
-    if eye_id == EyeId.LEFT:
-        var.l_eye_x = out_x
-        var.left_y = out_y
-    elif eye_id == EyeId.RIGHT:
-        var.r_eye_x = out_x
-        var.right_y = out_y
+    # Eye openness (written by cal_osc before calling velocity_falloff).
+    _CLOSED = 0.25
+    l_open = getattr(var, "l_eye_openness", 1.0)
+    r_open = getattr(var, "r_eye_openness", 1.0)
+    this_open = l_open if eye_id == EyeId.LEFT else r_open
+    other_open = r_open if eye_id == EyeId.LEFT else l_open
+
+    # Stash this eye's output — but only when it's open, so the stash retains
+    # the last valid (eyes-open) position rather than a blink-distorted one.
+    if this_open >= _CLOSED:
+        if eye_id == EyeId.LEFT:
+            var.l_eye_x = out_x
+            var.left_y = out_y
+        elif eye_id == EyeId.RIGHT:
+            var.r_eye_x = out_x
+            var.right_y = out_y
+    _last_stash[eye_id] = now
+
+    # Guard: both eyes must have stashed within 0.5 s. In single-eye mode
+    # the other eye never writes its stash, so dist comparison against (0, 0)
+    # would be meaningless and would snap gaze to the inactive eye's origin.
+    other_id = EyeId.RIGHT if eye_id == EyeId.LEFT else EyeId.LEFT
+    if now - _last_stash.get(other_id, 0.0) > 0.5:
+        return out_x, out_y
+
+    # Eye-closure fallback: if this eye is closed and the other is open,
+    # mirror the open eye's gaze position and mark this eye as noisy so
+    # downstream cross-eye comparisons keep preferring the open eye.
+    if this_open < _CLOSED and other_open >= _CLOSED:
+        if eye_id == EyeId.LEFT:
+            var.l_eye_velocity = max(var.l_eye_velocity, var.r_eye_velocity * 2.0 + 0.5)
+            return var.r_eye_x, var.right_y
+        else:
+            var.r_eye_velocity = max(var.r_eye_velocity, var.l_eye_velocity * 2.0 + 0.5)
+            return var.l_eye_x, var.left_y
 
     # Update the noise map only when both eyes appear to disagree — that's
     # when one of them is probably the noisy/clamped one. Training on every
     # frame would mix in normal saccades and wash out the asymmetry.
     # We bin by the cross-eye MIDPOINT (the user's actual gaze, roughly) so
-    # both eyes' noise grids share the same region key — otherwise the
-    # jittery eye's samples get smeared across many cells based on its own
-    # spurious position, and the comparison at query time picks a bin where
-    # one side has data and the other doesn't.
+    # both eyes' noise grids share the same region key.
     dx = var.l_eye_x - var.r_eye_x
     dy = var.left_y - var.right_y
     dist = math.sqrt(dx * dx + dy * dy)
@@ -149,11 +176,15 @@ def velocity_falloff(self, var, out_x, out_y, inst_velocity: float = 0.0):
         ):
             return var.l_eye_x, var.left_y
 
-    # Fallback: pick the eye with the LOWER smoothed velocity. The
-    # higher-velocity eye is the one currently jittering / chasing noise; the
-    # lower-velocity eye is holding gaze. (The previous version compared the
-    # wrong direction and used velocities that were never written — both
-    # bugs masked each other into the feature being roughly inert.)
-    if var.l_eye_velocity < var.r_eye_velocity:
+    # Velocity fallback: bad tracking = high jitter = high velocity.
+    # Prefer the calmer (lower velocity) eye.
+    l_v = var.l_eye_velocity
+    r_v = var.r_eye_velocity
+
+    if l_v < r_v:
         return var.l_eye_x, var.left_y
-    return var.r_eye_x, var.right_y
+    if r_v < l_v:
+        return var.r_eye_x, var.right_y
+
+    # Exact tie: return this eye's own output rather than a fixed bias.
+    return out_x, out_y
