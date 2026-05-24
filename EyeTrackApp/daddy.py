@@ -1,23 +1,23 @@
 """
-------------------------------------------------------------------------------------------------------                                                                                                    
-                                                                                                    
-                                               ,@@@@@@                                              
-                                            @@@@@@@@@@@            @@@                              
-                                          @@@@@@@@@@@@      @@@@@@@@@@@                             
-                                        @@@@@@@@@@@@@   @@@@@@@@@@@@@@                              
-                                      @@@@@@@/         ,@@@@@@@@@@@@@                               
-                                         /@@@@@@@@@@@@@@@  @@@@@@@@                                 
-                                    @@@@@@@@@@@@@@@@@@@@@@@@ @@@@@                                  
-                                @@@@@@@@                @@@@@                                       
-                              ,@@@                        @@@@&                                     
-                                             @@@@@@.       @@@@                                     
-                                   @@@     @@@@@@@@@/      @@@@@                                    
-                                   ,@@@.     @@@@@@((@     @@@@(                                    
-                                   //@@@        ,,  @@@@  @@@@@                                     
-                                   @@@(                @@@@@@@                                      
-                                   @@@  @          @@@@@@@@#                                        
-                                       @@@@@@@@@@@@@@@@@                                            
-                                      @@@@@@@@@@@@@(     
+------------------------------------------------------------------------------------------------------
+
+                                               ,@@@@@@
+                                            @@@@@@@@@@@            @@@
+                                          @@@@@@@@@@@@      @@@@@@@@@@@
+                                        @@@@@@@@@@@@@   @@@@@@@@@@@@@@
+                                      @@@@@@@/         ,@@@@@@@@@@@@@
+                                         /@@@@@@@@@@@@@@@  @@@@@@@@
+                                    @@@@@@@@@@@@@@@@@@@@@@@@ @@@@@
+                                @@@@@@@@                @@@@@
+                              ,@@@                        @@@@&
+                                             @@@@@@.       @@@@
+                                   @@@     @@@@@@@@@/      @@@@@
+                                   ,@@@.     @@@@@@((@     @@@@(
+                                   //@@@        ,,  @@@@  @@@@@
+                                   @@@(                @@@@@@@
+                                   @@@  @          @@@@@@@@#
+                                       @@@@@@@@@@@@@@@@@
+                                      @@@@@@@@@@@@@(
 
 DADDY By: PallasNeko Optimization
 Algorithm App Implementations By: PallasNeko, Prohurtz
@@ -26,6 +26,7 @@ Copyright (c) 2026 EyeTrackVR <3
 LICENSE: Babble Software Distribution License 1.0
 ------------------------------------------------------------------------------------------------------
 """
+
 import sys
 from typing import Tuple
 import math
@@ -91,7 +92,12 @@ def taylor(hm, coord):
         dx = 0.5 * (hm[py][px + 1] - hm[py][px - 1])
         dy = 0.5 * (hm[py + 1][px] - hm[py - 1][px])
         dxx = 0.25 * (hm[py][px + 2] - 2 * hm[py][px] + hm[py][px - 2])
-        dxy = 0.25 * (hm[py + 1][px + 1] - hm[py - 1][px + 1] - hm[py + 1][px - 1] + hm[py - 1][px - 1])
+        dxy = 0.25 * (
+            hm[py + 1][px + 1]
+            - hm[py - 1][px + 1]
+            - hm[py + 1][px - 1]
+            + hm[py - 1][px - 1]
+        )
         dyy = 0.25 * (hm[py + 2 * 1][px] - 2 * hm[py][px] + hm[py - 2 * 1][px])
         derivative = np.matrix([[dx], [dy]])
         hessian = np.matrix([[dxx, dxy], [dxy, dyy]])
@@ -146,7 +152,9 @@ def get_final_preds(hm, realsize):
 
 
 def resize_with_pad(
-    image: np.array, new_shape: Tuple[int, int], padding_color: Tuple[int] = (255, 255, 255)
+    image: np.array,
+    new_shape: Tuple[int, int],
+    padding_color: Tuple[int] = (255, 255, 255),
 ) -> np.array:
     """
     https://gist.github.com/IdeaKing/11cf5e146d23c5bb219ba3508cca89ec
@@ -166,7 +174,9 @@ def resize_with_pad(
     delta_h = new_shape[1] - new_size[1]
     top, bottom = delta_h // 2, delta_h - (delta_h // 2)
     left, right = delta_w // 2, delta_w - (delta_w // 2)
-    image = cv2.copyMakeBorder(image, top, bottom, left, right, cv2.BORDER_CONSTANT, value=padding_color)
+    image = cv2.copyMakeBorder(
+        image, top, bottom, left, right, cv2.BORDER_CONSTANT, value=padding_color
+    )
     return image
 
 
@@ -203,12 +213,13 @@ class BEER(object):
     def ear_norm(self, ear):
         return (ear - self.ear_min) / (
             self.ear_max - self.ear_min
-        )  # todo:It is better to add very small values to avoid zero division.
+        )  # TODO: Add a small epsilon to avoid division by zero.
 
 
 #
 # loopnum = 0
 #
+
 
 # Deep leArning lanDmark Detection for eYes
 class DADDY_cls(object):
@@ -218,10 +229,14 @@ class DADDY_cls(object):
         options.inter_op_num_threads = 1  # This number should be changed accordingly
         options.intra_op_num_threads = 1  # This number should be changed accordingly
         options.execution_mode = onnxruntime.ExecutionMode.ORT_SEQUENTIAL
-        options.graph_optimization_level = onnxruntime.GraphOptimizationLevel.ORT_ENABLE_ALL
+        options.graph_optimization_level = (
+            onnxruntime.GraphOptimizationLevel.ORT_ENABLE_ALL
+        )
 
         ort_session = onnxruntime.InferenceSession(
-            resource_path(model_file), sess_options=options, providers=["CPUExecutionProvider"]
+            resource_path(model_file),
+            sess_options=options,
+            providers=["CPUExecutionProvider"],
         )
         ort_session.set_providers(["CPUExecutionProvider"])  # only cpu mode
 
@@ -232,7 +247,9 @@ class DADDY_cls(object):
         min_cutoff = 0.0004
         beta = 0.9
         input_point = np.zeros((11, 2))  # np.array([1, 1])
-        self.one_euro_filter = OneEuroFilter(input_point, min_cutoff=min_cutoff, beta=beta)
+        self.one_euro_filter = OneEuroFilter(
+            input_point, min_cutoff=min_cutoff, beta=beta
+        )
         # self.ear_oef = OneEuroFilter(
         #     np.zeros(1),
         #     min_cutoff=min_cutoff,
@@ -269,23 +286,28 @@ class DADDY_cls(object):
     def single_run(self):
         # Temporary implementation to run
 
-        # todo: If it's the left hand eye, flip the image left to right.
+        # TODO: Flip left-eye frames horizontally if model orientation requires it.
 
         gray_frame = self.current_image_gray.copy()
 
         # frame_resize=resize_with_pad(gray_frame,(input_size,input_size))
         # or
         frame_resize = cv2.resize(gray_frame, (input_size, input_size))
-        imgs = np.divide(frame_resize[np.newaxis, np.newaxis], 255, dtype=np.float32)  # input/255.0
+        imgs = np.divide(
+            frame_resize[np.newaxis, np.newaxis], 255, dtype=np.float32
+        )  # input/255.0
 
-        pred_heatmap = self.ort_session.run(None, {self.input_name: imgs})[0]  # .reshape((-1, 2))
+        pred_heatmap = self.ort_session.run(None, {self.input_name: imgs})[
+            0
+        ]  # .reshape((-1, 2))
         # if imshow_enable:
         #     heatmap = pred_heatmap.reshape((-1, heatmap_size, heatmap_size))
         #     for i in range(heatmap.shape[0]):
         #         cv2.imshow("heatmap_{}".format(i + 1), heatmap[i])
 
         pred, max_val = get_final_preds(
-            pred_heatmap, (self.current_image_gray.shape[1], self.current_image_gray.shape[0])
+            pred_heatmap,
+            (self.current_image_gray.shape[1], self.current_image_gray.shape[0]),
         )
         pred = pred.reshape((-1, 2))
         # or
@@ -315,7 +337,7 @@ class DADDY_cls(object):
                 color = 128
             else:
                 color = (255, 0, 0)
-            # todo: We should have a proper variable for drawing.
+            # TODO: Move draw colors to named constants if this visualization stays.
             cv2.circle(self.current_image_gray, (kps[i, 0], kps[i, 1]), 1, color, 2)
             # cv2.putText(self.current_image_gray, str(i), (kps[i, 0] - 10,  kps[i, 1] - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.35, (0, 0, 255), 1)
         # cv2.putText(self.current_image_gray, "EAR: "+str(ear), (self.current_image_gray.shape[1]//10, self.current_image_gray.shape[0]//10), cv2.FONT_HERSHEY_SIMPLEX, 0.75, (255,0,0), 1)

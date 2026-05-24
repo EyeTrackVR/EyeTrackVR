@@ -1,17 +1,17 @@
 from settings.modules.BaseModule import BaseSettingsModule, BaseValidationModel
-import PySimpleGUI as sg
+import tkinter as tk
+from tkinter import ttk
 
 
 class AdvancedTrackingAlgoSettingsValidationModel(BaseValidationModel):
+    gui_BLINK: bool
+    gui_RANSACBLINK: bool
+    gui_circular_crop_left: bool
+    gui_circular_crop_right: bool
     gui_HSF_radius_left: int
     gui_HSF_radius_right: int
-    gui_blob_maxsize: int
-    gui_blob_minsize: int
-    gui_legacy_ransac_thresh_left: int
-    gui_legacy_ransac_thresh_right: int
     gui_skip_autoradius: bool
     gui_thresh_add: int
-    gui_threshold: int
     gui_pupil_dilation: bool
 
 
@@ -20,118 +20,121 @@ class AdvancedTrackingAlgoSettingsModule(BaseSettingsModule):
         super().__init__(config=config, widget_id=widget_id, **kwargs)
         self.validation_model = AdvancedTrackingAlgoSettingsValidationModel
 
-        self.gui_blob_maxsize = f"-BLOBMAXSIZE{widget_id}-"
-        self.gui_blob_minsize = f"-BLOBMINSIZE{widget_id}-"
+        self.gui_BLINK = f"-BLINK{widget_id}-"
+        self.gui_RANSACBLINK = f"-RANSACBLINK{widget_id}-"
+        self.gui_circular_crop_left = f"-CIRCLECROPLEFT{widget_id}-"
+        self.gui_circular_crop_right = f"-CIRCLECROPRIGHT{widget_id}-"
         self.gui_skip_autoradius = f"-SKIPAUTORADIUS{widget_id}-"
         self.gui_thresh_add = f"-THRESHADD{widget_id}-"
-        self.gui_threshold = f"-BLOBTHRESHOLD{widget_id}-"
         self.gui_HSF_radius_left = f"-HSFRADIUSLEFT{widget_id}-"
         self.gui_HSF_radius_right = f"-HSFRADIUSRIGHT{widget_id}-"
-
-        self.gui_legacy_ransac_thresh_right = f"-THRESHRIGHT{widget_id}-"
-        self.gui_legacy_ransac_thresh_left = f"-THRESHLEFT{widget_id}-"
         self.gui_pupil_dilation = f"-EBPD{widget_id}-"
 
-    def get_layout(self):
-        return [
-            [sg.Text("Pupil Dilation Algo Settings:", background_color="#242224")],
-            [
-                sg.Checkbox(
-                    "Ellipse Based Pupil Dilation",
-                    default=self.config.gui_pupil_dilation,
-                    key=self.gui_pupil_dilation,
-                    background_color="#424042",
-                )
-            ],
-            [sg.Text("Advanced Tracking Algorithm Settings:", background_color="#242224")],
-            [
-                sg.Checkbox(
-                    "HSF: Skip Auto Radius",
-                    default=self.config.gui_skip_autoradius,
-                    key=self.gui_skip_autoradius,
-                    background_color="#424042",
-                    tooltip="To gain more control and possibly better tracking quality of HSF, please disable auto radius to enable manual adjustment.",
-                ),
-            ],
-            [
-                sg.Text("Left HSF Radius:", background_color="#424042"),
-                sg.Slider(
-                    range=(1, 50),
-                    default_value=self.config.gui_HSF_radius_left,
-                    orientation="h",
-                    key=self.gui_HSF_radius_left,
-                    background_color="#424042",
-                    tooltip="Adjusts the radius parameter for HSF. Only adjust if you are having tracking issues.",
-                ),
-                sg.Text("Right HSF Radius:", background_color="#424042"),
-                sg.Slider(
-                    range=(1, 50),
-                    default_value=self.config.gui_HSF_radius_right,
-                    orientation="h",
-                    key=self.gui_HSF_radius_right,
-                    background_color="#424042",
-                    tooltip="Adjusts the radius parameter for HSF. Only adjust if you are having tracking issues.",
-                ),
-            ],
-            [
-                sg.Text("RANSAC Thresh Add", background_color="#424042"),
-                sg.Slider(
-                    range=(1, 50),
-                    default_value=self.config.gui_thresh_add,
-                    orientation="h",
-                    key=self.gui_thresh_add,
-                    background_color="#424042",
-                    tooltip="Adjusts the amount of threshold to add to RANSAC. Useful for fine tuning your setup.",
-                ),
-                sg.Text("Blob Threshold", background_color="#424042"),
-                # TODO make this for right and left eyes? I dont know how vital that is..
-                sg.Slider(
-                    range=(0, 110),
-                    default_value=self.config.gui_threshold,
-                    orientation="h",
-                    key=self.gui_threshold,
-                    background_color="#424042",
-                    tooltip="Adjusts the threshold for blob tracking.",
-                ),
-            ],
-            [
-                sg.Text("Min Blob Size:", background_color="#424042"),
-                sg.Slider(
-                    range=(1, 50),
-                    default_value=self.config.gui_blob_minsize,
-                    orientation="h",
-                    key=self.gui_blob_minsize,
-                    background_color="#424042",
-                    tooltip="Minimum size a blob has to be for blob tracking.",
-                ),
-                sg.Text("Max Blob Size:", background_color="#424042"),
-                sg.Slider(
-                    range=(1, 50),
-                    default_value=self.config.gui_blob_maxsize,
-                    orientation="h",
-                    key=self.gui_blob_maxsize,
-                    background_color="#424042",
-                    tooltip="Maximum size a blob can be for blob tracking.",
-                ),
-            ],
-            [
-                sg.Text("Right Eye Thresh:", background_color="#424042"),
-                sg.Slider(
-                    range=(1, 120),
-                    default_value=self.config.gui_legacy_ransac_thresh_right,
-                    orientation="h",
-                    key=self.gui_legacy_ransac_thresh_right,
-                    background_color="#424042",
-                    tooltip="Threshold for right eye, legacy RANSAC only",
-                ),
-                sg.Text("Left Eye Thresh:", background_color="#424042"),
-                sg.Slider(
-                    range=(1, 120),
-                    default_value=self.config.gui_legacy_ransac_thresh_left,
-                    orientation="h",
-                    key=self.gui_legacy_ransac_thresh_left,
-                    background_color="#424042",
-                    tooltip="Threshold for left eye, legacy RANSAC only",
-                ),
-            ],
+    def _add_slider_with_controls(self, parent, row, label, var, min_v, max_v):
+        slider_length = 160
+        value_label_var = tk.StringVar(value=str(int(var.get())))
+
+        def sync(*_args):
+            value_label_var.set(str(int(round(float(var.get())))))
+
+        def bump(delta):
+            next_val = int(round(float(var.get()))) + delta
+            next_val = max(min_v, min(max_v, next_val))
+            var.set(next_val)
+
+        ttk.Label(parent, text=label).grid(
+            row=row, column=0, sticky="w", padx=8, pady=2
+        )
+        ttk.Scale(
+            parent,
+            from_=min_v,
+            to=max_v,
+            variable=var,
+            orient="horizontal",
+            length=slider_length,
+        ).grid(row=row, column=1, sticky="w", padx=8, pady=2)
+        ttk.Button(parent, text="-", width=2, command=lambda: bump(-1)).grid(
+            row=row, column=2, sticky="w", padx=(4, 2), pady=2
+        )
+        ttk.Label(parent, textvariable=value_label_var, width=6, anchor="center").grid(
+            row=row, column=3, sticky="w", padx=2, pady=2
+        )
+        ttk.Button(parent, text="+", width=2, command=lambda: bump(1)).grid(
+            row=row, column=4, sticky="w", padx=(2, 8), pady=2
+        )
+        var.trace_add("write", sync)
+
+    def build(self, parent):
+        checkbox_fields = [
+            (self.gui_BLINK, self.config.gui_BLINK, "Binary Blink Algo"),
+            (
+                self.gui_RANSACBLINK,
+                self.config.gui_RANSACBLINK,
+                "RANSAC Quick Blink Algo",
+            ),
+            (
+                self.gui_circular_crop_left,
+                self.config.gui_circular_crop_left,
+                "Left Eye Circle Crop",
+            ),
+            (
+                self.gui_circular_crop_right,
+                self.config.gui_circular_crop_right,
+                "Right Eye Circle Crop",
+            ),
+            (
+                self.gui_skip_autoradius,
+                self.config.gui_skip_autoradius,
+                "HSF: Skip Auto Radius",
+            ),
+            (
+                self.gui_pupil_dilation,
+                self.config.gui_pupil_dilation,
+                "Ellipse Based Pupil Dilation",
+            ),
         ]
+        ncol = 2
+        rows_per_column = (len(checkbox_fields) + ncol - 1) // ncol
+        for idx, (key, default, label) in enumerate(checkbox_fields):
+            row = idx % rows_per_column
+            col = idx // rows_per_column
+            var = tk.BooleanVar(value=default)
+            self.tk_vars[key] = var
+            ttk.Checkbutton(parent, text=label, variable=var).grid(
+                row=row, column=col, sticky="w", padx=8, pady=2
+            )
+        row = rows_per_column
+
+        ttk.Separator(parent, orient="horizontal").grid(
+            row=row, column=0, columnspan=5, sticky="ew", padx=8, pady=(6, 4)
+        )
+        row += 1
+
+        slider_specs = [
+            (
+                "Left HSF Radius",
+                self.gui_HSF_radius_left,
+                self.config.gui_HSF_radius_left,
+                1,
+                50,
+            ),
+            (
+                "Right HSF Radius",
+                self.gui_HSF_radius_right,
+                self.config.gui_HSF_radius_right,
+                1,
+                50,
+            ),
+            (
+                "RANSAC Thresh Add",
+                self.gui_thresh_add,
+                self.config.gui_thresh_add,
+                1,
+                50,
+            ),
+        ]
+        for label, key, default, min_v, max_v in slider_specs:
+            var = tk.IntVar(value=int(default))
+            self.tk_vars[key] = var
+            self._add_slider_with_controls(parent, row, label, var, min_v, max_v)
+            row += 1

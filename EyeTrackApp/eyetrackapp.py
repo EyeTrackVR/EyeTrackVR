@@ -24,12 +24,25 @@ LICENSE: Babble Software Distribution License 1.0
 ------------------------------------------------------------------------------------------------------
 """
 
+import logging
 import os
-import PySimpleGUI as sg
+import sys
+import time
+import webbrowser
+import tkinter as tk
+from tkinter import ttk
+import sv_ttk
 import queue
+import cv2
 import requests
 import threading
 from camera_widget import CameraWidget
+from camera_enum import (
+    discover_etvr_mdns_sources,
+    discover_etvr_serial_cameras,
+    format_uvc_named_source,
+    list_uvc_cameras,
+)
 from config import EyeTrackConfig
 from eye import EyeId
 from settings.VRCFTModuleSettings import VRCFTSettingsWidget
@@ -37,22 +50,33 @@ from settings.general_settings_widget import SettingsWidget
 from settings.algo_settings_widget import AlgoSettingsWidget
 from osc.osc import OSCManager
 from osc.OSCMessage import OSCMessage
+from utils.logging_utils import setup_logging
 from utils.misc_utils import is_nt, is_macos, resource_path
+from utils.tooltips import attach_tooltip
 
-import cv2
-import numpy as np
-import uuid
 
+
+APP_VERSION = "EyeTrackApp 0.3.0 BETA 3"
+setup_logging(APP_VERSION)
+logger = logging.getLogger(__name__)
 winmm = None
 
 if is_nt:
     from winotify import Notification
     from ctypes import windll, c_int
+
+    try:
+        windll.shcore.SetProcessDpiAwareness(1)  # system DPI aware
+    except Exception:
+        try:
+            windll.user32.SetProcessDPIAware()
+        except Exception:
+            pass
+
     try:
         winmm = windll.winmm
     except OSError:
-        print("\033[91m[WARN] Failed to load winmm.dll\033[0m")
-os.system("color")  # init ANSI color
+        logger.warning("Failed to load winmm.dll")
 
 
 # Random environment variable to speed up webcam opening on the MSMF backend.
@@ -60,167 +84,48 @@ os.system("color")  # init ANSI color
 os.environ["OPENCV_VIDEOIO_MSMF_ENABLE_HW_TRANSFORMS"] = "0"
 WINDOW_NAME = "EyeTrackApp"
 
+_pywinstyles_mod = None
 
 
-page_url = "https://github.com/EyeTrackVR/EyeTrackVR/releases/latest"
-appversion = "EyeTrackApp 0.2.5.6"
+def apply_theme_to_titlebar(win: tk.Misc) -> None:
+    """Match the Windows 10/11 caption bar to sv-ttk dark or light (requires pywinstyles on Windows)."""
+    global _pywinstyles_mod
+    if not is_nt:
+        return
+    if _pywinstyles_mod is False:
+        return
+    if _pywinstyles_mod is None:
+        try:
+            import pywinstyles as _pws
+
+            _pywinstyles_mod = _pws
+        except ImportError:
+            _pywinstyles_mod = False
+            logger.warning("pywinstyles not installed; title bar theme skipped.")
+            return
+
+    is_dark = sv_ttk.get_theme() == "dark"
+    version = sys.getwindowsversion()
+
+    if version.major == 10 and version.build >= 22000:
+        header = "#1c1c1c" if is_dark else "#fafafa"
+        _pywinstyles_mod.change_header_color(win, header)
+    elif version.major == 10:
+        _pywinstyles_mod.apply_style(win, "dark" if is_dark else "normal")
+        win.wm_attributes("-alpha", 0.99)
+        win.wm_attributes("-alpha", 1)
 
 
-class KeyManager:
-    def __init__(self):
-        self.update_keys()
-
-    def update_keys(self):
-        unique_id = str(uuid.uuid4())
-        self.RIGHT_EYE_NAME = f"-RIGHTEYEWIDGET{unique_id}-"
-        self.LEFT_EYE_NAME = f"-LEFTEYEWIDGET{unique_id}-"
-        self.SETTINGS_NAME = f"-SETTINGSWIDGET{unique_id}-"
-        self.ALGO_SETTINGS_NAME = f"-ALGOSETTINGSWIDGET{unique_id}-"
-        self.VRCFT_MODULE_SETTINGS_NAME = f"-VRCFTSETTINGSWIDGET{unique_id}-"
-        self.LEFT_EYE_RADIO_NAME = f"-LEFTEYERADIO{unique_id}-"
-        self.RIGHT_EYE_RADIO_NAME = f"-RIGHTEYERADIO{unique_id}-"
-        self.BOTH_EYE_RADIO_NAME = f"-BOTHEYERADIO{unique_id}-"
-        self.SETTINGS_RADIO_NAME = f"-SETTINGSRADIO{unique_id}-"
-        self.ALGO_SETTINGS_RADIO_NAME = f"-ALGOSETTINGSRADIO{unique_id}-"
-        self.VRCFT_MODULE_SETTINGS_RADIO_NAME = f"-VRCFTSETTINGSRADIO{unique_id}-"
-        self.GUIOFF_RADIO_NAME = f"-GUIOFF{unique_id}-"
-
-
-# Create an instance of the KeyManager
-key_manager = KeyManager()
-
-def create_window(config, settings, eyes):
-
-    key_manager.update_keys()
-
-    for eye in eyes:
-        eye.update_layouts()
-
-    layout = [
-        [
-            sg.Radio(
-                "Left Eye",
-                "EYESELECTRADIO",
-                background_color="#292929",
-                default=(config.eye_display_id == EyeId.LEFT),
-                key=key_manager.LEFT_EYE_RADIO_NAME,
-            ),
-            sg.Radio(
-                "Right Eye",
-                "EYESELECTRADIO",
-                background_color="#292929",
-                default=(config.eye_display_id == EyeId.RIGHT),
-                key=key_manager.RIGHT_EYE_RADIO_NAME,
-            ),
-            sg.Radio(
-                "Both Eyes",
-                "EYESELECTRADIO",
-                background_color="#292929",
-                default=(config.eye_display_id == EyeId.BOTH),
-                key=key_manager.BOTH_EYE_RADIO_NAME,
-            ),
-            sg.Radio(
-                "Settings",
-                "EYESELECTRADIO",
-                background_color="#292929",
-                default=(config.eye_display_id == EyeId.SETTINGS),
-                key=key_manager.SETTINGS_RADIO_NAME,
-            ),
-            sg.Radio(
-                "Algo Settings",
-                "EYESELECTRADIO",
-                background_color="#292929",
-                default=(config.eye_display_id == EyeId.ALGOSETTINGS),
-                key=key_manager.ALGO_SETTINGS_RADIO_NAME,
-            ),
-
-        ],
-        [
-            sg.Radio(
-                "VRCFT Module Settings",
-                "EYESELECTRADIO",
-                background_color="#292929",
-                default=(config.eye_display_id == EyeId.VRCFTMODULESETTINGS),
-                key=key_manager.VRCFT_MODULE_SETTINGS_RADIO_NAME,
-            ),
-        ],
-        [
-            sg.Column(
-                eyes[1].widget_layout,
-                vertical_alignment="top",
-                key=key_manager.LEFT_EYE_NAME,
-                visible=(config.eye_display_id in [EyeId.LEFT, EyeId.BOTH]),
-                background_color="#424042",
-            ),
-            sg.Column(
-                eyes[0].widget_layout,
-                vertical_alignment="top",
-                key=key_manager.RIGHT_EYE_NAME,
-                visible=(config.eye_display_id in [EyeId.RIGHT, EyeId.BOTH]),
-                background_color="#424042",
-            ),
-            sg.Column(
-                settings[0].get_layout(),
-                vertical_alignment="top",
-                key=key_manager.SETTINGS_NAME,
-                visible=(config.eye_display_id in [EyeId.SETTINGS]),
-                background_color="#424042",
-            ),
-            sg.Column(
-                settings[1].get_layout(),
-                vertical_alignment="top",
-                key=key_manager.ALGO_SETTINGS_NAME,
-                visible=(config.eye_display_id in [EyeId.ALGOSETTINGS]),
-                background_color="#424042",
-            ),
-            sg.Column(
-                settings[2].get_layout(),
-                vertical_alignment="top",
-                key=key_manager.VRCFT_MODULE_SETTINGS_NAME,
-                visible=(config.eye_display_id in [EyeId.VRCFTMODULESETTINGS]),
-                background_color="#424042",
-            ),
-        ],
-        [
-            sg.Button(
-                "GUI OFF",
-                key=key_manager.GUIOFF_RADIO_NAME,
-                button_color="#6f4ca1",
-            ),
-        ],
-        # Keep at bottom!
-        [sg.Text("- - -  Interface Paused  - - -", key="-WINFOCUS-", background_color="#292929", text_color="#F0F0F0", justification="center", expand_x=True, visible=False)],
-    ]
-
-
-    if config.eye_display_id in [EyeId.LEFT, EyeId.BOTH]:
-        eyes[1].start()
-    if config.eye_display_id in [EyeId.RIGHT, EyeId.BOTH]:
-        eyes[0].start()
-    if config.eye_display_id in [EyeId.SETTINGS]:
-        settings[0].start()
-    if config.eye_display_id in [EyeId.ALGOSETTINGS]:
-        settings[1].start()
-    if config.eye_display_id in [EyeId.VRCFTMODULESETTINGS]:
-        settings[2].start()
-
-    # the eye's needs to be running before it is passed to the OSC
-    # Create the window
-    return sg.Window(
-        f"{appversion}",
-        layout,
-        icon=resource_path("Images/logo.ico"),
-        background_color="#292929")
-
-def timerResolution(toggle):
-    if winmm != None:
-        if toggle:
+def set_timer_resolution(enabled):
+    if winmm is not None:
+        if enabled:
             rc = c_int(winmm.timeBeginPeriod(1))
             if rc.value != 0:
                 # TIMEERR_NOCANDO = 97
-                print(f"\033[93m[WARN] Failed to set timer resolution: {rc.value}\033[0m")
+                logger.warning("Failed to set timer resolution: %s", rc.value)
         else:
             winmm.timeEndPeriod(1)
+
 
 def main():
     # Get Configuration
@@ -235,6 +140,7 @@ def main():
     # Allow the app to be closed when SteamVR closes
     if config.settings.gui_openvr_autostart and not is_macos:
         from OVR.OpenVRService import openvr_service as _openvr_service, OpenVRException
+
         try:
             _openvr_service.initialize()
         except OpenVRException:
@@ -243,21 +149,26 @@ def main():
         openvr_service = _openvr_service
         config.register_listener_callback(openvr_service.on_config_update)
 
-
     # Check to see if we can connect to our video source first. If not, bring up camera finding
     # dialog.
     try:
         if config.settings.gui_update_check:
-            response = requests.get("https://api.github.com/repos/EyeTrackVR/EyeTrackVR/releases/latest")
+            response = requests.get(
+                "https://api.github.com/repos/EyeTrackVR/EyeTrackVR/releases/latest",
+                timeout=(3, 10),
+            )
+            response.raise_for_status()
             latestversion = response.json()["name"]
 
             if (
-                appversion == latestversion
-            ):  # If what we scraped and hardcoded versions are same, assume we are up to date.
-                print(f"\033[92m[INFO] App is the latest version! [{latestversion}]\033[0m")
+                APP_VERSION == latestversion
+            ):  # GitHub release name matches the local application version.
+                logger.info("App is the latest version: %s", latestversion)
             else:
-                print(
-                    f"\033[93m[INFO] You have app version [{appversion}] installed. Please update to [{latestversion}] for the newest features.\033[0m"
+                logger.warning(
+                    "You have app version %s installed. Please update to %s for the newest features.",
+                    APP_VERSION,
+                    latestversion,
                 )
                 try:
                     if is_nt:
@@ -274,12 +185,10 @@ def main():
                             launch="https://github.com/EyeTrackVR/EyeTrackVR/releases/latest",
                         )
                         toast.show()
-                except Exception as e:
-                    print("[INFO] Toast notifications not supported")
-    except:
-        print("\033[91m[INFO] Could not check for updates. Please try again later.\033[0m")
-
-    timerResolution(True)
+                except Exception:
+                    logger.info("Toast notifications not supported", exc_info=True)
+    except (requests.RequestException, KeyError, ValueError):
+        logger.info("Could not check for updates. Please try again later.", exc_info=True)
 
     osc_queue: queue.Queue[OSCMessage] = queue.Queue(maxsize=10)
 
@@ -302,7 +211,6 @@ def main():
     config.register_listener_callback(eyes[0].on_config_update)
     config.register_listener_callback(eyes[1].on_config_update)
 
-
     osc_manager.register_listeners(
         config.settings.gui_osc_recenter_address,
         [
@@ -320,202 +228,991 @@ def main():
 
     osc_manager.start()
 
-    while True:
-        tint = 33
-        fs = False
-        if config.settings.gui_disable_gui:
-            layoutg = [
-                [sg.Text("GUI Disabled!", background_color="#242224")],
-                [sg.Button('Enable GUI', button_color="#6f4ca1")]
-            ]
-
-            # Create the window
-            windowg = sg.Window('ETVR', layoutg, background_color="#242224", size=(200, 80)) #icon=resource_path("Images/logo.ico") adds cpu usage.....
-
-            # Event loop
-            while True:
-                eventg, valuesg = windowg.read(timeout=tint)
-
-                if eventg == sg.WINDOW_CLOSED:
-                    config.settings.gui_disable_gui = False
-                    config.save()
-                    break
-                elif eventg == 'Enable GUI':
-                    config.settings.gui_disable_gui = False
-                    config.save()
-                    print('GUI Enabled')
-                    break
-
-            windowg.close()
-
-
-        # First off, check for any events from the GUI
-        window = create_window(config, settings, eyes)
-
-        # Allow openvr service to access the window to dynamically update the settings (uncheck autostart box)
-        if (not is_macos) and (openvr_service is not None):
-            openvr_service.window = window
-
-        while True:
-            event, values = window.read(timeout=tint) # this higher timeout saves some cpu usage
-
-            # If we're in either mode and someone hits q, quit immediately
-            if event in ("Exit", sg.WIN_CLOSED) and not config.settings.gui_disable_gui:
-                print("\033[94m[INFO] Exiting EyeTrackApp\033[0m")
-                for eye in eyes:
-                    eye.stop()
-                cancellation_event.set()
-                osc_manager.shutdown()
-                timerResolution(False)
-
-                window.close()
-                os._exit(0)  # I do not like this, but for now this fixes app hang on close
-                return
-
+    class AppUI:
+        def __init__(self):
+            self.root = tk.Tk()
+            self.root.title(APP_VERSION)
+            self._dpi_scale = 1.0
+            if is_nt:
+                try:
+                    import tkinter.font as tkfont
+                    dpi = windll.user32.GetDpiForSystem()
+                    self._dpi_scale = dpi / 96.0
+                    self.root.tk.call("tk", "scaling", dpi / 72.0)
+                    logger.info(f"System DPI: {dpi}, scale: {self._dpi_scale:.2f}x")
+                except Exception as e:
+                    logger.warning(f"DPI scaling failed: {e}")
             try:
-                # If window isn't in focus increase timeout and stop loop early
-                if window.TKroot.focus_get():
-                    if fs:
-                        fs = False
-                        tint = 33
-                        window["-WINFOCUS-"].update(visible=False)
-                        window["-WINFOCUS-"].hide_row()
-                        window.refresh()
-                else:
-                    if not fs:
-                        fs = True
-                        tint = 100
-                        window["-WINFOCUS-"].update(visible=True)
-                        window["-WINFOCUS-"].unhide_row()
-                    continue
-            except KeyError:
+                self.root.iconbitmap(resource_path("Images/logo.ico"))
+            except Exception:
+                pass
+            sv_ttk.set_theme("dark")
+            if is_nt and self._dpi_scale > 1.05:
+                try:
+                    import tkinter.font as tkfont
+                    for name in tkfont.names(root=self.root):
+                        try:
+                            f = tkfont.nametofont(name, root=self.root)
+                            size = f.cget("size")
+                            if size != 0:
+                                f.configure(size=round(size * self._dpi_scale))
+                        except Exception:
+                            pass
+                except Exception as e:
+                    logger.warning(f"Font scaling failed: {e}")
+            apply_theme_to_titlebar(self.root)
+            self.focus_paused = False
+            self.current_page = "tracking"
+            initial_mode = getattr(config.settings, "gui_setup_mode", "etvr") or "etvr"
+            if initial_mode not in ("etvr", "bigscreen"):
+                initial_mode = "etvr"
+            self.mode_var = tk.StringVar(value=initial_mode)
+            self._last_camera_tracking_key = None
+            self._timer_high_res = False
+            self._nav_teardown_seq = 0
+            # Maps the friendly display label shown in the camera dropdown to
+            # the actual capture_source string we store/resolve (e.g.
+            # ``"OBS Virtual Camera"`` → ``"uvc:OBS Virtual Camera@\\?\..."``).
+            # Populated by scan_sources; consulted by _normalize_camera_input.
+            self._source_display_map: dict[str, str] = {}
+
+            nav = ttk.Frame(self.root)
+            nav.pack(fill="x", padx=16, pady=(16, 4))
+            self._nav_buttons = {}
+            for page_id, label in (
+                ("tracking", "Tracking"),
+                ("settings", "Settings"),
+                ("algo", "Algo Settings"),
+                ("vrcft", "VRCFT Module Settings"),
+            ):
+                btn = ttk.Button(
+                    nav, text=label, command=lambda p=page_id: self.show_page(p)
+                )
+                btn.pack(side="left", padx=4)
+                self._nav_buttons[page_id] = btn
+
+            self.content = ttk.Frame(self.root)
+            self.content.pack(fill="both", expand=True, padx=8, pady=(0, 16))
+
+            self.tracking_tab = ttk.Frame(self.content)
+            self.settings_frame = settings[0].build(self.content)
+            self.algo_frame = settings[1].build(self.content, eye_widgets=eyes, dpi_scale=self._dpi_scale)
+            self.vrcft_frame = settings[2].build(self.content)
+
+            # "Having Issues?" popup — floats over the current page, same pattern
+            # as the Advanced Algo Settings popup.
+            self._issues_popup_visible = False
+            self._issues_popup = tk.Toplevel(self.root)
+            self._issues_popup.title("Having Issues?")
+            self._issues_popup.withdraw()
+            self._issues_popup.resizable(False, False)
+            self._issues_popup.protocol("WM_DELETE_WINDOW", self._on_issues_popup_close)
+            apply_theme_to_titlebar(self._issues_popup)
+
+            _issues_hdr_font = ("Segoe UI", 12, "bold")
+            _hdr_bg = self._issues_popup.cget("background")
+            _issues_content = ttk.Frame(self._issues_popup, padding=16)
+            _issues_content.pack(fill="both", expand=True)
+            issues_wrap = 400
+
+            tk.Label(
+                _issues_content,
+                text="Having tracking issues?",
+                font=_issues_hdr_font,
+                bg=_hdr_bg,
+                fg="#e8e8e8",
+            ).pack(anchor="w", pady=(0, 6))
+            ttk.Label(
+                _issues_content,
+                text=(
+                    "Please ensure your cameras are well lit, focused, rotated and cropped correctly. "
+                    "Please ask in our discord for assistance if needed. We are here to help!"
+                ),
+                wraplength=issues_wrap,
+                justify="left",
+            ).pack(anchor="w", pady=(0, 16))
+            tk.Label(
+                _issues_content,
+                text="Improve your experience",
+                font=_issues_hdr_font,
+                bg=_hdr_bg,
+                fg="#e8e8e8",
+            ).pack(anchor="w", pady=(0, 6))
+            ttk.Label(
+                _issues_content,
+                text=(
+                    "Please consider contributing data to our training to improve future models for much better "
+                    "tracking and features. It only takes a few minutes. Every submission helps and we really want "
+                    "data on setups that work poorly, as well as ones that work well. Thank you!"
+                ),
+                wraplength=issues_wrap,
+                justify="left",
+            ).pack(anchor="w", pady=(0, 16))
+            issues_btn_row = ttk.Frame(_issues_content)
+            issues_btn_row.pack(anchor="w", pady=(0, 8))
+
+            def _open_data_submission():
+                webbrowser.open(
+                    "https://github.com/RedHawk989/ETVR-Data-Collection/releases/latest"
+                )
+
+            def _open_discord():
+                webbrowser.open("https://discord.gg/kkXYbVykZX")
+
+            ttk.Button(
+                issues_btn_row,
+                text="Data Submission App",
+                command=_open_data_submission,
+                style="Accent.TButton",
+            ).pack(side="left", padx=(0, 8))
+            ttk.Button(issues_btn_row, text="Discord", command=_open_discord).pack(side="left")
+
+            _issues_close_row = ttk.Frame(self._issues_popup)
+            _issues_close_row.pack(fill="x", padx=16, pady=(0, 16))
+            ttk.Button(
+                _issues_close_row, text="Close", command=self._on_issues_popup_close
+            ).pack(side="right")
+
+            tracking_outer = ttk.Frame(self.tracking_tab)
+            tracking_outer.pack(fill="both", expand=True)
+            tracking_sidebar = ttk.Frame(tracking_outer, width=round(300 * self._dpi_scale))
+            tracking_sidebar.pack_propagate(False)
+            tracking_sidebar.pack(side="left", fill="y", padx=(0, 16))
+            sidebar_inner = ttk.Frame(tracking_sidebar, padding=16)
+            sidebar_inner.pack(fill="both", expand=True)
+            tracking_main = ttk.Frame(tracking_outer)
+            tracking_main.pack(side="left", fill="both", expand=True)
+
+            _sidebar_hdr_font = ("Segoe UI", round(10 * self._dpi_scale), "bold")
+            _setup_type_outer = ttk.Frame(sidebar_inner)
+            _setup_type_outer.pack(fill="x", pady=(0, 24))
+            ttk.Label(_setup_type_outer, text="Setup Type", font=_sidebar_hdr_font).pack(anchor="w", pady=(0, 4))
+            setup_type = ttk.Frame(_setup_type_outer)
+            setup_type.pack(fill="x")
+            etvr_radio = ttk.Radiobutton(
+                setup_type,
+                text="ETVR Setup",
+                variable=self.mode_var,
+                value="etvr",
+                command=self.on_mode_change,
+            )
+            etvr_radio.pack(anchor="w", pady=4)
+            attach_tooltip(
+                etvr_radio,
+                "Standard ETVR mode: two independent cameras (UVC, serial, "
+                "or network) drive the left and right eyes.",
+            )
+            bsb_radio = ttk.Radiobutton(
+                setup_type,
+                text="Bigscreen Beyond",
+                variable=self.mode_var,
+                value="bigscreen",
+                command=self.on_mode_change,
+            )
+            bsb_radio.pack(anchor="w", pady=4)
+            attach_tooltip(
+                bsb_radio,
+                "Bigscreen Beyond mode: one camera supplies both eye images "
+                "side-by-side; ETVR splits them internally.",
+            )
+
+            _tracking_controls_outer = ttk.Frame(sidebar_inner)
+            _tracking_controls_outer.pack(fill="x", pady=(0, 24))
+            ttk.Label(_tracking_controls_outer, text="Camera Settings", font=_sidebar_hdr_font).pack(anchor="w", pady=(0, 4))
+            tracking_controls = ttk.Frame(_tracking_controls_outer)
+            tracking_controls.pack(fill="x")
+            left_initial = config.left_eye.capture_source
+            right_initial = config.right_eye.capture_source
+            self.left_camera_var = tk.StringVar(
+                value="" if left_initial is None or left_initial == "" else str(left_initial)
+            )
+            self.right_camera_var = tk.StringVar(
+                value="" if right_initial is None or right_initial == "" else str(right_initial)
+            )
+            self.left_camera_label = ttk.Label(
+                tracking_controls, text="Left (UVC / COM port / URL):"
+            )
+            self.left_camera_label.pack(anchor="w", pady=(0, 2))
+            # Combobox (not Entry) so Scan can populate a dropdown of detected
+            # UVC cameras while still letting the user type a COM port / URL /
+            # index by hand. Picked dropdown entries are written as
+            # ``uvc:<name>@<address>`` strings, which the capture thread
+            # re-resolves to a live cv2 index every loop.
+            self.left_camera_entry = ttk.Combobox(
+                tracking_controls, textvariable=self.left_camera_var, values=(), foreground="#e0e0e0"
+            )
+            self.left_camera_entry.pack(fill="x", pady=(0, 8))
+            attach_tooltip(
+                self.left_camera_entry,
+                "Capture source for the left eye. Pick from the dropdown "
+                "(populated by Scan) or type a value: UVC index (e.g. 0), "
+                "COM/serial port (e.g. COM5, /dev/cu.usbserial-0001), or URL "
+                "(e.g. http://etvr-left.local/).",
+            )
+            self.right_camera_label = ttk.Label(
+                tracking_controls, text="Right (UVC / COM port / URL):"
+            )
+            self.right_camera_entry = ttk.Combobox(
+                tracking_controls, textvariable=self.right_camera_var, values=(), foreground="#e0e0e0"
+            )
+            self.right_camera_label.pack(anchor="w", pady=(0, 2))
+            self.right_camera_entry.pack(fill="x", pady=(0, 8))
+            attach_tooltip(
+                self.right_camera_entry,
+                "Capture source for the right eye. See the Left field for "
+                "accepted formats.",
+            )
+            # Picking a value from the dropdown auto-connects (matches what
+            # users expect after running Scan). Typed input intentionally does
+            # NOT auto-connect — that's what the Connect button is for, and
+            # firing on every keystroke would thrash the capture thread.
+            # <<ComboboxSelected>> only fires on dropdown selection, not edits.
+            self.left_camera_entry.bind(
+                "<<ComboboxSelected>>", lambda _e: self.apply_camera_inputs()
+            )
+            self.right_camera_entry.bind(
+                "<<ComboboxSelected>>", lambda _e: self.apply_camera_inputs()
+            )
+            camera_button_row = ttk.Frame(tracking_controls)
+            camera_button_row.pack(fill="x")
+            scan_btn = ttk.Button(
+                camera_button_row, text="Scan", width=8, command=self.scan_sources
+            )
+            scan_btn.pack(side="left", padx=(0, 4))
+            attach_tooltip(
+                scan_btn,
+                "Search for connected cameras: USB webcams (UVC), ETVR serial "
+                "trackers on COM ports, and network trackers on the LAN (mDNS).",
+            )
+            connect_btn = ttk.Button(
+                camera_button_row,
+                text="Connect",
+                command=self.apply_camera_inputs,
+                style="Accent.TButton",
+            )
+            connect_btn.pack(side="left", fill="x", expand=True)
+            attach_tooltip(
+                connect_btn,
+                "Apply the current Left/Right values and (re)open the camera "
+                "streams. Required after typing a value by hand.",
+            )
+
+            status_group = ttk.LabelFrame(sidebar_inner, text="Status", padding=8)
+            status_group.pack(fill="both", expand=True)
+            self.mode_label_var = tk.StringVar(value="")
+            self.status_var = tk.StringVar(value="Ready.")
+            ttk.Label(
+                status_group,
+                textvariable=self.status_var,
+                wraplength=240,
+                justify="left",
+                anchor="w",
+            ).pack(anchor="w", fill="x")
+            ttk.Label(
+                status_group,
+                textvariable=self.mode_label_var,
+                wraplength=240,
+                justify="left",
+            ).pack(anchor="w", pady=(6, 0))
+
+            # Global mode toggle — flips both eyes between Tracking and
+            # Cropping at once. Per-eye buttons used to live inside each
+            # camera widget; users always wanted them paired.
+            mode_row = ttk.Frame(tracking_main)
+            mode_row.pack(fill="x", pady=(0, 32))
+            mode_inner = ttk.Frame(mode_row)
+            mode_inner.pack(anchor="center")
+            self._global_tracking_btn = ttk.Button(
+                mode_inner,
+                text="Tracking Mode",
+                command=self._on_global_tracking_mode,
+            )
+            self._global_tracking_btn.pack(side="left", padx=8)
+            attach_tooltip(
+                self._global_tracking_btn,
+                "Run the eye-tracking algorithm on both cameras. Use after "
+                "setting your crop regions in Cropping Mode.",
+            )
+            self._global_roi_btn = ttk.Button(
+                mode_inner,
+                text="Cropping Mode",
+                command=self._on_global_roi_mode,
+            )
+            self._global_roi_btn.pack(side="left", padx=8)
+            attach_tooltip(
+                self._global_roi_btn,
+                "Draw a rectangle on each camera image to isolate the eye. "
+                "Switch back to Tracking Mode when done.",
+            )
+
+            # Eye selector shown below the mode buttons only while in crop mode.
+            self._crop_active_eye = "left"
+            self._crop_eye_row = ttk.Frame(mode_row)
+            _crop_inner = ttk.Frame(self._crop_eye_row)
+            _crop_inner.pack(anchor="center", pady=(12, 0))
+            self._crop_left_btn = ttk.Button(
+                _crop_inner,
+                text="Left Eye",
+                command=lambda: self._on_crop_eye_select("left"),
+                style="Accent.TButton",
+            )
+            self._crop_left_btn.pack(side="left", padx=4)
+            self._crop_right_btn = ttk.Button(
+                _crop_inner,
+                text="Right Eye",
+                command=lambda: self._on_crop_eye_select("right"),
+            )
+            self._crop_right_btn.pack(side="left", padx=4)
+
+            self._sync_global_mode_buttons()
+
+            self.tracking_eyes_row = ttk.Frame(tracking_main)
+            # anchor="center": keeps both eye panels as a unit in the middle of
+            # tracking_main rather than stretching them edge-to-edge.
+            self.tracking_eyes_row.pack(anchor="center")
+            self.left_frame = eyes[1].build(
+                self.tracking_eyes_row, show_camera_controls=False, dpi_scale=self._dpi_scale
+            )
+            self.right_frame = eyes[0].build(
+                self.tracking_eyes_row, show_camera_controls=False, dpi_scale=self._dpi_scale
+            )
+            self.left_frame.pack(side="left", fill="y", padx=(0, 8))
+            self.right_frame.pack(side="left", fill="y", padx=(8, 0))
+
+            # Global calibration / recenter row. Replaces the per-eye buttons
+            # that used to live in each camera widget — left/right always need
+            # to calibrate together, and two pairs of buttons made it ambiguous
+            # which eye's state was being toggled.
+            # fill="x" on the outer frame so the inner button group can center
+            # within the full tracking_main width. Tight top padding keeps the
+            # buttons close to the visualization above.
+            self._tracking_actions = ttk.Frame(tracking_main)
+            self._tracking_actions.pack(fill="x", pady=(40, 0))
+            actions_inner = ttk.Frame(self._tracking_actions)
+            actions_inner.pack(anchor="center")
+            self._calibration_btn_text = tk.StringVar(value="Start Calibration")
+            self._global_calibration_btn = ttk.Button(
+                actions_inner,
+                textvariable=self._calibration_btn_text,
+                command=self._on_global_calibration_toggle,
+                style="Accent.TButton",
+            )
+            self._global_calibration_btn.pack(side="left", padx=(0, 8))
+            ttk.Button(
+                actions_inner,
+                text="Recenter Eyes",
+                command=self._on_global_recenter,
+            ).pack(side="left", padx=8)
+            bottom = ttk.Frame(self.root)
+            bottom.pack(fill="x", padx=8, pady=4)
+            ttk.Button(bottom, text="GUI OFF", command=self.gui_off).pack(side="left")
+            ttk.Button(
+                bottom, text="Having Issues?", command=self._toggle_issues_popup
+            ).pack(side="left", padx=(10, 0))
+            self.focus_label = ttk.Label(bottom, text="- - -  Interface Paused  - - -")
+            self.focus_label.pack(side="left", padx=12)
+            self.focus_label.pack_forget()
+
+            # Settings-only actions, shown only while a settings page is active.
+            self._settings_actions_row = ttk.Frame(bottom)
+            tk.Button(
+                self._settings_actions_row,
+                text="Delete config",
+                command=self._active_settings_delete_config,
+                font=("Segoe UI", 9),
+                fg="#ffffff",
+                bg="#a33a3a",
+                activebackground="#8a2a2a",
+                activeforeground="#ffffff",
+                relief="flat",
+                padx=12,
+                pady=6,
+                cursor="hand2",
+                border=0,
+                highlightthickness=0,
+            ).pack(side="right", padx=(8, 0))
+            tk.Button(
+                self._settings_actions_row,
+                text="Reset settings to default",
+                command=self._active_settings_reset_config,
+                font=("Segoe UI", 9),
+                fg="#000000",
+                bg="#d9a3a3",
+                activebackground="#c99393",
+                activeforeground="#000000",
+                relief="flat",
+                padx=12,
+                pady=6,
+                cursor="hand2",
+                border=0,
+                highlightthickness=0,
+            ).pack(side="right")
+
+            self.root.protocol("WM_DELETE_WINDOW", self.shutdown)
+            self.on_mode_change()
+            self.show_page("tracking")
+            self._apply_initial_window_geometry()
+            self._tick()
+
+        def _active_settings_widget(self):
+            """Return the settings widget that owns the currently visible page,
+            or None if the current page is not a settings page."""
+            return {
+                "settings": settings[0],
+                "algo": settings[1],
+                "vrcft": settings[2],
+            }.get(self.current_page)
+
+        def _active_settings_reset_config(self):
+            widget = self._active_settings_widget()
+            if widget is not None:
+                widget.reset_config()
+
+        def _active_settings_delete_config(self):
+            widget = self._active_settings_widget()
+            if widget is not None:
+                widget.delete_config()
+
+        def _sync_nav_buttons(self):
+            """Highlight the current page with Sun Valley accent (blue) vs default TButton."""
+            for page_id, btn in self._nav_buttons.items():
+                btn.configure(
+                    style="Accent.TButton"
+                    if page_id == self.current_page
+                    else "TButton"
+                )
+
+        def _apply_initial_window_geometry(self):
+            # Tracking tab packs two full camera panels; still set a floor so the window opens usable.
+            self.root.update_idletasks()
+            s = self._dpi_scale
+            min_w, min_h = round(880 * s), round(660 * s)
+            w = max(self.root.winfo_reqwidth(), min_w)
+            h = max(self.root.winfo_reqheight(), min_h)
+            self.root.geometry(f"{w}x{h}")
+
+        def set_openvr_autostart(self, value):
+            for module in settings[0].initialized_modules:
+                if hasattr(module, "gui_openvr_autostart"):
+                    module.tk_vars[getattr(module, "gui_openvr_autostart")].set(
+                        bool(value)
+                    )
+
+        def _normalize_camera_input(self, raw_value: str):
+            value = (raw_value or "").strip()
+            if value == "":
+                return None
+            # If the user picked (or typed) one of the friendly labels from
+            # the scan dropdown, translate it back to the encoded
+            # uvc:<name>@<address> capture-source string before any further
+            # parsing — otherwise it'd fall through to the "looks like a URL?"
+            # branch below and get http://-prefixed.
+            mapped = self._source_display_map.get(value)
+            if mapped is not None:
+                value = mapped
+            try:
+                return int(value)
+            except ValueError:
+                lower_value = value.lower()
+                if (
+                    len(value) > 5
+                    and "://" not in value
+                    and not value.startswith(("COM", "/dev", "uvc:"))
+                    and not lower_value.endswith((".mp4", ".avi", ".mkv", ".mov"))
+                ):
+                    return f"http://{value}/"
+                return value
+
+        def on_mode_change(self):
+            mode = self.mode_var.get()
+            is_bigscreen = mode == "bigscreen"
+            if is_bigscreen:
+                self.right_camera_entry.state(["disabled"])
+                self.left_camera_label.configure(text="Source (UVC Index):")
+                self.right_camera_label.configure(text="Right (same source):")
+            else:
+                self.right_camera_entry.state(["!disabled"])
+                self.left_camera_label.configure(text="Left (UVC / COM port / URL):")
+                self.right_camera_label.configure(text="Right (UVC / COM port / URL):")
+            # Persist so the next launch reopens in the same mode rather than
+            # falling back to ETVR (which then reuses the BSB-era right_eye
+            # source — the same camera as the left).
+            if getattr(config.settings, "gui_setup_mode", None) != mode:
+                config.settings.gui_setup_mode = mode
+                config.save()
+
+        def scan_sources(self):
+            self.status_var.set("Scanning UVC, serial, and mDNS sources...")
+
+            def _scan():
+                cams = list_uvc_cameras()
+                # Build friendly labels for the dropdown — just the camera
+                # name, with a "(N)" suffix when two cameras share a name so
+                # the user can still tell them apart. The encoded
+                # uvc:<name>@<address> form stays internal; we map it back
+                # from the label in _normalize_camera_input.
+                name_totals: dict[str, int] = {}
+                for c in cams:
+                    name_totals[c["name"]] = name_totals.get(c["name"], 0) + 1
+                seen: dict[str, int] = {}
+                source_map: dict[str, str] = {}
+                uvc_display_values: list[str] = []
+                for c in cams:
+                    n = c["name"]
+                    seen[n] = seen.get(n, 0) + 1
+                    label = n if name_totals[n] == 1 else f"{n} ({seen[n]})"
+                    source_map[label] = format_uvc_named_source(n, c["address"])
+                    uvc_display_values.append(label)
+                # mDNS + serial lookups are blocking; this whole _scan runs on
+                # a worker thread already, so both are fine here. Network
+                # trackers go to the *top* of the dropdown because they're
+                # typically the user's primary capture source — UVC is the
+                # fallback / debug case. Serial sits between the two: the
+                # actively-streaming ones are real trackers, but typing a COM
+                # port by hand is less ergonomic than picking a UVC name.
+                mdns_values = discover_etvr_mdns_sources()
+                for v in mdns_values:
+                    source_map[v] = v
+
+                serial_pairs = discover_etvr_serial_cameras()
+                serial_display_values: list[str] = []
+                for label, device in serial_pairs:
+                    # Avoid collisions with UVC labels by namespacing serial
+                    # ones, but keep the device path itself as the stored
+                    # capture source — that's what camera.py already accepts.
+                    display_label = (
+                        label if label not in source_map else f"{label} [serial]"
+                    )
+                    source_map[display_label] = device
+                    serial_display_values.append(display_label)
+
+                values = [""] + mdns_values + serial_display_values + uvc_display_values
+
+                uvc_hint = ", ".join(uvc_display_values) or "none"
+                mdns_hint = ", ".join(mdns_values) or "none"
+                serial_hint = ", ".join(serial_display_values) or "none"
+
+                def _apply():
+                    self._source_display_map = source_map
+                    self.left_camera_entry.configure(values=values)
+                    self.right_camera_entry.configure(values=values)
+                    # If the currently-shown text is an encoded uvc: form
+                    # (e.g. just loaded from config at launch), rewrite it to
+                    # the friendly label now that the scan knows the mapping.
+                    encoded_to_label = {v: k for k, v in source_map.items()}
+                    for var in (self.left_camera_var, self.right_camera_var):
+                        cur = var.get()
+                        if cur in encoded_to_label:
+                            var.set(encoded_to_label[cur])
+                    self.status_var.set(
+                        f"Detected mDNS: {mdns_hint} | "
+                        f"Serial: {serial_hint} | UVC: {uvc_hint}"
+                    )
+
+                self.root.after(0, _apply)
+
+            threading.Thread(target=_scan, daemon=True).start()
+
+        def _camera_tracking_state_key(self, left_source, right_source):
+            # Use explicit None checks — UVC index 0 is a valid source but is falsy in Python,
+            # so `not left_source` would mis-classify it as "no source" and skip starting trackers.
+            has_left = left_source is not None and left_source != ""
+            has_right = right_source is not None and right_source != ""
+            if not has_left and not has_right:
+                return ("none",)
+            if has_left and not has_right:
+                return ("left", left_source)
+            if has_right and not has_left:
+                return ("right", right_source)
+            return ("dual", left_source, right_source, left_source == right_source)
+
+        def _sync_timer_resolution(self):
+            active = any(e.started() for e in eyes)
+            if active:
+                if not self._timer_high_res:
+                    set_timer_resolution(True)
+                    self._timer_high_res = True
+            else:
+                if self._timer_high_res:
+                    set_timer_resolution(False)
+                    self._timer_high_res = False
+
+        def apply_camera_inputs(self):
+            left_source = self._normalize_camera_input(self.left_camera_var.get())
+            if self.mode_var.get() == "bigscreen":
+                right_source = left_source
+                self.right_camera_var.set(
+                    "" if left_source is None else str(left_source)
+                )
+            else:
+                right_source = self._normalize_camera_input(self.right_camera_var.get())
+            config.left_eye.capture_source = left_source
+            config.right_eye.capture_source = right_source
+
+            new_key = self._camera_tracking_state_key(left_source, right_source)
+            if new_key != self._last_camera_tracking_key:
+                eyes[1].stop()
+                eyes[0].stop()
+                self._last_camera_tracking_key = new_key
+
+            # UVC index 0 is falsy but valid; check for explicit "set" rather than truthiness.
+            has_left = left_source is not None and left_source != ""
+            has_right = right_source is not None and right_source != ""
+
+            if has_left and has_right:
+                shared = left_source == right_source
+                already_running = eyes[0].started() and eyes[1].started()
+                if not already_running:
+                    eyes[0].camera.set_extra_output_queues([])
+                    eyes[0].camera.is_split = False
+                    eyes[1].detach_shared_capture_event()
+                    if shared:
+                        eyes[0].camera.set_extra_output_queues([eyes[1].capture_queue])
+                        eyes[0].camera.is_split = self.mode_var.get() == "bigscreen"
+                        eyes[1].capture_event = eyes[0].capture_event
+                        eyes[1].ransac.capture_event = eyes[0].capture_event
+                        eyes[1].uses_shared_capture_event = True
+                        eyes[1]._shared_capture_source = eyes[0].camera
+                        eyes[0].start()
+                        eyes[1].start(run_camera_thread=False)
+                    else:
+                        eyes[0].start()
+                        eyes[1].start()
+                config.settings.tracker_single_eye = 0
+                config.eye_display_id = EyeId.BOTH
+                self.mode_label_var.set("Mode: Dual-eye tracking")
+                self.status_var.set("Tracking both eyes.")
+            elif has_left:
+                if not eyes[1].started():
+                    eyes[0].camera.set_extra_output_queues([])
+                    eyes[1].detach_shared_capture_event()
+                    eyes[0].stop()
+                    eyes[1].start()
+                config.settings.tracker_single_eye = 1
+                config.eye_display_id = EyeId.LEFT
+                self.mode_label_var.set("Mode: Single-eye (left)")
+                self.status_var.set("Tracking left eye only.")
+            elif has_right:
+                if not eyes[0].started():
+                    eyes[0].camera.set_extra_output_queues([])
+                    eyes[1].detach_shared_capture_event()
+                    eyes[1].stop()
+                    eyes[0].start()
+                config.settings.tracker_single_eye = 2
+                config.eye_display_id = EyeId.RIGHT
+                self.mode_label_var.set("Mode: Single-eye (right)")
+                self.status_var.set("Tracking right eye only.")
+            else:
+                eyes[0].stop()
+                eyes[1].stop()
+                config.settings.tracker_single_eye = 0
+                config.eye_display_id = EyeId.BOTH
+                self.mode_label_var.set("Mode: No active camera")
+                self.status_var.set("Enter at least one camera source.")
+
+            config.save()
+            self._sync_timer_resolution()
+
+        def show_page(self, page_name: str):
+            """Switch tabs. Heavy work (camera thread joins, config apply) is deferred so the UI can redraw first."""
+            self._nav_teardown_seq += 1
+            seq = self._nav_teardown_seq
+            self.current_page = page_name
+            for frame in [
+                self.tracking_tab,
+                self.settings_frame,
+                self.algo_frame,
+                self.vrcft_frame,
+            ]:
+                frame.pack_forget()
+
+            if page_name in ("settings", "algo", "vrcft"):
+                self._settings_actions_row.pack(side="right")
+            else:
+                self._settings_actions_row.pack_forget()
+
+            if page_name == "tracking":
+                self.tracking_tab.pack(fill="both", expand=True)
+                self._sync_nav_buttons()
+                self.root.update_idletasks()
+                self.root.after(0, lambda s=seq: self._deferred_enter_tracking(s))
+            elif page_name == "settings":
+                self.settings_frame.pack(fill="both", expand=True)
+                self._sync_nav_buttons()
+                self.root.update_idletasks()
+                self.root.after(0, lambda s=seq: self._deferred_enter_settings(s))
+            elif page_name == "algo":
+                self.algo_frame.pack(fill="both", expand=True)
+                self._sync_nav_buttons()
+                self.root.update_idletasks()
+                self.root.after(0, lambda s=seq: self._deferred_enter_algo(s))
+            elif page_name == "vrcft":
+                self.vrcft_frame.pack(fill="both", expand=True)
+                self._sync_nav_buttons()
+                self.root.update_idletasks()
+                self.root.after(0, lambda s=seq: self._deferred_enter_vrcft(s))
+
+        def _deferred_enter_tracking(self, seq: int) -> None:
+            if seq != self._nav_teardown_seq:
+                return
+            settings[0].stop()
+            settings[1].stop()
+            settings[2].stop()
+            self.apply_camera_inputs()
+            self._sync_timer_resolution()
+
+        def _deferred_enter_settings(self, seq: int) -> None:
+            if seq != self._nav_teardown_seq:
+                return
+            # Keep eye trackers running while on a settings page so users can
+            # see live effects of tweaks. Camera-config changes that require
+            # a thread restart (capture_source, ROI, rotation, focal length)
+            # are handled via on_config_update which soft-restarts only the
+            # affected eye. Algo/filter toggles are read live by eye_processor
+            # each iteration and apply without restart.
+            self.apply_camera_inputs()
+            settings[1].stop()
+            settings[2].stop()
+            settings[0].start()
+            self._sync_timer_resolution()
+
+        def _deferred_enter_algo(self, seq: int) -> None:
+            if seq != self._nav_teardown_seq:
+                return
+            self.apply_camera_inputs()
+            settings[0].stop()
+            settings[2].stop()
+            settings[1].start()
+            self._sync_timer_resolution()
+
+        def _deferred_enter_vrcft(self, seq: int) -> None:
+            if seq != self._nav_teardown_seq:
+                return
+            self.apply_camera_inputs()
+            settings[0].stop()
+            settings[1].stop()
+            settings[2].start()
+            self._sync_timer_resolution()
+
+        def _toggle_issues_popup(self):
+            if self._issues_popup_visible:
+                self._on_issues_popup_close()
+            else:
+                self._show_issues_popup()
+
+        def _show_issues_popup(self):
+            popup = self._issues_popup
+            popup.transient(self.root)
+            popup.update_idletasks()
+            mw = self.root.winfo_width()
+            mh = self.root.winfo_height()
+            mx = self.root.winfo_rootx()
+            my = self.root.winfo_rooty()
+            pw = popup.winfo_reqwidth()
+            ph = popup.winfo_reqheight()
+            x = mx + max(0, (mw - pw) // 2)
+            y = my + max(0, (mh - ph) // 2)
+            popup.geometry(f"+{x}+{y}")
+            popup.deiconify()
+            popup.lift()
+            popup.focus_set()
+            self._issues_popup_visible = True
+
+        def _on_issues_popup_close(self):
+            self._issues_popup_visible = False
+            try:
+                self._issues_popup.withdraw()
+            except tk.TclError:
                 pass
 
-            if values[key_manager.RIGHT_EYE_RADIO_NAME] and config.eye_display_id != EyeId.RIGHT:
+        def gui_off(self):
+            config.settings.gui_disable_gui = True
+            settings[0].stop()
+            settings[1].stop()
+            settings[2].stop()
+            config.save()
+            self.root.withdraw()
+            dialog = tk.Toplevel()
+            dialog.title("ETVR")
+            apply_theme_to_titlebar(dialog)
+            ttk.Label(dialog, text="GUI Disabled!").pack(padx=12, pady=8)
+
+            def enable_gui():
                 config.settings.gui_disable_gui = False
-                eyes[0].start()
-                eyes[1].stop()
-                settings[0].stop()
-                settings[1].stop()
-                settings[2].stop()
-                window[key_manager.RIGHT_EYE_NAME].update(visible=True)
-                window[key_manager.LEFT_EYE_NAME].update(visible=False)
-                window[key_manager.SETTINGS_NAME].update(visible=False)
-                window[key_manager.VRCFT_MODULE_SETTINGS_NAME].update(visible=False)
-                window[key_manager.ALGO_SETTINGS_NAME].update(visible=False)
-                config.eye_display_id = EyeId.RIGHT
-                config.settings.tracker_single_eye = 2
                 config.save()
+                logger.info("GUI enabled")
+                dialog.destroy()
+                self.root.deiconify()
 
-            elif values[key_manager.LEFT_EYE_RADIO_NAME] and config.eye_display_id != EyeId.LEFT:
-                config.settings.gui_disable_gui = False
-                settings[0].stop()
-                settings[1].stop()
-                settings[2].stop()
-                eyes[0].stop()
-                eyes[1].start()
-                window[key_manager.RIGHT_EYE_NAME].update(visible=False)
-                window[key_manager.LEFT_EYE_NAME].update(visible=True)
-                window[key_manager.SETTINGS_NAME].update(visible=False)
-                window[key_manager.VRCFT_MODULE_SETTINGS_NAME].update(visible=False)
-                window[key_manager.ALGO_SETTINGS_NAME].update(visible=False)
-                config.eye_display_id = EyeId.LEFT
-                config.settings.tracker_single_eye = 1
-                config.save()
+            ttk.Button(dialog, text="Enable GUI", command=enable_gui).pack(
+                padx=12, pady=(0, 8)
+            )
+            dialog.protocol("WM_DELETE_WINDOW", enable_gui)
 
-            elif values[key_manager.BOTH_EYE_RADIO_NAME] and config.eye_display_id != EyeId.BOTH:
-                config.settings.gui_disable_gui = False
-                settings[0].stop()
-                settings[1].stop()
-                settings[2].stop()
-                eyes[1].start()
-                eyes[0].start()
-                window[key_manager.LEFT_EYE_NAME].update(visible=True)
-                window[key_manager.RIGHT_EYE_NAME].update(visible=True)
-                window[key_manager.SETTINGS_NAME].update(visible=False)
-                window[key_manager.VRCFT_MODULE_SETTINGS_NAME].update(visible=False)
-                window[key_manager.ALGO_SETTINGS_NAME].update(visible=False)
-                config.eye_display_id = EyeId.BOTH
-                config.settings.tracker_single_eye = 0
-                config.save()
+        def _any_eye_calibrating(self):
+            for eye in eyes:
+                rs = getattr(eye, "ransac", None)
+                if rs is not None and rs.calibration_start_time is not None:
+                    return True
+            return False
 
-            elif values[key_manager.SETTINGS_RADIO_NAME] and config.eye_display_id != EyeId.SETTINGS:
-                config.settings.gui_disable_gui = False
-                eyes[0].stop()
-                eyes[1].stop()
-                settings[1].stop()
-                settings[0].start()
-                settings[2].stop()
-                window[key_manager.RIGHT_EYE_NAME].update(visible=False)
-                window[key_manager.LEFT_EYE_NAME].update(visible=False)
-                window[key_manager.SETTINGS_NAME].update(visible=True)
-                window[key_manager.VRCFT_MODULE_SETTINGS_NAME].update(visible=False)
-                window[key_manager.ALGO_SETTINGS_NAME].update(visible=False)
-                config.eye_display_id = EyeId.SETTINGS
-                config.save()
-
-            elif values[key_manager.ALGO_SETTINGS_RADIO_NAME] and config.eye_display_id != EyeId.ALGOSETTINGS:
-                config.settings.gui_disable_gui = False
-                eyes[0].stop()
-                eyes[1].stop()
-                settings[0].stop()
-                settings[1].start()
-                settings[2].stop()
-                window[key_manager.RIGHT_EYE_NAME].update(visible=False)
-                window[key_manager.LEFT_EYE_NAME].update(visible=False)
-                window[key_manager.SETTINGS_NAME].update(visible=False)
-                window[key_manager.VRCFT_MODULE_SETTINGS_NAME].update(visible=False)
-                window[key_manager.ALGO_SETTINGS_NAME].update(visible=True)
-                config.eye_display_id = EyeId.ALGOSETTINGS
-                config.save()
-
-            elif values[key_manager.VRCFT_MODULE_SETTINGS_RADIO_NAME] and config.eye_display_id != EyeId.VRCFTMODULESETTINGS:
-                config.settings.gui_disable_gui = False
-                eyes[0].stop()
-                eyes[1].stop()
-                settings[0].stop()
-                settings[1].stop()
-                settings[2].start()
-                window[key_manager.RIGHT_EYE_NAME].update(visible=False)
-                window[key_manager.LEFT_EYE_NAME].update(visible=False)
-                window[key_manager.SETTINGS_NAME].update(visible=False)
-                window[key_manager.VRCFT_MODULE_SETTINGS_NAME].update(visible=True)
-                window[key_manager.ALGO_SETTINGS_NAME].update(visible=False)
-                config.eye_display_id = EyeId.VRCFTMODULESETTINGS
-                config.save()
-
-
-
-
-
-
+        def _on_global_calibration_toggle(self):
+            if config.settings.gui_use_overlay_cal:
+                self._on_ellipse_calibration()
+                return
+            # Classic on-screen calibration toggle: stop if running, start if not.
+            if self._any_eye_calibrating():
+                for eye in eyes:
+                    rs = getattr(eye, "ransac", None)
+                    if rs is not None:
+                        rs.calibration_start_time = None
             else:
-                # Otherwise, render all
                 for eye in eyes:
                     if eye.started():
-                        eye.render(window, event, values)
-                for setting in settings:
-                    if setting.started():
-                        setting.render(window, event, values)
+                        eye.recalibrate_eyes()
 
-            if event == key_manager.GUIOFF_RADIO_NAME:
-                config.settings.gui_disable_gui = True
-                #  eyes[0].stop()
-                # eyes[1].stop()
-                settings[0].stop()
-                settings[1].stop()
-                settings[2].stop()
-                window[key_manager.RIGHT_EYE_NAME].update(visible=False)
-                window[key_manager.LEFT_EYE_NAME].update(visible=False)
-                window[key_manager.SETTINGS_NAME].update(visible=False)
-                window[key_manager.VRCFT_MODULE_SETTINGS_NAME].update(visible=False)
-                window[key_manager.ALGO_SETTINGS_NAME].update(visible=False)
-                #config.eye_display_id = EyeId.GUIOFF
-                config.save()
-                window.close()
-                break
+        def _show_tracking_frames(self):
+            self.left_frame.pack_forget()
+            self.right_frame.pack_forget()
+            self.left_frame.pack(side="left", fill="y", padx=(0, 8))
+            self.right_frame.pack(side="left", fill="y", padx=(8, 0))
 
+        def _show_crop_frames(self, eye_name: str):
+            self.left_frame.pack_forget()
+            self.right_frame.pack_forget()
+            if eye_name == "left":
+                self.left_frame.pack(side="left", fill="y")
+            else:
+                self.right_frame.pack(side="left", fill="y")
 
+        def _on_crop_eye_select(self, eye_name: str):
+            self._crop_active_eye = eye_name
+            self._crop_left_btn.configure(
+                style="Accent.TButton" if eye_name == "left" else "TButton"
+            )
+            self._crop_right_btn.configure(
+                style="Accent.TButton" if eye_name == "right" else "TButton"
+            )
+            if eye_name == "left":
+                eyes[0]._set_tracking_mode()
+                eyes[1]._set_roi_mode()
+            else:
+                eyes[1]._set_tracking_mode()
+                eyes[0]._set_roi_mode()
+            self._show_crop_frames(eye_name)
+
+        def _on_global_tracking_mode(self):
+            for eye in eyes:
+                eye._set_tracking_mode()
+            self._show_tracking_frames()
+            self._sync_global_mode_buttons()
+
+        def _on_global_roi_mode(self):
+            active = self._crop_active_eye
+            if active == "left":
+                eyes[0]._set_tracking_mode()
+                eyes[1]._set_roi_mode()
+            else:
+                eyes[1]._set_tracking_mode()
+                eyes[0]._set_roi_mode()
+            self._show_crop_frames(active)
+            self._sync_global_mode_buttons()
+
+        def _sync_global_mode_buttons(self):
+            in_roi = any(getattr(e, "in_roi_mode", False) for e in eyes)
+            if hasattr(self, "_tracking_actions"):
+                if in_roi:
+                    self._tracking_actions.pack_forget()
+                else:
+                    self._tracking_actions.pack(fill="x", pady=(40, 0))
+            if hasattr(self, "_crop_eye_row"):
+                if in_roi:
+                    self._crop_eye_row.pack(fill="x")
+                else:
+                    self._crop_eye_row.pack_forget()
+            self._global_roi_btn.configure(
+                style="Accent.TButton" if in_roi else "TButton"
+            )
+            self._global_tracking_btn.configure(
+                style="TButton" if in_roi else "Accent.TButton"
+            )
+
+        def _on_global_recenter(self):
+            for eye in eyes:
+                if eye.started():
+                    eye.recenter_eyes()
+
+        def _on_ellipse_calibration(self):
+            from osc_calibrate_filter import overlay_ellipse_calibrate
+            eps = [
+                eye.ransac for eye in eyes
+                if eye.started() and getattr(eye, "ransac", None) is not None
+            ]
+            if not eps:
+                return
+            config.settings.calib_mode = "classic"
+            config.save()
+            overlay_ellipse_calibrate(eps, config.settings, config)
+
+        def _sync_global_calibration_button(self):
+            text = (
+                "Stop Calibration"
+                if self._any_eye_calibrating()
+                else "Start Calibration"
+            )
+            if self._calibration_btn_text.get() != text:
+                self._calibration_btn_text.set(text)
+
+        def _tick(self):
+            try:
+                has_focus = self.root.focus_displayof() is not None
+            except KeyError:
+                has_focus = True
+            interval = 33
+            if has_focus:
+                if self.focus_paused:
+                    self.focus_paused = False
+                    self.focus_label.pack_forget()
+                if self.current_page == "tracking":
+                    for eye in eyes:
+                        if eye.started():
+                            eye.render_tick()
+                    self._sync_global_calibration_button()
+            else:
+                if not self.focus_paused:
+                    self.focus_paused = True
+                    self.focus_label.pack(side="left", padx=12)
+                interval = 100
+
+            # Run settings validation + debounce-save regardless of focus so
+            # changes made while the SteamVR overlay has focus still apply
+            # within ~650 ms without requiring a page switch.
+            for setting in settings:
+                if setting.started():
+                    setting.render_tick()
+
+            self.root.after(interval, self._tick)
+
+        def shutdown(self):
+            logger.info("Exiting EyeTrackApp")
+            for eye in eyes:
+                eye.stop()
+            cancellation_event.set()
+            osc_manager.shutdown()
+            if getattr(self, "_timer_high_res", False):
+                set_timer_resolution(False)
+            self.root.destroy()
+            os._exit(0)
+
+    app = AppUI()
+    if (not is_macos) and (openvr_service is not None):
+        openvr_service.window = app
+    # Populate the UVC dropdowns at launch so the user sees the current
+    # cameras without having to click "Scan". after(0) defers it until the
+    # event loop is running; scan_sources itself does the enumeration on a
+    # background thread.
+    app.root.after(0, app.scan_sources)
+    app.root.mainloop()
 
 
 if __name__ == "__main__":

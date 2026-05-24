@@ -24,7 +24,7 @@ LICENSE: Babble Software Distribution License 1.0
 ------------------------------------------------------------------------------------------------------
 """
 
-
+import logging
 from time import sleep
 from typing import Dict, Optional, Iterable, Callable
 
@@ -38,6 +38,9 @@ from osc.VRCFTModuleMessenger import VRCFTModuleSender
 from osc.VRChatOSCSender import VRChatOSCSender
 import queue
 import threading
+
+logger = logging.getLogger(__name__)
+
 
 class OSCManager:
     def __init__(
@@ -55,25 +58,53 @@ class OSCManager:
         self.osc_receiver = None
         self.osc_sender_thread: Optional[threading.Thread] = None
         self.osc_receiver_thread: Optional[threading.Thread] = None
+        self._last_sender_sig: tuple | None = None
+        self._last_receiver_sig: tuple | None = None
 
     def start(self):
         self.setup_sender()
         self.setup_receiver()
 
+    def _sender_signature(self) -> tuple:
+        s = self.settings
+        return (
+            int(s.gui_osc_port),
+            str(s.gui_VRCFTModuleIPAddress).strip(),
+            int(s.gui_VRCFTModulePort),
+            bool(s.gui_use_module),
+        )
+
+    def _receiver_signature(self) -> tuple:
+        s = self.settings
+        return (
+            bool(s.gui_ROSC),
+            int(s.gui_osc_receiver_port),
+            str(s.gui_osc_address).strip(),
+        )
+
     def setup_sender(self):
-        print(f"\033[92m[INFO] Setting up OSC sender\033[0m")
+        logger.info("Setting up OSC sender")
         self.sender_cancellation_event.clear()
-        self.osc_sender = OSCSender(self.sender_cancellation_event, self.osc_message_in_queue, self.config)
+        self.osc_sender = OSCSender(
+            self.sender_cancellation_event, self.osc_message_in_queue, self.config
+        )
         self.osc_sender_thread = threading.Thread(target=self.osc_sender.run)
         self.osc_sender_thread.start()
+        self._last_sender_sig = self._sender_signature()
 
     def setup_receiver(self):
         if self.settings.gui_ROSC:
             self.receiver_cancellation_event.clear()
-            print(f"\033[92m[INFO] Setting up OSC receiver\033[0m")
-            self.osc_receiver = OSCReceiver(self.receiver_cancellation_event, self.config, self.listeners)
+            logger.info("Setting up OSC receiver")
+            self.osc_receiver = OSCReceiver(
+                self.receiver_cancellation_event, self.config, self.listeners
+            )
             self.osc_receiver_thread = threading.Thread(target=self.osc_receiver.run)
             self.osc_receiver_thread.start()
+        else:
+            self.osc_receiver = None
+            self.osc_receiver_thread = None
+        self._last_receiver_sig = self._receiver_signature()
 
     def register_listeners(self, osc_address: str, callbacks: Iterable[Callable]):
         if not self.listeners.get(osc_address):
@@ -90,16 +121,21 @@ class OSCManager:
             "gui_use_module",
         }
         if sender_trigger_keys.intersection(keys):
-            self.stop_sender()
-            self.setup_sender()
+            new_sig = self._sender_signature()
+            if new_sig != self._last_sender_sig:
+                self.stop_sender()
+                self.setup_sender()
 
         receiver_trigger_keys = {
             "gui_ROSC",
             "gui_osc_receiver_port",
+            "gui_osc_address",
         }
         if receiver_trigger_keys.intersection(keys):
-            self.stop_receiver()
-            self.setup_receiver()
+            new_r = self._receiver_signature()
+            if new_r != self._last_receiver_sig:
+                self.stop_receiver()
+                self.setup_receiver()
 
     def shutdown(self):
         self.stop_sender()
@@ -133,7 +169,9 @@ class OSCSender:
         self.vrcft_client = None
 
     def run(self):
-        self.vrc_client = udp_client.SimpleUDPClient(self.config.gui_osc_address, int(self.config.gui_osc_port))
+        self.vrc_client = udp_client.SimpleUDPClient(
+            self.config.gui_osc_address, int(self.config.gui_osc_port)
+        )
         self.vrcft_client = udp_client.SimpleUDPClient(
             self.config.gui_VRCFTModuleIPAddress,
             int(self.config.gui_VRCFTModulePort),
@@ -155,9 +193,13 @@ class OSCSender:
                             config=self.config,
                         )
                     case OSCMessageType.VRCFT_MODULE_INFO:
-                        self.module_sender.send(osc_message=osc_message, client=self.vrcft_client)
+                        self.module_sender.send(
+                            osc_message=osc_message, client=self.vrcft_client
+                        )
                     case _:
-                        raise Exception("Encountered message without a handler %s", osc_message.type)
+                        raise Exception(
+                            "Encountered message without a handler %s", osc_message.type
+                        )
             except TypeError:
                 continue
             except queue.Empty:
@@ -176,23 +218,29 @@ class OSCReceiver:
         self.dispatcher = dispatcher.Dispatcher()
         self.listeners = listeners
         self.server_thread = None
+        self.server = None
         try:
-            # this thing sucks ass god fucking damn it.
-            # like, there is no way of shutting it down UNLESS you run it in a thread
-            # which is kinda dumb, but oh well.
-            # Also, it doesn't shutdown properly. It's STILL connected to the port
+            # OSCUDPServer needs a dedicated serve_forever thread so shutdown can be
+            # requested from the manager thread.
             self.server = osc_server.OSCUDPServer(
                 (self.config.gui_osc_address, int(self.config.gui_osc_receiver_port)),
                 self.dispatcher,
             )
-        except Exception:  # noqa
-            print(f"\033[91m[ERROR] OSC Receive port: {self.config.gui_osc_receiver_port} occupied.\033[0m")
+        except Exception as exc:  # noqa
+            logger.error(
+                "Failed to start OSC receiver on %s:%s: %s",
+                self.config.gui_osc_address,
+                self.config.gui_osc_receiver_port,
+                exc,
+            )
 
     def shutdown(self):
-        print("\033[94m[INFO] Exiting OSC Receiver\033[0m")
+        logger.info("Exiting OSC receiver")
         try:
-            self.server.shutdown()
-            self.server_thread.join()
+            if self.server is not None:
+                self.server.shutdown()
+            if self.server_thread is not None:
+                self.server_thread.join()
         except Exception:  # noqa
             pass
 
@@ -201,9 +249,12 @@ class OSCReceiver:
             listener(OSCMessage(type=OSCMessageType.EYE_INFO, data=value))
 
     def run(self):
+        if self.server is None:
+            return
+
         try:
             self.dispatcher.set_default_handler(self.handle_osc_message)
-            print("\033[92m[INFO] OSC Listening on {}\033[0m".format(self.server.server_address))
+            logger.info("OSC listening on %s", self.server.server_address)
             self.server_thread = threading.Thread(target=self.server.serve_forever)
             self.server_thread.start()
 
@@ -211,5 +262,5 @@ class OSCReceiver:
                 sleep(10)
 
             self.shutdown()
-        except Exception:  # noqa:
-            print(f"\033[91m[ERROR] OSC Receive port: {self.config.gui_osc_receiver_port} occupied.\033[0m")
+        except Exception as exc:  # noqa:
+            logger.error("OSC receiver stopped unexpectedly: %s", exc)
