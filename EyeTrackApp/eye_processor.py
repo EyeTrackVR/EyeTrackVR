@@ -51,6 +51,7 @@ from intensity_based_openness import *
 from ellipse_based_pupil_dilation import *
 from AHSF import *
 from osc.OSCMessage import OSCMessageType, OSCMessage
+from eyebrow_v1 import EyeBrowV1
 from utils.calibration_elipse import *
 from utils.runtime_state import set_value as _set_runtime_value
 from utils.robust_calibration import RobustCalibrationSession, CalibrationPhase
@@ -226,6 +227,7 @@ class EyeProcessor:
         self.avg_velocity = 0.0
         self.angle = 621
         self.ahsf_runner = None
+        self.eyebrow_runner: EyeBrowV1 | None = None
         self.cal = CalibrationEllipse()
         self.ahsf_detector = PupilDetectorHaar()
 
@@ -861,6 +863,20 @@ class EyeProcessor:
             algorithm_slots[idx] = algo
         self._algorithm_slots = algorithm_slots
 
+    def _run_eyebrow(self, raw_frame: np.ndarray) -> None:
+        if self.eyebrow_runner is None:
+            try:
+                self.eyebrow_runner = EyeBrowV1()
+            except Exception as e:
+                logger.warning("EyeBrowV1 init failed: %s", e)
+                self.eyebrow_runner = None
+                return
+        self.eyebrow_runner.submit(raw_frame)
+        self._enqueue_osc_message(OSCMessage(
+            type=OSCMessageType.EYEBROW_INFO,
+            data=(self.eye_id, self.eyebrow_runner.get_result()),
+        ))
+
     def run(self):
         # Reset HSF runner on each thread start so a fresh runner is built from
         # current settings rather than inheriting stale state from a prior run.
@@ -920,8 +936,16 @@ class EyeProcessor:
             except queue.Empty:
                 continue
 
+            raw_frame = self.current_image
+
             if not self.capture_crop_rotate_image():
                 continue
+
+            if self.settings.gui_eyebrow_v1:
+                self._run_eyebrow(raw_frame)
+            elif self.eyebrow_runner is not None:
+                self.eyebrow_runner.stop()
+                self.eyebrow_runner = None
 
             self.current_image_gray = cv2.cvtColor(
                 self.current_image, cv2.COLOR_BGR2GRAY

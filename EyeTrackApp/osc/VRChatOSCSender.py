@@ -39,6 +39,8 @@ class VRChatOSCSender:
         self.right_last_blink = time.time()
         self.r_dilation = 0
         self.l_dilation = 0
+        self.l_brow = 0.0
+        self.r_brow = 0.0
 
     def output_osc_info(
         self,
@@ -411,3 +413,19 @@ class VRChatOSCSender:
             # FIXME: This path can stick in a squint state after a full blink.
             averaged_eye_blink = (self.r_eye_blink + self.l_eye_blink) / 2
             client.send_message(blink_address, float(1 - averaged_eye_blink))
+
+    def output_eyebrow_info(self, eye_id, brow_val: float, client, main_config):
+        self.is_single_eye = self.get_is_single_eye(main_config.eye_display_id)
+        brow_val = float(brow_val)
+
+        if eye_id == EyeId.LEFT:
+            self.l_brow = brow_val
+        elif eye_id == EyeId.RIGHT:
+            self.r_brow = brow_val
+
+        if self.is_single_eye:
+            client.send_message("/avatar/parameters/v2/BrowExpression", brow_val)
+        elif eye_id == EyeId.LEFT:
+            client.send_message("/avatar/parameters/v2/BrowExpressionLeft", brow_val)
+        elif eye_id == EyeId.RIGHT:
+            client.send_message("/avatar/parameters/v2/BrowExpressionRight", brow_val)

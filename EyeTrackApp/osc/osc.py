@@ -196,6 +196,14 @@ class OSCSender:
                         self.module_sender.send(
                             osc_message=osc_message, client=self.vrcft_client
                         )
+                    case OSCMessageType.EYEBROW_INFO:
+                        eye_id, brow_val = osc_message.data
+                        self.vrc_sender.output_eyebrow_info(
+                            eye_id=eye_id,
+                            brow_val=brow_val,
+                            client=vrc_osc_output_client,
+                            main_config=self.main_config,
+                        )
                     case _:
                         raise Exception(
                             "Encountered message without a handler %s", osc_message.type
