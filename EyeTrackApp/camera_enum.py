@@ -85,6 +85,7 @@ def _windows_pnp_name_to_deviceid() -> dict[str, list[str]]:
         out = subprocess.run(
             ["powershell", "-NoProfile", "-Command", ps],
             capture_output=True, text=True, timeout=8, check=False,
+            creationflags=subprocess.CREATE_NO_WINDOW,
         )
         if out.returncode != 0 or not out.stdout.strip():
             return {}
@@ -242,10 +243,18 @@ def _platform_metadata() -> list[tuple[str, str]]:
 _uvc_list_cache: "list[dict] | None" = None
 _uvc_list_cache_time: float = 0.0
 _uvc_list_cache_lock = threading.Lock()
-# How long (seconds) to reuse a camera list before re-enumerating. Short enough
-# to detect plug/unplug events quickly; long enough to avoid spawning a
-# PowerShell subprocess (or probing cv2 indices) on every retry-loop tick.
-_UVC_LIST_CACHE_TTL = 3.0
+_uvc_list_cache_last_invalidated: float = -999.0
+# How long (seconds) to reuse a camera list before re-enumerating. Must be long
+# enough that reconnect-retry loops from two camera threads don't trigger
+# concurrent DirectShow enumerations that compete with active camera handles and
+# cause read failures / 1-fps stalls. 10 s is a comfortable budget: plug/unplug
+# events are still caught within a couple of loop ticks.
+_UVC_LIST_CACHE_TTL = 10.0
+# Prevents two threads from running _list_uvc_cameras_uncached() simultaneously.
+# Without this, both camera threads see an expired cache at the same instant and
+# both invoke pygrabber/DirectShow — the concurrent COM calls interfere with
+# active cv2.CAP_DSHOW handles, producing read failures and 1-fps stalls.
+_uvc_enumerate_lock = threading.Lock()
 
 
 def _list_uvc_cameras_uncached() -> "list[dict]":
@@ -278,27 +287,44 @@ def list_uvc_cameras() -> "list[dict]":
     capture thread on retry) is trying to open the same camera. We only fall
     back to probing when the OS query produced nothing usable.
 
-    Results are cached for ``_UVC_LIST_CACHE_TTL`` seconds so rapid retry
-    loops (e.g. camera not-found cycles) don't spawn a new PowerShell process
-    or probe every cv2 index on every tick."""
+    Results are cached for ``_UVC_LIST_CACHE_TTL`` seconds. A global
+    ``_uvc_enumerate_lock`` ensures only one enumeration runs at a time: a
+    second caller that sees an expired cache will block until the first
+    finishes, then reuse its result rather than starting a second concurrent
+    DirectShow / PowerShell enumeration."""
     global _uvc_list_cache, _uvc_list_cache_time
     now = time.monotonic()
     with _uvc_list_cache_lock:
         if _uvc_list_cache is not None and (now - _uvc_list_cache_time) < _UVC_LIST_CACHE_TTL:
             return list(_uvc_list_cache)
-    result = _list_uvc_cameras_uncached()
-    with _uvc_list_cache_lock:
-        _uvc_list_cache = result
-        _uvc_list_cache_time = now
-    return result
+    # Serialize enumerations: only one thread runs _list_uvc_cameras_uncached()
+    # at a time. Concurrent callers block here then hit the cache check below.
+    with _uvc_enumerate_lock:
+        now = time.monotonic()
+        with _uvc_list_cache_lock:
+            if _uvc_list_cache is not None and (now - _uvc_list_cache_time) < _UVC_LIST_CACHE_TTL:
+                return list(_uvc_list_cache)
+        result = _list_uvc_cameras_uncached()
+        with _uvc_list_cache_lock:
+            _uvc_list_cache = result
+            _uvc_list_cache_time = time.monotonic()
+        return result
 
 
 def invalidate_uvc_camera_cache() -> None:
     """Force the next ``list_uvc_cameras()`` call to re-enumerate devices.
-    Call this after a successful camera open or when the GUI requests a fresh scan."""
-    global _uvc_list_cache
+    Call this after a successful camera open or when the GUI requests a fresh scan.
+
+    Rate-limited to once per TTL period: a flapping camera (opens then fails on
+    read, over and over) would otherwise clear the cache on every retry cycle,
+    spawning a new PowerShell/DirectShow enumeration every ~100 ms."""
+    global _uvc_list_cache, _uvc_list_cache_last_invalidated
+    now = time.monotonic()
     with _uvc_list_cache_lock:
+        if now - _uvc_list_cache_last_invalidated < _UVC_LIST_CACHE_TTL:
+            return
         _uvc_list_cache = None
+        _uvc_list_cache_last_invalidated = now
 
 
 # ETVR firmware (OpenIris) advertises itself on the LAN via mDNS as

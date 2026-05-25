@@ -167,6 +167,10 @@ class Camera:
         self._last_pushed_frame_mono = time.perf_counter()
 
         self.error_message = "Capture source {} not found, retrying..."
+        # monotonic deadline: don't call resolve_uvc_address_to_index until after this time.
+        # Set when the camera is confirmed absent from the enum list; cleared on read failure
+        # so a glitch → reconnect cycle doesn't wait unnecessarily.
+        self._uvc_not_found_backoff = 0.0
 
     def __del__(self):
         if self.serial_connection is not None:
@@ -313,6 +317,15 @@ class Camera:
                         open_source = new_source
                         if isinstance(new_source, str) and is_uvc_named_source(new_source):
                             _name, _addr = parse_uvc_named_source(new_source)
+                            # Skip the (potentially expensive) enumeration until the backoff
+                            # expires. This prevents two camera threads from hammering
+                            # DirectShow every ~100 ms when the device is absent, which
+                            # competes with active cv2 DSHOW handles on the other camera.
+                            if time.monotonic() < self._uvc_not_found_backoff:
+                                self.camera_status = CameraState.DISCONNECTED
+                                if self.cancellation_event.wait(WAIT_TIME):
+                                    return
+                                continue
                             _idx = resolve_uvc_address_to_index(_name, _addr)
                             if _idx is None:
                                 logger.info(
@@ -320,6 +333,9 @@ class Camera:
                                     _name,
                                 )
                                 self.camera_status = CameraState.DISCONNECTED
+                                # Back off for the same duration as the enum cache TTL so
+                                # we don't trigger a new pygrabber scan on every loop tick.
+                                self._uvc_not_found_backoff = time.monotonic() + 3.0
                                 if self.cancellation_event.wait(WAIT_TIME):
                                     return
                                 continue
@@ -355,7 +371,6 @@ class Camera:
                         # Invalidate the UVC cache so the next scan sees the current
                         # device state (e.g. the camera is now held by this process).
                         invalidate_uvc_camera_cache()
-                        should_push = False
             else:
                 # We don't have a capture source to try yet, wait for one to show up in the GUI.
                 # Release any lingering handles so swapping "no source" then "new source" works cleanly.
@@ -481,6 +496,10 @@ class Camera:
                 "Capture source problem, assuming camera disconnected and waiting for reconnect."
             )
             self.camera_status = CameraState.DISCONNECTED
+            # Clear the not-found backoff so we immediately attempt a reconnect rather
+            # than waiting up to 3 s — the camera was working moments ago, so it's
+            # very likely still present in the DirectShow enum list.
+            self._uvc_not_found_backoff = 0.0
             self._last_cv_cap_frame_time = 0.0
             pass
 
