@@ -56,7 +56,7 @@ from utils.tooltips import attach_tooltip
 
 
 
-APP_VERSION = "EyeTrackApp 0.3.0 BETA 3.1"
+APP_VERSION = "EyeTrackApp 0.3.0 BETA 3.2"
 setup_logging(APP_VERSION)
 logger = logging.getLogger(__name__)
 winmm = None

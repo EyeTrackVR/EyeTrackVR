@@ -116,6 +116,11 @@ class EyeBrowV1:
             except queue.Empty:
                 continue
             try:
+                if frame_bgr.ndim == 2:
+                    # Grayscale (e.g. serial IR JPEG decoded by PIL as 'L')
+                    frame_bgr = cv2.cvtColor(frame_bgr, cv2.COLOR_GRAY2BGR)
+                elif frame_bgr.shape[2] == 1:
+                    frame_bgr = cv2.cvtColor(frame_bgr[:, :, 0], cv2.COLOR_GRAY2BGR)
                 rgb = cv2.cvtColor(frame_bgr, cv2.COLOR_BGR2RGB)
                 resized = cv2.resize(rgb, (224, 224), interpolation=cv2.INTER_LINEAR)
                 tensor = np.asarray(resized, dtype=np.float32)

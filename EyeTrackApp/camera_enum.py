@@ -350,9 +350,10 @@ def discover_etvr_mdns_sources(
 # CDC drivers — keep these aligned with start_serial_connection in camera.py).
 _SERIAL_BAUD_DEFAULT = 3_000_000
 _SERIAL_BAUD_DARWIN = 115_200
-# Total wall-clock budget per port; SOI usually arrives well under this when
-# the firmware is healthy, but a slow-booting tracker can take a bit.
-_SERIAL_PROBE_TIMEOUT_S = 1.2
+# Total wall-clock budget per port.  Opening the port briefly toggles DTR,
+# which triggers the ESP32 auto-reset circuit; the bootloader runs for ~3 s
+# before firmware starts streaming.  4 s gives a comfortable margin.
+_SERIAL_PROBE_TIMEOUT_S = 4.0
 # Cap concurrent probes so we don't open dozens of ports at once on machines
 # with many virtual COM ports (USB-CDC modems, debug ports, etc.).
 _SERIAL_PROBE_WORKERS = 4
@@ -404,6 +405,9 @@ def _probe_serial_for_jpeg(device: str, baud: int, timeout_s: float) -> bool:
             rtscts=False,
             timeout=0.15,
         )
+        # Discard any bytes already in the OS buffer (bootloader noise, partial
+        # frames from a previous session) so the SOI search starts clean.
+        conn.reset_input_buffer()
     except (serial.SerialException, OSError, ValueError):
         return False
 

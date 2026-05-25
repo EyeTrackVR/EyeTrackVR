@@ -91,6 +91,10 @@ _FAST_CAPTURE_MIN_INTERVAL = 1.0 / _FAST_CAPTURE_MAX_FPS
 # is far cheaper than re-encoding every frame and closer than decoded pixel rate.
 _HTTP_WIRE_BYTES_PROXY_JPEG_QUALITY = 80
 _HTTP_WIRE_BYTES_PROXY_SAMPLE_INTERVAL = 10
+# If no JPEG EOI arrives within this many buffered bytes, assume a desync and
+# discard the buffer. Prevents unbounded memory growth when the firmware
+# sends malformed or truncated frames (cable noise, firmware hang).
+_SERIAL_MAX_BUFFER_BYTES = 256 * 1024  # 256 KB ≈ 6 × 40 KB frames
 _CV_FILE_VIDEO_EXTENSIONS = (
     ".mp4",
     ".avi",
@@ -481,6 +485,10 @@ class Camera:
             pass
 
     def get_next_packet_bounds(self):
+        # 2 s deadline per search phase: recovers from a silent link (ESP32 hang,
+        # USB hiccup) without spinning on 250 ms read timeouts indefinitely.
+        deadline = time.monotonic() + 2.0
+
         beg = -1
         while beg == -1:
             if self.cancellation_event.is_set() or self.serial_connection is None:
@@ -488,8 +496,16 @@ class Camera:
             # Bail early if the capture source was changed out from under us.
             if self.config.capture_source != self.current_capture_source:
                 return -1, -1
+            if time.monotonic() > deadline:
+                logger.warning("Serial: timed out waiting for JPEG SOI; resyncing.")
+                self.buffer = b""
+                return -1, -1
             self.buffer += self.serial_connection.read(2048)
             beg = self.buffer.find(b"\xff\xd8\xff")
+            if len(self.buffer) > _SERIAL_MAX_BUFFER_BYTES:
+                logger.warning("Serial buffer overrun without JPEG SOI; discarding.")
+                self.buffer = b""
+                return -1, -1
         if beg > 0:
             self.buffer = self.buffer[beg:]
             beg = 0
@@ -500,8 +516,16 @@ class Camera:
                 return -1, -1
             if self.config.capture_source != self.current_capture_source:
                 return -1, -1
-            self.buffer += self.serial_connection.read(128)
+            if time.monotonic() > deadline:
+                logger.warning("Serial: timed out waiting for JPEG EOI; resyncing.")
+                self.buffer = b""
+                return -1, -1
+            self.buffer += self.serial_connection.read(4096)
             end = self.buffer.find(b"\xff\xd9")
+            if len(self.buffer) > _SERIAL_MAX_BUFFER_BYTES:
+                logger.warning("Serial buffer overrun without JPEG EOI; discarding.")
+                self.buffer = b""
+                return -1, -1
         return beg, end
 
     def get_next_jpeg_frame(self):
@@ -517,18 +541,17 @@ class Camera:
         if conn is None:
             return
         try:
-            # [Limiter lag fix] Always drain the serial buffer to keep it fresh
-            while conn.in_waiting:
+            if conn.in_waiting:
                 jpeg = self.get_next_jpeg_frame()
-                if not should_push:
-                    continue
-
-                if jpeg:
-                    # Create jpeg frame from byte string
-                    try:
-                        image = np.array(Image.open(BytesIO(jpeg)))
-                    except Exception:
+                if jpeg and should_push:
+                    # cv2.imdecode always returns a 3-channel BGR array (even for
+                    # grayscale IR cameras), which is exactly what the rest of the
+                    # pipeline expects. No PIL mode gymnastics needed.
+                    nparr = np.frombuffer(jpeg, dtype=np.uint8)
+                    image = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
+                    if image is None:
                         logger.warning("Frame drop. Corrupted JPEG.")
+                        self.buffer = b""
                         return
                     # Discard stale serial frames when the tracker falls behind.
                     if conn.in_waiting >= 32768:
@@ -547,9 +570,8 @@ class Camera:
             logger.warning(
                 "Serial capture source problem, assuming camera disconnected and waiting for reconnect."
             )
-            conn.close()
+            self._close_serial_connection()
             self.camera_status = CameraState.DISCONNECTED
-            pass
 
     def start_serial_connection(self, port):
         if self.serial_connection is not None and self.serial_connection.is_open:
@@ -563,7 +585,9 @@ class Camera:
             except Exception:
                 pass
             self.serial_connection = None
-            self.buffer = b""
+        # Always discard the buffer when opening a fresh connection so stale bytes
+        # from a previous session can't produce false JPEG boundaries.
+        self.buffer = b""
         com_ports = [tuple(p) for p in list(serial.tools.list_ports.comports())]
         # Do not try connecting if no such port i.e. device was unplugged.
         if not any(p for p in com_ports if port in p):
@@ -573,8 +597,8 @@ class Camera:
             rate = (
                 115200 if sys.platform == "darwin" else 3000000
             )  # Higher baud rate not working on macOS
-            # Short read timeout so get_next_packet_bounds() rechecks cancellation / source
-            # changes promptly; otherwise stop()/apply_camera_inputs can hang for seconds.
+            # timeout=0.25: read() returns every 250 ms so get_next_packet_bounds()
+            # can check cancellation/source-change promptly without blocking forever.
             conn = serial.Serial(
                 baudrate=rate,
                 port=port,
@@ -583,6 +607,8 @@ class Camera:
                 rtscts=False,
                 timeout=0.25,
             )
+            # Flush any garbage queued before we opened the port.
+            conn.reset_input_buffer()
             # Set explicit buffer size for serial.
             if sys.platform == "win32":
                 buffer_size = 32768
