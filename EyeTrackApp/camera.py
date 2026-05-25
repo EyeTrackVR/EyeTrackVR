@@ -35,6 +35,7 @@ import time
 from config import EyeTrackCameraConfig, EyeTrackSettingsConfig
 from enum import Enum
 import sys
+from camera_enum import is_uvc_named_source, parse_uvc_named_source, resolve_uvc_address_to_index, invalidate_uvc_camera_cache
 from PIL import Image
 from io import BytesIO
 
@@ -303,12 +304,41 @@ class Camera:
                         self._release_cv2_camera()
                         self._file_video_source_cache = None
                         self.current_capture_source = new_source
+                        # Resolve uvc:Name@Address to a cv2 integer index before
+                        # opening — cv2.VideoCapture doesn't understand the uvc: prefix.
+                        open_source = new_source
+                        if isinstance(new_source, str) and is_uvc_named_source(new_source):
+                            _name, _addr = parse_uvc_named_source(new_source)
+                            _idx = resolve_uvc_address_to_index(_name, _addr)
+                            if _idx is None:
+                                logger.info(
+                                    "UVC camera '%s' not found (not connected?), retrying...",
+                                    _name,
+                                )
+                                self.camera_status = CameraState.DISCONNECTED
+                                if self.cancellation_event.wait(WAIT_TIME):
+                                    return
+                                continue
+                            open_source = _idx
                         cam = cv2.VideoCapture()
                         cam.setExceptionMode(True)
                         self.cv2_camera = cam
+                        # Only pass network timeout params to HTTP/MJPEG sources.
+                        # MSMF and DSHOW log "can't set property 53" and may abort
+                        # the open entirely when given unsupported init params.
+                        _is_network = isinstance(open_source, str) and is_http_capture_source(open_source)
+                        _open_params = OPENCV_PARAMS if _is_network else []
+                        # On Windows, use DSHOW explicitly for integer UVC indices.
+                        # CAP_ANY tries obsensor/MSMF first, which probes all indices
+                        # (causing log spam and ~1 s delay) and is less stable for plain
+                        # UVC cams than DSHOW. CAP_ANY is kept for HTTP and file sources.
+                        if sys.platform == "win32" and isinstance(open_source, int):
+                            _backend = cv2.CAP_DSHOW
+                        else:
+                            _backend = cv2.CAP_ANY
                         # https://github.com/opencv/opencv/blob/4.8.0/modules/videoio/include/opencv2/videoio.hpp#L803
                         try:
-                            cam.open(new_source, cv2.CAP_ANY, OPENCV_PARAMS)
+                            cam.open(open_source, _backend, _open_params)
                         except cv2.error as e:
                             logger.warning(
                                 "Failed to open capture source %s: %s", new_source, e
@@ -318,6 +348,9 @@ class Camera:
                             if self.cancellation_event.wait(WAIT_TIME):
                                 return
                             continue
+                        # Invalidate the UVC cache so the next scan sees the current
+                        # device state (e.g. the camera is now held by this process).
+                        invalidate_uvc_camera_cache()
                         should_push = False
             else:
                 # We don't have a capture source to try yet, wait for one to show up in the GUI.
@@ -355,8 +388,9 @@ class Camera:
 
                 if should_push:
                     self._last_pushed_frame_mono = now_mono
-                    # if we get all the way down here, consider ourselves connected
-                    self.camera_status = CameraState.CONNECTED
+                    # Only mark connected if the read didn't flag a disconnect.
+                    if self.camera_status != CameraState.DISCONNECTED:
+                        self.camera_status = CameraState.CONNECTED
                 
                 # [Limiter lag fix] We now keep the camera thread running as fast as possible
                 # to keep the hardware buffer empty. We only push at max_hz.
@@ -366,6 +400,9 @@ class Camera:
                     time.sleep(0.001)
 
     def get_cv2_camera_picture(self, should_push):
+        if self.cv2_camera is None or not self.cv2_camera.isOpened():
+            self.camera_status = CameraState.DISCONNECTED
+            return
         try:
             is_file_video = self._is_local_file_video_cached(
                 self.current_capture_source

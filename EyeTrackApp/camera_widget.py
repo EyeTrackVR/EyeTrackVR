@@ -227,10 +227,18 @@ class CameraWidget:
         self._preview_dim = round(200 * dpi_scale)
 
         self._viz_pad = round(8 * dpi_scale)
-        self._viz_gaze_gap = round(10 * dpi_scale)
-        self._viz_blink_w = round(24 * dpi_scale)
+        self._viz_gaze_gap = round(6 * dpi_scale)
+        self._viz_blink_w = round(20 * dpi_scale)
+        self._viz_brow_w = round(20 * dpi_scale)
+        # Both bars fit inside _preview_dim: pad + gaze + gap + blink + gap + brow + pad
         self._viz_canvas_w = self._preview_dim
-        self._viz_gaze = self._viz_canvas_w - self._viz_pad * 2 - self._viz_gaze_gap - self._viz_blink_w
+        self._viz_gaze = (
+            self._viz_canvas_w
+            - self._viz_pad * 2
+            - self._viz_gaze_gap * 2
+            - self._viz_blink_w
+            - self._viz_brow_w
+        )
         self._viz_canvas_h = self._viz_pad * 2 + self._viz_gaze
         tw, th = self._tracking_display_size
         self._ROI_CANVAS_MAX_DIM = tw - round(16 * dpi_scale)
@@ -409,6 +417,7 @@ class CameraWidget:
         track_fill = "#32353d"
         track_border = "#4a4e5c"
         blink_fill_col = "#c4a5ff"
+        brow_fill_col = "#a5d6ff"
         tick = "#6d7285"
         dot = "#f4f2ff"
         ring_col = "#b49cff"
@@ -457,6 +466,14 @@ class CameraWidget:
             ),
             "tick_t": c.create_line(0, 0, 0, 0, fill=tick, width=1, tags="viz_main"),
             "tick_b": c.create_line(0, 0, 0, 0, fill=tick, width=1, tags="viz_main"),
+            "brow_track": c.create_rectangle(
+                0, 0, 0, 0, outline=track_border, width=1, fill=track_fill, tags="viz_main"
+            ),
+            "brow_bar": c.create_rectangle(
+                0, 0, 0, 0, fill=brow_fill_col, outline="", tags="viz_main", state="hidden"
+            ),
+            "tick_brow_t": c.create_line(0, 0, 0, 0, fill=tick, width=1, tags="viz_main"),
+            "tick_brow_b": c.create_line(0, 0, 0, 0, fill=tick, width=1, tags="viz_main"),
         }
         c.itemconfigure("viz_fail", state="hidden")
 
@@ -470,6 +487,7 @@ class CameraWidget:
         G = self._viz_gaze
         gap = self._viz_gaze_gap
         bw = self._viz_blink_w
+        ew = self._viz_brow_w
 
         if eye_info.info_type == EyeInfoOrigin.FAILURE:
             c.itemconfigure("viz_main", state="hidden")
@@ -549,6 +567,18 @@ class CameraWidget:
             bx0 + bw // 2 + 4,
             by0 + bh - inset,
         )
+
+        ex0 = bx0 + bw + gap
+        brow_val = float(np.clip(eye_info.eyebrow, 0.0, 1.0)) if not np.isnan(eye_info.eyebrow) else 0.5
+        inner_h = bh - inset * 2
+        fill_h = max(2, int(round(brow_val * inner_h)))
+        y_top = by0 + bh - inset - fill_h
+        y_bot = by0 + bh - inset
+        c.coords(ids["brow_track"], ex0, by0, ex0 + ew, by0 + bh)
+        c.coords(ids["brow_bar"], ex0 + inset, y_top, ex0 + ew - inset, y_bot)
+        c.itemconfigure(ids["brow_bar"], state="normal")
+        c.coords(ids["tick_brow_t"], ex0 + ew // 2 - 4, by0 + inset, ex0 + ew // 2 + 4, by0 + inset)
+        c.coords(ids["tick_brow_b"], ex0 + ew // 2 - 4, by0 + bh - inset, ex0 + ew // 2 + 4, by0 + bh - inset)
 
     def _effective_camera(self) -> "Camera":
         """The camera that actually produces frames for this widget.

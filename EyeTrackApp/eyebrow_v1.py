@@ -33,12 +33,17 @@ import numpy as np
 import cv2
 import onnxruntime
 from utils.misc_utils import resource_path
+import os
 
+os.environ["OMP_NUM_THREADS"] = (
+    "1"  # on slower systems this can cause issues due to slow single core perf. in such cases, it is better to use GPU compute
+)
 logger = logging.getLogger(__name__)
 
 _MODEL_FILE = "Models/EyeBrowv1.onnx"
 _IMAGENET_MEAN = np.array([0.485, 0.456, 0.406], dtype=np.float32).reshape(3, 1, 1)
 _IMAGENET_STD = np.array([0.229, 0.224, 0.225], dtype=np.float32).reshape(3, 1, 1)
+_INV_255 = np.float32(1.0 / 255.0)
 
 
 class _OneEuroFilter:
@@ -86,8 +91,14 @@ class EyeBrowV1:
     def __init__(self):
         model_path = resource_path(_MODEL_FILE)
         logger.info("EyeBrowV1: loading %s (CPU)", model_path)
+        onnxruntime.disable_telemetry_events()
+        opts = onnxruntime.SessionOptions()
+        opts.inter_op_num_threads = 1
+        opts.intra_op_num_threads = 1
+        opts.graph_optimization_level = onnxruntime.GraphOptimizationLevel.ORT_ENABLE_ALL
+        opts.enable_mem_pattern = False
         self._session = onnxruntime.InferenceSession(
-            model_path, providers=["CPUExecutionProvider"]
+            model_path, opts, providers=["CPUExecutionProvider"]
         )
         self._input_name = self._session.get_inputs()[0].name
         self._filter: _OneEuroFilter | None = None
@@ -107,7 +118,8 @@ class EyeBrowV1:
             try:
                 rgb = cv2.cvtColor(frame_bgr, cv2.COLOR_BGR2RGB)
                 resized = cv2.resize(rgb, (224, 224), interpolation=cv2.INTER_LINEAR)
-                tensor = resized.astype(np.float32) / 255.0
+                tensor = np.asarray(resized, dtype=np.float32)
+                tensor *= _INV_255
                 tensor = tensor.transpose(2, 0, 1)  # H,W,C -> C,H,W
                 tensor = (tensor - _IMAGENET_MEAN) / _IMAGENET_STD
                 tensor = tensor[np.newaxis]  # 1,C,H,W

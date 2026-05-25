@@ -56,3 +56,4 @@ class EyeInfo:
     pupil_dilation: float
     blink: float
     avg_velocity: float
+    eyebrow: float = float("nan")

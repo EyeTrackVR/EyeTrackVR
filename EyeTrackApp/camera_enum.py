@@ -59,8 +59,11 @@ def format_uvc_named_source(name: str, address: str) -> str:
 
 def _probe_cv2_indices(max_index: int = _MAX_PROBE_INDEX) -> list[int]:
     indices = []
+    # Use DSHOW on Windows so the obsensor backend never probes every index
+    # (which causes error spam and a ~1 s stall per probe call).
+    backend = cv2.CAP_DSHOW if sys.platform.startswith("win") else cv2.CAP_ANY
     for i in range(max_index):
-        cap = cv2.VideoCapture(i)
+        cap = cv2.VideoCapture(i, backend)
         try:
             if cap.isOpened():
                 indices.append(i)
@@ -75,7 +78,7 @@ def _windows_pnp_name_to_deviceid() -> dict[str, list[str]]:
     to handle the ambiguity rather than picking the wrong one silently."""
     ps = (
         "Get-CimInstance Win32_PnPEntity | "
-        "Where-Object { $_.PNPClass -eq 'Camera' -or $_.PNPClass -eq 'Image' } | "
+        "Where-Object { $_.PNPClass -eq 'Camera' -or $_.PNPClass -eq 'Image' -or $_.Service -eq 'usbvideo' } | "
         "Select-Object Name, DeviceID | ConvertTo-Json -Compress"
     )
     try:
@@ -101,6 +104,22 @@ def _windows_pnp_name_to_deviceid() -> dict[str, list[str]]:
     return mapping
 
 
+def _windows_wmi_only_metadata(pnp_map: dict[str, list[str]]) -> list[tuple[str, str]]:
+    """Camera metadata from WMI alone, used when pygrabber is unavailable.
+
+    Takes the first DeviceID per camera name (the video interface, typically
+    MI_00, which comes before audio/control interfaces in PnP registration
+    order). WMI enumeration order may not match DirectShow order for
+    multi-camera setups, but is always correct for single-camera
+    configurations and preserves real names/addresses — strictly better than
+    the blind ``'Camera N'``/``'index:N'`` probe fallback."""
+    result: list[tuple[str, str]] = []
+    for name, device_ids in pnp_map.items():
+        if device_ids:
+            result.append((name, device_ids[0]))
+    return result
+
+
 def _windows_camera_metadata() -> list[tuple[str, str]]:
     """Returns ``[(name, address), ...]`` in cv2/DSHOW index order.
 
@@ -109,7 +128,13 @@ def _windows_camera_metadata() -> list[tuple[str, str]]:
     with cv2 — unlike ``Win32_PnPEntity`` which returns devices in PnP-
     registration order and silently mis-pairs names with indices. PowerShell
     is kept only to attach stable DeviceID addresses to the pygrabber names.
+
+    When pygrabber is unavailable or fails, falls back to WMI-only metadata
+    so that at least camera names and DeviceID addresses are preserved
+    (instead of the ``'Camera N'``/``'index:N'`` blind-probe fallback).
     """
+    pnp_map = _windows_pnp_name_to_deviceid()
+
     try:
         from pygrabber.dshow_graph import FilterGraph  # type: ignore
     except ImportError:
@@ -117,15 +142,14 @@ def _windows_camera_metadata() -> list[tuple[str, str]]:
             "pygrabber not installed; Windows camera names may be mis-ordered. "
             "Reinstall dependencies to fix."
         )
-        return []
+        return _windows_wmi_only_metadata(pnp_map)
 
     try:
         names = list(FilterGraph().get_input_devices())
     except Exception as e:
         logger.debug("pygrabber enumeration failed: %s", e)
-        return []
+        return _windows_wmi_only_metadata(pnp_map)
 
-    pnp_map = _windows_pnp_name_to_deviceid()
     consumed: dict[str, int] = {}
     result: list[tuple[str, str]] = []
     for pos, name in enumerate(names):
@@ -215,17 +239,16 @@ def _platform_metadata() -> list[tuple[str, str]]:
     return []
 
 
-def list_uvc_cameras() -> list[dict]:
-    """Returns ``[{'index': int, 'name': str, 'address': str}, ...]`` for every
-    detectable webcam. ``address`` is a stable per-device identifier when the
-    OS exposes one, otherwise an ``index:N`` fallback so the dropdown still has
-    a usable key.
+_uvc_list_cache: "list[dict] | None" = None
+_uvc_list_cache_time: float = 0.0
+_uvc_list_cache_lock = threading.Lock()
+# How long (seconds) to reuse a camera list before re-enumerating. Short enough
+# to detect plug/unplug events quickly; long enough to avoid spawning a
+# PowerShell subprocess (or probing cv2 indices) on every retry-loop tick.
+_UVC_LIST_CACHE_TTL = 3.0
 
-    When OS metadata is available we trust its enumeration and skip probing
-    cv2 indices entirely — probing opens/releases every index, which briefly
-    grabs the device handle and races with whatever else (including our own
-    capture thread on retry) is trying to open the same camera. We only fall
-    back to probing when the OS query produced nothing usable."""
+
+def _list_uvc_cameras_uncached() -> "list[dict]":
     metadata = _platform_metadata()
     if metadata:
         return [
@@ -236,12 +259,46 @@ def list_uvc_cameras() -> list[dict]:
             }
             for pos, (name, address) in enumerate(metadata)
         ]
-
     indices = _probe_cv2_indices()
     return [
         {"index": idx, "name": f"Camera {idx}", "address": f"index:{idx}"}
         for idx in indices
     ]
+
+
+def list_uvc_cameras() -> "list[dict]":
+    """Returns ``[{'index': int, 'name': str, 'address': str}, ...]`` for every
+    detectable webcam. ``address`` is a stable per-device identifier when the
+    OS exposes one, otherwise an ``index:N`` fallback so the dropdown still has
+    a usable key.
+
+    When OS metadata is available we trust its enumeration and skip probing
+    cv2 indices entirely — probing opens/releases every index, which briefly
+    grabs the device handle and races with whatever else (including our own
+    capture thread on retry) is trying to open the same camera. We only fall
+    back to probing when the OS query produced nothing usable.
+
+    Results are cached for ``_UVC_LIST_CACHE_TTL`` seconds so rapid retry
+    loops (e.g. camera not-found cycles) don't spawn a new PowerShell process
+    or probe every cv2 index on every tick."""
+    global _uvc_list_cache, _uvc_list_cache_time
+    now = time.monotonic()
+    with _uvc_list_cache_lock:
+        if _uvc_list_cache is not None and (now - _uvc_list_cache_time) < _UVC_LIST_CACHE_TTL:
+            return list(_uvc_list_cache)
+    result = _list_uvc_cameras_uncached()
+    with _uvc_list_cache_lock:
+        _uvc_list_cache = result
+        _uvc_list_cache_time = now
+    return result
+
+
+def invalidate_uvc_camera_cache() -> None:
+    """Force the next ``list_uvc_cameras()`` call to re-enumerate devices.
+    Call this after a successful camera open or when the GUI requests a fresh scan."""
+    global _uvc_list_cache
+    with _uvc_list_cache_lock:
+        _uvc_list_cache = None
 
 
 # ETVR firmware (OpenIris) advertises itself on the LAN via mDNS as
@@ -455,4 +512,8 @@ def resolve_uvc_address_to_index(name: str, address: str, cameras: Iterable[dict
         for c in cams:
             if c["name"] == name:
                 return c["index"]
+    logger.debug(
+        "UVC resolve failed for '%s'@'%s'; enumerated: %s",
+        name, address, [(c["name"], c["address"]) for c in cams],
+    )
     return None

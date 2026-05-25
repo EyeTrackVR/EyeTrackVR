@@ -595,6 +595,7 @@ class EyeProcessor:
         self.prev_x = self.out_x
         self.prev_y = self.out_y
 
+        _brow = self.eyebrow_runner.get_result() if self.eyebrow_runner is not None else float("nan")
         self.output_images_and_update(
             self.thresh,
             EyeInfo(
@@ -604,6 +605,7 @@ class EyeProcessor:
                 self.pupil_dilation,
                 self.eyeopen,
                 self.avg_velocity,
+                _brow,
             ),
         )
 
@@ -618,6 +620,7 @@ class EyeProcessor:
                     self.pupil_dilation,
                     self.eyeopen,
                     self.avg_velocity,
+                    _brow,
                 ),
             ),
         )
@@ -871,7 +874,12 @@ class EyeProcessor:
                 logger.warning("EyeBrowV1 init failed: %s", e)
                 self.eyebrow_runner = None
                 return
-        self.eyebrow_runner.submit(raw_frame)
+        if self.settings.gui_setup_mode == "bigscreen":
+            mid = raw_frame.shape[1] // 2
+            frame = raw_frame[:, :mid] if self.eye_id == EyeId.LEFT else raw_frame[:, mid:]
+        else:
+            frame = raw_frame
+        self.eyebrow_runner.submit(frame)
         self._enqueue_osc_message(OSCMessage(
             type=OSCMessageType.EYEBROW_INFO,
             data=(self.eye_id, self.eyebrow_runner.get_result()),
