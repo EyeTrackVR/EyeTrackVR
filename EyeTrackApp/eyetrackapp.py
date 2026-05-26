@@ -56,7 +56,7 @@ from utils.tooltips import attach_tooltip
 
 
 
-APP_VERSION = "EyeTrackApp 0.3.0 BETA 3.2"
+APP_VERSION = "EyeTrackApp 0.3.0 BETA 4"
 setup_logging(APP_VERSION)
 logger = logging.getLogger(__name__)
 winmm = None
@@ -228,6 +228,8 @@ def main():
 
     osc_manager.start()
 
+    from data_collection import DataCollectionWindow
+
     class AppUI:
         def __init__(self):
             self.root = tk.Tk()
@@ -309,6 +311,8 @@ def main():
             self._issues_popup.protocol("WM_DELETE_WINDOW", self._on_issues_popup_close)
             apply_theme_to_titlebar(self._issues_popup)
 
+            self._data_collection_popup = DataCollectionWindow(self.root, eyes)
+
             _issues_hdr_font = ("Segoe UI", 12, "bold")
             _hdr_bg = self._issues_popup.cget("background")
             _issues_content = ttk.Frame(self._issues_popup, padding=16)
@@ -351,18 +355,17 @@ def main():
             issues_btn_row = ttk.Frame(_issues_content)
             issues_btn_row.pack(anchor="w", pady=(0, 8))
 
-            def _open_data_submission():
-                webbrowser.open(
-                    "https://github.com/RedHawk989/ETVR-Data-Collection/releases/latest"
-                )
+            def _launch_data_collection():
+                self._on_issues_popup_close()
+                self._toggle_data_collection_popup()
 
             def _open_discord():
                 webbrowser.open("https://discord.gg/kkXYbVykZX")
 
             ttk.Button(
                 issues_btn_row,
-                text="Data Submission App",
-                command=_open_data_submission,
+                text="Data Collection mode",
+                command=_launch_data_collection,
                 style="Accent.TButton",
             ).pack(side="left", padx=(0, 8))
             ttk.Button(issues_btn_row, text="Discord", command=_open_discord).pack(side="left")
@@ -608,6 +611,9 @@ def main():
             ttk.Button(bottom, text="GUI OFF", command=self.gui_off).pack(side="left")
             ttk.Button(
                 bottom, text="Having Issues?", command=self._toggle_issues_popup
+            ).pack(side="left", padx=(10, 0))
+            ttk.Button(
+                bottom, text="Contribute Data", command=self._toggle_data_collection_popup
             ).pack(side="left", padx=(10, 0))
             self.focus_label = ttk.Label(bottom, text="- - -  Interface Paused  - - -")
             self.focus_label.pack(side="left", padx=12)
@@ -999,6 +1005,9 @@ def main():
                 self._on_issues_popup_close()
             else:
                 self._show_issues_popup()
+
+        def _toggle_data_collection_popup(self):
+            self._data_collection_popup.show()
 
         def _show_issues_popup(self):
             popup = self._issues_popup

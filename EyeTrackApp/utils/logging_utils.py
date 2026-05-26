@@ -123,6 +123,10 @@ def setup_logging(app_name: str = "EyeTrackApp") -> Path:
     _install_exception_hooks(root_logger)
     _prune_old_logs(log_dir)
 
+    # comtypes floods the log with dozens of DEBUG lines per DirectShow enumeration
+    # (one line per COM interface Release). Cap it at WARNING so the log stays readable.
+    logging.getLogger("comtypes").setLevel(logging.WARNING)
+
     _current_log_path = log_path
     logging.getLogger(__name__).info("%s logging to %s", app_name, log_path)
     return log_path

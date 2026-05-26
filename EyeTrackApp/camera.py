@@ -164,8 +164,6 @@ class Camera:
         self._last_cv_cap_frame_time = 0.0
         self._last_http_wire_bytes_proxy = 0
         self._http_wire_bytes_proxy_frame_count = 0
-        self._last_pushed_frame_mono = time.perf_counter()
-
         self.error_message = "Capture source {} not found, retrying..."
         # monotonic deadline: don't call resolve_uvc_address_to_index until after this time.
         # Set when the camera is confirmed absent from the enum list; cleared on read failure
@@ -182,6 +180,14 @@ class Camera:
     def set_extra_output_queues(self, queues: list["queue.Queue"] | None) -> None:
         """Duplicate each captured frame into these queues (BGR numpy frames). Used for dual-eye same physical camera."""
         self._extra_output_queues = list(queues) if queues else []
+
+    def add_extra_output_queue(self, q: "queue.Queue") -> None:
+        if q not in self._extra_output_queues:
+            self._extra_output_queues.append(q)
+
+    def remove_extra_output_queue(self, q: "queue.Queue") -> None:
+        if q in self._extra_output_queues:
+            self._extra_output_queues.remove(q)
 
     def _is_local_file_video_cached(self, capture_source) -> bool:
         key = capture_source
@@ -381,42 +387,14 @@ class Camera:
                 if self.cancellation_event.wait(WAIT_TIME):
                     return
                 continue
-            # Assuming we can access our capture source, cycle periodically.
-            #
-            # [Limiter lag fix] We now pace ourselves based on gui_max_tracking_speed directly
-            # in the capture loop. This ensures we don't back up the camera's internal buffer
-            # (which causes lag) while still respecting the user's desired tracking rate.
-            try:
-                max_hz = float(self.settings.gui_max_tracking_speed)
-            except (AttributeError, TypeError, ValueError):
-                max_hz = 60.0
-
-            if max_hz < 1.0:
-                max_hz = 1.0
-            target_dt = 1.0 / max_hz
-            now_mono = time.perf_counter()
-            elapsed = now_mono - self._last_pushed_frame_mono
-            should_push = elapsed >= target_dt
-
             if self.config.capture_source is not None:
                 addr = str(self.current_capture_source)
                 if is_serial_capture_source(addr):
-                    self.get_serial_camera_picture(should_push)
+                    self.get_serial_camera_picture(True)
                 else:
-                    self.get_cv2_camera_picture(should_push)
-
-                if should_push:
-                    self._last_pushed_frame_mono = now_mono
-                    # Only mark connected if the read didn't flag a disconnect.
-                    if self.camera_status != CameraState.DISCONNECTED:
-                        self.camera_status = CameraState.CONNECTED
-                
-                # [Limiter lag fix] We now keep the camera thread running as fast as possible
-                # to keep the hardware buffer empty. We only push at max_hz.
-                # If we're going too fast, sleep a tiny bit to avoid pegged CPU,
-                # but not so much that we let the hardware buffer build up.
-                if not should_push:
-                    time.sleep(0.001)
+                    self.get_cv2_camera_picture(True)
+                if self.camera_status != CameraState.DISCONNECTED:
+                    self.camera_status = CameraState.CONNECTED
 
     def get_cv2_camera_picture(self, should_push):
         if self.cv2_camera is None or not self.cv2_camera.isOpened():

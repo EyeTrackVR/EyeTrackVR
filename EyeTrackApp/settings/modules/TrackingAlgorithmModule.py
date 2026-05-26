@@ -23,6 +23,10 @@ _ALGO_TIPS = {
         "RANSAC 3D — fits an ellipse to the pupil edge in 3D. Robust to "
         "lighting changes but slower than LEAP."
     ),
+    "next": (
+        "NEXT — end-to-end neural network tracker. Takes the raw camera frame "
+        "and directly outputs gaze, eyebrow, eyelid, and squint."
+    ),
     "ahsf": "AHSF — adaptive Haar surround feature. Fast classical tracker.",
     "hsrac": "HSRAC — Haar surround + RANSAC. Older HSF/RANSAC hybrid.",
     "hsf": "HSF — Haar surround feature. Classical, very fast, less robust.",
@@ -42,6 +46,7 @@ class TrackingAlgorithmValidationModel(BaseValidationModel):
     gui_LEAP: bool
     gui_RANSAC3D: bool
     gui_AHRAC: bool
+    gui_NEXT: bool
     gui_max_tracking_speed: int
 
 
@@ -59,6 +64,7 @@ class TrackingAlgorithmModule(BaseSettingsModule):
         self.gui_AHSF = f"-AHSF{widget_id}-"
         self.gui_AHRAC = f"-gui_AHRAC{widget_id}-"
         self.gui_RANSAC3D = f"-RANSAC3D{widget_id}-"
+        self.gui_NEXT = f"-NEXT{widget_id}-"
         self.gui_max_tracking_speed = f"-MAXTRACKSPEED{widget_id}-"
 
         self._basic_entries = [
@@ -66,6 +72,7 @@ class TrackingAlgorithmModule(BaseSettingsModule):
             ("AHRAC", "ahrac", self.gui_AHRAC, "gui_AHRAC"),
             ("DADDY", "daddy", self.gui_DADDY, "gui_DADDY"),
             ("RANSAC 3D", "ransac3d", self.gui_RANSAC3D, "gui_RANSAC3D"),
+            ("NEXT (alpha)", "next", self.gui_NEXT, "gui_NEXT"),
         ]
         self._advanced_entries = [
             ("ASHSF", "ahsf", self.gui_AHSF, "gui_AHSF"),

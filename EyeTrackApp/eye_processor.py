@@ -42,6 +42,7 @@ import queue
 from osc_calibrate_filter import *
 from daddy import External_Run_DADDY
 from leap import External_Run_LEAP
+from next_model import External_Run_NEXT
 from haar_surround_feature import External_Run_HSF
 from ransac import *
 from blink import *
@@ -188,6 +189,9 @@ class EyeProcessor:
         self.hsf_runner = None
         self.daddy_runner = None
         self.leap_runner = None
+        self.next_runner = None
+        self.current_raw_frame: np.ndarray | None = None
+        self.next_eyebrow: float = float("nan")
         self.ibo = IntensityBasedOpeness(self.eye_id)
         self.ebpd = EllipseBasedPupilDilation(self.eye_id)
         self.roi_include_set = {"rotation_angle", "roi_window_x", "roi_window_y"}
@@ -341,6 +345,30 @@ class EyeProcessor:
 
         self.previous_image = self.current_image
         self.previous_rotation = self.config.rotation_angle
+
+    def _maybe_apply_bigscreen_default_crop(self) -> None:
+        """On the very first frame in bigscreen mode, default the ROI to this eye's half of the frame."""
+        if self.settings.gui_setup_mode != "bigscreen":
+            return
+        if self.config.bigscreen_auto_crop_frame is not None:
+            return
+        h, w = self.current_image.shape[:2]
+        half_w = w // 2
+        if self.eye_id == EyeId.LEFT:
+            self.config.roi_window_x = 0
+            self.config.roi_window_y = 0
+            self.config.roi_window_w = half_w
+            self.config.roi_window_h = h
+        else:
+            self.config.roi_window_x = half_w
+            self.config.roi_window_y = 0
+            self.config.roi_window_w = w - half_w
+            self.config.roi_window_h = h
+        self.config.bigscreen_auto_crop_frame = [w, h]
+        try:
+            self.baseconfig.save()
+        except Exception:
+            pass
 
     def capture_crop_rotate_image(self):
         # Get our current frame
@@ -548,6 +576,7 @@ class EyeProcessor:
             self.settings.gui_LEAP_lid
             and self.eyeopen != 0.0
             and not self.settings.gui_LEAP
+            and not self.settings.gui_NEXT
         ):
             (
                 self.current_image_gray,
@@ -595,7 +624,12 @@ class EyeProcessor:
         self.prev_x = self.out_x
         self.prev_y = self.out_y
 
-        _brow = self.eyebrow_runner.get_result() if self.eyebrow_runner is not None else float("nan")
+        if self.eyebrow_runner is not None:
+            _brow = self.eyebrow_runner.get_result()
+        elif self.settings.gui_NEXT:
+            _brow = self.next_eyebrow
+        else:
+            _brow = float("nan")
         self.output_images_and_update(
             self.thresh,
             EyeInfo(
@@ -606,6 +640,7 @@ class EyeProcessor:
                 self.eyeopen,
                 self.avg_velocity,
                 _brow,
+                getattr(self, "squeeze", 0.0),
             ),
         )
 
@@ -621,6 +656,7 @@ class EyeProcessor:
                     self.eyeopen,
                     self.avg_velocity,
                     _brow,
+                    getattr(self, "squeeze", 0.0),
                 ),
             ),
         )
@@ -665,6 +701,43 @@ class EyeProcessor:
             self, self.rawx, self.rawy, self.angle
         )
         self.current_algorithm = EyeInfoOrigin.DADDY
+
+    def NEXTM(self):
+        if self.current_raw_frame is None:
+            return
+        self.thresh = self.current_image_gray.copy()
+        
+        base_cutoff = float(self.settings.gui_min_cutoff)
+        base_beta = float(self.settings.gui_speed_coefficient)
+        
+        gaze_x, gaze_y, eyebrow, eyelid, squeeze = self.next_runner.run(
+            self.current_raw_frame, base_cutoff, base_beta
+        )
+
+        if self.eye_id == EyeId.RIGHT:
+            if self.settings.gui_flip_x_axis_right:
+                gaze_x = -gaze_x
+        else:
+            if self.settings.gui_flip_x_axis_left:
+                gaze_x = -gaze_x
+        if self.settings.gui_flip_y_axis:
+            gaze_y = -gaze_y
+
+        dx = gaze_x - self.out_x
+        dy = gaze_y - self.out_y
+        self.avg_velocity = float(np.sqrt(dx * dx + dy * dy))
+        self.out_x = gaze_x
+        self.out_y = gaze_y
+        self.rawx = gaze_x
+        self.rawy = gaze_y
+        self.eyeopen = eyelid * max(0.0, 1.0 - squeeze)
+        self.squeeze = squeeze
+        self.next_eyebrow = eyebrow
+        self._enqueue_osc_message(OSCMessage(
+            type=OSCMessageType.EYEBROW_INFO,
+            data=(self.eye_id, eyebrow),
+        ))
+        self.current_algorithm = EyeInfoOrigin.NEXT
 
     def AHRACM(self):
         self._apply_circular_crop_if_enabled()
@@ -850,6 +923,14 @@ class EyeProcessor:
             if self.daddy_runner is not None:
                 self.daddy_runner = None
 
+        if self.settings.gui_NEXT:
+            if self.next_runner is None:
+                self.next_runner = External_Run_NEXT()
+            enabled_algorithms.append(self.NEXTM)
+        else:
+            if self.next_runner is not None:
+                self.next_runner = None
+
         if self.settings.gui_LEAP or self.settings.gui_LEAP_lid:
             if self.leap_runner is None:
                 self.leap_runner = External_Run_LEAP(self.config, self.baseconfig)
@@ -929,8 +1010,7 @@ class EyeProcessor:
                     self.current_capture_ts,
                 ) = self.capture_queue_incoming.get(block=True, timeout=0.1)
 
-                # [Limiter lag fix] The camera thread now handles the tracking Hz limit.
-                # We simply drain the queue to ensure we're processing the latest frame.
+                # [Limiter lag fix] We simply drain the queue to ensure we're processing the latest frame.
                 try:
                     while True:
                         (
@@ -944,7 +1024,31 @@ class EyeProcessor:
             except queue.Empty:
                 continue
 
+            # Enforce tracking Hz limit
+            max_hz = getattr(self.settings, "gui_max_tracking_speed", 0)
+            if max_hz > 0:
+                min_interval = 1.0 / max_hz
+                now = time.perf_counter()
+                elapsed = now - self._last_tracking_pull_mono
+                if elapsed < min_interval:
+                    time.sleep(min_interval - elapsed)
+                    # We slept, which means a fresher frame might have arrived. Drain the queue again.
+                    try:
+                        while True:
+                            (
+                                self.current_image,
+                                self.current_frame_number,
+                                self.current_fps,
+                                self.current_capture_ts,
+                            ) = self.capture_queue_incoming.get_nowait()
+                    except queue.Empty:
+                        pass
+            self._last_tracking_pull_mono = time.perf_counter()
+
             raw_frame = self.current_image
+            self.current_raw_frame = raw_frame
+
+            self._maybe_apply_bigscreen_default_crop()
 
             if not self.capture_crop_rotate_image():
                 continue

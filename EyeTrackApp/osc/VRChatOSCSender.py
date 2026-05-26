@@ -39,6 +39,8 @@ class VRChatOSCSender:
         self.right_last_blink = time.time()
         self.r_dilation = 0
         self.l_dilation = 0
+        self.r_squeeze = 0.0
+        self.l_squeeze = 0.0
         self.l_brow = 0.0
         self.r_brow = 0.0
 
@@ -80,6 +82,7 @@ class VRChatOSCSender:
                 avg_velocity=eye_info.avg_velocity,
                 eye_id=eye_id,
                 pupil_dilation=eye_info.pupil_dilation,
+                eye_squeeze=eye_info.squeeze,
             )
 
     @staticmethod
@@ -87,7 +90,7 @@ class VRChatOSCSender:
         return eye_display_id in [EyeId.RIGHT, EyeId.LEFT, 0, 1]
 
     def update_eye_state(
-        self, eye_id, eye_x, eye_y, eye_blink, avg_velocity, pupil_dilation
+        self, eye_id, eye_x, eye_y, eye_blink, avg_velocity, pupil_dilation, eye_squeeze=0.0
     ):
         if eye_id == EyeId.LEFT:
             self.l_eye_x = eye_x
@@ -95,6 +98,7 @@ class VRChatOSCSender:
             self.left_y = eye_y
             self.l_eye_velocity = avg_velocity
             self.l_dilation = pupil_dilation
+            self.l_squeeze = eye_squeeze
 
         if eye_id == EyeId.RIGHT:
             self.r_eye_x = eye_x
@@ -102,6 +106,7 @@ class VRChatOSCSender:
             self.right_y = eye_y
             self.r_eye_velocity = avg_velocity
             self.r_dilation = pupil_dilation
+            self.r_squeeze = eye_squeeze
 
     def output_native(
         self,
@@ -114,6 +119,7 @@ class VRChatOSCSender:
         avg_velocity,
         eye_id,
         pupil_dilation,
+        eye_squeeze=0.0,
     ):
         default_eye_blink_params = {
             "eye_id": eye_id,
@@ -128,6 +134,7 @@ class VRChatOSCSender:
             eye_blink=eye_blink,
             avg_velocity=avg_velocity,
             pupil_dilation=pupil_dilation,
+            eye_squeeze=eye_squeeze,
         )
 
         if self.is_single_eye:
@@ -169,6 +176,7 @@ class VRChatOSCSender:
         avg_velocity,
         eye_id,
         pupil_dilation,
+        eye_squeeze=0.0,
     ):
         default_eye_blink_params = {
             "eye_id": eye_id,
@@ -185,6 +193,7 @@ class VRChatOSCSender:
             eye_blink=eye_blink,
             avg_velocity=avg_velocity,
             pupil_dilation=pupil_dilation,
+            eye_squeeze=eye_squeeze,
         )
 
         if self.is_single_eye:
@@ -242,6 +251,7 @@ class VRChatOSCSender:
         avg_velocity,
         eye_id,
         pupil_dilation,
+        eye_squeeze=0.0,
     ):
         default_eye_blink_params = {
             "eye_id": eye_id,
@@ -256,12 +266,18 @@ class VRChatOSCSender:
             eye_blink=eye_blink,
             avg_velocity=avg_velocity,
             pupil_dilation=pupil_dilation,
+            eye_squeeze=eye_squeeze,
         )
 
         if self.is_single_eye:
             client.send_message("/avatar/parameters/v2/EyeX", eye_x)
             client.send_message("/avatar/parameters/v2/EyeY", eye_y)
             client.send_message("/avatar/parameters/v2/PupilDilation", pupil_dilation)
+            client.send_message("/avatar/parameters/v2/CheekSquintLeft", eye_squeeze)
+            client.send_message("/avatar/parameters/v2/CheekSquintRight", eye_squeeze)
+            client.send_message("/avatar/parameters/v2/EyeSquintLeft", eye_squeeze)
+            client.send_message("/avatar/parameters/v2/EyeSquintRight", eye_squeeze)
+            client.send_message("/avatar/parameters/v2/EyeSquint", eye_squeeze)
 
             self.output_vrcft_blink_data(
                 **default_eye_blink_params,
@@ -287,6 +303,8 @@ class VRChatOSCSender:
                     "/avatar/parameters/v2/EyeLidLeft",
                     _eyelid_transformer(config, self.l_eye_blink),
                 )
+                client.send_message("/avatar/parameters/v2/CheekSquintLeft", self.l_squeeze)
+                client.send_message("/avatar/parameters/v2/EyeSquintLeft", self.l_squeeze)
 
             if eye_id == EyeId.RIGHT:
                 self.r_dilation = pupil_dilation
@@ -298,11 +316,15 @@ class VRChatOSCSender:
                     "/avatar/parameters/v2/EyeLidRight",
                     _eyelid_transformer(config, self.r_eye_blink),
                 )
+                client.send_message("/avatar/parameters/v2/CheekSquintRight", self.r_squeeze)
+                client.send_message("/avatar/parameters/v2/EyeSquintRight", self.r_squeeze)
 
             avg_pupil_dilation = (self.l_dilation + self.r_dilation) / 2
             client.send_message(
                 "/avatar/parameters/v2/PupilDilation", avg_pupil_dilation
             )
+            avg_squeeze = (self.l_squeeze + self.r_squeeze) / 2
+            client.send_message("/avatar/parameters/v2/EyeSquint", avg_squeeze)
 
     def output_vrcft_blink_data(
         self,

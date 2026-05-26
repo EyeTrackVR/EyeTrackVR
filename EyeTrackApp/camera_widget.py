@@ -967,6 +967,9 @@ class CameraWidget:
         self.settings.gui_recenter_eyes = True
 
     def recalibrate_eyes(self):
+        self.ransac.cal.xs = []
+        self.ransac.cal.ys = []
+        self.ransac.cal.fitted = False
         self.ransac.calibration_start_time = time.time()
         self.ransac.ibo.clear_filter()
         PlaySound(resource_path("Audio/start.wav"), SND_FILENAME | SND_ASYNC)

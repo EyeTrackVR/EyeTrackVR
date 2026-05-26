@@ -46,6 +46,7 @@ class EyeInfoOrigin(Enum):
     HSRAC = 5
     DADDY = 6
     LEAP = 7
+    NEXT = 8
 
 
 @dataclass
@@ -57,3 +58,4 @@ class EyeInfo:
     blink: float
     avg_velocity: float
     eyebrow: float = float("nan")
+    squeeze: float = 0.0

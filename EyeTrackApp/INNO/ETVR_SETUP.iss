@@ -2,7 +2,7 @@
 ; SEE THE DOCUMENTATION FOR DETAILS ON CREATING INNO SETUP SCRIPT FILES!
 
 #define MyAppName "EyeTrackVR"
-#define MyAppVersion "0.3.0 BETA 2"
+#define MyAppVersion "0.3.0 BETA 4"
 #define MyAppPublisher "EyeTrackVR"
 #define MyAppURL "https://github.com/EyeTrackVR/EyeTrackVR/"
 #define MyAppExeName "eyetrackapp.exe"

@@ -184,6 +184,7 @@ def center_overlay_calibrate(self):
             cwd=tools_dir,
             stdout=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL,
+            creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
         )
         var.overlay_active = True
         sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
@@ -220,6 +221,7 @@ def overlay_calibrate_3d(self):
             cwd=tools_dir,
             stdout=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL,
+            creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
         )
         var.overlay_active = True
         # Bind once and reuse across messages; rebinding the same port every
@@ -316,6 +318,7 @@ def overlay_ellipse_calibrate(eye_processors: list, settings, baseconfig) -> Non
             cwd=tools_dir,
             stdout=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL,
+            creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
         )
         var.overlay_active = True
         sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
@@ -436,9 +439,6 @@ class cal:
                 >= self.settings.calibration_duration
             ):
                 self.calibration_start_time = None
-                # Always save offset (XOFF/YOFF) for recenter functionality
-                self.config.calib_XOFF = cx
-                self.config.calib_YOFF = cy
 
                 # Only save ellipse calibration data if samples were actually collected
                 evecs, axes = self.cal.fit_ellipse()
@@ -450,7 +450,14 @@ class cal:
                     and axes == 0
                 ):
                     # Valid calibration data - save it
-                    self.config.calib_evecs, self.config.calib_axes = evecs, axes
+                    self.config.calib_evecs = list(evecs.tolist() if hasattr(evecs, "tolist") else evecs)
+                    self.config.calib_axes = list(axes.tolist() if hasattr(axes, "tolist") else axes)
+                    if self.cal.center is not None:
+                        self.config.calib_XOFF = float(self.cal.center[0])
+                        self.config.calib_YOFF = float(self.cal.center[1])
+                    else:
+                        self.config.calib_XOFF = cx
+                        self.config.calib_YOFF = cy
                     self.baseconfig.save()
                     PlaySound(
                         resource_path("Audio/completed.wav"), SND_FILENAME | SND_ASYNC
@@ -458,6 +465,8 @@ class cal:
                 else:
                     # No samples collected - only save the offset (for Recenter Eyes)
                     # Don't overwrite existing ellipse calibration
+                    self.config.calib_XOFF = cx
+                    self.config.calib_YOFF = cy
                     logger.warning(
                         "Eye %s: calibration stopped without collecting samples. "
                         "Ellipse calibration preserved, offset updated.",
