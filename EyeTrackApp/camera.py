@@ -482,32 +482,30 @@ class Camera:
             pass
 
     def get_next_packet_bounds(self):
-        # 2 s deadline per search phase: recovers from a silent link (ESP32 hang,
-        # USB hiccup) without spinning on 250 ms read timeouts indefinitely.
-        deadline = time.monotonic() + 2.0
+        # Non-blocking SOI scan: read only bytes already in the OS buffer.
+        # Blocking here lets the hardware buffer fill up and overflow, which
+        # corrupts the very frame we're waiting for.
+        try:
+            waiting = self.serial_connection.in_waiting
+        except Exception:
+            waiting = 0
+        if waiting > 0:
+            self.buffer += self.serial_connection.read(min(waiting, 4096))
 
-        beg = -1
-        while beg == -1:
-            if self.cancellation_event.is_set() or self.serial_connection is None:
-                return -1, -1
-            # Bail early if the capture source was changed out from under us.
-            if self.config.capture_source != self.current_capture_source:
-                return -1, -1
-            if time.monotonic() > deadline:
-                logger.warning("Serial: timed out waiting for JPEG SOI; resyncing.")
-                self.buffer = b""
-                return -1, -1
-            self.buffer += self.serial_connection.read(2048)
-            beg = self.buffer.find(b"\xff\xd8\xff")
+        beg = self.buffer.find(b"\xff\xd8\xff")
+        if beg == -1:
             if len(self.buffer) > _SERIAL_MAX_BUFFER_BYTES:
                 logger.warning("Serial buffer overrun without JPEG SOI; discarding.")
                 self.buffer = b""
-                return -1, -1
+            return -1, -1
         if beg > 0:
             self.buffer = self.buffer[beg:]
             beg = 0
 
-        end = -1
+        # SOI is in hand – now block for the rest of the frame (EOI).
+        # A complete frame arrives in well under 100 ms; 2 s is a safety net.
+        end = self.buffer.find(b"\xff\xd9")
+        deadline = time.monotonic() + 2.0
         while end == -1:
             if self.cancellation_event.is_set() or self.serial_connection is None:
                 return -1, -1
@@ -538,31 +536,35 @@ class Camera:
         if conn is None:
             return
         try:
-            if conn.in_waiting:
-                jpeg = self.get_next_jpeg_frame()
-                if jpeg and should_push:
-                    # cv2.imdecode always returns a 3-channel BGR array (even for
-                    # grayscale IR cameras), which is exactly what the rest of the
-                    # pipeline expects. No PIL mode gymnastics needed.
-                    nparr = np.frombuffer(jpeg, dtype=np.uint8)
-                    image = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
-                    if image is None:
-                        logger.warning("Frame drop. Corrupted JPEG.")
-                        self.buffer = b""
-                        return
-                    # Discard stale serial frames when the tracker falls behind.
-                    if conn.in_waiting >= 32768:
-                        logger.info(
-                            "Discarding the serial buffer (%s bytes)", conn.in_waiting
-                        )
-                        conn.reset_input_buffer()
-                        self.buffer = b""
-                    # True wire bytes: len(jpeg) is the compressed payload the tracker
-                    # pushed over UART, so the Mbps readout matches physical link
-                    # bandwidth instead of decoded-pixel throughput.
-                    self._update_frame_rate(len(jpeg))
-                    self.frame_number = self.frame_number + 1
-                    self.push_image_to_queue(image, self.frame_number, self.fps)
+            waiting = conn.in_waiting
+            # Drain stale frames BEFORE parsing so the OS hardware buffer never
+            # overflows mid-frame. Half the buffer size (16 KB) is the trigger:
+            # at that point we're already ~1 frame behind and catching up is
+            # cheaper than corrupting the one we're assembling.
+            if waiting >= 16384:
+                logger.info("Discarding the serial buffer (%s bytes)", waiting)
+                conn.reset_input_buffer()
+                self.buffer = b""
+                return
+            if not waiting and not self.buffer:
+                return
+            jpeg = self.get_next_jpeg_frame()
+            if jpeg and should_push:
+                # cv2.imdecode always returns a 3-channel BGR array (even for
+                # grayscale IR cameras), which is exactly what the rest of the
+                # pipeline expects. No PIL mode gymnastics needed.
+                nparr = np.frombuffer(jpeg, dtype=np.uint8)
+                image = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
+                if image is None:
+                    logger.warning("Frame drop. Corrupted JPEG.")
+                    self.buffer = b""
+                    return
+                # True wire bytes: len(jpeg) is the compressed payload the tracker
+                # pushed over UART, so the Mbps readout matches physical link
+                # bandwidth instead of decoded-pixel throughput.
+                self._update_frame_rate(len(jpeg))
+                self.frame_number += 1
+                self.push_image_to_queue(image, self.frame_number, self.fps)
         except Exception:
             logger.warning(
                 "Serial capture source problem, assuming camera disconnected and waiting for reconnect."
