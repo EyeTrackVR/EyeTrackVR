@@ -108,16 +108,16 @@ def _windows_pnp_name_to_deviceid() -> dict[str, list[str]]:
 def _windows_wmi_only_metadata(pnp_map: dict[str, list[str]]) -> list[tuple[str, str]]:
     """Camera metadata from WMI alone, used when pygrabber is unavailable.
 
-    Takes the first DeviceID per camera name (the video interface, typically
-    MI_00, which comes before audio/control interfaces in PnP registration
-    order). WMI enumeration order may not match DirectShow order for
-    multi-camera setups, but is always correct for single-camera
-    configurations and preserves real names/addresses — strictly better than
-    the blind ``'Camera N'``/``'index:N'`` probe fallback."""
+    Includes every DeviceID per name so that two identical cameras (same
+    friendly name, same VID/PID) both appear as selectable sources. WMI
+    registration order may not match DirectShow/cv2 enumeration order for
+    multi-camera setups — cameras might be swapped — but both are at least
+    visible and carry stable per-port DeviceID addresses, which is strictly
+    better than the blind ``'Camera N'``/``'index:N'`` probe fallback."""
     result: list[tuple[str, str]] = []
     for name, device_ids in pnp_map.items():
-        if device_ids:
-            result.append((name, device_ids[0]))
+        for device_id in device_ids:
+            result.append((name, device_id))
     return result
 
 
@@ -539,9 +539,17 @@ def resolve_uvc_address_to_index(name: str, address: str, cameras: Iterable[dict
             if c["address"] == address:
                 return c["index"]
     if name:
-        for c in cams:
-            if c["name"] == name:
-                return c["index"]
+        matches = [c for c in cams if c["name"] == name]
+        if len(matches) == 1:
+            return matches[0]["index"]
+        if len(matches) > 1:
+            # Multiple cameras share this name; a name-only match would pick
+            # the wrong device. Let the caller handle the miss gracefully.
+            logger.debug(
+                "UVC name fallback skipped for '%s': %d cameras share that name; "
+                "re-select from the dropdown to re-assign by address.",
+                name, len(matches),
+            )
     logger.debug(
         "UVC resolve failed for '%s'@'%s'; enumerated: %s",
         name, address, [(c["name"], c["address"]) for c in cams],
