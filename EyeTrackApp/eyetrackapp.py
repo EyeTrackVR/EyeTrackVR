@@ -36,6 +36,7 @@ import queue
 import cv2
 import requests
 import threading
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from camera_widget import CameraWidget
 from camera_enum import (
     discover_etvr_mdns_sources,
@@ -748,74 +749,90 @@ def main():
                 config.save()
 
         def scan_sources(self):
-            self.status_var.set("Scanning UVC, serial, and mDNS sources...")
+            self.status_var.set("Scanning UVC, mDNS, and serial sources...")
 
             def _scan():
-                cams = list_uvc_cameras()
-                # Build friendly labels for the dropdown — just the camera
-                # name, with a "(N)" suffix when two cameras share a name so
-                # the user can still tell them apart. The encoded
-                # uvc:<name>@<address> form stays internal; we map it back
-                # from the label in _normalize_camera_input.
-                name_totals: dict[str, int] = {}
-                for c in cams:
-                    name_totals[c["name"]] = name_totals.get(c["name"], 0) + 1
-                seen: dict[str, int] = {}
-                source_map: dict[str, str] = {}
-                uvc_display_values: list[str] = []
-                for c in cams:
-                    n = c["name"]
-                    seen[n] = seen.get(n, 0) + 1
-                    label = n if name_totals[n] == 1 else f"{n} ({seen[n]})"
-                    source_map[label] = format_uvc_named_source(n, c["address"])
-                    uvc_display_values.append(label)
-                # mDNS + serial lookups are blocking; this whole _scan runs on
-                # a worker thread already, so both are fine here. Network
-                # trackers go to the *top* of the dropdown because they're
-                # typically the user's primary capture source — UVC is the
-                # fallback / debug case. Serial sits between the two: the
-                # actively-streaming ones are real trackers, but typing a COM
-                # port by hand is less ergonomic than picking a UVC name.
-                mdns_values = discover_etvr_mdns_sources()
-                for v in mdns_values:
-                    source_map[v] = v
+                # Results dict — None means that source is still in-flight.
+                results: dict[str, list | None] = {
+                    "uvc": None,
+                    "mdns": None,
+                    "serial": None,
+                }
 
-                serial_pairs = discover_etvr_serial_cameras()
-                serial_display_values: list[str] = []
-                for label, device in serial_pairs:
-                    # Avoid collisions with UVC labels by namespacing serial
-                    # ones, but keep the device path itself as the stored
-                    # capture source — that's what camera.py already accepts.
-                    display_label = (
-                        label if label not in source_map else f"{label} [serial]"
-                    )
-                    source_map[display_label] = device
-                    serial_display_values.append(display_label)
+                def _apply_partial():
+                    uvc_cams = results["uvc"] or []
+                    mdns_values = results["mdns"] or []
+                    serial_pairs = results["serial"] or []
 
-                values = [""] + mdns_values + serial_display_values + uvc_display_values
+                    # Build UVC display labels.
+                    name_totals: dict[str, int] = {}
+                    for c in uvc_cams:
+                        name_totals[c["name"]] = name_totals.get(c["name"], 0) + 1
+                    seen: dict[str, int] = {}
+                    source_map: dict[str, str] = {}
+                    uvc_display_values: list[str] = []
+                    for c in uvc_cams:
+                        n = c["name"]
+                        seen[n] = seen.get(n, 0) + 1
+                        label = n if name_totals[n] == 1 else f"{n} ({seen[n]})"
+                        source_map[label] = format_uvc_named_source(n, c["address"])
+                        uvc_display_values.append(label)
 
-                uvc_hint = ", ".join(uvc_display_values) or "none"
-                mdns_hint = ", ".join(mdns_values) or "none"
-                serial_hint = ", ".join(serial_display_values) or "none"
+                    for v in mdns_values:
+                        source_map[v] = v
 
-                def _apply():
+                    serial_display_values: list[str] = []
+                    for lbl, device in serial_pairs:
+                        display_label = lbl if lbl not in source_map else f"{lbl} [serial]"
+                        source_map[display_label] = device
+                        serial_display_values.append(display_label)
+
+                    # mDNS → serial → UVC ordering in the dropdown (network
+                    # trackers are the primary source; UVC is fallback).
+                    values = [""] + mdns_values + serial_display_values + uvc_display_values
+
                     self._source_display_map = source_map
                     self.left_camera_entry.configure(values=values)
                     self.right_camera_entry.configure(values=values)
-                    # If the currently-shown text is an encoded uvc: form
-                    # (e.g. just loaded from config at launch), rewrite it to
-                    # the friendly label now that the scan knows the mapping.
                     encoded_to_label = {v: k for k, v in source_map.items()}
                     for var in (self.left_camera_var, self.right_camera_var):
                         cur = var.get()
                         if cur in encoded_to_label:
                             var.set(encoded_to_label[cur])
-                    self.status_var.set(
-                        f"Detected mDNS: {mdns_hint} | "
-                        f"Serial: {serial_hint} | UVC: {uvc_hint}"
-                    )
 
-                self.root.after(0, _apply)
+                    pending = [k.upper() for k, v in results.items() if v is None]
+                    if pending:
+                        ready_parts = []
+                        if results["uvc"] is not None:
+                            ready_parts.append(f"UVC: {', '.join(uvc_display_values) or 'none'}")
+                        if results["mdns"] is not None:
+                            ready_parts.append(f"mDNS: {', '.join(mdns_values) or 'none'}")
+                        if results["serial"] is not None:
+                            ready_parts.append(f"Serial: {', '.join(serial_display_values) or 'none'}")
+                        prefix = " | ".join(ready_parts) + (" | " if ready_parts else "")
+                        self.status_var.set(f"{prefix}Scanning {', '.join(pending)}...")
+                    else:
+                        uvc_hint = ", ".join(uvc_display_values) or "none"
+                        mdns_hint = ", ".join(mdns_values) or "none"
+                        serial_hint = ", ".join(serial_display_values) or "none"
+                        self.status_var.set(
+                            f"Detected mDNS: {mdns_hint} | "
+                            f"Serial: {serial_hint} | UVC: {uvc_hint}"
+                        )
+
+                with ThreadPoolExecutor(max_workers=3) as pool:
+                    futures = {
+                        pool.submit(list_uvc_cameras): "uvc",
+                        pool.submit(discover_etvr_mdns_sources): "mdns",
+                        pool.submit(discover_etvr_serial_cameras): "serial",
+                    }
+                    for fut in as_completed(futures):
+                        key = futures[fut]
+                        try:
+                            results[key] = fut.result()
+                        except Exception:
+                            results[key] = []
+                        self.root.after(0, _apply_partial)
 
             threading.Thread(target=_scan, daemon=True).start()
 

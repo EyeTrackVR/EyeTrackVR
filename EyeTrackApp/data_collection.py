@@ -14,6 +14,8 @@ import cv2
 import tkinter as tk
 from tkinter import ttk
 
+DATA_COLLECTION_VERSION = "v3"
+
 speech_lock = threading.Lock()
 
 def speak(text):
@@ -98,7 +100,7 @@ def get_best_codec():
     return cv2.VideoWriter_fourcc(*"MJPG"), "MJPG", "avi"
 
 def _zip_output(seed, output_dir):
-    zip_name = f"{seed}_ETVR_User_Data_Output.zip"
+    zip_name = f"{DATA_COLLECTION_VERSION}_{seed}_ETVR_User_Data_Output.zip"
     with zipfile.ZipFile(zip_name, "w", zipfile.ZIP_DEFLATED) as zf:
         for root, _, files in os.walk(output_dir):
             for file in files:
@@ -131,27 +133,53 @@ PROMPT_DATA = [
     (0,    "Raise eyebrows halfway and look forward"),
     (0,    "Lower eyebrows fully and look forward"),
     (0,    "Lower eyebrows halfway and look forward"),
-    (None, "Raise eyebrows fully and look in random direction"),
-    (None, "Lower eyebrows fully and look in random direction"),
     (None, "Close your eyes and look in random direction"),
     (None, "Look in a full circle starting now"),
 ]
 
 OVERLAY_PASSES = [
-    (100, "gaze",           "Follow the dot as it moves"),
-    (101, "squint",         "Squint and follow the dot"),
-    (102, "widen",          "Widen eyes and follow the dot"),
-    (103, "brows_up_full",  "Raise eyebrows fully and follow the dot"),
-    (104, "brows_up_half",  "Raise eyebrows halfway and follow the dot"),
-    (105, "brows_dn_full",  "Lower eyebrows fully and follow the dot"),
-    (106, "brows_dn_half",  "Lower eyebrows halfway and follow the dot"),
+    # (overlay_cmd, label_prefix, tts_text, n_jitter)
+    (100, "gaze",          "Follow the dot as it moves",                10),
+    (101, "squint",        "Squint and follow the dot",                 10),
+    (102, "widen",         "Widen eyes and follow the dot",             10),
+    (105, "brows_dn_full", "Lower eyebrows fully and follow the dot",    4),
+    (103, "brows_up_full", "Raise eyebrows fully and follow the dot",    4),
+    (106, "brows_dn_half", "Lower eyebrows halfway and follow the dot",  4),
+    (104, "brows_up_half", "Raise eyebrows halfway and follow the dot",  4),
 ]
 
+# Maps DC_POS index (sent by overlay as signal 0–8) to label name.
+# Order matches C++ DC_POS: clockwise outer ring, then center.
 OVERLAY_POINT_NAMES = {
-    0: "center",    1: "left",       2: "right",
-    3: "up",        4: "down",
-    5: "upper_left", 6: "upper_right", 7: "lower_left", 8: "lower_right",
+    0: "upper_left",  1: "up",          2: "upper_right",
+    3: "right",       4: "lower_right", 5: "down",
+    6: "lower_left",  7: "left",        8: "center",
 }
+
+# Jitter grid base positions ordered as a smooth N/Z snake path:
+# up the left column → cross to center-top → right-top → down the right column → center-bottom.
+# Maximum adjacent jump ≈ 0.62, avoiding the large cross-screen hops of a random order.
+_JITTER_GRID_BASE = [
+    (-0.60, -0.65), (-0.60, -0.20), (-0.60,  0.25), (-0.60,  0.65),
+    ( 0.00,  0.50), ( 0.60,  0.65),
+    ( 0.60,  0.25), ( 0.60, -0.20), ( 0.60, -0.65),
+    ( 0.00, -0.50),
+]
+
+def _jittered_grid_positions(session_seed, pass_index, n=10, jitter=0.12):
+    """Return n positions following the base path, each offset by a small random amount.
+    Seeded by (session_seed, pass_index) so every pass type gets different offsets.
+    When n < 10, evenly-spaced points are taken to preserve spatial coverage."""
+    rng = random.Random(f"{session_seed}:{pass_index}")
+    all_pos = []
+    for bx, by in _JITTER_GRID_BASE:
+        x = max(-1.0, min(1.0, bx + rng.uniform(-jitter, jitter)))
+        y = max(-1.0, min(1.0, by + rng.uniform(-jitter, jitter)))
+        all_pos.append((round(x, 3), round(y, 3)))
+    if n >= len(all_pos):
+        return all_pos
+    step = len(all_pos) / n
+    return [all_pos[int(i * step)] for i in range(n)]
 
 OVERLAY_PORT     = 2112
 OVERLAY_CMD_PORT = 2113
@@ -302,7 +330,7 @@ class DataCollectionWindow:
         ttk.Button(
             btn_row,
             text="Open Submissions Page",
-            command=lambda: webbrowser.open("https://ask.eyetrackvr.dev/LEAPV2_Data_Submission"),
+            command=lambda: webbrowser.open("https://ask.eyetrackvr.dev/next-leap-data-collection"),
         ).pack(side="left", padx=(0, 8))
 
         ttk.Button(
@@ -357,7 +385,7 @@ class DataCollectionWindow:
 
     def _run_collection(self):
         seed = "".join(random.choices(string.ascii_letters + string.digits, k=9))
-        output_dir = os.path.join(os.getcwd(), f"{seed}_ETVR_Output")
+        output_dir = os.path.join(os.getcwd(), f"{DATA_COLLECTION_VERSION}_{seed}_ETVR_Output")
         
         use_overlay = self.use_overlay_var.get()
 
@@ -369,9 +397,10 @@ class DataCollectionWindow:
         n = len(self.active_queues)
         timestamp_files = []
         for label in self.active_eye_labels:
-            ts = os.path.join(output_dir, f"{seed}_{label}_timestamps.txt")
+            ts = os.path.join(output_dir, f"{DATA_COLLECTION_VERSION}_{seed}_{label}_timestamps.txt")
             with open(ts, "w") as f:
                 f.write("# Format: <frame_number> <prompt_text>\n")
+                f.write("# Version: " + DATA_COLLECTION_VERSION + "\n")
                 f.write("# Recorded on: " + time.strftime("%Y-%m-%d %H:%M:%S") + "\n")
                 f.write("# Seed: " + seed + "\n\n")
             timestamp_files.append(ts)
@@ -407,7 +436,7 @@ class DataCollectionWindow:
         for i in range(n):
             h, w = first_frames[i].shape[:2]
             is_color = len(first_frames[i].shape) == 3 and first_frames[i].shape[2] == 3
-            fn = os.path.join(output_dir, f"{seed}_full_session_{self.active_eye_labels[i]}.{container}")
+            fn = os.path.join(output_dir, f"{DATA_COLLECTION_VERSION}_{seed}_full_session_{self.active_eye_labels[i]}.{container}")
             vw = cv2.VideoWriter(fn, fourcc, 60, (w, h), is_color)
             video_writers.append(vw)
 
@@ -560,7 +589,7 @@ class DataCollectionWindow:
                     if prompt_frames[j] is not None:
                         img_fn = os.path.join(
                             output_dir,
-                            f"{seed}_{self.active_eye_labels[j]}_{capture_count + 1:02d}_{clean}.png",
+                            f"{DATA_COLLECTION_VERSION}_{seed}_{self.active_eye_labels[j]}_{capture_count + 1:02d}_{clean}.png",
                         )
                         cv2.imwrite(img_fn, prompt_frames[j])
 
@@ -575,10 +604,16 @@ class DataCollectionWindow:
 
             base_idx = len(prompts_to_run)
             if use_overlay and not self.session_cancel.is_set():
-                self._run_overlay_passes(
+                base_idx = self._run_overlay_passes(
                     seed, output_dir, n, video_writers,
                     timestamp_files, drain_to_video, base_idx,
-                    udp_sock, send_cmd,
+                    udp_sock, send_cmd, cmd_sock,
+                )
+            if use_overlay and not self.session_cancel.is_set():
+                self._run_headset_shift_pass(
+                    seed, output_dir, n, video_writers,
+                    timestamp_files, drain_to_video, base_idx,
+                    udp_sock, cmd_sock,
                 )
 
         except Exception as e:
@@ -649,15 +684,16 @@ class DataCollectionWindow:
             if frames[j] is not None:
                 img_fn = os.path.join(
                     output_dir,
-                    f"{seed}_{self.active_eye_labels[j]}_{idx + 1:02d}_{label}.png",
+                    f"{DATA_COLLECTION_VERSION}_{seed}_{self.active_eye_labels[j]}_{idx + 1:02d}_{label}.png",
                 )
                 cv2.imwrite(img_fn, frames[j])
 
-    def _run_overlay_passes(self, seed, output_dir, n, video_writers, timestamp_files, drain_to_video, base_idx, udp_sock, send_cmd):
+    def _run_overlay_passes(self, seed, output_dir, n, video_writers, timestamp_files,
+                             drain_to_video, base_idx, udp_sock, send_cmd, cmd_sock):
         overlay_idx = base_idx
         total_passes = len(OVERLAY_PASSES)
 
-        for pass_num, (cmd, label_prefix, tts_text) in enumerate(OVERLAY_PASSES):
+        for pass_num, (pass_cmd, label_prefix, tts_text, n_jitter) in enumerate(OVERLAY_PASSES):
             if self.session_cancel.is_set():
                 break
 
@@ -665,12 +701,14 @@ class DataCollectionWindow:
             done = speak(tts_text)
             while not done.is_set():
                 if self.session_cancel.is_set():
-                    return
+                    return overlay_idx
                 drain_to_video()
                 time.sleep(0.01)
 
-            send_cmd(cmd)
+            send_cmd(pass_cmd)
 
+            # Phase 1: receive fixed 9-point signals (0–8) from overlay
+            phase1_done = False
             while not self.session_cancel.is_set():
                 drain_to_video()
                 try:
@@ -679,16 +717,114 @@ class DataCollectionWindow:
                     continue
                 if len(data) < 4:
                     continue
-
                 value, = struct.unpack(">i", data[:4])
-
-                if value == 19:
-                    break
-                elif 0 <= value <= 8:
-                    point_name = OVERLAY_POINT_NAMES[value]
-                    label = f"{label_prefix}_{point_name}"
-                    self._do_overlay_capture(seed, output_dir, n, video_writers, timestamp_files, label, overlay_idx)
+                if 0 <= value <= 8:
+                    label = f"{label_prefix}_{OVERLAY_POINT_NAMES[value]}"
+                    self._do_overlay_capture(seed, output_dir, n, video_writers,
+                                             timestamp_files, label, overlay_idx)
                     overlay_idx += 1
+                elif value == 10:   # overlay entered jittered-grid phase
+                    phase1_done = True
+                    break
+                elif value == 19:   # safety fallback
+                    break
+
+            if not phase1_done or self.session_cancel.is_set():
+                continue
+
+            # Phase 2: drive jittered grid positions (count varies by pass type)
+            for gx, gy in _jittered_grid_positions(seed, pass_num, n=n_jitter):
+                if self.session_cancel.is_set():
+                    break
+                drain_to_video()
+                cmd_sock.sendto(struct.pack(">iff", 111, gx, gy), ("127.0.0.1", OVERLAY_CMD_PORT))
+
+                captured = False
+                deadline = time.time() + 8.0
+                while time.time() < deadline and not self.session_cancel.is_set():
+                    drain_to_video()
+                    try:
+                        data, _ = udp_sock.recvfrom(16)
+                    except _socket.timeout:
+                        continue
+                    if len(data) < 4:
+                        continue
+                    if struct.unpack(">i", data[:4])[0] == 20:
+                        captured = True
+                        break
+
+                if captured and not self.session_cancel.is_set():
+                    label = f"{label_prefix}_x{gx:+.3f}_y{gy:+.3f}"
+                    self._do_overlay_capture(seed, output_dir, n, video_writers,
+                                             timestamp_files, label, overlay_idx)
+                    overlay_idx += 1
+
+            if self.session_cancel.is_set():
+                break
+
+            # End jittered phase; overlay sends signal 19
+            cmd_sock.sendto(struct.pack(">i", 119), ("127.0.0.1", OVERLAY_CMD_PORT))
+            deadline = time.time() + 5.0
+            while time.time() < deadline and not self.session_cancel.is_set():
+                drain_to_video()
+                try:
+                    data, _ = udp_sock.recvfrom(16)
+                except _socket.timeout:
+                    continue
+                if len(data) >= 4 and struct.unpack(">i", data[:4])[0] == 19:
+                    break
+
+        return overlay_idx
+
+    def _run_headset_shift_pass(self, seed, output_dir, n, video_writers, timestamp_files,
+                                 drain_to_video, base_idx, udp_sock, cmd_sock):
+        overlay_idx = base_idx
+        self.gui_queue.put(("status", "Headset Shift Pass: look at center dot and shift your headset around"))
+
+        cmd_sock.sendto(struct.pack(">i", 120), ("127.0.0.1", OVERLAY_CMD_PORT))
+        speech_done = speak("Look at the center dot and shift your headset around in all directions")
+
+        # Wait for TTS to finish, then a 0.5s grace period before capturing
+        while not speech_done.is_set():
+            if self.session_cancel.is_set():
+                return overlay_idx
+            drain_to_video()
+            time.sleep(0.01)
+
+        t0 = time.time()
+        while time.time() - t0 < 0.5:
+            if self.session_cancel.is_set():
+                return overlay_idx
+            drain_to_video()
+            time.sleep(0.01)
+
+        # Capture 25 frames at ~5Hz (200ms apart) for 5 seconds of headset-shift data
+        for _ in range(25):
+            if self.session_cancel.is_set():
+                break
+            drain_to_video()
+            time.sleep(0.18)
+            drain_to_video()
+            self._do_overlay_capture(seed, output_dir, n, video_writers,
+                                     timestamp_files, "hshift_center", overlay_idx)
+            overlay_idx += 1
+
+        cmd_sock.sendto(struct.pack(">i", 121), ("127.0.0.1", OVERLAY_CMD_PORT))
+
+        deadline = time.time() + 5.0
+        while time.time() < deadline and not self.session_cancel.is_set():
+            drain_to_video()
+            try:
+                data, _ = udp_sock.recvfrom(16)
+            except _socket.timeout:
+                continue
+            if len(data) < 4:
+                continue
+            val, = struct.unpack(">i", data[:4])
+            if val == 19:
+                break
+
+        return overlay_idx
 
     def _cleanup_session(self):
         for i, eye in enumerate(self.eyes):
