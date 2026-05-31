@@ -87,18 +87,18 @@ class NEXT_cls:
         # We apply multipliers to the base slider values to achieve this ordering.
         _cutoff = np.array([
             base_cutoff * 1.0,   # eyebrow (most)
-            base_cutoff * 20.0,  # eyelid (least)
+            base_cutoff * 10.0,  # eyelid (least)
             base_cutoff * 5.0,   # squeeze (next)
-            base_cutoff * 5.0,   # gaze_x (next)
-            base_cutoff * 5.0,   # gaze_y (next)
+            base_cutoff * 0.1,   # gaze_x (next)
+            base_cutoff * 0.1,   # gaze_y (next)
         ], dtype=np.float32)
 
         _beta = np.array([
             base_beta * 1.0,     # eyebrow (most)
-            base_beta * 20.0,    # eyelid (least)
+            base_beta * 10.0,    # eyelid (least)
             base_beta * 5.0,     # squeeze (next)
-            base_beta * 5.0,     # gaze_x (next)
-            base_beta * 5.0,     # gaze_y (next)
+            base_beta * 0.1,     # gaze_x (next)
+            base_beta * 0.1,     # gaze_y (next)
         ], dtype=np.float32)
 
         self.one_euro_filter.min_cutoff[:] = _cutoff

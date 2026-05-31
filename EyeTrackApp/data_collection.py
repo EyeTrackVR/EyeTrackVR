@@ -14,7 +14,7 @@ import cv2
 import tkinter as tk
 from tkinter import ttk
 
-DATA_COLLECTION_VERSION = "v3"
+DATA_COLLECTION_VERSION = "v4"
 
 speech_lock = threading.Lock()
 
@@ -139,9 +139,11 @@ PROMPT_DATA = [
 
 OVERLAY_PASSES = [
     # (overlay_cmd, label_prefix, tts_text, n_jitter)
-    (100, "gaze",          "Follow the dot as it moves",                10),
-    (101, "squint",        "Squint and follow the dot",                 10),
-    (102, "widen",         "Widen eyes and follow the dot",             10),
+    # gaze/squint/widen: bumped to 20 so the full 22-point grid gets sampled
+    # (evenly-spaced skip picks 20 of 22, preserving outer+intermediate+center coverage).
+    (100, "gaze",          "Follow the dot as it moves",                20),
+    (101, "squint",        "Squint and follow the dot",                 20),
+    (102, "widen",         "Widen eyes and follow the dot",             20),
     (105, "brows_dn_full", "Lower eyebrows fully and follow the dot",    4),
     (103, "brows_up_full", "Raise eyebrows fully and follow the dot",    4),
     (106, "brows_dn_half", "Lower eyebrows halfway and follow the dot",  4),
@@ -156,20 +158,51 @@ OVERLAY_POINT_NAMES = {
     6: "lower_left",  7: "left",        8: "center",
 }
 
-# Jitter grid base positions ordered as a smooth N/Z snake path:
-# up the left column → cross to center-top → right-top → down the right column → center-bottom.
-# Maximum adjacent jump ≈ 0.62, avoiding the large cross-screen hops of a random order.
+# Jitter grid base positions ordered as a smooth snake path.
+#
+# Layout (22 points):
+#   Outer ring   — edges at ±0.60 x / ±0.50–0.65 y
+#   Intermediate — ±0.25–0.35 band (fills the previous deadzone)
+#   Near-center  — ±0.12–0.18 cluster (bridges center prompts to intermediate)
+#
+# Path: up the left outer column (with intermediate interspersed) → cross to
+# top-center → spiral inward through the center cluster → bottom-center →
+# outward through right intermediate → up the right outer column.
+# Maximum adjacent jump ≈ 0.62.
 _JITTER_GRID_BASE = [
-    (-0.60, -0.65), (-0.60, -0.20), (-0.60,  0.25), (-0.60,  0.65),
-    ( 0.00,  0.50), ( 0.60,  0.65),
-    ( 0.60,  0.25), ( 0.60, -0.20), ( 0.60, -0.65),
-    ( 0.00, -0.50),
+    # ── left outer column (bottom → top) ──────────────────────────────
+    (-0.60, -0.65),   # outer bottom-left
+    (-0.60, -0.20),   # outer left mid-low
+    (-0.30, -0.35),   # intermediate lower-left       ← new
+    (-0.25,  0.00),   # intermediate left-center       ← new
+    (-0.60,  0.25),   # outer left mid-high
+    (-0.30,  0.35),   # intermediate upper-left        ← new
+    (-0.60,  0.65),   # outer top-left
+    # ── cross to top-center, spiral inward ────────────────────────────
+    ( 0.00,  0.50),   # outer top-center
+    ( 0.00,  0.30),   # intermediate upper-center      ← new
+    (-0.18,  0.12),   # near-center upper-left         ← new
+    (-0.12, -0.18),   # near-center lower-left         ← new
+    ( 0.00, -0.30),   # intermediate lower-center      ← new
+    # ── bottom-center, spiral outward right ───────────────────────────
+    ( 0.00, -0.50),   # outer bottom-center
+    ( 0.30, -0.35),   # intermediate lower-right       ← new
+    ( 0.18, -0.12),   # near-center lower-right        ← new
+    ( 0.25,  0.00),   # intermediate right-center      ← new
+    ( 0.12,  0.18),   # near-center upper-right        ← new
+    ( 0.30,  0.35),   # intermediate upper-right       ← new
+    # ── right outer column (top → bottom) ─────────────────────────────
+    ( 0.60,  0.65),   # outer top-right
+    ( 0.60,  0.25),   # outer right mid-high
+    ( 0.60, -0.20),   # outer right mid-low
+    ( 0.60, -0.65),   # outer bottom-right
 ]
 
-def _jittered_grid_positions(session_seed, pass_index, n=10, jitter=0.12):
+def _jittered_grid_positions(session_seed, pass_index, n=22, jitter=0.12):
     """Return n positions following the base path, each offset by a small random amount.
     Seeded by (session_seed, pass_index) so every pass type gets different offsets.
-    When n < 10, evenly-spaced points are taken to preserve spatial coverage."""
+    When n < len(_JITTER_GRID_BASE), evenly-spaced points are taken to preserve
+    spatial coverage across the full outer→intermediate→near-center range."""
     rng = random.Random(f"{session_seed}:{pass_index}")
     all_pos = []
     for bx, by in _JITTER_GRID_BASE:
