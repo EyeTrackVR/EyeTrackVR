@@ -113,12 +113,16 @@ class var:
     past_xy: dict = {}
     last_t: dict = {}
     velocity_rolling: dict = {}
+    kp_past: dict = {}
+    kp_rolling: dict = {}
     r_eye_x = 0.0
     l_eye_x = 0.0
     left_y = 0.0
     right_y = 0.0
     l_eye_velocity = 0.0
     r_eye_velocity = 0.0
+    l_keypoint_noise = 0.0
+    r_keypoint_noise = 0.0
     l_eye_openness = 1.0
     r_eye_openness = 1.0
     overlay_active = False
@@ -133,6 +137,7 @@ class var:
 
 
 _VEL_WINDOW = 15
+_KP_WINDOW = 15
 # Cap dt at 1s to keep a long pause (tab switch, breakpoint, etc.) from
 # producing a single divide-by-tiny-dt that pollutes the rolling average.
 _MAX_DT = 1.0
@@ -168,6 +173,32 @@ def _update_eye_velocity(eye_id, out_x, out_y, now):
     elif eye_id == EyeId.RIGHT:
         var.r_eye_velocity = smoothed
     return inst
+
+
+def _update_keypoint_noise(eye_id, cx, cy, roi_diag):
+    """Track raw pupil-keypoint jitter as a self-computed confidence signal.
+
+    Frame-to-frame displacement of (cx, cy) normalised by the ROI diagonal
+    gives a scale-free noise estimate: smooth tracking → low value, jittery
+    detection → high value.  Higher jitter means the tracker is less confident
+    even if the calibrated output hasn't moved much.
+    """
+    prev = var.kp_past.get(eye_id)
+    var.kp_past[eye_id] = (cx, cy)
+    if prev is None or roi_diag < 1.0:
+        return
+    dx = cx - prev[0]
+    dy = cy - prev[1]
+    inst = math.sqrt(dx * dx + dy * dy) / roi_diag
+    bucket = var.kp_rolling.setdefault(eye_id, [])
+    bucket.append(inst)
+    if len(bucket) > _KP_WINDOW:
+        del bucket[0]
+    smoothed = sum(bucket) / len(bucket)
+    if eye_id == EyeId.LEFT:
+        var.l_keypoint_noise = smoothed
+    elif eye_id == EyeId.RIGHT:
+        var.r_keypoint_noise = smoothed
 
 
 @Async
@@ -676,6 +707,10 @@ class cal:
             inst_velocity = _update_eye_velocity(
                 self.eye_id, float(out_x), float(out_y), time.time()
             )
+            _roi_diag = math.sqrt(
+                self.config.roi_window_w ** 2 + self.config.roi_window_h ** 2
+            )
+            _update_keypoint_noise(self.eye_id, float(cx), float(cy), _roi_diag)
 
         out_x, out_y = velocity_falloff(
             self, var, out_x, out_y, inst_velocity=inst_velocity

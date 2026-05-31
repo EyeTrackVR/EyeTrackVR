@@ -42,6 +42,7 @@ from camera_enum import (
     discover_etvr_mdns_sources,
     discover_etvr_serial_cameras,
     format_uvc_named_source,
+    is_uvc_named_source,
     list_uvc_cameras,
 )
 from config import EyeTrackConfig
@@ -775,6 +776,18 @@ def main():
                         label = n if name_totals[n] == 1 else f"{n} ({seen[n]})"
                         source_map[label] = format_uvc_named_source(n, c["address"])
                         uvc_display_values.append(label)
+
+                    # When UVC scan is still in flight, preserve the previous UVC
+                    # entries. Without this, mDNS/serial returning first empties
+                    # source_map of UVC entries, and any navigation that triggers
+                    # apply_camera_inputs will see _source_display_map without the
+                    # friendly labels — causing _normalize_camera_input to treat
+                    # "Camera (1)" as a URL and corrupt the saved config.
+                    if results["uvc"] is None:
+                        for k, v in self._source_display_map.items():
+                            if is_uvc_named_source(v) and k not in source_map:
+                                source_map[k] = v
+                                uvc_display_values.append(k)
 
                     for v in mdns_values:
                         source_map[v] = v

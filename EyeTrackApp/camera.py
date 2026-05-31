@@ -547,6 +547,11 @@ class Camera:
                 self.buffer = b""
                 return
             if not waiting and not self.buffer:
+                # No serial data yet. Yield for 1 ms instead of spinning:
+                # without this the outer run() loop calls in_waiting tens of
+                # thousands of times per second between frames, saturating a CPU
+                # core and starving the UI event loop via GIL contention.
+                self.cancellation_event.wait(0.001)
                 return
             jpeg = self.get_next_jpeg_frame()
             if jpeg and should_push:

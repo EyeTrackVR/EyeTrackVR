@@ -653,7 +653,7 @@ class CameraWidget:
             elif (
                 len(value) > 5
                 and "://" not in value
-                and not value.startswith(("COM", "/dev"))
+                and not value.startswith(("COM", "/dev", "uvc:"))
                 and not lower_value.endswith((".mp4", ".avi", ".mkv", ".mov"))
             ):
                 new_source = f"http://{value}/"
