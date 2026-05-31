@@ -30,6 +30,7 @@ import time
 from enum import IntEnum
 from utils.misc_utils import PlaySound, SND_FILENAME, SND_ASYNC, resource_path
 from utils.eye_falloff import velocity_falloff
+from utils.logging_utils import TrackingLogger
 import socket
 import struct
 import threading
@@ -615,6 +616,9 @@ class cal:
                 (cx, cy), (self.config.calib_XOFF, self.config.calib_YOFF), clip=False
             )
 
+        # Capture calibrated output before snap-hold / falloff adjustments for logging.
+        _pre_snap_x, _pre_snap_y = out_x, out_y
+
         # ── Snap-to-center hold ───────────────────────────────────────────────────
         # When the pupil tracker loses the pupil at an extreme gaze angle it
         # often reports the image center.  After calibration this maps to
@@ -647,25 +651,41 @@ class cal:
                 _is_snap = _is_snap and not _bs_valid
 
             if _is_snap:
-                # Hold: output last valid position, allow slow drift toward new pos
-                _drift = min(0.5, self._cal_hold_frames / 60.0)
+                _kp_noise = (
+                    var.l_keypoint_noise
+                    if self.eye_id == EyeId.LEFT
+                    else var.r_keypoint_noise
+                )
+                _hold_rate = max(8.0, 20.0 - min(12.0, _kp_noise * 80.0))
+                _drift = min(1.0, self._cal_hold_frames / _hold_rate)
                 out_x = self._last_cal_x + _drift * (out_x - self._last_cal_x)
                 out_y = self._last_cal_y + _drift * (out_y - self._last_cal_y)
                 dfr_x = out_x
                 dfr_y = out_y
-                self._cal_hold_frames = min(self._cal_hold_frames + 1, 120)
-                # Piggyback on velocity_falloff: mark this eye as high-velocity/noisy
-                # so the falloff logic automatically prefers the other (stable) eye
-                # instead of this one which is stuck at center.
+                self._cal_hold_frames = min(self._cal_hold_frames + 1, 30)
+                self._snap_active = True
+                self._last_drift = _drift
+
+                # When drift has fully caught up, accept the new position as the
+                # anchor.  Without this reset, a stale extreme in _last_cal_x
+                # re-fires the snap condition any time the user looks near centre,
+                # creating permanent "gravity wells" in certain gaze regions.
+                if _drift >= 1.0:
+                    self._last_cal_x = out_x
+                    self._last_cal_y = out_y
+                    self._cal_hold_frames = 0
+
                 if self.eye_id == EyeId.LEFT:
                     var.l_eye_velocity = max(var.l_eye_velocity, var.r_eye_velocity * 2.0 + 0.5)
                 elif self.eye_id == EyeId.RIGHT:
                     var.r_eye_velocity = max(var.r_eye_velocity, var.l_eye_velocity * 2.0 + 0.5)
                 logger.debug(
-                    "Snap hold (frame %d): holding (%.2f, %.2f)",
-                    self._cal_hold_frames, out_x, out_y,
+                    "Snap hold (frame %d, drift=%.2f): holding (%.2f, %.2f)",
+                    self._cal_hold_frames, _drift, out_x, out_y,
                 )
             else:
+                self._snap_active = False
+                self._last_drift = 0.0
                 # Valid frame: update last-valid only when not in a BS-flagged state
                 if not (_calib_mode == "robust" and not _bs_valid):
                     self._last_cal_x = out_x
@@ -746,4 +766,27 @@ class cal:
         self._stable_out_x = float(out_x)
         self._stable_out_y = float(out_y)
         self._stable_velocity = float(my_velocity)
+
+        _tlog = TrackingLogger.get()
+        if _tlog is not None:
+            from utils.eye_falloff import _latched_eye as _fe_latch
+            _tlog.record(
+                t=time.time(),
+                eye="L" if self.eye_id == EyeId.LEFT else "R",
+                cx=float(cx),
+                cy=float(cy),
+                cal_x=_pre_snap_x,
+                cal_y=_pre_snap_y,
+                out_x=float(out_x),
+                out_y=float(out_y),
+                snap=getattr(self, "_snap_active", False),
+                hold_f=getattr(self, "_cal_hold_frames", 0),
+                drift=getattr(self, "_last_drift", 0.0),
+                kp_noise=float(
+                    var.l_keypoint_noise if self.eye_id == EyeId.LEFT else var.r_keypoint_noise
+                ),
+                velocity=float(my_velocity),
+                latch="" if _fe_latch is None else str(int(_fe_latch)),
+            )
+
         return out_x, out_y, my_velocity

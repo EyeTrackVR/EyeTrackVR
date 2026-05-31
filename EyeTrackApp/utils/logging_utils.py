@@ -1,3 +1,4 @@
+import csv
 import logging
 import os
 import subprocess
@@ -140,6 +141,113 @@ def log_directory() -> Path:
     log_dir = _app_root() / LOG_DIR_NAME
     log_dir.mkdir(parents=True, exist_ok=True)
     return log_dir
+
+
+class TrackingLogger:
+    """Per-frame CSV logger for diagnosing gaze artifacts.
+
+    Activated by dropping a file named ``enable_tracking_log`` in the app
+    root directory.  A new CSV is created in ``logs/`` each time the sentinel
+    is detected.  Delete the sentinel file to stop logging and flush the CSV.
+
+    Columns
+    -------
+    t          - monotonic timestamp (seconds)
+    eye        - L or R
+    cx / cy    - raw pupil-keypoint pixel coords (pre-calibration)
+    cal_x/y    - calibrated output before snap-hold and velocity-falloff
+    out_x/y    - final output after snap-hold, falloff, and One-Euro filter
+    snap       - 1 while snap-hold is active, 0 otherwise
+    hold_f     - snap-hold frame counter
+    drift      - drift coefficient applied this frame (0.0 – 1.0)
+    kp_noise   - normalised raw-keypoint noise (rolling 15-frame avg)
+    velocity   - smoothed calibrated-output velocity
+    latch      - which eye the outer-side falloff is currently mirroring
+    """
+
+    _instance: "TrackingLogger | None" = None
+    _class_lock = threading.Lock()
+    _write_lock = threading.Lock()
+
+    SENTINEL = "enable_tracking_log"
+    COLUMNS = [
+        "t", "eye", "cx", "cy",
+        "cal_x", "cal_y",
+        "out_x", "out_y",
+        "snap", "hold_f", "drift",
+        "kp_noise", "velocity",
+        "latch",
+    ]
+
+    def __init__(self, path: Path) -> None:
+        self._path = path
+        self._file = open(path, "w", newline="", encoding="utf-8")
+        self._writer = csv.writer(self._file)
+        self._writer.writerow(self.COLUMNS)
+        self._flush_counter = 0
+
+    @classmethod
+    def get(cls) -> "TrackingLogger | None":
+        """Return the active logger if the sentinel file is present, else None.
+        Creates or tears down the logger automatically as the sentinel changes.
+        """
+        sentinel = _app_root() / cls.SENTINEL
+        with cls._class_lock:
+            if sentinel.exists():
+                if cls._instance is None:
+                    ts = datetime.now().strftime("%Y%m%d-%H%M%S")
+                    path = log_directory() / f"tracking-{ts}.csv"
+                    cls._instance = cls(path)
+                    logging.getLogger(__name__).info(
+                        "Tracking CSV logger active: %s", path
+                    )
+                return cls._instance
+            else:
+                if cls._instance is not None:
+                    try:
+                        cls._instance._file.flush()
+                        cls._instance._file.close()
+                    except OSError:
+                        pass
+                    logging.getLogger(__name__).info(
+                        "Tracking CSV logger stopped: %s", cls._instance._path
+                    )
+                    cls._instance = None
+                return None
+
+    def record(
+        self,
+        t: float,
+        eye: str,
+        cx: float,
+        cy: float,
+        cal_x: float,
+        cal_y: float,
+        out_x: float,
+        out_y: float,
+        snap: bool,
+        hold_f: int,
+        drift: float,
+        kp_noise: float,
+        velocity: float,
+        latch: str,
+    ) -> None:
+        row = [
+            f"{t:.4f}", eye,
+            f"{cx:.2f}", f"{cy:.2f}",
+            f"{cal_x:.4f}", f"{cal_y:.4f}",
+            f"{out_x:.4f}", f"{out_y:.4f}",
+            "1" if snap else "0", hold_f,
+            f"{drift:.3f}",
+            f"{kp_noise:.4f}", f"{velocity:.4f}",
+            latch,
+        ]
+        with self._write_lock:
+            self._writer.writerow(row)
+            self._flush_counter += 1
+            if self._flush_counter >= 60:
+                self._file.flush()
+                self._flush_counter = 0
 
 
 def open_logs() -> None:
