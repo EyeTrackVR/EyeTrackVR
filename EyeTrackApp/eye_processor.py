@@ -233,6 +233,7 @@ class EyeProcessor:
         self.ahsf_runner = None
         self.eyebrow_runner: EyeBrowV1 | None = None
         self.cal = CalibrationEllipse()
+        self.squeeze = 0.0
         self.ahsf_detector = PupilDetectorHaar()
 
         # Robust calibration pipeline
@@ -339,9 +340,10 @@ class EyeProcessor:
         )
         image_stack = np.concatenate((self.current_image_gray, threshold_image), axis=1)
 
-        self.image_queue_outgoing.put((image_stack, output_information))
-        if self.image_queue_outgoing.qsize() > 1:
-            self.image_queue_outgoing.get()
+        try:
+            self.image_queue_outgoing.put_nowait((image_stack, output_information))
+        except queue.Full:
+            pass
 
         self.previous_image = self.current_image
         self.previous_rotation = self.config.rotation_angle
@@ -470,8 +472,12 @@ class EyeProcessor:
 
             avg_color_per_row = np.average(self.current_image, axis=0)
             avg_color = np.average(avg_color_per_row, axis=0)
-            avg_color_norm = avg_color[0:3] / avg_color[3]
-            ar, ag, ab = np.clip(avg_color_norm, 0, 1)
+            alpha_avg = float(avg_color[3])
+            if alpha_avg < 1e-6:
+                ar, ag, ab = 0.0, 0.0, 0.0
+            else:
+                avg_color_norm = avg_color[0:3] / alpha_avg
+                ar, ag, ab = np.clip(avg_color_norm, 0.0, 1.0)
 
             # add border color to image masked by alpha and discard alpha channel
             rgb_ch = self.current_image[:, :, :3]
@@ -640,7 +646,7 @@ class EyeProcessor:
                 self.eyeopen,
                 self.avg_velocity,
                 _brow,
-                getattr(self, "squeeze", 0.0),
+                self.squeeze,
             ),
         )
 
@@ -656,7 +662,7 @@ class EyeProcessor:
                     self.eyeopen,
                     self.avg_velocity,
                     _brow,
-                    getattr(self, "squeeze", 0.0),
+                    self.squeeze,
                 ),
             ),
         )

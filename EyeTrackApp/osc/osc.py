@@ -205,9 +205,7 @@ class OSCSender:
                             main_config=self.main_config,
                         )
                     case _:
-                        raise Exception(
-                            "Encountered message without a handler %s", osc_message.type
-                        )
+                        logger.warning("Encountered OSC message without a handler: %s", osc_message.type)
             except TypeError:
                 continue
             except queue.Empty:
@@ -267,7 +265,7 @@ class OSCReceiver:
             self.server_thread.start()
 
             while not self.cancellation_event.is_set():
-                sleep(10)
+                self.cancellation_event.wait(10)
 
             self.shutdown()
         except Exception as exc:  # noqa:

@@ -128,6 +128,45 @@ def set_timer_resolution(enabled):
             winmm.timeEndPeriod(1)
 
 
+def _check_for_updates_bg(config) -> None:
+    """Fetch latest GitHub release on a daemon thread; notifies if outdated."""
+    try:
+        if not config.settings.gui_update_check:
+            return
+        response = requests.get(
+            "https://api.github.com/repos/EyeTrackVR/EyeTrackVR/releases/latest",
+            timeout=(3, 10),
+        )
+        response.raise_for_status()
+        latestversion = response.json()["name"]
+        if APP_VERSION == latestversion:
+            logger.info("App is the latest version: %s", latestversion)
+        else:
+            logger.warning(
+                "You have app version %s installed. Please update to %s for the newest features.",
+                APP_VERSION,
+                latestversion,
+            )
+            try:
+                if is_nt:
+                    icon = resource_path("Images/logo.ico")
+                    toast = Notification(
+                        app_id="EyeTrackApp",
+                        title="New Update Available!",
+                        msg=f"Please update to {latestversion}",
+                        icon=r"{}".format(icon),
+                    )
+                    toast.add_actions(
+                        label="Download Page",
+                        launch="https://github.com/EyeTrackVR/EyeTrackVR/releases/latest",
+                    )
+                    toast.show()
+            except Exception:
+                logger.info("Toast notifications not supported", exc_info=True)
+    except (requests.RequestException, KeyError, ValueError):
+        logger.info("Could not check for updates. Please try again later.", exc_info=True)
+
+
 def main():
     # Get Configuration
     config: EyeTrackConfig = EyeTrackConfig.load()
@@ -149,47 +188,6 @@ def main():
         # keep a local reference only if import succeeded
         openvr_service = _openvr_service
         config.register_listener_callback(openvr_service.on_config_update)
-
-    # Check to see if we can connect to our video source first. If not, bring up camera finding
-    # dialog.
-    try:
-        if config.settings.gui_update_check:
-            response = requests.get(
-                "https://api.github.com/repos/EyeTrackVR/EyeTrackVR/releases/latest",
-                timeout=(3, 10),
-            )
-            response.raise_for_status()
-            latestversion = response.json()["name"]
-
-            if (
-                APP_VERSION == latestversion
-            ):  # GitHub release name matches the local application version.
-                logger.info("App is the latest version: %s", latestversion)
-            else:
-                logger.warning(
-                    "You have app version %s installed. Please update to %s for the newest features.",
-                    APP_VERSION,
-                    latestversion,
-                )
-                try:
-                    if is_nt:
-                        # icon = cwd + "\Images\logo.ico"
-                        icon = resource_path("Images/logo.ico")
-                        toast = Notification(
-                            app_id="EyeTrackApp",
-                            title="New Update Available!",
-                            msg=f"Please update to {latestversion}",
-                            icon=r"{}".format(icon),
-                        )
-                        toast.add_actions(
-                            label="Download Page",
-                            launch="https://github.com/EyeTrackVR/EyeTrackVR/releases/latest",
-                        )
-                        toast.show()
-                except Exception:
-                    logger.info("Toast notifications not supported", exc_info=True)
-    except (requests.RequestException, KeyError, ValueError):
-        logger.info("Could not check for updates. Please try again later.", exc_info=True)
 
     osc_queue: queue.Queue[OSCMessage] = queue.Queue(maxsize=10)
 
@@ -1233,6 +1231,9 @@ def main():
     app = AppUI()
     if (not is_macos) and (openvr_service is not None):
         openvr_service.window = app
+    threading.Thread(
+        target=_check_for_updates_bg, args=(config,), daemon=True, name="UpdateCheck"
+    ).start()
     # Populate the UVC dropdowns at launch so the user sees the current
     # cameras without having to click "Scan". after(0) defers it until the
     # event loop is running; scan_sources itself does the enumeration on a

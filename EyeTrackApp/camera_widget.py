@@ -949,10 +949,14 @@ class CameraWidget:
         self.camera.set_extra_output_queues([])
         self.cancellation_event.set()
         if self.tracking_thread is not None:
-            self.tracking_thread.join()
+            self.tracking_thread.join(timeout=5.0)
+            if self.tracking_thread.is_alive():
+                logger.warning("Tracking thread (%s) did not exit within timeout", self.eye_id)
             self.tracking_thread = None
         if self.camera_thread is not None:
-            self.camera_thread.join()
+            self.camera_thread.join(timeout=5.0)
+            if self.camera_thread.is_alive():
+                logger.warning("Camera thread (%s) did not exit within timeout", self.eye_id)
             self.camera_thread = None
 
     def on_config_update(self, data):
