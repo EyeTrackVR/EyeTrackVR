@@ -47,6 +47,7 @@ class TrackingAlgorithmValidationModel(BaseValidationModel):
     gui_RANSAC3D: bool
     gui_AHRAC: bool
     gui_NEXT: bool
+    gui_NEXT_calibration: bool
     gui_max_tracking_speed: int
 
 
@@ -65,6 +66,7 @@ class TrackingAlgorithmModule(BaseSettingsModule):
         self.gui_AHRAC = f"-gui_AHRAC{widget_id}-"
         self.gui_RANSAC3D = f"-RANSAC3D{widget_id}-"
         self.gui_NEXT = f"-NEXT{widget_id}-"
+        self.gui_NEXT_calibration = f"-NEXTCAL{widget_id}-"
         self.gui_max_tracking_speed = f"-MAXTRACKSPEED{widget_id}-"
 
         self._basic_entries = [
@@ -92,12 +94,30 @@ class TrackingAlgorithmModule(BaseSettingsModule):
             self.tk_vars[key] = tk.BooleanVar(
                 value=bool(getattr(self.config, config_field, False))
             )
+        next_cal_var = tk.BooleanVar(
+            value=bool(getattr(self.config, "gui_NEXT_calibration", False))
+        )
+        self.tk_vars[self.gui_NEXT_calibration] = next_cal_var
         # Radio buttons live in their own frame so their column widths are
         # independent of the slider row below (which would otherwise force
         # column 1 wide via the Scale widget, creating a gap between LEAP and AHRAC).
         radio_frame = ttk.Frame(parent)
         radio_frame.grid(row=0, column=0, columnspan=5, sticky="w")
-        self._render_radio_grid(radio_frame, self._basic_entries, ncol=4)
+        positions = self._render_radio_grid(radio_frame, self._basic_entries, ncol=4)
+        if "next" in positions:
+            next_row, next_col = positions["next"]
+            cb = ttk.Checkbutton(
+                radio_frame,
+                text="Allow Calibration",
+                variable=next_cal_var,
+            )
+            cb.grid(row=next_row, column=next_col + 1, sticky="w", padx=(0, 8), pady=2)
+            attach_tooltip(
+                cb,
+                "Pipe NEXT gaze output through the standard calibration filter "
+                "(ellipse / robust) and apply the Blink Point / Wide-eye Point "
+                "remap to the eyelid output.",
+            )
 
         speed_var = tk.IntVar(
             value=int(getattr(self.config, "gui_max_tracking_speed", 60))
@@ -120,7 +140,9 @@ class TrackingAlgorithmModule(BaseSettingsModule):
             parent, self._advanced_entries, ncol=3, row_offset=1
         )
 
-    def _render_radio_grid(self, parent, entries, ncol, row_offset=0):
+    def _render_radio_grid(self, parent, entries, ncol, row_offset=0) -> dict:
+        """Render radio buttons and return {name: (row, col)} for each entry."""
+        positions = {}
         rows_per_column = (len(entries) + ncol - 1) // ncol
         for idx, (label, name, _key, _config_field) in enumerate(entries):
             row = (idx % rows_per_column) + row_offset
@@ -132,6 +154,8 @@ class TrackingAlgorithmModule(BaseSettingsModule):
             tip = _ALGO_TIPS.get(name)
             if tip:
                 attach_tooltip(rb, tip)
+            positions[name] = (row, col)
+        return positions
 
     def _add_slider_with_controls(self, parent, row, label, var, min_v, max_v):
         slider_length = 160

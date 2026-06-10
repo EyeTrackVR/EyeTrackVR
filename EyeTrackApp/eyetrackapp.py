@@ -58,7 +58,7 @@ from utils.tooltips import attach_tooltip
 
 
 
-APP_VERSION = "EyeTrackApp 0.3.0 BETA 5"
+APP_VERSION = "EyeTrackApp 0.3.0 BETA 5.2"
 setup_logging(APP_VERSION)
 logger = logging.getLogger(__name__)
 winmm = None
@@ -1201,6 +1201,11 @@ def main():
                 self._calibration_btn_text.set(text)
 
         def _tick(self):
+            if openvr_service is not None and openvr_service.poll_quit_event():
+                logger.info("SteamVR quit — shutting down EyeTrackApp")
+                self.shutdown()
+                return
+
             try:
                 has_focus = self.root.focus_displayof() is not None
             except KeyError:

@@ -265,6 +265,7 @@ class EyeTrackSettingsConfig(BaseModel):
     gui_DADDY: bool = False
     gui_LEAP: bool = True
     gui_NEXT: bool = False
+    gui_NEXT_calibration: bool = False
     gui_max_tracking_speed: int = 60
     gui_HSF_radius: int = 15
     gui_HSF_radius_left: int = 10

@@ -211,6 +211,10 @@ def center_overlay_calibrate(self):
     tools_dir = os.path.dirname(overlay_path)
     sock = None
     try:
+        # Bind before launching the overlay so no UDP packets are dropped due to
+        # the socket not being ready when the overlay sends its first signal.
+        sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        sock.bind(("127.0.0.1", 2112))
         subprocess.Popen(
             [overlay_path, "center"],
             cwd=tools_dir,
@@ -219,8 +223,6 @@ def center_overlay_calibrate(self):
             creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
         )
         var.overlay_active = True
-        sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        sock.bind(("localhost", 2112))
         data, _ = sock.recvfrom(4096)
         struct.unpack("!l", data)[0]  # value currently unused; kept for protocol parity
     except (OSError, FileNotFoundError, struct.error) as e:
@@ -248,6 +250,12 @@ def overlay_calibrate_3d(self):
     tools_dir = os.path.dirname(overlay_path)
     sock = None
     try:
+        # Bind before launching the overlay so no UDP packets are dropped due to
+        # the socket not being ready when the overlay sends its first signal.
+        # Bind once and reuse across messages; rebinding the same port every
+        # iteration would race the OS releasing it on close.
+        sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        sock.bind(("127.0.0.1", 2112))
         subprocess.Popen(
             [overlay_path],
             cwd=tools_dir,
@@ -256,10 +264,6 @@ def overlay_calibrate_3d(self):
             creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
         )
         var.overlay_active = True
-        # Bind once and reuse across messages; rebinding the same port every
-        # iteration would race the OS releasing it on close.
-        sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        sock.bind(("localhost", 2112))
         while var.overlay_active:
             data, _ = sock.recvfrom(4096)
             message = struct.unpack("!l", data)[0]
@@ -345,6 +349,13 @@ def overlay_ellipse_calibrate(eye_processors: list, settings, baseconfig) -> Non
     tools_dir = os.path.dirname(overlay_path)
     sock = None
     try:
+        # Bind before launching the overlay so no UDP packets are dropped while
+        # the socket is not yet ready. The overlay may send signal 0 almost
+        # immediately after startup; if Python hasn't bound by then, that packet
+        # is silently discarded and the calibration never starts collecting.
+        sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        sock.settimeout(120.0)
+        sock.bind(("127.0.0.1", 2112))
         subprocess.Popen(
             [overlay_path, "ellipse"],
             cwd=tools_dir,
@@ -353,9 +364,6 @@ def overlay_ellipse_calibrate(eye_processors: list, settings, baseconfig) -> Non
             creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
         )
         var.overlay_active = True
-        sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        sock.settimeout(30.0)
-        sock.bind(("localhost", 2112))
 
         # Reset calibration samples so this run starts fresh
         for ep in eye_processors:
@@ -368,6 +376,32 @@ def overlay_ellipse_calibrate(eye_processors: list, settings, baseconfig) -> Non
                 data, _ = sock.recvfrom(4096)
             except socket.timeout:
                 logger.warning("Overlay ellipse calibration timed out")
+                # Save a partial fit if samples were collected before the timeout.
+                # This handles the case where signal 0 was received and the spiral
+                # ran but signal 9 never arrived before the deadline.
+                _saved_partial = False
+                for ep in eye_processors:
+                    ep._ellipse_collect_active = False
+                    if len(ep.cal.xs) >= 2:
+                        evecs, axes = ep.cal.fit_ellipse()
+                        if not (isinstance(evecs, int) and isinstance(axes, int)
+                                and evecs == 0 and axes == 0):
+                            ep.config.calib_evecs = list(
+                                evecs.tolist() if hasattr(evecs, "tolist") else evecs)
+                            ep.config.calib_axes = list(
+                                axes.tolist() if hasattr(axes, "tolist") else axes)
+                            if ep.cal.center is not None:
+                                ep.config.calib_XOFF = float(ep.cal.center[0])
+                                ep.config.calib_YOFF = float(ep.cal.center[1])
+                            ep.baseconfig.save()
+                            logger.info(
+                                "Ellipse cal: partial fit saved from %d samples (timeout)",
+                                len(ep.cal.xs),
+                            )
+                            _saved_partial = True
+                if _saved_partial:
+                    settings.calib_mode = "classic"
+                    PlaySound(resource_path("Audio/completed.wav"), SND_FILENAME | SND_ASYNC)
                 break
             if not data or len(data) < 4:
                 continue
@@ -376,6 +410,7 @@ def overlay_ellipse_calibrate(eye_processors: list, settings, baseconfig) -> Non
 
             if signal == 0:
                 # Start continuous per-frame sampling
+                logger.debug("Overlay ellipse calibration: sampling started")
                 for ep in eye_processors:
                     ep._ellipse_collect_active = True
 

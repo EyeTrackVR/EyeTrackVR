@@ -35,7 +35,7 @@ import time
 from config import EyeTrackCameraConfig, EyeTrackSettingsConfig
 from enum import Enum
 import sys
-from camera_enum import is_uvc_named_source, parse_uvc_named_source, resolve_uvc_address_to_index, invalidate_uvc_camera_cache
+from camera_enum import is_uvc_named_source, parse_uvc_named_source, resolve_uvc_address_to_index, invalidate_uvc_camera_cache, claim_uvc_address, release_uvc_claim
 from PIL import Image
 from io import BytesIO
 
@@ -169,6 +169,11 @@ class Camera:
         # Set when the camera is confirmed absent from the enum list; cleared on read failure
         # so a glitch → reconnect cycle doesn't wait unnecessarily.
         self._uvc_not_found_backoff = 0.0
+        # Resolved device address currently claimed in the sibling-exclusion registry.
+        self._claimed_uvc_address: str | None = None
+        # Monotonic deadline for the "not found, retrying" log; throttled to once per 5 s
+        # so the log isn't flooded during the 3-second UVC backoff window.
+        self._retry_log_backoff: float = 0.0
 
     def __del__(self):
         if self.serial_connection is not None:
@@ -202,13 +207,15 @@ class Camera:
 
     def _release_cv2_camera(self) -> None:
         cam = self.cv2_camera
-        if cam is None:
-            return
-        try:
-            cam.release()
-        except Exception:
-            pass
-        self.cv2_camera = None
+        if cam is not None:
+            try:
+                cam.release()
+            except Exception:
+                pass
+            self.cv2_camera = None
+        if self._claimed_uvc_address is not None:
+            release_uvc_claim(id(self))
+            self._claimed_uvc_address = None
 
     def _close_serial_connection(self) -> None:
         conn = self.serial_connection
@@ -309,7 +316,10 @@ class Camera:
                         or self.camera_status == CameraState.DISCONNECTED
                         or source_changed
                     ):
-                        logger.info(self.error_message.format(new_source))
+                        _now_log = time.monotonic()
+                        if source_changed or _now_log >= self._retry_log_backoff:
+                            logger.info(self.error_message.format(new_source))
+                            self._retry_log_backoff = _now_log + 5.0
                         # Give camera firmware time to settle before retrying the backend open.
                         if self.cancellation_event.wait(WAIT_TIME):
                             return
@@ -332,8 +342,8 @@ class Camera:
                                 if self.cancellation_event.wait(WAIT_TIME):
                                     return
                                 continue
-                            _idx = resolve_uvc_address_to_index(_name, _addr)
-                            if _idx is None:
+                            _result = resolve_uvc_address_to_index(_name, _addr, owner_id=id(self))
+                            if _result is None:
                                 logger.info(
                                     "UVC camera '%s' not found (not connected?), retrying...",
                                     _name,
@@ -345,6 +355,15 @@ class Camera:
                                 if self.cancellation_event.wait(WAIT_TIME):
                                     return
                                 continue
+                            _idx, _resolved_addr = _result
+                            # Claim this address immediately so that sibling camera threads
+                            # (same name, different stored address) can exclude it when
+                            # doing their own fallback resolution.
+                            if self._claimed_uvc_address != _resolved_addr:
+                                if self._claimed_uvc_address is not None:
+                                    release_uvc_claim(id(self))
+                                self._claimed_uvc_address = _resolved_addr
+                                claim_uvc_address(id(self), _resolved_addr)
                             open_source = _idx
                         cam = cv2.VideoCapture()
                         cam.setExceptionMode(True)
@@ -395,6 +414,7 @@ class Camera:
                     self.get_cv2_camera_picture(True)
                 if self.camera_status != CameraState.DISCONNECTED:
                     self.camera_status = CameraState.CONNECTED
+                    self._retry_log_backoff = 0.0
 
     def get_cv2_camera_picture(self, should_push):
         if self.cv2_camera is None or not self.cv2_camera.isOpened():

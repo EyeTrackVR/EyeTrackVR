@@ -52,6 +52,7 @@ class OpenVRService:
 
         try:
             openvr.init(openvr.VRApplication_Background)
+            self.is_initialized = True
         except openvr.error_code.InitError_Init_NoServerForBackgroundApp:
             raise OpenVRException("SteamVR is not running")
         except (
@@ -65,6 +66,22 @@ class OpenVRService:
             raise OpenVRException(
                 f"Unknown SteamVR initialization error ({e.__class__.__name__})"
             )
+
+    def poll_quit_event(self) -> bool:
+        """Drain the OpenVR event queue. Returns True if SteamVR sent a quit event."""
+        if not self.is_initialized:
+            return False
+        try:
+            system = openvr.VRSystem()
+            event = openvr.VREvent_t()
+            while system.pollNextEvent(event):
+                if event.eventType == openvr.VREvent_Quit:
+                    openvr.shutdown()
+                    self.is_initialized = False
+                    return True
+        except Exception:
+            pass
+        return False
 
     def set_autostart(self, enabled: bool):
         if enabled:

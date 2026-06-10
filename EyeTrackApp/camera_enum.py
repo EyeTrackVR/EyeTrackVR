@@ -244,6 +244,24 @@ _uvc_list_cache: "list[dict] | None" = None
 _uvc_list_cache_time: float = 0.0
 _uvc_list_cache_lock = threading.Lock()
 _uvc_list_cache_last_invalidated: float = -999.0
+
+# Per-camera-object claim registry.  Each Camera instance registers the device
+# address it is currently using so that sibling cameras (same name, different
+# address) can exclude it during fallback resolution.  Keyed by id(camera).
+_claimed_lock = threading.Lock()
+_claimed: "dict[int, str]" = {}
+
+
+def claim_uvc_address(owner_id: int, address: str) -> None:
+    """Record that a camera object has resolved and intends to open ``address``."""
+    with _claimed_lock:
+        _claimed[owner_id] = address
+
+
+def release_uvc_claim(owner_id: int) -> None:
+    """Release a previously claimed device address."""
+    with _claimed_lock:
+        _claimed.pop(owner_id, None)
 # How long (seconds) to reuse a camera list before re-enumerating. Must be long
 # enough that reconnect-retry loops from two camera threads don't trigger
 # concurrent DirectShow enumerations that compete with active camera handles and
@@ -518,12 +536,29 @@ def discover_etvr_serial_cameras(
     return results
 
 
-def resolve_uvc_address_to_index(name: str, address: str, cameras: Iterable[dict] | None = None) -> int | None:
+def resolve_uvc_address_to_index(
+    name: str,
+    address: str,
+    cameras: "Iterable[dict] | None" = None,
+    owner_id: "int | None" = None,
+) -> "tuple[int, str] | None":
     """Find the current cv2 index for a previously-saved (name, address) pair.
+
     Prefers address match (stable across reorders); falls back to name match
     if the same device was re-enumerated with a fresh address (rare but
-    possible if drivers reinstall). Returns ``None`` if the camera isn't
-    currently present."""
+    possible if drivers reinstall).
+
+    When ``owner_id`` is provided (the ``id()`` of the calling Camera object),
+    the registry of claims held by *other* cameras is used as a tie-breaker
+    when multiple cameras share the same name: if exactly one of those cameras
+    is not already claimed by a sibling, that one is returned automatically.
+    This recovers the common case where one camera was replugged and Windows
+    assigned it a new device-instance path — the sibling camera's claim
+    identifies the "taken" slot so we can infer the unclaimed one must be ours.
+
+    Returns ``(cv2_index, resolved_device_address)`` or ``None`` if the camera
+    is not currently present.
+    """
     cams = list(cameras) if cameras is not None else list_uvc_cameras()
     if address:
         # index:N fallback addresses encode the index directly; trust them only
@@ -534,14 +569,14 @@ def resolve_uvc_address_to_index(name: str, address: str, cameras: Iterable[dict
             except ValueError:
                 target = None
             if target is not None and any(c["index"] == target for c in cams):
-                return target
+                return target, address
         for c in cams:
             if c["address"] == address:
-                return c["index"]
+                return c["index"], c["address"]
     if name:
         matches = [c for c in cams if c["name"] == name]
         if len(matches) == 1:
-            return matches[0]["index"]
+            return matches[0]["index"], matches[0]["address"]
         if len(matches) > 1:
             # Multiple cameras share this name; a name-only match would pick
             # the wrong device. Let the caller handle the miss gracefully.
@@ -550,6 +585,20 @@ def resolve_uvc_address_to_index(name: str, address: str, cameras: Iterable[dict
                 "re-select from the dropdown to re-assign by address.",
                 name, len(matches),
             )
+            # When an owner_id is provided, use the sibling-camera claim registry
+            # to narrow down: exclude addresses claimed by other camera objects.
+            # If exactly one camera is unclaimed, that must be ours — auto-route.
+            if owner_id is not None:
+                with _claimed_lock:
+                    others = {addr for oid, addr in _claimed.items() if oid != owner_id}
+                unclaimed = [c for c in matches if c["address"] not in others]
+                if len(unclaimed) == 1:
+                    logger.info(
+                        "UVC '%s': stored address '%s' not present; auto-routing to "
+                        "unclaimed camera '%s'. Re-select in the UI to make permanent.",
+                        name, address, unclaimed[0]["address"],
+                    )
+                    return unclaimed[0]["index"], unclaimed[0]["address"]
     logger.debug(
         "UVC resolve failed for '%s'@'%s'; enumerated: %s",
         name, address, [(c["name"], c["address"]) for c in cams],

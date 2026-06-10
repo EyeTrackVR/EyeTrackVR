@@ -729,14 +729,24 @@ class EyeProcessor:
         if self.settings.gui_flip_y_axis:
             gaze_y = -gaze_y
 
-        dx = gaze_x - self.out_x
-        dy = gaze_y - self.out_y
-        self.avg_velocity = float(np.sqrt(dx * dx + dy * dy))
-        self.out_x = gaze_x
-        self.out_y = gaze_y
         self.rawx = gaze_x
         self.rawy = gaze_y
-        self.eyeopen = eyelid * max(0.0, 1.0 - squeeze)
+
+        if self.settings.gui_NEXT_calibration:
+            self.out_x, self.out_y, self.avg_velocity = cal.cal_osc(
+                self, self.rawx, self.rawy, 0.0
+            )
+            eyeopen_raw = eyelid * max(0.0, 1.0 - squeeze)
+            close_t, wide_t = leap_lid_thresholds_for_eye(self.settings, self.eye_id)
+            self.eyeopen = remap_leap_lid_openness(eyeopen_raw, close_t, wide_t)
+        else:
+            dx = gaze_x - self.out_x
+            dy = gaze_y - self.out_y
+            self.avg_velocity = float(np.sqrt(dx * dx + dy * dy))
+            self.out_x = gaze_x
+            self.out_y = gaze_y
+            self.eyeopen = eyelid * max(0.0, 1.0 - squeeze)
+
         self.squeeze = squeeze
         self.next_eyebrow = eyebrow
         self._enqueue_osc_message(OSCMessage(
