@@ -14,7 +14,7 @@ import cv2
 import tkinter as tk
 from tkinter import ttk
 
-DATA_COLLECTION_VERSION = "v4"
+DATA_COLLECTION_VERSION = "v5"
 
 speech_lock = threading.Lock()
 

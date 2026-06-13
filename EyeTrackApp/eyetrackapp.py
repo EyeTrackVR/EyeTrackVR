@@ -747,6 +747,14 @@ def main():
                 config.settings.gui_setup_mode = mode
                 config.save()
 
+            # Auto-pick the matching model variant for the setup mode, unless the
+            # user has manually chosen one (then we leave their choice alone).
+            # Routed through config.update so the settings combobox stays in sync.
+            if not getattr(config.settings, "gui_model_variant_user_set", False):
+                default_variant = "BSB" if is_bigscreen else "ETVR"
+                if getattr(config.settings, "gui_model_variant", None) != default_variant:
+                    config.update({"gui_model_variant": default_variant}, save=True)
+
         def scan_sources(self):
             self.status_var.set("Scanning UVC, mDNS, and serial sources...")
 

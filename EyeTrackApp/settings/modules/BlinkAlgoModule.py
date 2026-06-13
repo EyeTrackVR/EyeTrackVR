@@ -39,19 +39,20 @@ _TIP_MIN_SPAN = (
     "Calibration is rejected and restarted if your eye opened/closed by less than this amount "
     "during the sampling window. Catches the case where you forgot to blink."
 )
-_TIP_EYEBROW_V1 = (
-    "Run the EyeBrowV1 neural-network model on each raw camera frame (pre-crop, pre-rotation) "
+_TIP_EYEBROW = (
+    "Run the EyeBrow neural-network model on each raw camera frame (pre-crop, pre-rotation) "
     "and send the result as a float [0–1] over OSC. "
     "Dual-eye: /avatar/parameters/v2/BrowExpressionLeft and BrowExpressionRight. "
     "Single-eye: /avatar/parameters/v2/BrowExpression. "
-    "Requires Models/EyeBrowv1.onnx."
+    "Requires Models/Eyebrow_<variant>.onnx (variant chosen via the Model "
+    "selector under Tracking Algorithm)."
 )
 
 
 class BlinkAlgoSettingsValidationModel(BaseValidationModel):
     gui_IBO: bool
     gui_LEAP_lid: bool
-    gui_eyebrow_v1: bool
+    gui_eyebrow: bool
     calibration_duration: int
     leap_lid_close_threshold_left: float
     leap_lid_close_threshold_right: float
@@ -101,7 +102,7 @@ class BlinkAlgoSettingsModule(BaseSettingsModule):
 
         self.gui_IBO = f"-IBO{widget_id}-"
         self.gui_LEAP_lid = f"-LEAPLID{widget_id}-"
-        self.gui_eyebrow_v1 = f"-EYEBROWV1{widget_id}-"
+        self.gui_eyebrow = f"-EYEBROW{widget_id}-"
         self.calibration_duration = f"-CALIBRATIONDURATION{widget_id}-"
         self.leap_lid_close_threshold_left = f"-LEAPLIDCLOSELEFT{widget_id}-"
         self.leap_lid_close_threshold_right = f"-LEAPLIDCLOSERIGHT{widget_id}-"
@@ -323,7 +324,7 @@ class BlinkAlgoSettingsModule(BaseSettingsModule):
             [
                 (self.gui_LEAP_lid, self.config.gui_LEAP_lid, "LEAP Lid Blink Algo", _TIP_LEAP_LID),
                 (self.gui_IBO, self.config.gui_IBO, "Intensity Based Openness", _TIP_IBO),
-                (self.gui_eyebrow_v1, self.config.gui_eyebrow_v1, "EyeBrow v1", _TIP_EYEBROW_V1),
+                (self.gui_eyebrow, self.config.gui_eyebrow, "EyeBrow", _TIP_EYEBROW),
             ]
         ):
             var = tk.BooleanVar(value=default)

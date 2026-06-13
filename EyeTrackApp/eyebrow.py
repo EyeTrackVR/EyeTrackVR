@@ -40,7 +40,18 @@ os.environ["OMP_NUM_THREADS"] = (
 )
 logger = logging.getLogger(__name__)
 
-_MODEL_FILE = "Models/EyeBrowv1.onnx"
+# Supported model variants. The selector in the GUI picks one of these and the
+# matching ONNX file (Models/Eyebrow_<VARIANT>.onnx) is loaded.
+MODEL_VARIANTS = ("ETVR", "BSB", "TOBII")
+DEFAULT_MODEL_VARIANT = "ETVR"
+
+
+def model_file_for_variant(variant: str) -> str:
+    """Map a variant name (ETVR/BSB/TOBII) to its ONNX file path."""
+    variant = (variant or DEFAULT_MODEL_VARIANT).upper()
+    if variant not in MODEL_VARIANTS:
+        variant = DEFAULT_MODEL_VARIANT
+    return f"Models/Eyebrow_{variant}.onnx"
 _IMAGENET_MEAN = np.array([0.485, 0.456, 0.406], dtype=np.float32).reshape(3, 1, 1)
 _IMAGENET_STD = np.array([0.229, 0.224, 0.225], dtype=np.float32).reshape(3, 1, 1)
 _INV_255 = np.float32(1.0 / 255.0)
@@ -75,8 +86,8 @@ class _OneEuroFilter:
         return x_hat
 
 
-class EyeBrowV1:
-    """Async per-eye eyebrow tracker using EyeBrowv1.onnx.
+class EyeBrow:
+    """Async per-eye eyebrow tracker using Eyebrow_<variant>.onnx.
 
     Inference runs on a background thread so it never blocks the tracking loop.
     submit() is non-blocking (drops frames when the worker is busy).
@@ -88,9 +99,10 @@ class EyeBrowV1:
     to keep up at typical camera frame rates.
     """
 
-    def __init__(self):
-        model_path = resource_path(_MODEL_FILE)
-        logger.info("EyeBrowV1: loading %s (CPU)", model_path)
+    def __init__(self, variant: str = DEFAULT_MODEL_VARIANT):
+        self.variant = variant
+        model_path = resource_path(model_file_for_variant(variant))
+        logger.info("EyeBrow: loading %s (CPU)", model_path)
         onnxruntime.disable_telemetry_events()
         opts = onnxruntime.SessionOptions()
         opts.inter_op_num_threads = 1
@@ -106,7 +118,7 @@ class EyeBrowV1:
 
         self._frame_queue: queue.Queue = queue.Queue(maxsize=1)
         self._stop_event = threading.Event()
-        self._thread = threading.Thread(target=self._worker, daemon=True, name="EyeBrowV1")
+        self._thread = threading.Thread(target=self._worker, daemon=True, name="EyeBrow")
         self._thread.start()
 
     def _worker(self) -> None:
@@ -135,7 +147,7 @@ class EyeBrowV1:
                     self._filter = _OneEuroFilter(now, val)
                 self._result = float(np.clip(self._filter(now, val), 0.0, 1.0))
             except Exception as e:
-                logger.debug("EyeBrowV1 worker error: %s", e)
+                logger.debug("EyeBrow worker error: %s", e)
 
     def submit(self, frame_bgr: np.ndarray) -> None:
         """Push a frame for inference. Non-blocking — drops if worker is busy."""

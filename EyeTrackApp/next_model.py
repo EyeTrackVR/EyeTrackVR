@@ -36,7 +36,18 @@ from utils.misc_utils import resource_path
 
 os.environ["OMP_NUM_THREADS"] = "1"
 
-MODEL_FILE = "Models/end2end_model.onnx"
+# Supported model variants. The selector in the GUI picks one of these and the
+# matching ONNX file (Models/NEXT_<VARIANT>.onnx) is loaded.
+MODEL_VARIANTS = ("ETVR", "BSB", "TOBII")
+DEFAULT_MODEL_VARIANT = "ETVR"
+
+
+def model_file_for_variant(variant: str) -> str:
+    """Map a variant name (ETVR/BSB/TOBII) to its ONNX file path."""
+    variant = (variant or DEFAULT_MODEL_VARIANT).upper()
+    if variant not in MODEL_VARIANTS:
+        variant = DEFAULT_MODEL_VARIANT
+    return f"Models/NEXT_{variant}.onnx"
 
 # ImageNet normalization constants (CHW channel order after BGR->RGB)
 _MEAN = np.array([0.485, 0.456, 0.406], dtype=np.float32).reshape(3, 1, 1)
@@ -52,7 +63,8 @@ class NEXT_cls:
       - eyebrow / eyelid / squeeze : sigmoid range [0, 1]
     """
 
-    def __init__(self):
+    def __init__(self, variant: str = DEFAULT_MODEL_VARIANT):
+        self.variant = variant
         onnxruntime.disable_telemetry_events()
         options = onnxruntime.SessionOptions()
         options.inter_op_num_threads = 1
@@ -61,7 +73,7 @@ class NEXT_cls:
         options.graph_optimization_level = onnxruntime.GraphOptimizationLevel.ORT_ENABLE_ALL
 
         ort_session = onnxruntime.InferenceSession(
-            resource_path(MODEL_FILE),
+            resource_path(model_file_for_variant(variant)),
             sess_options=options,
             providers=["CPUExecutionProvider"],
         )
@@ -120,8 +132,9 @@ class NEXT_cls:
 
 
 class External_Run_NEXT:
-    def __init__(self):
-        self.algo = NEXT_cls()
+    def __init__(self, variant: str = DEFAULT_MODEL_VARIANT):
+        self.variant = variant
+        self.algo = NEXT_cls(variant)
 
     def run(self, bgr_frame: np.ndarray, base_cutoff: float = 0.0004, base_beta: float = 0.9):
         """Run End2End inference on a raw BGR frame.

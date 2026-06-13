@@ -52,7 +52,7 @@ from intensity_based_openness import *
 from ellipse_based_pupil_dilation import *
 from AHSF import *
 from osc.OSCMessage import OSCMessageType, OSCMessage
-from eyebrow_v1 import EyeBrowV1
+from eyebrow import EyeBrow
 from utils.calibration_elipse import *
 from utils.runtime_state import set_value as _set_runtime_value
 from utils.robust_calibration import RobustCalibrationSession, CalibrationPhase
@@ -231,7 +231,7 @@ class EyeProcessor:
         self.avg_velocity = 0.0
         self.angle = 621
         self.ahsf_runner = None
-        self.eyebrow_runner: EyeBrowV1 | None = None
+        self.eyebrow_runner: EyeBrow | None = None
         self.cal = CalibrationEllipse()
         self.squeeze = 0.0
         self.ahsf_detector = PupilDetectorHaar()
@@ -940,8 +940,12 @@ class EyeProcessor:
                 self.daddy_runner = None
 
         if self.settings.gui_NEXT:
+            variant = getattr(self.settings, "gui_model_variant", "ETVR")
+            # Reload if the selected model variant changed at runtime.
+            if self.next_runner is not None and getattr(self.next_runner, "variant", None) != variant:
+                self.next_runner = None
             if self.next_runner is None:
-                self.next_runner = External_Run_NEXT()
+                self.next_runner = External_Run_NEXT(variant)
             enabled_algorithms.append(self.NEXTM)
         else:
             if self.next_runner is not None:
@@ -964,11 +968,16 @@ class EyeProcessor:
         self._algorithm_slots = algorithm_slots
 
     def _run_eyebrow(self, raw_frame: np.ndarray) -> None:
+        variant = getattr(self.settings, "gui_model_variant", "ETVR")
+        # Reload if the selected model variant changed at runtime.
+        if self.eyebrow_runner is not None and getattr(self.eyebrow_runner, "variant", None) != variant:
+            self.eyebrow_runner.stop()
+            self.eyebrow_runner = None
         if self.eyebrow_runner is None:
             try:
-                self.eyebrow_runner = EyeBrowV1()
+                self.eyebrow_runner = EyeBrow(variant)
             except Exception as e:
-                logger.warning("EyeBrowV1 init failed: %s", e)
+                logger.warning("EyeBrow init failed: %s", e)
                 self.eyebrow_runner = None
                 return
         if self.settings.gui_setup_mode == "bigscreen":
@@ -1069,7 +1078,7 @@ class EyeProcessor:
             if not self.capture_crop_rotate_image():
                 continue
 
-            if self.settings.gui_eyebrow_v1:
+            if self.settings.gui_eyebrow:
                 self._run_eyebrow(raw_frame)
             elif self.eyebrow_runner is not None:
                 self.eyebrow_runner.stop()

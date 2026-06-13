@@ -266,6 +266,12 @@ class EyeTrackSettingsConfig(BaseModel):
     gui_LEAP: bool = True
     gui_NEXT: bool = False
     gui_NEXT_calibration: bool = False
+    # Shared model variant for both NEXT and eyebrow models: ETVR / BSB / TOBII.
+    # Selects Models/NEXT_<VARIANT>.onnx and Models/Eyebrow_<VARIANT>.onnx.
+    gui_model_variant: str = "ETVR"
+    # True once the user has manually picked a model variant. While False, the
+    # variant tracks the main-tracking setup mode (bigscreen -> BSB, etvr -> ETVR).
+    gui_model_variant_user_set: bool = False
     gui_max_tracking_speed: int = 60
     gui_HSF_radius: int = 15
     gui_HSF_radius_left: int = 10
@@ -355,7 +361,7 @@ class EyeTrackSettingsConfig(BaseModel):
     gui_OutputMultiplier: float = 1
     gui_use_module: bool = False
     gui_use_gpu: bool = True  # simple checkbox vs drop down with cuda, openvino etc.
-    gui_eyebrow_v1: bool = False
+    gui_eyebrow: bool = False
 
     gui_openvr_autostart: bool = False
     gui_show_et_debug: bool = False
