@@ -83,6 +83,19 @@ def is_http_capture_source(addr: str) -> bool:
 # burning CPU on frames we'd drop anyway.
 _FAST_CAPTURE_MAX_FPS = 120.0
 _FAST_CAPTURE_MIN_INTERVAL = 1.0 / _FAST_CAPTURE_MAX_FPS
+# Network (HTTP/MJPEG) capture timeouts (ms). Well below the old 5 s so a dropped
+# Wi-Fi cam (e.g. ETVR.local going offline) is detected in ~2 s instead of stalling
+# the capture thread — and, via GIL contention during the blocking native read, the
+# GUI — for 5 s per read. Open gets a little longer since the first connect may
+# include an mDNS (.local) lookup.
+_NETWORK_OPEN_TIMEOUT_MSEC = 3000
+_NETWORK_READ_TIMEOUT_MSEC = 2000
+# Reconnect backoff for network sources (seconds). Each failed reopen blocks the
+# capture thread in native cv2 for up to the open-timeout, so retries are spaced with
+# an exponential backoff (min..max) instead of hammering a dead host every loop tick,
+# which would peg the thread and starve the UI of the GIL.
+_NETWORK_RECONNECT_BACKOFF_MIN = 0.5
+_NETWORK_RECONNECT_BACKOFF_MAX = 5.0
 # Re-encode quality used as a compressed-byte proxy for HTTP MJPEG streams.
 # cv2.VideoCapture only hands us decoded BGR frames, so we can't see the original
 # on-wire JPEG length; re-encoding each frame to JPEG at this quality gives a
@@ -174,6 +187,10 @@ class Camera:
         # Monotonic deadline for the "not found, retrying" log; throttled to once per 5 s
         # so the log isn't flooded during the 3-second UVC backoff window.
         self._retry_log_backoff: float = 0.0
+        # Network (HTTP) reconnect backoff: monotonic deadline before the next reopen
+        # attempt, and the current (exponentially growing) delay used to set it.
+        self._network_reconnect_backoff: float = 0.0
+        self._network_reconnect_delay: float = 0.0
 
     def __del__(self):
         if self.serial_connection is not None:
@@ -240,6 +257,26 @@ class Camera:
         self._last_http_wire_bytes_proxy = 0
         self._http_wire_bytes_proxy_frame_count = 0
 
+    def _reset_network_reconnect_backoff(self) -> None:
+        """Clear the network reconnect backoff. Called on a successful connect and on
+        source change so a fresh source starts retrying immediately."""
+        self._network_reconnect_backoff = 0.0
+        self._network_reconnect_delay = 0.0
+
+    def _bump_network_reconnect_backoff(self) -> None:
+        """Grow the network reconnect backoff (exponential, capped at
+        _NETWORK_RECONNECT_BACKOFF_MAX) after a failed HTTP open so a permanently
+        offline cam doesn't peg the capture thread in back-to-back blocking opens."""
+        if self._network_reconnect_delay <= 0.0:
+            self._network_reconnect_delay = _NETWORK_RECONNECT_BACKOFF_MIN
+        else:
+            self._network_reconnect_delay = min(
+                self._network_reconnect_delay * 2.0, _NETWORK_RECONNECT_BACKOFF_MAX
+            )
+        self._network_reconnect_backoff = (
+            time.monotonic() + self._network_reconnect_delay
+        )
+
     def _update_frame_rate(self, frame_bytes: int) -> None:
         """Update fps / bps moving averages for the most recently received frame.
 
@@ -273,9 +310,9 @@ class Camera:
     def run(self):
         OPENCV_PARAMS = [
             cv2.CAP_PROP_OPEN_TIMEOUT_MSEC,
-            5000,
+            _NETWORK_OPEN_TIMEOUT_MSEC,
             cv2.CAP_PROP_READ_TIMEOUT_MSEC,
-            5000,
+            _NETWORK_READ_TIMEOUT_MSEC,
         ]
         while True:
             if self.cancellation_event.is_set():
@@ -310,12 +347,28 @@ class Camera:
                     if source_changed:
                         self._close_serial_connection()
                         self._reset_frame_stats()
+                        self._reset_network_reconnect_backoff()
                     if (
                         self.cv2_camera is None
                         or not self.cv2_camera.isOpened()
                         or self.camera_status == CameraState.DISCONNECTED
                         or source_changed
                     ):
+                        _is_network_source = is_http_capture_source(addr)
+                        # Space out reconnect attempts to a dropped network cam. Each
+                        # failed reopen blocks this thread in native cv2 (open-timeout +
+                        # a possible mDNS lookup), so without a backoff a permanently
+                        # offline ETVR.local pegs the thread in back-to-back multi-second
+                        # opens and starves the Tk UI of the GIL — the lag/hang users see.
+                        if (
+                            _is_network_source
+                            and not source_changed
+                            and time.monotonic() < self._network_reconnect_backoff
+                        ):
+                            self.camera_status = CameraState.DISCONNECTED
+                            if self.cancellation_event.wait(WAIT_TIME):
+                                return
+                            continue
                         _now_log = time.monotonic()
                         if source_changed or _now_log >= self._retry_log_backoff:
                             logger.info(self.error_message.format(new_source))
@@ -390,6 +443,18 @@ class Camera:
                             )
                             self.camera_status = CameraState.DISCONNECTED
                             self._release_cv2_camera()
+                            if _is_network_source:
+                                self._bump_network_reconnect_backoff()
+                            if self.cancellation_event.wait(WAIT_TIME):
+                                return
+                            continue
+                        # A network open can return without raising yet still not be
+                        # connected (dead host / timed-out mDNS). Treat that as a failed
+                        # attempt so the backoff applies instead of spinning on reopen.
+                        if _is_network_source and not cam.isOpened():
+                            self.camera_status = CameraState.DISCONNECTED
+                            self._release_cv2_camera()
+                            self._bump_network_reconnect_backoff()
                             if self.cancellation_event.wait(WAIT_TIME):
                                 return
                             continue
@@ -415,6 +480,7 @@ class Camera:
                 if self.camera_status != CameraState.DISCONNECTED:
                     self.camera_status = CameraState.CONNECTED
                     self._retry_log_backoff = 0.0
+                    self._reset_network_reconnect_backoff()
 
     def get_cv2_camera_picture(self, should_push):
         if self.cv2_camera is None or not self.cv2_camera.isOpened():

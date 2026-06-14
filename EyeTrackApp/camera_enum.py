@@ -145,11 +145,39 @@ def _windows_camera_metadata() -> list[tuple[str, str]]:
         )
         return _windows_wmi_only_metadata(pnp_map)
 
+    # pygrabber drives DirectShow through COM, which requires the calling thread
+    # to have initialized COM. The GUI scan thread inherits an initialized
+    # apartment (Tk/cv2 set one up), but the camera *capture* thread does not —
+    # there the first FilterGraph() raises "CoInitialize has not been called",
+    # pygrabber silently falls back to WMI ordering, and WMI device order does
+    # NOT match cv2/DirectShow index order, so the wrong index gets opened (the
+    # "solid black ~10 fps wrong camera" symptom on first connect). Initialize
+    # COM just for the enumeration; the Initialize/Uninitialize pair is
+    # ref-count balanced, so it neither leaks nor tears down COM on a thread
+    # (like the scan thread) that already had it up.
+    _com_up = False
+    try:
+        import comtypes  # pygrabber's own COM layer — always present with pygrabber
+        try:
+            comtypes.CoInitialize()
+            _com_up = True
+        except OSError:
+            # Already initialized in an incompatible apartment; use it as-is.
+            pass
+    except ImportError:
+        pass
+
     try:
         names = list(FilterGraph().get_input_devices())
     except Exception as e:
         logger.debug("pygrabber enumeration failed: %s", e)
         return _windows_wmi_only_metadata(pnp_map)
+    finally:
+        if _com_up:
+            try:
+                comtypes.CoUninitialize()
+            except Exception:
+                pass
 
     consumed: dict[str, int] = {}
     result: list[tuple[str, str]] = []

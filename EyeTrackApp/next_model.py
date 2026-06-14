@@ -37,16 +37,32 @@ from utils.misc_utils import resource_path
 os.environ["OMP_NUM_THREADS"] = "1"
 
 # Supported model variants. The selector in the GUI picks one of these and the
-# matching ONNX file (Models/NEXT_<VARIANT>.onnx) is loaded.
-MODEL_VARIANTS = ("ETVR", "BSB", "TOBII")
+# matching ONNX file (Models/NEXT_<VARIANT>.onnx) is loaded. The "<BASE> LITE"
+# variants load an fp16 build (Models/NEXT_<BASE>.fp16.onnx) — smaller and faster,
+# at a small precision cost.
+MODEL_VARIANTS = ("ETVR", "BSB", "TOBII", "ETVR LITE", "BSB LITE")
 DEFAULT_MODEL_VARIANT = "ETVR"
+# Suffix that marks an fp16 ("Lite") variant.
+_LITE_SUFFIX = " LITE"
 
 
 def model_file_for_variant(variant: str) -> str:
-    """Map a variant name (ETVR/BSB/TOBII) to its ONNX file path."""
+    """Map a variant name to its ONNX file path.
+
+    ETVR/BSB/TOBII -> Models/NEXT_<VARIANT>.onnx
+    '<BASE> LITE'  -> Models/NEXT_<BASE>.fp16.onnx (half-precision)
+
+    If a requested fp16 build isn't present on disk, fall back to the full-precision
+    base model so the Lite option still tracks (just without the fp16 speedup)."""
     variant = (variant or DEFAULT_MODEL_VARIANT).upper()
     if variant not in MODEL_VARIANTS:
         variant = DEFAULT_MODEL_VARIANT
+    if variant.endswith(_LITE_SUFFIX):
+        base = variant[: -len(_LITE_SUFFIX)].strip()
+        fp16 = f"Models/NEXT_{base}.fp16.onnx"
+        if os.path.exists(resource_path(fp16)):
+            return fp16
+        return f"Models/NEXT_{base}.onnx"
     return f"Models/NEXT_{variant}.onnx"
 
 # ImageNet normalization constants (CHW channel order after BGR->RGB)
@@ -81,6 +97,14 @@ class NEXT_cls:
 
         self.ort_session = ort_session
         self.input_name = ort_session.get_inputs()[0].name
+        # fp16 ("Lite") models exported with half-precision I/O need a float16 feed;
+        # builds that keep float32 I/O (casting internally) need float32. Match the
+        # session's declared input type so either export works without special-casing.
+        self.input_dtype = (
+            np.float16
+            if "float16" in ort_session.get_inputs()[0].type
+            else np.float32
+        )
 
         # Initialize with dummy arrays; updated dynamically in run()
         self.one_euro_filter = OneEuroFilter(
@@ -123,6 +147,9 @@ class NEXT_cls:
         img = img.transpose(2, 0, 1)
         img = (img - _MEAN) / _STD
         img = img[np.newaxis]  # NCHW batch dim
+        # Cast to the model's input dtype (no-op for float32 I/O; fp16 for Lite builds
+        # that take half-precision input). Output is coerced back to float32 below.
+        img = img.astype(self.input_dtype, copy=False)
 
         raw = self.ort_session.run(None, {self.input_name: img})[0][0].astype(np.float32)
         out = self.one_euro_filter(raw)

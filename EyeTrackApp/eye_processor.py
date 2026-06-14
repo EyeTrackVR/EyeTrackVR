@@ -183,6 +183,12 @@ class EyeProcessor:
         self._circle_crop_ready_at = time.perf_counter() + self._circle_crop_warmup_s
         self._recenter_delay_s = 0.2  # was recenter_delay_frames = 10 @ 50 fps
         self._recenter_armed_at = None  # perf_counter when recenter was requested
+        # NEXT-model recenter: a fixed, in-memory gaze offset applied to the raw
+        # NEXT output so the recenter button can zero it without calibration and
+        # without persisting anything to disk.
+        self._next_recenter_offset_x = 0.0
+        self._next_recenter_offset_y = 0.0
+        self._next_recenter_armed_at = None  # perf_counter when NEXT recenter was requested
         self.previous_rotation = self.config.rotation_angle
         self.camera_model = None
         self.detector_3d = None
@@ -555,11 +561,18 @@ class EyeProcessor:
     def UPDATE(self):
         self.current_algo = self.current_algorithm
 
-        if self.settings.gui_BLINK:
+        # NEXT produces its own eyelid openness (already remapped against the
+        # close/widen thresholds in NEXTM). The image-intensity BLINK/IBO
+        # estimators run on the eye-crop grayscale, which for NEXT is the full
+        # uncropped frame — feeding that here would overwrite the model's
+        # calibrated eyelid with garbage. Skip them for NEXT, mirroring the
+        # existing `not gui_NEXT` guard on the LEAP-lid block below.
+        if self.settings.gui_BLINK and not self.settings.gui_NEXT:
             self.eyeopen = BLINK(self)
 
         if (
             self.settings.gui_IBO and self.eyeopen != 0.0
+            and not self.settings.gui_NEXT
         ):
             # TODO: Separate RANSAC blink state from the shared eye openness guard.
             self.eyeopen = self.ibo.intense(
@@ -720,6 +733,12 @@ class EyeProcessor:
             self.current_raw_frame, base_cutoff, base_beta
         )
 
+        # Raw model gaze, before any flip. NEXT regresses gaze DIRECTION in
+        # [-1, 1] (right/up positive) — unlike pupil-pixel trackers, whose raw
+        # output is an image coordinate. The calibration path below needs this
+        # un-flipped copy (see the cal_osc call).
+        model_gaze_x, model_gaze_y = gaze_x, gaze_y
+
         if self.eye_id == EyeId.RIGHT:
             if self.settings.gui_flip_x_axis_right:
                 gaze_x = -gaze_x
@@ -732,20 +751,62 @@ class EyeProcessor:
         self.rawx = gaze_x
         self.rawy = gaze_y
 
+        # Raw eyelid openness (pre-remap). Publish on the same runtime channel
+        # LEAP uses so the settings-menu lid visualizer shows a live indicator
+        # for NEXT too — this is what makes the close/widen markers tunable
+        # against live tracking when NEXT calibration is enabled.
+        eyeopen_raw = eyelid * max(0.0, 1.0 - squeeze)
+        _set_runtime_value(f"raw_lid_{int(self.eye_id)}", float(eyeopen_raw))
+
         if self.settings.gui_NEXT_calibration:
+            # cal_osc runs the classic ellipse calibration, which bakes in the
+            # image-space -> gaze orientation flips (flip_x=True, -y) that
+            # pupil-pixel trackers depend on, and then re-applies the user's
+            # flip settings. NEXT's gaze is already correctly oriented, so we
+            # feed the NEGATED raw model gaze: the negation cancels the ellipse's
+            # baked flips (leaving orientation matching the non-calibration path),
+            # while cal_osc still applies gui_flip_* exactly once. Passing
+            # self.rawx/rawy here instead would invert both axes (the baked flip)
+            # AND double-apply the gui flips (cancelling them).
             self.out_x, self.out_y, self.avg_velocity = cal.cal_osc(
-                self, self.rawx, self.rawy, 0.0
+                self, -model_gaze_x, -model_gaze_y, 0.0
             )
-            eyeopen_raw = eyelid * max(0.0, 1.0 - squeeze)
             close_t, wide_t = leap_lid_thresholds_for_eye(self.settings, self.eye_id)
             self.eyeopen = remap_leap_lid_openness(eyeopen_raw, close_t, wide_t)
         else:
+            # Recenter (NEXT, no-save): when the recenter button is pressed,
+            # capture the current raw gaze as a fixed offset and subtract it so
+            # the output zeroes on the user's current gaze. Unlike calibration
+            # recenter, this offset lives only in memory and is never saved.
+            # gui_recenter_eyes is shared across both eye processors, so hold it
+            # briefly (same 0.2s gate as the calibration path) to let both eyes
+            # capture their offset before clearing the flag.
+            if self.settings.gui_recenter_eyes:
+                self._next_recenter_offset_x = gaze_x
+                self._next_recenter_offset_y = gaze_y
+                now = time.perf_counter()
+                if self._next_recenter_armed_at is None:
+                    self._next_recenter_armed_at = now
+                elif now - self._next_recenter_armed_at >= self._recenter_delay_s:
+                    self.settings.gui_recenter_eyes = False
+                    self._next_recenter_armed_at = None
+            else:
+                self._next_recenter_armed_at = None
+
+            gaze_x -= self._next_recenter_offset_x
+            gaze_y -= self._next_recenter_offset_y
+
             dx = gaze_x - self.out_x
             dy = gaze_y - self.out_y
             self.avg_velocity = float(np.sqrt(dx * dx + dy * dy))
             self.out_x = gaze_x
             self.out_y = gaze_y
-            self.eyeopen = eyelid * max(0.0, 1.0 - squeeze)
+            self.eyeopen = eyeopen_raw
+
+        # Snap to fully-closed: NEXT openness near zero is treated as a blink so
+        # the eye reports a clean 0.0 instead of jittering just above closed.
+        if self.eyeopen < 0.08:
+            self.eyeopen = 0.0
 
         self.squeeze = squeeze
         self.next_eyebrow = eyebrow

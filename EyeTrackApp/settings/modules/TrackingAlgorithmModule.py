@@ -38,12 +38,15 @@ _TIP_MAX_SPEED = (
 )
 
 # Selectable model variants, shared by the NEXT and eyebrow models. Each maps
-# to Models/NEXT_<VARIANT>.onnx and Models/Eyebrow_<VARIANT>.onnx.
-_MODEL_VARIANTS = ("ETVR", "BSB", "TOBII")
+# to Models/NEXT_<VARIANT>.onnx and Models/Eyebrow_<VARIANT>.onnx. The "<BASE> LITE"
+# options load the fp16 NEXT build (Models/NEXT_<BASE>.fp16.onnx).
+_MODEL_VARIANTS = ("ETVR", "BSB", "TOBII", "ETVR LITE", "BSB LITE")
 _TIP_MODEL_VARIANT = (
     "Which model variant to load for both the NEXT tracker and the eyebrow "
     "model. ETVR is the default; BSB and Tobii load the matching "
-    "NEXT_<variant>.onnx / Eyebrow_<variant>.onnx files."
+    "NEXT_<variant>.onnx / Eyebrow_<variant>.onnx files. The Lite options "
+    "(ETVR Lite / BSB Lite) load an fp16 build of the NEXT model — smaller and "
+    "faster, at a small precision cost."
 )
 
 
@@ -99,7 +102,7 @@ class TrackingAlgorithmModule(BaseSettingsModule):
         self._algo_entries = self._basic_entries + self._advanced_entries
 
     def build(self, parent):
-        selected = "leap"
+        selected = "next"
         for _label, name, _key, config_field in self._algo_entries:
             if getattr(self.config, config_field, False):
                 selected = name

@@ -10,11 +10,14 @@ import webbrowser
 import platform
 import socket as _socket
 import struct
+import logging
 import cv2
 import tkinter as tk
 from tkinter import ttk
 
 DATA_COLLECTION_VERSION = "v5"
+
+logger = logging.getLogger(__name__)
 
 speech_lock = threading.Lock()
 
@@ -217,6 +220,31 @@ def _jittered_grid_positions(session_seed, pass_index, n=22, jitter=0.12):
 OVERLAY_PORT     = 2112
 OVERLAY_CMD_PORT = 2113
 
+
+def _drain_udp_socket(sock):
+    """Discard datagrams already buffered in ``sock``'s receive queue.
+
+    Called at the start of each overlay pass so a stale signal left over from
+    the previous pass's end-of-pass handshake (a late or duplicated ``19``)
+    isn't misread by the next pass's phase-1 loop. Reading a stale ``19`` there
+    breaks phase 1 immediately with ``phase1_done=False``, which makes the pass
+    skip its entire jittered-grid capture (phase 2). When several passes skip
+    like this the whole session races through in seconds and ends with the
+    "you are done" prompt far too early — the reported bug. The skip is
+    timing-dependent and shows up more in bigscreen, where ``drain_to_video``
+    copies frames for two queues off the one shared camera and so widens the
+    window in which packets pile up unread between passes."""
+    sock.setblocking(False)
+    try:
+        while True:
+            try:
+                sock.recvfrom(64)
+            except (BlockingIOError, _socket.error):
+                break
+    finally:
+        sock.setblocking(True)
+        sock.settimeout(1.0)
+
 def _apply_theme_to_titlebar(root: tk.Toplevel) -> None:
     if platform.system() != "Windows":
         return
@@ -267,6 +295,7 @@ class DataCollectionWindow:
         
         self.active_queues = []
         self.active_eye_labels = []
+        self._video_writer_sizes = []
 
         self._build_ui()
         self._poll_gui_queue()
@@ -466,12 +495,19 @@ class DataCollectionWindow:
 
         fourcc, _, container = get_best_codec()
         video_writers = []
+        # Lock each writer's frame size so we can conform later frames to it.
+        # cv2.VideoWriter.write() raises "Unknown C++ exception from OpenCV
+        # code" if handed a frame of a different size — and UVC cams under USB
+        # bandwidth pressure (especially at 90 fps) do intermittently deliver a
+        # differently-sized frame, which previously crashed the capture pass.
+        self._video_writer_sizes = []
         for i in range(n):
             h, w = first_frames[i].shape[:2]
             is_color = len(first_frames[i].shape) == 3 and first_frames[i].shape[2] == 3
             fn = os.path.join(output_dir, f"{DATA_COLLECTION_VERSION}_{seed}_full_session_{self.active_eye_labels[i]}.{container}")
             vw = cv2.VideoWriter(fn, fourcc, 60, (w, h), is_color)
             video_writers.append(vw)
+            self._video_writer_sizes.append((w, h))
 
         def drain_to_video():
             for j in range(n):
@@ -488,8 +524,8 @@ class DataCollectionWindow:
                         
                         if len(frame.shape) == 3 and frame.shape[2] == 4:
                             frame = cv2.cvtColor(frame, cv2.COLOR_BGRA2BGR)
-                            
-                        video_writers[j].write(frame)
+
+                        self._write_video_frame(video_writers[j], j, frame)
                     except queue.Empty:
                         break
 
@@ -608,7 +644,7 @@ class DataCollectionWindow:
                             
                         prompt_frames[j] = frame.copy()
                         frame_numbers[j] = frame_num
-                        video_writers[j].write(frame)
+                        self._write_video_frame(video_writers[j], j, frame)
                     except queue.Empty:
                         pass
 
@@ -650,6 +686,7 @@ class DataCollectionWindow:
                 )
 
         except Exception as e:
+            logger.exception("Data collection aborted by an unexpected error")
             self.gui_queue.put(("status", f"Error during collection: {e}"))
         finally:
             if send_cmd is not None and cmd_sock is not None:
@@ -685,6 +722,26 @@ class DataCollectionWindow:
 
             self._cleanup_session()
 
+    def _write_video_frame(self, writer, j, frame):
+        """Write a frame to the full-session VideoWriter, conformed so the write
+        can't throw. cv2.VideoWriter.write() raises "Unknown C++ exception from
+        OpenCV code" when the frame size differs from the writer's locked
+        (w, h) — which happens when the camera briefly renegotiates resolution
+        under USB-bandwidth pressure (common at 90 fps) — and is also unhappy
+        with the non-contiguous views the bigscreen split (frame[:, mid:])
+        produces. Resize to the locked size and/or make contiguous, and swallow
+        any residual write failure so one bad frame never aborts the pass."""
+        try:
+            w, h = self._video_writer_sizes[j]
+            fh, fw = frame.shape[:2]
+            if (fw, fh) != (w, h):
+                frame = cv2.resize(frame, (w, h))
+            elif not frame.flags["C_CONTIGUOUS"]:
+                frame = frame.copy()
+            writer.write(frame)
+        except Exception:
+            logger.exception("Dropped a full-session video frame for eye index %d", j)
+
     def _do_overlay_capture(self, seed, output_dir, n, video_writers, timestamp_files, label, idx):
         frames = [None] * n
         frame_nums = [None] * n
@@ -704,9 +761,19 @@ class DataCollectionWindow:
                     
                 frames[j] = frame.copy()
                 frame_nums[j] = fnum
-                video_writers[j].write(frame)
+                self._write_video_frame(video_writers[j], j, frame)
             except queue.Empty:
+                # No frame within the timeout — just skip this eye for this point.
                 pass
+            except Exception:
+                # A transient grab/split/write failure for one eye must not drop
+                # the whole pass. Log the traceback (this is the only place the
+                # real cause of an aborted session would surface) and skip just
+                # this eye's capture for this point.
+                logger.exception(
+                    "Overlay capture failed for eye index %d (label=%s); skipping this frame",
+                    j, label,
+                )
 
         for j in range(n):
             if frame_nums[j] is not None:
@@ -730,51 +797,31 @@ class DataCollectionWindow:
             if self.session_cancel.is_set():
                 break
 
-            self.gui_queue.put(("status", f"Overlay Pass {pass_num + 1}/{total_passes}: {tts_text}"))
-            done = speak(tts_text)
-            while not done.is_set():
-                if self.session_cancel.is_set():
-                    return overlay_idx
-                drain_to_video()
-                time.sleep(0.01)
+            # Isolate each pass: a transient error (frame grab, socket, codec)
+            # in one pass must NOT abort the whole multi-minute session. Before
+            # this, any exception here propagated to _run_collection's handler,
+            # which silently played "you are done" mid-run — e.g. completing
+            # gaze + squint then stopping before the widen/eyebrow passes. Log
+            # the full traceback and move on to the next pass instead.
+            try:
+                self.gui_queue.put(("status", f"Overlay Pass {pass_num + 1}/{total_passes}: {tts_text}"))
+                done = speak(tts_text)
+                while not done.is_set():
+                    if self.session_cancel.is_set():
+                        return overlay_idx
+                    drain_to_video()
+                    time.sleep(0.01)
 
-            send_cmd(pass_cmd)
+                # Clear any datagrams buffered while we were speaking (e.g. a
+                # leftover end-of-pass `19` from the previous pass). Otherwise
+                # phase 1 below reads that stale signal first, breaks with
+                # phase1_done=False, and silently skips this pass's capture.
+                _drain_udp_socket(udp_sock)
+                send_cmd(pass_cmd)
 
-            # Phase 1: receive fixed 9-point signals (0–8) from overlay
-            phase1_done = False
-            while not self.session_cancel.is_set():
-                drain_to_video()
-                try:
-                    data, _ = udp_sock.recvfrom(16)
-                except _socket.timeout:
-                    continue
-                if len(data) < 4:
-                    continue
-                value, = struct.unpack(">i", data[:4])
-                if 0 <= value <= 8:
-                    label = f"{label_prefix}_{OVERLAY_POINT_NAMES[value]}"
-                    self._do_overlay_capture(seed, output_dir, n, video_writers,
-                                             timestamp_files, label, overlay_idx)
-                    overlay_idx += 1
-                elif value == 10:   # overlay entered jittered-grid phase
-                    phase1_done = True
-                    break
-                elif value == 19:   # safety fallback
-                    break
-
-            if not phase1_done or self.session_cancel.is_set():
-                continue
-
-            # Phase 2: drive jittered grid positions (count varies by pass type)
-            for gx, gy in _jittered_grid_positions(seed, pass_num, n=n_jitter):
-                if self.session_cancel.is_set():
-                    break
-                drain_to_video()
-                cmd_sock.sendto(struct.pack(">iff", 111, gx, gy), ("127.0.0.1", OVERLAY_CMD_PORT))
-
-                captured = False
-                deadline = time.time() + 8.0
-                while time.time() < deadline and not self.session_cancel.is_set():
+                # Phase 1: receive fixed 9-point signals (0–8) from overlay
+                phase1_done = False
+                while not self.session_cancel.is_set():
                     drain_to_video()
                     try:
                         data, _ = udp_sock.recvfrom(16)
@@ -782,30 +829,71 @@ class DataCollectionWindow:
                         continue
                     if len(data) < 4:
                         continue
-                    if struct.unpack(">i", data[:4])[0] == 20:
-                        captured = True
+                    value, = struct.unpack(">i", data[:4])
+                    if 0 <= value <= 8:
+                        label = f"{label_prefix}_{OVERLAY_POINT_NAMES[value]}"
+                        self._do_overlay_capture(seed, output_dir, n, video_writers,
+                                                 timestamp_files, label, overlay_idx)
+                        overlay_idx += 1
+                    elif value == 10:   # overlay entered jittered-grid phase
+                        phase1_done = True
+                        break
+                    elif value == 19:   # safety fallback
                         break
 
-                if captured and not self.session_cancel.is_set():
-                    label = f"{label_prefix}_x{gx:+.3f}_y{gy:+.3f}"
-                    self._do_overlay_capture(seed, output_dir, n, video_writers,
-                                             timestamp_files, label, overlay_idx)
-                    overlay_idx += 1
-
-            if self.session_cancel.is_set():
-                break
-
-            # End jittered phase; overlay sends signal 19
-            cmd_sock.sendto(struct.pack(">i", 119), ("127.0.0.1", OVERLAY_CMD_PORT))
-            deadline = time.time() + 5.0
-            while time.time() < deadline and not self.session_cancel.is_set():
-                drain_to_video()
-                try:
-                    data, _ = udp_sock.recvfrom(16)
-                except _socket.timeout:
+                if not phase1_done or self.session_cancel.is_set():
                     continue
-                if len(data) >= 4 and struct.unpack(">i", data[:4])[0] == 19:
+
+                # Phase 2: drive jittered grid positions (count varies by pass type)
+                for gx, gy in _jittered_grid_positions(seed, pass_num, n=n_jitter):
+                    if self.session_cancel.is_set():
+                        break
+                    drain_to_video()
+                    cmd_sock.sendto(struct.pack(">iff", 111, gx, gy), ("127.0.0.1", OVERLAY_CMD_PORT))
+
+                    captured = False
+                    deadline = time.time() + 8.0
+                    while time.time() < deadline and not self.session_cancel.is_set():
+                        drain_to_video()
+                        try:
+                            data, _ = udp_sock.recvfrom(16)
+                        except _socket.timeout:
+                            continue
+                        if len(data) < 4:
+                            continue
+                        if struct.unpack(">i", data[:4])[0] == 20:
+                            captured = True
+                            break
+
+                    if captured and not self.session_cancel.is_set():
+                        label = f"{label_prefix}_x{gx:+.3f}_y{gy:+.3f}"
+                        self._do_overlay_capture(seed, output_dir, n, video_writers,
+                                                 timestamp_files, label, overlay_idx)
+                        overlay_idx += 1
+
+                if self.session_cancel.is_set():
                     break
+
+                # End jittered phase; overlay sends signal 19
+                cmd_sock.sendto(struct.pack(">i", 119), ("127.0.0.1", OVERLAY_CMD_PORT))
+                deadline = time.time() + 5.0
+                while time.time() < deadline and not self.session_cancel.is_set():
+                    drain_to_video()
+                    try:
+                        data, _ = udp_sock.recvfrom(16)
+                    except _socket.timeout:
+                        continue
+                    if len(data) >= 4 and struct.unpack(">i", data[:4])[0] == 19:
+                        break
+            except Exception:
+                logger.exception(
+                    "Overlay pass %d/%d (%s) failed; skipping to the next pass",
+                    pass_num + 1, total_passes, label_prefix,
+                )
+                self.gui_queue.put(
+                    ("status", f"Pass {pass_num + 1}/{total_passes} ({label_prefix}) errored; continuing.")
+                )
+                continue
 
         return overlay_idx
 

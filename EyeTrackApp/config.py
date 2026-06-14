@@ -263,8 +263,8 @@ class EyeTrackSettingsConfig(BaseModel):
     gui_AHRAC: bool = False
     gui_AHSF: bool = False
     gui_DADDY: bool = False
-    gui_LEAP: bool = True
-    gui_NEXT: bool = False
+    gui_LEAP: bool = False
+    gui_NEXT: bool = True
     gui_NEXT_calibration: bool = False
     # Shared model variant for both NEXT and eyebrow models: ETVR / BSB / TOBII.
     # Selects Models/NEXT_<VARIANT>.onnx and Models/Eyebrow_<VARIANT>.onnx.
