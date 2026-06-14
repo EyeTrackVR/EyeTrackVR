@@ -337,7 +337,7 @@ class EyeTrackSettingsConfig(BaseModel):
     gui_outer_side_falloff: bool = True
     gui_eye_dominant_diff_thresh: float = 0.3
 
-    gui_LEAP_lid: bool = True
+    gui_LEAP_lid: bool = False
     gui_osc_vrcft_v1: bool = False
     gui_osc_vrcft_v2: bool = False
     gui_vrc_native: bool = True
