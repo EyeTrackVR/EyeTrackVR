@@ -177,18 +177,25 @@ def main():
     # Ensure we always have a local reference, even if OpenVR autostart is disabled
     openvr_service = None
 
-    # Start openvr service if autostart with openvr option is enabled
-    # Allow the app to be closed when SteamVR closes
-    if config.settings.gui_openvr_autostart and not is_macos:
-        from OVR.OpenVRService import openvr_service as _openvr_service, OpenVRException
-
+    # Wire up the OpenVR service so the app can register for SteamVR
+    # auto-launch and shut down when SteamVR closes. We always register the
+    # config listener (when OpenVR is importable and we're not on macOS) so
+    # that toggling the option on at runtime works even if it started off.
+    if not is_macos:
         try:
-            _openvr_service.initialize()
-        except OpenVRException:
-            pass
-        # keep a local reference only if import succeeded
-        openvr_service = _openvr_service
-        config.register_listener_callback(openvr_service.on_config_update)
+            from OVR.OpenVRService import openvr_service as _openvr_service
+        except Exception as e:
+            logger.warning(f"OpenVR support unavailable: {e}")
+            _openvr_service = None
+
+        if _openvr_service is not None:
+            openvr_service = _openvr_service
+            openvr_service.autostart_enabled = bool(config.settings.gui_openvr_autostart)
+            config.register_listener_callback(openvr_service.on_config_update)
+            # Re-assert auto-launch registration at startup; self-heals the case
+            # where it was enabled while SteamVR was closed.
+            if config.settings.gui_openvr_autostart:
+                openvr_service.ensure_registered()
 
     osc_queue: queue.Queue[OSCMessage] = queue.Queue(maxsize=10)
 

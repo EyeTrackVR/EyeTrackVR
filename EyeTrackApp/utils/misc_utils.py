@@ -4,8 +4,11 @@ import sys
 from pathlib import Path
 from typing import Union
 
-is_nt = True if os.name == "nt" else False
-is_macos = True if os.name == "Darwin" else False
+is_nt = os.name == "nt"
+# os.name is "posix" on both macOS and Linux, so the platform has to be read
+# from sys.platform — the old `os.name == "Darwin"` check was never true.
+is_macos = sys.platform == "darwin"
+is_linux = sys.platform.startswith("linux")
 
 
 def PlaySound(*args, **kwargs):
