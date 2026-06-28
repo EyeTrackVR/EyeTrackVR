@@ -613,6 +613,15 @@ def main():
                 text="Recenter Eyes",
                 command=self._on_global_recenter,
             ).pack(side="left", padx=8)
+            # NEXT Smart Calib: overlay-driven 6-dot affine calibration. Only
+            # shown while the NEXT model is the selected, active tracker (see
+            # _sync_next_smartcal_button), so it stays hidden for pupil trackers.
+            self._next_smartcal_btn = ttk.Button(
+                actions_inner,
+                text="NEXT Smart Calib",
+                command=self._on_next_smartcal,
+            )
+            self._next_smartcal_visible = False
             bottom = ttk.Frame(self.root)
             bottom.pack(fill="x", padx=8, pady=4)
             ttk.Button(bottom, text="GUI OFF", command=self.gui_off).pack(side="left")
@@ -1206,6 +1215,27 @@ def main():
             config.save()
             overlay_ellipse_calibrate(eps, config.settings, config)
 
+        def _on_next_smartcal(self):
+            from osc_calibrate_filter import next_smartcal_overlay
+            eps = [
+                eye.ransac for eye in eyes
+                if eye.started() and getattr(eye, "ransac", None) is not None
+            ]
+            if not eps:
+                return
+            next_smartcal_overlay(eps, config.settings, config)
+
+        def _sync_next_smartcal_button(self):
+            # Visible only when NEXT is the selected model and tracking is live.
+            show = bool(config.settings.gui_NEXT) and any(e.started() for e in eyes)
+            if show == self._next_smartcal_visible:
+                return
+            self._next_smartcal_visible = show
+            if show:
+                self._next_smartcal_btn.pack(side="left", padx=8)
+            else:
+                self._next_smartcal_btn.pack_forget()
+
         def _sync_global_calibration_button(self):
             text = (
                 "Stop Calibration"
@@ -1235,6 +1265,7 @@ def main():
                         if eye.started():
                             eye.render_tick()
                     self._sync_global_calibration_button()
+                    self._sync_next_smartcal_button()
             else:
                 if not self.focus_paused:
                     self.focus_paused = True

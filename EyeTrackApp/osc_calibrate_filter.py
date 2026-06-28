@@ -451,6 +451,167 @@ def overlay_ellipse_calibrate(eye_processors: list, settings, baseconfig) -> Non
         var.overlay_active = False
 
 
+# ── NEXT Smart Calibration (overlay "finetune" mode, port 2112) ───────────────
+#
+# The overlay self-drives 6 dots and emits one big-endian int32 per dot at the
+# moment it finishes shrinking and is held (capture-ready), then 9 when done:
+#
+#   0 top, 1 upper-right, 2 lower-right, 3 lower-left, 4 upper-left, 5 center, 9 done
+#
+# The 5 ring dots sit at 85% of the gaze range, evenly spaced starting at the
+# top and going clockwise; the 6th is dead centre. Those positions are the
+# regression *targets*: when the user fixates a dot, their true gaze equals the
+# dot direction. We pair each dot's known position with the median raw NEXT
+# gaze captured while it was held, then least-squares fit a per-eye affine
+# transform  [x_cal, y_cal] = W·[x_raw, y_raw] + B  that maps raw model output
+# onto true gaze (scale/rotation in W, offset in B).
+
+_SMARTCAL_RING_RADIUS = 0.85
+NEXT_SMARTCAL_TARGETS = [
+    (
+        round(_SMARTCAL_RING_RADIUS * math.cos(math.radians(90 - 72 * i)), 6),
+        round(_SMARTCAL_RING_RADIUS * math.sin(math.radians(90 - 72 * i)), 6),
+    )
+    for i in range(5)
+] + [(0.0, 0.0)]  # dots 0..4 on the ring (top, clockwise), dot 5 = centre
+
+
+def _fit_next_smartcal(eye_processors: list, baseconfig) -> bool:
+    """Least-squares fit a per-eye affine gaze transform from collected samples.
+
+    Returns True if at least one eye produced a usable transform (and was saved)."""
+    saved_any = False
+    for ep in eye_processors:
+        samples = getattr(ep, "_next_smartcal_samples", {}) or {}
+        raws, tgts = [], []
+        for dot in range(len(NEXT_SMARTCAL_TARGETS)):
+            pts = samples.get(dot, [])
+            if not pts:
+                continue
+            arr = np.asarray(pts, dtype=np.float64)
+            # Median over the hold window rejects blinks / transient outliers.
+            raws.append([float(np.median(arr[:, 0])), float(np.median(arr[:, 1]))])
+            tgts.append(NEXT_SMARTCAL_TARGETS[dot])
+
+        # Each output row solves for 3 unknowns (2 weights + 1 bias); require a
+        # comfortable margin over that minimum so a couple of missed dots don't
+        # yield a degenerate fit.
+        if len(raws) < 4:
+            logger.warning(
+                "NEXT smart cal (eye %s): only %d/%d dots captured — skipping fit.",
+                getattr(ep, "eye_id", "?"), len(raws), len(NEXT_SMARTCAL_TARGETS),
+            )
+            continue
+
+        R = np.asarray(raws, dtype=np.float64)          # N x 2 raw gaze
+        T = np.asarray(tgts, dtype=np.float64)          # N x 2 target gaze
+        A = np.hstack([R, np.ones((len(R), 1))])        # N x 3  [x_raw, y_raw, 1]
+        try:
+            sol, *_ = np.linalg.lstsq(A, T, rcond=None)  # 3 x 2
+        except np.linalg.LinAlgError as e:
+            logger.warning("NEXT smart cal (eye %s): solve failed: %s",
+                           getattr(ep, "eye_id", "?"), e)
+            continue
+
+        # sol columns map [x_raw, y_raw, 1] -> x_cal and y_cal respectively.
+        w = [float(sol[0, 0]), float(sol[1, 0]),
+             float(sol[0, 1]), float(sol[1, 1])]        # [w11, w12, w21, w22]
+        b = [float(sol[2, 0]), float(sol[2, 1])]        # [b1, b2]
+
+        if not (np.all(np.isfinite(w)) and np.all(np.isfinite(b))):
+            logger.warning("NEXT smart cal (eye %s): non-finite fit, discarded.",
+                           getattr(ep, "eye_id", "?"))
+            continue
+
+        ep.config.next_smartcal_w = w
+        ep.config.next_smartcal_b = b
+        ep._next_smartcal_w = w
+        ep._next_smartcal_b = b
+        saved_any = True
+        logger.info(
+            "NEXT smart cal (eye %s): fit from %d dots — W=%s B=%s",
+            getattr(ep, "eye_id", "?"), len(raws),
+            [round(v, 4) for v in w], [round(v, 4) for v in b],
+        )
+
+    if saved_any:
+        baseconfig.save()
+    return saved_any
+
+
+@Async
+def next_smartcal_overlay(eye_processors: list, settings, baseconfig) -> None:
+    """Drive the overlay "finetune" routine and fit the NEXT smart-cal transform.
+
+    Self-driving overlay: no commands sent, no 255 handshake. It emits int32
+    signals 0..5 (capture each dot) then 9 (done) on UDP 127.0.0.1:2112.
+    """
+    if var.overlay_active:
+        return
+    overlay_path = resource_path("Tools/EyeTrackVR-Overlay.exe")
+    tools_dir = os.path.dirname(overlay_path)
+    sock = None
+    try:
+        # Bind before launching so the overlay's first signal isn't dropped.
+        sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        sock.settimeout(120.0)
+        sock.bind(("127.0.0.1", 2112))
+        subprocess.Popen(
+            [overlay_path, "finetune"],
+            cwd=tools_dir,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+        )
+        var.overlay_active = True
+
+        # Fresh sample state for this run.
+        for ep in eye_processors:
+            ep._next_smartcal_active_dot = None
+            ep._next_smartcal_samples = {}
+
+        while var.overlay_active:
+            try:
+                data, _ = sock.recvfrom(16)
+            except socket.timeout:
+                logger.warning("NEXT smart calibration timed out before completion.")
+                break
+            if not data or len(data) < 4:
+                continue
+
+            signal = struct.unpack(">i", data[:4])[0]
+
+            if 0 <= signal <= 5:
+                # Dot is held and capture-ready: start sampling it. Sampling for
+                # the previous dot stops automatically as active_dot changes.
+                logger.debug("NEXT smart cal: capturing dot %d", signal)
+                for ep in eye_processors:
+                    ep._next_smartcal_active_dot = signal
+            elif signal == 9:
+                # All dots done — stop sampling and fit.
+                for ep in eye_processors:
+                    ep._next_smartcal_active_dot = None
+                if _fit_next_smartcal(eye_processors, baseconfig):
+                    PlaySound(resource_path("Audio/completed.wav"), SND_FILENAME | SND_ASYNC)
+                var.overlay_active = False
+                break
+    except (OSError, FileNotFoundError, struct.error) as e:
+        logger.warning(
+            "NEXT smart calibration overlay error (%s). Make sure SteamVR is running.",
+            e,
+        )
+    finally:
+        for ep in eye_processors:
+            ep._next_smartcal_active_dot = None
+        if sock is not None:
+            try:
+                sock.close()
+            except OSError:
+                pass
+        var.overlay_active = False
+
+
 class cal:
     def cal_osc(self, cx, cy, angle):
         # Check if calibration data exists and is valid (list/array, not scalar like 0)

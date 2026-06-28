@@ -131,6 +131,13 @@ class EyeTrackCameraConfig(BaseModel):
     leap_calib_request_seq: int = 0
     # Robust calibration session state (serialized RobustCalibrationSession.to_dict())
     robust_calib_data: Union[dict, None] = None
+    # NEXT Smart Calibration: an affine transform mapping the raw NEXT model
+    # gaze (right/up positive, [-1, 1]) to calibrated gaze that lands on the
+    # known overlay dot positions. next_smartcal_w is the 2x2 weight matrix in
+    # row-major order [w11, w12, w21, w22]; next_smartcal_b is the [b1, b2]
+    # bias. Both None until the user runs "NEXT Smart Calib".
+    next_smartcal_w: Union[List[float], None] = None
+    next_smartcal_b: Union[List[float], None] = None
 
     @field_validator("calib_axes", "calib_evecs", "calib_center", mode="before")
     @classmethod

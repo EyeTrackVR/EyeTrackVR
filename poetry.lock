@@ -1356,7 +1356,7 @@ description = "Unofficial python bindings for Valve OpenVR SDK"
 optional = false
 python-versions = ">=3.9"
 groups = ["dev"]
-markers = "sys_platform == \"win32\""
+markers = "sys_platform == \"win32\" or sys_platform == \"linux\""
 files = [
     {file = "openvr-2.12.1401-py3-none-any.whl", hash = "sha256:ef761cef3162843a8025a7812d5e244fd94ab3a992ca8f5ef0d1b0188ad56cb3"},
     {file = "openvr-2.12.1401.tar.gz", hash = "sha256:245afacb008b66f10bc38eab1f4806cf634a70400c4a0baf349295f617d0f6df"},
@@ -2517,4 +2517,4 @@ files = [
 [metadata]
 lock-version = "2.1"
 python-versions = "~3.14.0"
-content-hash = "c1b63178c0f3665bb54d10606f801c8d0241869eb7b2feb754f02969b63dc0b6"
+content-hash = "ce20a4e02c44c2e12ce7413c72176cbd240764d9ba1aa279a559e4a386da76c7"

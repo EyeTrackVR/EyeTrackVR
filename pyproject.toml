@@ -45,7 +45,8 @@ black = "^22.10.0"
 pyinstaller = "^6.17.0"
 flake8 = "^5.0.4"
 openvr = [
-    { version = "^2.5.101", platform = 'win32' }
+    { version = "^2.5.101", platform = 'win32' },
+    { version = "^2.5.101", platform = 'linux' }
 ]
 
 [tool.taskipy.tasks]

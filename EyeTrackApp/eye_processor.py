@@ -189,6 +189,25 @@ class EyeProcessor:
         self._next_recenter_offset_x = 0.0
         self._next_recenter_offset_y = 0.0
         self._next_recenter_armed_at = None  # perf_counter when NEXT recenter was requested
+        # NEXT Smart Calibration state.
+        #   _next_smartcal_active_dot: index (0..5) of the overlay dot currently
+        #     being held/sampled, or None when not calibrating.
+        #   _next_smartcal_samples: {dot -> [(raw_gaze_x, raw_gaze_y), ...]}
+        #     accumulated while that dot is held; medianed at fit time.
+        #   _next_smartcal_w / _b: the fitted affine transform (loaded from
+        #     config) applied to the raw model gaze each frame, or None.
+        self._next_smartcal_active_dot = None
+        self._next_smartcal_samples = {}
+        self._next_smartcal_w = (
+            list(self.config.next_smartcal_w)
+            if getattr(self.config, "next_smartcal_w", None) is not None
+            else None
+        )
+        self._next_smartcal_b = (
+            list(self.config.next_smartcal_b)
+            if getattr(self.config, "next_smartcal_b", None) is not None
+            else None
+        )
         self.previous_rotation = self.config.rotation_angle
         self.camera_model = None
         self.detector_3d = None
@@ -738,6 +757,32 @@ class EyeProcessor:
         # output is an image coordinate. The calibration path below needs this
         # un-flipped copy (see the cal_osc call).
         model_gaze_x, model_gaze_y = gaze_x, gaze_y
+
+        # ── NEXT Smart Calibration ────────────────────────────────────────────
+        # While a dot is being held by the overlay, accumulate the raw model
+        # gaze so the regression can be fit against the dot's known position.
+        _sc_dot = self._next_smartcal_active_dot
+        if _sc_dot is not None:
+            self._next_smartcal_samples.setdefault(_sc_dot, []).append(
+                (model_gaze_x, model_gaze_y)
+            )
+
+        # Apply the fitted affine transform (smart calib) to map raw model gaze
+        # -> calibrated gaze. Skipped while the legacy ellipse-based
+        # gui_NEXT_calibration is in use so the two paths never compound.
+        if (
+            self._next_smartcal_w is not None
+            and self._next_smartcal_b is not None
+            and not self.settings.gui_NEXT_calibration
+        ):
+            _w = self._next_smartcal_w
+            _b = self._next_smartcal_b
+            _cal_x = _w[0] * model_gaze_x + _w[1] * model_gaze_y + _b[0]
+            _cal_y = _w[2] * model_gaze_x + _w[3] * model_gaze_y + _b[1]
+            # Keep the result in the model's native output range so a strong
+            # transform can't push extreme values downstream to OSC.
+            gaze_x = float(np.clip(_cal_x, -1.0, 1.0))
+            gaze_y = float(np.clip(_cal_y, -1.0, 1.0))
 
         if self.eye_id == EyeId.RIGHT:
             if self.settings.gui_flip_x_axis_right:
