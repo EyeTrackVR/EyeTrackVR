@@ -495,6 +495,67 @@ NEXT_SMARTCAL_TARGETS = [
     for i in range(5)
 ] + [(0.0, 0.0)]  # dots 0..4 on the ring (top, clockwise), dot 5 = centre
 
+# The overlay holds each dot for 0.5 s (DC_HOLD_S in modes.cpp) after emitting
+# its signal, then the NEXT dot appears/shrinks for ~0.65 s before ITS signal —
+# during which the user is already following the new dot. Samples must
+# therefore stop shortly before the hold ends, or ~55% of each dot's window is
+# fixation on the WRONG dot and the fit degenerates (observed as gains of 10-200
+# in the wild). Kept slightly under the hold so frame timing jitter can't leak
+# transition frames in.
+NEXT_SMARTCAL_CAPTURE_WINDOW_S = 0.45
+# A dot needs a few clean frames for its median to mean anything.
+_SMARTCAL_MIN_SAMPLES_PER_DOT = 5
+# Sanity bounds for an accepted transform. The smart cal is a gentle per-user
+# polish: singular values of W (direction-independent gains) must stay within
+# [1/5, 5], orientation must be preserved (det > 0), and the offset can't
+# exceed 3/4 of the output range. Anything outside is a degenerate fit.
+_SMARTCAL_MAX_GAIN = 5.0
+_SMARTCAL_MIN_GAIN = 0.2
+_SMARTCAL_MAX_BIAS = 0.75
+# Mean L2 distance between the fitted mapping of the captured points and their
+# targets. An affine that can't get within this of its OWN fitting points is
+# fitting noise.
+_SMARTCAL_MAX_RESIDUAL = 0.20
+# The per-dot raw medians must span at least this much in both axes; if the
+# raw gaze barely moved across 6 well-separated dots, the samples are
+# degenerate (tracking frozen, eye not following) and lstsq would explode.
+_SMARTCAL_MIN_RAW_SPREAD = 0.10
+
+
+def next_smartcal_transform_is_sane(w, b) -> bool:
+    """True if a smart-cal affine (W row-major [w11,w12,w21,w22], B [b1,b2])
+    is plausibly a gentle per-user polish rather than a degenerate fit.
+
+    Checked both when fitting (before save) and when loading from config, so
+    garbage transforms persisted by older builds are ignored instead of
+    pinning the gaze output to the clip bounds."""
+    try:
+        W = np.array([[w[0], w[1]], [w[2], w[3]]], dtype=np.float64)
+        B = np.asarray(b, dtype=np.float64).reshape(2)
+    except (TypeError, ValueError, IndexError):
+        return False
+    if not (np.all(np.isfinite(W)) and np.all(np.isfinite(B))):
+        return False
+    if np.linalg.det(W) <= 0.0:  # mirror/collapse — never a valid polish
+        return False
+    svals = np.linalg.svd(W, compute_uv=False)
+    if svals[0] > _SMARTCAL_MAX_GAIN or svals[-1] < _SMARTCAL_MIN_GAIN:
+        return False
+    if np.max(np.abs(B)) > _SMARTCAL_MAX_BIAS:
+        return False
+    return True
+
+
+def reset_next_smartcal(eye_processors: list, baseconfig) -> None:
+    """Clear the fitted smart-cal transform (memory + config) for all eyes."""
+    for ep in eye_processors:
+        ep._next_smartcal_w = None
+        ep._next_smartcal_b = None
+        ep.config.next_smartcal_w = None
+        ep.config.next_smartcal_b = None
+    baseconfig.save()
+    logger.info("NEXT smart cal: transforms cleared (raw model gaze restored).")
+
 
 def _fit_next_smartcal(eye_processors: list, baseconfig) -> bool:
     """Least-squares fit a per-eye affine gaze transform from collected samples.
@@ -502,11 +563,16 @@ def _fit_next_smartcal(eye_processors: list, baseconfig) -> bool:
     Returns True if at least one eye produced a usable transform (and was saved)."""
     saved_any = False
     for ep in eye_processors:
+        eye = getattr(ep, "eye_id", "?")
         samples = getattr(ep, "_next_smartcal_samples", {}) or {}
         raws, tgts = [], []
         for dot in range(len(NEXT_SMARTCAL_TARGETS)):
             pts = samples.get(dot, [])
-            if not pts:
+            if len(pts) < _SMARTCAL_MIN_SAMPLES_PER_DOT:
+                logger.debug(
+                    "NEXT smart cal (eye %s): dot %d has %d samples (<%d) — dropped.",
+                    eye, dot, len(pts), _SMARTCAL_MIN_SAMPLES_PER_DOT,
+                )
                 continue
             arr = np.asarray(pts, dtype=np.float64)
             # Median over the hold window rejects blinks / transient outliers.
@@ -519,18 +585,32 @@ def _fit_next_smartcal(eye_processors: list, baseconfig) -> bool:
         if len(raws) < 4:
             logger.warning(
                 "NEXT smart cal (eye %s): only %d/%d dots captured — skipping fit.",
-                getattr(ep, "eye_id", "?"), len(raws), len(NEXT_SMARTCAL_TARGETS),
+                eye, len(raws), len(NEXT_SMARTCAL_TARGETS),
             )
             continue
 
         R = np.asarray(raws, dtype=np.float64)          # N x 2 raw gaze
         T = np.asarray(tgts, dtype=np.float64)          # N x 2 target gaze
+
+        # Degenerate-input guard: 6 dots span most of the gaze range, so the
+        # raw medians must show real movement in both axes. A near-constant
+        # cluster (frozen tracking, eye not following the dot) makes lstsq
+        # amplify noise into gains of 100+.
+        spread = R.max(axis=0) - R.min(axis=0)
+        if float(spread.min()) < _SMARTCAL_MIN_RAW_SPREAD:
+            logger.warning(
+                "NEXT smart cal (eye %s): raw gaze spread %.3f/%.3f (x/y) is too "
+                "small to fit — was the eye following the dots? Keeping previous "
+                "calibration.",
+                eye, float(spread[0]), float(spread[1]),
+            )
+            continue
+
         A = np.hstack([R, np.ones((len(R), 1))])        # N x 3  [x_raw, y_raw, 1]
         try:
             sol, *_ = np.linalg.lstsq(A, T, rcond=None)  # 3 x 2
         except np.linalg.LinAlgError as e:
-            logger.warning("NEXT smart cal (eye %s): solve failed: %s",
-                           getattr(ep, "eye_id", "?"), e)
+            logger.warning("NEXT smart cal (eye %s): solve failed: %s", eye, e)
             continue
 
         # sol columns map [x_raw, y_raw, 1] -> x_cal and y_cal respectively.
@@ -538,9 +618,22 @@ def _fit_next_smartcal(eye_processors: list, baseconfig) -> bool:
              float(sol[0, 1]), float(sol[1, 1])]        # [w11, w12, w21, w22]
         b = [float(sol[2, 0]), float(sol[2, 1])]        # [b1, b2]
 
-        if not (np.all(np.isfinite(w)) and np.all(np.isfinite(b))):
-            logger.warning("NEXT smart cal (eye %s): non-finite fit, discarded.",
-                           getattr(ep, "eye_id", "?"))
+        # A usable fit must land close to its own fitting points AND look like
+        # a gentle polish. Otherwise keep whatever the user had before.
+        residual = float(np.mean(np.linalg.norm(A @ sol - T, axis=1)))
+        if residual > _SMARTCAL_MAX_RESIDUAL:
+            logger.warning(
+                "NEXT smart cal (eye %s): fit residual %.3f exceeds %.2f — "
+                "captures look inconsistent. Keeping previous calibration.",
+                eye, residual, _SMARTCAL_MAX_RESIDUAL,
+            )
+            continue
+        if not next_smartcal_transform_is_sane(w, b):
+            logger.warning(
+                "NEXT smart cal (eye %s): rejected degenerate transform W=%s B=%s "
+                "(gain/bias out of bounds). Keeping previous calibration.",
+                eye, [round(v, 4) for v in w], [round(v, 4) for v in b],
+            )
             continue
 
         ep.config.next_smartcal_w = w
@@ -549,9 +642,9 @@ def _fit_next_smartcal(eye_processors: list, baseconfig) -> bool:
         ep._next_smartcal_b = b
         saved_any = True
         logger.info(
-            "NEXT smart cal (eye %s): fit from %d dots — W=%s B=%s",
-            getattr(ep, "eye_id", "?"), len(raws),
-            [round(v, 4) for v in w], [round(v, 4) for v in b],
+            "NEXT smart cal (eye %s): fit from %d dots — W=%s B=%s (residual %.3f)",
+            eye, len(raws),
+            [round(v, 4) for v in w], [round(v, 4) for v in b], residual,
         )
 
     if saved_any:
@@ -603,10 +696,14 @@ def next_smartcal_overlay(eye_processors: list, settings, baseconfig) -> None:
             signal = struct.unpack(">i", data[:4])[0]
 
             if 0 <= signal <= 5:
-                # Dot is held and capture-ready: start sampling it. Sampling for
-                # the previous dot stops automatically as active_dot changes.
+                # Dot is held and capture-ready: start sampling it. The sampler
+                # (NEXTM) only accepts frames within NEXT_SMARTCAL_CAPTURE_WINDOW_S
+                # of this timestamp — the overlay's hold is 0.5 s, after which the
+                # user is already saccading to / following the next dot.
                 logger.debug("NEXT smart cal: capturing dot %d", signal)
+                _t0 = time.monotonic()
                 for ep in eye_processors:
+                    ep._next_smartcal_dot_started = _t0
                     ep._next_smartcal_active_dot = signal
             elif signal == 9:
                 # All dots done — stop sampling and fit.

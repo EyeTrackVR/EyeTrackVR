@@ -644,6 +644,13 @@ def main():
                 text="NEXT Smart Calib",
                 command=self._on_next_smartcal,
             )
+            # Escape hatch for a bad fit: clears the saved transform so the
+            # raw model gaze flows again. Shown/hidden with the calib button.
+            self._next_smartcal_reset_btn = ttk.Button(
+                actions_inner,
+                text="Reset Smart Calib",
+                command=self._on_next_smartcal_reset,
+            )
             self._next_smartcal_visible = False
             bottom = ttk.Frame(self.root)
             bottom.pack(fill="x", padx=8, pady=4)
@@ -1248,6 +1255,16 @@ def main():
                 return
             next_smartcal_overlay(eps, config.settings, config)
 
+        def _on_next_smartcal_reset(self):
+            from osc_calibrate_filter import reset_next_smartcal
+            eps = [
+                eye.ransac for eye in eyes
+                if eye.started() and getattr(eye, "ransac", None) is not None
+            ]
+            if not eps:
+                return
+            reset_next_smartcal(eps, config)
+
         def _sync_next_smartcal_button(self):
             # Visible only when NEXT is the selected model and tracking is live.
             show = bool(config.settings.gui_NEXT) and any(e.started() for e in eyes)
@@ -1256,8 +1273,10 @@ def main():
             self._next_smartcal_visible = show
             if show:
                 self._next_smartcal_btn.pack(side="left", padx=8)
+                self._next_smartcal_reset_btn.pack(side="left", padx=(0, 8))
             else:
                 self._next_smartcal_btn.pack_forget()
+                self._next_smartcal_reset_btn.pack_forget()
 
         def _sync_global_calibration_button(self):
             text = (

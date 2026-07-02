@@ -197,6 +197,7 @@ class EyeProcessor:
         #   _next_smartcal_w / _b: the fitted affine transform (loaded from
         #     config) applied to the raw model gaze each frame, or None.
         self._next_smartcal_active_dot = None
+        self._next_smartcal_dot_started = 0.0
         self._next_smartcal_samples = {}
         self._next_smartcal_w = (
             list(self.config.next_smartcal_w)
@@ -208,6 +209,22 @@ class EyeProcessor:
             if getattr(self.config, "next_smartcal_b", None) is not None
             else None
         )
+        # Validate transforms persisted by older builds (which saved fits with
+        # no sanity checks): a degenerate W/B pins the clipped gaze output to
+        # the corners, which reads as "tracking completely broken". Ignore and
+        # clear such transforms instead of applying them.
+        if self._next_smartcal_w is not None and not next_smartcal_transform_is_sane(
+            self._next_smartcal_w, self._next_smartcal_b
+        ):
+            logger.warning(
+                "NEXT smart cal (eye %s): stored transform W=%s B=%s is degenerate "
+                "— ignoring it. Re-run NEXT Smart Calib to fit a new one.",
+                self.eye_id, self._next_smartcal_w, self._next_smartcal_b,
+            )
+            self._next_smartcal_w = None
+            self._next_smartcal_b = None
+            self.config.next_smartcal_w = None
+            self.config.next_smartcal_b = None
         self.previous_rotation = self.config.rotation_angle
         self.camera_model = None
         self.detector_3d = None
@@ -775,8 +792,14 @@ class EyeProcessor:
         # ── NEXT Smart Calibration ────────────────────────────────────────────
         # While a dot is being held by the overlay, accumulate the raw model
         # gaze so the regression can be fit against the dot's known position.
+        # Only within the capture window: the overlay holds each dot 0.5 s
+        # after its signal, then the next dot appears and the user follows it —
+        # sampling past the hold poisons this dot with the next dot's fixation.
         _sc_dot = self._next_smartcal_active_dot
-        if _sc_dot is not None:
+        if _sc_dot is not None and (
+            time.monotonic() - self._next_smartcal_dot_started
+            <= NEXT_SMARTCAL_CAPTURE_WINDOW_S
+        ):
             self._next_smartcal_samples.setdefault(_sc_dot, []).append(
                 (model_gaze_x, model_gaze_y)
             )
