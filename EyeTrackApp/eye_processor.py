@@ -747,9 +747,18 @@ class EyeProcessor:
         
         base_cutoff = float(self.settings.gui_min_cutoff)
         base_beta = float(self.settings.gui_speed_coefficient)
-        
+
+        # NEXT runs on the RAW camera frame — no ROI window, no rotation — to match
+        # how the model was trained/exported (see infer.py's --roi handling). In
+        # bigscreen mode one camera carries both eyes side-by-side, so feed this
+        # eye's half; the LEFT/RIGHT split mirrors data_collection's bigscreen crop.
+        next_frame = self.current_raw_frame
+        if self.settings.gui_setup_mode == "bigscreen":
+            mid = next_frame.shape[1] // 2
+            next_frame = next_frame[:, :mid] if self.eye_id == EyeId.LEFT else next_frame[:, mid:]
+
         gaze_x, gaze_y, eyebrow, eyelid, squeeze = self.next_runner.run(
-            self.current_raw_frame, base_cutoff, base_beta
+            next_frame, base_cutoff, base_beta
         )
 
         # Raw model gaze, before any flip. NEXT regresses gaze DIRECTION in
@@ -757,6 +766,11 @@ class EyeProcessor:
         # output is an image coordinate. The calibration path below needs this
         # un-flipped copy (see the cal_osc call).
         model_gaze_x, model_gaze_y = gaze_x, gaze_y
+
+        # Flip Y for output: the model regresses up-positive, but the app's
+        # downstream/OSC convention is up-negative. model_gaze_y above stays
+        # un-flipped so calibration keeps fitting against the raw model output.
+        gaze_y = -gaze_y
 
         # ── NEXT Smart Calibration ────────────────────────────────────────────
         # While a dot is being held by the overlay, accumulate the raw model

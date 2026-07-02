@@ -238,25 +238,6 @@ files = [
 markers = {dev = "platform_system == \"Windows\""}
 
 [[package]]
-name = "coloredlogs"
-version = "15.0.1"
-description = "Colored terminal output for Python's logging module"
-optional = false
-python-versions = ">=2.7, !=3.0.*, !=3.1.*, !=3.2.*, !=3.3.*, !=3.4.*"
-groups = ["main"]
-markers = "sys_platform == \"linux\""
-files = [
-    {file = "coloredlogs-15.0.1-py2.py3-none-any.whl", hash = "sha256:612ee75c546f53e92e70049c9dbfcc18c935a2b9a53b66085ce9ef6a6e5c0934"},
-    {file = "coloredlogs-15.0.1.tar.gz", hash = "sha256:7c991aa71a4577af2f82600d8f8f3a89f936baeaf9b50a9c197da014e5bf16b0"},
-]
-
-[package.dependencies]
-humanfriendly = ">=9.1"
-
-[package.extras]
-cron = ["capturer (>=2.4)"]
-
-[[package]]
 name = "comtypes"
 version = "1.4.16"
 description = "Pure Python COM package"
@@ -520,7 +501,7 @@ description = "The FlatBuffers serialization format for Python"
 optional = false
 python-versions = "*"
 groups = ["main"]
-markers = "sys_platform == \"linux\" or sys_platform == \"win32\" or sys_platform == \"darwin\""
+markers = "sys_platform == \"darwin\" or sys_platform == \"linux\" or sys_platform == \"win32\""
 files = [
     {file = "flatbuffers-25.12.19-py2.py3-none-any.whl", hash = "sha256:7634f50c427838bb021c2d66a3d1168e9d199b0607e6329399f04846d42e20b4"},
 ]
@@ -597,19 +578,6 @@ symfont = ["sympy"]
 type1 = ["xattr ; sys_platform == \"darwin\""]
 unicode = ["unicodedata2 (>=17.0.0) ; python_version <= \"3.14\""]
 woff = ["brotli (>=1.0.1) ; platform_python_implementation == \"CPython\"", "brotlicffi (>=0.8.0) ; platform_python_implementation != \"CPython\"", "zopfli (>=0.1.4)"]
-
-[[package]]
-name = "humanfriendly"
-version = "10.0"
-description = "Human friendly output for text interfaces using Python"
-optional = false
-python-versions = ">=2.7, !=3.0.*, !=3.1.*, !=3.2.*, !=3.3.*, !=3.4.*"
-groups = ["main"]
-markers = "sys_platform == \"linux\""
-files = [
-    {file = "humanfriendly-10.0-py2.py3-none-any.whl", hash = "sha256:1697e1a8a8f550fd43c2865cd84542fc175a61dcb779b6fee18cf6b6ccba1477"},
-    {file = "humanfriendly-10.0.tar.gz", hash = "sha256:6b0b831ce8f15f7300721aa49829fc4e83921a9a301cc7f606be6686a2288ddc"},
-]
 
 [[package]]
 name = "idna"
@@ -976,7 +944,7 @@ description = "Python library for arbitrary-precision floating-point arithmetic"
 optional = false
 python-versions = "*"
 groups = ["main"]
-markers = "sys_platform == \"linux\" or sys_platform == \"win32\""
+markers = "sys_platform == \"win32\""
 files = [
     {file = "mpmath-1.3.0-py3-none-any.whl", hash = "sha256:a0b2b9fe80bbcd81a6647ff13108738cfb482d481d826cc0e02f5b35e5c88d2c"},
     {file = "mpmath-1.3.0.tar.gz", hash = "sha256:7a28eb2a9774d00c7bc92411c19a89209d5da7c4c9a9e227be8330a23a25b91f"},
@@ -1234,7 +1202,7 @@ description = "ONNX Runtime is a runtime accelerator for Machine Learning models
 optional = false
 python-versions = ">=3.11"
 groups = ["main"]
-markers = "sys_platform == \"darwin\""
+markers = "sys_platform == \"darwin\" or sys_platform == \"linux\""
 files = [
     {file = "onnxruntime-1.26.0-cp311-cp311-macosx_14_0_arm64.whl", hash = "sha256:ee1109ef4ef27cad90e823399e61e03b3c6c7bfe0fb820b4baf3678c15be8b3c"},
     {file = "onnxruntime-1.26.0-cp311-cp311-manylinux_2_27_aarch64.manylinux_2_28_aarch64.whl", hash = "sha256:35c7c7b0ac2e02001d28fab6c9fc24e9abc5e6faa35e6e19c63cecf1406ba89f"},
@@ -1295,40 +1263,6 @@ protobuf = "*"
 sympy = "*"
 
 [[package]]
-name = "onnxruntime-gpu"
-version = "1.19.2"
-description = "ONNX Runtime is a runtime accelerator for Machine Learning models"
-optional = false
-python-versions = "*"
-groups = ["main"]
-markers = "sys_platform == \"linux\""
-files = [
-    {file = "onnxruntime_gpu-1.19.2-cp310-cp310-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:a49740e079e7c5215830d30cde3df792e903df007aa0b0fd7aa797937061b27a"},
-    {file = "onnxruntime_gpu-1.19.2-cp310-cp310-win_amd64.whl", hash = "sha256:b895920bb5e4241299f68874e0becdc2635ea0142939c11e7ff5ae5b28993613"},
-    {file = "onnxruntime_gpu-1.19.2-cp311-cp311-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:562fc7c755393eaad9751e56149339dd201ffbfdb3ef5f43ff21d0619ba9045f"},
-    {file = "onnxruntime_gpu-1.19.2-cp311-cp311-win_amd64.whl", hash = "sha256:522f7495918176cb8c1a3c78bde7152d984f7096acc786c73a27643af8af87c9"},
-    {file = "onnxruntime_gpu-1.19.2-cp312-cp312-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:554a02a3fac0119707eb87327908afd21c4e6f0fa5bf9a034398f098adc316c5"},
-    {file = "onnxruntime_gpu-1.19.2-cp312-cp312-win_amd64.whl", hash = "sha256:e7c6165a405027e3c0f11d189ae7013b5d66919b3381f9bfb3405c0c0cf07968"},
-    {file = "onnxruntime_gpu-1.19.2-cp38-cp38-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:b4a8562e1e6f1912870c60bfaf8233c82b86e5b93ae39f211b650ac0f2015430"},
-    {file = "onnxruntime_gpu-1.19.2-cp38-cp38-win_amd64.whl", hash = "sha256:55505c99e18688a7c68fdc811ed6e7a315aa36f543b33920c77d03a627d2c3f5"},
-    {file = "onnxruntime_gpu-1.19.2-cp39-cp39-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:c9e369f01f55ea726ae5d28f18236426e52e97c433f0b7682054e61c478a06c9"},
-    {file = "onnxruntime_gpu-1.19.2-cp39-cp39-win_amd64.whl", hash = "sha256:c8b8128174b0470537e9f4983aeecc002a435d13914970c2af2f41d244ef2781"},
-]
-
-[package.dependencies]
-coloredlogs = "*"
-flatbuffers = "*"
-numpy = ">=1.21.6"
-packaging = "*"
-protobuf = "*"
-sympy = "*"
-
-[package.source]
-type = "legacy"
-url = "https://aiinfra.pkgs.visualstudio.com/PublicPackages/_packaging/onnxruntime-cuda-12/pypi/simple"
-reference = "ort-cuda-13"
-
-[[package]]
 name = "opencv-python"
 version = "4.13.0.92"
 description = "Wrapper package for OpenCV python bindings."
@@ -1356,7 +1290,7 @@ description = "Unofficial python bindings for Valve OpenVR SDK"
 optional = false
 python-versions = ">=3.9"
 groups = ["dev"]
-markers = "sys_platform == \"win32\" or sys_platform == \"linux\""
+markers = "sys_platform == \"linux\" or sys_platform == \"win32\""
 files = [
     {file = "openvr-2.12.1401-py3-none-any.whl", hash = "sha256:ef761cef3162843a8025a7812d5e244fd94ab3a992ca8f5ef0d1b0188ad56cb3"},
     {file = "openvr-2.12.1401.tar.gz", hash = "sha256:245afacb008b66f10bc38eab1f4806cf634a70400c4a0baf349295f617d0f6df"},
@@ -1558,7 +1492,7 @@ description = ""
 optional = false
 python-versions = ">=3.10"
 groups = ["main"]
-markers = "sys_platform == \"linux\" or sys_platform == \"win32\" or sys_platform == \"darwin\""
+markers = "sys_platform == \"darwin\" or sys_platform == \"linux\" or sys_platform == \"win32\""
 files = [
     {file = "protobuf-7.35.0-cp310-abi3-macosx_10_9_universal2.whl", hash = "sha256:66be6c513931c794fa92c080ffee41671390da3d79da219cf9c0c0907f035dda"},
     {file = "protobuf-7.35.0-cp310-abi3-manylinux2014_aarch64.whl", hash = "sha256:fcbe42a4ac09d3ec9c987ddfcd956afd0b15f1ff613bd8371bde9405ffd5c8e5"},
@@ -2334,7 +2268,7 @@ description = "Computer algebra system (CAS) in Python"
 optional = false
 python-versions = ">=3.9"
 groups = ["main"]
-markers = "sys_platform == \"linux\" or sys_platform == \"win32\""
+markers = "sys_platform == \"win32\""
 files = [
     {file = "sympy-1.14.0-py3-none-any.whl", hash = "sha256:e091cc3e99d2141a0ba2847328f5479b05d94a6635cb96148ccb3f34671bd8f5"},
     {file = "sympy-1.14.0.tar.gz", hash = "sha256:d3d3fe8df1e5a0b42f0e7bdf50541697dbe7d23746e894990c030e2b05e72517"},
@@ -2517,4 +2451,4 @@ files = [
 [metadata]
 lock-version = "2.1"
 python-versions = "~3.14.0"
-content-hash = "ce20a4e02c44c2e12ce7413c72176cbd240764d9ba1aa279a559e4a386da76c7"
+content-hash = "06895b7edbd0335e2a9fc9b64abfdd853bdbe98f826e3bfd74554fb6fc18959e"

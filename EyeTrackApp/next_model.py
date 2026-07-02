@@ -96,15 +96,24 @@ class NEXT_cls:
         ort_session.set_providers(["CPUExecutionProvider"])
 
         self.ort_session = ort_session
-        self.input_name = ort_session.get_inputs()[0].name
+        model_input = ort_session.get_inputs()[0]
+        self.input_name = model_input.name
         # fp16 ("Lite") models exported with half-precision I/O need a float16 feed;
         # builds that keep float32 I/O (casting internally) need float32. Match the
         # session's declared input type so either export works without special-casing.
-        self.input_dtype = (
-            np.float16
-            if "float16" in ort_session.get_inputs()[0].type
-            else np.float32
-        )
+        self.input_dtype = np.float16 if "float16" in model_input.type else np.float32
+
+        # Input resolution comes from the graph, not a hardcoded constant: newer
+        # exports (e.g. BSB) run at 160px while ETVR runs at 224px.
+        self.input_size = int(model_input.shape[-1])
+
+        # Preprocessing contract comes from the metadata stamped at export. Newer
+        # exports bake /255 + ImageNet normalization into the graph and take raw
+        # 0..255 RGB; legacy exports (no metadata) expect normalized input, so we
+        # apply /255 + normalization here to match. Getting this wrong double- or
+        # un-normalizes the input and produces garbage predictions.
+        meta = ort_session.get_modelmeta().custom_metadata_map
+        self.raw_input = meta.get("preprocess") == "rgb-raw-0-255"
 
         # Initialize with dummy arrays; updated dynamically in run()
         self.one_euro_filter = OneEuroFilter(
@@ -141,11 +150,14 @@ class NEXT_cls:
         self.one_euro_filter.beta[:] = _beta
 
         """Return (gaze_x, gaze_y, eyebrow, eyelid, squeeze) for *bgr_frame*."""
-        img = cv2.resize(bgr_frame, (224, 224))
-        img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB).astype(np.float32) / 255.0
-        # HWC -> CHW
+        img = cv2.resize(bgr_frame, (self.input_size, self.input_size))
+        # Raw 0..255 RGB, HWC -> CHW.
+        img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB).astype(np.float32)
         img = img.transpose(2, 0, 1)
-        img = (img - _MEAN) / _STD
+        # Legacy exports expect /255 + ImageNet normalization here; newer exports
+        # bake it into the graph and take raw 0..255 (see self.raw_input).
+        if not self.raw_input:
+            img = (img / 255.0 - _MEAN) / _STD
         img = img[np.newaxis]  # NCHW batch dim
         # Cast to the model's input dtype (no-op for float32 I/O; fp16 for Lite builds
         # that take half-precision input). Output is coerced back to float32 below.
