@@ -996,6 +996,26 @@ class CameraWidget:
     def render_tick(self):
         changed = False
 
+        # The capture thread rebound our uvc:name@address source to a fresh device
+        # address (camera replugged into a different USB port) and rewrote
+        # config.capture_source in place. Persist it to disk here — on the GUI
+        # thread, debounced, and only once frames are confirmed flowing — so the
+        # rebind survives restarts without the user re-selecting anything.
+        if (
+            getattr(self.camera, "uvc_rebind_pending", False)
+            and self.camera.camera_status == CameraState.CONNECTED
+        ):
+            self.camera.uvc_rebind_pending = False
+            addr_var = getattr(self, "camera_addr_var", None)
+            new_source = self.config.capture_source
+            if addr_var is not None and new_source:
+                addr_var.set(str(new_source))
+            self._schedule_main_config_save()
+            logger.info(
+                "Persisted auto-rebound capture source for %s: %s",
+                self.eye_id, new_source,
+            )
+
         if self.settings.gui_disable_gui == False:
             if self.config.rotation_angle != int(self.rotation_var.get()):
                 self.config.rotation_angle = int(self.rotation_var.get())

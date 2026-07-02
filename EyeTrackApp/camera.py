@@ -35,7 +35,7 @@ import time
 from config import EyeTrackCameraConfig, EyeTrackSettingsConfig
 from enum import Enum
 import sys
-from camera_enum import is_uvc_named_source, parse_uvc_named_source, resolve_uvc_address_to_index, invalidate_uvc_camera_cache, claim_uvc_address, release_uvc_claim
+from camera_enum import is_uvc_named_source, parse_uvc_named_source, format_uvc_named_source, resolve_uvc_address_to_index, invalidate_uvc_camera_cache, claim_uvc_address, release_uvc_claim
 from PIL import Image
 from io import BytesIO
 
@@ -184,6 +184,11 @@ class Camera:
         self._uvc_not_found_backoff = 0.0
         # Resolved device address currently claimed in the sibling-exclusion registry.
         self._claimed_uvc_address: str | None = None
+        # True when the resolver rebound this camera's uvc:name@address source to a
+        # fresh device address (replug / new USB port) and rewrote config.capture_source
+        # in place. The GUI widget polls this, persists the config to disk once frames
+        # are flowing, and clears it — no user re-selection needed.
+        self.uvc_rebind_pending = False
         # Monotonic deadline for the "not found, retrying" log; throttled to once per 5 s
         # so the log isn't flooded during the 3-second UVC backoff window.
         self._retry_log_backoff: float = 0.0
@@ -417,6 +422,29 @@ class Camera:
                                     release_uvc_claim(id(self))
                                 self._claimed_uvc_address = _resolved_addr
                                 claim_uvc_address(id(self), _resolved_addr)
+                            # The device moved (replug / new USB port): the resolver
+                            # rebound by name to a fresh address. Rewrite the stored
+                            # source in place so the fix survives restarts without the
+                            # user re-selecting. Skip index:N fallback addresses (not
+                            # stable — would discard a real DeviceID). current_capture_source
+                            # is updated together with config so the next loop tick doesn't
+                            # see a "source change" and needlessly reopen the camera. The
+                            # equality check guards against clobbering a source the user
+                            # changed in the GUI while we were resolving.
+                            if (
+                                _resolved_addr != _addr
+                                and not _resolved_addr.startswith("index:")
+                                and self.config.capture_source == new_source
+                            ):
+                                _canonical = format_uvc_named_source(_name, _resolved_addr)
+                                self.config.capture_source = _canonical
+                                self.current_capture_source = _canonical
+                                self.uvc_rebind_pending = True
+                                logger.info(
+                                    "UVC '%s': updated stored address '%s' -> '%s' "
+                                    "(will persist once frames arrive).",
+                                    _name, _addr, _resolved_addr,
+                                )
                             open_source = _idx
                         cam = cv2.VideoCapture()
                         cam.setExceptionMode(True)

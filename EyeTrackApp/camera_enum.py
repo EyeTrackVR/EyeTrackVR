@@ -603,30 +603,37 @@ def resolve_uvc_address_to_index(
                 return c["index"], c["address"]
     if name:
         matches = [c for c in cams if c["name"] == name]
-        if len(matches) == 1:
-            return matches[0]["index"], matches[0]["address"]
-        if len(matches) > 1:
-            # Multiple cameras share this name; a name-only match would pick
-            # the wrong device. Let the caller handle the miss gracefully.
-            logger.debug(
-                "UVC name fallback skipped for '%s': %d cameras share that name; "
-                "re-select from the dropdown to re-assign by address.",
-                name, len(matches),
-            )
-            # When an owner_id is provided, use the sibling-camera claim registry
-            # to narrow down: exclude addresses claimed by other camera objects.
-            # If exactly one camera is unclaimed, that must be ours — auto-route.
+        if matches:
+            # Exclude devices already claimed by sibling camera objects. This both
+            # powers the multi-match auto-route AND prevents the single-match case
+            # from silently stealing the other eye's camera when THIS eye's device
+            # is unplugged (its only same-name match is then the sibling's device).
+            others: set = set()
             if owner_id is not None:
                 with _claimed_lock:
                     others = {addr for oid, addr in _claimed.items() if oid != owner_id}
-                unclaimed = [c for c in matches if c["address"] not in others]
-                if len(unclaimed) == 1:
+            unclaimed = [c for c in matches if c["address"] not in others]
+            if len(unclaimed) == 1:
+                if unclaimed[0]["address"] != address:
                     logger.info(
                         "UVC '%s': stored address '%s' not present; auto-routing to "
-                        "unclaimed camera '%s'. Re-select in the UI to make permanent.",
+                        "unclaimed camera '%s'.",
                         name, address, unclaimed[0]["address"],
                     )
-                    return unclaimed[0]["index"], unclaimed[0]["address"]
+                return unclaimed[0]["index"], unclaimed[0]["address"]
+            if len(unclaimed) == 0:
+                logger.debug(
+                    "UVC name fallback skipped for '%s': the only present match is "
+                    "claimed by another camera; not stealing it.", name,
+                )
+            else:
+                # Multiple unclaimed cameras share this name; a name-only match
+                # would pick the wrong device. Let the caller handle the miss.
+                logger.debug(
+                    "UVC name fallback skipped for '%s': %d unclaimed cameras share "
+                    "that name; re-select from the dropdown to re-assign by address.",
+                    name, len(unclaimed),
+                )
     logger.debug(
         "UVC resolve failed for '%s'@'%s'; enumerated: %s",
         name, address, [(c["name"], c["address"]) for c in cams],
