@@ -28,6 +28,7 @@ import json
 import logging
 import os.path
 import shutil
+import sys
 import numpy as np
 from pydantic import (
     BaseModel,
@@ -43,8 +44,34 @@ from eye import EyeId
 
 logger = logging.getLogger(__name__)
 
-CONFIG_FILE_NAME: str = "eyetrack_settings.json"
-BACKUP_CONFIG_FILE_NAME: str = "eyetrack_settings.backup"
+def _user_data_dir() -> str:
+    """Directory holding the settings file.
+
+    Windows keeps the historical behavior: bare filenames relative to the CWD,
+    which is the install dir when launched from the Start-menu shortcut (the
+    installer marks it user-writable). On Linux/macOS a system install usually
+    is NOT writable and the launch CWD is arbitrary (e.g. $HOME from a .desktop
+    entry), so the config belongs in the XDG config dir. A config file already
+    present in the CWD wins on every platform — source checkouts and portable
+    unpacked installs keep working exactly as before.
+    """
+    if os.name == "nt" or os.path.exists("eyetrack_settings.json"):
+        return ""
+    if sys.platform == "darwin":
+        base = os.path.expanduser("~/Library/Application Support")
+    else:
+        base = os.environ.get("XDG_CONFIG_HOME") or os.path.expanduser("~/.config")
+    path = os.path.join(base, "EyeTrackVR")
+    try:
+        os.makedirs(path, exist_ok=True)
+    except OSError:
+        return ""
+    return path
+
+
+_USER_DATA_DIR = _user_data_dir()
+CONFIG_FILE_NAME: str = os.path.join(_USER_DATA_DIR, "eyetrack_settings.json")
+BACKUP_CONFIG_FILE_NAME: str = os.path.join(_USER_DATA_DIR, "eyetrack_settings.backup")
 
 # Bump this whenever a release changes the *semantics* of an existing field
 # (renames, metric reworks, etc.) so that configs from older versions can be

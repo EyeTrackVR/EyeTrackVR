@@ -23,3 +23,7 @@ EyeTrackApp/IBO_RIGHT.png
 /IBO_LEFT.png
 /eyetrack_settings.backup
 /eyetrack_settings.json
+
+release/
+INNO/Output/
+eyetrackapp/INNO/Output/

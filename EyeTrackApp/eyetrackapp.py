@@ -26,6 +26,7 @@ LICENSE: Babble Software Distribution License 1.0
 
 import logging
 import os
+import subprocess
 import sys
 import time
 import webbrowser
@@ -162,6 +163,20 @@ def _check_for_updates_bg(config) -> None:
                         launch="https://github.com/EyeTrackVR/EyeTrackVR/releases/latest",
                     )
                     toast.show()
+                elif sys.platform.startswith("linux"):
+                    # notify-send ships with every major desktop (libnotify).
+                    # Best-effort: headless/minimal systems just skip the toast.
+                    subprocess.Popen(
+                        [
+                            "notify-send",
+                            "--app-name=EyeTrackApp",
+                            f"--icon={resource_path('Images/logo.png')}",
+                            "EyeTrackVR: New Update Available!",
+                            f"Please update to {latestversion}",
+                        ],
+                        stdout=subprocess.DEVNULL,
+                        stderr=subprocess.DEVNULL,
+                    )
             except Exception:
                 logger.info("Toast notifications not supported", exc_info=True)
     except (requests.RequestException, KeyError, ValueError):
@@ -252,7 +267,15 @@ def main():
                 except Exception as e:
                     logger.warning(f"DPI scaling failed: {e}")
             try:
-                self.root.iconbitmap(resource_path("Images/logo.ico"))
+                if is_nt:
+                    self.root.iconbitmap(resource_path("Images/logo.ico"))
+                else:
+                    # .ico iconbitmap raises TclError on Linux/macOS; use the
+                    # PNG via iconphoto (default=True covers child Toplevels).
+                    self._icon_photo = tk.PhotoImage(
+                        file=resource_path("Images/logo.png")
+                    )
+                    self.root.iconphoto(True, self._icon_photo)
             except Exception:
                 pass
             sv_ttk.set_theme("dark")

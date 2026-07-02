@@ -55,11 +55,14 @@ LEAP_LID_METRIC_VERSION = 1
 dml_lock = threading.Lock()
 
 if sys.platform.startswith("linux"):
-    # Detect if we are already in the right path to avoid infinite loops
+    # Make CUDA's libs findable for onnxruntime-gpu. Only relevant when a CUDA
+    # toolkit is actually installed — CPU-only machines (the packaged release
+    # ships CPU onnxruntime) must NOT pay a whole-process re-exec at import
+    # time, which is what the LD_LIBRARY_PATH edit requires to take effect.
     cuda_path = "/usr/local/cuda/lib64"
     current_ld = os.environ.get("LD_LIBRARY_PATH", "")
 
-    if cuda_path not in current_ld:
+    if os.path.isdir(cuda_path) and cuda_path not in current_ld:
         os.environ["LD_LIBRARY_PATH"] = f"/usr/lib:{cuda_path}:{current_ld}"
 
         # IMPORTANT: Linux caches LD_LIBRARY_PATH when the process starts.
@@ -67,7 +70,11 @@ if sys.platform.startswith("linux"):
         # re-execute the script once if the path was missing.
         if "RESTART_FOR_CUDA" not in os.environ:
             os.environ["RESTART_FOR_CUDA"] = "1"
-            os.execv(sys.executable, [sys.executable] + sys.argv)
+            if getattr(sys, "frozen", False):
+                # Frozen app: sys.executable IS the program; argv[0] repeats it.
+                os.execv(sys.executable, [sys.executable] + sys.argv[1:])
+            else:
+                os.execv(sys.executable, [sys.executable] + sys.argv)
 
 
 def run_model(input_queue, output_queue, session):
@@ -179,9 +186,32 @@ class LEAP_C:
 
         logger.info("Active ONNX GPU providers for this session: %s", providers)
 
-        self.ort_session_gpu = onnxruntime.InferenceSession(
-            self.model_path, opts, providers=providers
-        )
+        # Building the GPU session must never take the app down:
+        #   - providers=[] (CPU-only machine) makes InferenceSession raise
+        #   - CUDAExecutionProvider is listed as "available" whenever
+        #     onnxruntime-gpu is installed, but session creation still fails
+        #     if the CUDA/cuDNN system libraries are missing (common on Linux)
+        # In both cases fall back to the CPU session; runtime provider choice
+        # (gui_use_gpu) then simply resolves to CPU.
+        self.ort_session_gpu = None
+        if providers:
+            try:
+                # Trailing CPU provider lets ORT place unsupported ops on CPU
+                # instead of failing session creation outright.
+                self.ort_session_gpu = onnxruntime.InferenceSession(
+                    self.model_path,
+                    opts,
+                    providers=providers + ["CPUExecutionProvider"],
+                )
+            except Exception as e:
+                logger.warning(
+                    "GPU ONNX session unavailable (%s); LEAP will run on CPU. "
+                    "On Linux this usually means onnxruntime-gpu is installed "
+                    "without the CUDA/cuDNN system libraries.",
+                    e,
+                )
+        if self.ort_session_gpu is None:
+            self.ort_session_gpu = self.ort_session_cpu
         for i in range(self.num_threads):
             if self.config.settings.gui_use_gpu:
                 thread = threading.Thread(

@@ -22,8 +22,8 @@ DefaultDirName={autopf}\{#MyAppName}
 DisableProgramGroupPage=yes
 ; Uncomment the following line to run in non administrative install mode (install for current user only.)
 ;PrivilegesRequired=lowest
-OutputBaseFilename=EyeTrackVR-Setup
-SetupIconFile=C:\Users\beaul\Documents\GitHub\EyeTrackVR\EyeTrackApp\Images\logo.ico
+OutputBaseFilename=EyeTrackVR-Setup-0.3.0-BETA-6
+SetupIconFile=..\Images\logo.ico
 Compression=lzma/ultra64
 SolidCompression=yes
 WizardStyle=modern
@@ -35,8 +35,9 @@ Name: "english"; MessagesFile: "compiler:Default.isl"
 Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{cm:AdditionalIcons}";
 
 [Files]
-Source: "C:\Users\beaul\Documents\GitHub\EyeTrackVR\EyeTrackApp\dist\{#MyAppExeName}"; DestDir: "{app}"; Flags: ignoreversion
-Source: "C:\Users\beaul\Documents\GitHub\EyeTrackVR\EyeTrackApp\dist\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
+Source: "..\dist\{#MyAppExeName}"; DestDir: "{app}"; Flags: ignoreversion
+; Excludes: never ship local user settings that ended up in dist\ from test runs
+Source: "..\dist\*"; DestDir: "{app}"; Excludes: "eyetrack_settings.json,eyetrack_settings.backup,logs\*"; Flags: ignoreversion recursesubdirs createallsubdirs
 ; NOTE: Don't use "Flags: ignoreversion" on any shared system files
 
 [Dirs]

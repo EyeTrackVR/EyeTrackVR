@@ -281,11 +281,17 @@ class DataCollectionWindow:
         self.window.resizable(False, False)
         self.window.protocol("WM_DELETE_WINDOW", self.close)
         
-        try:
-            from utils.misc_utils import resource_path
-            self.window.after(100, lambda: self.window.iconbitmap(resource_path("Images/logo.ico")))
-        except Exception:
-            pass
+        def _set_window_icon():
+            # Must guard INSIDE the after-callback: .ico iconbitmap raises
+            # TclError on Linux/macOS, and an exception thrown in a Tk callback
+            # escapes any try/except around the .after() scheduling call.
+            try:
+                from utils.misc_utils import resource_path
+                self.window.iconbitmap(resource_path("Images/logo.ico"))
+            except Exception:
+                pass
+
+        self.window.after(100, _set_window_icon)
         
         self.window.after(100, lambda: _apply_theme_to_titlebar(self.window))
 
@@ -536,11 +542,16 @@ class DataCollectionWindow:
 
         if use_overlay:
             # Try to launch overlay
+            _overlay_name = (
+                "EyeTrackVR-Overlay.exe"
+                if platform.system() == "Windows"
+                else "EyeTrackVR-Overlay"
+            )
             try:
                 from utils.misc_utils import resource_path
-                overlay_exe = resource_path("Tools/EyeTrackVR-Overlay.exe")
+                overlay_exe = resource_path(f"Tools/{_overlay_name}")
             except Exception:
-                overlay_exe = os.path.join(os.getcwd(), "Tools", "EyeTrackVR-Overlay.exe")
+                overlay_exe = os.path.join(os.getcwd(), "Tools", _overlay_name)
             
             if not os.path.isfile(overlay_exe):
                 self.gui_queue.put(("status", "Overlay executable not found. Running without overlay."))

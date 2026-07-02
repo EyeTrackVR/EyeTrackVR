@@ -23,6 +23,30 @@ if is_nt:
     PlaySound = winsound.PlaySound
     SND_FILENAME = winsound.SND_FILENAME
     SND_ASYNC = winsound.SND_ASYNC
+else:
+    import shutil
+    import subprocess
+
+    # First available CLI player wins. paplay covers PulseAudio/PipeWire
+    # (virtually every desktop distro), aplay is the ALSA fallback, afplay
+    # is macOS. Resolved once at import so PlaySound stays cheap.
+    _PLAYER = next(
+        (p for p in ("paplay", "aplay", "afplay") if shutil.which(p)), None
+    )
+
+    def PlaySound(sound, flags=0):  # noqa: F811 — deliberate platform override
+        """winsound.PlaySound-compatible shim. Only the (filename, ASYNC)
+        call shape the app uses is supported; anything else is ignored."""
+        if not sound or _PLAYER is None:
+            return
+        try:
+            subprocess.Popen(
+                [_PLAYER, str(sound)],
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+            )
+        except OSError:
+            pass  # No audio stack (headless session) — sounds are best-effort.
 
 
 def clamp(x, low, high):

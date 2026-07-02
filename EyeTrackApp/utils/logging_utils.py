@@ -139,8 +139,21 @@ def current_log_path() -> Path | None:
 
 def log_directory() -> Path:
     log_dir = _app_root() / LOG_DIR_NAME
-    log_dir.mkdir(parents=True, exist_ok=True)
-    return log_dir
+    try:
+        log_dir.mkdir(parents=True, exist_ok=True)
+        if os.access(log_dir, os.W_OK):
+            return log_dir
+    except OSError:
+        pass
+    # App root is read-only (system-installed Linux/macOS build): fall back to
+    # a per-user state dir so logging never silently disables itself.
+    if sys.platform == "darwin":
+        base = Path.home() / "Library" / "Logs"
+    else:
+        base = Path(os.environ.get("XDG_STATE_HOME") or Path.home() / ".local" / "state")
+    fallback = base / "EyeTrackVR" / LOG_DIR_NAME
+    fallback.mkdir(parents=True, exist_ok=True)
+    return fallback
 
 
 class TrackingLogger:
