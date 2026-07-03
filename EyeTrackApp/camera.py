@@ -85,8 +85,8 @@ _FAST_CAPTURE_MAX_FPS = 120.0
 _FAST_CAPTURE_MIN_INTERVAL = 1.0 / _FAST_CAPTURE_MAX_FPS
 # Network (HTTP/MJPEG) capture timeouts (ms). Well below the old 5 s so a dropped
 # Wi-Fi cam (e.g. ETVR.local going offline) is detected in ~2 s instead of stalling
-# the capture thread — and, via GIL contention during the blocking native read, the
-# GUI — for 5 s per read. Open gets a little longer since the first connect may
+# the capture thread (and, via GIL contention during the blocking native read, the
+# GUI) for 5 s per read. Open gets a little longer since the first connect may
 # include an mDNS (.local) lookup.
 _NETWORK_OPEN_TIMEOUT_MSEC = 3000
 _NETWORK_READ_TIMEOUT_MSEC = 2000
@@ -187,7 +187,7 @@ class Camera:
         # True when the resolver rebound this camera's uvc:name@address source to a
         # fresh device address (replug / new USB port) and rewrote config.capture_source
         # in place. The GUI widget polls this, persists the config to disk once frames
-        # are flowing, and clears it — no user re-selection needed.
+        # are flowing, and clears it; no user re-selection needed.
         self.uvc_rebind_pending = False
         # Monotonic deadline for the "not found, retrying" log; throttled to once per 5 s
         # so the log isn't flooded during the 3-second UVC backoff window.
@@ -286,11 +286,11 @@ class Camera:
         """Update fps / bps moving averages for the most recently received frame.
 
         ``frame_bytes`` is the best available byte-count for this frame:
-          - Serial path: ``len(jpeg)`` — true compressed bytes on the UART wire.
-          - cv2 HTTP:    length of a re-encoded JPEG at a fixed quality — a stable
+          - Serial path: ``len(jpeg)``, true compressed bytes on the UART wire.
+          - cv2 HTTP:    length of a re-encoded JPEG at a fixed quality, a stable
                          compressed-byte proxy (cv2.VideoCapture hides the original
                          on-wire JPEG length from us). Approximates wire bandwidth.
-          - cv2 UVC/file: ``image.nbytes`` pre-resize — decoded pixel bytes, since
+          - cv2 UVC/file: ``image.nbytes`` pre-resize, decoded pixel bytes, since
                          there's no compressed source to measure. Decoded pixel-rate
                          proxy, not true wire bandwidth.
 
@@ -364,7 +364,7 @@ class Camera:
                         # failed reopen blocks this thread in native cv2 (open-timeout +
                         # a possible mDNS lookup), so without a backoff a permanently
                         # offline ETVR.local pegs the thread in back-to-back multi-second
-                        # opens and starves the Tk UI of the GIL — the lag/hang users see.
+                        # opens and starves the Tk UI of the GIL: the lag/hang users see.
                         if (
                             _is_network_source
                             and not source_changed
@@ -387,7 +387,7 @@ class Camera:
                         self._file_video_source_cache = None
                         self.current_capture_source = new_source
                         # Resolve uvc:Name@Address to a cv2 integer index before
-                        # opening — cv2.VideoCapture doesn't understand the uvc: prefix.
+                        # opening: cv2.VideoCapture doesn't understand the uvc: prefix.
                         open_source = new_source
                         if isinstance(new_source, str) and is_uvc_named_source(new_source):
                             _name, _addr = parse_uvc_named_source(new_source)
@@ -426,7 +426,7 @@ class Camera:
                             # rebound by name to a fresh address. Rewrite the stored
                             # source in place so the fix survives restarts without the
                             # user re-selecting. Skip index:N fallback addresses (not
-                            # stable — would discard a real DeviceID). current_capture_source
+                            # stable, would discard a real DeviceID). current_capture_source
                             # is updated together with config so the next loop tick doesn't
                             # see a "source change" and needlessly reopen the camera. The
                             # equality check guards against clobbering a source the user
@@ -569,11 +569,9 @@ class Camera:
                 frame_bytes = self._last_http_wire_bytes_proxy
             else:
                 frame_bytes = image.nbytes
-            height, width = image.shape[:2]  # Calculate the aspect ratio
+            height, width = image.shape[:2]
             if int(width) > 680:
-                aspect_ratio = float(width) / float(
-                    height
-                )  # Determine the new height based on the desired maximum width
+                aspect_ratio = float(width) / float(height)
                 new_height = int(680 / aspect_ratio)
                 image = cv2.resize(image, (680, new_height))
             if should_push and throttle_source:
@@ -589,7 +587,7 @@ class Camera:
             )
             self.camera_status = CameraState.DISCONNECTED
             # Clear the not-found backoff so we immediately attempt a reconnect rather
-            # than waiting up to 3 s — the camera was working moments ago, so it's
+            # than waiting up to 3 s: the camera was working moments ago, so it's
             # very likely still present in the DirectShow enum list.
             self._uvc_not_found_backoff = 0.0
             self._last_cv_cap_frame_time = 0.0
@@ -693,11 +691,9 @@ class Camera:
 
     def start_serial_connection(self, port):
         if self.serial_connection is not None and self.serial_connection.is_open:
-            # Do nothing. The connection is already open on this port.
             if self.serial_connection.port == port:
                 self.camera_status = CameraState.CONNECTED
                 return
-            # Otherwise, close the connection before trying to reopen.
             try:
                 self.serial_connection.close()
             except Exception:
@@ -727,7 +723,6 @@ class Camera:
             )
             # Flush any garbage queued before we opened the port.
             conn.reset_input_buffer()
-            # Set explicit buffer size for serial.
             if sys.platform == "win32":
                 buffer_size = 32768
                 conn.set_buffer_size(rx_size=buffer_size, tx_size=buffer_size)

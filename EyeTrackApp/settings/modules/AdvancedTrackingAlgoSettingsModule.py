@@ -2,6 +2,8 @@ from settings.modules.BaseModule import BaseSettingsModule, BaseValidationModel
 import tkinter as tk
 from tkinter import ttk
 
+from localization import tr
+
 
 class AdvancedTrackingAlgoSettingsValidationModel(BaseValidationModel):
     gui_BLINK: bool
@@ -66,31 +68,31 @@ class AdvancedTrackingAlgoSettingsModule(BaseSettingsModule):
 
     def build(self, parent):
         checkbox_fields = [
-            (self.gui_BLINK, self.config.gui_BLINK, "Binary Blink Algo"),
+            (self.gui_BLINK, self.config.gui_BLINK, tr("algo_advanced.binary_blink")),
             (
                 self.gui_RANSACBLINK,
                 self.config.gui_RANSACBLINK,
-                "RANSAC Quick Blink Algo",
+                tr("algo_advanced.ransac_quick_blink"),
             ),
             (
                 self.gui_circular_crop_left,
                 self.config.gui_circular_crop_left,
-                "Left Eye Circle Crop",
+                tr("algo_advanced.left_eye_circle_crop"),
             ),
             (
                 self.gui_circular_crop_right,
                 self.config.gui_circular_crop_right,
-                "Right Eye Circle Crop",
+                tr("algo_advanced.right_eye_circle_crop"),
             ),
             (
                 self.gui_skip_autoradius,
                 self.config.gui_skip_autoradius,
-                "HSF: Skip Auto Radius",
+                tr("algo_advanced.hsf_skip_auto_radius"),
             ),
             (
                 self.gui_pupil_dilation,
                 self.config.gui_pupil_dilation,
-                "Ellipse Based Pupil Dilation",
+                tr("algo_advanced.ellipse_pupil_dilation"),
             ),
         ]
         ncol = 2
@@ -112,21 +114,21 @@ class AdvancedTrackingAlgoSettingsModule(BaseSettingsModule):
 
         slider_specs = [
             (
-                "Left HSF Radius",
+                tr("algo_advanced.left_hsf_radius"),
                 self.gui_HSF_radius_left,
                 self.config.gui_HSF_radius_left,
                 1,
                 50,
             ),
             (
-                "Right HSF Radius",
+                tr("algo_advanced.right_hsf_radius"),
                 self.gui_HSF_radius_right,
                 self.config.gui_HSF_radius_right,
                 1,
                 50,
             ),
             (
-                "RANSAC Thresh Add",
+                tr("algo_advanced.ransac_thresh_add"),
                 self.gui_thresh_add,
                 self.config.gui_thresh_add,
                 1,

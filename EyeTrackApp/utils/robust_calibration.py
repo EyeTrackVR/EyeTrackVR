@@ -2,9 +2,9 @@
 Robust eye-tracking calibration pipeline.
 
 Three sequential phases:
-  1. EXPRESS  — 9-point calibration; center-anchored asymmetric min-max normalization
-  2. BLINK    — closed-eye sclera-ratio threshold (used to scrub pursuit frames)
-  3. PURSUIT  — smooth figure-eight data collection → degree-2 polynomial regression
+  1. EXPRESS: 9-point calibration; center-anchored asymmetric min-max normalization
+  2. BLINK: closed-eye sclera-ratio threshold (used to scrub pursuit frames)
+  3. PURSUIT: smooth figure-eight data collection → degree-2 polynomial regression
 
 Runtime routing (when phase == DONE):
   - If poly trained (pursuit done): polynomial maps keypoints → gaze (best quality)
@@ -165,7 +165,7 @@ class RobustCalibrationSession:
         self.blink_threshold: float = 0.05
         self.blink_calibrated: bool = False
 
-        # Pursuit state — stores lightweight tuples, not full images.
+        # Pursuit state: stores lightweight tuples, not full images.
         # Each entry: (sclera_ratio, raw_x, raw_y, target_x, target_y)
         self._pursuit_start: float = 0.0
         # None = no overlay frame received yet → fall back to internal figure-eight.
@@ -293,7 +293,7 @@ class RobustCalibrationSession:
             return False
         if time.time() >= self._blink_end_at:
             self.phase = CalibrationPhase.DONE
-            self._status = f"Blink threshold: {self.blink_threshold:.3f} — open your eyes"
+            self._status = f"Blink threshold: {self.blink_threshold:.3f} - open your eyes"
             logger.info("Robust cal [Blink]: end delay done, phase → DONE")
             return True
         return False
@@ -325,7 +325,7 @@ class RobustCalibrationSession:
             tx, ty = _figure_eight_target(elapsed)
 
         # Saccade rejection: discard frames where the tracker jumped more than
-        # PURSUIT_SACCADE_FRAC of the express range in a single frame — likely a
+        # PURSUIT_SACCADE_FRAC of the express range in a single frame, likely a
         # detection glitch rather than real gaze motion.
         if self._prev_pursuit_raw is not None and self.express_calibrated:
             x_range = max(self.express_x_max - self.express_x_min, 1e-6)
@@ -388,7 +388,7 @@ class RobustCalibrationSession:
         Fit a degree-2 polynomial from the 9 card median raw positions.
 
         Unlike the smooth-pursuit fit which trains on many noisy frames, this
-        uses a handful of clean, precisely-known gaze positions — like flash
+        uses a handful of clean, precisely-known gaze positions, like flash
         cards for the polynomial.  Two robustness measures borrowed from the
         CalibrationEllipse approach:
 
@@ -406,7 +406,7 @@ class RobustCalibrationSession:
         meds = self._express_target_medians
         targets = _EXPRESS_GAZE_TARGETS
         if not meds or len(meds) < 6 or len(meds) != len(targets):
-            logger.warning("Card poly: not enough medians (%d) — skipping", len(meds) if meds else 0)
+            logger.warning("Card poly: not enough medians (%d), skipping", len(meds) if meds else 0)
             return False
 
         n = len(meds)
@@ -419,7 +419,7 @@ class RobustCalibrationSession:
             A = Xf.T @ Xf + lam * np.eye(6)
             return np.linalg.solve(A, Xf.T @ yxf), np.linalg.solve(A, Xf.T @ yyf)
 
-        # Pass 1 — fit all cards
+        # Pass 1: fit all cards
         cx, cy = _ridge(X, yx, yy)
         errs = np.sqrt((X @ cx - yx) ** 2 + (X @ cy - yy) ** 2)
         rms1 = float(np.sqrt(np.mean(errs ** 2)))
@@ -428,7 +428,7 @@ class RobustCalibrationSession:
             rms1, ", ".join(f"{e:.3f}" for e in errs),
         )
 
-        # RANSAC — drop cards whose error is suspiciously large
+        # RANSAC: drop cards whose error is suspiciously large
         thresh = max(_CARD_RANSAC_THRESH, rms1 * 2.5)
         good: np.ndarray = errs < thresh
         n_good = int(good.sum())
@@ -451,7 +451,7 @@ class RobustCalibrationSession:
         else:
             if n_good < 6:
                 logger.warning(
-                    "Card poly: RANSAC would remove too many cards (%d good) — keeping all", n_good
+                    "Card poly: RANSAC would remove too many cards (%d good), keeping all", n_good
                 )
             n_good = n
             rms_final = rms1
@@ -461,7 +461,7 @@ class RobustCalibrationSession:
         self.poly_trained = True
         self._poly_source = "card"
         self._status = (
-            f"Card poly — {n_good}/{n} cards, RMS {rms_final:.4f}"
+            f"Card poly - {n_good}/{n} cards, RMS {rms_final:.4f}"
         )
         logger.info(
             "Card poly: fitted on %d/%d cards, RMS=%.4f",
@@ -473,7 +473,7 @@ class RobustCalibrationSession:
 
     def _finalize_express(self) -> None:
         if not any(self._express_raw):
-            logger.warning("Robust cal [Express]: no samples — aborting")
+            logger.warning("Robust cal [Express]: no samples, aborting")
             self.phase = CalibrationPhase.DONE
             self._status = "Express failed: no samples collected"
             return
@@ -496,7 +496,7 @@ class RobustCalibrationSession:
                     )
 
         if not target_meds:
-            logger.warning("Robust cal [Express]: all targets empty — aborting")
+            logger.warning("Robust cal [Express]: all targets empty, aborting")
             self.phase = CalibrationPhase.DONE
             self._status = "Express failed: no valid targets"
             return
@@ -541,7 +541,7 @@ class RobustCalibrationSession:
         card_ok = self._fit_poly_from_cards()
         if not card_ok:
             self._status = (
-                f"Express done — center ({self.express_center_x:.1f}, {self.express_center_y:.1f})"
+                f"Express done - center ({self.express_center_x:.1f}, {self.express_center_y:.1f})"
             )
 
     def _finalize_blink(self) -> None:
@@ -552,7 +552,7 @@ class RobustCalibrationSession:
         self.blink_calibrated = True
         self._blink_end_at = time.time() + BLINK_END_DELAY_S
         self.phase = CalibrationPhase.BLINK_END
-        self._status = "Eyes open — blink calibrated"
+        self._status = "Eyes open - blink calibrated"
         logger.info("Robust cal [Blink]: threshold = %.4f", self.blink_threshold)
 
     def _poly_features(self, x: float, y: float) -> np.ndarray:
@@ -588,7 +588,7 @@ class RobustCalibrationSession:
             ]
             if len(clean) < max(_MIN_POLY_FRAMES, total * 0.2):
                 logger.warning(
-                    "Robust cal: blink scrub too aggressive (kept %d/%d) — using all frames",
+                    "Robust cal: blink scrub too aggressive (kept %d/%d), using all frames",
                     len(clean), total,
                 )
                 clean = [(rx, ry, tx, ty) for _, rx, ry, tx, ty in self._pursuit_data]
@@ -596,13 +596,13 @@ class RobustCalibrationSession:
                 logger.info("Robust cal: %d/%d frames survived blink scrub", len(clean), total)
         else:
             clean = [(rx, ry, tx, ty) for _, rx, ry, tx, ty in self._pursuit_data]
-            logger.info("Robust cal: blink not calibrated — using all %d frames", total)
+            logger.info("Robust cal: blink not calibrated, using all %d frames", total)
 
         if len(clean) < _MIN_POLY_FRAMES:
-            logger.warning("Robust cal: only %d clean frames — polynomial not fitted", len(clean))
+            logger.warning("Robust cal: only %d clean frames, polynomial not fitted", len(clean))
             self.poly_trained = False
             self.phase = CalibrationPhase.DONE
-            self._status = f"Polynomial fit failed — {len(clean)} frames (need {_MIN_POLY_FRAMES})"
+            self._status = f"Polynomial fit failed - {len(clean)} frames (need {_MIN_POLY_FRAMES})"
             return
 
         # ── Velocity-based per-sample weights ────────────────────────────────
@@ -703,7 +703,7 @@ class RobustCalibrationSession:
         pred_y = X_pursuit @ coeffs_y
         rms = float(np.sqrt(np.mean((pred_x - yx_vec[:n_clean]) ** 2 + (pred_y - yy_vec[:n_clean]) ** 2)))
         src = "card+pursuit" if _has_card_poly else "pursuit"
-        self._status = f"Poly [{src}] — {n_clean} frames + {len(anchors)} anchors, RMS {rms:.3f}"
+        self._status = f"Poly [{src}] - {n_clean} frames + {len(anchors)} anchors, RMS {rms:.3f}"
         logger.info(
             "Robust cal [Poly (%s)]: fitted on %d frames + %d anchors, RMS=%.4f",
             src, n_clean, len(anchors), rms,
@@ -755,7 +755,7 @@ class RobustCalibrationSession:
         return float(gx), float(gy)
 
     def predict_svr(self, eye_crop) -> Optional[Tuple[float, float]]:
-        """Legacy stub — SVR replaced by predict_poly. Always returns None."""
+        """Legacy stub: SVR replaced by predict_poly. Always returns None."""
         return None
 
     # ── Persistence ───────────────────────────────────────────────────────────

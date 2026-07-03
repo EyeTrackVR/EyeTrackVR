@@ -19,6 +19,7 @@ resources = [
     ("pye3d/refraction_models/*", "pye3d/refraction_models/"),
     ("Models/*", "Models/"),
     ("Tools/assets/*", "Tools/assets/"),
+    ("lang/*", "lang/"),
 ]
 
 # The pyopenvr wheel bundles per-arch shared libs next to openvr/__init__.py.

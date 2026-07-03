@@ -48,6 +48,7 @@ from camera_enum import (
 )
 from config import EyeTrackConfig
 from eye import EyeId
+from localization import init_localization, tr
 from settings.VRCFTModuleSettings import VRCFTSettingsWidget
 from settings.general_settings_widget import SettingsWidget
 from settings.algo_settings_widget import AlgoSettingsWidget
@@ -184,9 +185,13 @@ def _check_for_updates_bg(config) -> None:
 
 
 def main():
-    # Get Configuration
     config: EyeTrackConfig = EyeTrackConfig.load()
     config.save()
+
+    # Load the UI language before any widgets are built. tkinter fixes widget
+    # text at creation time, so the language must be resolved up front; changing
+    # it in Settings persists the choice and prompts a restart.
+    init_localization(getattr(config.settings, "gui_language", "en"))
 
     cancellation_event = threading.Event()
     # Ensure we always have a local reference, even if OpenVR autostart is disabled
@@ -312,10 +317,10 @@ def main():
             nav.pack(fill="x", padx=16, pady=(16, 4))
             self._nav_buttons = {}
             for page_id, label in (
-                ("tracking", "Tracking"),
-                ("settings", "Settings"),
-                ("algo", "Algo Settings"),
-                ("vrcft", "VRCFT Module Settings"),
+                ("tracking", tr("nav.tracking")),
+                ("settings", tr("nav.settings")),
+                ("algo", tr("nav.algo")),
+                ("vrcft", tr("nav.vrcft")),
             ):
                 btn = ttk.Button(
                     nav, text=label, command=lambda p=page_id: self.show_page(p)
@@ -331,11 +336,11 @@ def main():
             self.algo_frame = settings[1].build(self.content, eye_widgets=eyes, dpi_scale=self._dpi_scale)
             self.vrcft_frame = settings[2].build(self.content)
 
-            # "Having Issues?" popup — floats over the current page, same pattern
+            # "Having Issues?" popup: floats over the current page, same pattern
             # as the Advanced Algo Settings popup.
             self._issues_popup_visible = False
             self._issues_popup = tk.Toplevel(self.root)
-            self._issues_popup.title("Having Issues?")
+            self._issues_popup.title(tr("issues.title"))
             self._issues_popup.withdraw()
             self._issues_popup.resizable(False, False)
             self._issues_popup.protocol("WM_DELETE_WINDOW", self._on_issues_popup_close)
@@ -351,34 +356,27 @@ def main():
 
             tk.Label(
                 _issues_content,
-                text="Having tracking issues?",
+                text=tr("issues.header_issues"),
                 font=_issues_hdr_font,
                 bg=_hdr_bg,
                 fg="#e8e8e8",
             ).pack(anchor="w", pady=(0, 6))
             ttk.Label(
                 _issues_content,
-                text=(
-                    "Please ensure your cameras are well lit, focused, rotated and cropped correctly. "
-                    "Please ask in our discord for assistance if needed. We are here to help!"
-                ),
+                text=tr("issues.body_issues"),
                 wraplength=issues_wrap,
                 justify="left",
             ).pack(anchor="w", pady=(0, 16))
             tk.Label(
                 _issues_content,
-                text="Improve your experience",
+                text=tr("issues.header_improve"),
                 font=_issues_hdr_font,
                 bg=_hdr_bg,
                 fg="#e8e8e8",
             ).pack(anchor="w", pady=(0, 6))
             ttk.Label(
                 _issues_content,
-                text=(
-                    "Please consider contributing data to our training to improve future models for much better "
-                    "tracking and features. It only takes a few minutes. Every submission helps and we really want "
-                    "data on setups that work poorly, as well as ones that work well. Thank you!"
-                ),
+                text=tr("issues.body_improve"),
                 wraplength=issues_wrap,
                 justify="left",
             ).pack(anchor="w", pady=(0, 16))
@@ -394,16 +392,16 @@ def main():
 
             ttk.Button(
                 issues_btn_row,
-                text="Data Collection mode",
+                text=tr("issues.data_collection_btn"),
                 command=_launch_data_collection,
                 style="Accent.TButton",
             ).pack(side="left", padx=(0, 8))
-            ttk.Button(issues_btn_row, text="Discord", command=_open_discord).pack(side="left")
+            ttk.Button(issues_btn_row, text=tr("issues.discord_btn"), command=_open_discord).pack(side="left")
 
             _issues_close_row = ttk.Frame(self._issues_popup)
             _issues_close_row.pack(fill="x", padx=16, pady=(0, 16))
             ttk.Button(
-                _issues_close_row, text="Close", command=self._on_issues_popup_close
+                _issues_close_row, text=tr("issues.close_btn"), command=self._on_issues_popup_close
             ).pack(side="right")
 
             tracking_outer = ttk.Frame(self.tracking_tab)
@@ -419,12 +417,12 @@ def main():
             _sidebar_hdr_font = ("Segoe UI", round(10 * self._dpi_scale), "bold")
             _setup_type_outer = ttk.Frame(sidebar_inner)
             _setup_type_outer.pack(fill="x", pady=(0, 24))
-            ttk.Label(_setup_type_outer, text="Setup Type", font=_sidebar_hdr_font).pack(anchor="w", pady=(0, 4))
+            ttk.Label(_setup_type_outer, text=tr("tracking.setup_type"), font=_sidebar_hdr_font).pack(anchor="w", pady=(0, 4))
             setup_type = ttk.Frame(_setup_type_outer)
             setup_type.pack(fill="x")
             etvr_radio = ttk.Radiobutton(
                 setup_type,
-                text="ETVR Setup",
+                text=tr("tracking.setup_etvr"),
                 variable=self.mode_var,
                 value="etvr",
                 command=self.on_mode_change,
@@ -432,12 +430,11 @@ def main():
             etvr_radio.pack(anchor="w", pady=4)
             attach_tooltip(
                 etvr_radio,
-                "Standard ETVR mode: two independent cameras (UVC, serial, "
-                "or network) drive the left and right eyes.",
+                tr("tracking.setup_etvr_tip"),
             )
             bsb_radio = ttk.Radiobutton(
                 setup_type,
-                text="Bigscreen Beyond",
+                text=tr("tracking.setup_bigscreen"),
                 variable=self.mode_var,
                 value="bigscreen",
                 command=self.on_mode_change,
@@ -445,13 +442,12 @@ def main():
             bsb_radio.pack(anchor="w", pady=4)
             attach_tooltip(
                 bsb_radio,
-                "Bigscreen Beyond mode: one camera supplies both eye images "
-                "side-by-side; ETVR splits them internally.",
+                tr("tracking.setup_bigscreen_tip"),
             )
 
             _tracking_controls_outer = ttk.Frame(sidebar_inner)
             _tracking_controls_outer.pack(fill="x", pady=(0, 24))
-            ttk.Label(_tracking_controls_outer, text="Camera Settings", font=_sidebar_hdr_font).pack(anchor="w", pady=(0, 4))
+            ttk.Label(_tracking_controls_outer, text=tr("tracking.camera_settings"), font=_sidebar_hdr_font).pack(anchor="w", pady=(0, 4))
             tracking_controls = ttk.Frame(_tracking_controls_outer)
             tracking_controls.pack(fill="x")
             left_initial = config.left_eye.capture_source
@@ -463,7 +459,7 @@ def main():
                 value="" if right_initial is None or right_initial == "" else str(right_initial)
             )
             self.left_camera_label = ttk.Label(
-                tracking_controls, text="Left (UVC / COM port / URL):"
+                tracking_controls, text=tr("tracking.left_source")
             )
             self.left_camera_label.pack(anchor="w", pady=(0, 2))
             # Combobox (not Entry) so Scan can populate a dropdown of detected
@@ -477,13 +473,10 @@ def main():
             self.left_camera_entry.pack(fill="x", pady=(0, 8))
             attach_tooltip(
                 self.left_camera_entry,
-                "Capture source for the left eye. Pick from the dropdown "
-                "(populated by Scan) or type a value: UVC index (e.g. 0), "
-                "COM/serial port (e.g. COM5, /dev/cu.usbserial-0001), or URL "
-                "(e.g. http://etvr-left.local/).",
+                tr("tracking.left_source_tip"),
             )
             self.right_camera_label = ttk.Label(
-                tracking_controls, text="Right (UVC / COM port / URL):"
+                tracking_controls, text=tr("tracking.right_source")
             )
             self.right_camera_entry = ttk.Combobox(
                 tracking_controls, textvariable=self.right_camera_var, values=(), foreground="#e0e0e0"
@@ -492,12 +485,11 @@ def main():
             self.right_camera_entry.pack(fill="x", pady=(0, 8))
             attach_tooltip(
                 self.right_camera_entry,
-                "Capture source for the right eye. See the Left field for "
-                "accepted formats.",
+                tr("tracking.right_source_tip"),
             )
             # Picking a value from the dropdown auto-connects (matches what
             # users expect after running Scan). Typed input intentionally does
-            # NOT auto-connect — that's what the Connect button is for, and
+            # NOT auto-connect; that's what the Connect button is for, and
             # firing on every keystroke would thrash the capture thread.
             # <<ComboboxSelected>> only fires on dropdown selection, not edits.
             self.left_camera_entry.bind(
@@ -509,31 +501,29 @@ def main():
             camera_button_row = ttk.Frame(tracking_controls)
             camera_button_row.pack(fill="x")
             scan_btn = ttk.Button(
-                camera_button_row, text="Scan", width=8, command=self.scan_sources
+                camera_button_row, text=tr("tracking.scan_btn"), width=8, command=self.scan_sources
             )
             scan_btn.pack(side="left", padx=(0, 4))
             attach_tooltip(
                 scan_btn,
-                "Search for connected cameras: USB webcams (UVC), ETVR serial "
-                "trackers on COM ports, and network trackers on the LAN (mDNS).",
+                tr("tracking.scan_btn_tip"),
             )
             connect_btn = ttk.Button(
                 camera_button_row,
-                text="Connect",
+                text=tr("tracking.connect_btn"),
                 command=self.apply_camera_inputs,
                 style="Accent.TButton",
             )
             connect_btn.pack(side="left", fill="x", expand=True)
             attach_tooltip(
                 connect_btn,
-                "Apply the current Left/Right values and (re)open the camera "
-                "streams. Required after typing a value by hand.",
+                tr("tracking.connect_btn_tip"),
             )
 
-            status_group = ttk.LabelFrame(sidebar_inner, text="Status", padding=8)
+            status_group = ttk.LabelFrame(sidebar_inner, text=tr("tracking.status_frame"), padding=8)
             status_group.pack(fill="both", expand=True)
             self.mode_label_var = tk.StringVar(value="")
-            self.status_var = tk.StringVar(value="Ready.")
+            self.status_var = tk.StringVar(value=tr("status.ready"))
             ttk.Label(
                 status_group,
                 textvariable=self.status_var,
@@ -548,7 +538,7 @@ def main():
                 justify="left",
             ).pack(anchor="w", pady=(6, 0))
 
-            # Global mode toggle — flips both eyes between Tracking and
+            # Global mode toggle: flips both eyes between Tracking and
             # Cropping at once. Per-eye buttons used to live inside each
             # camera widget; users always wanted them paired.
             mode_row = ttk.Frame(tracking_main)
@@ -557,25 +547,23 @@ def main():
             mode_inner.pack(anchor="center")
             self._global_tracking_btn = ttk.Button(
                 mode_inner,
-                text="Tracking Mode",
+                text=tr("tracking.tracking_mode_btn"),
                 command=self._on_global_tracking_mode,
             )
             self._global_tracking_btn.pack(side="left", padx=8)
             attach_tooltip(
                 self._global_tracking_btn,
-                "Run the eye-tracking algorithm on both cameras. Use after "
-                "setting your crop regions in Cropping Mode.",
+                tr("tracking.tracking_mode_btn_tip"),
             )
             self._global_roi_btn = ttk.Button(
                 mode_inner,
-                text="Cropping Mode",
+                text=tr("tracking.cropping_mode_btn"),
                 command=self._on_global_roi_mode,
             )
             self._global_roi_btn.pack(side="left", padx=8)
             attach_tooltip(
                 self._global_roi_btn,
-                "Draw a rectangle on each camera image to isolate the eye. "
-                "Switch back to Tracking Mode when done.",
+                tr("tracking.cropping_mode_btn_tip"),
             )
 
             # Eye selector shown below the mode buttons only while in crop mode.
@@ -585,14 +573,14 @@ def main():
             _crop_inner.pack(anchor="center", pady=(12, 0))
             self._crop_left_btn = ttk.Button(
                 _crop_inner,
-                text="Left Eye",
+                text=tr("tracking.left_eye_btn"),
                 command=lambda: self._on_crop_eye_select("left"),
                 style="Accent.TButton",
             )
             self._crop_left_btn.pack(side="left", padx=4)
             self._crop_right_btn = ttk.Button(
                 _crop_inner,
-                text="Right Eye",
+                text=tr("tracking.right_eye_btn"),
                 command=lambda: self._on_crop_eye_select("right"),
             )
             self._crop_right_btn.pack(side="left", padx=4)
@@ -613,7 +601,7 @@ def main():
             self.right_frame.pack(side="left", fill="y", padx=(8, 0))
 
             # Global calibration / recenter row. Replaces the per-eye buttons
-            # that used to live in each camera widget — left/right always need
+            # that used to live in each camera widget; left/right always need
             # to calibrate together, and two pairs of buttons made it ambiguous
             # which eye's state was being toggled.
             # fill="x" on the outer frame so the inner button group can center
@@ -623,7 +611,7 @@ def main():
             self._tracking_actions.pack(fill="x", pady=(40, 0))
             actions_inner = ttk.Frame(self._tracking_actions)
             actions_inner.pack(anchor="center")
-            self._calibration_btn_text = tk.StringVar(value="Start Calibration")
+            self._calibration_btn_text = tk.StringVar(value=tr("tracking.start_calibration"))
             self._global_calibration_btn = ttk.Button(
                 actions_inner,
                 textvariable=self._calibration_btn_text,
@@ -631,37 +619,39 @@ def main():
                 style="Accent.TButton",
             )
             self._global_calibration_btn.pack(side="left", padx=(0, 8))
+            attach_tooltip(
+                self._global_calibration_btn, tr("tracking.start_calibration_tip")
+            )
             ttk.Button(
                 actions_inner,
-                text="Recenter Eyes",
+                text=tr("tracking.recenter_btn"),
                 command=self._on_global_recenter,
             ).pack(side="left", padx=8)
-            # NEXT Smart Calib: overlay-driven 6-dot affine calibration. Only
-            # shown while the NEXT model is the selected, active tracker (see
-            # _sync_next_smartcal_button), so it stays hidden for pupil trackers.
-            self._next_smartcal_btn = ttk.Button(
-                actions_inner,
-                text="NEXT Smart Calib",
-                command=self._on_next_smartcal,
-            )
-            # Escape hatch for a bad fit: clears the saved transform so the
-            # raw model gaze flows again. Shown/hidden with the calib button.
+            # Escape hatch for a bad NEXT Smart Calib fit: clears the saved
+            # transform so the raw model gaze flows again. Only shown while the
+            # NEXT tracker is active AND a fitted transform exists (see
+            # _sync_next_smartcal_reset_button). The calibration itself runs
+            # from the main Start Calibration button.
             self._next_smartcal_reset_btn = ttk.Button(
                 actions_inner,
-                text="Reset Smart Calib",
+                text=tr("tracking.next_smartcal_reset_btn"),
                 command=self._on_next_smartcal_reset,
             )
-            self._next_smartcal_visible = False
+            attach_tooltip(
+                self._next_smartcal_reset_btn,
+                tr("tracking.next_smartcal_reset_btn_tip"),
+            )
+            self._next_smartcal_reset_visible = False
             bottom = ttk.Frame(self.root)
             bottom.pack(fill="x", padx=8, pady=4)
-            ttk.Button(bottom, text="GUI OFF", command=self.gui_off).pack(side="left")
+            ttk.Button(bottom, text=tr("tracking.gui_off_btn"), command=self.gui_off).pack(side="left")
             ttk.Button(
-                bottom, text="Having Issues?", command=self._toggle_issues_popup
+                bottom, text=tr("issues.title"), command=self._toggle_issues_popup
             ).pack(side="left", padx=(10, 0))
             ttk.Button(
-                bottom, text="Contribute Data", command=self._toggle_data_collection_popup
+                bottom, text=tr("tracking.contribute_data_btn"), command=self._toggle_data_collection_popup
             ).pack(side="left", padx=(10, 0))
-            self.focus_label = ttk.Label(bottom, text="- - -  Interface Paused  - - -")
+            self.focus_label = ttk.Label(bottom, text=tr("tracking.interface_paused"))
             self.focus_label.pack(side="left", padx=12)
             self.focus_label.pack_forget()
 
@@ -669,7 +659,7 @@ def main():
             self._settings_actions_row = ttk.Frame(bottom)
             tk.Button(
                 self._settings_actions_row,
-                text="Delete config",
+                text=tr("tracking.delete_config_btn"),
                 command=self._active_settings_delete_config,
                 font=("Segoe UI", 9),
                 fg="#ffffff",
@@ -685,7 +675,7 @@ def main():
             ).pack(side="right", padx=(8, 0))
             tk.Button(
                 self._settings_actions_row,
-                text="Reset settings to default",
+                text=tr("tracking.reset_settings_btn"),
                 command=self._active_settings_reset_config,
                 font=("Segoe UI", 9),
                 fg="#000000",
@@ -757,7 +747,7 @@ def main():
             # If the user picked (or typed) one of the friendly labels from
             # the scan dropdown, translate it back to the encoded
             # uvc:<name>@<address> capture-source string before any further
-            # parsing — otherwise it'd fall through to the "looks like a URL?"
+            # parsing; otherwise it'd fall through to the "looks like a URL?"
             # branch below and get http://-prefixed.
             mapped = self._source_display_map.get(value)
             if mapped is not None:
@@ -780,15 +770,15 @@ def main():
             is_bigscreen = mode == "bigscreen"
             if is_bigscreen:
                 self.right_camera_entry.state(["disabled"])
-                self.left_camera_label.configure(text="Source (UVC Index):")
-                self.right_camera_label.configure(text="Right (same source):")
+                self.left_camera_label.configure(text=tr("tracking.source_uvc_index"))
+                self.right_camera_label.configure(text=tr("tracking.right_same_source"))
             else:
                 self.right_camera_entry.state(["!disabled"])
-                self.left_camera_label.configure(text="Left (UVC / COM port / URL):")
-                self.right_camera_label.configure(text="Right (UVC / COM port / URL):")
+                self.left_camera_label.configure(text=tr("tracking.left_source"))
+                self.right_camera_label.configure(text=tr("tracking.right_source"))
             # Persist so the next launch reopens in the same mode rather than
             # falling back to ETVR (which then reuses the BSB-era right_eye
-            # source — the same camera as the left).
+            # source, the same camera as the left).
             if getattr(config.settings, "gui_setup_mode", None) != mode:
                 config.settings.gui_setup_mode = mode
                 config.save()
@@ -802,10 +792,10 @@ def main():
                     config.update({"gui_model_variant": default_variant}, save=True)
 
         def scan_sources(self):
-            self.status_var.set("Scanning UVC, mDNS, and serial sources...")
+            self.status_var.set(tr("status.scanning"))
 
             def _scan():
-                # Results dict — None means that source is still in-flight.
+                # Results dict: None means that source is still in-flight.
                 results: dict[str, list | None] = {
                     "uvc": None,
                     "mdns": None,
@@ -817,7 +807,6 @@ def main():
                     mdns_values = results["mdns"] or []
                     serial_pairs = results["serial"] or []
 
-                    # Build UVC display labels.
                     name_totals: dict[str, int] = {}
                     for c in uvc_cams:
                         name_totals[c["name"]] = name_totals.get(c["name"], 0) + 1
@@ -835,7 +824,7 @@ def main():
                     # entries. Without this, mDNS/serial returning first empties
                     # source_map of UVC entries, and any navigation that triggers
                     # apply_camera_inputs will see _source_display_map without the
-                    # friendly labels — causing _normalize_camera_input to treat
+                    # friendly labels, causing _normalize_camera_input to treat
                     # "Camera (1)" as a URL and corrupt the saved config.
                     if results["uvc"] is None:
                         for k, v in self._source_display_map.items():
@@ -869,20 +858,21 @@ def main():
                     if pending:
                         ready_parts = []
                         if results["uvc"] is not None:
-                            ready_parts.append(f"UVC: {', '.join(uvc_display_values) or 'none'}")
+                            ready_parts.append(f"UVC: {', '.join(uvc_display_values) or tr('status.scan_none')}")
                         if results["mdns"] is not None:
-                            ready_parts.append(f"mDNS: {', '.join(mdns_values) or 'none'}")
+                            ready_parts.append(f"mDNS: {', '.join(mdns_values) or tr('status.scan_none')}")
                         if results["serial"] is not None:
-                            ready_parts.append(f"Serial: {', '.join(serial_display_values) or 'none'}")
+                            ready_parts.append(f"Serial: {', '.join(serial_display_values) or tr('status.scan_none')}")
                         prefix = " | ".join(ready_parts) + (" | " if ready_parts else "")
-                        self.status_var.set(f"{prefix}Scanning {', '.join(pending)}...")
-                    else:
-                        uvc_hint = ", ".join(uvc_display_values) or "none"
-                        mdns_hint = ", ".join(mdns_values) or "none"
-                        serial_hint = ", ".join(serial_display_values) or "none"
                         self.status_var.set(
-                            f"Detected mDNS: {mdns_hint} | "
-                            f"Serial: {serial_hint} | UVC: {uvc_hint}"
+                            tr("status.scan_pending", prefix=prefix, pending=", ".join(pending))
+                        )
+                    else:
+                        uvc_hint = ", ".join(uvc_display_values) or tr("status.scan_none")
+                        mdns_hint = ", ".join(mdns_values) or tr("status.scan_none")
+                        serial_hint = ", ".join(serial_display_values) or tr("status.scan_none")
+                        self.status_var.set(
+                            tr("status.scan_detected", mdns=mdns_hint, serial=serial_hint, uvc=uvc_hint)
                         )
 
                 with ThreadPoolExecutor(max_workers=3) as pool:
@@ -902,7 +892,7 @@ def main():
             threading.Thread(target=_scan, daemon=True).start()
 
         def _camera_tracking_state_key(self, left_source, right_source):
-            # Use explicit None checks — UVC index 0 is a valid source but is falsy in Python,
+            # Use explicit None checks: UVC index 0 is a valid source but is falsy in Python,
             # so `not left_source` would mis-classify it as "no source" and skip starting trackers.
             has_left = left_source is not None and left_source != ""
             has_right = right_source is not None and right_source != ""
@@ -968,8 +958,8 @@ def main():
                         eyes[1].start()
                 config.settings.tracker_single_eye = 0
                 config.eye_display_id = EyeId.BOTH
-                self.mode_label_var.set("Mode: Dual-eye tracking")
-                self.status_var.set("Tracking both eyes.")
+                self.mode_label_var.set(tr("status.mode_dual"))
+                self.status_var.set(tr("status.tracking_both"))
             elif has_left:
                 if not eyes[1].started():
                     eyes[0].camera.set_extra_output_queues([])
@@ -978,8 +968,8 @@ def main():
                     eyes[1].start()
                 config.settings.tracker_single_eye = 1
                 config.eye_display_id = EyeId.LEFT
-                self.mode_label_var.set("Mode: Single-eye (left)")
-                self.status_var.set("Tracking left eye only.")
+                self.mode_label_var.set(tr("status.mode_single_left"))
+                self.status_var.set(tr("status.tracking_left"))
             elif has_right:
                 if not eyes[0].started():
                     eyes[0].camera.set_extra_output_queues([])
@@ -988,15 +978,15 @@ def main():
                     eyes[0].start()
                 config.settings.tracker_single_eye = 2
                 config.eye_display_id = EyeId.RIGHT
-                self.mode_label_var.set("Mode: Single-eye (right)")
-                self.status_var.set("Tracking right eye only.")
+                self.mode_label_var.set(tr("status.mode_single_right"))
+                self.status_var.set(tr("status.tracking_right"))
             else:
                 eyes[0].stop()
                 eyes[1].stop()
                 config.settings.tracker_single_eye = 0
                 config.eye_display_id = EyeId.BOTH
-                self.mode_label_var.set("Mode: No active camera")
-                self.status_var.set("Enter at least one camera source.")
+                self.mode_label_var.set(tr("status.mode_none"))
+                self.status_var.set(tr("status.enter_source"))
 
             config.save()
             self._sync_timer_resolution()
@@ -1126,7 +1116,7 @@ def main():
             dialog = tk.Toplevel()
             dialog.title("ETVR")
             apply_theme_to_titlebar(dialog)
-            ttk.Label(dialog, text="GUI Disabled!").pack(padx=12, pady=8)
+            ttk.Label(dialog, text=tr("tracking.gui_disabled_msg")).pack(padx=12, pady=8)
 
             def enable_gui():
                 config.settings.gui_disable_gui = False
@@ -1135,7 +1125,7 @@ def main():
                 dialog.destroy()
                 self.root.deiconify()
 
-            ttk.Button(dialog, text="Enable GUI", command=enable_gui).pack(
+            ttk.Button(dialog, text=tr("tracking.enable_gui_btn"), command=enable_gui).pack(
                 padx=12, pady=(0, 8)
             )
             dialog.protocol("WM_DELETE_WINDOW", enable_gui)
@@ -1148,8 +1138,29 @@ def main():
             return False
 
         def _on_global_calibration_toggle(self):
+            # NEXT without the legacy ellipse path ("Allow Calibration" off)
+            # calibrates via the Smart Calib overlay dot sequence; the ellipse
+            # spiral would collect nothing because the NEXT path never feeds
+            # cal_osc in that configuration.
+            use_smartcal = bool(config.settings.gui_NEXT) and not bool(
+                config.settings.gui_NEXT_calibration
+            )
             if config.settings.gui_use_overlay_cal:
-                self._on_ellipse_calibration()
+                if use_smartcal:
+                    self._on_next_smartcal()
+                else:
+                    self._on_ellipse_calibration()
+                return
+            if use_smartcal:
+                # No on-screen equivalent exists for the NEXT smart calibration,
+                # and the classic sampler would never finish (cal_osc is skipped
+                # for NEXT while gui_NEXT_calibration is off).
+                logger.warning(
+                    "NEXT Smart Calib requires the SteamVR overlay. Enable "
+                    "'Use SteamVR Overlay for Calibration' in General Settings, "
+                    "or enable 'Allow Calibration' on the NEXT tracker for the "
+                    "classic on-screen method."
+                )
                 return
             # Classic on-screen calibration toggle: stop if running, start if not.
             if self._any_eye_calibrating():
@@ -1265,31 +1276,39 @@ def main():
                 return
             reset_next_smartcal(eps, config)
 
-        def _sync_next_smartcal_button(self):
-            # Visible only when NEXT is the selected model and tracking is live.
-            show = bool(config.settings.gui_NEXT) and any(e.started() for e in eyes)
-            if show == self._next_smartcal_visible:
+        def _sync_next_smartcal_reset_button(self):
+            # The reset escape hatch is only meaningful when a fitted transform
+            # is actually saved; keeping it hidden otherwise avoids cluttering
+            # the action row for fresh installs.
+            has_fit = (
+                config.left_eye.next_smartcal_w is not None
+                or config.right_eye.next_smartcal_w is not None
+            )
+            show = (
+                bool(config.settings.gui_NEXT)
+                and has_fit
+                and any(e.started() for e in eyes)
+            )
+            if show == self._next_smartcal_reset_visible:
                 return
-            self._next_smartcal_visible = show
+            self._next_smartcal_reset_visible = show
             if show:
-                self._next_smartcal_btn.pack(side="left", padx=8)
-                self._next_smartcal_reset_btn.pack(side="left", padx=(0, 8))
+                self._next_smartcal_reset_btn.pack(side="left", padx=8)
             else:
-                self._next_smartcal_btn.pack_forget()
                 self._next_smartcal_reset_btn.pack_forget()
 
         def _sync_global_calibration_button(self):
             text = (
-                "Stop Calibration"
+                tr("tracking.stop_calibration")
                 if self._any_eye_calibrating()
-                else "Start Calibration"
+                else tr("tracking.start_calibration")
             )
             if self._calibration_btn_text.get() != text:
                 self._calibration_btn_text.set(text)
 
         def _tick(self):
             if openvr_service is not None and openvr_service.poll_quit_event():
-                logger.info("SteamVR quit — shutting down EyeTrackApp")
+                logger.info("SteamVR quit, shutting down EyeTrackApp")
                 self.shutdown()
                 return
 
@@ -1307,7 +1326,7 @@ def main():
                         if eye.started():
                             eye.render_tick()
                     self._sync_global_calibration_button()
-                    self._sync_next_smartcal_button()
+                    self._sync_next_smartcal_reset_button()
             else:
                 if not self.focus_paused:
                     self.focus_paused = True

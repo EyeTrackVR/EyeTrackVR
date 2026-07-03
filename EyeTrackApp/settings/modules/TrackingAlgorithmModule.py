@@ -3,51 +3,13 @@ import tkinter as tk
 from tkinter import ttk
 
 from utils.tooltips import attach_tooltip
+from localization import tr
 
-
-# Tooltip text keyed by the algorithm's internal name (the radio button value).
-_ALGO_TIPS = {
-    "leap": (
-        "LEAP — neural-network pupil tracker. Best general-purpose choice; "
-        "handles low contrast and partial occlusion well."
-    ),
-    "ahrac": (
-        "AHRAC — adaptive HSF + RANSAC. Falls back to RANSAC when HSF can't "
-        "lock on. Good middle ground."
-    ),
-    "daddy": (
-        "DADDY — older neural-network tracker. Heavier than LEAP; usually no "
-        "reason to pick this unless LEAP misbehaves on your camera."
-    ),
-    "ransac3d": (
-        "RANSAC 3D — fits an ellipse to the pupil edge in 3D. Robust to "
-        "lighting changes but slower than LEAP."
-    ),
-    "next": (
-        "NEXT — end-to-end neural network tracker. Takes the raw camera frame "
-        "and directly outputs gaze, eyebrow, eyelid, and squint."
-    ),
-    "ahsf": "AHSF — adaptive Haar surround feature. Fast classical tracker.",
-    "hsrac": "HSRAC — Haar surround + RANSAC. Older HSF/RANSAC hybrid.",
-    "hsf": "HSF — Haar surround feature. Classical, very fast, less robust.",
-}
-
-_TIP_MAX_SPEED = (
-    "Maximum frames per second the tracker will process. Lower = less CPU, "
-    "but jerkier motion. 60 Hz is comfortable for most setups."
-)
 
 # Selectable model variants, shared by the NEXT and eyebrow models. Each maps
 # to Models/NEXT_<VARIANT>.onnx and Models/Eyebrow_<VARIANT>.onnx. The "<BASE> LITE"
 # options load the fp16 NEXT build (Models/NEXT_<BASE>.fp16.onnx).
 _MODEL_VARIANTS = ("ETVR", "BSB", "TOBII", "ETVR LITE", "BSB LITE")
-_TIP_MODEL_VARIANT = (
-    "Which model variant to load for both the NEXT tracker and the eyebrow "
-    "model. ETVR is the default; BSB and Tobii load the matching "
-    "NEXT_<variant>.onnx / Eyebrow_<variant>.onnx files. The Lite options "
-    "(ETVR Lite / BSB Lite) load an fp16 build of the NEXT model — smaller and "
-    "faster, at a small precision cost."
-)
 
 
 class TrackingAlgorithmValidationModel(BaseValidationModel):
@@ -71,7 +33,7 @@ class TrackingAlgorithmModule(BaseSettingsModule):
     def __init__(self, config, widget_id, **kwargs):
         super().__init__(config=config, widget_id=widget_id, **kwargs)
         self.validation_model = TrackingAlgorithmValidationModel
-        # Full EyeTrackConfig — needed to persist the manual-override flag and to
+        # Full EyeTrackConfig: needed to persist the manual-override flag and to
         # register a listener that keeps the model combobox synced with the
         # auto-shift performed when the setup mode changes.
         self._main_config = kwargs.get("settings")
@@ -92,7 +54,7 @@ class TrackingAlgorithmModule(BaseSettingsModule):
             ("AHRAC", "ahrac", self.gui_AHRAC, "gui_AHRAC"),
             ("DADDY", "daddy", self.gui_DADDY, "gui_DADDY"),
             ("RANSAC 3D", "ransac3d", self.gui_RANSAC3D, "gui_RANSAC3D"),
-            ("NEXT (alpha)", "next", self.gui_NEXT, "gui_NEXT"),
+            (tr("algo_tracking.next_alpha"), "next", self.gui_NEXT, "gui_NEXT"),
         ]
         self._advanced_entries = [
             ("ASHSF", "ahsf", self.gui_AHSF, "gui_AHSF"),
@@ -126,16 +88,11 @@ class TrackingAlgorithmModule(BaseSettingsModule):
             next_row, next_col = positions["next"]
             cb = ttk.Checkbutton(
                 radio_frame,
-                text="Allow Calibration",
+                text=tr("algo_tracking.allow_calibration"),
                 variable=next_cal_var,
             )
             cb.grid(row=next_row, column=next_col + 1, sticky="w", padx=(0, 8), pady=2)
-            attach_tooltip(
-                cb,
-                "Pipe NEXT gaze output through the standard calibration filter "
-                "(ellipse / robust) and apply the Blink Point / Wide-eye Point "
-                "remap to the eyelid output.",
-            )
+            attach_tooltip(cb, tr("algo_tracking.allow_calibration_tip"))
 
         speed_var = tk.IntVar(
             value=int(getattr(self.config, "gui_max_tracking_speed", 60))
@@ -144,7 +101,7 @@ class TrackingAlgorithmModule(BaseSettingsModule):
         self._add_slider_with_controls(
             parent,
             row=1,
-            label="Max Tracking Speed (Hz)",
+            label=tr("algo_tracking.max_tracking_speed"),
             var=speed_var,
             min_v=self._TRACKING_SPEED_MIN,
             max_v=self._TRACKING_SPEED_MAX,
@@ -159,9 +116,9 @@ class TrackingAlgorithmModule(BaseSettingsModule):
         self._model_var = model_var
         model_frame = ttk.Frame(parent)
         model_frame.grid(row=1, column=5, sticky="w", padx=(12, 8), pady=2)
-        model_lbl = ttk.Label(model_frame, text="Model")
+        model_lbl = ttk.Label(model_frame, text=tr("algo_tracking.model"))
         model_lbl.grid(row=0, column=0, sticky="w", padx=(0, 4))
-        attach_tooltip(model_lbl, _TIP_MODEL_VARIANT)
+        attach_tooltip(model_lbl, tr("algo_tracking.model_tip"))
         combo = ttk.Combobox(
             model_frame,
             textvariable=model_var,
@@ -170,7 +127,7 @@ class TrackingAlgorithmModule(BaseSettingsModule):
             width=8,
         )
         combo.grid(row=0, column=1, sticky="w")
-        attach_tooltip(combo, _TIP_MODEL_VARIANT)
+        attach_tooltip(combo, tr("algo_tracking.model_tip"))
         # A manual selection sticks: it stops the setup-mode auto-shift from
         # overriding the choice on future mode switches. <<ComboboxSelected>>
         # only fires on user interaction, not on programmatic .set() from the
@@ -212,7 +169,7 @@ class TrackingAlgorithmModule(BaseSettingsModule):
             pass
 
     def build_advanced(self, parent):
-        ttk.Label(parent, text="Tracking Algorithm (advanced)").grid(
+        ttk.Label(parent, text=tr("algo_tracking.advanced_heading")).grid(
             row=0, column=0, columnspan=4, sticky="w", padx=8, pady=(2, 2)
         )
         self._render_radio_grid(
@@ -230,9 +187,7 @@ class TrackingAlgorithmModule(BaseSettingsModule):
                 parent, text=label, variable=self.selected_algo, value=name
             )
             rb.grid(row=row, column=col, sticky="w", padx=8, pady=2)
-            tip = _ALGO_TIPS.get(name)
-            if tip:
-                attach_tooltip(rb, tip)
+            attach_tooltip(rb, tr(f"algo_tracking.{name}_tip"))
             positions[name] = (row, col)
         return positions
 
@@ -250,7 +205,7 @@ class TrackingAlgorithmModule(BaseSettingsModule):
 
         lbl = ttk.Label(parent, text=label)
         lbl.grid(row=row, column=0, sticky="w", padx=8, pady=2)
-        attach_tooltip(lbl, _TIP_MAX_SPEED)
+        attach_tooltip(lbl, tr("algo_tracking.max_tracking_speed_tip"))
         ttk.Scale(
             parent,
             from_=min_v,

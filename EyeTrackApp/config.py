@@ -52,7 +52,7 @@ def _user_data_dir() -> str:
     installer marks it user-writable). On Linux/macOS a system install usually
     is NOT writable and the launch CWD is arbitrary (e.g. $HOME from a .desktop
     entry), so the config belongs in the XDG config dir. A config file already
-    present in the CWD wins on every platform — source checkouts and portable
+    present in the CWD wins on every platform: source checkouts and portable
     unpacked installs keep working exactly as before.
     """
     if os.name == "nt" or os.path.exists("eyetrack_settings.json"):
@@ -76,14 +76,14 @@ BACKUP_CONFIG_FILE_NAME: str = os.path.join(_USER_DATA_DIR, "eyetrack_settings.b
 # Bump this whenever a release changes the *semantics* of an existing field
 # (renames, metric reworks, etc.) so that configs from older versions can be
 # migrated rather than silently misinterpreted. New fields with safe defaults
-# do NOT need a bump — pydantic fills those in automatically.
+# do NOT need a bump; pydantic fills those in automatically.
 #
 # Migration history:
 #   1 -> 2: leap lid metric was reworked alongside per-eye lid thresholds. Old
 #           configs may carry stale leap_calibration_percentile_* values whose
 #           semantics no longer match leap.py's expectations, but the new
 #           leap_lid_metric_version field defaults to the current version on
-#           load — so the in-code "metric changed, recalibrate" guard misses
+#           load, so the in-code "metric changed, recalibrate" guard misses
 #           them. Wipe the stored calibration on this hop to force a fresh one.
 CURRENT_CONFIG_VERSION: int = 2
 
@@ -131,7 +131,7 @@ class EyeTrackCameraConfig(BaseModel):
     roi_window_h: int = 240
     # Stamp set by the Bigscreen auto-crop so we know which (frame_w, frame_h)
     # the current ROI was derived from. None means "user-set or not yet auto-
-    # cropped" — auto-crop refuses to touch an ROI unless the stamp matches a
+    # cropped": auto-crop refuses to touch an ROI unless the stamp matches a
     # previous auto-apply we made, or the ROI looks untouched-default.
     bigscreen_auto_crop_frame: Union[List[int], None] = None
     # focal_length is in PIXELS (pye3d's CameraModel expects pixel focal length,
@@ -272,7 +272,6 @@ class EyeTrackCameraConfig(BaseModel):
                 continue
 
             old_value = getattr(self, key, None)
-            # no reason to update if it's the same value
             if old_value == value:
                 continue
 
@@ -416,10 +415,16 @@ class EyeTrackSettingsConfig(BaseModel):
 
     # Setup mode picked on the Tracking tab. Persisted so a user who picked
     # Bigscreen Beyond doesn't relaunch into normal ETVR mode (which would
-    # then load whatever was saved as the right eye's source — in BSB that's
+    # then load whatever was saved as the right eye's source, in BSB that's
     # the same camera as the left, producing the "both eyes on one webcam"
     # state).
     gui_setup_mode: str = "etvr"
+
+    # UI language, as a locale code matching a file in the lang/ folder
+    # (e.g. "en", "es"). Default English. Applied at startup by
+    # localization.init_localization(); changing it in the GUI prompts a
+    # restart. See localization.py.
+    gui_language: str = "en"
 
     @model_validator(mode="before")
     @classmethod

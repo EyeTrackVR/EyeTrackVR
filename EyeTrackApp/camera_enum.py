@@ -111,7 +111,7 @@ def _windows_wmi_only_metadata(pnp_map: dict[str, list[str]]) -> list[tuple[str,
     Includes every DeviceID per name so that two identical cameras (same
     friendly name, same VID/PID) both appear as selectable sources. WMI
     registration order may not match DirectShow/cv2 enumeration order for
-    multi-camera setups — cameras might be swapped — but both are at least
+    multi-camera setups (cameras might be swapped), but both are at least
     visible and carry stable per-port DeviceID addresses, which is strictly
     better than the blind ``'Camera N'``/``'index:N'`` probe fallback."""
     result: list[tuple[str, str]] = []
@@ -126,7 +126,7 @@ def _windows_camera_metadata() -> list[tuple[str, str]]:
 
     cv2's DSHOW backend opens cameras in DirectShow moniker enumerator order.
     pygrabber walks the *same* enumerator, so its name list is index-aligned
-    with cv2 — unlike ``Win32_PnPEntity`` which returns devices in PnP-
+    with cv2, unlike ``Win32_PnPEntity`` which returns devices in PnP-
     registration order and silently mis-pairs names with indices. PowerShell
     is kept only to attach stable DeviceID addresses to the pygrabber names.
 
@@ -147,7 +147,7 @@ def _windows_camera_metadata() -> list[tuple[str, str]]:
 
     # pygrabber drives DirectShow through COM, which requires the calling thread
     # to have initialized COM. The GUI scan thread inherits an initialized
-    # apartment (Tk/cv2 set one up), but the camera *capture* thread does not —
+    # apartment (Tk/cv2 set one up), but the camera *capture* thread does not:
     # there the first FilterGraph() raises "CoInitialize has not been called",
     # pygrabber silently falls back to WMI ordering, and WMI device order does
     # NOT match cv2/DirectShow index order, so the wrong index gets opened (the
@@ -157,7 +157,7 @@ def _windows_camera_metadata() -> list[tuple[str, str]]:
     # (like the scan thread) that already had it up.
     _com_up = False
     try:
-        import comtypes  # pygrabber's own COM layer — always present with pygrabber
+        import comtypes  # pygrabber's own COM layer, always present with pygrabber
         try:
             comtypes.CoInitialize()
             _com_up = True
@@ -298,7 +298,7 @@ def release_uvc_claim(owner_id: int) -> None:
 _UVC_LIST_CACHE_TTL = 10.0
 # Prevents two threads from running _list_uvc_cameras_uncached() simultaneously.
 # Without this, both camera threads see an expired cache at the same instant and
-# both invoke pygrabber/DirectShow — the concurrent COM calls interfere with
+# both invoke pygrabber/DirectShow; the concurrent COM calls interfere with
 # active cv2.CAP_DSHOW handles, producing read failures and 1-fps stalls.
 _uvc_enumerate_lock = threading.Lock()
 
@@ -328,7 +328,7 @@ def list_uvc_cameras() -> "list[dict]":
     a usable key.
 
     When OS metadata is available we trust its enumeration and skip probing
-    cv2 indices entirely — probing opens/releases every index, which briefly
+    cv2 indices entirely: probing opens/releases every index, which briefly
     grabs the device handle and races with whatever else (including our own
     capture thread on retry) is trying to open the same camera. We only fall
     back to probing when the OS query produced nothing usable.
@@ -385,7 +385,7 @@ _ETVR_MDNS_LOOKUP_TIMEOUT_S = 5.0
 def _resolve_mdns_host(host: str) -> bool:
     """Returns True if ``host`` currently resolves (i.e. the device is
     advertising on the LAN). Uses ``socket.gethostbyname`` so this is a
-    blocking call — callers must run it on a worker thread."""
+    blocking call; callers must run it on a worker thread."""
     try:
         socket.gethostbyname(host)
         return True
@@ -401,7 +401,7 @@ def discover_etvr_mdns_sources(
     the LAN via mDNS. ``socket.gethostbyname`` has no per-call timeout, so we
     fan out one worker thread per host and join with a deadline; hosts that
     don't resolve in time are dropped from the result. Safe to call from the
-    UVC scan thread (still don't call from the UI thread — it blocks)."""
+    UVC scan thread (still don't call from the UI thread; it blocks)."""
     hosts = list(hosts)
     found: dict[str, bool] = {}
 
@@ -419,7 +419,7 @@ def discover_etvr_mdns_sources(
 
 # ETVR firmware streams MJPEG over USB-serial at 3 Mbaud on Windows/Linux and
 # 115200 on macOS (the high baud rate isn't reliably supported on darwin USB
-# CDC drivers — keep these aligned with start_serial_connection in camera.py).
+# CDC drivers; keep these aligned with start_serial_connection in camera.py).
 _SERIAL_BAUD_DEFAULT = 3_000_000
 _SERIAL_BAUD_DARWIN = 115_200
 # Total wall-clock budget per port.  Opening the port briefly toggles DTR,
@@ -429,7 +429,7 @@ _SERIAL_PROBE_TIMEOUT_S = 4.0
 # Cap concurrent probes so we don't open dozens of ports at once on machines
 # with many virtual COM ports (USB-CDC modems, debug ports, etc.).
 _SERIAL_PROBE_WORKERS = 4
-# Marker that identifies a JPEG payload — same SOI that camera.py looks for in
+# Marker that identifies a JPEG payload: same SOI that camera.py looks for in
 # the live stream. Three bytes is specific enough that random noise from a
 # non-camera device hitting the same baud is vanishingly unlikely to match.
 _JPEG_SOI = b"\xff\xd8\xff"
@@ -439,7 +439,7 @@ def _looks_like_usable_serial(port_info) -> bool:
     """Filter out ports we should not probe.
 
     macOS exposes Bluetooth modem endpoints (``/dev/cu.Bluetooth-*``,
-    ``/dev/cu.debug-console``) as comports — opening them at 3 Mbaud is at
+    ``/dev/cu.debug-console``) as comports; opening them at 3 Mbaud is at
     best slow and at worst kicks an active Bluetooth session. Anything with a
     USB vendor ID is fair game; otherwise we look at the device name."""
     name = (port_info.device or "").lower()
@@ -456,7 +456,7 @@ def _looks_like_usable_serial(port_info) -> bool:
 def _probe_serial_for_jpeg(device: str, baud: int, timeout_s: float) -> bool:
     """Open ``device`` at ``baud`` and look for a JPEG SOI within ``timeout_s``.
 
-    Returns True iff we see ``\\xff\\xd8\\xff`` in the byte stream — that's
+    Returns True iff we see ``\\xff\\xd8\\xff`` in the byte stream: that's
     proof the port is currently emitting MJPEG frames the way ETVR firmware
     does. Anything that raises (port busy, permission denied, no such device)
     is silently treated as "not an ETVR cam"; the caller has nothing useful
@@ -503,7 +503,7 @@ def _probe_serial_for_jpeg(device: str, baud: int, timeout_s: float) -> bool:
         try:
             if conn is not None:
                 conn.close()
-        except (Exception,):  # noqa: BLE001 — close failure during scan is irrelevant
+        except (Exception,):  # noqa: BLE001 - close failure during scan is irrelevant
             pass
 
 
@@ -517,7 +517,7 @@ def discover_etvr_serial_cameras(
     Probes run in parallel under a small thread pool so the wall-clock scan
     stays near ``timeout_s`` even on machines with multiple candidate ports.
     Ports that are already held by the live capture thread will fail to open
-    and are silently dropped — that's correct, since the user already has
+    and are silently dropped: that's correct, since the user already has
     them configured.
 
     Safe to call from a worker thread. Do not call from the UI thread; serial
@@ -544,7 +544,7 @@ def discover_etvr_serial_cameras(
             port = futures[fut]
             try:
                 ok = fut.result()
-            except Exception as e:  # noqa: BLE001 — defensive; a hung probe shouldn't sink the scan
+            except Exception as e:  # noqa: BLE001 - defensive; a hung probe shouldn't sink the scan
                 logger.debug("Serial probe %s raised: %s", port.device, e)
                 ok = False
             if ok:
@@ -581,7 +581,7 @@ def resolve_uvc_address_to_index(
     when multiple cameras share the same name: if exactly one of those cameras
     is not already claimed by a sibling, that one is returned automatically.
     This recovers the common case where one camera was replugged and Windows
-    assigned it a new device-instance path — the sibling camera's claim
+    assigned it a new device-instance path; the sibling camera's claim
     identifies the "taken" slot so we can infer the unclaimed one must be ours.
 
     Returns ``(cv2_index, resolved_device_address)`` or ``None`` if the camera

@@ -24,7 +24,7 @@ winotify = [
 pywinstyles = {version = "^1.8.0", platform = "win32"}
 # DirectShow camera enumeration on Windows. cv2's DSHOW backend opens cameras
 # in DirectShow moniker order; pygrabber walks the same enumerator, so its
-# name order matches cv2 index order exactly — which Win32_PnPEntity does NOT.
+# name order matches cv2 index order exactly, which Win32_PnPEntity does NOT.
 pygrabber = {version = "^0.2", platform = "win32"}
 colorama = "^0.4.6"
 taskipy = "^1.10.4"

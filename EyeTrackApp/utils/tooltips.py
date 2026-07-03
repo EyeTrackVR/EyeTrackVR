@@ -8,7 +8,7 @@ Design choices that fix the macOS/Aqua flicker we hit with a naïve approach:
 
 * **One Toplevel per Tooltip, reused.** Built lazily on first hover, then kept
   around hidden between showings. Re-creating it on every Enter caused the
-  visible flicker — Aqua maps the new window at (0,0), processes layout,
+  visible flicker: Aqua maps the new window at (0,0), processes layout,
   applies overrideredirect, then jumps it into place. Reuse skips all that.
 * **``-alpha 0`` until placed.** Even with ``withdraw()`` + ``deiconify()``,
   the first ``deiconify`` on macOS occasionally shows one frame at the old
@@ -24,7 +24,7 @@ from tkinter import ttk
 
 
 # Style applied to the inner label. Configured once on first use against
-# whichever root the first tooltip is attached to — ttk styles are tied to a
+# whichever root the first tooltip is attached to; ttk styles are tied to a
 # Tk interpreter, not a specific widget, so this is safe to share.
 _STYLE_NAME = "Tooltip.TLabel"
 _BG = "#1f1f1f"
@@ -105,7 +105,7 @@ class Tooltip:
     def _on_motion(self, event) -> None:
         # While the tooltip is *not* yet visible we track the cursor so it
         # appears near where the user is hovering. Once visible we leave it
-        # alone — sliding the tooltip around feels jittery and is also how
+        # alone: sliding the tooltip around feels jittery and is also how
         # we get into <Enter>/<Leave> ping-pong.
         if self._visible:
             return
@@ -160,7 +160,7 @@ class Tooltip:
         # ``-alpha 0`` keeps the window invisible during the first deiconify
         # so position changes never flash to the user. We flip it to 1 once
         # geometry is in place. If the platform doesn't support alpha (rare
-        # under modern Tk) we just skip the trick — withdraw/deiconify alone
+        # under modern Tk) we just skip the trick; withdraw/deiconify alone
         # works well enough on those platforms.
         self._alpha_supported = True
         try:

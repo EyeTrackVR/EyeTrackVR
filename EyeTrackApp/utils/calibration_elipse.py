@@ -1,6 +1,8 @@
 import numpy as np
 import matplotlib.pyplot as plt
 
+from localization import tr
+
 
 class CalibrationEllipse:
     def __init__(self, n_std_devs=2.5):
@@ -152,7 +154,7 @@ class CalibrationEllipse:
     def fit_and_visualize(self):
         plt.figure(figsize=(10, 8))
 
-        plt.plot(self.xs, self.ys, "k.", label="Samples", alpha=0.5)
+        plt.plot(self.xs, self.ys, "k.", label=tr("calibration.plot_samples"), alpha=0.5)
         plt.axis("equal")
         plt.grid(True, alpha=0.3)
 
@@ -169,9 +171,9 @@ class CalibrationEllipse:
             el_x = self.center[0] + scaled_axes[0] * np.cos(t)
             el_y = self.center[1] + scaled_axes[1] * np.sin(t)
 
-            plt.plot(el_x, el_y, "b-", linewidth=2, label="Axis-Aligned Fit")
+            plt.plot(el_x, el_y, "b-", linewidth=2, label=tr("calibration.plot_fit"))
             plt.plot(
-                self.center[0], self.center[1], "r+", markersize=15, label="Center"
+                self.center[0], self.center[1], "r+", markersize=15, label=tr("calibration.plot_center")
             )
 
             plt.hlines(
@@ -180,7 +182,7 @@ class CalibrationEllipse:
                 self.center[0] + scaled_axes[0],
                 colors="g",
                 linestyles="-",
-                label="Width (X)",
+                label=tr("calibration.plot_width_x"),
             )
 
             plt.vlines(
@@ -189,12 +191,12 @@ class CalibrationEllipse:
                 self.center[1] + scaled_axes[1],
                 colors="m",
                 linestyles="-",
-                label="Height (Y)",
+                label=tr("calibration.plot_height_y"),
             )
 
-            plt.title(f"Axis-Aligned Calibration (FlipX={self.flip_x})")
+            plt.title(tr("calibration.plot_title", flip_x=self.flip_x))
         else:
-            plt.title("Fit FAILED")
+            plt.title(tr("calibration.plot_fit_failed"))
 
         plt.legend()
         plt.tight_layout()

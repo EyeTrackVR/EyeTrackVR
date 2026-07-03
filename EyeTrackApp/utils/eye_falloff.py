@@ -151,7 +151,6 @@ def velocity_falloff(self, var, out_x, out_y, inst_velocity: float = 0.0):
             var.r_eye_velocity = max(var.r_eye_velocity, var.l_eye_velocity * 2.0 + 0.5)
             return var.l_eye_x, var.left_y
 
-    # Measure divergence between the two calibrated eye outputs.
     dx = var.l_eye_x - var.r_eye_x
     dy = var.left_y - var.right_y
     dist = math.sqrt(dx * dx + dy * dy)
@@ -174,7 +173,6 @@ def velocity_falloff(self, var, out_x, out_y, inst_velocity: float = 0.0):
     mid_y = (var.left_y + var.right_y) * 0.5
 
     if dist > thresh:
-        # Accumulate per-region noise while diverging.
         _update_noise(eye_id, mid_x, mid_y, inst_velocity)
 
         # Elect the stable eye once per divergence event and commit to it.
@@ -185,7 +183,7 @@ def velocity_falloff(self, var, out_x, out_y, inst_velocity: float = 0.0):
 
     # dist <= thresh but latch is active: convergence with hysteresis.
     if dist < thresh * _HYSTERESIS_RECOVER:
-        # Divergence has fully recovered — return to independent tracking.
+        # Divergence has fully recovered; return to independent tracking.
         _latched_eye = None
         return out_x, out_y
 

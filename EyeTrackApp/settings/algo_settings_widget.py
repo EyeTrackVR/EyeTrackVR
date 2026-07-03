@@ -34,6 +34,7 @@ from PIL import Image, ImageTk
 from config import EyeTrackConfig
 from eye import EyeId
 from utils.logging_utils import open_logs
+from localization import tr
 
 from settings.BaseSettings import BaseSettingsWidget
 from settings.modules.AdvancedTrackingAlgoSettingsModule import (
@@ -80,7 +81,7 @@ class AlgoSettingsWidget(BaseSettingsWidget):
         return self.frame
 
     # ------------------------------------------------------------------
-    # Advanced popup — overrides BaseSettingsWidget's inline expand
+    # Advanced popup: overrides BaseSettingsWidget's inline expand
     # ------------------------------------------------------------------
 
     def _build_advanced_section(self, advanced_modules):
@@ -97,13 +98,12 @@ class AlgoSettingsWidget(BaseSettingsWidget):
         # Create the Toplevel now (hidden) so all tk_vars are registered
         # eagerly and remain available for validation while the popup is closed.
         self._advanced_popup = tk.Toplevel(self.frame)
-        self._advanced_popup.title("Advanced Algo Settings")
+        self._advanced_popup.title(tr("algo_widget.advanced_popup_title"))
         self._advanced_popup.withdraw()
         self._advanced_popup.resizable(False, False)
         self._advanced_popup.protocol("WM_DELETE_WINDOW", self._on_advanced_popup_close)
 
-        # Content with visible inset padding from the window edges.
-        self._advanced_section = ttk.LabelFrame(self._advanced_popup, text="Advanced")
+        self._advanced_section = ttk.LabelFrame(self._advanced_popup, text=tr("algo_widget.advanced"))
         self._advanced_section.pack(fill="both", expand=True, padx=16, pady=(16, 8))
 
         advanced_set = set(id(m) for m in advanced_modules)
@@ -121,12 +121,11 @@ class AlgoSettingsWidget(BaseSettingsWidget):
 
         diagnostics_row = ttk.Frame(self._advanced_section)
         diagnostics_row.pack(fill="x", padx=8, pady=(6, 4), anchor="w")
-        ttk.Button(diagnostics_row, text="Open Logs", command=open_logs).pack(side="left")
+        ttk.Button(diagnostics_row, text=tr("algo_widget.open_logs"), command=open_logs).pack(side="left")
 
-        # Close button at the bottom of the popup.
         btn_row = ttk.Frame(self._advanced_popup)
         btn_row.pack(fill="x", padx=16, pady=(0, 16))
-        ttk.Button(btn_row, text="Close", command=self._on_advanced_popup_close).pack(side="right")
+        ttk.Button(btn_row, text=tr("algo_widget.close"), command=self._on_advanced_popup_close).pack(side="right")
 
         self._advanced_visible = False
 
@@ -178,7 +177,7 @@ class AlgoSettingsWidget(BaseSettingsWidget):
 
     def _wire_leap_lid_auto_check(self):
         """When the user switches *to* LEAP, auto-check LEAP Lid Blink Algo.
-        Never forces it off — the user can still uncheck it manually."""
+        Never forces it off; the user can still uncheck it manually."""
         algo_mod = next((m for m in self.initialized_modules if isinstance(m, TrackingAlgorithmModule)), None)
         blink_mod = next((m for m in self.initialized_modules if isinstance(m, BlinkAlgoSettingsModule)), None)
         if algo_mod is None or blink_mod is None:
@@ -203,7 +202,7 @@ class AlgoSettingsWidget(BaseSettingsWidget):
 
     def _build_eye_preview_section(self):
         dim = self._preview_dim
-        section = ttk.LabelFrame(self.frame, text="Eye Preview")
+        section = ttk.LabelFrame(self.frame, text=tr("algo_widget.eye_preview"))
         section.pack(fill="x", padx=8, pady=6, anchor="n")
         row = ttk.Frame(section)
         row.pack(padx=8, pady=(4, 6), anchor="w")
@@ -214,7 +213,7 @@ class AlgoSettingsWidget(BaseSettingsWidget):
         for eye in self._eye_widgets:
             col = ttk.Frame(row)
             col.pack(side="left", padx=(0, 12))
-            label_text = "Left Eye" if eye.eye_id == EyeId.LEFT else "Right Eye"
+            label_text = tr("algo_widget.left_eye") if eye.eye_id == EyeId.LEFT else tr("algo_widget.right_eye")
             ttk.Label(col, text=label_text).pack(pady=(0, 2))
             holder = tk.Frame(col, width=dim, height=dim, bg="#1e1f23", bd=0, highlightthickness=0)
             holder.pack()

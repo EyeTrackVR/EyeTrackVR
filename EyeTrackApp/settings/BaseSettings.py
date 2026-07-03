@@ -15,12 +15,35 @@ from config import (
     EyeTrackConfig,
     EyeTrackSettingsConfig,
 )
+from localization import tr
 from utils.logging_utils import open_logs
 
 
+# Section header (LabelFrame) title per settings-module class. Titles are
+# otherwise auto-derived from the class name; this maps each to a translatable
+# catalog key so the headers localize. Modules not listed here fall back to the
+# class-name-derived title.
+_SECTION_TITLE_KEYS = {
+    "GeneralSettingsModule": "settings_base.section_general",
+    "OneEuroSettingsModule": "settings_base.section_oneeuro",
+    "OSCSettingsModule": "settings_base.section_osc",
+    "AdvancedOSCSettingsModule": "settings_base.section_osc_advanced",
+    "TrackingAlgorithmModule": "settings_base.section_tracking_algo",
+    "BlinkAlgoModule": "settings_base.section_blink",
+    "AdvancedTrackingAlgoSettingsModule": "settings_base.section_algo_advanced",
+    "VRCFTSettingsModule": "settings_base.section_vrcft",
+}
+
+
 class BaseSettingsWidget:
-    _SHOW_ADVANCED_TEXT = "Show Advanced  ▾"  # ▾
-    _HIDE_ADVANCED_TEXT = "Hide Advanced  ▴"  # ▴
+    # Arrows kept in the translated string; ▾ = expand, ▴ = collapse.
+    @property
+    def _SHOW_ADVANCED_TEXT(self):
+        return tr("settings_base.show_advanced")
+
+    @property
+    def _HIDE_ADVANCED_TEXT(self):
+        return tr("settings_base.hide_advanced")
 
     def __init__(
         self, widget_id: EyeId, main_config: EyeTrackConfig, settings_modules: Iterable
@@ -192,9 +215,12 @@ class BaseSettingsWidget:
             self._build_advanced_section(advanced_modules)
 
     def _build_module_section(self, module, title=None):
+        if title is None:
+            title_key = _SECTION_TITLE_KEYS.get(module.__class__.__name__)
+            title = tr(title_key) if title_key else module.__class__.__name__.replace("Module", "")
         section = ttk.LabelFrame(
             self.frame,
-            text=title or module.__class__.__name__.replace("Module", ""),
+            text=title,
         )
         section.pack(fill="x", padx=8, pady=6, anchor="n")
         module.build(section)
@@ -212,7 +238,7 @@ class BaseSettingsWidget:
 
         # Build eagerly so tk_vars exist for validation/save while hidden.
         # Each contributor gets its own Frame to isolate grid placements.
-        self._advanced_section = ttk.LabelFrame(self.frame, text="Advanced")
+        self._advanced_section = ttk.LabelFrame(self.frame, text=tr("settings_base.advanced"))
         advanced_set = set(id(m) for m in advanced_modules)
         for module in self.initialized_modules:
             if id(module) in advanced_set:
@@ -229,7 +255,7 @@ class BaseSettingsWidget:
         diagnostics_row = ttk.Frame(self._advanced_section)
         diagnostics_row.pack(fill="x", padx=8, pady=(6, 4), anchor="w")
         ttk.Button(
-            diagnostics_row, text="Open Logs", command=open_logs
+            diagnostics_row, text=tr("settings_base.open_logs"), command=open_logs
         ).pack(side="left")
 
         self._advanced_visible = False
@@ -256,7 +282,7 @@ class BaseSettingsWidget:
         button_row.pack(fill="x", padx=10, pady=(6, 10))
         tk.Button(
             button_row,
-            text="Reset settings to default",
+            text=tr("settings_base.reset_settings"),
             command=self.reset_config,
             font=("Segoe UI", 9),
             fg="#000000",
@@ -272,7 +298,7 @@ class BaseSettingsWidget:
         ).pack(side="left")
         tk.Button(
             button_row,
-            text="Delete config",
+            text=tr("settings_base.delete_config_btn"),
             command=self.delete_config,
             font=("Segoe UI", 9),
             fg="#ffffff",
@@ -296,10 +322,8 @@ class BaseSettingsWidget:
         scattered across the process."""
         parent = self.frame.winfo_toplevel() if self.frame is not None else None
         confirmed = messagebox.askyesno(
-            "Delete config",
-            "Delete the config file and quit?\n\n"
-            "All saved settings, calibrations, and camera sources will be lost. "
-            "The app will close; relaunch it to start fresh.",
+            tr("settings_base.delete_config_title"),
+            tr("settings_base.delete_config_message"),
             parent=parent,
             icon="warning",
         )
@@ -327,7 +351,7 @@ class BaseSettingsWidget:
         # Hand off to the main window's shutdown sequence so camera threads,
         # OSC, etc. unwind cleanly. The root's WM_DELETE_WINDOW protocol is
         # bound to AppUI.shutdown() which stops eye threads, the OSC server,
-        # and calls os._exit(0) — sys.exit() would hang here because those
+        # and calls os._exit(0); sys.exit() would hang here because those
         # threads are non-daemon.
         if parent is not None:
             try:

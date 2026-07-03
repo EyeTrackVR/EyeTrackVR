@@ -39,6 +39,7 @@ from camera import Camera, CameraState
 import cv2
 from osc.OSCMessage import OSCMessageType, OSCMessage
 from utils.misc_utils import PlaySound, SND_FILENAME, SND_ASYNC, resource_path
+from localization import tr
 import numpy as np
 from PIL import Image, ImageTk
 
@@ -95,7 +96,7 @@ class CameraWidget:
         self.image_queue = Queue(maxsize=2)
         self.uses_shared_capture_event = False
         # When sharing a capture thread (Bigscreen / dual-eye on one source),
-        # this widget's own ``self.camera`` never runs — its camera_status
+        # this widget's own ``self.camera`` never runs; its camera_status
         # stays at CONNECTING and the readout would lie. Track the upstream
         # camera here so the mode readout can read its real status.
         self._shared_capture_source: "Camera | None" = None
@@ -157,7 +158,7 @@ class CameraWidget:
         # multiply by this when drawing on the canvas and divide by it when
         # translating mouse events back to image space. 1.0 = native.
         # Sized so both eyes can sit side-by-side in cropping mode without
-        # overflowing typical window widths — roughly matches the tracking
+        # overflowing typical window widths; it roughly matches the tracking
         # preview's longest side.
         self._roi_display_scale = 1.0
         self._ROI_CANVAS_MAX_DIM = 320
@@ -179,7 +180,7 @@ class CameraWidget:
         if show_camera_controls:
             top_row = ttk.Frame(self.frame)
             top_row.pack(fill="x", padx=8, pady=4)
-            ttk.Label(top_row, text="Camera Address").pack(side="left")
+            ttk.Label(top_row, text=tr("camera.address")).pack(side="left")
             initial_source = self.config.capture_source
             self.camera_addr_var = tk.StringVar(
                 value="" if initial_source is None or initial_source == "" else str(initial_source)
@@ -188,7 +189,7 @@ class CameraWidget:
                 side="left", padx=8
             )
             ttk.Button(
-                top_row, text="Save and Restart Tracking", command=self._save_tracking
+                top_row, text=tr("camera.save_restart"), command=self._save_tracking
             ).pack(side="left", padx=8)
 
         # Tracking/Cropping mode buttons are now global (one pair in
@@ -205,15 +206,15 @@ class CameraWidget:
 
         status_row = ttk.Frame(self.tracking_frame)
         status_row.pack(fill="x", padx=4, pady=2)
-        self.mode_var = tk.StringVar(value="Calibrating")
+        self.mode_var = tk.StringVar(value=tr("camera.status_calibrating"))
         self.fps_var = tk.StringVar(value="")
         self.latency_var = tk.StringVar(value="")
         # Layout: [mode  tracking_fps  latency_ms                     ]
         # fps reports tracker output rate (includes camera + algo cost); latency
         # is end-to-end frame-in → tracking-out, both moving-averaged in
         # eye_processor. Widths sized for the worst-case readouts:
-        #   fps     — "120 Fps"     (7 chars)
-        #   latency — "999 ms lat"  (10 chars)
+        #   fps     - "120 Fps"     (7 chars)
+        #   latency - "999 ms lat"  (10 chars)
         ttk.Label(status_row, textvariable=self.mode_var, anchor="w").pack(side="left")
         ttk.Label(status_row, textvariable=self.fps_var, width=8, anchor="w").pack(
             side="left", padx=(4, 0)
@@ -245,7 +246,7 @@ class CameraWidget:
 
         # Reserve the final slot size up-front so the layout doesn't jitter when the first
         # frame arrives (Label would otherwise start at 0x0 and suddenly grow to 300x150,
-        # shifting every widget below it — visible as "the right eye moves around at launch").
+        # shifting every widget below it, visible as "the right eye moves around at launch").
         self._tracking_image_holder = tk.Frame(
             self.tracking_frame,
             width=tw,
@@ -254,7 +255,7 @@ class CameraWidget:
             highlightthickness=0,
             bd=0,
         )
-        # Not packed here — render_tick packs it only when Show ET Debug is enabled.
+        # Not packed here: render_tick packs it only when Show ET Debug is enabled.
         self._tracking_image_holder.pack_propagate(False)
         self.tracking_image_widget = tk.Label(
             self._tracking_image_holder,
@@ -299,14 +300,14 @@ class CameraWidget:
             highlightthickness=0,
         )
         self.output_canvas.pack(side="left")
-        self.roi_message_var = tk.StringVar(value="Please set an Eye Cropping.")
+        self.roi_message_var = tk.StringVar(value=tr("camera.roi_prompt"))
         self.roi_message_label = ttk.Label(graph_row, textvariable=self.roi_message_var)
         # roi_message_label is packed/unpacked dynamically in render_tick; the fixed-height
         # parent absorbs the change so nothing downstream moves.
 
         roi_controls = ttk.Frame(self.roi_frame)
         roi_controls.pack(fill="x", padx=8, pady=4)
-        ttk.Label(roi_controls, text="Rotation").pack(side="left")
+        ttk.Label(roi_controls, text=tr("camera.rotation")).pack(side="left")
         self.rotation_var = tk.IntVar(value=int(self.config.rotation_angle))
         ttk.Scale(
             roi_controls,
@@ -350,7 +351,7 @@ class CameraWidget:
         roi_padding_row.pack(fill="x", padx=8, pady=(0, 4))
         ttk.Checkbutton(
             roi_padding_row,
-            text="Camera Widget Padding",
+            text=tr("camera.widget_padding"),
             variable=self.padding_var,
         ).pack(side="left")
 
@@ -429,7 +430,7 @@ class CameraWidget:
             "fail_txt": c.create_text(
                 W // 2,
                 H // 2,
-                text="No track",
+                text=tr("camera.no_track"),
                 fill=fail_fg,
                 font=("Segoe UI", 9),
                 tags="viz_fail",
@@ -593,7 +594,7 @@ class CameraWidget:
         """Add (or remove) this widget's roi_queue to the *effective* camera's
         extra output queues. ROI mode is now a TAP, not a reroute: the
         tracker's capture_queue keeps being fed throughout, so exiting ROI
-        mode doesn't need to wake or unblock anything — the tracker has been
+        mode doesn't need to wake or unblock anything; the tracker has been
         running continuously. This eliminates the "one eye frozen after exit"
         race the rerouting version had.
 
@@ -667,7 +668,7 @@ class CameraWidget:
 
         # Run the apply/restart off the Tk thread: update_eye_model_config notifies listeners
         # (including on_config_update, which stops/starts the camera), and stop() joins the
-        # camera thread — which can block briefly on close/open. We don't want to freeze the GUI.
+        # camera thread, which can block briefly on close/open. We don't want to freeze the GUI.
         def _apply():
             try:
                 self.main_config.update_eye_model_config(
@@ -885,7 +886,7 @@ class CameraWidget:
 
     def _format_latency(self, latency_ms):
         # Tracking pipeline can be sub-ms when algos are light, so show one
-        # decimal under 10ms and round above — keeps the readout honest.
+        # decimal under 10ms and round above; that keeps the readout honest.
         if latency_ms < 10.0:
             return f"{latency_ms:.1f} ms lat"
         return f"{latency_ms:.0f} ms lat"
@@ -998,8 +999,8 @@ class CameraWidget:
 
         # The capture thread rebound our uvc:name@address source to a fresh device
         # address (camera replugged into a different USB port) and rewrote
-        # config.capture_source in place. Persist it to disk here — on the GUI
-        # thread, debounced, and only once frames are confirmed flowing — so the
+        # config.capture_source in place. Persist it to disk here (on the GUI
+        # thread, debounced, and only once frames are confirmed flowing) so the
         # rebind survives restarts without the user re-selecting anything.
         if (
             getattr(self.camera, "uvc_rebind_pending", False)
@@ -1027,10 +1028,6 @@ class CameraWidget:
                 changed = True
                 self.cartesian_needs_update = True
 
-            # if self.config.gui_circular_crop != values[self.gui_circular_crop]:
-            #     self.config.gui_circular_crop = values[self.gui_circular_crop]
-            #    changed = True
-
             if changed:
                 self._schedule_main_config_save()
 
@@ -1042,23 +1039,23 @@ class CameraWidget:
             fps_readout = ""
             latency_readout = ""
             if self.config.capture_source is None or self.config.capture_source == "":
-                mode_readout = "No camera set"
+                mode_readout = tr("camera.status_no_camera")
                 self.roi_message_label.pack_forget()
-                # Don't pack_forget the canvas — the fixed-height graph_row absorbs size
+                # Don't pack_forget the canvas: the fixed-height graph_row absorbs size
                 # changes but the canvas would still briefly vanish and reappear, which
                 # reads as "the widget is moving" when it's not. Hide its viz contents
                 # instead so the area stays reserved and visually stable.
                 self._hide_output_viz()
             elif self._effective_camera_status() == CameraState.CONNECTING:
-                mode_readout = "Connecting..."
+                mode_readout = tr("camera.status_connecting")
             elif self._effective_camera_status() == CameraState.DISCONNECTED:
-                mode_readout = "Reconnecting..."
+                mode_readout = tr("camera.status_reconnecting")
             elif needs_roi_set:
-                mode_readout = "Awaiting Crop"
+                mode_readout = tr("camera.status_awaiting_crop")
             elif self.ransac.calibration_start_time != None:
-                mode_readout = "Calibration"
+                mode_readout = tr("camera.status_calibration")
             else:
-                mode_readout = "Tracking"
+                mode_readout = tr("camera.status_tracking")
                 fps_readout = self._format_fps(self.ransac.output_fps)
                 latency_readout = self._format_latency(self.ransac.output_latency_ms)
 
@@ -1076,7 +1073,7 @@ class CameraWidget:
 
             if self.in_roi_mode:
                 # Drain to latest frame: tracking thread does not consume capture_queue in ROI mode, but it was
-                # still calling capture_event.set() every loop while capture_queue stayed empty — flooding this queue.
+                # still calling capture_event.set() every loop while capture_queue stayed empty, flooding this queue.
                 # Single try/except cuts ~one Empty-throw per drained frame vs. the nested form.
                 maybe_image = None
                 try:
@@ -1095,9 +1092,6 @@ class CameraWidget:
                             ((img_w / 2), (img_h / 2)), self.config.rotation_angle, 1
                         )
 
-                        # calculate position of all four corners of image
-
-                        # calculate crop corner locations in original image space
                         x_coords, y_coords = np.matmul(
                             rotation_matrix,
                             np.transpose(
@@ -1278,7 +1272,7 @@ class CameraWidget:
                         self._eye_preview_photo = _preview_photo
                         self._eye_preview_widget.configure(image=self._eye_preview_photo)
 
-                    # Full debug image — only when the setting is on.
+                    # Full debug image, shown only when the setting is on.
                     debug_on = bool(self.settings_config.gui_show_et_debug)
                     if self._debug_image_visible != debug_on:
                         self._debug_image_visible = debug_on

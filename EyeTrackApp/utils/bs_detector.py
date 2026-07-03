@@ -57,7 +57,7 @@ class BSDetector:
         ----------
         frame_gray:
             Grayscale eye-crop in which ``raw_x``/``raw_y`` are defined.
-            May be None — checks that require it are skipped gracefully.
+            May be None; checks that require it are skipped gracefully.
         raw_x, raw_y:
             Raw pixel coordinates reported by the primary pupil tracker,
             within the coordinate space of ``frame_gray``.

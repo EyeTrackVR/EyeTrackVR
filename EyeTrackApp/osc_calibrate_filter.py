@@ -54,7 +54,7 @@ def _overlay_executable() -> str:
     Windows builds ship ``Tools/EyeTrackVR-Overlay.exe``. On Linux/macOS we
     look for a native binary of the same name (no extension) so a future port
     dropped into Tools/ lights up automatically. Raises FileNotFoundError when
-    unavailable — callers' existing except/finally blocks log it and reset
+    unavailable; callers' existing except/finally blocks log it and reset
     calibration state, so on-screen calibration remains usable.
     """
     name = "EyeTrackVR-Overlay.exe" if sys.platform == "win32" else "EyeTrackVR-Overlay"
@@ -496,7 +496,7 @@ NEXT_SMARTCAL_TARGETS = [
 ] + [(0.0, 0.0)]  # dots 0..4 on the ring (top, clockwise), dot 5 = centre
 
 # The overlay holds each dot for 0.5 s (DC_HOLD_S in modes.cpp) after emitting
-# its signal, then the NEXT dot appears/shrinks for ~0.65 s before ITS signal —
+# its signal, then the NEXT dot appears/shrinks for ~0.65 s before ITS signal,
 # during which the user is already following the new dot. Samples must
 # therefore stop shortly before the hold ends, or ~55% of each dot's window is
 # fixation on the WRONG dot and the fit degenerates (observed as gains of 10-200
@@ -536,7 +536,7 @@ def next_smartcal_transform_is_sane(w, b) -> bool:
         return False
     if not (np.all(np.isfinite(W)) and np.all(np.isfinite(B))):
         return False
-    if np.linalg.det(W) <= 0.0:  # mirror/collapse — never a valid polish
+    if np.linalg.det(W) <= 0.0:  # mirror/collapse: never a valid polish
         return False
     svals = np.linalg.svd(W, compute_uv=False)
     if svals[0] > _SMARTCAL_MAX_GAIN or svals[-1] < _SMARTCAL_MIN_GAIN:
@@ -570,7 +570,7 @@ def _fit_next_smartcal(eye_processors: list, baseconfig) -> bool:
             pts = samples.get(dot, [])
             if len(pts) < _SMARTCAL_MIN_SAMPLES_PER_DOT:
                 logger.debug(
-                    "NEXT smart cal (eye %s): dot %d has %d samples (<%d) — dropped.",
+                    "NEXT smart cal (eye %s): dot %d has %d samples (<%d): dropped.",
                     eye, dot, len(pts), _SMARTCAL_MIN_SAMPLES_PER_DOT,
                 )
                 continue
@@ -584,7 +584,7 @@ def _fit_next_smartcal(eye_processors: list, baseconfig) -> bool:
         # yield a degenerate fit.
         if len(raws) < 4:
             logger.warning(
-                "NEXT smart cal (eye %s): only %d/%d dots captured — skipping fit.",
+                "NEXT smart cal (eye %s): only %d/%d dots captured; skipping fit.",
                 eye, len(raws), len(NEXT_SMARTCAL_TARGETS),
             )
             continue
@@ -600,7 +600,7 @@ def _fit_next_smartcal(eye_processors: list, baseconfig) -> bool:
         if float(spread.min()) < _SMARTCAL_MIN_RAW_SPREAD:
             logger.warning(
                 "NEXT smart cal (eye %s): raw gaze spread %.3f/%.3f (x/y) is too "
-                "small to fit — was the eye following the dots? Keeping previous "
+                "small to fit - was the eye following the dots? Keeping previous "
                 "calibration.",
                 eye, float(spread[0]), float(spread[1]),
             )
@@ -623,7 +623,7 @@ def _fit_next_smartcal(eye_processors: list, baseconfig) -> bool:
         residual = float(np.mean(np.linalg.norm(A @ sol - T, axis=1)))
         if residual > _SMARTCAL_MAX_RESIDUAL:
             logger.warning(
-                "NEXT smart cal (eye %s): fit residual %.3f exceeds %.2f — "
+                "NEXT smart cal (eye %s): fit residual %.3f exceeds %.2f: "
                 "captures look inconsistent. Keeping previous calibration.",
                 eye, residual, _SMARTCAL_MAX_RESIDUAL,
             )
@@ -642,7 +642,7 @@ def _fit_next_smartcal(eye_processors: list, baseconfig) -> bool:
         ep._next_smartcal_b = b
         saved_any = True
         logger.info(
-            "NEXT smart cal (eye %s): fit from %d dots — W=%s B=%s (residual %.3f)",
+            "NEXT smart cal (eye %s): fit from %d dots: W=%s B=%s (residual %.3f)",
             eye, len(raws),
             [round(v, 4) for v in w], [round(v, 4) for v in b], residual,
         )
@@ -698,7 +698,7 @@ def next_smartcal_overlay(eye_processors: list, settings, baseconfig) -> None:
             if 0 <= signal <= 5:
                 # Dot is held and capture-ready: start sampling it. The sampler
                 # (NEXTM) only accepts frames within NEXT_SMARTCAL_CAPTURE_WINDOW_S
-                # of this timestamp — the overlay's hold is 0.5 s, after which the
+                # of this timestamp; the overlay's hold is 0.5 s, after which the
                 # user is already saccading to / following the next dot.
                 logger.debug("NEXT smart cal: capturing dot %d", signal)
                 _t0 = time.monotonic()
@@ -706,7 +706,7 @@ def next_smartcal_overlay(eye_processors: list, settings, baseconfig) -> None:
                     ep._next_smartcal_dot_started = _t0
                     ep._next_smartcal_active_dot = signal
             elif signal == 9:
-                # All dots done — stop sampling and fit.
+                # All dots done: stop sampling and fit.
                 for ep in eye_processors:
                     ep._next_smartcal_active_dot = None
                 if _fit_next_smartcal(eye_processors, baseconfig):
@@ -743,7 +743,6 @@ class cal:
         )
 
         if has_valid_calib:
-            # Validate and load saved calibration data
             if not self.cal.init_from_save(
                 self.config.calib_evecs, self.config.calib_axes
             ):
@@ -794,7 +793,6 @@ class cal:
                     and evecs == 0
                     and axes == 0
                 ):
-                    # Valid calibration data - save it
                     self.config.calib_evecs = list(evecs.tolist() if hasattr(evecs, "tolist") else evecs)
                     self.config.calib_axes = list(axes.tolist() if hasattr(axes, "tolist") else axes)
                     if self.cal.center is not None:
@@ -906,7 +904,7 @@ class cal:
                     _bs_valid = _bs_det.check(_eye_frame, cx, cy)
 
             if _robust_cal.poly_trained and _bs_valid:
-                # Polynomial path — degree-2 regression on raw keypoints
+                # Polynomial path: degree-2 regression on raw keypoints
                 _poly_result = _robust_cal.predict_poly(cx, cy, clamp=True)
                 if _poly_result is not None:
                     out_x, out_y = _poly_result
@@ -935,7 +933,7 @@ class cal:
         # ── Snap-to-center hold ───────────────────────────────────────────────────
         # When the pupil tracker loses the pupil at an extreme gaze angle it
         # often reports the image center.  After calibration this maps to
-        # ~(0, 0) — a sudden jump from an extreme position to near-center.
+        # ~(0, 0), a sudden jump from an extreme position to near-center.
         # Detect this and hold the last valid calibrated position with a slow drift.
         if (
             getattr(self.settings, "gui_snap_hold_enabled", True)
@@ -1005,10 +1003,8 @@ class cal:
                     self._last_cal_y = out_y
                 self._cal_hold_frames = max(0, self._cal_hold_frames - 2)
 
-        if (
-            self.settings.gui_flip_y_axis
-        ):  # check config on flipped values settings and apply accordingly
-            out_y = -out_y  # flip
+        if self.settings.gui_flip_y_axis:
+            out_y = -out_y
             dfr_y = -dfr_y
 
         if flipx:
@@ -1060,9 +1056,7 @@ class cal:
                     _oef.beta.fill(_b)
             except (TypeError, ValueError, AttributeError, IndexError):
                 pass
-            noisy_point = np.array(
-                [float(out_x), float(out_y)]
-            )  # fliter our values with a One Euro Filter
+            noisy_point = np.array([float(out_x), float(out_y)])
             point_hat = self.one_euro_filter(noisy_point)
             out_x = point_hat[0]
             out_y = point_hat[1]

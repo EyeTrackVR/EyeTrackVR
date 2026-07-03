@@ -93,6 +93,59 @@ class _OneEuroFilter:
         return x_hat
 
 
+# Flip to True to log every frame the brow gate holds the eyebrow, so you can
+# confirm it engaging on real blinks.
+_BROW_GATE_DEBUG = False
+
+
+class BlinkBrowGate:
+    """Hold the eyebrow output while the eyelid is closed or in flight.
+
+    Mid-blink frames are out-of-distribution (training data is held poses, so
+    no frame shows a descending lid) and the model reads the hooded appearance
+    as brows-down. A brow can't physically move much within a ~200 ms blink,
+    so freezing it during the blink is lossless. The gate engages when the lid
+    is below lid_thresh OR moving faster than vel_thresh, and releases release_s
+    after the lid is back up and slow.
+
+    Ported from LEAPv2_Training/End2End/infer.py. The standalone eyebrow model
+    has no eyelid output, so the lid signal is fed in from the tracking loop
+    (see EyeBrow.set_lid). Gate on the raw model value before the One-Euro
+    filter so the fast blink downstroke is detected before smoothing damps it."""
+
+    def __init__(self, lid_thresh=0.4, vel_thresh=2.0, release_s=0.10):
+        self.lid_thresh = lid_thresh
+        self.vel_thresh = vel_thresh
+        self.release_s = release_s
+        self.t_prev = None
+        self.lid_prev = None
+        self.held = None
+        self.t_open = None
+
+    def __call__(self, t, brow, lid):
+        if self.t_prev is None:
+            self.t_prev, self.lid_prev, self.held, self.t_open = t, lid, brow, t
+            return brow
+        dt = max(t - self.t_prev, 1e-6)
+        vel = (lid - self.lid_prev) / dt
+        self.t_prev, self.lid_prev = t, lid
+        if lid < self.lid_thresh or abs(vel) > self.vel_thresh:
+            self.t_open = None
+            if _BROW_GATE_DEBUG:
+                print(f"[brow-gate] HELD  brow_raw={brow:.3f} held={self.held:.3f} "
+                      f"lid={lid:.3f} vel={vel:+.2f}")
+            return self.held
+        if self.t_open is None:
+            self.t_open = t
+        if t - self.t_open < self.release_s:
+            if _BROW_GATE_DEBUG:
+                print(f"[brow-gate] hold(release) brow_raw={brow:.3f} "
+                      f"held={self.held:.3f} lid={lid:.3f}")
+            return self.held
+        self.held = brow
+        return brow
+
+
 class EyeBrow:
     """Async per-eye eyebrow tracker using Eyebrow_<variant>.onnx.
 
@@ -100,7 +153,7 @@ class EyeBrow:
     submit() is non-blocking (drops frames when the worker is busy).
     get_result() returns the latest smoothed value immediately.
 
-    Always uses CPUExecutionProvider — DmlExecutionProvider causes access
+    Always uses CPUExecutionProvider: DmlExecutionProvider causes access
     violations when multiple sessions run simultaneously in the same process.
     MobileNetV3-Small is lightweight enough that CPU inference is fast enough
     to keep up at typical camera frame rates.
@@ -122,6 +175,13 @@ class EyeBrow:
         self._input_name = self._session.get_inputs()[0].name
         self._filter: _OneEuroFilter | None = None
         self._result: float = 0.0
+
+        # Freezes the eyebrow during blinks. Keyed on the eyelid openness fed in
+        # from the tracking loop via set_lid(); default 1.0 (open) so the gate is
+        # a no-op until a real lid value arrives. Applied in the worker on the raw
+        # model output, before the One-Euro filter (matches infer.py).
+        self._brow_gate = BlinkBrowGate()
+        self._latest_lid: float = 1.0
 
         self._frame_queue: queue.Queue = queue.Queue(maxsize=1)
         self._stop_event = threading.Event()
@@ -150,14 +210,25 @@ class EyeBrow:
                 outputs = self._session.run(None, {self._input_name: tensor})
                 val = float(np.clip(outputs[0][0][0], 0.0, 1.0))
                 now = time.time()
+                # Hold the brow through blinks, keyed on the latest eyelid
+                # openness. Gate the raw value before the One-Euro filter so the
+                # fast blink downstroke is caught before smoothing damps it.
+                val = self._brow_gate(now, val, self._latest_lid)
                 if self._filter is None:
                     self._filter = _OneEuroFilter(now, val)
                 self._result = float(np.clip(self._filter(now, val), 0.0, 1.0))
             except Exception as e:
                 logger.debug("EyeBrow worker error: %s", e)
 
+    def set_lid(self, lid: float) -> None:
+        """Feed the current eyelid openness [0=closed, 1=open] for the blink gate.
+
+        Called from the tracking loop each frame. A plain float assignment is
+        atomic under the GIL, so the worker can read it without a lock."""
+        self._latest_lid = float(lid)
+
     def submit(self, frame_bgr: np.ndarray) -> None:
-        """Push a frame for inference. Non-blocking — drops if worker is busy."""
+        """Push a frame for inference. Non-blocking - drops if worker is busy."""
         try:
             self._frame_queue.put_nowait(frame_bgr.copy())
         except queue.Full:

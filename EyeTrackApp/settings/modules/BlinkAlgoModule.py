@@ -8,45 +8,7 @@ from settings.modules.CommonFieldValidators import check_is_float_convertible
 from utils.runtime_state import get_value as _get_runtime_value
 from utils.tooltips import attach_tooltip
 from eye_processor import remap_leap_lid_openness
-
-
-# Centralised tooltip copy so the strings stay short here and easy to tweak.
-_TIP_LEAP_LID = (
-    "Use the LEAP neural-network model to detect eyelid openness. "
-    "Recommended for most users. Disable only if LEAP misbehaves on your camera."
-)
-_TIP_IBO = (
-    "Detect blinks by raw image intensity instead of LEAP. "
-    "Fallback for cameras where LEAP under-performs (low light, occluded lashes)."
-)
-_TIP_BLINK_POINT = (
-    "Below this raw lid value the eye is reported as fully closed (output = 0). "
-    "Raise it to make blinks trigger easier; lower it if the app reports closed when your eye is open."
-)
-_TIP_WIDE_POINT = (
-    "Above this raw lid value the eye starts mapping into the wide-open range (output > 0.75). "
-    "Lower it to make wide-eye/surprise easier to trigger."
-)
-_TIP_REDO = (
-    "Clear the stored eyelid calibration for both eyes and restart the sampling window. "
-    "Use after changing camera position, IR brightness, or if blink detection drifted."
-)
-_TIP_CAL_DURATION = (
-    "How many seconds to record your eyelid motion before locking in the open/closed bounds. "
-    "Longer = more reliable but slower; blink several times during the window."
-)
-_TIP_MIN_SPAN = (
-    "Calibration is rejected and restarted if your eye opened/closed by less than this amount "
-    "during the sampling window. Catches the case where you forgot to blink."
-)
-_TIP_EYEBROW = (
-    "Run the EyeBrow neural-network model on each raw camera frame (pre-crop, pre-rotation) "
-    "and send the result as a float [0–1] over OSC. "
-    "Dual-eye: /avatar/parameters/v2/BrowExpressionLeft and BrowExpressionRight. "
-    "Single-eye: /avatar/parameters/v2/BrowExpression. "
-    "Requires Models/Eyebrow_<variant>.onnx (variant chosen via the Model "
-    "selector under Tracking Algorithm)."
-)
+from localization import tr
 
 
 class BlinkAlgoSettingsValidationModel(BaseValidationModel):
@@ -81,7 +43,7 @@ class BlinkAlgoSettingsValidationModel(BaseValidationModel):
 _VIZ_W = 280
 _VIZ_H = 36
 _VIZ_PAD = 4
-# Draggable range — extends beyond the 0–1 output clip so thresholds can be
+# Draggable range: extends beyond the 0–1 output clip so thresholds can be
 # pushed into the overshoot region when needed (e.g. forcing always-open).
 _VIZ_RANGE_MIN = -0.3
 _VIZ_RANGE_MAX = 1.3
@@ -162,7 +124,7 @@ class BlinkAlgoSettingsModule(BaseSettingsModule):
 
     def _build_viz_canvas(self, parent, eye_id, close_var, widen_var):
         """Compact horizontal bar showing close/widen markers + live raw lid.
-        Markers are click-draggable — pressing near a marker grabs it; motion
+        Markers are click-draggable: pressing near a marker grabs it; motion
         updates the underlying StringVar in real time. A polling tick (~12 Hz)
         keeps the live ▼ indicator and numeric readout fresh."""
         wrap = ttk.Frame(parent)
@@ -178,9 +140,9 @@ class BlinkAlgoSettingsModule(BaseSettingsModule):
         canvas.grid(row=0, column=0, sticky="w")
         readout_frame = ttk.Frame(wrap)
         readout_frame.grid(row=0, column=1, sticky="w", padx=(6, 0))
-        raw_readout = ttk.Label(readout_frame, text="raw: --", width=10, foreground="#bbbbbb")
+        raw_readout = ttk.Label(readout_frame, text=tr("algo_blink.readout_raw", value="--"), width=10, foreground="#bbbbbb")
         raw_readout.pack(anchor="w")
-        adj_readout = ttk.Label(readout_frame, text="adj: --", width=10, foreground="#9999ff")
+        adj_readout = ttk.Label(readout_frame, text=tr("algo_blink.readout_adj", value="--"), width=10, foreground="#9999ff")
         adj_readout.pack(anchor="w")
         canvas.bind(
             "<ButtonPress-1>",
@@ -214,7 +176,7 @@ class BlinkAlgoSettingsModule(BaseSettingsModule):
         canvas.create_rectangle(close_x, bar_top, widen_x, bar_bot, fill="#3a3a3a", outline="")
         canvas.create_rectangle(widen_x, bar_top, inner_right, bar_bot, fill="#2a5a2a", outline="")
 
-        # Overshoot overlays — distinct dark tint over the regions outside 0–1.
+        # Overshoot overlays: distinct dark tint over the regions outside 0–1.
         canvas.create_rectangle(inner_left, bar_top, x_zero, bar_bot, fill="#251a2e", outline="")
         canvas.create_rectangle(x_one, bar_top, inner_right, bar_bot, fill="#1a251a", outline="")
 
@@ -226,7 +188,7 @@ class BlinkAlgoSettingsModule(BaseSettingsModule):
                 font=("Segoe UI", 7), anchor="n",
             )
 
-        # Threshold markers with grab-handle nubs — drawn on top of all zones.
+        # Threshold markers with grab-handle nubs, drawn on top of all zones.
         canvas.create_line(close_x, 1, close_x, bar_bot, fill="#ff8a8a", width=3)
         canvas.create_rectangle(close_x - 3, 0, close_x + 3, bar_top, fill="#ff8a8a", outline="")
         canvas.create_line(widen_x, 1, widen_x, bar_bot, fill="#8aff8a", width=3)
@@ -256,11 +218,11 @@ class BlinkAlgoSettingsModule(BaseSettingsModule):
             self._redraw_viz(canvas, close_t, widen_t, raw)
             if raw is not None:
                 adj = remap_leap_lid_openness(raw, close_t, widen_t)
-                raw_readout.config(text=f"raw: {raw:.2f}")
-                adj_readout.config(text=f"adj: {adj:.2f}")
+                raw_readout.config(text=tr("algo_blink.readout_raw", value=f"{raw:.2f}"))
+                adj_readout.config(text=tr("algo_blink.readout_adj", value=f"{adj:.2f}"))
             else:
-                raw_readout.config(text="raw: --")
-                adj_readout.config(text="adj: --")
+                raw_readout.config(text=tr("algo_blink.readout_raw", value="--"))
+                adj_readout.config(text=tr("algo_blink.readout_adj", value="--"))
 
         self._viz_after_id = self._viz[0][0].after(80, self._tick_viz)
 
@@ -301,15 +263,15 @@ class BlinkAlgoSettingsModule(BaseSettingsModule):
         ttk.Label(col, text=label, font=("Segoe UI", 9, "bold")).grid(
             row=0, column=0, columnspan=2, sticky="w", pady=(0, 4)
         )
-        blink_lbl = ttk.Label(col, text="Blink point")
+        blink_lbl = ttk.Label(col, text=tr("algo_blink.blink_point"))
         blink_lbl.grid(row=1, column=0, sticky="w", padx=(0, 8), pady=2)
-        attach_tooltip(blink_lbl, _TIP_BLINK_POINT)
+        attach_tooltip(blink_lbl, tr("algo_blink.blink_point_tip"))
         self._build_threshold_entry(col, close_var).grid(
             row=1, column=1, sticky="w", pady=2
         )
-        wide_lbl = ttk.Label(col, text="Wide-eye point")
+        wide_lbl = ttk.Label(col, text=tr("algo_blink.wide_eye_point"))
         wide_lbl.grid(row=2, column=0, sticky="w", padx=(0, 8), pady=2)
-        attach_tooltip(wide_lbl, _TIP_WIDE_POINT)
+        attach_tooltip(wide_lbl, tr("algo_blink.wide_eye_point_tip"))
         self._build_threshold_entry(col, widen_var).grid(
             row=2, column=1, sticky="w", pady=2
         )
@@ -322,9 +284,9 @@ class BlinkAlgoSettingsModule(BaseSettingsModule):
         # Row 0: algorithm toggles.
         for idx, (key, default, label, tip) in enumerate(
             [
-                (self.gui_LEAP_lid, self.config.gui_LEAP_lid, "LEAP Lid Blink Algo", _TIP_LEAP_LID),
-                (self.gui_IBO, self.config.gui_IBO, "Intensity Based Openness", _TIP_IBO),
-                (self.gui_eyebrow, self.config.gui_eyebrow, "EyeBrow", _TIP_EYEBROW),
+                (self.gui_LEAP_lid, self.config.gui_LEAP_lid, tr("algo_blink.leap_lid"), tr("algo_blink.leap_lid_tip")),
+                (self.gui_IBO, self.config.gui_IBO, tr("algo_blink.intensity_based_openness"), tr("algo_blink.intensity_based_openness_tip")),
+                (self.gui_eyebrow, self.config.gui_eyebrow, tr("algo_blink.eyebrow"), tr("algo_blink.eyebrow_tip")),
             ]
         ):
             var = tk.BooleanVar(value=default)
@@ -333,10 +295,10 @@ class BlinkAlgoSettingsModule(BaseSettingsModule):
             cb.grid(row=0, column=idx, sticky="w", padx=8, pady=(2, 6))
             attach_tooltip(cb, tip)
 
-        # Row 1: hint text — applies to both columns below.
+        # Row 1: hint text (applies to both columns below).
         ttk.Label(
             parent,
-            text="↑ Blink point = blinks trigger easier · ↓ Wide-eye point = wide-eye triggers easier",
+            text=tr("algo_blink.hint"),
             foreground="#888888",
         ).grid(row=1, column=0, columnspan=3, sticky="w", padx=8, pady=(0, 4))
 
@@ -364,13 +326,13 @@ class BlinkAlgoSettingsModule(BaseSettingsModule):
         right_widen.trace_add("write", _live_float(self.config, "leap_lid_widen_threshold_right", right_widen))
 
         self._build_eye_column(
-            parent, "Left Eye", _EYE_ID_LEFT, left_close, left_widen
+            parent, tr("algo_blink.left_eye"), _EYE_ID_LEFT, left_close, left_widen
         ).grid(row=2, column=0, sticky="nw", padx=(8, 12), pady=4)
         ttk.Separator(parent, orient="vertical").grid(
             row=2, column=1, sticky="ns", pady=4
         )
         self._build_eye_column(
-            parent, "Right Eye", _EYE_ID_RIGHT, right_close, right_widen
+            parent, tr("algo_blink.right_eye"), _EYE_ID_RIGHT, right_close, right_widen
         ).grid(row=2, column=2, sticky="nw", padx=(12, 8), pady=4)
 
         # Row 3: the Redo button lives where the calibration entries used to.
@@ -392,28 +354,28 @@ class BlinkAlgoSettingsModule(BaseSettingsModule):
         cal_frame.grid(row=3, column=0, columnspan=3, sticky="ew", padx=8, pady=(6, 2))
         self._redo_button = ttk.Button(
             cal_frame,
-            text="Redo Eyelid Calib",
+            text=tr("algo_blink.redo_eyelid_calib"),
             command=self._on_redo_eyelid_calib,
         )
         self._redo_button.grid(row=0, column=0, sticky="w", pady=2)
-        attach_tooltip(self._redo_button, _TIP_REDO)
+        attach_tooltip(self._redo_button, tr("algo_blink.redo_eyelid_calib_tip"))
 
         # Kick off polling now that all canvases exist.
         self._tick_viz()
 
     def build_advanced(self, parent):
-        ttk.Label(parent, text="Eyelid calibration (advanced)").grid(
+        ttk.Label(parent, text=tr("algo_blink.advanced_heading")).grid(
             row=0, column=0, columnspan=2, sticky="w", padx=8, pady=(2, 4)
         )
-        cal_dur_lbl = ttk.Label(parent, text="Calibration duration (seconds)")
+        cal_dur_lbl = ttk.Label(parent, text=tr("algo_blink.calibration_duration"))
         cal_dur_lbl.grid(row=1, column=0, sticky="w", padx=8, pady=2)
-        attach_tooltip(cal_dur_lbl, _TIP_CAL_DURATION)
+        attach_tooltip(cal_dur_lbl, tr("algo_blink.calibration_duration_tip"))
         ttk.Entry(parent, textvariable=self._eyelid_duration_var, width=8).grid(
             row=1, column=1, sticky="w", pady=2
         )
-        min_span_lbl = ttk.Label(parent, text="Min blink size during calibration")
+        min_span_lbl = ttk.Label(parent, text=tr("algo_blink.min_blink_size"))
         min_span_lbl.grid(row=2, column=0, sticky="w", padx=8, pady=2)
-        attach_tooltip(min_span_lbl, _TIP_MIN_SPAN)
+        attach_tooltip(min_span_lbl, tr("algo_blink.min_blink_size_tip"))
         ttk.Entry(parent, textvariable=self._leap_min_span_var, width=8).grid(
             row=2, column=1, sticky="w", pady=2
         )
@@ -451,10 +413,10 @@ class BlinkAlgoSettingsModule(BaseSettingsModule):
         if btn is None:
             return
         try:
-            btn.config(text="Restarting…", state="disabled")
+            btn.config(text=tr("algo_blink.restarting"), state="disabled")
             btn.after(
                 1200,
-                lambda: btn.config(text="Redo Eyelid Calib", state="normal"),
+                lambda: btn.config(text=tr("algo_blink.redo_eyelid_calib"), state="normal"),
             )
         except tk.TclError:
             pass

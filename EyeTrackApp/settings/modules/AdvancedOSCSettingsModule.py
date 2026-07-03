@@ -2,6 +2,8 @@ from settings.modules.BaseModule import BaseSettingsModule, BaseValidationModel
 import tkinter as tk
 from tkinter import ttk
 
+from localization import tr
+
 
 class AdvancedOSCValidationModel(BaseValidationModel):
     gui_osc_port: int
@@ -24,18 +26,18 @@ class AdvancedOSCSettingsModule(BaseSettingsModule):
     def build(self, parent):
         paired_fields = [
             (
-                ("Address", self.gui_osc_address, self.config.gui_osc_address, 18),
-                ("Port", self.gui_osc_port, self.config.gui_osc_port, 10),
+                (tr("osc_advanced.address"), self.gui_osc_address, self.config.gui_osc_address, 18),
+                (tr("osc_advanced.port"), self.gui_osc_port, self.config.gui_osc_port, 10),
             ),
             (
                 (
-                    "Recenter Address",
+                    tr("osc_advanced.recenter_address"),
                     self.gui_osc_recenter_address,
                     self.config.gui_osc_recenter_address,
                     16,
                 ),
                 (
-                    "Receiver Port",
+                    tr("osc_advanced.receiver_port"),
                     self.gui_osc_receiver_port,
                     self.config.gui_osc_receiver_port,
                     10,
@@ -43,7 +45,7 @@ class AdvancedOSCSettingsModule(BaseSettingsModule):
             ),
             (
                 (
-                    "Recalibrate Address",
+                    tr("osc_advanced.recalibrate_address"),
                     self.gui_osc_recalibrate_address,
                     self.config.gui_osc_recalibrate_address,
                     28,

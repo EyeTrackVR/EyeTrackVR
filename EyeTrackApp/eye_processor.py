@@ -134,7 +134,7 @@ class EyeProcessor:
         self.image_queue_outgoing = image_queue_outgoing
         self.cancellation_event = cancellation_event
         self.capture_event = capture_event
-        # When True, camera feeds roi_queue only; GUI paces capture_event — do not signal from this thread.
+        # When True, camera feeds roi_queue only; GUI paces capture_event, do not signal from this thread.
         self.suppress_auto_capture_signal = False
         self.eye_id = eye_id
         self.baseconfig = baseconfig
@@ -154,7 +154,7 @@ class EyeProcessor:
         self.current_fps = None
         self.current_capture_ts: float | None = None
         # Tracking-output metrics. Both are time-windowed (last N seconds) so
-        # the readout is stable and matches what the eye can perceive — not a
+        # the readout is stable and matches what the eye can perceive, not a
         # noisy single-frame number. output_fps = iterations / window; latency
         # = mean of per-frame (tracking_done_ts - capture_push_ts).
         self._metrics_window_s: float = 3.0
@@ -217,8 +217,8 @@ class EyeProcessor:
             self._next_smartcal_w, self._next_smartcal_b
         ):
             logger.warning(
-                "NEXT smart cal (eye %s): stored transform W=%s B=%s is degenerate "
-                "— ignoring it. Re-run NEXT Smart Calib to fit a new one.",
+                "NEXT smart cal (eye %s): stored transform W=%s B=%s is degenerate"
+                " - ignoring it. Re-run NEXT Smart Calib to fit a new one.",
                 self.eye_id, self._next_smartcal_w, self._next_smartcal_b,
             )
             self._next_smartcal_w = None
@@ -250,7 +250,7 @@ class EyeProcessor:
         # Sentinel for "no minimum seen yet"; previously a magic 4e12 literal.
         self.min_int = float("inf")
         self.frames = 0
-        # Preview output is for the GUI only — throttle to 60 Hz so trackers
+        # Preview output is for the GUI only; throttle to 60 Hz so trackers
         # running >60 fps don't waste cycles on cv2.resize / concatenate /
         # queue churn that the user can never see.
         self._preview_min_interval_s = 1.0 / 60.0
@@ -346,7 +346,7 @@ class EyeProcessor:
         if self.current_capture_ts is not None:
             latency_ms = (now - self.current_capture_ts) * 1000.0
             # Guard against absurd values from clock anomalies / first frame
-            # after a long stall — keep them out of the moving average so the
+            # after a long stall; keep them out of the moving average so the
             # readout isn't anchored to an outlier for the rest of the window.
             if 0.0 <= latency_ms < 10_000.0:
                 self._tracking_latency_samples.append((now, latency_ms))
@@ -415,8 +415,6 @@ class EyeProcessor:
             pass
 
     def capture_crop_rotate_image(self):
-        # Get our current frame
-
         self.ibo.change_roi(
             {
                 "rotation_angle": self.config.rotation_angle,
@@ -521,7 +519,6 @@ class EyeProcessor:
                 avg_color_norm = avg_color[0:3] / alpha_avg
                 ar, ag, ab = np.clip(avg_color_norm, 0.0, 1.0)
 
-            # add border color to image masked by alpha and discard alpha channel
             rgb_ch = self.current_image[:, :, :3]
             inv_alpha_ch = 255 - self.current_image[:, :, 3]
             self.current_image = rgb_ch + np.stack(
@@ -600,7 +597,7 @@ class EyeProcessor:
         # NEXT produces its own eyelid openness (already remapped against the
         # close/widen thresholds in NEXTM). The image-intensity BLINK/IBO
         # estimators run on the eye-crop grayscale, which for NEXT is the full
-        # uncropped frame — feeding that here would overwrite the model's
+        # uncropped frame; feeding that here would overwrite the model's
         # calibrated eyelid with garbage. Skip them for NEXT, mirroring the
         # existing `not gui_NEXT` guard on the LEAP-lid block below.
         if self.settings.gui_BLINK and not self.settings.gui_NEXT:
@@ -618,7 +615,7 @@ class EyeProcessor:
                 self._ibo_filter_samples(),
                 self.settings.ibo_average_output_samples,
             )
-            # Share the per-eye Lid Close Threshold with LEAP Lid — formerly a
+            # Share the per-eye Lid Close Threshold with LEAP Lid, formerly a
             # separate ibo_fully_close_eye_threshold field, now consolidated.
             ibo_close_t, _ = leap_lid_thresholds_for_eye(self.settings, self.eye_id)
             if self.eyeopen < ibo_close_t:
@@ -765,7 +762,7 @@ class EyeProcessor:
         base_cutoff = float(self.settings.gui_min_cutoff)
         base_beta = float(self.settings.gui_speed_coefficient)
 
-        # NEXT runs on the RAW camera frame — no ROI window, no rotation — to match
+        # NEXT runs on the RAW camera frame (no ROI window, no rotation) to match
         # how the model was trained/exported (see infer.py's --roi handling). In
         # bigscreen mode one camera carries both eyes side-by-side, so feed this
         # eye's half; the LEFT/RIGHT split mirrors data_collection's bigscreen crop.
@@ -779,7 +776,7 @@ class EyeProcessor:
         )
 
         # Raw model gaze, before any flip. NEXT regresses gaze DIRECTION in
-        # [-1, 1] (right/up positive) — unlike pupil-pixel trackers, whose raw
+        # [-1, 1] (right/up positive), unlike pupil-pixel trackers, whose raw
         # output is an image coordinate. The calibration path below needs this
         # un-flipped copy (see the cal_osc call).
         model_gaze_x, model_gaze_y = gaze_x, gaze_y
@@ -793,7 +790,7 @@ class EyeProcessor:
         # While a dot is being held by the overlay, accumulate the raw model
         # gaze so the regression can be fit against the dot's known position.
         # Only within the capture window: the overlay holds each dot 0.5 s
-        # after its signal, then the next dot appears and the user follows it —
+        # after its signal, then the next dot appears and the user follows it;
         # sampling past the hold poisons this dot with the next dot's fixation.
         _sc_dot = self._next_smartcal_active_dot
         if _sc_dot is not None and (
@@ -835,7 +832,7 @@ class EyeProcessor:
 
         # Raw eyelid openness (pre-remap). Publish on the same runtime channel
         # LEAP uses so the settings-menu lid visualizer shows a live indicator
-        # for NEXT too — this is what makes the close/widen markers tunable
+        # for NEXT too; this is what makes the close/widen markers tunable
         # against live tracking when NEXT calibration is enabled.
         eyeopen_raw = eyelid * max(0.0, 1.0 - squeeze)
         _set_runtime_value(f"raw_lid_{int(self.eye_id)}", float(eyeopen_raw))
@@ -1020,7 +1017,7 @@ class EyeProcessor:
                 # Algorithm did not advance: treat as success and stop.
                 return
             # Algorithm advanced self.failed (failure): loop and try next slot.
-        # Walked past the end without success — reset for next frame.
+        # Walked past the end without success: reset for next frame.
         self.failed = 0
 
     def _rebuild_algorithm_slots(self) -> None:
@@ -1088,7 +1085,9 @@ class EyeProcessor:
             if self.next_runner is not None and getattr(self.next_runner, "variant", None) != variant:
                 self.next_runner = None
             if self.next_runner is None:
-                self.next_runner = External_Run_NEXT(variant)
+                self.next_runner = External_Run_NEXT(
+                    variant, label=("L" if self.eye_id == EyeId.LEFT else "R")
+                )
             enabled_algorithms.append(self.NEXTM)
         else:
             if self.next_runner is not None:
@@ -1128,6 +1127,11 @@ class EyeProcessor:
             frame = raw_frame[:, :mid] if self.eye_id == EyeId.LEFT else raw_frame[:, mid:]
         else:
             frame = raw_frame
+        # Feed the current eyelid openness so the brow gate can freeze the
+        # eyebrow through blinks. self.eyeopen is last frame's value here
+        # (UPDATE runs later in the loop); one frame of lag is immaterial next
+        # to a ~200 ms blink. The standalone eyebrow model has no lid of its own.
+        self.eyebrow_runner.set_lid(self.eyeopen)
         self.eyebrow_runner.submit(frame)
         self._enqueue_osc_message(OSCMessage(
             type=OSCMessageType.EYEBROW_INFO,
@@ -1140,18 +1144,15 @@ class EyeProcessor:
         self.hsf_runner = None
 
         while True:
-            # Check to make sure we haven't been requested to close
             if self.cancellation_event.is_set():
                 logger.info("Exiting tracking thread")
                 return
 
             if self.config.roi_window_w <= 0 or self.config.roi_window_h <= 0:
                 # At this point, we're waiting for the user to set up the ROI window in the GUI.
-                # Sleep a bit while we wait.
                 if self.cancellation_event.wait(0.1):
                     return
                 continue
-            # If our ROI configuration has changed, reset our model and detector
             if (
                 self.camera_model is None
                 or self.detector_3d is None
@@ -1170,7 +1171,6 @@ class EyeProcessor:
                 )
 
             try:
-                # Wait a bit for images here. If we don't get one, just try again.
                 (
                     self.current_image,
                     self.current_frame_number,

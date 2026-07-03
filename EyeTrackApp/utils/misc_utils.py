@@ -6,7 +6,7 @@ from typing import Union
 
 is_nt = os.name == "nt"
 # os.name is "posix" on both macOS and Linux, so the platform has to be read
-# from sys.platform — the old `os.name == "Darwin"` check was never true.
+# from sys.platform; the old `os.name == "Darwin"` check was never true.
 is_macos = sys.platform == "darwin"
 is_linux = sys.platform.startswith("linux")
 
@@ -34,7 +34,7 @@ else:
         (p for p in ("paplay", "aplay", "afplay") if shutil.which(p)), None
     )
 
-    def PlaySound(sound, flags=0):  # noqa: F811 — deliberate platform override
+    def PlaySound(sound, flags=0):  # noqa: F811 - deliberate platform override
         """winsound.PlaySound-compatible shim. Only the (filename, ASYNC)
         call shape the app uses is supported; anything else is ignored."""
         if not sound or _PLAYER is None:
@@ -46,7 +46,7 @@ else:
                 stderr=subprocess.DEVNULL,
             )
         except OSError:
-            pass  # No audio stack (headless session) — sounds are best-effort.
+            pass  # No audio stack (headless session); sounds are best-effort.
 
 
 def clamp(x, low, high):
@@ -69,7 +69,6 @@ def lst_median(lst, ordered=False):
 
 class FastMedian:
     # https://github.com/emilianavt/OpenSeeFace/blob/6f24efc4f58eb7cca47ec2146d934eabcc207e46/remedian.py
-    # Initialization
     def __init__(
         self, inits: typing.Optional[typing.Sequence] = [], k=64
     ):  # after some experimentation, 64 works ok
@@ -88,13 +87,11 @@ class FastMedian:
             self.more = self.more or FastMedian(k=self.k)
             self.more + self.__medianPrim(self.all)
             # It's going to be slower because of the re-allocation.
-            self.all = []  # reset
+            self.all = []
 
-    #  If there is a next list, ask its median. Else, work it out locally.
     def median(self):
         return self.more.median() if self.more else self.__medianPrim(self.all)
 
-    # Only recompute median if we do not know it already.
     def __medianPrim(self, all):
         if self.__median is None:
             self.__median = lst_median(all, ordered=False)

@@ -12,6 +12,8 @@ from settings.modules.CommonFieldValidators import (
     try_convert_to_float,
 )
 
+from localization import tr
+
 
 class VRCFTSettingsModuleValidationModel(BaseValidationModel):
     gui_VRCFTModulePort: int
@@ -112,17 +114,17 @@ class VRCFTSettingsModule(BaseSettingsModule):
                 (
                     self.gui_ShouldEmulateEyeWiden,
                     self.config.gui_ShouldEmulateEyeWiden,
-                    "Emulate Eye Widen",
+                    tr("vrcft.emulate_eye_widen"),
                 ),
                 (
                     self.gui_ShouldEmulateEyeSquint,
                     self.config.gui_ShouldEmulateEyeSquint,
-                    "Emulate Eye Squint",
+                    tr("vrcft.emulate_eye_squint"),
                 ),
                 (
                     self.gui_ShouldEmulateEyebrows,
                     self.config.gui_ShouldEmulateEyebrows,
-                    "Emulate Eyebrows",
+                    tr("vrcft.emulate_eyebrows"),
                 ),
             ]
         ):
@@ -133,7 +135,7 @@ class VRCFTSettingsModule(BaseSettingsModule):
             )
         row += 1
 
-        ttk.Label(parent, text="VRCFT Module listening IP").grid(
+        ttk.Label(parent, text=tr("vrcft.module_listening_ip")).grid(
             row=row, column=0, sticky="w", padx=8, pady=2
         )
         ip_var = tk.StringVar(value=str(self.config.gui_VRCFTModuleIPAddress))
@@ -142,7 +144,7 @@ class VRCFTSettingsModule(BaseSettingsModule):
             row=row, column=1, sticky="w", padx=8, pady=2
         )
 
-        ttk.Label(parent, text="VRCFT Module listening port").grid(
+        ttk.Label(parent, text=tr("vrcft.module_listening_port")).grid(
             row=row, column=2, sticky="w", padx=8, pady=2
         )
         port_var = tk.StringVar(value=str(self.config.gui_VRCFTModulePort))
@@ -152,7 +154,7 @@ class VRCFTSettingsModule(BaseSettingsModule):
         )
         row += 1
 
-        ttk.Label(parent, text="VRCFT Module output multiplier").grid(
+        ttk.Label(parent, text=tr("vrcft.module_output_multiplier")).grid(
             row=row, column=0, sticky="w", padx=8, pady=2
         )
         out_var = tk.StringVar(value=str(self.config.gui_OutputMultiplier))
@@ -170,70 +172,70 @@ class VRCFTSettingsModule(BaseSettingsModule):
 
         slider_specs = [
             (
-                "Widen V1 Min",
+                tr("vrcft.widen_v1_min"),
                 self.gui_WidenThresholdV1_min,
                 self.config.gui_WidenThresholdV1_min,
                 0,
                 1,
             ),
             (
-                "Widen V1 Max",
+                tr("vrcft.widen_v1_max"),
                 self.gui_WidenThresholdV1_max,
                 self.config.gui_WidenThresholdV1_max,
                 0,
                 2,
             ),
             (
-                "Widen V2 Min",
+                tr("vrcft.widen_v2_min"),
                 self.gui_WidenThresholdV2_min,
                 self.config.gui_WidenThresholdV2_min,
                 0,
                 2,
             ),
             (
-                "Widen V2 Max",
+                tr("vrcft.widen_v2_max"),
                 self.gui_WidenThresholdV2_max,
                 self.config.gui_WidenThresholdV2_max,
                 0,
                 2,
             ),
             (
-                "Squeeze V1 Min",
+                tr("vrcft.squeeze_v1_min"),
                 self.gui_SqueezeThresholdV1_min,
                 self.config.gui_SqueezeThresholdV1_min,
                 0,
                 1,
             ),
             (
-                "Squeeze V1 Max",
+                tr("vrcft.squeeze_v1_max"),
                 self.gui_SqueezeThresholdV1_max,
                 self.config.gui_SqueezeThresholdV1_max,
                 0,
                 2,
             ),
             (
-                "Squeeze V2 Min",
+                tr("vrcft.squeeze_v2_min"),
                 self.gui_SqueezeThresholdV2_min,
                 self.config.gui_SqueezeThresholdV2_min,
                 0,
                 1,
             ),
             (
-                "Squeeze V2 Max",
+                tr("vrcft.squeeze_v2_max"),
                 self.gui_SqueezeThresholdV2_max,
                 self.config.gui_SqueezeThresholdV2_max,
                 -2,
                 0,
             ),
             (
-                "Eyebrow Rising",
+                tr("vrcft.eyebrow_rising"),
                 self.gui_EyebrowThresholdRising,
                 self.config.gui_EyebrowThresholdRising,
                 0,
                 1,
             ),
             (
-                "Eyebrow Lowering",
+                tr("vrcft.eyebrow_lowering"),
                 self.gui_EyebrowThresholdLowering,
                 self.config.gui_EyebrowThresholdLowering,
                 0,

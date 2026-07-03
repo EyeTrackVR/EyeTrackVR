@@ -7,8 +7,8 @@
 #
 # Produces: <out-dir>/EyeTrackVR-<file-safe-version>-linux-x86_64.tar.gz
 #
-# Strategy: rsync the sources to the native ext4 filesystem first — PyInstaller
-# on /mnt/c is 10-20x slower and can hit permission quirks — then venv + build.
+# Strategy: rsync the sources to the native ext4 filesystem first (PyInstaller
+# on /mnt/c is 10-20x slower and can hit permission quirks), then venv + build.
 set -euo pipefail
 
 VERSION="${1:?version required}"
@@ -62,10 +62,10 @@ test -x "$BUNDLE/eyetrackvr" || { echo "ERROR: bundle missing eyetrackvr binary"
 echo "[linux-build] smoke test: bundled binary starts and imports..."
 # Run WITHOUT the build env's LD_LIBRARY_PATH, exactly like an end-user machine.
 # Pass conditions:
-#   rc=124  — timeout killed it, i.e. the app was RUNNING (WSLg gives a display;
+#   rc=124: timeout killed it, i.e. the app was RUNNING (WSLg gives a display;
 #             camera threads spin with "no camera" errors, which is fine)
-#   rc=0    — clean exit
-#   "no display" in output — headless box; still proves libs link and unpack
+#   rc=0: clean exit
+#   "no display" in output: headless box; still proves libs link and unpack
 # Anything else (missing .so, ImportError, instant crash) fails the build.
 set +e
 SMOKE_OUT="$(timeout 20 env -u LD_LIBRARY_PATH "$BUNDLE/eyetrackvr" 2>&1)"

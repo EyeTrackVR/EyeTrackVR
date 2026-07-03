@@ -7,6 +7,8 @@ import tkinter as tk
 from tkinter import messagebox
 from colorama import Fore
 
+from localization import tr
+
 
 class OpenVRException(Exception):
     pass
@@ -94,7 +96,7 @@ class OpenVRService:
                 }
             },
         }
-        # Only emit the key for the platform we're actually running on — that's
+        # Only emit the key for the platform we're actually running on: that's
         # the machine that will launch us. Adding binary_path_linux here is what
         # makes auto-launch work on Linux.
         if sys.platform.startswith("linux"):
@@ -107,12 +109,10 @@ class OpenVRService:
             application["arguments"] = arguments
         return {"source": "builtin", "applications": [application]}
 
-    # Write openvr manifest file
     def write_manifest(self) -> None:
         with open(self.manifestPath, "w", encoding="utf-8") as f:
             json.dump(self._build_manifest(), f, indent=2)
 
-    # Initialize the openvr connection if it wasn't already
     def initialize(self) -> bool:
         if self.is_initialized:
             return True
@@ -151,7 +151,7 @@ class OpenVRService:
         """Raise if an IVRApplications call returned a non-OK error code.
 
         pyopenvr's IVRApplications methods *return* an EVRApplicationError rather
-        than raising, so the result has to be inspected explicitly — otherwise
+        than raising, so the result has to be inspected explicitly; otherwise
         registration failures pass silently.
         """
         if err != openvr.VRApplicationError_None:
@@ -160,7 +160,7 @@ class OpenVRService:
     def _register(self) -> None:
         """(Re)write the manifest and register it for auto-launch.
 
-        Requires a running SteamVR — raises OpenVRException("SteamVR is not
+        Requires a running SteamVR: raises OpenVRException("SteamVR is not
         running") otherwise.
         """
         self.initialize()
@@ -186,8 +186,8 @@ class OpenVRService:
                 except Exception:
                     pass
         except OpenVRException:
-            # SteamVR isn't running; deleting the manifest file is enough —
-            # SteamVR won't auto-launch an app whose manifest no longer exists.
+            # SteamVR isn't running; deleting the manifest file is enough,
+            # since SteamVR won't auto-launch an app whose manifest no longer exists.
             pass
         try:
             if os.path.exists(self.manifestPath):
@@ -207,7 +207,7 @@ class OpenVRService:
         try:
             self._register()
         except OpenVRException as e:
-            # Quiet at startup — this will self-heal on a later run.
+            # Quiet at startup: this will self-heal on a later run.
             self.logger.log(
                 INFO,
                 f"{Fore.CYAN}[INFO] SteamVR auto-launch not registered yet ({e.args[0]})",
@@ -240,7 +240,7 @@ class OpenVRService:
                     return True
         except Exception:
             # Lost the connection (e.g. SteamVR closed without a clean quit
-            # event). Drop it and let the throttled reconnect above retry —
+            # event). Drop it and let the throttled reconnect above retry;
             # don't force-quit the whole app on a transient polling error.
             self._shutdown()
         return False
@@ -253,7 +253,7 @@ class OpenVRService:
             except OpenVRException as e:
                 # SteamVR not running yet: keep the user's choice and apply it
                 # the next time the app starts with SteamVR open (ensure_registered).
-                # Only "not running" is soft — any other error propagates so the
+                # Only "not running" is soft; any other error propagates so the
                 # UI can surface it and revert the checkbox.
                 if "not running" in str(e).lower():
                     self.logger.log(
@@ -279,7 +279,6 @@ class OpenVRService:
             try:
                 self.set_autostart(data["gui_openvr_autostart"])
             except OpenVRException as e:
-                # Uncheck the autostart option if we failed to toggle it on
                 self.autostart_enabled = False
                 if self.window is not None and hasattr(self.window, "set_openvr_autostart"):
                     self.window.set_openvr_autostart(False)
@@ -290,7 +289,8 @@ class OpenVRService:
                 popup_root = tk.Tk()
                 popup_root.withdraw()
                 messagebox.showwarning(
-                    "Warning", f"Cannot enable steamvr autostart: {e.args[0]}"
+                    tr("openvr.warning_title"),
+                    tr("openvr.autostart_failed", error=e.args[0]),
                 )
                 popup_root.destroy()
 

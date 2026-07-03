@@ -2,7 +2,7 @@
 # Mirrors [tool.poetry.dependencies] in pyproject.toml minus Windows-only
 # packages (winotify, pywinstyles, pygrabber, onnxruntime-directml) and dev
 # tooling. CPU onnxruntime is used instead of onnxruntime-gpu so the artifact
-# runs on every machine — leap.py auto-detects available providers, so users
+# runs on every machine; leap.py auto-detects available providers, so users
 # who install CUDA get acceleration from source installs, not this bundle.
 python-osc>=1.8
 requests>=2.28

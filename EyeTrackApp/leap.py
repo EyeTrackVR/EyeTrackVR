@@ -56,7 +56,7 @@ dml_lock = threading.Lock()
 
 if sys.platform.startswith("linux"):
     # Make CUDA's libs findable for onnxruntime-gpu. Only relevant when a CUDA
-    # toolkit is actually installed — CPU-only machines (the packaged release
+    # toolkit is actually installed: CPU-only machines (the packaged release
     # ships CPU onnxruntime) must NOT pay a whole-process re-exec at import
     # time, which is what the LD_LIBRARY_PATH edit requires to take effect.
     cuda_path = "/usr/local/cuda/lib64"

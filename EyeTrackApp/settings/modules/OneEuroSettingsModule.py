@@ -1,7 +1,7 @@
 """Smoothing Intensity slider.
 
-The OneEuroFilter has two knobs — ``min_cutoff`` (rest-cutoff in Hz) and
-``beta`` (speed coefficient) — and the relationship between them and the
+The OneEuroFilter has two knobs: ``min_cutoff`` (rest-cutoff in Hz) and
+``beta`` (speed coefficient). The relationship between them and the
 perceived smoothing is non-obvious to almost everyone. This module replaces
 both raw entries with a single 0..100 slider; the underlying parameters are
 derived from a tuned curve so the default (70) lands on the historical
@@ -29,19 +29,13 @@ from tkinter import ttk
 
 from utils.tooltips import attach_tooltip
 
-
-_TIP_SMOOTHING = (
-    "How aggressively the One-Euro filter smooths eye motion. "
-    "0 = almost no smoothing (snappiest, jitter passes through), "
-    "100 = very heavy smoothing (laggy but rock-steady). "
-    "Default 70 matches the historical balanced setting."
-)
+from localization import tr
 
 
 # Curve endpoints picked so that intensity=70 hits the legacy defaults
 # (min_cutoff=0.0004, beta=0.9) and the extremes still feel like meaningful
 # choices rather than degenerate ones. min_cutoff is log-interpolated, beta
-# linear — matches how each affects the filter perceptually.
+# linear: matches how each affects the filter perceptually.
 _MIN_CUTOFF_LOG_MAX = math.log10(0.5)     # intensity=0
 _MIN_CUTOFF_LOG_MIN = math.log10(0.00002)  # intensity=100
 _BETA_MAX = 3.0                            # intensity=0
@@ -71,7 +65,7 @@ class OneEuroSettingsModule(BaseSettingsModule):
         # Reset-to-defaults walks ``getattr(module, key)`` for each entry
         # in get_key_for_panel_defaults(); the derived OneEuro fields need
         # *some* attribute so that lookup doesn't AttributeError. They aren't
-        # backed by tk widgets — the slider drives them — but we still want
+        # backed by tk widgets (the slider drives them) but we still want
         # "Reset" to put them back to defaults.
         self.gui_min_cutoff = "__derived_one_euro_min_cutoff__"
         self.gui_speed_coefficient = "__derived_one_euro_beta__"
@@ -105,9 +99,9 @@ class OneEuroSettingsModule(BaseSettingsModule):
             next_val = max(min_v, min(max_v, next_val))
             intensity.set(next_val)
 
-        smooth_lbl = ttk.Label(parent, text="Smoothing Intensity")
+        smooth_lbl = ttk.Label(parent, text=tr("oneeuro.smoothing_intensity"))
         smooth_lbl.grid(row=0, column=0, sticky="w", padx=8, pady=2)
-        attach_tooltip(smooth_lbl, _TIP_SMOOTHING)
+        attach_tooltip(smooth_lbl, tr("oneeuro.smoothing_intensity_tip"))
         ttk.Scale(
             parent,
             from_=min_v,

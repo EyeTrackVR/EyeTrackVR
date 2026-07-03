@@ -15,6 +15,8 @@ import cv2
 import tkinter as tk
 from tkinter import ttk
 
+from localization import tr
+
 DATA_COLLECTION_VERSION = "v5"
 
 logger = logging.getLogger(__name__)
@@ -164,9 +166,9 @@ OVERLAY_POINT_NAMES = {
 # Jitter grid base positions ordered as a smooth snake path.
 #
 # Layout (22 points):
-#   Outer ring   — edges at ±0.60 x / ±0.50–0.65 y
-#   Intermediate — ±0.25–0.35 band (fills the previous deadzone)
-#   Near-center  — ±0.12–0.18 cluster (bridges center prompts to intermediate)
+#   Outer ring:   edges at ±0.60 x / ±0.50–0.65 y
+#   Intermediate: ±0.25–0.35 band (fills the previous deadzone)
+#   Near-center:  ±0.12–0.18 cluster (bridges center prompts to intermediate)
 #
 # Path: up the left outer column (with intermediate interspersed) → cross to
 # top-center → spiral inward through the center cluster → bottom-center →
@@ -230,7 +232,7 @@ def _drain_udp_socket(sock):
     breaks phase 1 immediately with ``phase1_done=False``, which makes the pass
     skip its entire jittered-grid capture (phase 2). When several passes skip
     like this the whole session races through in seconds and ends with the
-    "you are done" prompt far too early — the reported bug. The skip is
+    "you are done" prompt far too early (the reported bug). The skip is
     timing-dependent and shows up more in bigscreen, where ``drain_to_video``
     copies frames for two queues off the one shared camera and so widens the
     window in which packets pile up unread between passes."""
@@ -276,7 +278,7 @@ class DataCollectionWindow:
         self.parent = parent
         self.eyes = eyes
         self.window = tk.Toplevel(parent)
-        self.window.title("Data Collection")
+        self.window.title(tr("data_collection.title"))
         self.window.withdraw()
         self.window.resizable(False, False)
         self.window.protocol("WM_DELETE_WINDOW", self.close)
@@ -337,7 +339,7 @@ class DataCollectionWindow:
         
         tk.Label(
             _content,
-            text="Data Collection",
+            text=tr("data_collection.title"),
             font=("Segoe UI", 12, "bold"),
             bg=_bg,
             fg="#e8e8e8",
@@ -345,17 +347,14 @@ class DataCollectionWindow:
 
         ttk.Label(
             _content,
-            text=(
-                "Help us improve EyeTrackVR by contributing data. It takes only a few minutes. "
-                "Your setup can work perfectly or poorly to make meaningful improvements!"
-            ),
+            text=tr("data_collection.intro"),
             wraplength=400,
             justify="left",
         ).pack(anchor="w", pady=(0, 6))
 
         ttk.Label(
             _content,
-            text="Please run in VR inside SteamVR and use the VR overlay. Then be sure to submit the .zip on the form! Thank you!",
+            text=tr("data_collection.vr_instructions"),
             font=("Segoe UI", 10, "bold"),
             wraplength=400,
             justify="left",
@@ -364,11 +363,11 @@ class DataCollectionWindow:
         self.use_overlay_var = tk.BooleanVar(value=True)
         ttk.Checkbutton(
             _content,
-            text="Use Calibration Overlay Passes",
+            text=tr("data_collection.use_overlay"),
             variable=self.use_overlay_var,
         ).pack(anchor="w", pady=(0, 8))
 
-        self._status_var = tk.StringVar(value="Ready.")
+        self._status_var = tk.StringVar(value=tr("data_collection.status_ready"))
         ttk.Label(
             _content,
             textvariable=self._status_var,
@@ -381,7 +380,7 @@ class DataCollectionWindow:
 
         self._start_btn = ttk.Button(
             btn_row,
-            text="Start Collection",
+            text=tr("data_collection.start"),
             command=self._start_collection,
             style="Accent.TButton",
         )
@@ -389,7 +388,7 @@ class DataCollectionWindow:
 
         self._stop_btn = ttk.Button(
             btn_row,
-            text="Stop",
+            text=tr("data_collection.stop"),
             command=self._stop_collection,
             state="disabled",
         )
@@ -397,20 +396,20 @@ class DataCollectionWindow:
 
         ttk.Button(
             btn_row,
-            text="Open Submissions Page",
+            text=tr("data_collection.open_submissions"),
             command=lambda: webbrowser.open("https://ask.eyetrackvr.dev/next-leap-data-collection"),
         ).pack(side="left", padx=(0, 8))
 
         ttk.Button(
             btn_row,
-            text="Open Folder",
+            text=tr("data_collection.open_folder"),
             command=self._open_folder,
         ).pack(side="left")
 
         _close_row = ttk.Frame(self.window)
         _close_row.pack(fill="x", padx=16, pady=(0, 16))
         ttk.Button(
-            _close_row, text="Close", command=self.close
+            _close_row, text=tr("data_collection.close"), command=self.close
         ).pack(side="right")
 
     def _open_folder(self):
@@ -438,14 +437,14 @@ class DataCollectionWindow:
                 self.active_eye_labels.append("Left" if eye.eye_id.name == "LEFT" else "Right")
                 
         if not self.active_queues:
-            self._status_var.set("Error: No active cameras running. Start tracking first.")
+            self._status_var.set(tr("data_collection.status_no_cameras"))
             return
 
         self.session_running = True
         self.session_cancel.clear()
         self._start_btn.configure(state="disabled")
         self._stop_btn.configure(state="normal")
-        self._status_var.set("Starting collection...")
+        self._status_var.set(tr("data_collection.status_starting"))
         threading.Thread(target=self._run_collection, daemon=True).start()
 
     def _stop_collection(self):
@@ -495,7 +494,7 @@ class DataCollectionWindow:
             time.sleep(0.05)
 
         if any(f is None for f in first_frames) and not self.session_cancel.is_set():
-            self.gui_queue.put(("status", "Could not get frames from cameras. Are they connected?"))
+            self.gui_queue.put(("status", tr("data_collection.status_no_frames")))
             self._cleanup_session()
             return
 
@@ -503,7 +502,7 @@ class DataCollectionWindow:
         video_writers = []
         # Lock each writer's frame size so we can conform later frames to it.
         # cv2.VideoWriter.write() raises "Unknown C++ exception from OpenCV
-        # code" if handed a frame of a different size — and UVC cams under USB
+        # code" if handed a frame of a different size, and UVC cams under USB
         # bandwidth pressure (especially at 90 fps) do intermittently deliver a
         # differently-sized frame, which previously crashed the capture pass.
         self._video_writer_sizes = []
@@ -541,7 +540,6 @@ class DataCollectionWindow:
         send_cmd = None
 
         if use_overlay:
-            # Try to launch overlay
             _overlay_name = (
                 "EyeTrackVR-Overlay.exe"
                 if platform.system() == "Windows"
@@ -554,7 +552,7 @@ class DataCollectionWindow:
                 overlay_exe = os.path.join(os.getcwd(), "Tools", _overlay_name)
             
             if not os.path.isfile(overlay_exe):
-                self.gui_queue.put(("status", "Overlay executable not found. Running without overlay."))
+                self.gui_queue.put(("status", tr("data_collection.status_overlay_not_found")))
                 use_overlay = False
             else:
                 try:
@@ -577,7 +575,7 @@ class DataCollectionWindow:
                         cwd=os.path.dirname(overlay_exe),
                     )
 
-                    self.gui_queue.put(("status", "Waiting for overlay..."))
+                    self.gui_queue.put(("status", tr("data_collection.status_waiting_overlay")))
                     ready = False
                     ov_deadline = time.time() + 15
                     while time.time() < ov_deadline and not self.session_cancel.is_set():
@@ -592,12 +590,12 @@ class DataCollectionWindow:
                             pass
 
                     if not ready:
-                        self.gui_queue.put(("status", "Overlay did not respond. Running without it."))
+                        self.gui_queue.put(("status", tr("data_collection.status_overlay_no_response")))
                         use_overlay = False
                     else:
-                        self.gui_queue.put(("status", "Overlay connected."))
+                        self.gui_queue.put(("status", tr("data_collection.status_overlay_connected")))
                 except Exception as e:
-                    self.gui_queue.put(("status", f"Overlay setup failed: {e}. Running without it."))
+                    self.gui_queue.put(("status", tr("data_collection.status_overlay_failed", error=e)))
                     use_overlay = False
 
         prompts_to_run = [
@@ -612,7 +610,7 @@ class DataCollectionWindow:
                 if self.session_cancel.is_set():
                     break
 
-                self.gui_queue.put(("status", f"Speaking: {tts_text} ({capture_count+1}/{total_prompts})"))
+                self.gui_queue.put(("status", tr("data_collection.status_speaking", text=tts_text, current=capture_count + 1, total=total_prompts)))
 
                 if use_overlay:
                     send_text(tts_text)
@@ -635,7 +633,7 @@ class DataCollectionWindow:
                 if self.session_cancel.is_set():
                     break
 
-                self.gui_queue.put(("status", f"Capturing snapshot..."))
+                self.gui_queue.put(("status", tr("data_collection.status_capturing")))
 
                 prompt_frames = [None] * n
                 frame_numbers = [None] * n
@@ -698,7 +696,7 @@ class DataCollectionWindow:
 
         except Exception as e:
             logger.exception("Data collection aborted by an unexpected error")
-            self.gui_queue.put(("status", f"Error during collection: {e}"))
+            self.gui_queue.put(("status", tr("data_collection.status_error", error=e)))
         finally:
             if send_cmd is not None and cmd_sock is not None:
                 try:
@@ -727,9 +725,9 @@ class DataCollectionWindow:
                 except Exception:
                     pass
                 speak("you are done").wait()
-                self.gui_queue.put(("status", f"Done! Saved to: {zip_name}"))
+                self.gui_queue.put(("status", tr("data_collection.status_done", path=zip_name)))
             else:
-                self.gui_queue.put(("status", "Session cancelled."))
+                self.gui_queue.put(("status", tr("data_collection.status_cancelled")))
 
             self._cleanup_session()
 
@@ -737,8 +735,8 @@ class DataCollectionWindow:
         """Write a frame to the full-session VideoWriter, conformed so the write
         can't throw. cv2.VideoWriter.write() raises "Unknown C++ exception from
         OpenCV code" when the frame size differs from the writer's locked
-        (w, h) — which happens when the camera briefly renegotiates resolution
-        under USB-bandwidth pressure (common at 90 fps) — and is also unhappy
+        (w, h), which happens when the camera briefly renegotiates resolution
+        under USB-bandwidth pressure (common at 90 fps), and is also unhappy
         with the non-contiguous views the bigscreen split (frame[:, mid:])
         produces. Resize to the locked size and/or make contiguous, and swallow
         any residual write failure so one bad frame never aborts the pass."""
@@ -774,7 +772,6 @@ class DataCollectionWindow:
                 frame_nums[j] = fnum
                 self._write_video_frame(video_writers[j], j, frame)
             except queue.Empty:
-                # No frame within the timeout — just skip this eye for this point.
                 pass
             except Exception:
                 # A transient grab/split/write failure for one eye must not drop
@@ -811,11 +808,11 @@ class DataCollectionWindow:
             # Isolate each pass: a transient error (frame grab, socket, codec)
             # in one pass must NOT abort the whole multi-minute session. Before
             # this, any exception here propagated to _run_collection's handler,
-            # which silently played "you are done" mid-run — e.g. completing
+            # which silently played "you are done" mid-run, e.g. completing
             # gaze + squint then stopping before the widen/eyebrow passes. Log
             # the full traceback and move on to the next pass instead.
             try:
-                self.gui_queue.put(("status", f"Overlay Pass {pass_num + 1}/{total_passes}: {tts_text}"))
+                self.gui_queue.put(("status", tr("data_collection.status_overlay_pass", current=pass_num + 1, total=total_passes, text=tts_text)))
                 done = speak(tts_text)
                 while not done.is_set():
                     if self.session_cancel.is_set():
@@ -902,7 +899,7 @@ class DataCollectionWindow:
                     pass_num + 1, total_passes, label_prefix,
                 )
                 self.gui_queue.put(
-                    ("status", f"Pass {pass_num + 1}/{total_passes} ({label_prefix}) errored; continuing.")
+                    ("status", tr("data_collection.status_pass_errored", current=pass_num + 1, total=total_passes, label=label_prefix))
                 )
                 continue
 
@@ -911,7 +908,7 @@ class DataCollectionWindow:
     def _run_headset_shift_pass(self, seed, output_dir, n, video_writers, timestamp_files,
                                  drain_to_video, base_idx, udp_sock, cmd_sock):
         overlay_idx = base_idx
-        self.gui_queue.put(("status", "Headset Shift Pass: look at center dot and shift your headset around"))
+        self.gui_queue.put(("status", tr("data_collection.status_headset_shift")))
 
         cmd_sock.sendto(struct.pack(">i", 120), ("127.0.0.1", OVERLAY_CMD_PORT))
         speech_done = speak("Look at the center dot and shift your headset around in all directions")
