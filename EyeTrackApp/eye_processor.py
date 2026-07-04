@@ -1085,9 +1085,7 @@ class EyeProcessor:
             if self.next_runner is not None and getattr(self.next_runner, "variant", None) != variant:
                 self.next_runner = None
             if self.next_runner is None:
-                self.next_runner = External_Run_NEXT(
-                    variant, label=("L" if self.eye_id == EyeId.LEFT else "R")
-                )
+                self.next_runner = External_Run_NEXT(variant)
             enabled_algorithms.append(self.NEXTM)
         else:
             if self.next_runner is not None:
@@ -1127,11 +1125,6 @@ class EyeProcessor:
             frame = raw_frame[:, :mid] if self.eye_id == EyeId.LEFT else raw_frame[:, mid:]
         else:
             frame = raw_frame
-        # Feed the current eyelid openness so the brow gate can freeze the
-        # eyebrow through blinks. self.eyeopen is last frame's value here
-        # (UPDATE runs later in the loop); one frame of lag is immaterial next
-        # to a ~200 ms blink. The standalone eyebrow model has no lid of its own.
-        self.eyebrow_runner.set_lid(self.eyeopen)
         self.eyebrow_runner.submit(frame)
         self._enqueue_osc_message(OSCMessage(
             type=OSCMessageType.EYEBROW_INFO,

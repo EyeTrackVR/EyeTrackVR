@@ -987,13 +987,6 @@ class CameraWidget:
         if osc_message.data:
             self.recenter_eyes()
 
-    def osc_recalibrate_eyes(self, osc_message: OSCMessage):
-        if not isinstance(osc_message.data, bool):
-            return  # just incase we get anything other than bool
-
-        if osc_message.data:
-            self.recalibrate_eyes()
-
     def render_tick(self):
         changed = False
 

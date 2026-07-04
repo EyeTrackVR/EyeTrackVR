@@ -245,12 +245,51 @@ def main():
             eyes[1].osc_recenter_eyes,
         ],
     )
+    def _osc_recalibrate(osc_message: OSCMessage):
+        """Route the in-VR recalibrate trigger the same way as the GUI's
+        Start Calibration button: Smart Calib for NEXT (no legacy ellipse
+        path), the overlay spiral for other trackers, classic on-screen
+        sampling when overlay calibration is disabled. The old per-eye
+        classic-only handler silently never completed for NEXT users."""
+        if not isinstance(osc_message.data, bool) or not osc_message.data:
+            return
+        use_smartcal = bool(config.settings.gui_NEXT) and not bool(
+            config.settings.gui_NEXT_calibration
+        )
+        if config.settings.gui_use_overlay_cal:
+            from osc_calibrate_filter import (
+                next_smartcal_overlay,
+                overlay_ellipse_calibrate,
+            )
+
+            eps = [
+                eye.ransac for eye in eyes
+                if eye.started() and getattr(eye, "ransac", None) is not None
+            ]
+            if not eps:
+                return
+            if use_smartcal:
+                next_smartcal_overlay(eps, config.settings, config)
+            else:
+                config.settings.calib_mode = "classic"
+                config.save()
+                overlay_ellipse_calibrate(eps, config.settings, config)
+            return
+        if use_smartcal:
+            logger.warning(
+                "OSC recalibrate ignored: NEXT Smart Calib requires the SteamVR "
+                "overlay. Enable 'Use SteamVR Overlay for Calibration' in "
+                "General Settings, or enable 'Allow Calibration' on the NEXT "
+                "tracker for the classic on-screen method."
+            )
+            return
+        for eye in eyes:
+            if eye.started():
+                eye.recalibrate_eyes()
+
     osc_manager.register_listeners(
         config.settings.gui_osc_recalibrate_address,
-        [
-            eyes[0].osc_recalibrate_eyes,
-            eyes[1].osc_recalibrate_eyes,
-        ],
+        [_osc_recalibrate],
     )
 
     osc_manager.start()

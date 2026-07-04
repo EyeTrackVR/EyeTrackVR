@@ -28,7 +28,7 @@ LICENSE: Babble Software Distribution License 1.0
 """
 
 import os
-import time
+from collections import deque
 import numpy as np
 import cv2
 import onnxruntime
@@ -36,6 +36,13 @@ from one_euro_filter import OneEuroFilter
 from utils.misc_utils import resource_path
 
 os.environ["OMP_NUM_THREADS"] = "1"
+
+# Median window (frames) applied to the raw eyebrow before the One-Euro filter.
+# A running median rejects super-fast jitter — single-frame spikes and frame-to-
+# frame oscillation — that the One-Euro's speed term would otherwise pass, and it
+# costs only ~(N-1)/2 frames of lag, which is negligible for a slow brow signal.
+# Odd window so the median is a real sample. Bump higher for stronger rejection.
+_BROW_MEDIAN_WINDOW = 5
 
 # Supported model variants. The selector in the GUI picks one of these and the
 # matching ONNX file (Models/NEXT_<VARIANT>.onnx) is loaded. The "<BASE> LITE"
@@ -71,62 +78,6 @@ _MEAN = np.array([0.485, 0.456, 0.406], dtype=np.float32).reshape(3, 1, 1)
 _STD  = np.array([0.229, 0.224, 0.225], dtype=np.float32).reshape(3, 1, 1)
 
 
-# Flip to True to log every frame the brow gate holds the eyebrow, so you can
-# confirm it engaging on real blinks.
-_BROW_GATE_DEBUG = True
-
-
-class BlinkBrowGate:
-    """Hold the eyebrow output while the eyelid is closed or in flight.
-
-    Mid-blink frames are out-of-distribution (training data is held poses, so
-    no frame shows a descending lid) and the model reads the hooded appearance
-    as brows-down. A brow can't physically move much within a ~200 ms blink,
-    so freezing it during the blink is lossless. The gate engages when the lid
-    is below lid_thresh OR moving faster than vel_thresh (a blink downstroke
-    is ~7 units/s; a deliberate squint is ~0.6/s), and releases release_s
-    after the lid is back up and slow.
-
-    Ported from LEAPv2_Training/End2End/infer.py. Operates on the raw model
-    outputs (before the One-Euro filter) so the blink velocity is read before
-    smoothing muddles it."""
-
-    def __init__(self, lid_thresh=0.4, vel_thresh=2.0, release_s=0.10, label=""):
-        self.lid_thresh = lid_thresh
-        self.vel_thresh = vel_thresh
-        self.release_s = release_s
-        self.label = label
-        self.t_prev = None
-        self.lid_prev = None
-        self.held = None
-        self.t_open = None
-
-    def __call__(self, t, brow, lid):
-        if self.t_prev is None:
-            self.t_prev, self.lid_prev, self.held, self.t_open = t, lid, brow, t
-            return brow
-        dt = max(t - self.t_prev, 1e-6)
-        vel = (lid - self.lid_prev) / dt
-        self.t_prev, self.lid_prev = t, lid
-        if lid < self.lid_thresh or abs(vel) > self.vel_thresh:
-            self.t_open = None
-            if _BROW_GATE_DEBUG:
-                print(f"[brow-gate {self.label}] HELD   brow_raw={brow:.3f} held={self.held:.3f} "
-                      f"lid={lid:.3f} vel={vel:+.2f}")
-            return self.held
-        if self.t_open is None:
-            self.t_open = t
-        if t - self.t_open < self.release_s:
-            if _BROW_GATE_DEBUG:
-                print(f"[brow-gate {self.label}] REL    brow_raw={brow:.3f} held={self.held:.3f} "
-                      f"lid={lid:.3f} vel={vel:+.2f}")
-            return self.held
-        self.held = brow
-        if _BROW_GATE_DEBUG:
-            print(f"[brow-gate {self.label}] pass   brow_raw={brow:.3f} lid={lid:.3f} vel={vel:+.2f}")
-        return brow
-
-
 class NEXT_cls:
     """End-to-end eye tracker wrapping the ONNX-exported MobileNetV3-Small model.
 
@@ -136,9 +87,8 @@ class NEXT_cls:
       - eyebrow / eyelid / squeeze : sigmoid range [0, 1]
     """
 
-    def __init__(self, variant: str = DEFAULT_MODEL_VARIANT, label: str = ""):
+    def __init__(self, variant: str = DEFAULT_MODEL_VARIANT):
         self.variant = variant
-        self.label = label
         onnxruntime.disable_telemetry_events()
         options = onnxruntime.SessionOptions()
         options.inter_op_num_threads = 1
@@ -173,14 +123,23 @@ class NEXT_cls:
         meta = ort_session.get_modelmeta().custom_metadata_map
         self.raw_input = meta.get("preprocess") == "rgb-raw-0-255"
 
+        # Temporal exports stack T frames channel-wise (oldest -> newest,
+        # `frame_stride` camera frames apart) and declare it in the metadata.
+        # Single-frame models have no such keys and skip the history buffer
+        # entirely, so this is fully backward compatible.
+        self.temporal_frames = int(meta.get("temporal_frames", 1))
+        self.frame_stride = int(meta.get("frame_stride", 2))
+        self._frame_history = deque(
+            maxlen=(self.temporal_frames - 1) * self.frame_stride + 1
+        )
+
         # Initialize with dummy arrays; updated dynamically in run()
         self.one_euro_filter = OneEuroFilter(
             np.zeros(5, dtype=np.float32), min_cutoff=1.0, beta=0.0
         )
 
-        # Freezes the eyebrow output during blinks (see BlinkBrowGate). Applied
-        # to the raw model outputs before the One-Euro filter.
-        self.brow_gate = BlinkBrowGate(label=label)
+        # Recent raw eyebrow values for the running-median jitter reject (see run()).
+        self._brow_window = deque(maxlen=_BROW_MEDIAN_WINDOW)
 
     def run(self, bgr_frame: np.ndarray, base_cutoff: float = 0.0004, base_beta: float = 0.9):
         # Update filter parameters based on smoothing slider base values
@@ -220,6 +179,17 @@ class NEXT_cls:
         # bake it into the graph and take raw 0..255 (see self.raw_input).
         if not self.raw_input:
             img = (img / 255.0 - _MEAN) / _STD
+        if self.temporal_frames > 1:
+            # Channel-stack the history oldest -> newest at frame_stride
+            # spacing; while the buffer is still filling (first few frames
+            # after start) pad with the oldest frame available.
+            self._frame_history.append(img)
+            h = self._frame_history
+            img = np.concatenate(
+                [h[max(0, len(h) - 1 - (self.temporal_frames - 1 - k) * self.frame_stride)]
+                 for k in range(self.temporal_frames)],
+                axis=0,
+            )
         img = img[np.newaxis]  # NCHW batch dim
         # Cast to the model's input dtype (no-op for float32 I/O; fp16 for Lite builds
         # that take half-precision input). Output is coerced back to float32 below.
@@ -227,17 +197,12 @@ class NEXT_cls:
 
         raw = self.ort_session.run(None, {self.input_name: img})[0][0].astype(np.float32)
 
-        if _BROW_GATE_DEBUG:
-            # Full model output so we can see what actually moves on a blink:
-            # which of eyelid/squeeze reflects closure, and by how much.
-            print(f"[NEXT {self.label}] brow={raw[0]:.3f} lid={raw[1]:.3f} "
-                  f"sqz={raw[2]:.3f} gx={raw[3]:+.3f} gy={raw[4]:+.3f}")
-
-        # Hold the eyebrow (index 0) steady through blinks, keyed on the raw
-        # eyelid (index 1). Gate on the raw values (before the One-Euro filter)
-        # so the fast blink downstroke is detected before smoothing damps it.
-        # Use a monotonic clock: One-Euro/gate dt must never go backwards.
-        raw[0] = self.brow_gate(time.perf_counter(), float(raw[0]), float(raw[1]))
+        # Reject super-fast eyebrow jitter with a running median before smoothing,
+        # so spikes never enter the One-Euro's derivative term (which would amplify
+        # them). Only the eyebrow channel is de-spiked; gaze/eyelid/squeeze are
+        # untouched.
+        self._brow_window.append(float(raw[0]))
+        raw[0] = float(np.median(self._brow_window))
 
         out = self.one_euro_filter(raw)
 
@@ -246,9 +211,9 @@ class NEXT_cls:
 
 
 class External_Run_NEXT:
-    def __init__(self, variant: str = DEFAULT_MODEL_VARIANT, label: str = ""):
+    def __init__(self, variant: str = DEFAULT_MODEL_VARIANT):
         self.variant = variant
-        self.algo = NEXT_cls(variant, label=label)
+        self.algo = NEXT_cls(variant)
 
     def run(self, bgr_frame: np.ndarray, base_cutoff: float = 0.0004, base_beta: float = 0.9):
         """Run End2End inference on a raw BGR frame.

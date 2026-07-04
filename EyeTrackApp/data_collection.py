@@ -219,8 +219,46 @@ def _jittered_grid_positions(session_seed, pass_index, n=22, jitter=0.12):
     step = len(all_pos) / n
     return [all_pos[int(i * step)] for i in range(n)]
 
+# ── Blink-at-dot pass ─────────────────────────────────────────────────────────
+# The user fixates a pinned dot and blinks repeatedly with a relaxed brow.
+# Burst captures sample every phase of the blink sweep — the mid-blink frames
+# that held-pose prompts never produce and that the model otherwise confuses
+# with lowered eyebrows (the blink -> eyebrow-wobble artifact). Training reads
+# these from the "blinkdot_x{±f}_y{±f}" label: gaze = dot coords, brow anchored
+# neutral, squeeze anchored 0, eyelid unsupervised (aperture unknown mid-sweep).
+#
+# Mid-eccentricity base positions (jittered per session): far corners + blinking
+# is an awkward combo users do badly, and four spread positions are enough for
+# the decorrelation this pass exists for.
+_BLINKDOT_BASE = [(-0.45, 0.35), (0.45, 0.35), (0.45, -0.35), (-0.45, -0.35)]
+_BLINKDOT_JITTER = 0.12
+BLINKDOT_BURST_FRAMES = 15      # per position
+BLINKDOT_BURST_INTERVAL = 0.2   # ~3 s of blinking per position
+
+# ── Closed-eye roam pass ──────────────────────────────────────────────────────
+# Eyes held shut while the user moves face/brows/cheeks around: diversifies
+# closed-lid appearance so "closed" is recognized under any facial pose. Only
+# the eyelid label is trusted in training ("closed_roam"); brow/squeeze/gaze
+# are all changing or unobservable and get zero weight.
+CLOSED_ROAM_FRAMES = 25
+CLOSED_ROAM_INTERVAL = 0.2
+
+def _blinkdot_positions(session_seed):
+    rng = random.Random(f"{session_seed}:blinkdot")
+    out = []
+    for bx, by in _BLINKDOT_BASE:
+        x = max(-1.0, min(1.0, bx + rng.uniform(-_BLINKDOT_JITTER, _BLINKDOT_JITTER)))
+        y = max(-1.0, min(1.0, by + rng.uniform(-_BLINKDOT_JITTER, _BLINKDOT_JITTER)))
+        out.append((round(x, 3), round(y, 3)))
+    return out
+
 OVERLAY_PORT     = 2112
 OVERLAY_CMD_PORT = 2113
+
+# Overlay command codes used by the passes below (see modes.cpp InteractiveMode).
+OVERLAY_CMD_PIN_DOT  = 113   # >iff x y: persistent dot at (x, y); overlay acks 21
+OVERLAY_CMD_UNPIN    = 114   # hide the pinned dot
+OVERLAY_SIG_PINNED   = 21
 
 
 def _drain_udp_socket(sock):
@@ -688,10 +726,32 @@ class DataCollectionWindow:
                     udp_sock, send_cmd, cmd_sock,
                 )
             if use_overlay and not self.session_cancel.is_set():
-                self._run_headset_shift_pass(
+                base_idx = self._run_headset_shift_pass(
                     seed, output_dir, n, video_writers,
                     timestamp_files, drain_to_video, base_idx,
                     udp_sock, cmd_sock,
+                )
+            # Blink-at-dot: mid-blink frames with a held-neutral brow (the
+            # anti-"blink wiggles eyebrow" pass). Overlay pins the dot; without
+            # the overlay a center-gaze TTS variant runs instead.
+            if not self.session_cancel.is_set():
+                if use_overlay:
+                    base_idx = self._run_blinkdot_pass(
+                        seed, output_dir, n, video_writers,
+                        timestamp_files, drain_to_video, base_idx,
+                        udp_sock, send_cmd, cmd_sock,
+                    )
+                else:
+                    base_idx = self._run_blink_pass_no_overlay(
+                        seed, output_dir, n, video_writers,
+                        timestamp_files, drain_to_video, base_idx,
+                    )
+            # Closed-eye roam: closed-lid appearance under a moving face/brow.
+            if not self.session_cancel.is_set():
+                base_idx = self._run_closed_roam_pass(
+                    seed, output_dir, n, video_writers,
+                    timestamp_files, drain_to_video, base_idx,
+                    use_overlay, cmd_sock,
                 )
 
         except Exception as e:
@@ -904,6 +964,131 @@ class DataCollectionWindow:
                 continue
 
         return overlay_idx
+
+    def _burst_capture(self, seed, output_dir, n, video_writers, timestamp_files,
+                       drain_to_video, label, idx, frames, interval):
+        """Capture `frames` snapshots ~`interval` seconds apart under one label.
+        Returns the next free capture index. Mirrors the headset-shift pass's
+        cadence (drain, wait, drain, capture) so full-session video keeps
+        flowing between snapshots."""
+        for _ in range(frames):
+            if self.session_cancel.is_set():
+                break
+            drain_to_video()
+            time.sleep(max(interval - 0.02, 0.0))
+            drain_to_video()
+            self._do_overlay_capture(seed, output_dir, n, video_writers,
+                                     timestamp_files, label, idx)
+            idx += 1
+        return idx
+
+    def _run_blinkdot_pass(self, seed, output_dir, n, video_writers, timestamp_files,
+                           drain_to_video, base_idx, udp_sock, send_cmd, cmd_sock):
+        """Blink-at-dot: pin the overlay dot at 4 jittered positions; the user
+        blinks repeatedly at each while holding a neutral brow (burst capture).
+        Falls back gracefully if the overlay exe predates cmd 113 (no ack 21):
+        the pass is skipped rather than capturing dot-less mislabeled gaze."""
+        overlay_idx = base_idx
+        self.gui_queue.put(("status", tr("data_collection.status_blinkdot")))
+
+        cmd_sock.sendto(struct.pack(">i", 50) + b"Blink repeatedly\nlook at the dot",
+                        ("127.0.0.1", OVERLAY_CMD_PORT))
+        speech_done = speak("Blink repeatedly while looking at each dot. Keep your eyebrows relaxed and still.")
+        while not speech_done.is_set():
+            if self.session_cancel.is_set():
+                return overlay_idx
+            drain_to_video()
+            time.sleep(0.01)
+
+        for gx, gy in _blinkdot_positions(seed):
+            if self.session_cancel.is_set():
+                break
+            _drain_udp_socket(udp_sock)
+            cmd_sock.sendto(struct.pack(">iff", OVERLAY_CMD_PIN_DOT, gx, gy),
+                            ("127.0.0.1", OVERLAY_CMD_PORT))
+
+            # Wait for the pin ack (21). An old overlay exe ignores 113 and
+            # never acks — skip the pass instead of labeling gaze at a dot the
+            # user cannot see.
+            pinned = False
+            deadline = time.time() + 2.0
+            while time.time() < deadline and not self.session_cancel.is_set():
+                drain_to_video()
+                try:
+                    data, _ = udp_sock.recvfrom(16)
+                except _socket.timeout:
+                    continue
+                if len(data) >= 4 and struct.unpack(">i", data[:4])[0] == OVERLAY_SIG_PINNED:
+                    pinned = True
+                    break
+            if not pinned:
+                logger.warning("Blinkdot pass: no pin ack from overlay (old exe?); skipping pass.")
+                self.gui_queue.put(("status", tr("data_collection.status_blinkdot_skipped")))
+                return overlay_idx
+
+            # Give the dot its appear/shrink animation + the user a beat to
+            # acquire it and start blinking.
+            t0 = time.time()
+            while time.time() - t0 < 1.2:
+                if self.session_cancel.is_set():
+                    break
+                drain_to_video()
+                time.sleep(0.01)
+
+            label = f"blinkdot_x{gx:+.3f}_y{gy:+.3f}"
+            overlay_idx = self._burst_capture(
+                seed, output_dir, n, video_writers, timestamp_files, drain_to_video,
+                label, overlay_idx, BLINKDOT_BURST_FRAMES, BLINKDOT_BURST_INTERVAL)
+
+        cmd_sock.sendto(struct.pack(">i", OVERLAY_CMD_UNPIN), ("127.0.0.1", OVERLAY_CMD_PORT))
+        send_cmd(98)   # clear overlay text
+        return overlay_idx
+
+    def _run_blink_pass_no_overlay(self, seed, output_dir, n, video_writers,
+                                   timestamp_files, drain_to_video, base_idx):
+        """No-overlay blink burst: fixate straight ahead and blink repeatedly.
+        Center-gaze-only version of the blinkdot pass (label carries 0,0)."""
+        self.gui_queue.put(("status", tr("data_collection.status_blinkdot")))
+        speech_done = speak("Look straight ahead and blink repeatedly. Keep your eyebrows relaxed and still.")
+        while not speech_done.is_set():
+            if self.session_cancel.is_set():
+                return base_idx
+            drain_to_video()
+            time.sleep(0.01)
+        return self._burst_capture(
+            seed, output_dir, n, video_writers, timestamp_files, drain_to_video,
+            "blinkdot_x+0.000_y+0.000", base_idx,
+            BLINKDOT_BURST_FRAMES * 2, BLINKDOT_BURST_INTERVAL)
+
+    def _run_closed_roam_pass(self, seed, output_dir, n, video_writers, timestamp_files,
+                              drain_to_video, base_idx, use_overlay, cmd_sock):
+        """Closed-eye roam: eyes shut, move face/brows/cheeks around (burst).
+        Works with or without the overlay (TTS carries the instruction)."""
+        self.gui_queue.put(("status", tr("data_collection.status_closed_roam")))
+        if use_overlay and cmd_sock is not None:
+            cmd_sock.sendto(struct.pack(">i", 50) + b"Close your eyes\nmove your face and brows around",
+                            ("127.0.0.1", OVERLAY_CMD_PORT))
+        speech_done = speak("Close your eyes and keep them closed. Now move your face, brows, and cheeks around.")
+        while not speech_done.is_set():
+            if self.session_cancel.is_set():
+                return base_idx
+            drain_to_video()
+            time.sleep(0.01)
+
+        t0 = time.time()
+        while time.time() - t0 < 0.5:
+            if self.session_cancel.is_set():
+                return base_idx
+            drain_to_video()
+            time.sleep(0.01)
+
+        base_idx = self._burst_capture(
+            seed, output_dir, n, video_writers, timestamp_files, drain_to_video,
+            "closed_roam", base_idx, CLOSED_ROAM_FRAMES, CLOSED_ROAM_INTERVAL)
+
+        if use_overlay and cmd_sock is not None:
+            cmd_sock.sendto(struct.pack(">i", 98), ("127.0.0.1", OVERLAY_CMD_PORT))
+        return base_idx
 
     def _run_headset_shift_pass(self, seed, output_dir, n, video_writers, timestamp_files,
                                  drain_to_video, base_idx, udp_sock, cmd_sock):
