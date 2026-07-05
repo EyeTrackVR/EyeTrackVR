@@ -17,7 +17,7 @@ from tkinter import ttk
 
 from localization import tr
 
-DATA_COLLECTION_VERSION = "v5"
+DATA_COLLECTION_VERSION = "v6"
 
 logger = logging.getLogger(__name__)
 
@@ -165,42 +165,46 @@ OVERLAY_POINT_NAMES = {
 
 # Jitter grid base positions ordered as a smooth snake path.
 #
-# Layout (22 points):
-#   Outer ring:   edges at ±0.60 x / ±0.50–0.65 y
-#   Intermediate: ±0.25–0.35 band (fills the previous deadzone)
-#   Near-center:  ±0.12–0.18 cluster (bridges center prompts to intermediate)
-#
-# Path: up the left outer column (with intermediate interspersed) → cross to
-# top-center → spiral inward through the center cluster → bottom-center →
-# outward through right intermediate → up the right outer column.
-# Maximum adjacent jump ≈ 0.62.
+# Layout (22 points) — pushed out to the periphery (2026-07-04). The gaze LABEL
+# for each point is its coordinate, and the deployed model was under-reaching
+# (only ~±0.6 at full gaze) because this dense grid — the bulk of the gaze
+# supervision — previously topped out at ±0.60, *narrower* than the overlay's
+# ±0.786 fixed ring. Relocating (not adding) these points to the edge shifts the
+# dense label mass outward so the model learns to use its full range, at zero
+# extra capture time. Each dot is a saccade target (appear→shrink→hold), so the
+# larger adjacent jumps are fine (no smooth-pursuit constraint).
+#   Outer ring:   edges at ±0.85 x / ±0.85 y
+#   Intermediate: ±0.35–0.49 band
+#   Near-center:  ±0.17–0.25 cluster (still bridges the center prompts outward)
+# Center itself stays well covered by the straight/blink/closed/hshift prompts,
+# so this grid deliberately spends its points on the mid+outer field instead.
 _JITTER_GRID_BASE = [
     # ── left outer column (bottom → top) ──────────────────────────────
-    (-0.60, -0.65),   # outer bottom-left
-    (-0.60, -0.20),   # outer left mid-low
-    (-0.30, -0.35),   # intermediate lower-left       ← new
-    (-0.25,  0.00),   # intermediate left-center       ← new
-    (-0.60,  0.25),   # outer left mid-high
-    (-0.30,  0.35),   # intermediate upper-left        ← new
-    (-0.60,  0.65),   # outer top-left
+    (-0.85, -0.85),   # outer bottom-left
+    (-0.85, -0.26),   # outer left mid-low
+    (-0.43, -0.46),   # intermediate lower-left
+    (-0.36,  0.00),   # intermediate left-center
+    (-0.85,  0.33),   # outer left mid-high
+    (-0.43,  0.46),   # intermediate upper-left
+    (-0.85,  0.85),   # outer top-left
     # ── cross to top-center, spiral inward ────────────────────────────
-    ( 0.00,  0.50),   # outer top-center
-    ( 0.00,  0.30),   # intermediate upper-center      ← new
-    (-0.18,  0.12),   # near-center upper-left         ← new
-    (-0.12, -0.18),   # near-center lower-left         ← new
-    ( 0.00, -0.30),   # intermediate lower-center      ← new
+    ( 0.00,  0.85),   # outer top-center
+    ( 0.00,  0.39),   # intermediate upper-center
+    (-0.26,  0.16),   # near-center upper-left
+    (-0.17, -0.23),   # near-center lower-left
+    ( 0.00, -0.39),   # intermediate lower-center
     # ── bottom-center, spiral outward right ───────────────────────────
-    ( 0.00, -0.50),   # outer bottom-center
-    ( 0.30, -0.35),   # intermediate lower-right       ← new
-    ( 0.18, -0.12),   # near-center lower-right        ← new
-    ( 0.25,  0.00),   # intermediate right-center      ← new
-    ( 0.12,  0.18),   # near-center upper-right        ← new
-    ( 0.30,  0.35),   # intermediate upper-right       ← new
+    ( 0.00, -0.85),   # outer bottom-center
+    ( 0.43, -0.46),   # intermediate lower-right
+    ( 0.26, -0.16),   # near-center lower-right
+    ( 0.36,  0.00),   # intermediate right-center
+    ( 0.17,  0.23),   # near-center upper-right
+    ( 0.43,  0.46),   # intermediate upper-right
     # ── right outer column (top → bottom) ─────────────────────────────
-    ( 0.60,  0.65),   # outer top-right
-    ( 0.60,  0.25),   # outer right mid-high
-    ( 0.60, -0.20),   # outer right mid-low
-    ( 0.60, -0.65),   # outer bottom-right
+    ( 0.85,  0.85),   # outer top-right
+    ( 0.85,  0.33),   # outer right mid-high
+    ( 0.85, -0.26),   # outer right mid-low
+    ( 0.85, -0.85),   # outer bottom-right
 ]
 
 def _jittered_grid_positions(session_seed, pass_index, n=22, jitter=0.12):
@@ -608,8 +612,24 @@ class DataCollectionWindow:
                         encoded = text.encode("utf-8")
                         _sock.sendto(struct.pack(">i", 50) + encoded, ("127.0.0.1", OVERLAY_CMD_PORT))
 
+                    # Widen the capture gaze range beyond the overlay's
+                    # conservative defaults (fov.h: coverage 0.70, lateral 30°,
+                    # up 15°, down 35°) so the dots sit closer to the edge of
+                    # comfortable eye rotation and we collect more eccentric gaze
+                    # labels (the model was under-reaching at ~±0.6). These are
+                    # the "moderate" caps — still inside what the eye can reach
+                    # without a head turn, so targets stay reliably fixatable
+                    # (unreachable dots would mislabel training samples). The
+                    # overlay parses these flags for any mode; no rebuild needed.
+                    # NOTE: v6 collection therefore defines full gaze at a wider
+                    # angle than v5 (1.0 = 36° vs 30° lateral). The per-user app
+                    # calibration absorbs that global-scale difference; the ring/
+                    # keyword LABELS are version-gated in the trainer (dataset.py)
+                    # so v5 captures keep their original scale.
                     overlay_proc = subprocess.Popen(
-                        [overlay_exe, "interactive"],
+                        [overlay_exe, "interactive",
+                         "--coverage=0.80", "--max-deg=36",
+                         "--max-deg-up=20", "--max-deg-down=40"],
                         cwd=os.path.dirname(overlay_exe),
                     )
 

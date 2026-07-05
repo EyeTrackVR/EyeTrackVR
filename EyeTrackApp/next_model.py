@@ -44,6 +44,17 @@ os.environ["OMP_NUM_THREADS"] = "1"
 # Odd window so the median is a real sample. Bump higher for stronger rejection.
 _BROW_MEDIAN_WINDOW = 5
 
+# Same idea for the two gaze channels. The model under-drives its output range
+# (empirically ~±0.6 even at full gaze), so calibration must apply a gain > 1 to
+# reach the full ±1 output — which also multiplies any raw jitter. A single
+# spurious spike frame (observed frame-to-frame gaze jumps up to ~0.46) then gets
+# amplified into a jump toward the extremes ("snaps to a corner even when not
+# looking there"). A short causal median rejects those isolated spikes before
+# they enter the One-Euro derivative term (which would otherwise amplify them).
+# Window 3 = only ~1 frame of lag, so gaze stays responsive; bump to 5 for
+# stronger rejection at the cost of a touch more lag.
+_GAZE_MEDIAN_WINDOW = 3
+
 # Supported model variants. The selector in the GUI picks one of these and the
 # matching ONNX file (Models/NEXT_<VARIANT>.onnx) is loaded. The "<BASE> LITE"
 # variants load an fp16 build (Models/NEXT_<BASE>.fp16.onnx): smaller and faster,
@@ -140,6 +151,9 @@ class NEXT_cls:
 
         # Recent raw eyebrow values for the running-median jitter reject (see run()).
         self._brow_window = deque(maxlen=_BROW_MEDIAN_WINDOW)
+        # Recent raw gaze values for the same spike reject on x / y (see run()).
+        self._gaze_x_window = deque(maxlen=_GAZE_MEDIAN_WINDOW)
+        self._gaze_y_window = deque(maxlen=_GAZE_MEDIAN_WINDOW)
 
     def run(self, bgr_frame: np.ndarray, base_cutoff: float = 0.0004, base_beta: float = 0.9):
         # Update filter parameters based on smoothing slider base values
@@ -197,12 +211,18 @@ class NEXT_cls:
 
         raw = self.ort_session.run(None, {self.input_name: img})[0][0].astype(np.float32)
 
-        # Reject super-fast eyebrow jitter with a running median before smoothing,
-        # so spikes never enter the One-Euro's derivative term (which would amplify
-        # them). Only the eyebrow channel is de-spiked; gaze/eyelid/squeeze are
-        # untouched.
+        # Reject super-fast jitter with a running median before smoothing, so
+        # single-frame spikes never enter the One-Euro's derivative term (which
+        # would amplify them). Applied to the eyebrow and both gaze channels;
+        # eyelid/squeeze are untouched. Gaze uses a shorter window to stay
+        # responsive (see _GAZE_MEDIAN_WINDOW). Array order: [eyebrow, eyelid,
+        # squeeze, gaze_x, gaze_y].
         self._brow_window.append(float(raw[0]))
         raw[0] = float(np.median(self._brow_window))
+        self._gaze_x_window.append(float(raw[3]))
+        raw[3] = float(np.median(self._gaze_x_window))
+        self._gaze_y_window.append(float(raw[4]))
+        raw[4] = float(np.median(self._gaze_y_window))
 
         out = self.one_euro_filter(raw)
 

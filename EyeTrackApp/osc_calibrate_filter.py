@@ -473,27 +473,64 @@ def overlay_ellipse_calibrate(eye_processors: list, settings, baseconfig) -> Non
 
 # ── NEXT Smart Calibration (overlay "finetune" mode, port 2112) ───────────────
 #
-# The overlay self-drives 6 dots and emits one big-endian int32 per dot at the
-# moment it finishes shrinking and is held (capture-ready), then 9 when done:
+# The overlay self-drives 11 dots and emits one big-endian int32 per dot at the
+# moment it finishes shrinking and is held (capture-ready), then 100 when done:
 #
-#   0 top, 1 upper-right, 2 lower-right, 3 lower-left, 4 upper-left, 5 center, 9 done
+#   0..4  outer ring @ 0.90   5..9  inner ring @ 0.50   10  centre   100  done
 #
-# The 5 ring dots sit at 85% of the gaze range, evenly spaced starting at the
-# top and going clockwise; the 6th is dead centre. Those positions are the
-# regression *targets*: when the user fixates a dot, their true gaze equals the
-# dot direction. We pair each dot's known position with the median raw NEXT
-# gaze captured while it was held, then least-squares fit a per-eye affine
-# transform  [x_cal, y_cal] = W·[x_raw, y_raw] + B  that maps raw model output
-# onto true gaze (scale/rotation in W, offset in B).
+# Both rings are evenly spaced starting at the top and going clockwise. Those
+# positions are the regression *targets*: when the user fixates a dot, their
+# true gaze equals the dot direction. We pair each dot's known position with
+# the median raw NEXT gaze captured while it was held, then least-squares fit a
+# per-eye transform that maps raw model output onto true gaze.
+#
+# The transform is a per-eye AFFINE fit (optionally in an arctanh-warped space;
+# see ``warp`` below):
+#     x_cal = w11*xr + w12*yr + b1
+#     y_cal = w21*xr + w22*yr + b2
+# W carries scale / roll / anisotropy, B the offset. Because the NEXT model
+# UNDER-DRIVES its output range (measured: raw gaze only reaches ~±0.6 even at
+# full gaze, and never saturates near ±1), the affine gain is > 1 (~1.5-2x) to
+# stretch that onto the full ±1 output. That gain also multiplies raw jitter, so
+# the model output MUST be de-spiked first (see _GAZE_MEDIAN_WINDOW in
+# next_model.py) or a single noisy frame snaps the calibrated output to a corner.
+#
+# ``warp`` selects the fit space and is stored with the transform:
+#   None    → plain raw-space affine. This is the DEFAULT, because this model
+#             family under-drives (no saturation to undo); a warp would only add
+#             gain where the model's range lives and amplify edge jitter.
+#   "atanh" → fit in arctanh(raw) space (the inverse of a tanh output). Only
+#             useful for a model that genuinely SATURATES (pins near ±1 for
+#             moderate gaze); kept available for that case and to load such fits.
 
-_SMARTCAL_RING_RADIUS = 0.85
-NEXT_SMARTCAL_TARGETS = [
-    (
-        round(_SMARTCAL_RING_RADIUS * math.cos(math.radians(90 - 72 * i)), 6),
-        round(_SMARTCAL_RING_RADIUS * math.sin(math.radians(90 - 72 * i)), 6),
-    )
-    for i in range(5)
-] + [(0.0, 0.0)]  # dots 0..4 on the ring (top, clockwise), dot 5 = centre
+_SMARTCAL_OUTER_RADIUS = 0.90
+_SMARTCAL_INNER_RADIUS = 0.50
+# arctanh blows up at ±1; clamp the raw magnitude just inside so a fully pinned
+# sample maps to a large-but-finite warped value instead of inf.
+_SMARTCAL_WARP_CLAMP = 0.999
+# Default fit space. None = plain affine (right for this under-driving model);
+# set to "atanh" only if a future model is shown to saturate.
+_SMARTCAL_WARP = None
+
+
+def _smartcal_ring(radius):
+    return [
+        (
+            round(radius * math.cos(math.radians(90 - 72 * i)), 6),
+            round(radius * math.sin(math.radians(90 - 72 * i)), 6),
+        )
+        for i in range(5)
+    ]
+
+
+# dots 0..4 outer ring, 5..9 inner ring (both top→clockwise), 10 = centre.
+# MUST match FINETUNE_POS order in the overlay's modes.cpp.
+NEXT_SMARTCAL_TARGETS = (
+    _smartcal_ring(_SMARTCAL_OUTER_RADIUS)
+    + _smartcal_ring(_SMARTCAL_INNER_RADIUS)
+    + [(0.0, 0.0)]
+)
+NEXT_SMARTCAL_DONE_SIGNAL = 100
 
 # The overlay holds each dot for 0.5 s (DC_HOLD_S in modes.cpp) after emitting
 # its signal, then the NEXT dot appears/shrinks for ~0.65 s before ITS signal,
@@ -505,26 +542,64 @@ NEXT_SMARTCAL_TARGETS = [
 NEXT_SMARTCAL_CAPTURE_WINDOW_S = 0.45
 # A dot needs a few clean frames for its median to mean anything.
 _SMARTCAL_MIN_SAMPLES_PER_DOT = 5
+# Each output axis solves for 3 affine unknowns; require a comfortable margin
+# over that minimum so a few missed dots (and ideally both rings) still leave a
+# well-conditioned fit.
+_SMARTCAL_MIN_DOTS = 6
 # Sanity bounds for an accepted transform. The smart cal is a gentle per-user
 # polish: singular values of W (direction-independent gains) must stay within
-# [1/5, 5], orientation must be preserved (det > 0), and the offset can't
-# exceed 3/4 of the output range. Anything outside is a degenerate fit.
+# [MIN, MAX] and orientation must be preserved (det > 0). In arctanh space a
+# saturating model needs a small gain (arctanh expands the input), so the lower
+# bound is looser than a raw-space affine would need. The offset can't exceed
+# 3/4 of the output range. Anything outside is a degenerate fit.
 _SMARTCAL_MAX_GAIN = 5.0
-_SMARTCAL_MIN_GAIN = 0.2
+_SMARTCAL_MIN_GAIN = 0.08
 _SMARTCAL_MAX_BIAS = 0.75
 # Mean L2 distance between the fitted mapping of the captured points and their
-# targets. An affine that can't get within this of its OWN fitting points is
+# targets. A transform that can't get within this of its OWN fitting points is
 # fitting noise.
 _SMARTCAL_MAX_RESIDUAL = 0.20
 # The per-dot raw medians must span at least this much in both axes; if the
-# raw gaze barely moved across 6 well-separated dots, the samples are
+# raw gaze barely moved across the well-separated dots, the samples are
 # degenerate (tracking frozen, eye not following) and lstsq would explode.
 _SMARTCAL_MIN_RAW_SPREAD = 0.10
+# Behavioural guard against the exact "snaps to the extremes even when not
+# looking there" failure: a modest raw gaze (radius EARLY_R) must NOT already
+# map near the output edge. A degenerate over-gained fit pins small gaze to the
+# corner; this catches it directly. (A warp+affine with det(W) > 0 is injective,
+# so no fold-back / monotonicity walk is needed — that was only for the old
+# cubic.) The 3/4 EARLY_MAX leaves generous headroom for real per-user gain.
+_SMARTCAL_SANITY_EARLY_R = 0.30
+_SMARTCAL_SANITY_EARLY_MAX = 0.75
 
 
-def next_smartcal_transform_is_sane(w, b) -> bool:
-    """True if a smart-cal affine (W row-major [w11,w12,w21,w22], B [b1,b2])
-    is plausibly a gentle per-user polish rather than a degenerate fit.
+def _smartcal_warp_scalar(v: float, warp) -> float:
+    """De-saturate one raw gaze component into the fit space selected by ``warp``.
+
+    ``"atanh"`` inverts the model's output tanh so a saturating model becomes
+    ~linear in true gaze; ``None`` (legacy) is the identity (raw-space affine)."""
+    if warp == "atanh":
+        v = max(-_SMARTCAL_WARP_CLAMP, min(_SMARTCAL_WARP_CLAMP, float(v)))
+        return math.atanh(v)
+    return float(v)
+
+
+def next_smartcal_apply(w, b, warp, x_raw, y_raw):
+    """Map a raw NEXT gaze (x_raw, y_raw) through the (warp + affine) transform.
+
+    ``warp`` is "atanh" for new fits or None for legacy raw-space affine
+    transforms saved by older builds."""
+    gx = _smartcal_warp_scalar(x_raw, warp)
+    gy = _smartcal_warp_scalar(y_raw, warp)
+    x_cal = w[0] * gx + w[1] * gy + b[0]
+    y_cal = w[2] * gx + w[3] * gy + b[1]
+    return x_cal, y_cal
+
+
+def next_smartcal_transform_is_sane(w, b, warp=None) -> bool:
+    """True if a smart-cal transform (W row-major [w11,w12,w21,w22], B [b1,b2],
+    fit in the space selected by ``warp``) is plausibly a gentle per-user polish
+    rather than a degenerate fit.
 
     Checked both when fitting (before save) and when loading from config, so
     garbage transforms persisted by older builds are ignored instead of
@@ -543,6 +618,23 @@ def next_smartcal_transform_is_sane(w, b) -> bool:
         return False
     if np.max(np.abs(B)) > _SMARTCAL_MAX_BIAS:
         return False
+
+    # Behavioural guard: a modest gaze must not already be pinned near the edge.
+    # Evaluate the full map on the clipped output (what actually reaches OSC)
+    # around a small ring; if any direction is already slammed out, it's the
+    # snap-to-extreme degeneracy.
+    for ang in np.linspace(0.0, 2.0 * math.pi, 8, endpoint=False):
+        cx, cy = next_smartcal_apply(
+            w, b, warp,
+            math.cos(ang) * _SMARTCAL_SANITY_EARLY_R,
+            math.sin(ang) * _SMARTCAL_SANITY_EARLY_R,
+        )
+        if not (math.isfinite(cx) and math.isfinite(cy)):
+            return False
+        ocx = max(-1.0, min(1.0, cx))
+        ocy = max(-1.0, min(1.0, cy))
+        if math.hypot(ocx, ocy) > _SMARTCAL_SANITY_EARLY_MAX:
+            return False
     return True
 
 
@@ -551,14 +643,22 @@ def reset_next_smartcal(eye_processors: list, baseconfig) -> None:
     for ep in eye_processors:
         ep._next_smartcal_w = None
         ep._next_smartcal_b = None
+        ep._next_smartcal_warp = None
         ep.config.next_smartcal_w = None
         ep.config.next_smartcal_b = None
+        ep.config.next_smartcal_warp = None
     baseconfig.save()
     logger.info("NEXT smart cal: transforms cleared (raw model gaze restored).")
 
 
 def _fit_next_smartcal(eye_processors: list, baseconfig) -> bool:
     """Least-squares fit a per-eye affine gaze transform from collected samples.
+
+    Each output axis is fit independently as a 3-unknown affine on the per-dot
+    raw medians (optionally arctanh-warped first; off by default — see the module
+    header for why this model uses a plain affine):
+        x_cal = w11*gx + w12*gy + b1
+        y_cal = w21*gx + w22*gy + b2   (gx, gy = raw, or arctanh(raw) if warping)
 
     Returns True if at least one eye produced a usable transform (and was saved)."""
     saved_any = False
@@ -579,20 +679,17 @@ def _fit_next_smartcal(eye_processors: list, baseconfig) -> bool:
             raws.append([float(np.median(arr[:, 0])), float(np.median(arr[:, 1]))])
             tgts.append(NEXT_SMARTCAL_TARGETS[dot])
 
-        # Each output row solves for 3 unknowns (2 weights + 1 bias); require a
-        # comfortable margin over that minimum so a couple of missed dots don't
-        # yield a degenerate fit.
-        if len(raws) < 4:
+        if len(raws) < _SMARTCAL_MIN_DOTS:
             logger.warning(
-                "NEXT smart cal (eye %s): only %d/%d dots captured; skipping fit.",
-                eye, len(raws), len(NEXT_SMARTCAL_TARGETS),
+                "NEXT smart cal (eye %s): only %d/%d dots captured (<%d); skipping fit.",
+                eye, len(raws), len(NEXT_SMARTCAL_TARGETS), _SMARTCAL_MIN_DOTS,
             )
             continue
 
         R = np.asarray(raws, dtype=np.float64)          # N x 2 raw gaze
         T = np.asarray(tgts, dtype=np.float64)          # N x 2 target gaze
 
-        # Degenerate-input guard: 6 dots span most of the gaze range, so the
+        # Degenerate-input guard: the dots span most of the gaze range, so the
         # raw medians must show real movement in both axes. A near-constant
         # cluster (frozen tracking, eye not following the dot) makes lstsq
         # amplify noise into gains of 100+.
@@ -606,21 +703,34 @@ def _fit_next_smartcal(eye_processors: list, baseconfig) -> bool:
             )
             continue
 
-        A = np.hstack([R, np.ones((len(R), 1))])        # N x 3  [x_raw, y_raw, 1]
+        warp = _SMARTCAL_WARP
+        if warp == "atanh":
+            # De-saturate into a space where a saturating model is ~linear in
+            # true gaze. (Off by default — this model under-drives, see header.)
+            Rc = np.clip(R, -_SMARTCAL_WARP_CLAMP, _SMARTCAL_WARP_CLAMP)
+            G = np.arctanh(Rc)
+        else:
+            G = R                                       # plain raw-space affine
+        gx = G[:, 0]
+        gy = G[:, 1]
+        ones = np.ones(len(G))
+        A = np.column_stack([gx, gy, ones])             # N x 3  [gx, gy, 1]
         try:
-            sol, *_ = np.linalg.lstsq(A, T, rcond=None)  # 3 x 2
+            sol_x, *_ = np.linalg.lstsq(A, T[:, 0], rcond=None)   # [w11, w12, b1]
+            sol_y, *_ = np.linalg.lstsq(A, T[:, 1], rcond=None)   # [w21, w22, b2]
         except np.linalg.LinAlgError as e:
             logger.warning("NEXT smart cal (eye %s): solve failed: %s", eye, e)
             continue
 
-        # sol columns map [x_raw, y_raw, 1] -> x_cal and y_cal respectively.
-        w = [float(sol[0, 0]), float(sol[1, 0]),
-             float(sol[0, 1]), float(sol[1, 1])]        # [w11, w12, w21, w22]
-        b = [float(sol[2, 0]), float(sol[2, 1])]        # [b1, b2]
+        w = [float(sol_x[0]), float(sol_x[1]),
+             float(sol_y[0]), float(sol_y[1])]           # [w11, w12, w21, w22]
+        b = [float(sol_x[2]), float(sol_y[2])]           # [b1, b2]
 
         # A usable fit must land close to its own fitting points AND look like
         # a gentle polish. Otherwise keep whatever the user had before.
-        residual = float(np.mean(np.linalg.norm(A @ sol - T, axis=1)))
+        pred_x = A @ sol_x
+        pred_y = A @ sol_y
+        residual = float(np.mean(np.hypot(pred_x - T[:, 0], pred_y - T[:, 1])))
         if residual > _SMARTCAL_MAX_RESIDUAL:
             logger.warning(
                 "NEXT smart cal (eye %s): fit residual %.3f exceeds %.2f: "
@@ -628,22 +738,26 @@ def _fit_next_smartcal(eye_processors: list, baseconfig) -> bool:
                 eye, residual, _SMARTCAL_MAX_RESIDUAL,
             )
             continue
-        if not next_smartcal_transform_is_sane(w, b):
+        if not next_smartcal_transform_is_sane(w, b, warp):
             logger.warning(
                 "NEXT smart cal (eye %s): rejected degenerate transform W=%s B=%s "
-                "(gain/bias out of bounds). Keeping previous calibration.",
+                "(gain/bias/monotonicity out of bounds). Keeping previous "
+                "calibration.",
                 eye, [round(v, 4) for v in w], [round(v, 4) for v in b],
             )
             continue
 
         ep.config.next_smartcal_w = w
         ep.config.next_smartcal_b = b
+        ep.config.next_smartcal_warp = warp
         ep._next_smartcal_w = w
         ep._next_smartcal_b = b
+        ep._next_smartcal_warp = warp
         saved_any = True
         logger.info(
-            "NEXT smart cal (eye %s): fit from %d dots: W=%s B=%s (residual %.3f)",
-            eye, len(raws),
+            "NEXT smart cal (eye %s): fit from %d dots (warp=%s): W=%s B=%s "
+            "(residual %.3f)",
+            eye, len(raws), warp,
             [round(v, 4) for v in w], [round(v, 4) for v in b], residual,
         )
 
@@ -657,7 +771,7 @@ def next_smartcal_overlay(eye_processors: list, settings, baseconfig) -> None:
     """Drive the overlay "finetune" routine and fit the NEXT smart-cal transform.
 
     Self-driving overlay: no commands sent, no 255 handshake. It emits int32
-    signals 0..5 (capture each dot) then 9 (done) on UDP 127.0.0.1:2112.
+    signals 0..10 (capture each dot) then 100 (done) on UDP 127.0.0.1:2112.
     """
     if var.overlay_active:
         return
@@ -695,7 +809,7 @@ def next_smartcal_overlay(eye_processors: list, settings, baseconfig) -> None:
 
             signal = struct.unpack(">i", data[:4])[0]
 
-            if 0 <= signal <= 5:
+            if 0 <= signal < len(NEXT_SMARTCAL_TARGETS):
                 # Dot is held and capture-ready: start sampling it. The sampler
                 # (NEXTM) only accepts frames within NEXT_SMARTCAL_CAPTURE_WINDOW_S
                 # of this timestamp; the overlay's hold is 0.5 s, after which the
@@ -705,7 +819,7 @@ def next_smartcal_overlay(eye_processors: list, settings, baseconfig) -> None:
                 for ep in eye_processors:
                     ep._next_smartcal_dot_started = _t0
                     ep._next_smartcal_active_dot = signal
-            elif signal == 9:
+            elif signal == NEXT_SMARTCAL_DONE_SIGNAL:
                 # All dots done: stop sampling and fit.
                 for ep in eye_processors:
                     ep._next_smartcal_active_dot = None

@@ -190,12 +190,15 @@ class EyeProcessor:
         self._next_recenter_offset_y = 0.0
         self._next_recenter_armed_at = None  # perf_counter when NEXT recenter was requested
         # NEXT Smart Calibration state.
-        #   _next_smartcal_active_dot: index (0..5) of the overlay dot currently
+        #   _next_smartcal_active_dot: index (0..10) of the overlay dot currently
         #     being held/sampled, or None when not calibrating.
         #   _next_smartcal_samples: {dot -> [(raw_gaze_x, raw_gaze_y), ...]}
         #     accumulated while that dot is held; medianed at fit time.
         #   _next_smartcal_w / _b: the fitted affine transform (loaded from
         #     config) applied to the raw model gaze each frame, or None.
+        #   _next_smartcal_warp: the space the affine was fit in ("atanh" =
+        #     un-saturate the model's tanh output first; None = legacy raw-space
+        #     affine from older builds).
         self._next_smartcal_active_dot = None
         self._next_smartcal_dot_started = 0.0
         self._next_smartcal_samples = {}
@@ -209,22 +212,26 @@ class EyeProcessor:
             if getattr(self.config, "next_smartcal_b", None) is not None
             else None
         )
+        self._next_smartcal_warp = getattr(self.config, "next_smartcal_warp", None)
         # Validate transforms persisted by older builds (which saved fits with
-        # no sanity checks): a degenerate W/B pins the clipped gaze output to
-        # the corners, which reads as "tracking completely broken". Ignore and
-        # clear such transforms instead of applying them.
+        # no sanity checks): a degenerate transform pins the clipped gaze output
+        # to the corners, which reads as "tracking completely broken". Ignore
+        # and clear such transforms instead of applying them.
         if self._next_smartcal_w is not None and not next_smartcal_transform_is_sane(
-            self._next_smartcal_w, self._next_smartcal_b
+            self._next_smartcal_w, self._next_smartcal_b, self._next_smartcal_warp
         ):
             logger.warning(
-                "NEXT smart cal (eye %s): stored transform W=%s B=%s is degenerate"
-                " - ignoring it. Re-run NEXT Smart Calib to fit a new one.",
+                "NEXT smart cal (eye %s): stored transform W=%s B=%s warp=%s is "
+                "degenerate - ignoring it. Re-run NEXT Smart Calib to fit a new one.",
                 self.eye_id, self._next_smartcal_w, self._next_smartcal_b,
+                self._next_smartcal_warp,
             )
             self._next_smartcal_w = None
             self._next_smartcal_b = None
+            self._next_smartcal_warp = None
             self.config.next_smartcal_w = None
             self.config.next_smartcal_b = None
+            self.config.next_smartcal_warp = None
         self.previous_rotation = self.config.rotation_angle
         self.camera_model = None
         self.detector_3d = None
@@ -801,18 +808,20 @@ class EyeProcessor:
                 (model_gaze_x, model_gaze_y)
             )
 
-        # Apply the fitted affine transform (smart calib) to map raw model gaze
-        # -> calibrated gaze. Skipped while the legacy ellipse-based
+        # Apply the fitted (warp + affine) transform (smart calib) to map raw
+        # model gaze -> calibrated gaze. The arctanh warp un-saturates the
+        # model's tanh output so the correction stays gentle instead of slamming
+        # to the extremes. Skipped while the legacy ellipse-based
         # gui_NEXT_calibration is in use so the two paths never compound.
         if (
             self._next_smartcal_w is not None
             and self._next_smartcal_b is not None
             and not self.settings.gui_NEXT_calibration
         ):
-            _w = self._next_smartcal_w
-            _b = self._next_smartcal_b
-            _cal_x = _w[0] * model_gaze_x + _w[1] * model_gaze_y + _b[0]
-            _cal_y = _w[2] * model_gaze_x + _w[3] * model_gaze_y + _b[1]
+            _cal_x, _cal_y = next_smartcal_apply(
+                self._next_smartcal_w, self._next_smartcal_b,
+                self._next_smartcal_warp, model_gaze_x, model_gaze_y,
+            )
             # Keep the result in the model's native output range so a strong
             # transform can't push extreme values downstream to OSC.
             gaze_x = float(np.clip(_cal_x, -1.0, 1.0))
