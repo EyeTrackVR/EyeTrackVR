@@ -645,7 +645,6 @@ class EyeProcessor:
             ) = self.leap_runner.run(
                 self.current_image_gray,
                 self.current_image_gray_clean,
-                self.calibration_start_time,
                 self.settings.gui_use_gpu,
             )
             close_t, wide_t = leap_lid_thresholds_for_eye(self.settings, self.eye_id)
@@ -736,7 +735,6 @@ class EyeProcessor:
         ) = self.leap_runner.run(
             self.current_image_gray,
             self.current_image_gray_clean,
-            self.calibration_start_time,
             self.settings.gui_use_gpu,
         )
         # Publish raw lid (pre-remap) so the settings UI visualizer can show
@@ -1107,6 +1105,7 @@ class EyeProcessor:
                 enabled_algorithms.append(self.LEAPM)
         else:
             if self.leap_runner is not None:
+                self.leap_runner.shutdown()
                 self.leap_runner = None
 
         if self.settings.gui_RANSAC3D:
