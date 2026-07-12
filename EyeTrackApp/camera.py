@@ -83,13 +83,18 @@ def is_http_capture_source(addr: str) -> bool:
 # burning CPU on frames we'd drop anyway.
 _FAST_CAPTURE_MAX_FPS = 120.0
 _FAST_CAPTURE_MIN_INTERVAL = 1.0 / _FAST_CAPTURE_MAX_FPS
-# Network (HTTP/MJPEG) capture timeouts (ms). Well below the old 5 s so a dropped
-# Wi-Fi cam (e.g. ETVR.local going offline) is detected in ~2 s instead of stalling
-# the capture thread (and, via GIL contention during the blocking native read, the
-# GUI) for 5 s per read. Open gets a little longer since the first connect may
-# include an mDNS (.local) lookup.
-_NETWORK_OPEN_TIMEOUT_MSEC = 3000
-_NETWORK_READ_TIMEOUT_MSEC = 2000
+# Network (HTTP/MJPEG) capture timeouts (ms). Open gets a separate three-second
+# budget since the first connection may include an mDNS (.local) lookup.
+# ESP/Wi-Fi MJPEG streams can pause for a little over two seconds during radio
+# contention and then resume on the same HTTP connection. A 2 s timeout made
+# OpenCV 4.13 abort VideoCapture::grab at the first such pause; after that the
+# FFmpeg handle is unrecoverable and the app has to perform a costly reconnect.
+# Five seconds matches the previously stable window. Application shutdown no
+# longer waits on this timeout because it uses a separate bounded join path.
+# MJPEG-over-Wi-Fi can occasionally yield one truncated/undecodable frame while
+# the underlying HTTP connection remains healthy. Reopening FFmpeg after that
+# single frame costs several seconds and turns a harmless drop into a visible
+# tracking freeze. Require consecutive failures before reconnecting.
 # Reconnect backoff for network sources (seconds). Each failed reopen blocks the
 # capture thread in native cv2 for up to the open-timeout, so retries are spaced with
 # an exponential backoff (min..max) instead of hammering a dead host every loop tick,
@@ -102,8 +107,6 @@ _NETWORK_RECONNECT_BACKOFF_MAX = 5.0
 # stable proxy. It will differ from the server's actual compression (typical
 # ESP32-CAM encodes at ~10-15, so 80 overestimates), but sampled periodically it
 # is far cheaper than re-encoding every frame and closer than decoded pixel rate.
-_HTTP_WIRE_BYTES_PROXY_JPEG_QUALITY = 80
-_HTTP_WIRE_BYTES_PROXY_SAMPLE_INTERVAL = 10
 # If no JPEG EOI arrives within this many buffered bytes, assume a desync and
 # discard the buffer. Prevents unbounded memory growth when the firmware
 # sends malformed or truncated frames (cable noise, firmware hang).
@@ -313,12 +316,6 @@ class Camera:
         self.last_frame_time = current_time
 
     def run(self):
-        OPENCV_PARAMS = [
-            cv2.CAP_PROP_OPEN_TIMEOUT_MSEC,
-            _NETWORK_OPEN_TIMEOUT_MSEC,
-            cv2.CAP_PROP_READ_TIMEOUT_MSEC,
-            _NETWORK_READ_TIMEOUT_MSEC,
-        ]
         while True:
             if self.cancellation_event.is_set():
                 logger.info("Exiting capture thread")
@@ -447,13 +444,10 @@ class Camera:
                                 )
                             open_source = _idx
                         cam = cv2.VideoCapture()
-                        cam.setExceptionMode(True)
                         self.cv2_camera = cam
                         # Only pass network timeout params to HTTP/MJPEG sources.
                         # MSMF and DSHOW log "can't set property 53" and may abort
                         # the open entirely when given unsupported init params.
-                        _is_network = isinstance(open_source, str) and is_http_capture_source(open_source)
-                        _open_params = OPENCV_PARAMS if _is_network else []
                         # On Windows, use DSHOW explicitly for integer UVC indices.
                         # CAP_ANY tries obsensor/MSMF first, which probes all indices
                         # (causing log spam and ~1 s delay) and is less stable for plain
@@ -464,7 +458,7 @@ class Camera:
                             _backend = cv2.CAP_ANY
                         # https://github.com/opencv/opencv/blob/4.8.0/modules/videoio/include/opencv2/videoio.hpp#L803
                         try:
-                            cam.open(open_source, _backend, _open_params)
+                            cam.open(open_source, _backend)
                         except cv2.error as e:
                             logger.warning(
                                 "Failed to open capture source %s: %s", new_source, e
@@ -522,7 +516,7 @@ class Camera:
             # HTTP MJPEG cams (esp. ESP32) and local files can hand cv2 frames as fast
             # as the link / disk allows. Both deserve the same throttle; UVC paces
             # itself on hardware fps.
-            throttle_source = is_file_video or is_http
+            throttle_source = is_file_video
             if should_push and throttle_source:
                 # [Limiter lag fix] We now handle the main tracking Hz limit in the caller.
                 # However, MJPEG/File sources still need a "fast-path" safety cap to prevent
@@ -536,7 +530,10 @@ class Camera:
 
             ret, image = self.cv2_camera.read()
             if not ret or image is None:
-                self.cv2_camera.set(cv2.CAP_PROP_POS_FRAMES, 0)
+                # Rewinding is useful for local video files, but meaningless
+                # (and on some FFmpeg builds disruptive) for live HTTP streams.
+                if not is_http:
+                    self.cv2_camera.set(cv2.CAP_PROP_POS_FRAMES, 0)
                 raise RuntimeError("Problem while getting frame")
             # Byte count for bps readout. Captured BEFORE downscale so the number
             # reflects what the backend actually delivered, not what we resized to.
@@ -576,15 +573,51 @@ class Camera:
                 image = cv2.resize(image, (680, new_height))
             if should_push and throttle_source:
                 self._last_cv_cap_frame_time = time.time()
-            frame_number = self.cv2_camera.get(cv2.CAP_PROP_POS_FRAMES)
+            if is_http:
+                # Live streams have no meaningful seek position. Avoid asking
+                # FFmpeg for CAP_PROP_POS_FRAMES on every frame and maintain a
+                # lightweight local sequence number instead.
+                self.frame_number += 1
+                frame_number = self.frame_number
+            else:
+                frame_number = self.cv2_camera.get(cv2.CAP_PROP_POS_FRAMES)
             self._update_frame_rate(frame_bytes)
 
             if should_push:
                 self.push_image_to_queue(image, frame_number, self.fps)
-        except Exception:
-            logger.warning(
-                "Capture source problem, assuming camera disconnected and waiting for reconnect."
-            )
+            if is_http:
+                self._network_consecutive_read_failures = 0
+        except Exception as exc:
+            is_http = is_http_capture_source(str(self.current_capture_source))
+            if is_http:
+                self._network_consecutive_read_failures += 1
+                failure_count = self._network_consecutive_read_failures
+                if failure_count < _NETWORK_READ_FAILURES_BEFORE_RECONNECT:
+                    logger.debug(
+                        "Dropped HTTP camera frame (%d/%d): %s",
+                        failure_count,
+                        _NETWORK_READ_FAILURES_BEFORE_RECONNECT,
+                        exc,
+                    )
+                    # Keep the live handle for transient MJPEG corruption. A
+                    # brief cancellable yield avoids a tight loop if FFmpeg
+                    # returns failures immediately.
+                    self.cancellation_event.wait(0.01)
+                    return
+
+            if is_http:
+                logger.warning(
+                    "Capture source problem after %d consecutive HTTP frame "
+                    "failures; reconnecting: %s",
+                    self._network_consecutive_read_failures,
+                    exc,
+                )
+            else:
+                logger.warning(
+                    "Capture source problem, assuming camera disconnected and "
+                    "waiting for reconnect: %s",
+                    exc,
+                )
             self.camera_status = CameraState.DISCONNECTED
             # Clear the not-found backoff so we immediately attempt a reconnect rather
             # than waiting up to 3 s: the camera was working moments ago, so it's

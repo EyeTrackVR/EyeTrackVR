@@ -14,6 +14,7 @@ class OSCValidationModel(BaseValidationModel):
     gui_vrc_native: bool
     gui_osc_vrcft_v1: bool
     gui_osc_vrcft_v2: bool
+    gui_pyvrcft: bool
     gui_use_module: bool
 
     @model_validator(mode="after")
@@ -24,7 +25,13 @@ class OSCValidationModel(BaseValidationModel):
 
     @model_validator(mode="after")
     def check_osc_output_mode(self):
-        if self.gui_vrc_native and any([self.gui_osc_vrcft_v1, self.gui_osc_vrcft_v2]):
+        exclusive = [
+            self.gui_vrc_native,
+            self.gui_osc_vrcft_v1,
+            self.gui_osc_vrcft_v2,
+            self.gui_pyvrcft,
+        ]
+        if sum(bool(x) for x in exclusive) > 1:
             raise ValueError(tr("osc.err_output_mode_conflict"))
         return self
 
@@ -38,6 +45,7 @@ class OSCSettingsModule(BaseSettingsModule):
         self.gui_osc_output_mode = f"-OSCOUTMODE{widget_id}-"
         self.gui_osc_vrcft_v1 = f"-OSCVRCFTV1{widget_id}-"
         self.gui_osc_vrcft_v2 = f"-OSCVRCFTV2{widget_id}-"
+        self.gui_pyvrcft = f"-OSCPYVRCFT{widget_id}-"
         self.gui_use_module = f"-OSCUSEMODULE{widget_id}-"
 
     def get_values_map(self) -> dict:
@@ -51,10 +59,13 @@ class OSCSettingsModule(BaseSettingsModule):
         values[self.gui_use_module] = mode in ("vrcft_v1", "vrcft_v2")
         values[self.gui_osc_vrcft_v1] = mode == "vrcft_v1"
         values[self.gui_osc_vrcft_v2] = mode == "vrcft_v2"
+        values[self.gui_pyvrcft] = mode == "pyvrcft"
         return values
 
     def build(self, parent):
-        if self.config.gui_vrc_native:
+        if self.config.gui_pyvrcft:
+            osc_out_initial = "pyvrcft"
+        elif self.config.gui_vrc_native:
             osc_out_initial = "native"
         elif self.config.gui_osc_vrcft_v1:
             osc_out_initial = "vrcft_v1"
@@ -75,11 +86,14 @@ class OSCSettingsModule(BaseSettingsModule):
         )
         v2_rb.pack(side="left", padx=4)
         attach_tooltip(v2_rb, tr("osc.mode_vrcft_v2_tip"))
-        v1_rb = ttk.Radiobutton(
-            osc_bar, text=tr("osc.mode_vrcft_v1"), variable=mode_var, value="vrcft_v1"
+        # VRCFT v1 (legacy) is hidden from the GUI but kept in the backend:
+        # get_values_map still maps a saved "vrcft_v1" mode, and
+        # output_v1_params still runs, so existing v1 configs keep working.
+        pyvrcft_rb = ttk.Radiobutton(
+            osc_bar, text=tr("osc.mode_pyvrcft"), variable=mode_var, value="pyvrcft"
         )
-        v1_rb.pack(side="left", padx=4)
-        attach_tooltip(v1_rb, tr("osc.mode_vrcft_v1_tip"))
+        pyvrcft_rb.pack(side="left", padx=4)
+        attach_tooltip(pyvrcft_rb, tr("osc.mode_pyvrcft_tip"))
 
         ros_var = tk.BooleanVar(value=bool(self.config.gui_ROSC))
         self.tk_vars[self.gui_ROSC] = ros_var

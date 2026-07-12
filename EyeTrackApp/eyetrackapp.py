@@ -253,9 +253,9 @@ def main():
         classic-only handler silently never completed for NEXT users."""
         if not isinstance(osc_message.data, bool) or not osc_message.data:
             return
-        use_smartcal = bool(config.settings.gui_NEXT) and not bool(
-            config.settings.gui_NEXT_calibration
-        )
+        use_smartcal = (
+            bool(config.settings.gui_NEXT) or bool(config.settings.gui_NEXT_BSB)
+        ) and not bool(config.settings.gui_NEXT_calibration)
         if config.settings.gui_use_overlay_cal:
             from osc_calibrate_filter import (
                 next_smartcal_overlay,
@@ -1181,9 +1181,9 @@ def main():
             # calibrates via the Smart Calib overlay dot sequence; the ellipse
             # spiral would collect nothing because the NEXT path never feeds
             # cal_osc in that configuration.
-            use_smartcal = bool(config.settings.gui_NEXT) and not bool(
-                config.settings.gui_NEXT_calibration
-            )
+            use_smartcal = (
+                bool(config.settings.gui_NEXT) or bool(config.settings.gui_NEXT_BSB)
+            ) and not bool(config.settings.gui_NEXT_calibration)
             if config.settings.gui_use_overlay_cal:
                 if use_smartcal:
                     self._on_next_smartcal()
@@ -1261,6 +1261,26 @@ def main():
 
         def _sync_global_mode_buttons(self):
             in_roi = any(getattr(e, "in_roi_mode", False) for e in eyes)
+            next_tracker = bool(config.settings.gui_NEXT) or bool(
+                config.settings.gui_NEXT_BSB
+            )
+
+            # NEXT consumes the uncropped camera frame, in both the regular
+            # ETVR setup and Bigscreen Beyond setup.  Cropping is therefore not
+            # applicable.  Also leave crop mode if NEXT was selected while the
+            # user was already editing an ROI, so no hidden state remains
+            # active after the button disappears.
+            if next_tracker and in_roi:
+                for eye in eyes:
+                    eye._set_tracking_mode()
+                self._show_tracking_frames()
+                in_roi = False
+
+            if next_tracker:
+                self._global_roi_btn.pack_forget()
+            elif not self._global_roi_btn.winfo_manager():
+                self._global_roi_btn.pack(side="left", padx=8)
+
             if hasattr(self, "_tracking_actions"):
                 if in_roi:
                     self._tracking_actions.pack_forget()
@@ -1324,7 +1344,7 @@ def main():
                 or config.right_eye.next_smartcal_w is not None
             )
             show = (
-                bool(config.settings.gui_NEXT)
+                (bool(config.settings.gui_NEXT) or bool(config.settings.gui_NEXT_BSB))
                 and has_fit
                 and any(e.started() for e in eyes)
             )
@@ -1361,6 +1381,7 @@ def main():
                     self.focus_paused = False
                     self.focus_label.pack_forget()
                 if self.current_page == "tracking":
+                    self._sync_global_mode_buttons()
                     for eye in eyes:
                         if eye.started():
                             eye.render_tick()
@@ -1383,8 +1404,19 @@ def main():
 
         def shutdown(self):
             logger.info("Exiting EyeTrackApp")
+            # Signal every eye before joining any of them.  A dead HTTP camera
+            # can leave FFmpeg inside its native open timeout, and the old
+            # sequential five-second joins made Tk look hung (up to ten seconds
+            # for two eyes).  Normal camera restarts still use stop()'s longer
+            # orderly wait; final process shutdown gets one small shared budget.
             for eye in eyes:
-                eye.stop()
+                eye.request_stop()
+            shutdown_deadline = time.monotonic() + 0.5
+            for eye in eyes:
+                eye.stop(
+                    join_timeout=max(0.0, shutdown_deadline - time.monotonic()),
+                    warn_if_alive=False,
+                )
             cancellation_event.set()
             osc_manager.shutdown()
             if getattr(self, "_timer_high_res", False):

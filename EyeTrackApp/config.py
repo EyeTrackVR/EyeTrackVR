@@ -302,6 +302,8 @@ class EyeTrackSettingsConfig(BaseModel):
     gui_DADDY: bool = False
     gui_LEAP: bool = False
     gui_NEXT: bool = True
+    # NEXT BSB (stereo) end-to-end model: both eyes in one time-synced pass.
+    gui_NEXT_BSB: bool = False
     gui_NEXT_calibration: bool = False
     # Shared model variant for both NEXT and eyebrow models: ETVR / BSB / TOBII.
     # Selects Models/NEXT_<VARIANT>.onnx and Models/Eyebrow_<VARIANT>.onnx.
@@ -377,11 +379,35 @@ class EyeTrackSettingsConfig(BaseModel):
     gui_LEAP_lid: bool = False
     gui_osc_vrcft_v1: bool = False
     gui_osc_vrcft_v2: bool = False
-    gui_vrc_native: bool = True
+    gui_vrc_native: bool = False
+    # Default output mode: send Unified Expressions straight to VRChat via the
+    # embedded PY-VRCFT port (osc/PyVRCFTSender.py), replacing VRCFT. Auto-adapts
+    # to v2 / legacy v1 / native-eye avatars from one tracking frame.
+    gui_pyvrcft: bool = True
     gui_pupil_dilation: bool = False
 
     gui_VRCFTModulePort: int = 8889
     gui_VRCFTModuleIPAddress: str = "127.0.0.1"
+    # Output full-scale FOV edge (degrees): the angle calibrated gaze ±1 maps to.
+    # Two roles, kept consistent:
+    #   1. pyVRCFT native /tracking/eye/LeftRightPitchYaw maps ±1 to degrees via
+    #      atan(gaze * tan(max)), so full gaze reflects a real angle instead of
+    #      VRCFT's default 45°. (Normalized v1/v2 eye params carry ±1 directly;
+    #      the avatar rig owns what ±1 rotates to there.)
+    #   2. next_smartcal_targets() derives each calibration dot's fit target as
+    #      its fraction of THIS full-scale, so the inset overlay dots are NOT
+    #      treated as ≈max output — leaving headroom for the eye to drive output
+    #      out to ±1 at the FOV edge instead of clipping at the overlay's
+    #      oculomotor dot caps. Headroom is PER-AXIS by how far the eye can
+    #      actually rotate: yaw/down are set wider than the overlay caps
+    #      (30/35) so lateral/downward gaze reaches ±1 near the FOV edge, but
+    #      UP is kept at its cap (15) — upward eye rotation maxes out ~15°, so
+    #      any up headroom just makes full-up unreachable ("doesn't go high
+    #      enough"). Changing these needs a re-cal (Reset Smart Calib) so the
+    #      saved affine matches.
+    gui_gaze_yaw_max_deg: float = 40.0
+    gui_gaze_pitch_up_deg: float = 15.0
+    gui_gaze_pitch_down_deg: float = 40.0
     gui_ShouldEmulateEyeWiden: bool = False
     gui_ShouldEmulateEyeSquint: bool = False
     gui_ShouldEmulateEyebrows: bool = False

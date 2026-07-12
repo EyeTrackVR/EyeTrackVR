@@ -942,21 +942,34 @@ class CameraWidget:
         else:
             self.camera_thread = None
 
-    def stop(self):
-        # If we're not running yet, bail
-        if self.cancellation_event.is_set():
-            return
+    def request_stop(self):
+        """Signal camera/tracking workers without waiting for native I/O.
+
+        Network VideoCapture calls cannot be interrupted reliably on every
+        OpenCV/FFmpeg build.  Keeping signalling separate lets application
+        shutdown cancel both eyes before it waits for either one.
+        """
         self.detach_shared_capture_event()
         self.camera.set_extra_output_queues([])
         self.cancellation_event.set()
+        # Wake processors that may be waiting for the next captured frame.
+        self.capture_event.set()
+
+    def stop(self, join_timeout: float = 5.0, warn_if_alive: bool = True):
+        self.request_stop()
+        deadline = time.monotonic() + max(0.0, join_timeout)
         if self.tracking_thread is not None:
-            self.tracking_thread.join(timeout=5.0)
-            if self.tracking_thread.is_alive():
+            self.tracking_thread.join(
+                timeout=max(0.0, deadline - time.monotonic())
+            )
+            if warn_if_alive and self.tracking_thread.is_alive():
                 logger.warning("Tracking thread (%s) did not exit within timeout", self.eye_id)
             self.tracking_thread = None
         if self.camera_thread is not None:
-            self.camera_thread.join(timeout=5.0)
-            if self.camera_thread.is_alive():
+            self.camera_thread.join(
+                timeout=max(0.0, deadline - time.monotonic())
+            )
+            if warn_if_alive and self.camera_thread.is_alive():
                 logger.warning("Camera thread (%s) did not exit within timeout", self.eye_id)
             self.camera_thread = None
 

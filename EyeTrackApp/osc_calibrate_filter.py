@@ -476,10 +476,9 @@ def overlay_ellipse_calibrate(eye_processors: list, settings, baseconfig) -> Non
 # The overlay self-drives 11 dots and emits one big-endian int32 per dot at the
 # moment it finishes shrinking and is held (capture-ready), then 100 when done:
 #
-#   0..4  outer ring @ 0.90   5..9  inner ring @ 0.50   10  centre   100  done
+#   0..4 outer pentagon, 5..9 rotated inner pentagon, 10 centre, 100 done
 #
-# Both rings are evenly spaced starting at the top and going clockwise. Those
-# positions are the regression *targets*: when the user fixates a dot, their
+# Those positions are the regression *targets*: when the user fixates a dot, their
 # true gaze equals the dot direction. We pair each dot's known position with
 # the median raw NEXT gaze captured while it was held, then least-squares fit a
 # per-eye transform that maps raw model output onto true gaze.
@@ -503,8 +502,6 @@ def overlay_ellipse_calibrate(eye_processors: list, settings, baseconfig) -> Non
 #             useful for a model that genuinely SATURATES (pins near ±1 for
 #             moderate gaze); kept available for that case and to load such fits.
 
-_SMARTCAL_OUTER_RADIUS = 0.90
-_SMARTCAL_INNER_RADIUS = 0.50
 # arctanh blows up at ±1; clamp the raw magnitude just inside so a fully pinned
 # sample maps to a large-but-finite warped value instead of inf.
 _SMARTCAL_WARP_CLAMP = 0.999
@@ -513,24 +510,74 @@ _SMARTCAL_WARP_CLAMP = 0.999
 _SMARTCAL_WARP = None
 
 
-def _smartcal_ring(radius):
-    return [
-        (
-            round(radius * math.cos(math.radians(90 - 72 * i)), 6),
-            round(radius * math.sin(math.radians(90 - 72 * i)), 6),
-        )
-        for i in range(5)
-    ]
+# Overlay finetune dot-placement caps (degrees), mirroring the overlay's fov.h
+# defaults (max_deg / max_deg_up / max_deg_down). The finetune mode launches with
+# no CLI args, so these fixed defaults are always in effect. The overlay places a
+# dot at overlay-normalized n at physical angle atan(n * tan(cap)) — linear in
+# TANGENT out to these oculomotor caps. Keep in sync if the overlay's finetune
+# caps change. (Assumes the caps bind, true on wide-FOV HMDs; if the overlay's
+# coverage clamp binds instead the true dot angle is a touch smaller, which only
+# makes the derived targets slightly conservative — never larger than the old
+# radius-as-target behaviour, so headroom is never lost.)
+_SMARTCAL_OVERLAY_CAP_YAW = 30.0
+_SMARTCAL_OVERLAY_CAP_UP = 15.0
+_SMARTCAL_OVERLAY_CAP_DOWN = 40.0
 
 
-# dots 0..4 outer ring, 5..9 inner ring (both top→clockwise), 10 = centre.
-# MUST match FINETUNE_POS order in the overlay's modes.cpp.
-NEXT_SMARTCAL_TARGETS = (
-    _smartcal_ring(_SMARTCAL_OUTER_RADIUS)
-    + _smartcal_ring(_SMARTCAL_INNER_RADIUS)
-    + [(0.0, 0.0)]
+# Five outer and five inner points. The inner pentagon is rotated halfway between
+# outer rays, giving ten interleaved directions and better mid-field coverage.
+# MUST match FINETUNE_POS
+# order in the overlay's modes.cpp. This is where each dot is DRAWN; the value
+# it is FIT to (its calibration target) is derived separately by
+# next_smartcal_targets() so the inset outer ring is not treated as full-scale.
+NEXT_SMARTCAL_DOTS = (
+    (0.0, 0.8), (0.760845, 0.247214), (0.470228, -0.647214),
+    (-0.470228, -0.647214), (-0.760845, 0.247214),
+    (0.246870, 0.339787), (0.399444, -0.129787), (0.0, -0.42),
+    (-0.399444, -0.129787), (-0.246870, 0.339787), (0.0, 0.0),
 )
 NEXT_SMARTCAL_DONE_SIGNAL = 100
+
+
+def next_smartcal_targets(settings):
+    """Calibration fit target (output-normalized gaze) for each overlay dot.
+
+    The overlay draws a dot at overlay-normalized (nx, ny), which physically sits
+    at atan(n * tan(overlay_cap)) — an oculomotor-limited eccentricity INSIDE the
+    display FOV. Fitting the outer ring straight to its overlay radius (~0.90)
+    makes that inset dot ≈full output, so calibrated gaze clips at the oculomotor
+    cap: the eye can travel further toward the FOV edge but the output is already
+    pinned ("can't reach the edge").
+
+    Instead, express each dot as its fraction of the OUTPUT full-scale FOV
+    (config gui_gaze_*_max_deg — the angle ±1 maps to). Both the overlay
+    placement and the output angle are tangent-linear, so per axis:
+
+        target = overlay_norm * tan(overlay_cap) / tan(output_edge)
+
+    With the edge set wider than the cap (40 vs 30 yaw → ~×0.69) the targets
+    shrink, leaving headroom ABOVE the outer ring. In-range angles are unchanged
+    (a dot still renders at its true physical angle through the wider full-scale);
+    the model's output then extrapolates through that headroom to ±1 as the eye
+    continues to the edge. The y axis uses the up/down cap+edge by the sign of ny;
+    the centre offset (overlay center_deg) is absorbed by the affine bias as
+    before. Edges are floored at their cap (an edge inside the cap would re-pin
+    the output) and kept below 90° so tan stays finite."""
+    def _edge(name, cap):
+        e = float(getattr(settings, name, cap))
+        return min(89.0, max(cap, e))
+
+    edge_yaw = _edge("gui_gaze_yaw_max_deg", _SMARTCAL_OVERLAY_CAP_YAW)
+    edge_up = _edge("gui_gaze_pitch_up_deg", _SMARTCAL_OVERLAY_CAP_UP)
+    edge_down = _edge("gui_gaze_pitch_down_deg", _SMARTCAL_OVERLAY_CAP_DOWN)
+    kx = math.tan(math.radians(_SMARTCAL_OVERLAY_CAP_YAW)) / math.tan(math.radians(edge_yaw))
+    k_up = math.tan(math.radians(_SMARTCAL_OVERLAY_CAP_UP)) / math.tan(math.radians(edge_up))
+    k_down = math.tan(math.radians(_SMARTCAL_OVERLAY_CAP_DOWN)) / math.tan(math.radians(edge_down))
+    targets = []
+    for nx, ny in NEXT_SMARTCAL_DOTS:
+        ky = k_up if ny >= 0.0 else k_down
+        targets.append((nx * kx, ny * ky))
+    return targets
 
 # The overlay holds each dot for 0.5 s (DC_HOLD_S in modes.cpp) after emitting
 # its signal, then the NEXT dot appears/shrinks for ~0.65 s before ITS signal,
@@ -546,15 +593,19 @@ _SMARTCAL_MIN_SAMPLES_PER_DOT = 5
 # over that minimum so a few missed dots (and ideally both rings) still leave a
 # well-conditioned fit.
 _SMARTCAL_MIN_DOTS = 6
+# Straight-ahead is the semantic zero used by VRChat and recentering. Weight its
+# per-dot median more strongly than one peripheral point so least squares cannot
+# leave a visible centre offset merely to shave error off the ring.
+_SMARTCAL_CENTER_WEIGHT = 6.0
 # Sanity bounds for an accepted transform. The smart cal is a gentle per-user
 # polish: singular values of W (direction-independent gains) must stay within
 # [MIN, MAX] and orientation must be preserved (det > 0). In arctanh space a
 # saturating model needs a small gain (arctanh expands the input), so the lower
-# bound is looser than a raw-space affine would need. The offset can't exceed
-# 3/4 of the output range. Anything outside is a degenerate fit.
-_SMARTCAL_MAX_GAIN = 5.0
+# bound is looser than a raw-space affine would need. Smart calibration is only
+# a per-user polish, so large gains or offsets are rejected rather than saved.
+_SMARTCAL_MAX_GAIN = 1.75
 _SMARTCAL_MIN_GAIN = 0.08
-_SMARTCAL_MAX_BIAS = 0.75
+_SMARTCAL_MAX_BIAS = 0.30
 # Mean L2 distance between the fitted mapping of the captured points and their
 # targets. A transform that can't get within this of its OWN fitting points is
 # fitting noise.
@@ -568,9 +619,10 @@ _SMARTCAL_MIN_RAW_SPREAD = 0.10
 # map near the output edge. A degenerate over-gained fit pins small gaze to the
 # corner; this catches it directly. (A warp+affine with det(W) > 0 is injective,
 # so no fold-back / monotonicity walk is needed — that was only for the old
-# cubic.) The 3/4 EARLY_MAX leaves generous headroom for real per-user gain.
-_SMARTCAL_SANITY_EARLY_R = 0.30
-_SMARTCAL_SANITY_EARLY_MAX = 0.75
+# cubic.) The limit leaves headroom for a real per-user gain without allowing
+# half gaze to clip at the output edge.
+_SMARTCAL_SANITY_EARLY_R = 0.50
+_SMARTCAL_SANITY_EARLY_MAX = 0.85
 
 
 def _smartcal_warp_scalar(v: float, warp) -> float:
@@ -651,7 +703,7 @@ def reset_next_smartcal(eye_processors: list, baseconfig) -> None:
     logger.info("NEXT smart cal: transforms cleared (raw model gaze restored).")
 
 
-def _fit_next_smartcal(eye_processors: list, baseconfig) -> bool:
+def _fit_next_smartcal(eye_processors: list, baseconfig, settings) -> bool:
     """Least-squares fit a per-eye affine gaze transform from collected samples.
 
     Each output axis is fit independently as a 3-unknown affine on the per-dot
@@ -660,13 +712,18 @@ def _fit_next_smartcal(eye_processors: list, baseconfig) -> bool:
         x_cal = w11*gx + w12*gy + b1
         y_cal = w21*gx + w22*gy + b2   (gx, gy = raw, or arctanh(raw) if warping)
 
+    Targets come from next_smartcal_targets(settings): each dot is fit to its
+    fraction of the output full-scale FOV, not its overlay radius, so the outer
+    ring keeps headroom to the edge (see that function).
+
     Returns True if at least one eye produced a usable transform (and was saved)."""
+    targets = next_smartcal_targets(settings)
     saved_any = False
     for ep in eye_processors:
         eye = getattr(ep, "eye_id", "?")
         samples = getattr(ep, "_next_smartcal_samples", {}) or {}
-        raws, tgts = [], []
-        for dot in range(len(NEXT_SMARTCAL_TARGETS)):
+        raws, tgts, fit_weights = [], [], []
+        for dot in range(len(NEXT_SMARTCAL_DOTS)):
             pts = samples.get(dot, [])
             if len(pts) < _SMARTCAL_MIN_SAMPLES_PER_DOT:
                 logger.debug(
@@ -677,17 +734,35 @@ def _fit_next_smartcal(eye_processors: list, baseconfig) -> bool:
             arr = np.asarray(pts, dtype=np.float64)
             # Median over the hold window rejects blinks / transient outliers.
             raws.append([float(np.median(arr[:, 0])), float(np.median(arr[:, 1]))])
-            tgts.append(NEXT_SMARTCAL_TARGETS[dot])
+            tgts.append(targets[dot])
+            fit_weights.append(
+                _SMARTCAL_CENTER_WEIGHT if dot == len(NEXT_SMARTCAL_DOTS) - 1 else 1.0
+            )
 
         if len(raws) < _SMARTCAL_MIN_DOTS:
             logger.warning(
                 "NEXT smart cal (eye %s): only %d/%d dots captured (<%d); skipping fit.",
-                eye, len(raws), len(NEXT_SMARTCAL_TARGETS), _SMARTCAL_MIN_DOTS,
+                eye, len(raws), len(NEXT_SMARTCAL_DOTS), _SMARTCAL_MIN_DOTS,
             )
             continue
 
         R = np.asarray(raws, dtype=np.float64)          # N x 2 raw gaze
         T = np.asarray(tgts, dtype=np.float64)          # N x 2 target gaze
+
+        # Diagnostic dump (INFO so it shows without debug config): the captured
+        # raw median for each held dot against its target. Lets a rejected fit be
+        # read straight from the log — if the raw pairs don't separate the rings
+        # (inner ≈ outer) the model output is plateauing; if a sign is inverted
+        # vs the target the capture is flipped; wide scatter = noisy follow.
+        logger.info(
+            "NEXT smart cal (eye %s) captures [raw]->[target]  (samples/dot=%s):\n%s",
+            eye,
+            {d: len(samples.get(d, [])) for d in range(len(NEXT_SMARTCAL_DOTS))},
+            "\n".join(
+                f"  ({R[i, 0]:+.3f}, {R[i, 1]:+.3f}) -> ({T[i, 0]:+.3f}, {T[i, 1]:+.3f})"
+                for i in range(len(R))
+            ),
+        )
 
         # Degenerate-input guard: the dots span most of the gaze range, so the
         # raw medians must show real movement in both axes. A near-constant
@@ -715,9 +790,15 @@ def _fit_next_smartcal(eye_processors: list, baseconfig) -> bool:
         gy = G[:, 1]
         ones = np.ones(len(G))
         A = np.column_stack([gx, gy, ones])             # N x 3  [gx, gy, 1]
+        # Weighted least squares. Multiplying rows by sqrt(weight) makes the
+        # centre anchor count more without duplicating or over-sampling frames.
+        sw = np.sqrt(np.asarray(fit_weights, dtype=np.float64))
+        Aw = A * sw[:, None]
+        Tx = T[:, 0] * sw
+        Ty = T[:, 1] * sw
         try:
-            sol_x, *_ = np.linalg.lstsq(A, T[:, 0], rcond=None)   # [w11, w12, b1]
-            sol_y, *_ = np.linalg.lstsq(A, T[:, 1], rcond=None)   # [w21, w22, b2]
+            sol_x, *_ = np.linalg.lstsq(Aw, Tx, rcond=None)   # [w11, w12, b1]
+            sol_y, *_ = np.linalg.lstsq(Aw, Ty, rcond=None)   # [w21, w22, b2]
         except np.linalg.LinAlgError as e:
             logger.warning("NEXT smart cal (eye %s): solve failed: %s", eye, e)
             continue
@@ -733,9 +814,11 @@ def _fit_next_smartcal(eye_processors: list, baseconfig) -> bool:
         residual = float(np.mean(np.hypot(pred_x - T[:, 0], pred_y - T[:, 1])))
         if residual > _SMARTCAL_MAX_RESIDUAL:
             logger.warning(
-                "NEXT smart cal (eye %s): fit residual %.3f exceeds %.2f: "
-                "captures look inconsistent. Keeping previous calibration.",
+                "NEXT smart cal (eye %s): fit residual %.3f exceeds %.2f "
+                "(attempted W=%s B=%s): captures look inconsistent. Keeping "
+                "previous calibration.",
                 eye, residual, _SMARTCAL_MAX_RESIDUAL,
+                [round(v, 4) for v in w], [round(v, 4) for v in b],
             )
             continue
         if not next_smartcal_transform_is_sane(w, b, warp):
@@ -809,7 +892,7 @@ def next_smartcal_overlay(eye_processors: list, settings, baseconfig) -> None:
 
             signal = struct.unpack(">i", data[:4])[0]
 
-            if 0 <= signal < len(NEXT_SMARTCAL_TARGETS):
+            if 0 <= signal < len(NEXT_SMARTCAL_DOTS):
                 # Dot is held and capture-ready: start sampling it. The sampler
                 # (NEXTM) only accepts frames within NEXT_SMARTCAL_CAPTURE_WINDOW_S
                 # of this timestamp; the overlay's hold is 0.5 s, after which the
@@ -823,7 +906,7 @@ def next_smartcal_overlay(eye_processors: list, settings, baseconfig) -> None:
                 # All dots done: stop sampling and fit.
                 for ep in eye_processors:
                     ep._next_smartcal_active_dot = None
-                if _fit_next_smartcal(eye_processors, baseconfig):
+                if _fit_next_smartcal(eye_processors, baseconfig, settings):
                     PlaySound(resource_path("Audio/completed.wav"), SND_FILENAME | SND_ASYNC)
                 var.overlay_active = False
                 break

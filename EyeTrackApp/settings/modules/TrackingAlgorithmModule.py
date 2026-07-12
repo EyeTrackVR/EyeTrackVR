@@ -21,6 +21,7 @@ class TrackingAlgorithmValidationModel(BaseValidationModel):
     gui_RANSAC3D: bool
     gui_AHRAC: bool
     gui_NEXT: bool
+    gui_NEXT_BSB: bool
     gui_NEXT_calibration: bool
     gui_model_variant: str
     gui_max_tracking_speed: int
@@ -45,6 +46,7 @@ class TrackingAlgorithmModule(BaseSettingsModule):
         self.gui_AHRAC = f"-gui_AHRAC{widget_id}-"
         self.gui_RANSAC3D = f"-RANSAC3D{widget_id}-"
         self.gui_NEXT = f"-NEXT{widget_id}-"
+        self.gui_NEXT_BSB = f"-NEXTBSB{widget_id}-"
         self.gui_NEXT_calibration = f"-NEXTCAL{widget_id}-"
         self.gui_model_variant = f"-MODELVARIANT{widget_id}-"
         self.gui_max_tracking_speed = f"-MAXTRACKSPEED{widget_id}-"
@@ -55,6 +57,7 @@ class TrackingAlgorithmModule(BaseSettingsModule):
             ("DADDY", "daddy", self.gui_DADDY, "gui_DADDY"),
             ("RANSAC 3D", "ransac3d", self.gui_RANSAC3D, "gui_RANSAC3D"),
             (tr("algo_tracking.next_alpha"), "next", self.gui_NEXT, "gui_NEXT"),
+            (tr("algo_tracking.next_bsb"), "next_bsb", self.gui_NEXT_BSB, "gui_NEXT_BSB"),
         ]
         self._advanced_entries = [
             ("ASHSF", "ahsf", self.gui_AHSF, "gui_AHSF"),
@@ -128,6 +131,14 @@ class TrackingAlgorithmModule(BaseSettingsModule):
         )
         combo.grid(row=0, column=1, sticky="w")
         attach_tooltip(combo, tr("algo_tracking.model_tip"))
+        self._model_combo = combo
+        # NEXT BSB (stereo) only ships a BSB model (base + fp16), so restrict the
+        # dropdown to BSB / BSB LITE while it's selected, and restore the full
+        # mono variant list otherwise. Runs on every algorithm-radio change.
+        self.selected_algo.trace_add(
+            "write", lambda *_: self._refresh_model_choices()
+        )
+        self._refresh_model_choices()
         # A manual selection sticks: it stops the setup-mode auto-shift from
         # overriding the choice on future mode switches. <<ComboboxSelected>>
         # only fires on user interaction, not on programmatic .set() from the
@@ -139,6 +150,46 @@ class TrackingAlgorithmModule(BaseSettingsModule):
         # would be saved back and revert the auto-shift on the next render tick).
         if self._main_config is not None:
             self._main_config.register_listener_callback(self._on_model_variant_synced)
+
+    def _refresh_model_choices(self):
+        """Limit the model dropdown to the BSB stereo builds (BSB / BSB LITE)
+        when NEXT BSB is selected — there is no ETVR/TOBII stereo model — and
+        restore the full mono variant list for every other algorithm."""
+        combo = getattr(self, "_model_combo", None)
+        var = getattr(self, "_model_var", None)
+        if combo is None or var is None:
+            return
+        is_bsb = self.selected_algo.get() == "next_bsb"
+        choices = ["BSB", "BSB LITE"] if is_bsb else list(_MODEL_VARIANTS)
+        try:
+            combo["values"] = choices
+            if var.get() not in choices:
+                # No valid stereo variant selected -> fall back to the base BSB
+                # build. When the user hasn't manually picked a variant ("no
+                # existing config"), also persist it so the config defaults to
+                # the BSB stereo model rather than the leftover mono default.
+                var.set(choices[0])
+                if is_bsb:
+                    self._default_bsb_variant(choices[0])
+        except tk.TclError:
+            pass
+
+    def _default_bsb_variant(self, variant):
+        """Persist an auto-selected BSB stereo variant to config, but only while
+        the variant is still tracking defaults (gui_model_variant_user_set is
+        False). A manual choice is left untouched — it's just displayed as the
+        nearest valid stereo build in the combobox."""
+        if self._main_config is None:
+            return
+        settings = self._main_config.settings
+        if getattr(settings, "gui_model_variant_user_set", False):
+            return
+        if getattr(settings, "gui_model_variant", None) == variant:
+            return
+        try:
+            self._main_config.update({"gui_model_variant": variant}, save=True)
+        except Exception:
+            pass
 
     def _on_model_user_selected(self, _event=None):
         """Mark the variant as user-chosen so setup-mode changes stop overriding it."""

@@ -43,6 +43,7 @@ from osc_calibrate_filter import *
 from daddy import External_Run_DADDY
 from leap import External_Run_LEAP
 from next_model import External_Run_NEXT
+from next_stereo_model import get_stereo_coordinator
 from haar_surround_feature import External_Run_HSF
 from ransac import *
 from blink import *
@@ -598,6 +599,14 @@ class EyeProcessor:
         seconds = max(1.0, float(self.settings.calibration_duration))
         return max(30, int(round(seconds * float(fps))))
 
+    @property
+    def _next_active(self) -> bool:
+        """True when either NEXT variant (mono or stereo BSB) is the tracker.
+        Both produce their own gaze/eyelid/squeeze/eyebrow end-to-end, so the
+        classical BLINK/IBO/LEAP-lid estimators and the eyebrow fallback must be
+        bypassed for both."""
+        return bool(self.settings.gui_NEXT or self.settings.gui_NEXT_BSB)
+
     def UPDATE(self):
         self.current_algo = self.current_algorithm
 
@@ -607,12 +616,12 @@ class EyeProcessor:
         # uncropped frame; feeding that here would overwrite the model's
         # calibrated eyelid with garbage. Skip them for NEXT, mirroring the
         # existing `not gui_NEXT` guard on the LEAP-lid block below.
-        if self.settings.gui_BLINK and not self.settings.gui_NEXT:
+        if self.settings.gui_BLINK and not self._next_active:
             self.eyeopen = BLINK(self)
 
         if (
             self.settings.gui_IBO and self.eyeopen != 0.0
-            and not self.settings.gui_NEXT
+            and not self._next_active
         ):
             # TODO: Separate RANSAC blink state from the shared eye openness guard.
             self.eyeopen = self.ibo.intense(
@@ -635,7 +644,7 @@ class EyeProcessor:
             self.settings.gui_LEAP_lid
             and self.eyeopen != 0.0
             and not self.settings.gui_LEAP
-            and not self.settings.gui_NEXT
+            and not self._next_active
         ):
             (
                 self.current_image_gray,
@@ -684,7 +693,7 @@ class EyeProcessor:
 
         if self.eyebrow_runner is not None:
             _brow = self.eyebrow_runner.get_result()
-        elif self.settings.gui_NEXT:
+        elif self._next_active:
             _brow = self.next_eyebrow
         else:
             _brow = float("nan")
@@ -779,20 +788,63 @@ class EyeProcessor:
         gaze_x, gaze_y, eyebrow, eyelid, squeeze = self.next_runner.run(
             next_frame, base_cutoff, base_beta
         )
+        self._next_apply(gaze_x, gaze_y, eyebrow, eyelid, squeeze)
 
-        # Raw model gaze, before any flip. NEXT regresses gaze DIRECTION in
-        # [-1, 1] (right/up positive), unlike pupil-pixel trackers, whose raw
-        # output is an image coordinate. The calibration path below needs this
-        # un-flipped copy (see the cal_osc call).
+    def NEXT_BSB_M(self):
+        """Stereo NEXT BSB: both eyes in one time-synced forward pass.
+
+        Each eye thread submits its frame to the shared coordinator; whichever
+        call completes a fresh left+right pair runs the single stereo inference,
+        and both eyes read their slice (shared gaze + this eye's per-eye
+        expressions). All downstream handling (flips, smart-cal, recenter, lid
+        remap, OSC) is shared with mono NEXT via _next_apply()."""
+        if self.current_raw_frame is None:
+            return
+        self.thresh = self.current_image_gray.copy()
+
+        base_cutoff = float(self.settings.gui_min_cutoff)
+        base_beta = float(self.settings.gui_speed_coefficient)
+
+        # This eye's image. Bigscreen carries both eyes side-by-side in one
+        # camera frame, so submit this eye's half; with two separate cameras,
+        # submit the whole per-eye frame. The coordinator pairs by capture time.
+        eye_frame = self.current_raw_frame
+        if self.settings.gui_setup_mode == "bigscreen":
+            mid = eye_frame.shape[1] // 2
+            eye_frame = eye_frame[:, :mid] if self.eye_id == EyeId.LEFT else eye_frame[:, mid:]
+
+        variant = getattr(self.settings, "gui_model_variant", "ETVR")
+        fp16 = str(variant).upper().endswith("LITE")
+        coord = get_stereo_coordinator(fp16)
+        coord.submit(self.eye_id, eye_frame, self.current_capture_ts)
+        sliced = coord.get_slice(self.eye_id, base_cutoff, base_beta)
+        if sliced is None:
+            # The other eye hasn't produced a frame yet — nothing to emit until
+            # a full stereo pair exists.
+            return
+        gaze_x, gaze_y, eyebrow, eyelid, squeeze = sliced
+        self._next_apply(gaze_x, gaze_y, eyebrow, eyelid, squeeze)
+
+    def _next_apply(self, gaze_x, gaze_y, eyebrow, eyelid, squeeze):
+        """Shared NEXT post-processing for mono (NEXTM) and stereo (NEXT_BSB_M):
+        flips, smart-calibration, recenter, eyelid remap, and the OSC enqueue.
+        Inputs are native model outputs; Y is corrected once below."""
+        # Raw model gaze, before any flip, in [-1, 1]. X is right-positive.
+        # Model Y is DOWN-positive; preserve the native value for the legacy
+        # calibration path below.
         model_gaze_x, model_gaze_y = gaze_x, gaze_y
 
-        # Flip Y for output: the model regresses up-positive, but the app's
-        # downstream/OSC convention is up-negative. model_gaze_y above stays
-        # un-flipped so calibration keeps fitting against the raw model output.
+        # Output/OSC Y is up-positive, so negate native model Y exactly once.
         gaze_y = -gaze_y
 
         # ── NEXT Smart Calibration ────────────────────────────────────────────
-        # While a dot is being held by the overlay, accumulate the raw model
+        # Smart-cal works in the app's UP-POSITIVE convention (its dot targets
+        # and the OSC output are both up-positive). ``gaze_y`` has now been
+        # normalized to that convention for both model variants; use it for
+        # both capture and application so calibration cannot introduce a flip.
+        sc_gaze_x, sc_gaze_y = model_gaze_x, gaze_y
+
+        # While a dot is being held by the overlay, accumulate the sign-corrected
         # gaze so the regression can be fit against the dot's known position.
         # Only within the capture window: the overlay holds each dot 0.5 s
         # after its signal, then the next dot appears and the user follows it;
@@ -803,7 +855,7 @@ class EyeProcessor:
             <= NEXT_SMARTCAL_CAPTURE_WINDOW_S
         ):
             self._next_smartcal_samples.setdefault(_sc_dot, []).append(
-                (model_gaze_x, model_gaze_y)
+                (sc_gaze_x, sc_gaze_y)
             )
 
         # Apply the fitted (warp + affine) transform (smart calib) to map raw
@@ -818,7 +870,7 @@ class EyeProcessor:
         ):
             _cal_x, _cal_y = next_smartcal_apply(
                 self._next_smartcal_w, self._next_smartcal_b,
-                self._next_smartcal_warp, model_gaze_x, model_gaze_y,
+                self._next_smartcal_warp, sc_gaze_x, sc_gaze_y,
             )
             # Keep the result in the model's native output range so a strong
             # transform can't push extreme values downstream to OSC.
@@ -888,6 +940,19 @@ class EyeProcessor:
             self.out_x = gaze_x
             self.out_y = gaze_y
             self.eyeopen = eyeopen_raw
+
+            # TEMP diagnostic (~2 Hz): raw model gaze vs the final output value
+            # actually sent to OSC, so we can read what a given eye position
+            # produces without a re-cal. Look centre, then hard right, then hard
+            # up, and compare. Remove once tuning is settled.
+            _now = time.monotonic()
+            if _now - getattr(self, "_next_out_log_t", 0.0) >= 0.5:
+                self._next_out_log_t = _now
+                logger.info(
+                    "NEXT out eye%d: raw=(%+.3f, %+.3f) -> sent=(%+.3f, %+.3f)  cal=%s",
+                    int(self.eye_id), model_gaze_x, -model_gaze_y,
+                    self.out_x, self.out_y, self._next_smartcal_w is not None,
+                )
 
         # Snap to fully-closed: NEXT openness near zero is treated as a blink so
         # the eye reports a clean 0.0 instead of jittering just above closed.
@@ -1097,6 +1162,12 @@ class EyeProcessor:
         else:
             if self.next_runner is not None:
                 self.next_runner = None
+
+        # NEXT BSB (stereo): both eyes in one pass. The shared coordinator owns
+        # the single ONNX session (fetched lazily in NEXT_BSB_M), so there's no
+        # per-eye runner to build/tear down here.
+        if self.settings.gui_NEXT_BSB:
+            enabled_algorithms.append(self.NEXT_BSB_M)
 
         if self.settings.gui_LEAP or self.settings.gui_LEAP_lid:
             if self.leap_runner is None:

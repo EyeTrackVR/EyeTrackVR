@@ -36,6 +36,7 @@ from config import EyeTrackConfig
 from osc.OSCMessage import OSCMessage, OSCMessageType
 from osc.VRCFTModuleMessenger import VRCFTModuleSender
 from osc.VRChatOSCSender import VRChatOSCSender
+from osc.PyVRCFTSender import PyVRCFTSender
 import queue
 import threading
 
@@ -72,6 +73,9 @@ class OSCManager:
             str(s.gui_VRCFTModuleIPAddress).strip(),
             int(s.gui_VRCFTModulePort),
             bool(s.gui_use_module),
+            bool(s.gui_pyvrcft),
+            str(s.gui_osc_address).strip(),
+            int(s.gui_osc_receiver_port),
         )
 
     def _receiver_signature(self) -> tuple:
@@ -119,6 +123,9 @@ class OSCManager:
             "gui_VRCFTModulePort",
             "gui_VRCFTModuleIPAddress",
             "gui_use_module",
+            "gui_pyvrcft",
+            "gui_osc_address",
+            "gui_osc_receiver_port",
         }
         if sender_trigger_keys.intersection(keys):
             new_sig = self._sender_signature()
@@ -164,6 +171,7 @@ class OSCSender:
         self.config = main_config.settings
         self.vrc_sender = VRChatOSCSender()
         self.module_sender = VRCFTModuleSender()
+        self.pyvrcft_sender = PyVRCFTSender()
 
         self.vrc_client = None
         self.vrcft_client = None
@@ -181,35 +189,66 @@ class OSCSender:
         if self.config.gui_use_module:
             vrc_osc_output_client = self.vrcft_client
 
-        while not self.cancellation_event.is_set():
+        # Experimental: route through the embedded PY-VRCFT port instead of the
+        # SimpleUDPClient param paths. It owns its own transport, so the vrc/
+        # vrcft clients above are simply left idle when this is active.
+        use_pyvrcft = bool(self.config.gui_pyvrcft)
+        if use_pyvrcft:
             try:
-                osc_message: OSCMessage = self.msg_queue.get(block=True, timeout=0.1)
-                match osc_message.type:
-                    case OSCMessageType.EYE_INFO:
-                        self.vrc_sender.output_osc_info(
-                            osc_message=osc_message,
-                            client=vrc_osc_output_client,
-                            main_config=self.main_config,
-                            config=self.config,
-                        )
-                    case OSCMessageType.VRCFT_MODULE_INFO:
-                        self.module_sender.send(
-                            osc_message=osc_message, client=self.vrcft_client
-                        )
-                    case OSCMessageType.EYEBROW_INFO:
-                        eye_id, brow_val = osc_message.data
-                        self.vrc_sender.output_eyebrow_info(
-                            eye_id=eye_id,
-                            brow_val=brow_val,
-                            client=vrc_osc_output_client,
-                            main_config=self.main_config,
-                        )
-                    case _:
-                        logger.warning("Encountered OSC message without a handler: %s", osc_message.type)
-            except TypeError:
-                continue
-            except queue.Empty:
-                continue
+                self.pyvrcft_sender.start(self.config)
+            except Exception:  # noqa
+                logger.exception(
+                    "Failed to start pyVRCFT sender; no eye OSC output this run"
+                )
+                use_pyvrcft = False
+
+        try:
+            while not self.cancellation_event.is_set():
+                try:
+                    osc_message: OSCMessage = self.msg_queue.get(block=True, timeout=0.1)
+                    match osc_message.type:
+                        case OSCMessageType.EYE_INFO:
+                            if use_pyvrcft:
+                                self.pyvrcft_sender.output_osc_info(
+                                    osc_message=osc_message,
+                                    main_config=self.main_config,
+                                    config=self.config,
+                                )
+                            else:
+                                self.vrc_sender.output_osc_info(
+                                    osc_message=osc_message,
+                                    client=vrc_osc_output_client,
+                                    main_config=self.main_config,
+                                    config=self.config,
+                                )
+                        case OSCMessageType.VRCFT_MODULE_INFO:
+                            self.module_sender.send(
+                                osc_message=osc_message, client=self.vrcft_client
+                            )
+                        case OSCMessageType.EYEBROW_INFO:
+                            eye_id, brow_val = osc_message.data
+                            if use_pyvrcft:
+                                self.pyvrcft_sender.output_eyebrow_info(
+                                    eye_id=eye_id,
+                                    brow_val=brow_val,
+                                    main_config=self.main_config,
+                                )
+                            else:
+                                self.vrc_sender.output_eyebrow_info(
+                                    eye_id=eye_id,
+                                    brow_val=brow_val,
+                                    client=vrc_osc_output_client,
+                                    main_config=self.main_config,
+                                )
+                        case _:
+                            logger.warning("Encountered OSC message without a handler: %s", osc_message.type)
+                except TypeError:
+                    continue
+                except queue.Empty:
+                    continue
+        finally:
+            if use_pyvrcft:
+                self.pyvrcft_sender.stop()
 
 
 class OSCReceiver:
