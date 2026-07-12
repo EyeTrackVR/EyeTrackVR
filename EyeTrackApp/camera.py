@@ -77,36 +77,15 @@ def is_http_capture_source(addr: str) -> bool:
     return s.startswith("http://") or s.startswith("https://")
 
 
-# Cap decode rate for sources that can deliver frames faster than the tracker
-# pipeline can usefully consume: local video files (disk-speed) and HTTP MJPEG
-# cams configured for high fps. Above this, we sleep before reading so we stop
-# burning CPU on frames we'd drop anyway.
+# Cap local-file decode rate so files do not run faster than real time.
 _FAST_CAPTURE_MAX_FPS = 120.0
 _FAST_CAPTURE_MIN_INTERVAL = 1.0 / _FAST_CAPTURE_MAX_FPS
-# Network (HTTP/MJPEG) capture timeouts (ms). Open gets a separate three-second
-# budget since the first connection may include an mDNS (.local) lookup.
-# ESP/Wi-Fi MJPEG streams can pause for a little over two seconds during radio
-# contention and then resume on the same HTTP connection. A 2 s timeout made
-# OpenCV 4.13 abort VideoCapture::grab at the first such pause; after that the
-# FFmpeg handle is unrecoverable and the app has to perform a costly reconnect.
-# Five seconds matches the previously stable window. Application shutdown no
-# longer waits on this timeout because it uses a separate bounded join path.
-# MJPEG-over-Wi-Fi can occasionally yield one truncated/undecodable frame while
-# the underlying HTTP connection remains healthy. Reopening FFmpeg after that
-# single frame costs several seconds and turns a harmless drop into a visible
-# tracking freeze. Require consecutive failures before reconnecting.
 # Reconnect backoff for network sources (seconds). Each failed reopen blocks the
 # capture thread in native cv2 for up to the open-timeout, so retries are spaced with
 # an exponential backoff (min..max) instead of hammering a dead host every loop tick,
 # which would peg the thread and starve the UI of the GIL.
 _NETWORK_RECONNECT_BACKOFF_MIN = 0.5
 _NETWORK_RECONNECT_BACKOFF_MAX = 5.0
-# Re-encode quality used as a compressed-byte proxy for HTTP MJPEG streams.
-# cv2.VideoCapture only hands us decoded BGR frames, so we can't see the original
-# on-wire JPEG length; re-encoding each frame to JPEG at this quality gives a
-# stable proxy. It will differ from the server's actual compression (typical
-# ESP32-CAM encodes at ~10-15, so 80 overestimates), but sampled periodically it
-# is far cheaper than re-encoding every frame and closer than decoded pixel rate.
 # If no JPEG EOI arrives within this many buffered bytes, assume a desync and
 # discard the buffer. Prevents unbounded memory growth when the firmware
 # sends malformed or truncated frames (cable noise, firmware hang).
@@ -178,8 +157,6 @@ class Camera:
         self.last_frame_time = 0.0
         self.fl: list[float] = []
         self._last_cv_cap_frame_time = 0.0
-        self._last_http_wire_bytes_proxy = 0
-        self._http_wire_bytes_proxy_frame_count = 0
         self.error_message = "Capture source {} not found, retrying..."
         # monotonic deadline: don't call resolve_uvc_address_to_index until after this time.
         # Set when the camera is confirmed absent from the enum list; cleared on read failure
@@ -262,8 +239,6 @@ class Camera:
         self.fps = 0.0
         self.bps = 0.0
         self.frame_number = 0
-        self._last_http_wire_bytes_proxy = 0
-        self._http_wire_bytes_proxy_frame_count = 0
 
     def _reset_network_reconnect_backoff(self) -> None:
         """Clear the network reconnect backoff. Called on a successful connect and on
@@ -290,12 +265,8 @@ class Camera:
 
         ``frame_bytes`` is the best available byte-count for this frame:
           - Serial path: ``len(jpeg)``, true compressed bytes on the UART wire.
-          - cv2 HTTP:    length of a re-encoded JPEG at a fixed quality, a stable
-                         compressed-byte proxy (cv2.VideoCapture hides the original
-                         on-wire JPEG length from us). Approximates wire bandwidth.
-          - cv2 UVC/file: ``image.nbytes`` pre-resize, decoded pixel bytes, since
-                         there's no compressed source to measure. Decoded pixel-rate
-                         proxy, not true wire bandwidth.
+          - cv2 sources: ``image.nbytes`` pre-resize, decoded pixel bytes, since
+                         OpenCV does not expose the compressed source size.
 
         The first call after a reset / reconnect only seeds ``last_frame_time`` and
         does NOT contribute an fps sample, which avoids polluting the MA with a
@@ -445,9 +416,6 @@ class Camera:
                             open_source = _idx
                         cam = cv2.VideoCapture()
                         self.cv2_camera = cam
-                        # Only pass network timeout params to HTTP/MJPEG sources.
-                        # MSMF and DSHOW log "can't set property 53" and may abort
-                        # the open entirely when given unsupported init params.
                         # On Windows, use DSHOW explicitly for integer UVC indices.
                         # CAP_ANY tries obsensor/MSMF first, which probes all indices
                         # (causing log spam and ~1 s delay) and is less stable for plain
@@ -513,14 +481,10 @@ class Camera:
                 self.current_capture_source
             )
             is_http = is_http_capture_source(str(self.current_capture_source))
-            # HTTP MJPEG cams (esp. ESP32) and local files can hand cv2 frames as fast
-            # as the link / disk allows. Both deserve the same throttle; UVC paces
-            # itself on hardware fps.
+            # Live HTTP and UVC cameras are paced entirely by OpenCV/the source.
             throttle_source = is_file_video
             if should_push and throttle_source:
-                # [Limiter lag fix] We now handle the main tracking Hz limit in the caller.
-                # However, MJPEG/File sources still need a "fast-path" safety cap to prevent
-                # them from outrunning the loop's own overhead if max_hz is very high.
+                # Local files still need a fast-path cap.
                 now = time.time()
                 last = self._last_cv_cap_frame_time
                 if last > 0.0:
@@ -535,37 +499,7 @@ class Camera:
                 if not is_http:
                     self.cv2_camera.set(cv2.CAP_PROP_POS_FRAMES, 0)
                 raise RuntimeError("Problem while getting frame")
-            # Byte count for bps readout. Captured BEFORE downscale so the number
-            # reflects what the backend actually delivered, not what we resized to.
-            #   - HTTP MJPEG: we never see the server's JPEG; re-encode at fixed
-            #     quality as a stable compressed-byte proxy. Approximates wire
-            #     bandwidth (factor of ~2-5x off typical low-Q ESP32 streams, but
-            #     tracks frame complexity correctly).
-            #   - UVC / file: no compressed source to measure; ``image.nbytes`` is
-            #     the decoded pixel-rate proxy.
-            if is_http:
-                should_sample_proxy = (
-                    self._last_http_wire_bytes_proxy <= 0
-                    or self._http_wire_bytes_proxy_frame_count
-                    % _HTTP_WIRE_BYTES_PROXY_SAMPLE_INTERVAL
-                    == 0
-                )
-                self._http_wire_bytes_proxy_frame_count += 1
-                if should_sample_proxy:
-                    ok, jpeg_buf = cv2.imencode(
-                        ".jpg",
-                        image,
-                        [
-                            int(cv2.IMWRITE_JPEG_QUALITY),
-                            _HTTP_WIRE_BYTES_PROXY_JPEG_QUALITY,
-                        ],
-                    )
-                    self._last_http_wire_bytes_proxy = (
-                        int(jpeg_buf.size) if ok else int(image.nbytes)
-                    )
-                frame_bytes = self._last_http_wire_bytes_proxy
-            else:
-                frame_bytes = image.nbytes
+            frame_bytes = image.nbytes
             height, width = image.shape[:2]
             if int(width) > 680:
                 aspect_ratio = float(width) / float(height)
@@ -585,31 +519,11 @@ class Camera:
 
             if should_push:
                 self.push_image_to_queue(image, frame_number, self.fps)
-            if is_http:
-                self._network_consecutive_read_failures = 0
         except Exception as exc:
             is_http = is_http_capture_source(str(self.current_capture_source))
             if is_http:
-                self._network_consecutive_read_failures += 1
-                failure_count = self._network_consecutive_read_failures
-                if failure_count < _NETWORK_READ_FAILURES_BEFORE_RECONNECT:
-                    logger.debug(
-                        "Dropped HTTP camera frame (%d/%d): %s",
-                        failure_count,
-                        _NETWORK_READ_FAILURES_BEFORE_RECONNECT,
-                        exc,
-                    )
-                    # Keep the live handle for transient MJPEG corruption. A
-                    # brief cancellable yield avoids a tight loop if FFmpeg
-                    # returns failures immediately.
-                    self.cancellation_event.wait(0.01)
-                    return
-
-            if is_http:
                 logger.warning(
-                    "Capture source problem after %d consecutive HTTP frame "
-                    "failures; reconnecting: %s",
-                    self._network_consecutive_read_failures,
+                    "HTTP capture source problem; reconnecting: %s",
                     exc,
                 )
             else:
