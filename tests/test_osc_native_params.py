@@ -57,7 +57,7 @@ from tests import EyeInfoMock, SimpleUDPClientMock
     ],
 )
 def test_send_command_native_params_single_eye(main_config_native_params, messages, expected_outcome):
-    with mock.patch("EyeTrackApp.osc.osc.udp_client.SimpleUDPClient", SimpleUDPClientMock):
+    with mock.patch("osc.osc.udp_client.SimpleUDPClient", SimpleUDPClientMock):
         msg_queue = Queue()
         client = OSCManager(
             config=main_config_native_params,
@@ -72,7 +72,7 @@ def test_send_command_native_params_single_eye(main_config_native_params, messag
         client.shutdown()
 
         assert msg_queue.empty()
-        assert client.osc_sender.client.messages == expected_outcome
+        assert client.osc_sender.vrc_client.messages == expected_outcome
 
 
 @pytest.mark.parametrize(
@@ -172,7 +172,7 @@ def test_send_command_native_params_single_eye(main_config_native_params, messag
 def test_send_command_native_params_dual_eye(main_config_native_params, eye_data, expected_outcome):
     main_config_native_params.eye_display_id = 2
 
-    with mock.patch("EyeTrackApp.osc.osc.udp_client.SimpleUDPClient", SimpleUDPClientMock):
+    with mock.patch("osc.osc.udp_client.SimpleUDPClient", SimpleUDPClientMock):
         msg_queue = Queue()
         client = OSCManager(
             config=main_config_native_params,
@@ -187,7 +187,7 @@ def test_send_command_native_params_dual_eye(main_config_native_params, eye_data
         client.shutdown()
 
         assert msg_queue.empty()
-        assert client.osc_sender.client.messages == expected_outcome
+        assert client.osc_sender.vrc_client.messages == expected_outcome
 
 
 @pytest.mark.parametrize(
@@ -251,7 +251,7 @@ def test_send_command_native_params_eye_outer_side_falloff(main_config_native_pa
     main_config_native_params.eye_display_id = 2
     main_config_native_params.settings.gui_outer_side_falloff = True
 
-    with mock.patch("EyeTrackApp.osc.osc.udp_client.SimpleUDPClient", SimpleUDPClientMock):
+    with mock.patch("osc.osc.udp_client.SimpleUDPClient", SimpleUDPClientMock):
         msg_queue = Queue()
         client = OSCManager(
             config=main_config_native_params,
@@ -266,4 +266,4 @@ def test_send_command_native_params_eye_outer_side_falloff(main_config_native_pa
         client.shutdown()
 
         assert msg_queue.empty()
-        assert client.osc_sender.client.messages == expected_outcome
+        assert client.osc_sender.vrc_client.messages == expected_outcome

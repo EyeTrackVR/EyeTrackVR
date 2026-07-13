@@ -66,6 +66,9 @@ def eyetrack_settings_config():
         gui_osc_vrcft_v1=False,
         gui_osc_vrcft_v2=False,
         gui_vrc_native=False,
+        # Legacy OSC protocol tests assert SimpleUDPClient output. Keep the
+        # embedded pyVRCFT transport disabled in these fixtures.
+        gui_pyvrcft=False,
         gui_pupil_dilation=True,
     )
 

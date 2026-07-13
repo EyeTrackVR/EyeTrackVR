@@ -96,7 +96,14 @@ class CalibrationEllipse:
         return self.evecs, self.axes
 
     def normalize(self, pupil_pos, target_pos=None, clip=True):
-        if not self.fitted:
+        if (
+            not self.fitted
+            or self.axes is None
+            or np.asarray(self.axes).shape != (2,)
+            or not np.all(np.isfinite(self.axes))
+            or np.any(np.asarray(self.axes) <= 0)
+            or (target_pos is None and self.center is None)
+        ):
             return 0.0, 0.0
 
         x, y = float(pupil_pos[0]), float(pupil_pos[1])

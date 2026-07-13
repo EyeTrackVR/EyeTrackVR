@@ -90,8 +90,8 @@ def test_init_from_save_with_zero_axes():
     assert cal.fitted == False
 
 
-def test_init_from_save_with_invalid_shape():
-    """Test init_from_save rejects invalid shapes"""
+def test_init_from_save_ignores_saved_rotation_shape():
+    """Saved evecs are legacy data; axis-aligned calibration ignores them."""
     cal = CalibrationEllipse()
     
     # Invalid: wrong shape
@@ -100,8 +100,9 @@ def test_init_from_save_with_invalid_shape():
     
     result = cal.init_from_save(invalid_evecs, invalid_axes)
     
-    assert result == False
-    assert cal.fitted == False
+    assert result == True
+    assert cal.fitted == True
+    np.testing.assert_array_equal(cal.evecs, np.eye(2))
 
 
 def test_normalize_with_invalid_calibration():
