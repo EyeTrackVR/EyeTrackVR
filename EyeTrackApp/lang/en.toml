@@ -1,0 +1,402 @@
+# ============================================================================
+# EyeTrackVR: English language file (canonical source of truth)
+# ============================================================================
+# This file defines every user-facing string in the app, grouped into sections.
+# It is ALWAYS loaded as the fallback: if another language is missing a key, the
+# English text here is shown instead. To add a new language, copy _TEMPLATE.toml
+# (do NOT copy this file), fill in the [meta] block and translate the values.
+#
+# Rules for translators (see _TEMPLATE.toml for the full guide):
+#   * Translate the VALUE on the right of each `=`. Never change the key names.
+#   * Keep {placeholders} exactly as written; they are filled in at runtime.
+#   * Do NOT translate product/proper names: EyeTrackVR, NEXT, LEAP, HSF, HSRAC,
+#     RANSAC, DADDY, AHSF, BSB, TOBII, ETVR, SteamVR, VRChat, VRCFT, OpenVR, UVC,
+#     COM, OSC, GPU, Discord, URL, IP, mDNS, or any /avatar/parameters/... path.
+# ============================================================================
+
+[meta]
+code = "en"
+name = "English"
+native_name = "English"
+authors = ["EyeTrackVR"]
+
+# ---------------------------------------------------------------------------
+# Navigation tabs (top of the main window)
+# ---------------------------------------------------------------------------
+[nav]
+tracking = "Tracking"
+settings = "Settings"
+algo = "Algo Settings"
+vrcft = "VRCFT Module Settings"
+
+# ---------------------------------------------------------------------------
+# Tracking page: setup type, camera source fields, mode/calibration buttons
+# ---------------------------------------------------------------------------
+[tracking]
+# Sidebar header above the setup-type radios
+setup_type = "Setup Type"
+# Radio: standard two-camera ETVR setup
+setup_etvr = "ETVR Setup"
+setup_etvr_tip = "Standard ETVR mode: two independent cameras (UVC, serial, or network) drive the left and right eyes."
+# Radio: single-camera Bigscreen Beyond setup
+setup_bigscreen = "Bigscreen Beyond"
+setup_bigscreen_tip = "Bigscreen Beyond mode: one camera supplies both eye images side-by-side; ETVR splits them internally."
+# Sidebar header above the camera source fields
+camera_settings = "Camera Settings"
+# Label for the left-eye capture source field (ETVR mode)
+left_source = "Left (UVC / COM port / URL):"
+left_source_tip = "Capture source for the left eye. Pick from the dropdown (populated by Scan) or type a value: UVC index (e.g. 0), COM/serial port (e.g. COM5, /dev/cu.usbserial-0001), or URL (e.g. http://etvr-left.local/)."
+# Label for the right-eye capture source field (ETVR mode)
+right_source = "Right (UVC / COM port / URL):"
+right_source_tip = "Capture source for the right eye. See the Left field for accepted formats."
+# Label for the single shared source field (Bigscreen mode)
+source_uvc_index = "Source (UVC Index):"
+# Label for the right field in Bigscreen mode (mirrors the left source)
+right_same_source = "Right (same source):"
+# Button: scan for connected cameras
+scan_btn = "Scan"
+scan_btn_tip = "Search for connected cameras: USB webcams (UVC), ETVR serial trackers on COM ports, and network trackers on the LAN (mDNS)."
+# Button: apply/connect camera sources
+connect_btn = "Connect"
+connect_btn_tip = "Apply the current Left/Right values and (re)open the camera streams. Required after typing a value by hand."
+# LabelFrame title for the sidebar status box
+status_frame = "Status"
+# Button: switch both eyes to live tracking
+tracking_mode_btn = "Tracking Mode"
+tracking_mode_btn_tip = "Run the eye-tracking algorithm on both cameras. Use after setting your crop regions in Cropping Mode."
+# Button: switch both eyes to crop/ROI selection
+cropping_mode_btn = "Cropping Mode"
+cropping_mode_btn_tip = "Draw a rectangle on each camera image to isolate the eye. Switch back to Tracking Mode when done."
+# Button: select the left eye while cropping
+left_eye_btn = "Left Eye"
+# Button: select the right eye while cropping
+right_eye_btn = "Right Eye"
+# Calibration button label when idle (also initial value)
+start_calibration = "Start Calibration"
+# Tooltip on the calibration button (behavior depends on tracker + overlay setting)
+start_calibration_tip = "Calibrate your gaze. With the NEXT tracker this runs the in-headset Smart Calib dot sequence; other trackers use the overlay dot spiral (or the classic on-screen calibration when SteamVR overlay calibration is off)."
+# Calibration button label while calibrating
+stop_calibration = "Stop Calibration"
+# Button: recenter gaze on both eyes
+recenter_btn = "Recenter Eyes"
+# Button: clear the saved NEXT smart-calib transform (shown only when one exists)
+next_smartcal_reset_btn = "Reset Smart Calib"
+next_smartcal_reset_btn_tip = "Clear the saved Smart Calib fit and go back to the model's uncalibrated gaze output."
+# Bottom-bar button: hide the GUI
+gui_off_btn = "GUI OFF"
+# Bottom-bar button: open the data collection window
+contribute_data_btn = "Contribute Data"
+# Overlay shown in the bottom bar when the window loses focus
+interface_paused = "- - -  Interface Paused  - - -"
+# Settings-page bottom button: delete the config file
+delete_config_btn = "Delete config"
+# Settings-page bottom button: reset settings to defaults
+reset_settings_btn = "Reset settings to default"
+# Label in the GUI-disabled dialog after pressing GUI OFF
+gui_disabled_msg = "GUI Disabled!"
+# Button in the GUI-disabled dialog to re-enable the GUI
+enable_gui_btn = "Enable GUI"
+
+# ---------------------------------------------------------------------------
+# "Having Issues?" help popup
+# ---------------------------------------------------------------------------
+[issues]
+# Popup window title AND the bottom-bar button that opens it
+title = "Having Issues?"
+header_issues = "Having tracking issues?"
+body_issues = "Please ensure your cameras are well lit, focused, rotated and cropped correctly. Please ask in our discord for assistance if needed. We are here to help!"
+header_improve = "Improve your experience"
+body_improve = "Please consider contributing data to our training to improve future models for much better tracking and features. It only takes a few minutes. Every submission helps and we really want data on setups that work poorly, as well as ones that work well. Thank you!"
+data_collection_btn = "Data Collection mode"
+discord_btn = "Discord"
+close_btn = "Close"
+
+# ---------------------------------------------------------------------------
+# Dynamic status / mode text shown in the tracking sidebar
+# ---------------------------------------------------------------------------
+[status]
+ready = "Ready."
+scanning = "Scanning UVC, mDNS, and serial sources..."
+# Placeholder shown when a scan category found nothing
+scan_none = "none"
+# {prefix} = ready results so far, {pending} = source names still in flight
+scan_pending = "{prefix}Scanning {pending}..."
+scan_detected = "Detected mDNS: {mdns} | Serial: {serial} | UVC: {uvc}"
+mode_dual = "Mode: Dual-eye tracking"
+tracking_both = "Tracking both eyes."
+mode_single_left = "Mode: Single-eye (left)"
+tracking_left = "Tracking left eye only."
+mode_single_right = "Mode: Single-eye (right)"
+tracking_right = "Tracking right eye only."
+mode_none = "Mode: No active camera"
+enter_source = "Enter at least one camera source."
+
+# ---------------------------------------------------------------------------
+# Per-eye camera widget (tracking page)
+# ---------------------------------------------------------------------------
+[camera]
+# Label before the camera source entry field
+address = "Camera Address"
+# Button that applies the new camera source and restarts tracking
+save_restart = "Save and Restart Tracking"
+# Label for the ROI image rotation slider
+rotation = "Rotation"
+# Checkbox toggling extra padding around the camera preview in crop mode
+widget_padding = "Camera Widget Padding"
+# Prompt shown when no crop region has been set yet
+roi_prompt = "Please set an Eye Cropping."
+# Overlay text on the output graph when tracking is not producing a result
+no_track = "No track"
+# Per-eye status readouts (mode line under the camera image)
+status_calibrating = "Calibrating"
+status_no_camera = "No camera set"
+status_connecting = "Connecting..."
+status_reconnecting = "Reconnecting..."
+status_awaiting_crop = "Awaiting Crop"
+status_calibration = "Calibration"
+status_tracking = "Tracking"
+
+# ---------------------------------------------------------------------------
+# Data Collection window
+# ---------------------------------------------------------------------------
+[data_collection]
+# Window title and bold heading of the dialog
+title = "Data Collection"
+intro = "Help us improve EyeTrackVR by contributing data. It takes only a few minutes. Your setup can work perfectly or poorly to make meaningful improvements!"
+vr_instructions = "Please run in VR inside SteamVR and use the VR overlay. Then be sure to submit the .zip on the form! Thank you!"
+use_overlay = "Use Calibration Overlay Passes"
+start = "Start Collection"
+stop = "Stop"
+open_submissions = "Open Submissions Page"
+open_folder = "Open Folder"
+close = "Close"
+# Status line messages (shown under the buttons)
+status_ready = "Ready."
+status_no_cameras = "Error: No active cameras running. Start tracking first."
+status_starting = "Starting collection..."
+status_no_frames = "Could not get frames from cameras. Are they connected?"
+status_overlay_not_found = "Overlay executable not found. Running without overlay."
+status_waiting_overlay = "Waiting for overlay..."
+status_overlay_no_response = "Overlay did not respond. Running without it."
+status_overlay_connected = "Overlay connected."
+status_overlay_failed = "Overlay setup failed: {error}. Running without it."
+status_speaking = "Speaking: {text} ({current}/{total})"
+status_capturing = "Capturing snapshot..."
+status_error = "Error during collection: {error}"
+status_done = "Done! Saved to: {path}"
+status_cancelled = "Session cancelled."
+status_overlay_pass = "Overlay Pass {current}/{total}: {text}"
+status_pass_errored = "Pass {current}/{total} ({label}) errored; continuing."
+status_headset_shift = "Headset Shift Pass: look at center dot and shift your headset around"
+status_blinkdot = "Blink Pass: blink repeatedly while looking at the dot (keep brows relaxed)"
+status_blinkdot_skipped = "Blink Pass skipped: overlay does not support the pinned dot (update the overlay)."
+status_closed_roam = "Closed-Eye Pass: keep eyes closed and move your face and brows around"
+
+# ---------------------------------------------------------------------------
+# Settings scaffolding: section headers, Advanced toggle, Reset/Delete
+# ---------------------------------------------------------------------------
+[settings_base]
+show_advanced = "Show Advanced  ▾"
+hide_advanced = "Hide Advanced  ▴"
+advanced = "Advanced"
+open_logs = "Open Logs"
+reset_settings = "Reset settings to default"
+delete_config_btn = "Delete config"
+delete_config_title = "Delete config"
+delete_config_message = "Delete the config file and quit?\n\nAll saved settings, calibrations, and camera sources will be lost. The app will close; relaunch it to start fresh."
+# Section header titles (LabelFrame around each settings module)
+section_general = "General Settings"
+section_oneeuro = "One Euro Filter"
+section_osc = "OSC Settings"
+section_osc_advanced = "Advanced OSC"
+section_tracking_algo = "Tracking Algorithm"
+section_blink = "Blink Algorithm"
+section_algo_advanced = "Advanced Tracking Algorithm"
+section_vrcft = "VRCFT Settings"
+
+# ---------------------------------------------------------------------------
+# General settings module (Settings tab) - includes the Language selector
+# ---------------------------------------------------------------------------
+[settings_general]
+flip_x_left = "Flip Left Eye X Axis"
+flip_x_left_tip = "Mirror the left eye horizontally before reporting X position. Use when the left camera is mounted facing the user (most setups)."
+flip_x_right = "Flip Right Eye X Axis"
+flip_x_right_tip = "Mirror the right eye horizontally before reporting X position. Use when the right camera is mounted facing the user (most setups)."
+flip_y = "Flip Y Axis"
+flip_y_tip = "Mirror both eyes vertically. Use if your camera is rotated 180°."
+outer_falloff = "Outer Eye Falloff"
+outer_falloff_tip = "When one eye drifts far from the other, mirror the cleaner eye's position. Hides tracking glitches on mismatched cameras. Recommended on."
+force_left_dominant = "Force Left Eye Dominant"
+force_left_dominant_tip = "Force the left eye to drive output when the two eyes disagree. Useful if your right camera is significantly less reliable."
+force_right_dominant = "Force Right Eye Dominant"
+force_right_dominant_tip = "Force the right eye to drive output when the two eyes disagree. Useful if your left camera is significantly less reliable."
+start_stop_steamvr = "Start and Stop With SteamVR"
+start_stop_steamvr_tip = "Start tracking when SteamVR starts and stop when it exits."
+use_gpu = "Use GPU Acceleration"
+use_gpu_tip = "Run the LEAP neural-network model on the GPU when available. Disable if you see crashes or driver issues."
+check_updates = "Check For Updates"
+check_updates_tip = "Check GitHub for a new ETVR release on startup."
+eye_diff_threshold = "Eye Difference Threshold"
+eye_diff_threshold_tip = "How far apart the two eyes' positions must be (normalised, 0–1) before Outer Eye Falloff kicks in. Lower = falloff triggers sooner."
+use_overlay_cal = "Use SteamVR Overlay for Calibration"
+use_overlay_cal_tip = "Calibrate inside the headset via the SteamVR overlay: Start Calibration runs the Smart Calib dot sequence for the NEXT tracker, or the dot spiral for other trackers. When off, the classic on-screen calibration is used instead."
+show_et_debug = "Show ET Debug in Tracking"
+show_et_debug_tip = "Show the algorithm debug image (processed eye + threshold) in the tracking view. Off by default. The gaze dot and blink bar are always visible regardless."
+# Language selector (dropdown)
+language = "Language"
+language_tip = "Choose the app's display language. Restart EyeTrackVR after changing."
+language_restart_title = "Language changed"
+language_restart_note = "Restart EyeTrackVR to apply the new language."
+
+# ---------------------------------------------------------------------------
+# Tracking algorithm module (Algo Settings tab)
+# ---------------------------------------------------------------------------
+[algo_tracking]
+next_alpha = "NEXT (alpha)"
+next_bsb = "NEXT BSB (stereo)"
+allow_calibration = "Allow Calibration"
+allow_calibration_tip = "Pipe NEXT gaze output through the standard calibration filter (ellipse / robust) instead of Smart Calib, and apply the Blink Point / Wide-eye Point remap to the eyelid output. Start Calibration then runs the classic method."
+max_tracking_speed = "Max Tracking Speed (Hz)"
+max_tracking_speed_tip = "Maximum frames per second the tracker will process. Lower = less CPU, but jerkier motion. 60 Hz is comfortable for most setups."
+model = "Model"
+model_tip = "Which model variant to load for both the NEXT tracker and the eyebrow model. ETVR is the default; BSB and Tobii load the matching NEXT_<variant>.onnx / Eyebrow_<variant>.onnx files. The Lite options (ETVR Lite / BSB Lite) load an fp16 build of the NEXT model (smaller and faster, at a small precision cost)."
+advanced_heading = "Tracking Algorithm (advanced)"
+leap_tip = "LEAP: neural-network pupil tracker. Best general-purpose choice; handles low contrast and partial occlusion well."
+ahrac_tip = "AHRAC: adaptive HSF + RANSAC. Falls back to RANSAC when HSF can't lock on. Good middle ground."
+daddy_tip = "DADDY: older neural-network tracker. Heavier than LEAP; usually no reason to pick this unless LEAP misbehaves on your camera."
+ransac3d_tip = "RANSAC 3D: fits an ellipse to the pupil edge in 3D. Robust to lighting changes but slower than LEAP."
+next_tip = "NEXT: end-to-end neural network tracker. Takes the raw camera frame and directly outputs gaze, eyebrow, eyelid, and squint."
+next_bsb_tip = "NEXT BSB (stereo): end-to-end model that takes BOTH eyes in one time-synced pass and shares a single gaze estimate between them. Built for BigScreen Beyond's dual-eye camera; needs both eyes running. Eyebrow/eyelid/squint stay per-eye."
+ahsf_tip = "AHSF: adaptive Haar surround feature. Fast classical tracker."
+hsrac_tip = "HSRAC: Haar surround + RANSAC. Older HSF/RANSAC hybrid."
+hsf_tip = "HSF: Haar surround feature. Classical, very fast, less robust."
+
+# ---------------------------------------------------------------------------
+# Blink / eyelid algorithm module (Algo Settings tab)
+# ---------------------------------------------------------------------------
+[algo_blink]
+# {value} is a number or "--"
+readout_raw = "raw: {value}"
+readout_adj = "adj: {value}"
+blink_point = "Blink point"
+blink_point_tip = "Below this raw lid value the eye is reported as fully closed (output = 0). Raise it to make blinks trigger easier; lower it if the app reports closed when your eye is open."
+wide_eye_point = "Wide-eye point"
+wide_eye_point_tip = "Above this raw lid value the eye starts mapping into the wide-open range (output > 0.75). Lower it to make wide-eye/surprise easier to trigger."
+leap_lid = "LEAP Lid Blink Algo"
+leap_lid_tip = "Use the LEAP neural-network model to detect eyelid openness. Recommended for most users. Disable only if LEAP misbehaves on your camera."
+intensity_based_openness = "Intensity Based Openness"
+intensity_based_openness_tip = "Detect blinks by raw image intensity instead of LEAP. Fallback for cameras where LEAP under-performs (low light, occluded lashes)."
+eyebrow = "EyeBrow"
+eyebrow_tip = "Run the EyeBrow neural-network model on each raw camera frame (pre-crop, pre-rotation) and send the result as a float [0-1] over OSC. Dual-eye: /avatar/parameters/v2/BrowExpressionLeft and BrowExpressionRight. Single-eye: /avatar/parameters/v2/BrowExpression. Requires Models/Eyebrow_<variant>.onnx (variant chosen via the Model selector under Tracking Algorithm)."
+hint = "↑ Blink point = blinks trigger easier · ↓ Wide-eye point = wide-eye triggers easier"
+left_eye = "Left Eye"
+right_eye = "Right Eye"
+redo_eyelid_calib = "Redo Eyelid Calib"
+redo_eyelid_calib_tip = "Clear the stored eyelid calibration for both eyes and restart the sampling window. Use after changing camera position, IR brightness, or if blink detection drifted."
+restarting = "Restarting…"
+advanced_heading = "Eyelid calibration (advanced)"
+calibration_duration = "Calibration duration (seconds)"
+calibration_duration_tip = "How many seconds to record your eyelid motion before locking in the open/closed bounds. Longer = more reliable but slower; blink several times during the window."
+min_blink_size = "Min blink size during calibration"
+min_blink_size_tip = "Calibration is rejected and restarted if your eye opened/closed by less than this amount during the sampling window. Catches the case where you forgot to blink."
+
+# ---------------------------------------------------------------------------
+# Advanced tracking algorithm module (Advanced popup on Algo Settings)
+# ---------------------------------------------------------------------------
+[algo_advanced]
+binary_blink = "Binary Blink Algo"
+ransac_quick_blink = "RANSAC Quick Blink Algo"
+left_eye_circle_crop = "Left Eye Circle Crop"
+right_eye_circle_crop = "Right Eye Circle Crop"
+hsf_skip_auto_radius = "HSF: Skip Auto Radius"
+ellipse_pupil_dilation = "Ellipse Based Pupil Dilation"
+left_hsf_radius = "Left HSF Radius"
+right_hsf_radius = "Right HSF Radius"
+ransac_thresh_add = "RANSAC Thresh Add"
+
+# ---------------------------------------------------------------------------
+# Algo Settings tab chrome (advanced popup, eye preview)
+# ---------------------------------------------------------------------------
+[algo_widget]
+advanced_popup_title = "Advanced Algo Settings"
+advanced = "Advanced"
+open_logs = "Open Logs"
+close = "Close"
+eye_preview = "Eye Preview"
+left_eye = "Left Eye"
+right_eye = "Right Eye"
+
+# ---------------------------------------------------------------------------
+# OSC output settings (Settings tab)
+# ---------------------------------------------------------------------------
+[osc]
+mode_native = "VRC Native"
+mode_native_tip = "Send eye data over VRChat's built-in OSC parameters. Use for avatars wired to the native eye-look params (no extra mod required)."
+mode_vrcft_v2 = "VRCFT (v2)"
+mode_vrcft_v2_tip = "Send via VRCFaceTracking v2 params (current). Required for VRCFT-based avatars and facial-tracking add-ons."
+mode_vrcft_v1 = "VRCFT (v1)"
+mode_vrcft_v1_tip = "Send via VRCFaceTracking v1 params (legacy). Only use if your avatar was built against the older VRCFT module."
+mode_pyvrcft = "pyVRCFT (experimental)"
+mode_pyvrcft_tip = "Experimental: send Unified Expressions straight to VRChat using the built-in PY-VRCFT port — no VRCFaceTracking app or module needed. Auto-detects the avatar (OSCQuery/mDNS) and its declared FT params. Replaces VRCFT; don't run both. Uses the OSC send/receive ports below."
+receive = "Receive"
+receive_tip = "Listen for incoming OSC messages from VRChat (e.g. calibration toggles from in-game)."
+# Validation error messages (shown when an invalid combination is picked)
+err_one_vrcft_version = "Only one version of VRCFT params can be turned on"
+err_output_mode_conflict = "Either VRCNative or VRCFT output can be active at a time"
+
+# ---------------------------------------------------------------------------
+# Advanced OSC settings (Settings tab, behind Advanced)
+# ---------------------------------------------------------------------------
+[osc_advanced]
+address = "Address"
+port = "Port"
+recenter_address = "Recenter Address"
+receiver_port = "Receiver Port"
+recalibrate_address = "Recalibrate Address"
+
+# ---------------------------------------------------------------------------
+# Smoothing (One Euro filter) settings (Settings tab)
+# ---------------------------------------------------------------------------
+[oneeuro]
+smoothing_intensity = "Smoothing Intensity"
+smoothing_intensity_tip = "How aggressively the One-Euro filter smooths eye motion. 0 = almost no smoothing (snappiest, jitter passes through), 100 = very heavy smoothing (laggy but rock-steady). Default 70 matches the historical balanced setting."
+
+# ---------------------------------------------------------------------------
+# VRCFT module settings (VRCFT Module Settings tab)
+# ---------------------------------------------------------------------------
+[vrcft]
+emulate_eye_widen = "Emulate Eye Widen"
+emulate_eye_squint = "Emulate Eye Squint"
+emulate_eyebrows = "Emulate Eyebrows"
+module_listening_ip = "VRCFT Module listening IP"
+module_listening_port = "VRCFT Module listening port"
+module_output_multiplier = "VRCFT Module output multiplier"
+widen_v1_min = "Widen V1 Min"
+widen_v1_max = "Widen V1 Max"
+widen_v2_min = "Widen V2 Min"
+widen_v2_max = "Widen V2 Max"
+squeeze_v1_min = "Squeeze V1 Min"
+squeeze_v1_max = "Squeeze V1 Max"
+squeeze_v2_min = "Squeeze V2 Min"
+squeeze_v2_max = "Squeeze V2 Max"
+eyebrow_rising = "Eyebrow Rising"
+eyebrow_lowering = "Eyebrow Lowering"
+
+# ---------------------------------------------------------------------------
+# Calibration ellipse plot (developer/diagnostic matplotlib window)
+# ---------------------------------------------------------------------------
+[calibration]
+plot_samples = "Samples"
+plot_fit = "Axis-Aligned Fit"
+plot_center = "Center"
+plot_width_x = "Width (X)"
+plot_height_y = "Height (Y)"
+plot_title = "Axis-Aligned Calibration (FlipX={flip_x})"
+plot_fit_failed = "Fit FAILED"
+
+# ---------------------------------------------------------------------------
+# OpenVR / SteamVR service warnings
+# ---------------------------------------------------------------------------
+[openvr]
+warning_title = "Warning"
+autostart_failed = "Cannot enable steamvr autostart: {error}"
