@@ -764,10 +764,15 @@ def main():
                 )
 
         def _apply_initial_window_geometry(self):
-            # Tracking tab packs two full camera panels; still set a floor so the window opens usable.
+            # Leave enough room for the fixed sidebar and both eye panels at
+            # common 1440p Windows scaling; 880 clipped the right-eye panel on
+            # some 27-inch displays. Do not keep enlarging the default-width
+            # floor above 125% DPI, though, or it becomes excessive on 4K. The
+            # requested size can still grow it when content genuinely needs it.
             self.root.update_idletasks()
             s = self._dpi_scale
-            min_w, min_h = round(880 * s), round(660 * s)
+            width_scale = min(s, 1.25)
+            min_w, min_h = round(1120 * width_scale), round(660 * s)
             w = max(self.root.winfo_reqwidth(), min_w)
             h = max(self.root.winfo_reqheight(), min_h)
             self.root.geometry(f"{w}x{h}")
