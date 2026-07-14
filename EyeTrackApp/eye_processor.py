@@ -382,13 +382,34 @@ class EyeProcessor:
             return
         self._preview_last_emit_ts = now
 
-        self.current_image_gray = cv2.resize(
-            self.current_image_gray, (150, 150), interpolation=cv2.INTER_AREA
+        preview_image = self.current_image_gray
+        if self._next_active and self.current_raw_frame is not None:
+            # NEXT inference deliberately bypasses the legacy ROI and rotation.
+            # Make its visualizer show that same input instead of the cropped
+            # working image used by the classical algorithms.  Do not rewrite
+            # the saved ROI/rotation: selecting a non-NEXT tracker again should
+            # immediately restore that tracker's previous view.
+            preview_frame = self.current_raw_frame
+            if self.settings.gui_setup_mode == "bigscreen":
+                mid = preview_frame.shape[1] // 2
+                preview_frame = (
+                    preview_frame[:, :mid]
+                    if self.eye_id == EyeId.LEFT
+                    else preview_frame[:, mid:]
+                )
+            preview_image = cv2.cvtColor(preview_frame, cv2.COLOR_BGR2GRAY)
+            # NEXT has no threshold image. Its old threshold panel was merely a
+            # copy of the cropped working image, so keep both panels consistent
+            # with the raw model input while NEXT is active.
+            threshold_image = preview_image
+
+        preview_image = cv2.resize(
+            preview_image, (150, 150), interpolation=cv2.INTER_AREA
         )
         threshold_image = cv2.resize(
             threshold_image, (150, 150), interpolation=cv2.INTER_AREA
         )
-        image_stack = np.concatenate((self.current_image_gray, threshold_image), axis=1)
+        image_stack = np.concatenate((preview_image, threshold_image), axis=1)
 
         try:
             self.image_queue_outgoing.put_nowait((image_stack, output_information))
@@ -400,7 +421,9 @@ class EyeProcessor:
 
     def _maybe_apply_bigscreen_default_crop(self) -> None:
         """On the very first frame in bigscreen mode, default the ROI to this eye's half of the frame."""
-        if self.settings.gui_setup_mode != "bigscreen":
+        # NEXT splits the raw Bigscreen frame itself and must not overwrite the
+        # crop saved for whichever classical tracker the user returns to.
+        if self._next_active or self.settings.gui_setup_mode != "bigscreen":
             return
         if self.config.bigscreen_auto_crop_frame is not None:
             return
@@ -1220,18 +1243,24 @@ class EyeProcessor:
                 logger.info("Exiting tracking thread")
                 return
 
-            if self.config.roi_window_w <= 0 or self.config.roi_window_h <= 0:
+            if (
+                not self._next_active
+                and (self.config.roi_window_w <= 0 or self.config.roi_window_h <= 0)
+            ):
                 # At this point, we're waiting for the user to set up the ROI window in the GUI.
                 if self.cancellation_event.wait(0.1):
                     return
                 continue
             if (
-                self.camera_model is None
-                or self.detector_3d is None
-                or self.camera_model.resolution
-                != (
-                    self.config.roi_window_w,
-                    self.config.roi_window_h,
+                not self._next_active
+                and (
+                    self.camera_model is None
+                    or self.detector_3d is None
+                    or self.camera_model.resolution
+                    != (
+                        self.config.roi_window_w,
+                        self.config.roi_window_h,
+                    )
                 )
             ):
                 self.camera_model = CameraModel(
@@ -1290,7 +1319,12 @@ class EyeProcessor:
 
             self._maybe_apply_bigscreen_default_crop()
 
-            if not self.capture_crop_rotate_image():
+            if self._next_active:
+                # NEXT is trained on the unmodified camera frame. Keep the
+                # classical ROI/rotation in config, but do not apply either to
+                # NEXT's working or visualizer images.
+                self.current_image_white = self.current_image
+            elif not self.capture_crop_rotate_image():
                 continue
 
             if self.settings.gui_eyebrow:

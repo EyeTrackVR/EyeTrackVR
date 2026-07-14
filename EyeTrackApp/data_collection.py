@@ -165,7 +165,7 @@ OVERLAY_POINT_NAMES = {
 
 # Jitter grid base positions ordered as a smooth snake path.
 #
-# Layout (22 points) — pushed out to the periphery (2026-07-04). The gaze LABEL
+# Layout (22 points) — broad radial coverage. The gaze LABEL
 # for each point is its coordinate, and the deployed model was under-reaching
 # (only ~±0.6 at full gaze) because this dense grid — the bulk of the gaze
 # supervision — previously topped out at ±0.60, *narrower* than the overlay's
@@ -173,20 +173,21 @@ OVERLAY_POINT_NAMES = {
 # dense label mass outward so the model learns to use its full range, at zero
 # extra capture time. Each dot is a saccade target (appear→shrink→hold), so the
 # larger adjacent jumps are fine (no smooth-pursuit constraint).
-#   Outer ring:   edges at ±0.85 x / ±0.85 y
+#   Outer ring:   cardinals at ±0.85; corners near ±0.60 per axis
+#                 (all jittered points are limited to radius 0.88)
 #   Intermediate: ±0.35–0.49 band
 #   Near-center:  ±0.17–0.25 cluster (still bridges the center prompts outward)
 # Center itself stays well covered by the straight/blink/closed/hshift prompts,
 # so this grid deliberately spends its points on the mid+outer field instead.
 _JITTER_GRID_BASE = [
     # ── left outer column (bottom → top) ──────────────────────────────
-    (-0.85, -0.85),   # outer bottom-left
+    (-0.60, -0.60),   # equal-eccentricity outer bottom-left
     (-0.85, -0.26),   # outer left mid-low
     (-0.43, -0.46),   # intermediate lower-left
     (-0.36,  0.00),   # intermediate left-center
     (-0.85,  0.33),   # outer left mid-high
     (-0.43,  0.46),   # intermediate upper-left
-    (-0.85,  0.85),   # outer top-left
+    (-0.60,  0.60),   # equal-eccentricity outer top-left
     # ── cross to top-center, spiral inward ────────────────────────────
     ( 0.00,  0.85),   # outer top-center
     ( 0.00,  0.39),   # intermediate upper-center
@@ -201,11 +202,19 @@ _JITTER_GRID_BASE = [
     ( 0.17,  0.23),   # near-center upper-right
     ( 0.43,  0.46),   # intermediate upper-right
     # ── right outer column (top → bottom) ─────────────────────────────
-    ( 0.85,  0.85),   # outer top-right
+    ( 0.60,  0.60),   # equal-eccentricity outer top-right
     ( 0.85,  0.33),   # outer right mid-high
     ( 0.85, -0.26),   # outer right mid-low
-    ( 0.85, -0.85),   # outer bottom-right
+    ( 0.60, -0.60),   # equal-eccentricity outer bottom-right
 ]
+
+# The HMD FOV is rectangular per axis but the lens-visible corner is generally
+# rounded, especially through native OpenXR runtimes. Keep randomized targets
+# within the same radial eccentricity as the fixed ring cardinals. Returned
+# coordinates are written into each filename, so training labels remain exact.
+# One millith inside 0.88 so three-decimal filename/command rounding cannot
+# push a point just back outside the intended boundary.
+_JITTER_MAX_RADIUS = 0.879
 
 def _jittered_grid_positions(session_seed, pass_index, n=22, jitter=0.12):
     """Return n positions following the base path, each offset by a small random amount.
@@ -217,6 +226,11 @@ def _jittered_grid_positions(session_seed, pass_index, n=22, jitter=0.12):
     for bx, by in _JITTER_GRID_BASE:
         x = max(-1.0, min(1.0, bx + rng.uniform(-jitter, jitter)))
         y = max(-1.0, min(1.0, by + rng.uniform(-jitter, jitter)))
+        r2 = x * x + y * y
+        if r2 > _JITTER_MAX_RADIUS * _JITTER_MAX_RADIUS:
+            scale = _JITTER_MAX_RADIUS / (r2 ** 0.5)
+            x *= scale
+            y *= scale
         all_pos.append((round(x, 3), round(y, 3)))
     if n >= len(all_pos):
         return all_pos
