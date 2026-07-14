@@ -94,8 +94,7 @@ def setup_logging(app_name: str = "EyeTrackApp") -> Path:
     except Exception:
         pass
 
-    log_dir = _app_root() / LOG_DIR_NAME
-    log_dir.mkdir(parents=True, exist_ok=True)
+    log_dir = log_directory()
     log_path = log_dir / f"{LOG_NAME_PREFIX}-{datetime.now():%Y%m%d-%H%M%S}.log"
 
     root_logger = logging.getLogger()
