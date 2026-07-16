@@ -865,25 +865,18 @@ class EyeProcessor:
 
     def _next_apply(self, gaze_x, gaze_y, eyebrow, eyelid, squeeze):
         """Shared NEXT post-processing for mono (NEXTM) and stereo (NEXT_BSB_M):
-        flips, smart-calibration, recenter, eyelid remap, and the OSC enqueue.
-        Inputs are native model outputs; Y is corrected once below."""
-        # Raw model gaze, before any flip, in [-1, 1]. X is right-positive.
-        # Model Y is DOWN-positive; preserve the native value for the legacy
-        # calibration path below.
+        user-configured flips, smart-calibration, recenter, eyelid remap, and
+        the OSC enqueue. Inputs preserve the model's native axis orientation."""
+        # Raw model gaze, before user-configured flips, in [-1, 1].
         model_gaze_x, model_gaze_y = gaze_x, gaze_y
 
-        # Output/OSC Y is up-positive, so negate native model Y exactly once.
-        gaze_y = -gaze_y
-
         # ── NEXT Smart Calibration ────────────────────────────────────────────
-        # Smart-cal works in the app's UP-POSITIVE convention (its dot targets
-        # and the OSC output are both up-positive). ``gaze_y`` has now been
-        # normalized to that convention for both model variants; use it for
-        # both capture and application so calibration cannot introduce a flip.
-        sc_gaze_x, sc_gaze_y = model_gaze_x, gaze_y
+        # Capture and apply calibration in the model's native coordinate space;
+        # NEXT does not impose an algorithm-specific Y-axis inversion.
+        sc_gaze_x, sc_gaze_y = model_gaze_x, model_gaze_y
 
-        # While a dot is being held by the overlay, accumulate the sign-corrected
-        # gaze so the regression can be fit against the dot's known position.
+        # While a dot is being held by the overlay, accumulate the native gaze
+        # so the regression can be fit against the dot's known position.
         # Only within the capture window: the overlay holds each dot 0.5 s
         # after its signal, then the next dot appears and the user follows it;
         # sampling past the hold poisons this dot with the next dot's fixation.
@@ -989,19 +982,6 @@ class EyeProcessor:
             self.avg_velocity = float(np.sqrt(dx * dx + dy * dy))
             self.out_x = gaze_x
             self.out_y = gaze_y
-
-            # TEMP diagnostic (~2 Hz): raw model gaze vs the final output value
-            # actually sent to OSC, so we can read what a given eye position
-            # produces without a re-cal. Look centre, then hard right, then hard
-            # up, and compare. Remove once tuning is settled.
-            _now = time.monotonic()
-            if _now - getattr(self, "_next_out_log_t", 0.0) >= 0.5:
-                self._next_out_log_t = _now
-                logger.info(
-                    "NEXT out eye%d: raw=(%+.3f, %+.3f) -> sent=(%+.3f, %+.3f)  cal=%s",
-                    int(self.eye_id), model_gaze_x, -model_gaze_y,
-                    self.out_x, self.out_y, self._next_smartcal_w is not None,
-                )
 
         if use_classic_calibration or next_eyelid_tuning_active(
             self.settings, self.eye_id

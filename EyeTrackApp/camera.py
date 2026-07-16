@@ -354,8 +354,9 @@ class Camera:
                         self._release_cv2_camera()
                         self._file_video_source_cache = None
                         self.current_capture_source = new_source
-                        # Resolve uvc:Name@Address to a cv2 integer index before
-                        # opening: cv2.VideoCapture doesn't understand the uvc: prefix.
+                        # Resolve uvc:Name@Address before opening: cv2.VideoCapture
+                        # doesn't understand the uvc: prefix. Linux keeps the stable
+                        # /dev path; Windows/macOS use the resolved integer index.
                         open_source = new_source
                         if isinstance(new_source, str) and is_uvc_named_source(new_source):
                             _name, _addr = parse_uvc_named_source(new_source)
@@ -413,7 +414,13 @@ class Camera:
                                     "(will persist once frames arrive).",
                                     _name, _addr, _resolved_addr,
                                 )
-                            open_source = _idx
+                            if (
+                                sys.platform.startswith("linux")
+                                and _resolved_addr.startswith("/dev/")
+                            ):
+                                open_source = _resolved_addr
+                            else:
+                                open_source = _idx
                         cam = cv2.VideoCapture()
                         self.cv2_camera = cam
                         # On Windows, use DSHOW explicitly for integer UVC indices.
@@ -422,6 +429,12 @@ class Camera:
                         # UVC cams than DSHOW. CAP_ANY is kept for HTTP and file sources.
                         if sys.platform == "win32" and isinstance(open_source, int):
                             _backend = cv2.CAP_DSHOW
+                        elif (
+                            sys.platform.startswith("linux")
+                            and isinstance(open_source, str)
+                            and open_source.startswith("/dev/")
+                        ):
+                            _backend = cv2.CAP_V4L2
                         else:
                             _backend = cv2.CAP_ANY
                         # https://github.com/opencv/opencv/blob/4.8.0/modules/videoio/include/opencv2/videoio.hpp#L803
@@ -494,9 +507,9 @@ class Camera:
 
             ret, image = self.cv2_camera.read()
             if not ret or image is None:
-                # Rewinding is useful for local video files, but meaningless
-                # (and on some FFmpeg builds disruptive) for live HTTP streams.
-                if not is_http:
+                # Rewinding is useful only for local video files. Seeking a live
+                # UVC/V4L2 stream during recovery can itself stall the device.
+                if is_file_video:
                     self.cv2_camera.set(cv2.CAP_PROP_POS_FRAMES, 0)
                 raise RuntimeError("Problem while getting frame")
             frame_bytes = image.nbytes

@@ -194,11 +194,7 @@ class NEXT_Stereo_cls:
         raw[3] = float(np.median(self._brow_r_window))
         self._gaze_x_window.append(float(raw[6]))
         raw[6] = float(np.median(self._gaze_x_window))
-        # NEXT BSB Stereo's Y orientation is opposite the mono NEXT model.
-        # Negate it here, then let the unchanged shared NEXT post-processing
-        # apply its normal Y negation. The two negations give Stereo the correct
-        # final orientation without changing the already-correct mono path.
-        self._gaze_y_window.append(float(-raw[7]))
+        self._gaze_y_window.append(float(raw[7]))
         raw[7] = float(np.median(self._gaze_y_window))
 
         return self.one_euro_filter(raw).astype(np.float32)
