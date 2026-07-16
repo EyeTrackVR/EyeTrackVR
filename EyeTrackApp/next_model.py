@@ -28,12 +28,16 @@ LICENSE: Babble Software Distribution License 1.0
 """
 
 import os
+import logging
 from collections import deque
 import numpy as np
 import cv2
 import onnxruntime
 from one_euro_filter import OneEuroFilter
 from utils.misc_utils import resource_path
+from utils.onnx_runtime import DML_INFERENCE_LOCK, create_inference_session
+
+logger = logging.getLogger(__name__)
 
 os.environ["OMP_NUM_THREADS"] = "1"
 
@@ -98,21 +102,24 @@ class NEXT_cls:
       - eyebrow / eyelid / squeeze : sigmoid range [0, 1]
     """
 
-    def __init__(self, variant: str = DEFAULT_MODEL_VARIANT):
+    def __init__(self, variant: str = DEFAULT_MODEL_VARIANT, use_gpu: bool = False):
         self.variant = variant
+        self.use_gpu = bool(use_gpu)
         onnxruntime.disable_telemetry_events()
         options = onnxruntime.SessionOptions()
         options.inter_op_num_threads = 1
         options.intra_op_num_threads = 1
         options.execution_mode = onnxruntime.ExecutionMode.ORT_SEQUENTIAL
         options.graph_optimization_level = onnxruntime.GraphOptimizationLevel.ORT_ENABLE_ALL
+        options.enable_mem_pattern = False
 
-        ort_session = onnxruntime.InferenceSession(
+        ort_session, self.uses_directml = create_inference_session(
             resource_path(model_file_for_variant(variant)),
-            sess_options=options,
-            providers=["CPUExecutionProvider"],
+            options,
+            use_gpu=self.use_gpu,
+            component=f"NEXT {variant}",
+            logger=logger,
         )
-        ort_session.set_providers(["CPUExecutionProvider"])
 
         self.ort_session = ort_session
         model_input = ort_session.get_inputs()[0]
@@ -209,7 +216,12 @@ class NEXT_cls:
         # that take half-precision input). Output is coerced back to float32 below.
         img = img.astype(self.input_dtype, copy=False)
 
-        raw = self.ort_session.run(None, {self.input_name: img})[0][0].astype(np.float32)
+        if self.uses_directml:
+            with DML_INFERENCE_LOCK:
+                result = self.ort_session.run(None, {self.input_name: img})
+        else:
+            result = self.ort_session.run(None, {self.input_name: img})
+        raw = result[0][0].astype(np.float32)
 
         # Reject super-fast jitter with a running median before smoothing, so
         # single-frame spikes never enter the One-Euro's derivative term (which
@@ -234,9 +246,10 @@ class NEXT_cls:
 
 
 class External_Run_NEXT:
-    def __init__(self, variant: str = DEFAULT_MODEL_VARIANT):
+    def __init__(self, variant: str = DEFAULT_MODEL_VARIANT, use_gpu: bool = False):
         self.variant = variant
-        self.algo = NEXT_cls(variant)
+        self.use_gpu = bool(use_gpu)
+        self.algo = NEXT_cls(variant, self.use_gpu)
 
     def run(self, bgr_frame: np.ndarray, base_cutoff: float = 0.0004, base_beta: float = 0.9):
         """Run End2End inference on a raw BGR frame.

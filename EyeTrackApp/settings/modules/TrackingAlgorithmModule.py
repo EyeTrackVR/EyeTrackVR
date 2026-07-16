@@ -22,7 +22,6 @@ class TrackingAlgorithmValidationModel(BaseValidationModel):
     gui_AHRAC: bool
     gui_NEXT: bool
     gui_NEXT_BSB: bool
-    gui_NEXT_calibration: bool
     gui_model_variant: str
     gui_max_tracking_speed: int
 
@@ -47,19 +46,18 @@ class TrackingAlgorithmModule(BaseSettingsModule):
         self.gui_RANSAC3D = f"-RANSAC3D{widget_id}-"
         self.gui_NEXT = f"-NEXT{widget_id}-"
         self.gui_NEXT_BSB = f"-NEXTBSB{widget_id}-"
-        self.gui_NEXT_calibration = f"-NEXTCAL{widget_id}-"
         self.gui_model_variant = f"-MODELVARIANT{widget_id}-"
         self.gui_max_tracking_speed = f"-MAXTRACKSPEED{widget_id}-"
 
         self._basic_entries = [
             ("LEAP", "leap", self.gui_LEAP, "gui_LEAP"),
-            ("AHRAC", "ahrac", self.gui_AHRAC, "gui_AHRAC"),
             ("DADDY", "daddy", self.gui_DADDY, "gui_DADDY"),
-            ("RANSAC 3D", "ransac3d", self.gui_RANSAC3D, "gui_RANSAC3D"),
             (tr("algo_tracking.next_alpha"), "next", self.gui_NEXT, "gui_NEXT"),
             (tr("algo_tracking.next_bsb"), "next_bsb", self.gui_NEXT_BSB, "gui_NEXT_BSB"),
         ]
         self._advanced_entries = [
+            ("AHRAC", "ahrac", self.gui_AHRAC, "gui_AHRAC"),
+            ("RANSAC 3D", "ransac3d", self.gui_RANSAC3D, "gui_RANSAC3D"),
             ("ASHSF", "ahsf", self.gui_AHSF, "gui_AHSF"),
             ("HSRAC", "hsrac", self.gui_HSRAC, "gui_HSRAC"),
             ("HSF", "hsf", self.gui_HSF, "gui_HSF"),
@@ -77,25 +75,12 @@ class TrackingAlgorithmModule(BaseSettingsModule):
             self.tk_vars[key] = tk.BooleanVar(
                 value=bool(getattr(self.config, config_field, False))
             )
-        next_cal_var = tk.BooleanVar(
-            value=bool(getattr(self.config, "gui_NEXT_calibration", False))
-        )
-        self.tk_vars[self.gui_NEXT_calibration] = next_cal_var
         # Radio buttons live in their own frame so their column widths are
         # independent of the slider row below (which would otherwise force
         # column 1 wide via the Scale widget, creating a gap between LEAP and AHRAC).
         radio_frame = ttk.Frame(parent)
         radio_frame.grid(row=0, column=0, columnspan=5, sticky="w")
-        positions = self._render_radio_grid(radio_frame, self._basic_entries, ncol=4)
-        if "next" in positions:
-            next_row, next_col = positions["next"]
-            cb = ttk.Checkbutton(
-                radio_frame,
-                text=tr("algo_tracking.allow_calibration"),
-                variable=next_cal_var,
-            )
-            cb.grid(row=next_row, column=next_col + 1, sticky="w", padx=(0, 8), pady=2)
-            attach_tooltip(cb, tr("algo_tracking.allow_calibration_tip"))
+        self._render_radio_grid(radio_frame, self._basic_entries, ncol=4)
 
         speed_var = tk.IntVar(
             value=int(getattr(self.config, "gui_max_tracking_speed", 60))

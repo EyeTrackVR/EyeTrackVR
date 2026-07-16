@@ -41,7 +41,7 @@ onnxruntime-directml = { version = "^1.20.0", platform = 'win32' }
 #   poetry venv (do NOT keep both packages installed at once):
 #     poetry run pip uninstall -y onnxruntime
 #     poetry run pip install onnxruntime-gpu
-#   leap.py detects available providers at runtime and falls back to CPU when
+#   LEAP/NEXT detect available providers at runtime and fall back to CPU when
 #   the CUDA/cuDNN system libraries are missing, so this is always safe.
 onnxruntime = [
     { version = "^1.20.0", platform = 'darwin' },

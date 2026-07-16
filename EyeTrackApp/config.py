@@ -72,6 +72,8 @@ def _user_data_dir() -> str:
 _USER_DATA_DIR = _user_data_dir()
 CONFIG_FILE_NAME: str = os.path.join(_USER_DATA_DIR, "eyetrack_settings.json")
 BACKUP_CONFIG_FILE_NAME: str = os.path.join(_USER_DATA_DIR, "eyetrack_settings.backup")
+DEFAULT_LID_CLOSE_THRESHOLD = 0.1
+DEFAULT_LID_WIDEN_THRESHOLD = 0.9
 
 # Bump this whenever a release changes the *semantics* of an existing field
 # (renames, metric reworks, etc.) so that configs from older versions can be
@@ -85,7 +87,11 @@ BACKUP_CONFIG_FILE_NAME: str = os.path.join(_USER_DATA_DIR, "eyetrack_settings.b
 #           leap_lid_metric_version field defaults to the current version on
 #           load, so the in-code "metric changed, recalibrate" guard misses
 #           them. Wipe the stored calibration on this hop to force a fresh one.
-CURRENT_CONFIG_VERSION: int = 2
+#   2 -> 3: NEXT classic calibration became available by default but only
+#           applies after NEXT itself has been calibrated. Preserve an existing
+#           opted-in NEXT calibration without treating classical-tracker fits
+#           as NEXT fits.
+CURRENT_CONFIG_VERSION: int = 3
 
 
 def _migrate_config_dict(data: dict) -> dict:
@@ -118,6 +124,26 @@ def _migrate_config_dict(data: dict) -> dict:
                 eye["leap_lid_metric_version"] = 0
         logger.info("Migrated config from v1: reset leap lid calibration")
 
+    if stored < 3:
+        settings = data.get("settings")
+        legacy_next_cal = (
+            isinstance(settings, dict)
+            and bool(settings.get("gui_NEXT_calibration", False))
+        )
+        for key in ("left_eye", "right_eye", "bsb2e"):
+            eye = data.get(key)
+            if not isinstance(eye, dict):
+                continue
+            has_fit = (
+                eye.get("calib_axes") is not None
+                and eye.get("calib_evecs") is not None
+                and eye.get("calib_XOFF") is not None
+            )
+            eye["next_classic_calibration_active"] = bool(
+                legacy_next_cal and has_fit
+            )
+        logger.info("Migrated config from v2: recorded NEXT calibration ownership")
+
     data["version"] = CURRENT_CONFIG_VERSION
     return data
 
@@ -147,6 +173,9 @@ class EyeTrackCameraConfig(BaseModel):
     calib_YOFF: Union[float, None] = None
     calibration_points: List[List[Union[float, None]]] = []
     calibration_points_3d: List[List[Union[float, None]]] = []
+    # Prevent a calibration fitted for LEAP/another pixel tracker from being
+    # applied to NEXT merely because classic NEXT calibration is available.
+    next_classic_calibration_active: bool = False
     leap_calibration_percentile_90: float = 0
     leap_calibration_percentile_2: float = 0
     leap_calibrated: bool = False
@@ -304,7 +333,10 @@ class EyeTrackSettingsConfig(BaseModel):
     gui_NEXT: bool = True
     # NEXT BSB (stereo) end-to-end model: both eyes in one time-synced pass.
     gui_NEXT_BSB: bool = False
-    gui_NEXT_calibration: bool = False
+    # Calibration is available without a GUI opt-in. The NEXT processor only
+    # applies it once a calibration is running/fitted, so raw default output is
+    # unchanged on a fresh install.
+    gui_NEXT_calibration: bool = True
     # Shared model variant for both NEXT and eyebrow models: ETVR / BSB / TOBII.
     # Selects Models/NEXT_<VARIANT>.onnx and Models/Eyebrow_<VARIANT>.onnx.
     gui_model_variant: str = "ETVR"
@@ -348,12 +380,12 @@ class EyeTrackSettingsConfig(BaseModel):
     ibo_filter_samples: int = 400
     ibo_average_output_samples: int = 0
     ibo_fully_close_eye_threshold: float = 0.3
-    leap_lid_close_threshold: float = 0.1
-    leap_lid_widen_threshold: float = 0.9
-    leap_lid_close_threshold_left: float = 0.1
-    leap_lid_close_threshold_right: float = 0.1
-    leap_lid_widen_threshold_left: float = 0.9
-    leap_lid_widen_threshold_right: float = 0.9
+    leap_lid_close_threshold: float = DEFAULT_LID_CLOSE_THRESHOLD
+    leap_lid_widen_threshold: float = DEFAULT_LID_WIDEN_THRESHOLD
+    leap_lid_close_threshold_left: float = DEFAULT_LID_CLOSE_THRESHOLD
+    leap_lid_close_threshold_right: float = DEFAULT_LID_CLOSE_THRESHOLD
+    leap_lid_widen_threshold_left: float = DEFAULT_LID_WIDEN_THRESHOLD
+    leap_lid_widen_threshold_right: float = DEFAULT_LID_WIDEN_THRESHOLD
     leap_lid_min_calibration_span: float = 0.02
     leap_calibration_duration: int = 15
     calibration_duration: int = 15

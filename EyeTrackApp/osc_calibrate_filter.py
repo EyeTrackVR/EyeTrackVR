@@ -345,6 +345,13 @@ def _save_robust_calib(eye_processor) -> None:
         logger.warning("Failed to save robust calibration: %s", e)
 
 
+def _mark_next_classic_calibration_active(eye_processor) -> None:
+    """Record whether the latest ellipse fit belongs to NEXT or a pixel tracker."""
+    eye_processor.config.next_classic_calibration_active = bool(
+        getattr(eye_processor, "_next_active", False)
+    )
+
+
 # ── Overlay ellipse calibration (port 2112) ───────────────────────────────────
 #
 # The overlay animates the dot in a shrinking spiral and sends two signals:
@@ -413,6 +420,7 @@ def overlay_ellipse_calibrate(eye_processors: list, settings, baseconfig) -> Non
                             if ep.cal.center is not None:
                                 ep.config.calib_XOFF = float(ep.cal.center[0])
                                 ep.config.calib_YOFF = float(ep.cal.center[1])
+                            _mark_next_classic_calibration_active(ep)
                             ep.baseconfig.save()
                             logger.info(
                                 "Ellipse cal: partial fit saved from %d samples (timeout)",
@@ -448,6 +456,7 @@ def overlay_ellipse_calibrate(eye_processors: list, settings, baseconfig) -> Non
                         if ep.cal.center is not None:
                             ep.config.calib_XOFF = float(ep.cal.center[0])
                             ep.config.calib_YOFF = float(ep.cal.center[1])
+                        _mark_next_classic_calibration_active(ep)
                         ep.baseconfig.save()
                         logger.info(
                             "Ellipse cal: fitted from %d samples", len(ep.cal.xs)
@@ -998,6 +1007,7 @@ class cal:
                     else:
                         self.config.calib_XOFF = cx
                         self.config.calib_YOFF = cy
+                    _mark_next_classic_calibration_active(self)
                     self.baseconfig.save()
                     PlaySound(
                         resource_path("Audio/completed.wav"), SND_FILENAME | SND_ASYNC

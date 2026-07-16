@@ -33,9 +33,13 @@ import sys
 import os
 import time
 from collections import deque
-from config import EyeTrackCameraConfig
-from config import EyeTrackConfig
-from config import EyeTrackSettingsConfig
+from config import (
+    DEFAULT_LID_CLOSE_THRESHOLD,
+    DEFAULT_LID_WIDEN_THRESHOLD,
+    EyeTrackCameraConfig,
+    EyeTrackConfig,
+    EyeTrackSettingsConfig,
+)
 from pye3d.camera import CameraModel
 from pye3d.detector_3d import Detector3D, DetectorMode
 import queue
@@ -111,6 +115,17 @@ def leap_lid_thresholds_for_eye(
     return (
         float(settings.leap_lid_close_threshold_right),
         float(settings.leap_lid_widen_threshold_right),
+    )
+
+
+def next_eyelid_tuning_active(
+    settings: "EyeTrackSettingsConfig", eye_id: EyeId
+) -> bool:
+    """True only after the user moves this eye away from NEXT's raw defaults."""
+    close_t, widen_t = leap_lid_thresholds_for_eye(settings, eye_id)
+    return (
+        abs(close_t - DEFAULT_LID_CLOSE_THRESHOLD) > 1e-9
+        or abs(widen_t - DEFAULT_LID_WIDEN_THRESHOLD) > 1e-9
     )
 
 
@@ -838,7 +853,7 @@ class EyeProcessor:
 
         variant = getattr(self.settings, "gui_model_variant", "ETVR")
         fp16 = str(variant).upper().endswith("LITE")
-        coord = get_stereo_coordinator(fp16)
+        coord = get_stereo_coordinator(fp16, self.settings.gui_use_gpu)
         coord.submit(self.eye_id, eye_frame, self.current_capture_ts)
         sliced = coord.get_slice(self.eye_id, base_cutoff, base_beta)
         if sliced is None:
@@ -919,7 +934,21 @@ class EyeProcessor:
         eyeopen_raw = eyelid * max(0.0, 1.0 - squeeze)
         _set_runtime_value(f"raw_lid_{int(self.eye_id)}", float(eyeopen_raw))
 
-        if self.settings.gui_NEXT_calibration:
+        has_classic_calibration = (
+            self.config.next_classic_calibration_active
+            and self.config.calib_evecs is not None
+            and self.config.calib_axes is not None
+            and self.config.calib_XOFF is not None
+            and isinstance(self.config.calib_evecs, (list, tuple))
+            and isinstance(self.config.calib_axes, (list, tuple))
+        )
+        use_classic_calibration = bool(self.settings.gui_NEXT_calibration) and (
+            self.calibration_start_time is not None
+            or getattr(self, "_ellipse_collect_active", False)
+            or has_classic_calibration
+        )
+
+        if use_classic_calibration:
             # cal_osc runs the classic ellipse calibration, which bakes in the
             # image-space -> gaze orientation flips (flip_x=True, -y) that
             # pupil-pixel trackers depend on, and then re-applies the user's
@@ -932,8 +961,6 @@ class EyeProcessor:
             self.out_x, self.out_y, self.avg_velocity = cal.cal_osc(
                 self, -model_gaze_x, -model_gaze_y, 0.0
             )
-            close_t, wide_t = leap_lid_thresholds_for_eye(self.settings, self.eye_id)
-            self.eyeopen = remap_leap_lid_openness(eyeopen_raw, close_t, wide_t)
         else:
             # Recenter (NEXT, no-save): when the recenter button is pressed,
             # capture the current raw gaze as a fixed offset and subtract it so
@@ -962,7 +989,6 @@ class EyeProcessor:
             self.avg_velocity = float(np.sqrt(dx * dx + dy * dy))
             self.out_x = gaze_x
             self.out_y = gaze_y
-            self.eyeopen = eyeopen_raw
 
             # TEMP diagnostic (~2 Hz): raw model gaze vs the final output value
             # actually sent to OSC, so we can read what a given eye position
@@ -976,6 +1002,20 @@ class EyeProcessor:
                     int(self.eye_id), model_gaze_x, -model_gaze_y,
                     self.out_x, self.out_y, self._next_smartcal_w is not None,
                 )
+
+        if use_classic_calibration or next_eyelid_tuning_active(
+            self.settings, self.eye_id
+        ):
+            close_t, wide_t = leap_lid_thresholds_for_eye(
+                self.settings, self.eye_id
+            )
+            self.eyeopen = remap_leap_lid_openness(
+                eyeopen_raw, close_t, wide_t
+            )
+        else:
+            # Fresh installs preserve the model's raw eyelid output until the
+            # user calibrates or changes Manual Eyelid Tuning.
+            self.eyeopen = eyeopen_raw
 
         # Snap to fully-closed: NEXT openness near zero is treated as a blink so
         # the eye reports a clean 0.0 instead of jittering just above closed.
@@ -1176,11 +1216,15 @@ class EyeProcessor:
 
         if self.settings.gui_NEXT:
             variant = getattr(self.settings, "gui_model_variant", "ETVR")
-            # Reload if the selected model variant changed at runtime.
-            if self.next_runner is not None and getattr(self.next_runner, "variant", None) != variant:
+            use_gpu = bool(self.settings.gui_use_gpu)
+            # Reload if the selected model variant or execution device changed.
+            if self.next_runner is not None and (
+                getattr(self.next_runner, "variant", None) != variant
+                or getattr(self.next_runner, "use_gpu", None) != use_gpu
+            ):
                 self.next_runner = None
             if self.next_runner is None:
-                self.next_runner = External_Run_NEXT(variant)
+                self.next_runner = External_Run_NEXT(variant, use_gpu)
             enabled_algorithms.append(self.NEXTM)
         else:
             if self.next_runner is not None:

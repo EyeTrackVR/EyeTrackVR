@@ -26,6 +26,7 @@ LICENSE: Babble Software Distribution License 1.0
 
 import logging
 import os
+import shutil
 import subprocess
 import sys
 import time
@@ -57,10 +58,11 @@ from osc.OSCMessage import OSCMessage
 from utils.logging_utils import setup_logging
 from utils.misc_utils import is_nt, is_macos, resource_path
 from utils.tooltips import attach_tooltip
+from utils.version_utils import compare_app_versions
 
 
 
-APP_VERSION = "EyeTrackApp 0.3.0 BETA 7"
+APP_VERSION = "EyeTrackApp 0.3.0 BETA 8"
 setup_logging(APP_VERSION)
 logger = logging.getLogger(__name__)
 winmm = None
@@ -142,9 +144,10 @@ def _check_for_updates_bg(config) -> None:
         )
         response.raise_for_status()
         latestversion = response.json()["name"]
-        if APP_VERSION == latestversion:
+        version_comparison = compare_app_versions(APP_VERSION, latestversion)
+        if version_comparison == 0:
             logger.info("App is the latest version: %s", latestversion)
-        else:
+        elif version_comparison is not None and version_comparison < 0:
             logger.warning(
                 "You have app version %s installed. Please update to %s for the newest features.",
                 APP_VERSION,
@@ -165,11 +168,16 @@ def _check_for_updates_bg(config) -> None:
                     )
                     toast.show()
                 elif sys.platform.startswith("linux"):
-                    # notify-send ships with every major desktop (libnotify).
-                    # Best-effort: headless/minimal systems just skip the toast.
+                    notify_send = shutil.which("notify-send")
+                    if notify_send is None:
+                        logger.info(
+                            "Desktop update notifications unavailable: "
+                            "notify-send is not installed."
+                        )
+                        return
                     subprocess.Popen(
                         [
-                            "notify-send",
+                            notify_send,
                             "--app-name=EyeTrackApp",
                             f"--icon={resource_path('Images/logo.png')}",
                             "EyeTrackVR: New Update Available!",
@@ -178,8 +186,22 @@ def _check_for_updates_bg(config) -> None:
                         stdout=subprocess.DEVNULL,
                         stderr=subprocess.DEVNULL,
                     )
-            except Exception:
-                logger.info("Toast notifications not supported", exc_info=True)
+            except (OSError, subprocess.SubprocessError) as exc:
+                logger.info("Desktop update notification failed: %s", exc)
+        elif version_comparison is not None:
+            logger.info(
+                "Installed app version %s is newer than published release %s; "
+                "no update notification shown.",
+                APP_VERSION,
+                latestversion,
+            )
+        else:
+            logger.info(
+                "Could not compare installed version %r with release %r; "
+                "no update notification shown.",
+                APP_VERSION,
+                latestversion,
+            )
     except (requests.RequestException, KeyError, ValueError):
         logger.info("Could not check for updates. Please try again later.", exc_info=True)
 
@@ -730,10 +752,42 @@ def main():
             ).pack(side="right")
 
             self.root.protocol("WM_DELETE_WINDOW", self.shutdown)
+            config.register_listener_callback(self._on_vrcft_output_config_update)
+            self._sync_vrcft_nav_visibility()
             self.on_mode_change()
             self.show_page("tracking")
             self._apply_initial_window_geometry()
             self._tick()
+
+        def _vrcft_module_settings_enabled(self) -> bool:
+            """The module settings only apply to the VRCFT UE (v2) output."""
+            return bool(config.settings.gui_osc_vrcft_v2)
+
+        def _sync_vrcft_nav_visibility(self) -> None:
+            button = self._nav_buttons.get("vrcft")
+            if button is None:
+                return
+
+            if self._vrcft_module_settings_enabled():
+                if not button.winfo_manager():
+                    # VRCFT is the final navigation item, so repacking it keeps
+                    # the original tab order.
+                    button.pack(side="left", padx=4)
+            else:
+                button.pack_forget()
+                if self.current_page == "vrcft":
+                    self.show_page("settings")
+
+        def _on_vrcft_output_config_update(self, data: dict) -> None:
+            if "gui_osc_vrcft_v2" not in data:
+                return
+            # Settings updates normally arrive on Tk's thread. Scheduling the
+            # UI mutation also keeps this safe if a future caller updates the
+            # output mode from a worker.
+            try:
+                self.root.after_idle(self._sync_vrcft_nav_visibility)
+            except tk.TclError:
+                pass
 
         def _active_settings_widget(self):
             """Return the settings widget that owns the currently visible page,
@@ -1037,6 +1091,8 @@ def main():
 
         def show_page(self, page_name: str):
             """Switch tabs. Heavy work (camera thread joins, config apply) is deferred so the UI can redraw first."""
+            if page_name == "vrcft" and not self._vrcft_module_settings_enabled():
+                page_name = "settings"
             self._nav_teardown_seq += 1
             seq = self._nav_teardown_seq
             self.current_page = page_name

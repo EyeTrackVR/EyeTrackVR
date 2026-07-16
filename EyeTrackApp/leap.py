@@ -44,6 +44,7 @@ import psutil
 from utils.misc_utils import resource_path
 from pathlib import Path
 import sys
+from utils.onnx_runtime import DML_INFERENCE_LOCK
 
 os.environ["OMP_NUM_THREADS"] = (
     "1"  # on slower systems this can cause issues due to slow single core perf. in such cases, it is better to use GPU compute
@@ -52,8 +53,8 @@ os.environ["OMP_NUM_THREADS"] = (
 frames = 0
 models = Path("Models")
 LEAP_LID_METRIC_VERSION = 1
-# Global lock to prevent DML race conditions between eye threads
-dml_lock = threading.Lock()
+# Backward-compatible local name; shared with NEXT mono/stereo sessions.
+dml_lock = DML_INFERENCE_LOCK
 
 if sys.platform.startswith("linux"):
     # Make CUDA's libs findable for onnxruntime-gpu. Only relevant when a CUDA

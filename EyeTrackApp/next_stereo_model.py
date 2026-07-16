@@ -41,6 +41,7 @@ LICENSE: Babble Software Distribution License 1.0
 """
 
 import os
+import logging
 import threading
 from collections import deque
 
@@ -51,6 +52,9 @@ import onnxruntime
 from eye import EyeId
 from one_euro_filter import OneEuroFilter
 from utils.misc_utils import resource_path
+from utils.onnx_runtime import DML_INFERENCE_LOCK, create_inference_session
+
+logger = logging.getLogger(__name__)
 
 os.environ["OMP_NUM_THREADS"] = "1"
 
@@ -88,21 +92,24 @@ def stereo_model_file(fp16: bool) -> str:
 class NEXT_Stereo_cls:
     """Wraps the stereo ONNX session + One-Euro/median smoothing on 8 outputs."""
 
-    def __init__(self, fp16: bool = False):
+    def __init__(self, fp16: bool = False, use_gpu: bool = False):
         self.fp16 = fp16
+        self.use_gpu = bool(use_gpu)
         onnxruntime.disable_telemetry_events()
         options = onnxruntime.SessionOptions()
         options.inter_op_num_threads = 1
         options.intra_op_num_threads = 1
         options.execution_mode = onnxruntime.ExecutionMode.ORT_SEQUENTIAL
         options.graph_optimization_level = onnxruntime.GraphOptimizationLevel.ORT_ENABLE_ALL
+        options.enable_mem_pattern = False
 
-        ort_session = onnxruntime.InferenceSession(
+        ort_session, self.uses_directml = create_inference_session(
             resource_path(stereo_model_file(fp16)),
-            sess_options=options,
-            providers=["CPUExecutionProvider"],
+            options,
+            use_gpu=self.use_gpu,
+            component="NEXT Stereo",
+            logger=logger,
         )
-        ort_session.set_providers(["CPUExecutionProvider"])
         self.ort_session = ort_session
 
         model_input = ort_session.get_inputs()[0]
@@ -173,7 +180,12 @@ class NEXT_Stereo_cls:
             )
 
         x = pair[np.newaxis].astype(self.input_dtype, copy=False)
-        raw = self.ort_session.run(None, {self.input_name: x})[0][0].astype(np.float32)
+        if self.uses_directml:
+            with DML_INFERENCE_LOCK:
+                result = self.ort_session.run(None, {self.input_name: x})
+        else:
+            result = self.ort_session.run(None, {self.input_name: x})
+        raw = result[0][0].astype(np.float32)
 
         # Running-median spike reject on the two eyebrows and the shared gaze.
         self._brow_l_window.append(float(raw[0]))
@@ -210,9 +222,10 @@ class StereoNextCoordinator:
     (claimed by whichever thread first sees both eyes advanced), so the single
     CPU session is never entered concurrently for the same pair."""
 
-    def __init__(self, fp16: bool = False):
-        self.runner = NEXT_Stereo_cls(fp16)
+    def __init__(self, fp16: bool = False, use_gpu: bool = False):
+        self.runner = NEXT_Stereo_cls(fp16, use_gpu)
         self.fp16 = fp16
+        self.use_gpu = bool(use_gpu)
         self._state_lock = threading.Lock()
         self._infer_lock = threading.Lock()
         # eye_id -> (bgr_frame, capture_ts, version)
@@ -266,11 +279,17 @@ _coordinator: StereoNextCoordinator | None = None
 _coordinator_lock = threading.Lock()
 
 
-def get_stereo_coordinator(fp16: bool = False) -> StereoNextCoordinator:
+def get_stereo_coordinator(
+    fp16: bool = False, use_gpu: bool = False
+) -> StereoNextCoordinator:
     """Process-wide stereo coordinator (one ONNX session shared by both eyes).
     Rebuilt if the requested precision changes."""
     global _coordinator
     with _coordinator_lock:
-        if _coordinator is None or _coordinator.fp16 != fp16:
-            _coordinator = StereoNextCoordinator(fp16)
+        if (
+            _coordinator is None
+            or _coordinator.fp16 != fp16
+            or _coordinator.use_gpu != bool(use_gpu)
+        ):
+            _coordinator = StereoNextCoordinator(fp16, use_gpu)
         return _coordinator

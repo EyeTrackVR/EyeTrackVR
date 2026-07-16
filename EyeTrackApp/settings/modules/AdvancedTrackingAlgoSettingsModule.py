@@ -6,7 +6,6 @@ from localization import tr
 
 
 class AdvancedTrackingAlgoSettingsValidationModel(BaseValidationModel):
-    gui_BLINK: bool
     gui_RANSACBLINK: bool
     gui_circular_crop_left: bool
     gui_circular_crop_right: bool
@@ -22,7 +21,6 @@ class AdvancedTrackingAlgoSettingsModule(BaseSettingsModule):
         super().__init__(config=config, widget_id=widget_id, **kwargs)
         self.validation_model = AdvancedTrackingAlgoSettingsValidationModel
 
-        self.gui_BLINK = f"-BLINK{widget_id}-"
         self.gui_RANSACBLINK = f"-RANSACBLINK{widget_id}-"
         self.gui_circular_crop_left = f"-CIRCLECROPLEFT{widget_id}-"
         self.gui_circular_crop_right = f"-CIRCLECROPRIGHT{widget_id}-"
@@ -68,7 +66,6 @@ class AdvancedTrackingAlgoSettingsModule(BaseSettingsModule):
 
     def build(self, parent):
         checkbox_fields = [
-            (self.gui_BLINK, self.config.gui_BLINK, tr("algo_advanced.binary_blink")),
             (
                 self.gui_RANSACBLINK,
                 self.config.gui_RANSACBLINK,

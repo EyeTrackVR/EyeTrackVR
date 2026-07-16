@@ -88,20 +88,12 @@ class GeneralSettingsModule(BaseSettingsModule):
                 (self.gui_flip_x_axis_right, self.config.gui_flip_x_axis_right),
             ),
             (
-                (self.gui_left_eye_dominant, self.config.gui_left_eye_dominant),
-                (self.gui_right_eye_dominant, self.config.gui_right_eye_dominant),
-            ),
-            (
                 (self.gui_openvr_autostart, self.config.gui_openvr_autostart),
                 (self.gui_use_gpu, self.config.gui_use_gpu),
             ),
             (
                 (self.gui_flip_y_axis, self.config.gui_flip_y_axis),
                 (self.gui_update_check, self.config.gui_update_check),
-            ),
-            (
-                (self.gui_use_overlay_cal, self.config.gui_use_overlay_cal),
-                None,
             ),
         ]
 
@@ -110,12 +102,9 @@ class GeneralSettingsModule(BaseSettingsModule):
             self.gui_flip_x_axis_left: "gui_flip_x_axis_left",
             self.gui_flip_x_axis_right: "gui_flip_x_axis_right",
             self.gui_flip_y_axis: "gui_flip_y_axis",
-            self.gui_left_eye_dominant: "gui_left_eye_dominant",
-            self.gui_right_eye_dominant: "gui_right_eye_dominant",
             self.gui_openvr_autostart: "gui_openvr_autostart",
             self.gui_use_gpu: "gui_use_gpu",
             self.gui_update_check: "gui_update_check",
-            self.gui_use_overlay_cal: "gui_use_overlay_cal",
         }
 
         row = 0
@@ -139,14 +128,6 @@ class GeneralSettingsModule(BaseSettingsModule):
         )
         falloff_cb.grid(row=row, column=0, sticky="w", padx=8, pady=2)
         attach_tooltip(falloff_cb, _tip("gui_outer_side_falloff"))
-        diff_row = ttk.Frame(parent)
-        diff_row.grid(row=row, column=1, sticky="w", padx=8, pady=2)
-        diff_lbl = ttk.Label(diff_row, text=_label("gui_eye_dominant_diff_thresh"))
-        diff_lbl.pack(side="left", padx=(0, 6))
-        attach_tooltip(diff_lbl, _tip("gui_eye_dominant_diff_thresh"))
-        diff_var = tk.StringVar(value=str(self.config.gui_eye_dominant_diff_thresh))
-        self.tk_vars[self.gui_eye_dominant_diff_thresh] = diff_var
-        ttk.Entry(diff_row, textvariable=diff_var, width=12).pack(side="left")
         row += 1
 
         self._build_language_row(parent, row)
@@ -204,10 +185,40 @@ class GeneralSettingsModule(BaseSettingsModule):
         )
 
     def build_advanced(self, parent):
-        debug_var = tk.BooleanVar(value=self.config.gui_show_et_debug)
-        self.tk_vars[self.gui_show_et_debug] = debug_var
-        cb = ttk.Checkbutton(
-            parent, text=_label("gui_show_et_debug"), variable=debug_var
-        )
-        cb.pack(side="left", padx=8, pady=2)
-        attach_tooltip(cb, _tip("gui_show_et_debug"))
+        fields = [
+            (
+                self.gui_use_overlay_cal,
+                self.config.gui_use_overlay_cal,
+                "gui_use_overlay_cal",
+            ),
+            (
+                self.gui_left_eye_dominant,
+                self.config.gui_left_eye_dominant,
+                "gui_left_eye_dominant",
+            ),
+            (
+                self.gui_right_eye_dominant,
+                self.config.gui_right_eye_dominant,
+                "gui_right_eye_dominant",
+            ),
+            (
+                self.gui_show_et_debug,
+                self.config.gui_show_et_debug,
+                "gui_show_et_debug",
+            ),
+        ]
+        for row, (key, default, attr) in enumerate(fields):
+            var = tk.BooleanVar(value=default)
+            self.tk_vars[key] = var
+            cb = ttk.Checkbutton(parent, text=_label(attr), variable=var)
+            cb.grid(row=row, column=0, sticky="w", padx=8, pady=2)
+            attach_tooltip(cb, _tip(attr))
+
+        diff_row = ttk.Frame(parent)
+        diff_row.grid(row=len(fields), column=0, sticky="w", padx=8, pady=2)
+        diff_lbl = ttk.Label(diff_row, text=_label("gui_eye_dominant_diff_thresh"))
+        diff_lbl.pack(side="left", padx=(0, 6))
+        attach_tooltip(diff_lbl, _tip("gui_eye_dominant_diff_thresh"))
+        diff_var = tk.StringVar(value=str(self.config.gui_eye_dominant_diff_thresh))
+        self.tk_vars[self.gui_eye_dominant_diff_thresh] = diff_var
+        ttk.Entry(diff_row, textvariable=diff_var, width=12).pack(side="left")
