@@ -19,7 +19,7 @@
                                        @@@@@@@@@@@@@@@@@
                                       @@@@@@@@@@@@@(
 
-Algorithm App Implementations By: Prohurtz, qdot (GUI, Initial Implementations), PallasNeko (Optimizations), Summer (Algorithim Engineer)
+Algorithm App Implementations By: Prohurtz, qdot (GUI, Initial Implementations), PallasNeko (Optimizations), Summer (Algorithm Engineer)
 
 Additional Contributors: [Assassin], Summer404NotFound, lorow, ZanzyTHEbar
 
