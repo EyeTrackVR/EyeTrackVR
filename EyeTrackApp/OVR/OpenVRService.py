@@ -2,7 +2,7 @@ import openvr
 import os
 import sys
 import json
-from logging import getLogger, ERROR, WARN, INFO
+from logging import getLogger, WARN, INFO
 import tkinter as tk
 from tkinter import messagebox
 from colorama import Fore
@@ -56,14 +56,6 @@ def _launch_target():
         return binary, ""
     entry = os.path.abspath(sys.argv[0]) if sys.argv and sys.argv[0] else ""
     return binary, entry
-
-
-def _app_error_name(err) -> str:
-    """Map an EVRApplicationError int back to its constant name for logging."""
-    for attr in dir(openvr):
-        if attr.startswith("VRApplicationError_") and getattr(openvr, attr) == err:
-            return attr
-    return str(err)
 
 
 class OpenVRService:
@@ -147,15 +139,19 @@ class OpenVRService:
         self.is_initialized = False
         self.app = None
 
-    def _check(self, err, action: str) -> None:
-        """Raise if an IVRApplications call returned a non-OK error code.
+    def _call_app_api(self, action: str, callback) -> None:
+        """Call an IVRApplications method and normalize binding errors.
 
-        pyopenvr's IVRApplications methods *return* an EVRApplicationError rather
-        than raising, so the result has to be inspected explicitly; otherwise
-        registration failures pass silently.
+        pyopenvr checks the native EVRApplicationError itself: it raises an
+        ApplicationError subclass on failure and returns ``None`` on success.
+        Treating that successful ``None`` as an error caused Beta 8 to reject
+        every manifest on Windows before it could enable auto-launch.
         """
-        if err != openvr.VRApplicationError_None:
-            raise OpenVRException(f"{action} failed: {_app_error_name(err)}")
+        try:
+            callback()
+        except Exception as e:
+            detail = str(e).strip() or e.__class__.__name__
+            raise OpenVRException(f"{action} failed: {detail}") from e
 
     def _register(self) -> None:
         """(Re)write the manifest and register it for auto-launch.
@@ -165,8 +161,14 @@ class OpenVRService:
         """
         self.initialize()
         self.write_manifest()
-        self._check(self.app.addApplicationManifest(self.manifestPath), "Register manifest")
-        self._check(self.app.setApplicationAutoLaunch(self.appKey, True), "Enable auto-launch")
+        self._call_app_api(
+            "Register manifest",
+            lambda: self.app.addApplicationManifest(self.manifestPath),
+        )
+        self._call_app_api(
+            "Enable auto-launch",
+            lambda: self.app.setApplicationAutoLaunch(self.appKey, True),
+        )
         self.logger.log(
             INFO,
             f"{Fore.GREEN}[INFO] Registered EyeTrackVR for SteamVR auto-launch",
