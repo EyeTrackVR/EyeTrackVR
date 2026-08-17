@@ -31,7 +31,14 @@ a = Analysis(
     pathex=[],
     binaries=openvr_libs,
     datas=resources,
-    hiddenimports=["cv2", "numpy", "sv_ttk", "tkinter", "tkinter.ttk"],
+    # PIL._tkinter_finder is the Pillow <-> Tk bridge that registers the
+    # PyImagingPhoto Tcl command. PyInstaller does not see it (ImageTk imports
+    # it lazily by name), so without it every preview raises
+    # ModuleNotFoundError out of the Tk callback and no camera image is drawn.
+    hiddenimports=[
+        "cv2", "numpy", "sv_ttk", "tkinter", "tkinter.ttk",
+        "PIL.Image", "PIL.ImageTk", "PIL._tkinter_finder",
+    ],
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],

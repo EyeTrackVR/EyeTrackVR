@@ -15,7 +15,10 @@ binaries=[
     (os.path.abspath(openvr.__file__ + "\\..\\libopenvr_api_64.dll"), "openvr"),
 ],
 datas=resources,
-hiddenimports=['cv2', 'numpy', 'sv_ttk', 'tkinter', 'tkinter.ttk', 'pkg_resources.extern', 'pywinstyles'],
+hiddenimports=['cv2', 'numpy', 'sv_ttk', 'tkinter', 'tkinter.ttk', 'pkg_resources.extern', 'pywinstyles',
+               # Pillow's Tk bridge, imported lazily by name inside ImageTk, so
+               # PyInstaller misses it; without it previews never draw.
+               'PIL.Image', 'PIL.ImageTk', 'PIL._tkinter_finder'],
 hookspath=[],
 hooksconfig={},
 runtime_hooks=[],
