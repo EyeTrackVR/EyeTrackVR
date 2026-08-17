@@ -162,6 +162,13 @@ class NEXT_cls:
         self._gaze_x_window = deque(maxlen=_GAZE_MEDIAN_WINDOW)
         self._gaze_y_window = deque(maxlen=_GAZE_MEDIAN_WINDOW)
 
+    def reset_history(self):
+        """Drop the temporal frame stack. Called when this model takes over
+        again after the stereo model has been driving (see eye_processor's
+        mono/stereo switch): without it the first stacks would splice frames
+        from before the handover into the current motion history."""
+        self._frame_history.clear()
+
     def run(self, bgr_frame: np.ndarray, base_cutoff: float = 0.0004, base_beta: float = 0.9):
         # Update filter parameters based on smoothing slider base values
         # Array order: [eyebrow, eyelid, squeeze, gaze_x, gaze_y]
@@ -254,3 +261,7 @@ class External_Run_NEXT:
         Returns (gaze_x, gaze_y, eyebrow, eyelid, squeeze).
         """
         return self.algo.run(bgr_frame, base_cutoff, base_beta)
+
+    def reset_history(self):
+        """Drop the temporal frame stack (see NEXT_cls.reset_history)."""
+        self.algo.reset_history()

@@ -255,6 +255,9 @@ class EyeProcessor:
         self.daddy_runner = None
         self.leap_runner = None
         self.next_runner = None
+        # None until the first NEXT frame picks mono or stereo; only used to
+        # log the transitions.
+        self._next_stereo_engaged: bool | None = None
         self.current_raw_frame: np.ndarray | None = None
         self.next_eyebrow: float = float("nan")
         self.ibo = IntensityBasedOpeness(self.eye_id)
@@ -639,10 +642,11 @@ class EyeProcessor:
 
     @property
     def _next_active(self) -> bool:
-        """True when either NEXT variant (mono or stereo BSB) is the tracker.
-        Both produce their own gaze/eyelid/squeeze/eyebrow end-to-end, so the
+        """True when NEXT is the tracker (mono or stereo: NEXTM picks per frame).
+        It produces its own gaze/eyelid/squeeze/eyebrow end-to-end, so the
         classical BLINK/IBO/LEAP-lid estimators and the eyebrow fallback must be
-        bypassed for both."""
+        bypassed. gui_NEXT_BSB is the retired stereo tracker flag, kept here so
+        an unmigrated config still reads as NEXT."""
         return bool(self.settings.gui_NEXT or self.settings.gui_NEXT_BSB)
 
     def UPDATE(self):
@@ -807,10 +811,22 @@ class EyeProcessor:
         self.current_algorithm = EyeInfoOrigin.DADDY
 
     def NEXTM(self):
+        """NEXT end-to-end tracking, mono or stereo depending on how many eyes
+        are connected.
+
+        One eye streaming: the per-eye mono model runs one pass on this eye's
+        frame. Both eyes streaming: the stereo model runs a single pass over
+        both eyes and this thread reads its slice (shared gaze + this eye's
+        per-eye expressions). The stereo pass never waits for the other camera
+        (see next_stereo_model), so a slow or stuttering eye can't hold this one
+        back, and a camera that goes away drops the tracker back to mono.
+
+        All downstream handling (flips, smart-cal, recenter, lid remap, OSC) is
+        shared by both paths via _next_apply()."""
         if self.current_raw_frame is None:
             return
         self.thresh = self.current_image_gray.copy()
-        
+
         base_cutoff = float(self.settings.gui_min_cutoff)
         base_beta = float(self.settings.gui_speed_coefficient)
 
@@ -823,48 +839,43 @@ class EyeProcessor:
             mid = next_frame.shape[1] // 2
             next_frame = next_frame[:, :mid] if self.eye_id == EyeId.LEFT else next_frame[:, mid:]
 
+        variant = getattr(self.settings, "gui_model_variant", "ETVR")
+        coord = get_stereo_coordinator(variant, self.settings.gui_use_gpu)
+        if coord is not None:
+            # Always publish the frame (a cheap store) so the other eye can see
+            # that this one is alive, even while we're still running mono.
+            coord.submit(self.eye_id, next_frame, self.current_capture_ts)
+            if coord.peer_active(self.eye_id):
+                self._next_mode_changed(True)
+                gaze_x, gaze_y, eyebrow, eyelid, squeeze = coord.run(
+                    self.eye_id, base_cutoff, base_beta
+                )
+                self._next_apply(gaze_x, gaze_y, eyebrow, eyelid, squeeze)
+                return
+
+        self._next_mode_changed(False)
         gaze_x, gaze_y, eyebrow, eyelid, squeeze = self.next_runner.run(
             next_frame, base_cutoff, base_beta
         )
         self._next_apply(gaze_x, gaze_y, eyebrow, eyelid, squeeze)
 
-    def NEXT_BSB_M(self):
-        """Stereo NEXT BSB: both eyes in one time-synced forward pass.
-
-        Each eye thread submits its frame to the shared coordinator; whichever
-        call completes a fresh left+right pair runs the single stereo inference,
-        and both eyes read their slice (shared gaze + this eye's per-eye
-        expressions). All downstream handling (flips, smart-cal, recenter, lid
-        remap, OSC) is shared with mono NEXT via _next_apply()."""
-        if self.current_raw_frame is None:
+    def _next_mode_changed(self, stereo: bool) -> None:
+        """Handle a mono/stereo handover: reset the incoming model's temporal
+        history so it can't splice pre-handover frames into its motion stack,
+        and log the switch once (not per frame)."""
+        if self._next_stereo_engaged is stereo:
             return
-        self.thresh = self.current_image_gray.copy()
-
-        base_cutoff = float(self.settings.gui_min_cutoff)
-        base_beta = float(self.settings.gui_speed_coefficient)
-
-        # This eye's image. Bigscreen carries both eyes side-by-side in one
-        # camera frame, so submit this eye's half; with two separate cameras,
-        # submit the whole per-eye frame. The coordinator pairs by capture time.
-        eye_frame = self.current_raw_frame
-        if self.settings.gui_setup_mode == "bigscreen":
-            mid = eye_frame.shape[1] // 2
-            eye_frame = eye_frame[:, :mid] if self.eye_id == EyeId.LEFT else eye_frame[:, mid:]
-
-        variant = getattr(self.settings, "gui_model_variant", "ETVR")
-        fp16 = str(variant).upper().endswith("LITE")
-        coord = get_stereo_coordinator(fp16, self.settings.gui_use_gpu)
-        coord.submit(self.eye_id, eye_frame, self.current_capture_ts)
-        sliced = coord.get_slice(self.eye_id, base_cutoff, base_beta)
-        if sliced is None:
-            # The other eye hasn't produced a frame yet — nothing to emit until
-            # a full stereo pair exists.
-            return
-        gaze_x, gaze_y, eyebrow, eyelid, squeeze = sliced
-        self._next_apply(gaze_x, gaze_y, eyebrow, eyelid, squeeze)
+        self._next_stereo_engaged = stereo
+        if not stereo and self.next_runner is not None:
+            self.next_runner.reset_history()
+        logger.info(
+            "NEXT %s: %s model",
+            "LEFT" if self.eye_id == EyeId.LEFT else "RIGHT",
+            "stereo (both eyes)" if stereo else "mono (one eye)",
+        )
 
     def _next_apply(self, gaze_x, gaze_y, eyebrow, eyelid, squeeze):
-        """Shared NEXT post-processing for mono (NEXTM) and stereo (NEXT_BSB_M):
+        """Shared NEXT post-processing for the mono and stereo model paths:
         user-configured flips, smart-calibration, recenter, eyelid remap, and
         the OSC enqueue. Inputs preserve the model's native axis orientation."""
         # Raw model gaze, before user-configured flips, in [-1, 1].
@@ -1194,9 +1205,16 @@ class EyeProcessor:
             if self.daddy_runner is not None:
                 self.daddy_runner = None
 
-        if self.settings.gui_NEXT:
+        # NEXT covers both the mono and the stereo model now: NEXTM picks per
+        # frame based on how many eyes are streaming. gui_NEXT_BSB is the
+        # retired "NEXT BSB (stereo)" tracker; configs that still carry it are
+        # migrated on load, and it's honored here so a stale flag can never
+        # leave the user with no tracker at all.
+        if self.settings.gui_NEXT or self.settings.gui_NEXT_BSB:
             variant = getattr(self.settings, "gui_model_variant", "ETVR")
             use_gpu = bool(self.settings.gui_use_gpu)
+            # The mono runner stays loaded even while the stereo model is
+            # driving both eyes: it's the fallback the moment a camera drops.
             # Reload if the selected model variant or execution device changed.
             if self.next_runner is not None and (
                 getattr(self.next_runner, "variant", None) != variant
@@ -1209,12 +1227,6 @@ class EyeProcessor:
         else:
             if self.next_runner is not None:
                 self.next_runner = None
-
-        # NEXT BSB (stereo): both eyes in one pass. The shared coordinator owns
-        # the single ONNX session (fetched lazily in NEXT_BSB_M), so there's no
-        # per-eye runner to build/tear down here.
-        if self.settings.gui_NEXT_BSB:
-            enabled_algorithms.append(self.NEXT_BSB_M)
 
         if self.settings.gui_LEAP or self.settings.gui_LEAP_lid:
             if self.leap_runner is None:

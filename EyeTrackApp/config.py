@@ -91,7 +91,7 @@ DEFAULT_LID_WIDEN_THRESHOLD = 0.9
 #           applies after NEXT itself has been calibrated. Preserve an existing
 #           opted-in NEXT calibration without treating classical-tracker fits
 #           as NEXT fits.
-CURRENT_CONFIG_VERSION: int = 3
+CURRENT_CONFIG_VERSION: int = 4
 
 
 def _migrate_config_dict(data: dict) -> dict:
@@ -143,6 +143,17 @@ def _migrate_config_dict(data: dict) -> dict:
                 legacy_next_cal and has_fit
             )
         logger.info("Migrated config from v2: recorded NEXT calibration ownership")
+
+    if stored < 4:
+        # "NEXT BSB (stereo)" is no longer a separate tracker: NEXT itself runs
+        # the stereo model whenever both eyes are streaming and the mono model
+        # otherwise. Anyone who had the stereo tracker selected just becomes a
+        # NEXT user, which keeps stereo behavior on a two-eye setup.
+        settings = data.get("settings")
+        if isinstance(settings, dict) and settings.get("gui_NEXT_BSB"):
+            settings["gui_NEXT_BSB"] = False
+            settings["gui_NEXT"] = True
+            logger.info("Migrated config from v3: NEXT BSB folded into NEXT")
 
     data["version"] = CURRENT_CONFIG_VERSION
     return data
@@ -330,8 +341,11 @@ class EyeTrackSettingsConfig(BaseModel):
     gui_AHSF: bool = False
     gui_DADDY: bool = False
     gui_LEAP: bool = False
+    # NEXT end-to-end model. Runs the stereo model (both eyes in one pass) while
+    # two eyes are streaming and the mono model (one eye per pass) otherwise.
     gui_NEXT: bool = True
-    # NEXT BSB (stereo) end-to-end model: both eyes in one time-synced pass.
+    # Retired: the separate "NEXT BSB (stereo)" tracker, folded into gui_NEXT by
+    # the v4 config migration. Kept so old configs still load.
     gui_NEXT_BSB: bool = False
     # Calibration is available without a GUI opt-in. The NEXT processor only
     # applies it once a calibration is running/fitted, so raw default output is
