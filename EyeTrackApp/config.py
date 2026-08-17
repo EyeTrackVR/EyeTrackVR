@@ -93,12 +93,12 @@ DEFAULT_LID_WIDEN_THRESHOLD = 0.9
 #           as NEXT fits.
 #   3 -> 4: "NEXT BSB (stereo)" stopped being its own tracker; NEXT picks the
 #           mono or stereo model itself.
-#   4 -> 5: gui_NEXT_calibration (the legacy ellipse path for NEXT) now
-#           defaults off, so Start Calibration runs NEXT Smart Calib. The
-#           stored True is the old default, not a user choice: it has no GUI
-#           control, and while set it both routed Start Calibration to the
-#           ellipse spiral and blocked the Smart Calib transform from being
-#           applied.
+#   4 -> 5: gui_NEXT_calibration (the legacy ellipse path for NEXT) is
+#           removed. Smart Calib is now tied to the tracker: forced on for
+#           NEXT, off for everything else. The stored value was never a user
+#           choice (no GUI control ever existed) and defaulted True, which
+#           both routed Start Calibration to the ellipse spiral and blocked
+#           the Smart Calib transform from being applied.
 CURRENT_CONFIG_VERSION: int = 5
 
 
@@ -164,15 +164,14 @@ def _migrate_config_dict(data: dict) -> dict:
             logger.info("Migrated config from v3: NEXT BSB folded into NEXT")
 
     if stored < 5:
-        # Hand NEXT calibration to Smart Calib. gui_NEXT_calibration is the
-        # legacy ellipse path and has never had a GUI control, so a stored
-        # True can only be the old default; left set, Start Calibration runs
-        # the ellipse spiral and the Smart Calib fit is never applied.
+        # NEXT calibration moved to Smart Calib for good: gui_NEXT_calibration
+        # (the legacy ellipse path, never exposed in the GUI) is dropped rather
+        # than carried forward, so a stored True can no longer route Start
+        # Calibration to the spiral or suppress the Smart Calib fit.
         settings = data.get("settings")
-        if isinstance(settings, dict) and settings.get("gui_NEXT_calibration"):
-            settings["gui_NEXT_calibration"] = False
+        if isinstance(settings, dict) and settings.pop("gui_NEXT_calibration", None) is not None:
             logger.info(
-                "Migrated config from v4: NEXT now calibrates via Smart Calib"
+                "Migrated config from v4: NEXT now always calibrates via Smart Calib"
             )
 
     data["version"] = CURRENT_CONFIG_VERSION
@@ -375,12 +374,9 @@ class EyeTrackSettingsConfig(BaseModel):
     # Retired: the separate "NEXT BSB (stereo)" tracker, folded into gui_NEXT by
     # the v4 config migration. Kept so old configs still load.
     gui_NEXT_BSB: bool = False
-    # Legacy ellipse calibration path for NEXT ("Allow Calibration"). Off, so
-    # Start Calibration runs NEXT Smart Calib (the overlay dot sequence) and
-    # the fitted transform is applied. Config-only escape hatch: setting this
-    # True routes NEXT back through cal_osc's ellipse fit instead, which also
-    # suppresses Smart Calib. There is deliberately no GUI control.
-    gui_NEXT_calibration: bool = False
+    # gui_NEXT_calibration (the legacy ellipse path for NEXT) is gone: Smart
+    # Calib is now tied to the tracker, forced on for NEXT and off for every
+    # other tracker. Old configs may still carry the key; pydantic ignores it.
     # Also calibrate eyelid and eyebrow during NEXT Smart Calib: the face is
     # neutral throughout the dot sequence, so those captures anchor "normal
     # open" / "neutral brow" to their target output values.
@@ -450,10 +446,10 @@ class EyeTrackSettingsConfig(BaseModel):
 
     gui_right_eye_dominant: bool = False
     gui_left_eye_dominant: bool = False
-    # Enabled by default: velocity-based falloff mirrors the cleaner eye when
-    # the two tracked positions diverge, which is the right behavior for almost
-    # every dual-eye setup. Users with very mismatched cameras can disable.
-    gui_outer_side_falloff: bool = True
+    # Off by default: velocity-based falloff mirrors the cleaner eye when the
+    # two tracked positions diverge, which hides one eye's real motion. Opt in
+    # from General Settings when a mismatched pair of cameras needs it.
+    gui_outer_side_falloff: bool = False
     gui_eye_dominant_diff_thresh: float = 0.3
 
     gui_LEAP_lid: bool = False

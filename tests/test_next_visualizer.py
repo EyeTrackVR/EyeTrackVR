@@ -130,19 +130,24 @@ def test_next_manual_eyelid_tuning_activates_only_off_defaults():
 def test_next_calibrates_via_smart_calib_by_default():
     settings = EyeTrackSettingsConfig()
 
-    # The legacy ellipse path is off, which is what routes Start Calibration to
-    # the Smart Calib overlay and lets the fitted transform be applied.
-    assert settings.gui_NEXT_calibration is False
+    # Smart Calib is tied to the tracker, not to a setting: the legacy ellipse
+    # opt-in is gone, so nothing can route NEXT away from it.
+    assert not hasattr(settings, "gui_NEXT_calibration")
     assert settings.gui_NEXT is True
 
 
-def test_config_migration_hands_next_calibration_to_smart_calib():
+def test_config_migration_drops_the_legacy_next_calibration_opt_in():
     raw = {"version": 4, "settings": {"gui_NEXT": True, "gui_NEXT_calibration": True}}
 
     migrated = _migrate_config_dict(raw)
 
     assert migrated["version"] == CURRENT_CONFIG_VERSION
-    assert migrated["settings"]["gui_NEXT_calibration"] is False
+    assert "gui_NEXT_calibration" not in migrated["settings"]
+    assert migrated["settings"]["gui_NEXT"] is True
+
+
+def test_outer_eye_falloff_is_off_by_default():
+    assert EyeTrackSettingsConfig().gui_outer_side_falloff is False
 
 
 def test_config_migration_preserves_explicit_legacy_next_calibration():

@@ -39,9 +39,9 @@ from camera import Camera, CameraState
 import cv2
 from osc.OSCMessage import OSCMessageType, OSCMessage
 from utils.misc_utils import PlaySound, SND_FILENAME, SND_ASYNC, resource_path
+from utils.img_utils import tk_photo_from_rgb
 from localization import tr
 import numpy as np
-from PIL import Image, ImageTk
 
 logger = logging.getLogger(__name__)
 
@@ -377,23 +377,19 @@ class CameraWidget:
         """No-op: mode buttons moved to a global pair in eyetrackapp.py."""
         return
 
-    def _tk_photo_from_bgr(
-        self, image: np.ndarray, master: tk.Misc
-    ) -> ImageTk.PhotoImage | None:
+    def _tk_photo_from_bgr(self, image: np.ndarray, master: tk.Misc):
         if image is None or image.size == 0 or image.shape[0] < 1 or image.shape[1] < 1:
             return None
         try:
             if image.ndim == 2:
-                pil_img = Image.fromarray(image, mode="L").convert("RGB")
+                rgb = cv2.cvtColor(image, cv2.COLOR_GRAY2RGB)
             elif image.ndim == 3 and image.shape[2] == 4:
                 rgb = cv2.cvtColor(image, cv2.COLOR_BGRA2RGB)
-                pil_img = Image.fromarray(rgb)
             elif image.ndim == 3 and image.shape[2] == 3:
                 rgb = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
-                pil_img = Image.fromarray(rgb)
             else:
                 return None
-            return ImageTk.PhotoImage(pil_img, master=master)
+            return tk_photo_from_rgb(rgb, master)
         except (ValueError, TypeError, tk.TclError):
             return None
 

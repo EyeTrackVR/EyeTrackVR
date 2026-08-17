@@ -241,6 +241,17 @@ def main():
 
     osc_queue: queue.Queue[OSCMessage] = queue.Queue(maxsize=10)
 
+    def _next_smartcal_selected() -> bool:
+        """Smart Calib is the calibration for NEXT and only for NEXT.
+
+        It is tied to the tracker, not to a setting: NEXT gaze is an end-to-end
+        model output that the (warp + affine) fit polishes, while every other
+        tracker calibrates pupil pixels through cal_osc's ellipse fit. Feeding
+        either one the other's calibration produces nothing usable, so there is
+        no opt-out here and no opt-in for the rest. gui_NEXT_BSB is the retired
+        stereo-tracker flag, honored for configs that predate the migration."""
+        return bool(config.settings.gui_NEXT) or bool(config.settings.gui_NEXT_BSB)
+
     eyes = [
         CameraWidget(EyeId.RIGHT, config, osc_queue),
         CameraWidget(EyeId.LEFT, config, osc_queue),
@@ -269,15 +280,13 @@ def main():
     )
     def _osc_recalibrate(osc_message: OSCMessage):
         """Route the in-VR recalibrate trigger the same way as the GUI's
-        Start Calibration button: Smart Calib for NEXT (no legacy ellipse
-        path), the overlay spiral for other trackers, classic on-screen
-        sampling when overlay calibration is disabled. The old per-eye
-        classic-only handler silently never completed for NEXT users."""
+        Start Calibration button: Smart Calib for NEXT, the overlay spiral for
+        other trackers, classic on-screen sampling when overlay calibration is
+        disabled. The old per-eye classic-only handler silently never completed
+        for NEXT users."""
         if not isinstance(osc_message.data, bool) or not osc_message.data:
             return
-        use_smartcal = (
-            bool(config.settings.gui_NEXT) or bool(config.settings.gui_NEXT_BSB)
-        ) and not bool(config.settings.gui_NEXT_calibration)
+        use_smartcal = _next_smartcal_selected()
         if config.settings.gui_use_overlay_cal:
             from osc_calibrate_filter import (
                 next_smartcal_overlay,
@@ -301,8 +310,8 @@ def main():
             logger.warning(
                 "OSC recalibrate ignored: NEXT Smart Calib requires the SteamVR "
                 "overlay. Enable 'Use SteamVR Overlay for Calibration' in "
-                "General Settings, or enable 'Allow Calibration' on the NEXT "
-                "tracker for the classic on-screen method."
+                "General Settings, or switch to another tracker for the classic "
+                "on-screen calibration."
             )
             return
         for eye in eyes:
@@ -1238,13 +1247,10 @@ def main():
             return False
 
         def _on_global_calibration_toggle(self):
-            # NEXT without the legacy ellipse path ("Allow Calibration" off)
-            # calibrates via the Smart Calib overlay dot sequence; the ellipse
-            # spiral would collect nothing because the NEXT path never feeds
-            # cal_osc in that configuration.
-            use_smartcal = (
-                bool(config.settings.gui_NEXT) or bool(config.settings.gui_NEXT_BSB)
-            ) and not bool(config.settings.gui_NEXT_calibration)
+            # NEXT calibrates via the Smart Calib overlay dot sequence; the
+            # ellipse spiral would collect nothing, because the NEXT path never
+            # feeds cal_osc. Every other tracker gets the spiral.
+            use_smartcal = _next_smartcal_selected()
             if config.settings.gui_use_overlay_cal:
                 if use_smartcal:
                     self._on_next_smartcal()
@@ -1253,13 +1259,13 @@ def main():
                 return
             if use_smartcal:
                 # No on-screen equivalent exists for the NEXT smart calibration,
-                # and the classic sampler would never finish (cal_osc is skipped
-                # for NEXT while gui_NEXT_calibration is off).
+                # and the classic sampler would never finish (cal_osc is never
+                # fed by the NEXT path).
                 logger.warning(
                     "NEXT Smart Calib requires the SteamVR overlay. Enable "
                     "'Use SteamVR Overlay for Calibration' in General Settings, "
-                    "or enable 'Allow Calibration' on the NEXT tracker for the "
-                    "classic on-screen method."
+                    "or switch to another tracker for the classic on-screen "
+                    "calibration."
                 )
                 return
             # Classic on-screen calibration toggle: stop if running, start if not.

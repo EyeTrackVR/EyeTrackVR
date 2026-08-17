@@ -319,12 +319,8 @@ language_restart_title = "语言已更改"
 language_restart_note = "请重启 EyeTrackVR 以应用新语言。"
 
 [algo_tracking]
-# EN: "NEXT (alpha)"
+# EN: "NEXT (beta)"
 next_beta = "NEXT（beta）"
-# EN: "Allow Calibration"
-allow_calibration = "允许校准"
-# EN: "Pipe NEXT gaze output through the standard calibration filter (ellipse / robust) instead of Smart Calib, and apply the Blink Point / Wide-eye Point remap to the eyelid output. Start Calibration then runs the classic method."
-allow_calibration_tip = "将 NEXT 的视线输出通过标准校准滤波器（椭圆 / 稳健）处理以取代智能校准，并对眼睑输出应用眨眼点 / 睁大眼点的重映射。此时开始校准将运行经典校准方式。"
 # EN: "Max Tracking Speed (Hz)"
 max_tracking_speed = "最大追踪速度（Hz）"
 # EN: "Maximum frames per second the tracker will process. Lower = less CPU, but jerkier motion. 60 Hz is comfortable for most setups."

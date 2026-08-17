@@ -1,5 +1,9 @@
+import logging
+
 import cv2
 import numpy as np
+
+logger = logging.getLogger(__name__)
 
 
 def safe_crop(img, x, y, x2, y2, keepsize=False):
@@ -40,3 +44,38 @@ def circle_crop(img, center_x, center_y, radius):
         return cv2.add(masked_img, masked_color)
     except cv2.error:
         return img
+
+
+# Pillow's Tk bridge (PIL._tkinter_finder + the PyImagingPhoto Tcl command) is a
+# separate native piece that can be absent even though `from PIL import ImageTk`
+# imports fine: frozen Linux builds miss it unless it is a declared hidden
+# import, and some distro Pillow packages are built without it. Every call then
+# raises out of the Tk callback and the whole render tick dies, so no preview is
+# ever drawn. Latch the first failure and use Tk's own PPM decoder from then on.
+_imagetk_failed = False
+
+
+def tk_photo_from_rgb(rgb, master):
+    """RGB uint8 [H, W, 3] -> a Tk image for `master`, or None.
+
+    Prefers PIL.ImageTk and falls back to a raw PPM handed to tkinter's own
+    PhotoImage, which needs no Pillow Tk support. Bytes reach Tcl as a byte
+    array, so the binary pixel data survives intact."""
+    global _imagetk_failed
+    import tkinter as tk
+
+    if not _imagetk_failed:
+        try:
+            from PIL import Image, ImageTk
+
+            return ImageTk.PhotoImage(Image.fromarray(rgb), master=master)
+        except Exception as exc:
+            _imagetk_failed = True
+            logger.warning(
+                "Pillow's Tk image bridge is unavailable (%s); falling back to "
+                "tkinter's PPM decoder for previews.", exc,
+            )
+
+    h, w = rgb.shape[:2]
+    data = b"P6 %d %d 255 " % (w, h) + np.ascontiguousarray(rgb).tobytes()
+    return tk.PhotoImage(master=master, data=data, format="ppm")

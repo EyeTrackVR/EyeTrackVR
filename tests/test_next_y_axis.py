@@ -109,7 +109,6 @@ def _next_processor(*, flip_y=False, calib_lids_brows=True):
     processor = EyeProcessor.__new__(EyeProcessor)
     processor.eye_id = EyeId.LEFT
     processor.settings = SimpleNamespace(
-        gui_NEXT_calibration=False,
         gui_NEXT_calib_lids_brows=calib_lids_brows,
         gui_flip_x_axis_left=False,
         gui_flip_x_axis_right=False,

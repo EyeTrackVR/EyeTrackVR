@@ -922,13 +922,9 @@ class EyeProcessor:
         # Apply the fitted (warp + affine) transform (smart calib) to map raw
         # model gaze -> calibrated gaze. The arctanh warp un-saturates the
         # model's tanh output so the correction stays gentle instead of slamming
-        # to the extremes. Skipped while the legacy ellipse-based
-        # gui_NEXT_calibration is in use so the two paths never compound.
-        if (
-            self._next_smartcal_w is not None
-            and self._next_smartcal_b is not None
-            and not self.settings.gui_NEXT_calibration
-        ):
+        # to the extremes. Smart Calib is NEXT's only calibration, so a fitted
+        # transform always applies.
+        if self._next_smartcal_w is not None and self._next_smartcal_b is not None:
             _cal_x, _cal_y = next_smartcal_apply(
                 self._next_smartcal_w, self._next_smartcal_b,
                 self._next_smartcal_warp, sc_gaze_x, sc_gaze_y,
@@ -972,65 +968,39 @@ class EyeProcessor:
         # read the same scale.
         _set_runtime_value(f"raw_lid_{int(self.eye_id)}", float(eyeopen_raw))
 
-        has_classic_calibration = (
-            self.config.next_classic_calibration_active
-            and self.config.calib_evecs is not None
-            and self.config.calib_axes is not None
-            and self.config.calib_XOFF is not None
-            and isinstance(self.config.calib_evecs, (list, tuple))
-            and isinstance(self.config.calib_axes, (list, tuple))
-        )
-        use_classic_calibration = bool(self.settings.gui_NEXT_calibration) and (
-            self.calibration_start_time is not None
-            or getattr(self, "_ellipse_collect_active", False)
-            or has_classic_calibration
-        )
+        # No classic ellipse path here: NEXT calibrates with Smart Calib only
+        # (see eyetrackapp's _next_smartcal_selected), so cal_osc is never fed
+        # by this tracker and the recenter path below always runs.
 
-        if use_classic_calibration:
-            # cal_osc runs the classic ellipse calibration, which bakes in the
-            # image-space -> gaze orientation flips (flip_x=True, -y) that
-            # pupil-pixel trackers depend on, and then re-applies the user's
-            # flip settings. NEXT's gaze is already correctly oriented, so we
-            # feed the NEGATED raw model gaze: the negation cancels the ellipse's
-            # baked flips (leaving orientation matching the non-calibration path),
-            # while cal_osc still applies gui_flip_* exactly once. Passing
-            # self.rawx/rawy here instead would invert both axes (the baked flip)
-            # AND double-apply the gui flips (cancelling them).
-            self.out_x, self.out_y, self.avg_velocity = cal.cal_osc(
-                self, -model_gaze_x, -model_gaze_y, 0.0
-            )
-        else:
-            # Recenter (NEXT, no-save): when the recenter button is pressed,
-            # capture the current raw gaze as a fixed offset and subtract it so
-            # the output zeroes on the user's current gaze. Unlike calibration
-            # recenter, this offset lives only in memory and is never saved.
-            # gui_recenter_eyes is shared across both eye processors, so hold it
-            # briefly (same 0.2s gate as the calibration path) to let both eyes
-            # capture their offset before clearing the flag.
-            if self.settings.gui_recenter_eyes:
-                self._next_recenter_offset_x = gaze_x
-                self._next_recenter_offset_y = gaze_y
-                now = time.perf_counter()
-                if self._next_recenter_armed_at is None:
-                    self._next_recenter_armed_at = now
-                elif now - self._next_recenter_armed_at >= self._recenter_delay_s:
-                    self.settings.gui_recenter_eyes = False
-                    self._next_recenter_armed_at = None
-            else:
+        # Recenter (NEXT, no-save): when the recenter button is pressed,
+        # capture the current raw gaze as a fixed offset and subtract it so
+        # the output zeroes on the user's current gaze. Unlike calibration
+        # recenter, this offset lives only in memory and is never saved.
+        # gui_recenter_eyes is shared across both eye processors, so hold it
+        # briefly (same 0.2s gate as the calibration path) to let both eyes
+        # capture their offset before clearing the flag.
+        if self.settings.gui_recenter_eyes:
+            self._next_recenter_offset_x = gaze_x
+            self._next_recenter_offset_y = gaze_y
+            now = time.perf_counter()
+            if self._next_recenter_armed_at is None:
+                self._next_recenter_armed_at = now
+            elif now - self._next_recenter_armed_at >= self._recenter_delay_s:
+                self.settings.gui_recenter_eyes = False
                 self._next_recenter_armed_at = None
+        else:
+            self._next_recenter_armed_at = None
 
-            gaze_x -= self._next_recenter_offset_x
-            gaze_y -= self._next_recenter_offset_y
+        gaze_x -= self._next_recenter_offset_x
+        gaze_y -= self._next_recenter_offset_y
 
-            dx = gaze_x - self.out_x
-            dy = gaze_y - self.out_y
-            self.avg_velocity = float(np.sqrt(dx * dx + dy * dy))
-            self.out_x = gaze_x
-            self.out_y = gaze_y
+        dx = gaze_x - self.out_x
+        dy = gaze_y - self.out_y
+        self.avg_velocity = float(np.sqrt(dx * dx + dy * dy))
+        self.out_x = gaze_x
+        self.out_y = gaze_y
 
-        if use_classic_calibration or next_eyelid_tuning_active(
-            self.settings, self.eye_id
-        ):
+        if next_eyelid_tuning_active(self.settings, self.eye_id):
             close_t, wide_t = leap_lid_thresholds_for_eye(
                 self.settings, self.eye_id
             )
@@ -1038,8 +1008,8 @@ class EyeProcessor:
                 eyeopen_raw, close_t, wide_t
             )
         else:
-            # Fresh installs preserve the model's raw eyelid output until the
-            # user calibrates or changes Manual Eyelid Tuning.
+            # Fresh installs preserve the model's eyelid output (Smart Calib's
+            # neutral anchor aside) until the user changes Manual Eyelid Tuning.
             self.eyeopen = eyeopen_raw
 
         # Snap to fully-closed: NEXT openness near zero is treated as a blink so

@@ -29,10 +29,10 @@ from tkinter import ttk
 from queue import Empty
 
 import cv2
-from PIL import Image, ImageTk
 
 from config import EyeTrackConfig
 from eye import EyeId
+from utils.img_utils import tk_photo_from_rgb
 from utils.logging_utils import open_logs
 from localization import tr
 
@@ -257,10 +257,9 @@ class AlgoSettingsWidget(BaseSettingsWidget):
                 elif preview.shape[2] == 3:
                     rgb = cv2.cvtColor(preview, cv2.COLOR_BGR2RGB)
                 else:
-                    rgb = preview[:, :, :3]
+                    rgb = cv2.cvtColor(preview, cv2.COLOR_BGRA2RGB)
 
-                pil_img = Image.fromarray(rgb)
-                photo = ImageTk.PhotoImage(pil_img, master=lbl)
+                photo = tk_photo_from_rgb(rgb, lbl)
                 self._preview_photos[i] = photo
                 lbl.configure(image=photo)
             except Exception:
