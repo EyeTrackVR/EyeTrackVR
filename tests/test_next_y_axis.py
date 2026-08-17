@@ -105,11 +105,12 @@ def test_stereo_next_holds_expressions_for_a_blacked_out_eye():
     assert [round(float(v), 3) for v in out[3:6]] == [0.4, 0.5, 0.6]
 
 
-def _next_processor(*, flip_y=False):
+def _next_processor(*, flip_y=False, calib_lids_brows=True):
     processor = EyeProcessor.__new__(EyeProcessor)
     processor.eye_id = EyeId.LEFT
     processor.settings = SimpleNamespace(
         gui_NEXT_calibration=False,
+        gui_NEXT_calib_lids_brows=calib_lids_brows,
         gui_flip_x_axis_left=False,
         gui_flip_x_axis_right=False,
         gui_flip_y_axis=flip_y,
@@ -131,6 +132,8 @@ def _next_processor(*, flip_y=False):
     processor._next_smartcal_w = None
     processor._next_smartcal_b = None
     processor._next_smartcal_warp = None
+    processor._next_smartcal_lid_neutral = None
+    processor._next_smartcal_brow_neutral = None
     processor._next_recenter_offset_x = 0.0
     processor._next_recenter_offset_y = 0.0
     processor._next_recenter_armed_at = None
@@ -148,3 +151,42 @@ def test_next_postprocessing_only_flips_y_when_requested():
     processor = _next_processor(flip_y=True)
     processor._next_apply(0.25, 0.6, 0.5, 0.5, 0.0)
     assert processor.out_y == -0.6
+
+
+def test_next_lid_brow_calibration_anchors_the_captured_neutral():
+    processor = _next_processor()
+    processor._next_smartcal_lid_neutral = 0.5
+    processor._next_smartcal_brow_neutral = 0.25
+
+    # Feeding the captured neutral back in must produce the target outputs.
+    processor._next_apply(0.0, 0.0, 0.25, 0.5, 0.0)
+    assert round(processor.eyeopen, 3) == 0.75
+    assert round(processor.next_eyebrow, 3) == 0.5
+
+    # The ends of the range stay put: a full blink still reaches 0.
+    processor._next_apply(0.0, 0.0, 1.0, 1.0, 0.0)
+    assert round(processor.eyeopen, 3) == 1.0
+    assert round(processor.next_eyebrow, 3) == 1.0
+    processor._next_apply(0.0, 0.0, 0.0, 0.0, 0.0)
+    assert processor.eyeopen == 0.0
+    assert round(processor.next_eyebrow, 3) == 0.0
+
+
+def test_next_lid_brow_calibration_is_skipped_when_disabled():
+    processor = _next_processor(calib_lids_brows=False)
+    processor._next_smartcal_lid_neutral = 0.5
+    processor._next_smartcal_brow_neutral = 0.25
+
+    processor._next_apply(0.0, 0.0, 0.25, 0.5, 0.0)
+
+    assert round(processor.eyeopen, 3) == 0.5
+    assert round(processor.next_eyebrow, 3) == 0.25
+
+
+def test_next_lid_brow_calibration_is_a_noop_before_it_runs():
+    processor = _next_processor()
+
+    processor._next_apply(0.0, 0.0, 0.25, 0.5, 0.0)
+
+    assert round(processor.eyeopen, 3) == 0.5
+    assert round(processor.next_eyebrow, 3) == 0.25

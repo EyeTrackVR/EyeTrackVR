@@ -21,6 +21,7 @@ class TrackingAlgorithmValidationModel(BaseValidationModel):
     gui_RANSAC3D: bool
     gui_AHRAC: bool
     gui_NEXT: bool
+    gui_NEXT_calib_lids_brows: bool
     gui_model_variant: str
     gui_max_tracking_speed: int
 
@@ -44,13 +45,16 @@ class TrackingAlgorithmModule(BaseSettingsModule):
         self.gui_AHRAC = f"-gui_AHRAC{widget_id}-"
         self.gui_RANSAC3D = f"-RANSAC3D{widget_id}-"
         self.gui_NEXT = f"-NEXT{widget_id}-"
+        self.gui_NEXT_calib_lids_brows = f"-NEXTCALIBLIDSBROWS{widget_id}-"
         self.gui_model_variant = f"-MODELVARIANT{widget_id}-"
         self.gui_max_tracking_speed = f"-MAXTRACKSPEED{widget_id}-"
 
+        # Display order of the tracker radios: NEXT first (the default and the
+        # one under active development), then LEAP, then DADDY.
         self._basic_entries = [
+            (tr("algo_tracking.next_beta"), "next", self.gui_NEXT, "gui_NEXT"),
             ("LEAP", "leap", self.gui_LEAP, "gui_LEAP"),
             ("DADDY", "daddy", self.gui_DADDY, "gui_DADDY"),
-            (tr("algo_tracking.next_alpha"), "next", self.gui_NEXT, "gui_NEXT"),
         ]
         self._advanced_entries = [
             ("AHRAC", "ahrac", self.gui_AHRAC, "gui_AHRAC"),
@@ -91,6 +95,22 @@ class TrackingAlgorithmModule(BaseSettingsModule):
             min_v=self._TRACKING_SPEED_MIN,
             max_v=self._TRACKING_SPEED_MAX,
         )
+
+        # Directly under the speed slider: opt out of having NEXT Smart Calib
+        # anchor this user's neutral eyelid / eyebrow readings.
+        lids_brows_var = tk.BooleanVar(
+            value=bool(getattr(self.config, "gui_NEXT_calib_lids_brows", True))
+        )
+        self.tk_vars[self.gui_NEXT_calib_lids_brows] = lids_brows_var
+        lids_brows_cb = ttk.Checkbutton(
+            parent,
+            text=tr("algo_tracking.next_calib_lids_brows"),
+            variable=lids_brows_var,
+        )
+        lids_brows_cb.grid(
+            row=2, column=0, columnspan=3, sticky="w", padx=8, pady=(2, 4)
+        )
+        attach_tooltip(lids_brows_cb, tr("algo_tracking.next_calib_lids_brows_tip"))
 
         # Shared model variant selector, placed next to Max Tracking Speed.
         model_value = str(getattr(self.config, "gui_model_variant", "ETVR")).upper()

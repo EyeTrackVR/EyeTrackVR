@@ -91,7 +91,15 @@ DEFAULT_LID_WIDEN_THRESHOLD = 0.9
 #           applies after NEXT itself has been calibrated. Preserve an existing
 #           opted-in NEXT calibration without treating classical-tracker fits
 #           as NEXT fits.
-CURRENT_CONFIG_VERSION: int = 4
+#   3 -> 4: "NEXT BSB (stereo)" stopped being its own tracker; NEXT picks the
+#           mono or stereo model itself.
+#   4 -> 5: gui_NEXT_calibration (the legacy ellipse path for NEXT) now
+#           defaults off, so Start Calibration runs NEXT Smart Calib. The
+#           stored True is the old default, not a user choice: it has no GUI
+#           control, and while set it both routed Start Calibration to the
+#           ellipse spiral and blocked the Smart Calib transform from being
+#           applied.
+CURRENT_CONFIG_VERSION: int = 5
 
 
 def _migrate_config_dict(data: dict) -> dict:
@@ -155,6 +163,18 @@ def _migrate_config_dict(data: dict) -> dict:
             settings["gui_NEXT"] = True
             logger.info("Migrated config from v3: NEXT BSB folded into NEXT")
 
+    if stored < 5:
+        # Hand NEXT calibration to Smart Calib. gui_NEXT_calibration is the
+        # legacy ellipse path and has never had a GUI control, so a stored
+        # True can only be the old default; left set, Start Calibration runs
+        # the ellipse spiral and the Smart Calib fit is never applied.
+        settings = data.get("settings")
+        if isinstance(settings, dict) and settings.get("gui_NEXT_calibration"):
+            settings["gui_NEXT_calibration"] = False
+            logger.info(
+                "Migrated config from v4: NEXT now calibrates via Smart Calib"
+            )
+
     data["version"] = CURRENT_CONFIG_VERSION
     return data
 
@@ -209,6 +229,14 @@ class EyeTrackCameraConfig(BaseModel):
     next_smartcal_w: Union[List[float], None] = None
     next_smartcal_b: Union[List[float], None] = None
     next_smartcal_warp: Union[str, None] = None
+    # NEXT Smart Calibration, lid/brow half: the user's neutral raw readings,
+    # captured across the same dot sequence (the face is at rest the whole time,
+    # so every dot is a neutral sample). Each is the anchor of a piecewise-linear
+    # remap that maps neutral onto NEXT_SMARTCAL_LID_TARGET / _BROW_TARGET while
+    # pinning 0 -> 0 and 1 -> 1. None until "NEXT Smart Calib" runs with
+    # gui_NEXT_calib_lids_brows enabled. See osc_calibrate_filter.
+    next_smartcal_lid_neutral: Union[float, None] = None
+    next_smartcal_brow_neutral: Union[float, None] = None
 
     @field_validator("calib_axes", "calib_evecs", "calib_center", mode="before")
     @classmethod
@@ -347,10 +375,16 @@ class EyeTrackSettingsConfig(BaseModel):
     # Retired: the separate "NEXT BSB (stereo)" tracker, folded into gui_NEXT by
     # the v4 config migration. Kept so old configs still load.
     gui_NEXT_BSB: bool = False
-    # Calibration is available without a GUI opt-in. The NEXT processor only
-    # applies it once a calibration is running/fitted, so raw default output is
-    # unchanged on a fresh install.
-    gui_NEXT_calibration: bool = True
+    # Legacy ellipse calibration path for NEXT ("Allow Calibration"). Off, so
+    # Start Calibration runs NEXT Smart Calib (the overlay dot sequence) and
+    # the fitted transform is applied. Config-only escape hatch: setting this
+    # True routes NEXT back through cal_osc's ellipse fit instead, which also
+    # suppresses Smart Calib. There is deliberately no GUI control.
+    gui_NEXT_calibration: bool = False
+    # Also calibrate eyelid and eyebrow during NEXT Smart Calib: the face is
+    # neutral throughout the dot sequence, so those captures anchor "normal
+    # open" / "neutral brow" to their target output values.
+    gui_NEXT_calib_lids_brows: bool = True
     # Shared model variant for both NEXT and eyebrow models: ETVR / BSB / TOBII.
     # Selects Models/NEXT_<VARIANT>.onnx and Models/Eyebrow_<VARIANT>.onnx.
     gui_model_variant: str = "ETVR"

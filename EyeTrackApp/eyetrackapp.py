@@ -1400,9 +1400,16 @@ def main():
             # The reset escape hatch is only meaningful when a fitted transform
             # is actually saved; keeping it hidden otherwise avoids cluttering
             # the action row for fresh installs.
-            has_fit = (
-                config.left_eye.next_smartcal_w is not None
-                or config.right_eye.next_smartcal_w is not None
+            # Lid/brow anchors count too: a run whose gaze fit was rejected can
+            # still have calibrated those, and Reset clears all of it.
+            has_fit = any(
+                getattr(eye, field, None) is not None
+                for eye in (config.left_eye, config.right_eye)
+                for field in (
+                    "next_smartcal_w",
+                    "next_smartcal_lid_neutral",
+                    "next_smartcal_brow_neutral",
+                )
             )
             show = (
                 (bool(config.settings.gui_NEXT) or bool(config.settings.gui_NEXT_BSB))

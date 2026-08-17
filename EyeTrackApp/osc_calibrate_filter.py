@@ -633,6 +633,96 @@ _SMARTCAL_MIN_RAW_SPREAD = 0.10
 _SMARTCAL_SANITY_EARLY_R = 0.50
 _SMARTCAL_SANITY_EARLY_MAX = 0.85
 
+# ── Lid / brow half of the smart calibration ──────────────────────────────────
+# The user holds a neutral face for the whole dot sequence (they are only moving
+# their eyes), so every captured frame is a sample of "eyes normally open, brow
+# at rest". Those two medians are anchored to the output values below.
+NEXT_SMARTCAL_LID_TARGET = 0.75
+NEXT_SMARTCAL_BROW_TARGET = 0.5
+# A neutral outside these bounds is not a resting face (eyes held shut or
+# forced wide, brow pinned): anchoring to it would either crush the closed
+# range or leave no headroom above neutral. Rejected rather than saved.
+_SMARTCAL_LID_NEUTRAL_MIN = 0.15
+_SMARTCAL_LID_NEUTRAL_MAX = 0.98
+_SMARTCAL_BROW_NEUTRAL_MIN = 0.05
+_SMARTCAL_BROW_NEUTRAL_MAX = 0.95
+# Total samples (across all dots) needed before a median means anything.
+_SMARTCAL_MIN_NEUTRAL_SAMPLES = 30
+
+
+def next_smartcal_neutral_apply(value: float, neutral, target: float) -> float:
+    """Remap one expression channel so the user's neutral reads as ``target``.
+
+    Piecewise-linear through (0, 0), (neutral, target) and (1, 1): the fully
+    closed and fully open/raised ends stay where they are, only the resting
+    point moves. A plain gain would clip the top of the range and a plain
+    offset would stop a blink from ever reaching 0.
+
+    ``neutral`` None (not calibrated) returns the value untouched."""
+    if neutral is None:
+        return value
+    n = float(neutral)
+    if not (0.0 < n < 1.0):
+        return value
+    v = max(0.0, min(1.0, float(value)))
+    if v <= n:
+        return target * (v / n)
+    return target + (1.0 - target) * ((v - n) / (1.0 - n))
+
+
+def _fit_next_smartcal_neutrals(eye_processors: list) -> bool:
+    """Anchor each eye's neutral lid/brow reading to its target output.
+
+    Uses the same per-dot captures as the gaze fit (fields 2 and 3 of each
+    sample), pooled across every dot: the face is at rest for the whole
+    sequence, so there is nothing per-dot about these two channels. The median
+    over the pool rejects the blinks that inevitably happen during it."""
+    saved_any = False
+    for ep in eye_processors:
+        eye = getattr(ep, "eye_id", "?")
+        pooled = [
+            s for pts in (getattr(ep, "_next_smartcal_samples", {}) or {}).values()
+            for s in pts if len(s) >= 4
+        ]
+        if len(pooled) < _SMARTCAL_MIN_NEUTRAL_SAMPLES:
+            logger.warning(
+                "NEXT smart cal (eye %s): only %d lid/brow samples (<%d); "
+                "keeping previous lid/brow calibration.",
+                eye, len(pooled), _SMARTCAL_MIN_NEUTRAL_SAMPLES,
+            )
+            continue
+        arr = np.asarray(pooled, dtype=np.float64)
+        lid = float(np.median(arr[:, 2]))
+        brow = float(np.median(arr[:, 3]))
+        logger.info(
+            "NEXT smart cal (eye %s): neutral lid %.3f -> %.2f, brow %.3f -> %.2f "
+            "(%d samples)",
+            eye, lid, NEXT_SMARTCAL_LID_TARGET, brow, NEXT_SMARTCAL_BROW_TARGET,
+            len(pooled),
+        )
+        if not _SMARTCAL_LID_NEUTRAL_MIN <= lid <= _SMARTCAL_LID_NEUTRAL_MAX:
+            logger.warning(
+                "NEXT smart cal (eye %s): neutral eyelid %.3f is outside "
+                "[%.2f, %.2f] - were the eyes open and relaxed? Keeping the "
+                "previous lid calibration.",
+                eye, lid, _SMARTCAL_LID_NEUTRAL_MIN, _SMARTCAL_LID_NEUTRAL_MAX,
+            )
+        else:
+            ep.config.next_smartcal_lid_neutral = lid
+            ep._next_smartcal_lid_neutral = lid
+            saved_any = True
+        if not _SMARTCAL_BROW_NEUTRAL_MIN <= brow <= _SMARTCAL_BROW_NEUTRAL_MAX:
+            logger.warning(
+                "NEXT smart cal (eye %s): neutral eyebrow %.3f is outside "
+                "[%.2f, %.2f]. Keeping the previous brow calibration.",
+                eye, brow, _SMARTCAL_BROW_NEUTRAL_MIN, _SMARTCAL_BROW_NEUTRAL_MAX,
+            )
+        else:
+            ep.config.next_smartcal_brow_neutral = brow
+            ep._next_smartcal_brow_neutral = brow
+            saved_any = True
+    return saved_any
+
 
 def _smartcal_warp_scalar(v: float, warp) -> float:
     """De-saturate one raw gaze component into the fit space selected by ``warp``.
@@ -700,16 +790,23 @@ def next_smartcal_transform_is_sane(w, b, warp=None) -> bool:
 
 
 def reset_next_smartcal(eye_processors: list, baseconfig) -> None:
-    """Clear the fitted smart-cal transform (memory + config) for all eyes."""
+    """Clear the fitted smart-cal transform (memory + config) for all eyes,
+    lid/brow anchors included."""
     for ep in eye_processors:
         ep._next_smartcal_w = None
         ep._next_smartcal_b = None
         ep._next_smartcal_warp = None
+        ep._next_smartcal_lid_neutral = None
+        ep._next_smartcal_brow_neutral = None
         ep.config.next_smartcal_w = None
         ep.config.next_smartcal_b = None
         ep.config.next_smartcal_warp = None
+        ep.config.next_smartcal_lid_neutral = None
+        ep.config.next_smartcal_brow_neutral = None
     baseconfig.save()
-    logger.info("NEXT smart cal: transforms cleared (raw model gaze restored).")
+    logger.info(
+        "NEXT smart cal: transforms cleared (raw model gaze, lid and brow restored)."
+    )
 
 
 def _fit_next_smartcal(eye_processors: list, baseconfig, settings) -> bool:
@@ -852,6 +949,12 @@ def _fit_next_smartcal(eye_processors: list, baseconfig, settings) -> bool:
             eye, len(raws), warp,
             [round(v, 4) for v in w], [round(v, 4) for v in b], residual,
         )
+
+    # The lid/brow anchors are fit independently of the gaze transform: they
+    # need far less data, so a gaze fit that was rejected (or skipped for too
+    # few dots) must not cost the user their lid/brow calibration.
+    if getattr(settings, "gui_NEXT_calib_lids_brows", True):
+        saved_any = _fit_next_smartcal_neutrals(eye_processors) or saved_any
 
     if saved_any:
         baseconfig.save()

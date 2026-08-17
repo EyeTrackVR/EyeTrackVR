@@ -208,8 +208,12 @@ class EyeProcessor:
         # NEXT Smart Calibration state.
         #   _next_smartcal_active_dot: index (0..10) of the overlay dot currently
         #     being held/sampled, or None when not calibrating.
-        #   _next_smartcal_samples: {dot -> [(raw_gaze_x, raw_gaze_y), ...]}
-        #     accumulated while that dot is held; medianed at fit time.
+        #   _next_smartcal_samples: {dot -> [(raw_gaze_x, raw_gaze_y, raw_lid,
+        #     raw_brow), ...]} accumulated while that dot is held; medianed at
+        #     fit time. Gaze is medianed per dot; lid/brow are pooled across all
+        #     dots (the face is neutral for the whole sequence).
+        #   _next_smartcal_lid_neutral / _brow_neutral: the captured resting
+        #     readings those two channels are re-anchored against, or None.
         #   _next_smartcal_w / _b: the fitted affine transform (loaded from
         #     config) applied to the raw model gaze each frame, or None.
         #   _next_smartcal_warp: the space the affine was fit in ("atanh" =
@@ -229,6 +233,12 @@ class EyeProcessor:
             else None
         )
         self._next_smartcal_warp = getattr(self.config, "next_smartcal_warp", None)
+        self._next_smartcal_lid_neutral = getattr(
+            self.config, "next_smartcal_lid_neutral", None
+        )
+        self._next_smartcal_brow_neutral = getattr(
+            self.config, "next_smartcal_brow_neutral", None
+        )
         # Validate transforms persisted by older builds (which saved fits with
         # no sanity checks): a degenerate transform pins the clipped gaze output
         # to the corners, which reads as "tracking completely broken". Ignore
@@ -881,6 +891,11 @@ class EyeProcessor:
         # Raw model gaze, before user-configured flips, in [-1, 1].
         model_gaze_x, model_gaze_y = gaze_x, gaze_y
 
+        # Openness as the model reports it: lid aperture scaled down by squeeze,
+        # so a forceful squint reads as more closed. This is the channel the
+        # lid calibration and every downstream consumer work on.
+        eyeopen_raw = eyelid * max(0.0, 1.0 - squeeze)
+
         # ── NEXT Smart Calibration ────────────────────────────────────────────
         # Capture and apply calibration in the model's native coordinate space;
         # NEXT does not impose an algorithm-specific Y-axis inversion.
@@ -896,8 +911,12 @@ class EyeProcessor:
             time.monotonic() - self._next_smartcal_dot_started
             <= NEXT_SMARTCAL_CAPTURE_WINDOW_S
         ):
+            # Lid and brow ride along in the same sample: the user holds a
+            # neutral face for the whole sequence, so these are captures of
+            # "eyes normally open, brow at rest" (pooled across dots at fit
+            # time). Costs nothing extra and needs no second calibration pass.
             self._next_smartcal_samples.setdefault(_sc_dot, []).append(
-                (sc_gaze_x, sc_gaze_y)
+                (sc_gaze_x, sc_gaze_y, eyeopen_raw, eyebrow)
             )
 
         # Apply the fitted (warp + affine) transform (smart calib) to map raw
@@ -931,11 +950,26 @@ class EyeProcessor:
         self.rawx = gaze_x
         self.rawy = gaze_y
 
-        # Raw eyelid openness (pre-remap). Publish on the same runtime channel
-        # LEAP uses so the settings-menu lid visualizer shows a live indicator
-        # for NEXT too; this is what makes the close/widen markers tunable
-        # against live tracking when NEXT calibration is enabled.
-        eyeopen_raw = eyelid * max(0.0, 1.0 - squeeze)
+        # Lid/brow smart calibration: re-anchor this user's neutral face onto
+        # the target output values (normal-open lid, neutral brow), leaving
+        # fully closed and fully open/raised where they are. Captured by the
+        # same dot sequence as the gaze fit; a no-op until that has run.
+        if self.settings.gui_NEXT_calib_lids_brows:
+            eyeopen_raw = next_smartcal_neutral_apply(
+                eyeopen_raw, self._next_smartcal_lid_neutral,
+                NEXT_SMARTCAL_LID_TARGET,
+            )
+            eyebrow = next_smartcal_neutral_apply(
+                eyebrow, self._next_smartcal_brow_neutral,
+                NEXT_SMARTCAL_BROW_TARGET,
+            )
+
+        # Eyelid openness before the close/widen remap. Publish on the same
+        # runtime channel LEAP uses so the settings-menu lid visualizer shows a
+        # live indicator for NEXT too; this is what makes the close/widen
+        # markers tunable against live tracking when NEXT calibration is
+        # enabled. Post lid-calibration, so the markers and the remap below all
+        # read the same scale.
         _set_runtime_value(f"raw_lid_{int(self.eye_id)}", float(eyeopen_raw))
 
         has_classic_calibration = (

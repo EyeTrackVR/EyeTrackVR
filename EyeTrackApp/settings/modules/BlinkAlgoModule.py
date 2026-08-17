@@ -288,18 +288,10 @@ class BlinkAlgoSettingsModule(BaseSettingsModule):
         return col
 
     def build(self, parent):
-        # Row 0: algorithm toggles.
-        for idx, (key, default, label, tip) in enumerate(
-            [
-                (self.gui_LEAP_lid, self.config.gui_LEAP_lid, tr("algo_blink.leap_lid"), tr("algo_blink.leap_lid_tip")),
-                (self.gui_eyebrow, self.config.gui_eyebrow, tr("algo_blink.eyebrow"), tr("algo_blink.eyebrow_tip")),
-            ]
-        ):
-            var = tk.BooleanVar(value=default)
-            self.tk_vars[key] = var
-            cb = ttk.Checkbutton(parent, text=label, variable=var)
-            cb.grid(row=0, column=idx, sticky="w", padx=8, pady=(2, 6))
-            attach_tooltip(cb, tip)
+        # The LEAP Lid / EyeBrow algorithm toggles live under Advanced on this
+        # page (see build_advanced). Their tk vars are created there, which the
+        # settings widget builds eagerly, so validation and the LEAP auto-check
+        # wiring still find them while the popup is closed.
 
         # Build manual threshold variables eagerly so validation and live model
         # updates continue even while the disclosure panel is collapsed.
@@ -444,6 +436,21 @@ class BlinkAlgoSettingsModule(BaseSettingsModule):
         right_widen.set(f"{DEFAULT_LID_WIDEN_THRESHOLD:.2f}")
 
     def build_advanced(self, parent):
+        # Row 0: the LEAP Lid / EyeBrow algorithm toggles, moved off the main
+        # page. Built here (eagerly, popup or not) so their tk vars exist for
+        # validation and for the LEAP -> LEAP Lid auto-check wiring.
+        for idx, (key, default, label, tip) in enumerate(
+            [
+                (self.gui_LEAP_lid, self.config.gui_LEAP_lid, tr("algo_blink.leap_lid"), tr("algo_blink.leap_lid_tip")),
+                (self.gui_eyebrow, self.config.gui_eyebrow, tr("algo_blink.eyebrow"), tr("algo_blink.eyebrow_tip")),
+            ]
+        ):
+            var = tk.BooleanVar(value=default)
+            self.tk_vars[key] = var
+            cb = ttk.Checkbutton(parent, text=label, variable=var)
+            cb.grid(row=0, column=idx, sticky="w", padx=8, pady=2)
+            attach_tooltip(cb, tip)
+
         blink_var = tk.BooleanVar(value=self.config.gui_BLINK)
         ibo_var = tk.BooleanVar(value=self.config.gui_IBO)
         self.tk_vars[self.gui_BLINK] = blink_var
@@ -452,29 +459,29 @@ class BlinkAlgoSettingsModule(BaseSettingsModule):
             parent,
             text=tr("algo_advanced.binary_blink"),
             variable=blink_var,
-        ).grid(row=0, column=0, sticky="w", padx=8, pady=2)
+        ).grid(row=1, column=0, sticky="w", padx=8, pady=2)
         ibo_cb = ttk.Checkbutton(
             parent,
             text=tr("algo_blink.intensity_based_openness"),
             variable=ibo_var,
         )
-        ibo_cb.grid(row=0, column=1, sticky="w", padx=8, pady=2)
+        ibo_cb.grid(row=1, column=1, sticky="w", padx=8, pady=2)
         attach_tooltip(ibo_cb, tr("algo_blink.intensity_based_openness_tip"))
 
         ttk.Label(parent, text=tr("algo_blink.advanced_heading")).grid(
-            row=1, column=0, columnspan=2, sticky="w", padx=8, pady=(8, 4)
+            row=2, column=0, columnspan=2, sticky="w", padx=8, pady=(8, 4)
         )
         cal_dur_lbl = ttk.Label(parent, text=tr("algo_blink.calibration_duration"))
-        cal_dur_lbl.grid(row=2, column=0, sticky="w", padx=8, pady=2)
+        cal_dur_lbl.grid(row=3, column=0, sticky="w", padx=8, pady=2)
         attach_tooltip(cal_dur_lbl, tr("algo_blink.calibration_duration_tip"))
         ttk.Entry(parent, textvariable=self._eyelid_duration_var, width=8).grid(
-            row=2, column=1, sticky="w", pady=2
+            row=3, column=1, sticky="w", pady=2
         )
         min_span_lbl = ttk.Label(parent, text=tr("algo_blink.min_blink_size"))
-        min_span_lbl.grid(row=3, column=0, sticky="w", padx=8, pady=2)
+        min_span_lbl.grid(row=4, column=0, sticky="w", padx=8, pady=2)
         attach_tooltip(min_span_lbl, tr("algo_blink.min_blink_size_tip"))
         ttk.Entry(parent, textvariable=self._leap_min_span_var, width=8).grid(
-            row=3, column=1, sticky="w", pady=2
+            row=4, column=1, sticky="w", pady=2
         )
 
     def _on_redo_eyelid_calib(self):

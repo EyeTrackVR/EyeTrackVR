@@ -320,7 +320,7 @@ language_restart_note = "Starte EyeTrackVR neu, um die neue Sprache anzuwenden."
 
 [algo_tracking]
 # EN: "NEXT (alpha)"
-next_alpha = "NEXT (alpha)"
+next_beta = "NEXT (beta)"
 # EN: "Allow Calibration"
 allow_calibration = "Kalibrierung erlauben"
 # EN: "Pipe NEXT gaze output through the standard calibration filter (ellipse / robust) instead of Smart Calib, and apply the Blink Point / Wide-eye Point remap to the eyelid output. Start Calibration then runs the classic method."
