@@ -522,11 +522,11 @@ _SMARTCAL_WARP = None
 # Overlay finetune dot-placement caps (degrees), mirroring the overlay's fov.h
 # defaults (max_deg / max_deg_up / max_deg_down). The finetune mode launches with
 # no CLI args, so these fixed defaults are always in effect. The overlay places a
-# dot at overlay-normalized n at physical angle atan(n * tan(cap)) — linear in
+# dot at overlay-normalized n at physical angle atan(n * tan(cap)) which is linear in
 # TANGENT out to these oculomotor caps. Keep in sync if the overlay's finetune
 # caps change. (Assumes the caps bind, true on wide-FOV HMDs; if the overlay's
 # coverage clamp binds instead the true dot angle is a touch smaller, which only
-# makes the derived targets slightly conservative — never larger than the old
+# makes the derived targets slightly conservative and never larger than the old
 # radius-as-target behaviour, so headroom is never lost.)
 _SMARTCAL_OVERLAY_CAP_YAW = 30.0
 _SMARTCAL_OVERLAY_CAP_UP = 15.0
@@ -552,14 +552,14 @@ def next_smartcal_targets(settings):
     """Calibration fit target (output-normalized gaze) for each overlay dot.
 
     The overlay draws a dot at overlay-normalized (nx, ny), which physically sits
-    at atan(n * tan(overlay_cap)) — an oculomotor-limited eccentricity INSIDE the
+    at atan(n * tan(overlay_cap)) which is an oculomotor-limited eccentricity INSIDE the
     display FOV. Fitting the outer ring straight to its overlay radius (~0.90)
     makes that inset dot ≈full output, so calibrated gaze clips at the oculomotor
     cap: the eye can travel further toward the FOV edge but the output is already
     pinned ("can't reach the edge").
 
     Instead, express each dot as its fraction of the OUTPUT full-scale FOV
-    (config gui_gaze_*_max_deg — the angle ±1 maps to). Both the overlay
+    (config gui_gaze_*_max_deg which is the angle ±1 maps to). Both the overlay
     placement and the output angle are tangent-linear, so per axis:
 
         target = overlay_norm * tan(overlay_cap) / tan(output_edge)
@@ -627,7 +627,7 @@ _SMARTCAL_MIN_RAW_SPREAD = 0.10
 # looking there" failure: a modest raw gaze (radius EARLY_R) must NOT already
 # map near the output edge. A degenerate over-gained fit pins small gaze to the
 # corner; this catches it directly. (A warp+affine with det(W) > 0 is injective,
-# so no fold-back / monotonicity walk is needed — that was only for the old
+# so no fold back or monotonicity walk is needed because that was only for the old
 # cubic.) The limit leaves headroom for a real per-user gain without allowing
 # half gaze to clip at the output edge.
 _SMARTCAL_SANITY_EARLY_R = 0.50
@@ -813,7 +813,7 @@ def _fit_next_smartcal(eye_processors: list, baseconfig, settings) -> bool:
     """Least-squares fit a per-eye affine gaze transform from collected samples.
 
     Each output axis is fit independently as a 3-unknown affine on the per-dot
-    raw medians (optionally arctanh-warped first; off by default — see the module
+    raw medians with optional arctanh warping first. This is off by default. See the module
     header for why this model uses a plain affine):
         x_cal = w11*gx + w12*gy + b1
         y_cal = w21*gx + w22*gy + b2   (gx, gy = raw, or arctanh(raw) if warping)
@@ -857,7 +857,7 @@ def _fit_next_smartcal(eye_processors: list, baseconfig, settings) -> bool:
 
         # Diagnostic dump (INFO so it shows without debug config): the captured
         # raw median for each held dot against its target. Lets a rejected fit be
-        # read straight from the log — if the raw pairs don't separate the rings
+        # read straight from the log when the raw pairs do not separate the rings
         # (inner ≈ outer) the model output is plateauing; if a sign is inverted
         # vs the target the capture is flipped; wide scatter = noisy follow.
         logger.info(
@@ -887,7 +887,7 @@ def _fit_next_smartcal(eye_processors: list, baseconfig, settings) -> bool:
         warp = _SMARTCAL_WARP
         if warp == "atanh":
             # De-saturate into a space where a saturating model is ~linear in
-            # true gaze. (Off by default — this model under-drives, see header.)
+            # true gaze. This is off by default because this model under drives. See the header.
             Rc = np.clip(R, -_SMARTCAL_WARP_CLAMP, _SMARTCAL_WARP_CLAMP)
             G = np.arctanh(Rc)
         else:

@@ -44,7 +44,7 @@ logger = logging.getLogger(__name__)
 # matching ONNX file (Models/Eyebrow_<VARIANT>.onnx) is loaded. The "<BASE> LITE"
 # variants are the fp16 NEXT builds; the eyebrow model has no fp16 build, so Lite
 # falls back to the base variant's eyebrow file here.
-MODEL_VARIANTS = ("ETVR", "BSB", "TOBII", "ETVR LITE", "BSB LITE")
+MODEL_VARIANTS = ("ETVR", "BSB", "PSVR", "TOBII", "ETVR LITE", "BSB LITE")
 DEFAULT_MODEL_VARIANT = "ETVR"
 # Suffix that marks an fp16 ("Lite") variant.
 _LITE_SUFFIX = " LITE"
@@ -58,6 +58,10 @@ def model_file_for_variant(variant: str) -> str:
         variant = DEFAULT_MODEL_VARIANT
     if variant.endswith(_LITE_SUFFIX):
         variant = variant[: -len(_LITE_SUFFIX)].strip()
+    # PSVR is a NEXT-only model family. Keep the independent eyebrow tracker on
+    # its general ETVR model instead of requiring an Eyebrow_PSVR artifact.
+    if variant == "PSVR":
+        variant = "ETVR"
     return f"Models/Eyebrow_{variant}.onnx"
 _IMAGENET_MEAN = np.array([0.485, 0.456, 0.406], dtype=np.float32).reshape(3, 1, 1)
 _IMAGENET_STD = np.array([0.229, 0.224, 0.225], dtype=np.float32).reshape(3, 1, 1)

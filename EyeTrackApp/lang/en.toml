@@ -258,7 +258,7 @@ next_calib_lids_brows_tip = "During NEXT Smart Calib, also calibrate eyelid and 
 max_tracking_speed = "Max Tracking Speed (Hz)"
 max_tracking_speed_tip = "Maximum frames per second the tracker will process. Lower = less CPU, but jerkier motion. 60 Hz is comfortable for most setups."
 model = "Model"
-model_tip = "Which model variant to load for both the NEXT tracker and the eyebrow model. ETVR is the default; BSB and Tobii load the matching NEXT_<variant>.onnx / Eyebrow_<variant>.onnx files. With two eyes connected the matching stereo build (NEXT_<variant>_STEREO.onnx) is used automatically, if the variant ships one. The Lite options (ETVR Lite / BSB Lite) load an fp16 build of the NEXT model (smaller and faster, at a small precision cost)."
+model_tip = "Which NEXT model variant to load. ETVR is the default; BSB follows Bigscreen setup mode automatically. PSVR is manual-only and loads NEXT_PSVR.onnx. Tobii loads its matching variant. With two eyes connected a matching stereo build is used automatically when one is shipped. The Lite options load an fp16 NEXT build."
 advanced_heading = "Tracking Algorithm (advanced)"
 leap_tip = "LEAP: neural-network pupil tracker. Best general-purpose choice; handles low contrast and partial occlusion well."
 ahrac_tip = "AHRAC: adaptive HSF + RANSAC. Falls back to RANSAC when HSF can't lock on. Good middle ground."

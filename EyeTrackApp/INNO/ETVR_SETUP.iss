@@ -2,7 +2,7 @@
 ; SEE THE DOCUMENTATION FOR DETAILS ON CREATING INNO SETUP SCRIPT FILES!
 
 #define MyAppName "EyeTrackVR"
-#define MyAppVersion "0.3.0 BETA 8"
+#define MyAppVersion "0.3.0 BETA 9"
 #define MyAppPublisher "EyeTrackVR"
 #define MyAppURL "https://github.com/EyeTrackVR/EyeTrackVR/"
 #define MyAppExeName "eyetrackapp.exe"
@@ -22,7 +22,7 @@ DefaultDirName={autopf}\{#MyAppName}
 DisableProgramGroupPage=yes
 ; Uncomment the following line to run in non administrative install mode (install for current user only.)
 ;PrivilegesRequired=lowest
-OutputBaseFilename=EyeTrackVR-Setup-0.3.0-BETA-8
+OutputBaseFilename=EyeTrackVR-Setup-0.3.0-BETA-9
 SetupIconFile=..\Images\logo.ico
 Compression=lzma/ultra64
 SolidCompression=yes

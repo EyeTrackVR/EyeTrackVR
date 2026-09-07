@@ -80,6 +80,10 @@ def is_http_capture_source(addr: str) -> bool:
 # Cap local-file decode rate so files do not run faster than real time.
 _FAST_CAPTURE_MAX_FPS = 120.0
 _FAST_CAPTURE_MIN_INTERVAL = 1.0 / _FAST_CAPTURE_MAX_FPS
+# Ask UVC cameras for their compressed, high-frame-rate profile. DirectShow
+# otherwise commonly selects uncompressed YUY2, which can be limited by USB
+# bandwidth even when OBS/Discord can run the same camera smoothly as MJPEG.
+_UVC_REQUESTED_FPS = 120.0
 # Reconnect backoff for network sources (seconds). Each failed reopen blocks the
 # capture thread in native cv2 for up to the open-timeout, so retries are spaced with
 # an exponential backoff (min..max) instead of hammering a dead host every loop tick,
@@ -245,6 +249,45 @@ class Camera:
         source change so a fresh source starts retrying immediately."""
         self._network_reconnect_backoff = 0.0
         self._network_reconnect_delay = 0.0
+
+    @staticmethod
+    def _fourcc_name(value: float) -> str:
+        """Turn OpenCV's numeric FOURCC property into a readable log value."""
+        try:
+            code = int(value)
+            name = "".join(chr((code >> (8 * i)) & 0xFF) for i in range(4))
+            return name if all(32 <= ord(c) < 127 for c in name) else str(code)
+        except (TypeError, ValueError, OverflowError):
+            return str(value)
+
+    def _negotiate_uvc_profile(self, cam) -> None:
+        """Prefer the profile high-FPS webcam applications normally request.
+
+        Camera drivers are allowed to reject either property; capture remains
+        usable with the driver's fallback profile in that case.
+        """
+        try:
+            requested_fourcc = cv2.VideoWriter_fourcc(*"MJPG")
+            fourcc_ok = cam.set(cv2.CAP_PROP_FOURCC, requested_fourcc)
+            fps_ok = cam.set(cv2.CAP_PROP_FPS, _UVC_REQUESTED_FPS)
+            actual_fourcc = Camera._fourcc_name(cam.get(cv2.CAP_PROP_FOURCC))
+            actual_width = cam.get(cv2.CAP_PROP_FRAME_WIDTH)
+            actual_height = cam.get(cv2.CAP_PROP_FRAME_HEIGHT)
+            actual_fps = cam.get(cv2.CAP_PROP_FPS)
+            logger.info(
+                "UVC profile: %sx%s @ %s fps, format=%s "
+                "(MJPG accepted=%s, FPS accepted=%s)",
+                int(actual_width),
+                int(actual_height),
+                actual_fps,
+                actual_fourcc,
+                fourcc_ok,
+                fps_ok,
+            )
+        except Exception as exc:
+            # Profile negotiation is an optimization, never a reason to reject
+            # a camera that the backend already opened successfully.
+            logger.warning("Could not negotiate UVC MJPEG/FPS profile: %s", exc)
 
     def _bump_network_reconnect_backoff(self) -> None:
         """Grow the network reconnect backoff (exponential, capped at
@@ -437,6 +480,11 @@ class Camera:
                             _backend = cv2.CAP_V4L2
                         else:
                             _backend = cv2.CAP_ANY
+                        is_uvc = isinstance(open_source, int) or (
+                            sys.platform.startswith("linux")
+                            and isinstance(open_source, str)
+                            and open_source.startswith("/dev/")
+                        )
                         # https://github.com/opencv/opencv/blob/4.8.0/modules/videoio/include/opencv2/videoio.hpp#L803
                         try:
                             cam.open(open_source, _backend)
@@ -451,6 +499,8 @@ class Camera:
                             if self.cancellation_event.wait(WAIT_TIME):
                                 return
                             continue
+                        if is_uvc and cam.isOpened():
+                            self._negotiate_uvc_profile(cam)
                         # A network open can return without raising yet still not be
                         # connected (dead host / timed-out mDNS). Treat that as a failed
                         # attempt so the backoff applies instead of spinning on reopen.
@@ -520,10 +570,10 @@ class Camera:
                 image = cv2.resize(image, (680, new_height))
             if should_push and throttle_source:
                 self._last_cv_cap_frame_time = time.time()
-            if is_http:
+            if is_http or not is_file_video:
                 # Live streams have no meaningful seek position. Avoid asking
-                # FFmpeg for CAP_PROP_POS_FRAMES on every frame and maintain a
-                # lightweight local sequence number instead.
+                # their backend for CAP_PROP_POS_FRAMES on every frame and
+                # maintain a lightweight local sequence number instead.
                 self.frame_number += 1
                 frame_number = self.frame_number
             else:

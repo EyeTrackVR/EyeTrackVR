@@ -165,10 +165,10 @@ OVERLAY_POINT_NAMES = {
 
 # Jitter grid base positions ordered as a smooth snake path.
 #
-# Layout (22 points) — broad radial coverage. The gaze LABEL
+# Layout with 22 points for broad radial coverage. The gaze LABEL
 # for each point is its coordinate, and the deployed model was under-reaching
-# (only ~±0.6 at full gaze) because this dense grid — the bulk of the gaze
-# supervision — previously topped out at ±0.60, *narrower* than the overlay's
+# (only ~±0.6 at full gaze) because this dense grid formed most of the gaze
+# supervision and previously topped out at ±0.60, *narrower* than the overlay's
 # ±0.786 fixed ring. Relocating (not adding) these points to the edge shifts the
 # dense label mass outward so the model learns to use its full range, at zero
 # extra capture time. Each dot is a saccade target (appear→shrink→hold), so the
@@ -239,7 +239,7 @@ def _jittered_grid_positions(session_seed, pass_index, n=22, jitter=0.12):
 
 # ── Blink-at-dot pass ─────────────────────────────────────────────────────────
 # The user fixates a pinned dot and blinks repeatedly with a relaxed brow.
-# Burst captures sample every phase of the blink sweep — the mid-blink frames
+# Burst captures sample every phase of the blink sweep including the mid blink frames
 # that held-pose prompts never produce and that the model otherwise confuses
 # with lowered eyebrows (the blink -> eyebrow-wobble artifact). Training reads
 # these from the "blinkdot_x{±f}_y{±f}" label: gaze = dot coords, brow anchored
@@ -631,7 +631,7 @@ class DataCollectionWindow:
                     # up 15°, down 35°) so the dots sit closer to the edge of
                     # comfortable eye rotation and we collect more eccentric gaze
                     # labels (the model was under-reaching at ~±0.6). These are
-                    # the "moderate" caps — still inside what the eye can reach
+                    # the "moderate" caps that remain inside what the eye can reach
                     # without a head turn, so targets stay reliably fixatable
                     # (unreachable dots would mislabel training samples). The
                     # overlay parses these flags for any mode; no rebuild needed.
@@ -1042,7 +1042,7 @@ class DataCollectionWindow:
                             ("127.0.0.1", OVERLAY_CMD_PORT))
 
             # Wait for the pin ack (21). An old overlay exe ignores 113 and
-            # never acks — skip the pass instead of labeling gaze at a dot the
+            # never acks so skip the pass instead of labeling gaze at a dot the
             # user cannot see.
             pinned = False
             deadline = time.time() + 2.0

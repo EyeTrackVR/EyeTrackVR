@@ -1,8 +1,8 @@
 """Avatar parameter resolution.
 
 Two paths, same as VRCFT:
-  A) VRChat's OSCQuery HTTP endpoint  (GET /avatar) — live, preferred.
-  B) VRChat's on-disk avatar config JSON — fallback, keyed by avatar id
+  A) VRChat's OSCQuery HTTP endpoint  (GET /avatar) is live and preferred.
+  B) VRChat's avatar config JSON on disk is the fallback and uses the avatar id
      from the /avatar/change OSC message.
 
 Both produce a list of AvatarParameter(name, address, py_type).
@@ -89,7 +89,7 @@ def load_avatar_config(avatar_id: str) -> AvatarInfo | None:
 
 def load_avatar_name(avatar_id: str) -> str:
     """Best-effort human-readable avatar name from the disk config
-    (OSCQuery's tree doesn't expose it — VRCFT does the same lookup)."""
+    (OSCQuery's tree does not expose it. VRCFT performs the same lookup)."""
     info = load_avatar_config(avatar_id)
     return info.name if info else ""
 

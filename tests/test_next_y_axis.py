@@ -46,7 +46,7 @@ def test_mono_next_preserves_model_y_axis():
     assert gaze_y == np.float32(0.65)
 
 
-def _stereo_model(*, gaze_y_sign=1.0):
+def _stereo_model(*, gaze_y_sign=-1.0):
     model = NEXT_Stereo_cls.__new__(NEXT_Stereo_cls)
     model.input_size = 2
     model.raw_input = True
@@ -75,17 +75,18 @@ def _stereo_run(model):
     return model.postprocess(raw, valid, 0.0, 0.0)
 
 
-def test_stereo_next_preserves_model_y_axis():
-    # No gaze_y_axis metadata, or gaze_y_axis=up (BSB stereo): already the app
-    # convention, so the model's Y is passed through untouched.
-    assert _stereo_run(_stereo_model())[7] == np.float32(-0.65)
+def test_stereo_next_negates_y_onto_the_mono_convention():
+    # Every shipped stereo export is inverted against the mono NEXT models the
+    # app's convention comes from, whatever gaze_y_axis they declare, so the
+    # stereo path always negates Y. Otherwise Y would flip whenever the tracker
+    # hands over between the mono and the stereo model.
+    assert _stereo_run(_stereo_model())[7] == np.float32(0.65)
 
 
-def test_stereo_next_normalizes_y_down_models():
-    # A stereo export declaring gaze_y_axis=down (ETVR stereo, trained on the
-    # newer screen-space contract) is negated onto the app convention, so
-    # switching between the mono and stereo model can't flip Y.
-    assert _stereo_run(_stereo_model(gaze_y_sign=-1.0))[7] == np.float32(0.65)
+def test_stereo_next_y_sign_is_the_single_switch():
+    # The negation lives in one place, so a future export that changes
+    # convention is a one-line fix rather than a hunt.
+    assert _stereo_run(_stereo_model(gaze_y_sign=1.0))[7] == np.float32(-0.65)
 
 
 def test_stereo_next_holds_expressions_for_a_blacked_out_eye():

@@ -1,4 +1,4 @@
-"""pyvrcft — send VRCFT Unified Expressions tracking data straight to
+"""pyvrcft sends VRCFT Unified Expressions tracking data straight to
 VRChat OSC, no VRCFT app or module system required."""
 
 from .avatar import AvatarInfo, AvatarParameter

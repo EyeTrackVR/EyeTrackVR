@@ -9,7 +9,7 @@ from localization import tr
 # Selectable model variants, shared by the NEXT and eyebrow models. Each maps
 # to Models/NEXT_<VARIANT>.onnx and Models/Eyebrow_<VARIANT>.onnx. The "<BASE> LITE"
 # options load the fp16 NEXT build (Models/NEXT_<BASE>.fp16.onnx).
-_MODEL_VARIANTS = ("ETVR", "BSB", "TOBII", "ETVR LITE", "BSB LITE")
+_MODEL_VARIANTS = ("ETVR", "BSB", "PSVR", "TOBII", "ETVR LITE", "BSB LITE")
 
 
 class TrackingAlgorithmValidationModel(BaseValidationModel):

@@ -42,15 +42,15 @@ logger = logging.getLogger(__name__)
 os.environ["OMP_NUM_THREADS"] = "1"
 
 # Median window (frames) applied to the raw eyebrow before the One-Euro filter.
-# A running median rejects super-fast jitter — single-frame spikes and frame-to-
-# frame oscillation — that the One-Euro's speed term would otherwise pass, and it
+# A running median rejects very fast jitter from single frame spikes and frame to
+# frame oscillation that the One Euro speed term would otherwise pass, and it
 # costs only ~(N-1)/2 frames of lag, which is negligible for a slow brow signal.
 # Odd window so the median is a real sample. Bump higher for stronger rejection.
 _BROW_MEDIAN_WINDOW = 5
 
 # Same idea for the two gaze channels. The model under-drives its output range
 # (empirically ~±0.6 even at full gaze), so calibration must apply a gain > 1 to
-# reach the full ±1 output — which also multiplies any raw jitter. A single
+# reach the full ±1 output which also multiplies any raw jitter. A single
 # spurious spike frame (observed frame-to-frame gaze jumps up to ~0.46) then gets
 # amplified into a jump toward the extremes ("snaps to a corner even when not
 # looking there"). A short causal median rejects those isolated spikes before
@@ -63,7 +63,7 @@ _GAZE_MEDIAN_WINDOW = 3
 # matching ONNX file (Models/NEXT_<VARIANT>.onnx) is loaded. The "<BASE> LITE"
 # variants load an fp16 build (Models/NEXT_<BASE>.fp16.onnx): smaller and faster,
 # at a small precision cost.
-MODEL_VARIANTS = ("ETVR", "BSB", "TOBII", "ETVR LITE", "BSB LITE")
+MODEL_VARIANTS = ("ETVR", "BSB", "PSVR", "TOBII", "ETVR LITE", "BSB LITE")
 DEFAULT_MODEL_VARIANT = "ETVR"
 # Suffix that marks an fp16 ("Lite") variant.
 _LITE_SUFFIX = " LITE"
@@ -72,7 +72,7 @@ _LITE_SUFFIX = " LITE"
 def model_file_for_variant(variant: str) -> str:
     """Map a variant name to its ONNX file path.
 
-    ETVR/BSB/TOBII -> Models/NEXT_<VARIANT>.onnx
+    ETVR/BSB/PSVR/TOBII -> Models/NEXT_<VARIANT>.onnx
     '<BASE> LITE'  -> Models/NEXT_<BASE>.fp16.onnx (half-precision)
 
     If a requested fp16 build isn't present on disk, fall back to the full-precision

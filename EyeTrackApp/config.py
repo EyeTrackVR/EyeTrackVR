@@ -381,7 +381,8 @@ class EyeTrackSettingsConfig(BaseModel):
     # neutral throughout the dot sequence, so those captures anchor "normal
     # open" / "neutral brow" to their target output values.
     gui_NEXT_calib_lids_brows: bool = True
-    # Shared model variant for both NEXT and eyebrow models: ETVR / BSB / TOBII.
+    # Model variant: ETVR / BSB / PSVR / TOBII. PSVR is a manual NEXT-only
+    # choice; setup-mode auto-selection remains limited to ETVR and BSB.
     # Selects Models/NEXT_<VARIANT>.onnx and Models/Eyebrow_<VARIANT>.onnx.
     gui_model_variant: str = "ETVR"
     # True once the user has manually picked a model variant. While False, the
@@ -472,12 +473,12 @@ class EyeTrackSettingsConfig(BaseModel):
     #      the avatar rig owns what ±1 rotates to there.)
     #   2. next_smartcal_targets() derives each calibration dot's fit target as
     #      its fraction of THIS full-scale, so the inset overlay dots are NOT
-    #      treated as ≈max output — leaving headroom for the eye to drive output
+    #      treated as nearly maximum output while leaving room for the eye to drive output
     #      out to ±1 at the FOV edge instead of clipping at the overlay's
     #      oculomotor dot caps. Headroom is PER-AXIS by how far the eye can
     #      actually rotate: yaw/down are set wider than the overlay caps
     #      (30/35) so lateral/downward gaze reaches ±1 near the FOV edge, but
-    #      UP is kept at its cap (15) — upward eye rotation maxes out ~15°, so
+    #      UP is kept at its cap (15) because upward eye rotation maxes out near 15°, so
     #      any up headroom just makes full-up unreachable ("doesn't go high
     #      enough"). Changing these needs a re-cal (Reset Smart Calib) so the
     #      saved affine matches.

@@ -193,14 +193,19 @@ class NEXT_Stereo_cls:
         # -> newest, frame_stride camera frames apart.
         self.temporal_frames = max(1, int(meta.get("temporal_frames", 1)))
         self.frame_stride = max(1, int(meta.get("frame_stride", 2)))
-        # Gaze Y is normalized to the app's convention, which is the one the
-        # deployed mono NEXT exports use. Those predate the axis stamp and are
-        # +Y up downstream, same as the BSB stereo model's declared
-        # gaze_y_axis=up, so an export declaring 'down' (the ETVR stereo model,
-        # trained on the newer screen-space contract) is the one that gets
-        # negated. Without this, switching between the mono and the stereo
-        # model would flip Y mid-session.
-        self.gaze_y_sign = -1.0 if meta.get("gaze_y_axis") == "down" else 1.0
+        # Gaze Y is normalized to the app's convention, which is whatever the
+        # deployed mono NEXT exports do (they carry no axis stamp, and their
+        # output is correct downstream with no flip). Every stereo export
+        # shipped so far comes out inverted against that and has to be negated
+        # here, or Y flips the moment the tracker hands over between the mono
+        # and the stereo model.
+        #
+        # The declared gaze_y_axis does NOT predict this and is deliberately
+        # not consulted: ETVR stereo declares 'down', BSB stereo declares 'up'
+        # (its head negates the mono head's Y), and both were observed flipped
+        # in the app. Re-check on a headset if a future export changes its
+        # convention; this is the one line to flip.
+        self.gaze_y_sign = -1.0
 
         # Trained missing-eye sentinel: a spatially constant black frame, in
         # whatever input space this export expects.

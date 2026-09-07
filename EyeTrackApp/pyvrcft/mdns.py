@@ -5,7 +5,7 @@ VRChat advertises "VRChat-Client-XXXXXX._oscjson._tcp.local" over mDNS
 record to learn the HTTP port of its OSCQuery server. VRChat always runs
 on this machine's loopback for our use case, so we return 127.0.0.1.
 
-Stdlib only — just enough DNS packet parsing for PTR/SRV.
+Stdlib only with enough DNS packet parsing for PTR and SRV.
 """
 
 from __future__ import annotations
@@ -96,7 +96,7 @@ def discover_vrchat_oscquery(timeout: float = 3.0, instance_prefix: str = "VRCha
         try:
             sock.bind(("", MDNS_PORT))
         except OSError:
-            # Port busy without reuse working (rare) — fall back to an
+            # Port busy without reuse working is rare, so fall back to an
             # ephemeral port; many responders unicast-reply to the source.
             sock.bind(("", 0))
         membership = socket.inet_aton(MDNS_GROUP) + socket.inet_aton("0.0.0.0")

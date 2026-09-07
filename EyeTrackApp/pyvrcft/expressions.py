@@ -1,8 +1,8 @@
-"""Unified Expressions pipeline — a full port of VRCFT's parameter table.
+"""Unified Expressions pipeline that fully ports the VRCFT parameter table.
 
 Feed raw tracking data (UE shape weights + per-eye gaze/openness/pupil +
 head pose) into :class:`UnifiedTrackingData`, and :func:`compute_outputs`
-produces the complete v2 parameter set VRCFT would send — every base shape,
+produces the complete v2 parameter set VRCFT would send, including every base shape,
 the 8 "simple" blends, and all combined/compacted shapes, plus the
 VRChat-native eye endpoints.
 
@@ -214,10 +214,10 @@ def compute_outputs(data: UnifiedTrackingData):
     """Compute VRCFT's complete output for one frame.
 
     Returns (params, native):
-      params — {"v2/<name>": float} for every base, simple, combined, and
+      params contains {"v2/<name>": float} for every base, simple, combined, and
                head parameter (the client resolves which ones the avatar
                actually declares and how to encode them)
-      native — {"/tracking/eye/...": tuple} VRChat-native eye endpoints
+      native contains {"/tracking/eye/...": tuple} for VRChat-native eye endpoints
                (send these only when the avatar has no FT eye params;
                VRCFTClient.update_tracking handles that condition)
     """
@@ -399,7 +399,7 @@ def compute_outputs(data: UnifiedTrackingData):
 def _native_pitch_yaw(eye: SingleEyeData, data: "UnifiedTrackingData"):
     """(pitch, yaw) degrees for one eye's native endpoint.
 
-    Default (no FOV scale set): VRCFT's tangent convention — atan(gaze), so
+    Default with no FOV scale set uses VRCFT's tangent convention based on atan(gaze), so
     full normalized gaze = 45 deg. With a FOV scale set on `data`, normalized
     gaze is mapped through the real FOV half-angle: atan(gaze * tan(max)), so
     +-1 lands on the true edge angle (yaw symmetric; pitch asymmetric up/down).
@@ -431,7 +431,7 @@ def _native_pitch_yaw(eye: SingleEyeData, data: "UnifiedTrackingData"):
 #
 # Openness is 1 = open, 0 = closed. The packed "*LidExpandedSqueeze" params are
 # driven here with plain openness rather than the SRanipal widen/squeeze packing
-# — this matches how EyeTrackVR's own v1 output has always driven them, so v1
+# This matches how EyeTrackVR's own v1 output has always driven them, so v1
 # avatars tuned against EyeTrackVR behave identically under this port.
 
 def compute_legacy_outputs(data: UnifiedTrackingData) -> dict:

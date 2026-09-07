@@ -62,7 +62,7 @@ from utils.version_utils import compare_app_versions
 
 
 
-APP_VERSION = "EyeTrackApp 0.3.0 BETA 8"
+APP_VERSION = "EyeTrackApp 0.3.0 BETA 9"
 setup_logging(APP_VERSION)
 logger = logging.getLogger(__name__)
 winmm = None

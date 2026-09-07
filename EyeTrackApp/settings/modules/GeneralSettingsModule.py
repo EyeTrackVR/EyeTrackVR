@@ -55,7 +55,7 @@ class GeneralSettingsModule(BaseSettingsModule):
         super().__init__(config=config, widget_id=widget_id, **kwargs)
         self.validation_model = GeneralSettingsValidationModel
         # Full EyeTrackConfig (passed as ``settings``). Used to persist the
-        # language choice immediately on selection — the debounced render_tick
+        # language choice immediately on selection while the render tick remains debounced
         # save can be lost because the restart messagebox blocks the Tk event
         # loop and shutdown() doesn't flush pending settings saves.
         self._main_config = kwargs.get("settings")

@@ -1,4 +1,4 @@
-"""VRCFTClient — send face/eye tracking to VRChat using VRCFT's
+"""VRCFTClient sends face and eye tracking to VRChat using VRCFT's
 Unified Expressions parameter namespace, without the VRCFT app.
 
     ft = VRCFTClient()
@@ -55,7 +55,7 @@ class _DirectSlot(OutputSlot):
 
 class _RawBoolSlot(OutputSlot):
     """Bool sent as-is (VRCFT's plain BaseParam<bool>, e.g. EyeTrackingActive
-    — unlike the EParam bool variant, no threshold inversion)."""
+    unlike the EParam bool variant, with no threshold inversion)."""
 
     def encode(self, value):
         return bool(value)

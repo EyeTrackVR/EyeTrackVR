@@ -9,7 +9,7 @@ OSCQuery/mDNS, resolves which Unified Expressions parameters the avatar actually
 declares (and whether each wants float / bool / binary-bit encoding), and streams
 send-on-change OSC bundles to VRChat's input port.
 
-This *replaces* VRCFT for eye tracking — do not run VRCFT alongside it. Because
+This *replaces* VRCFT for eye tracking. Do not run VRCFT alongside it. Because
 the port owns its own background send/receive threads, this sender is driven
 purely by updating a shared ``UnifiedTrackingData`` frame; the actual OSC output
 happens on the port's own timer (~100 Hz), decoupled from tracking framerate.
@@ -44,7 +44,7 @@ class PyVRCFTSender:
 
         When EyeTrackVR's own OSC receiver is enabled (gui_ROSC) it owns the
         receiver port for in-VR recenter/recalibrate, and it is set up *after*
-        this sender — so we yield that port here (ephemeral bind) and let the
+        this sender. We yield that port here with an ephemeral bind and let the
         embedded port rely on OSCQuery for avatar detection instead of fighting
         for it.
         """

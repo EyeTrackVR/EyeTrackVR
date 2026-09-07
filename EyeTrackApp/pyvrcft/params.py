@@ -22,7 +22,7 @@ DEFAULT_PREFIX = "/avatar/parameters/"
 
 
 def suffix_regex(name: str) -> re.Pattern:
-    # C#: (?<!(v\d+))(/name)$|^(name)$  — Python needs fixed-width lookbehind;
+    # C# pattern uses a negative lookbehind. Python needs a fixed width lookbehind.
     # (?<!v\d) covers the single-digit version prefixes in actual use.
     esc = re.escape(name)
     return re.compile(r"(?<!v\d)(/" + esc + r")$|^(" + esc + r")$")
