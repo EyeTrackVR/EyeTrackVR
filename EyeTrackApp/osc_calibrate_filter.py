@@ -1144,8 +1144,12 @@ class cal:
             if self._recenter_armed_at is None:
                 self._recenter_armed_at = now
             if now - self._recenter_armed_at >= self._recenter_delay_s:
-                center_overlay_calibrate(self)  # TODO: Only call on supported desktop platforms.
+                # Recenter also works without the optional SteamVR target (for
+                # example, LEAP on Linux where no overlay binary is shipped).
+                if self.settings.gui_use_overlay_cal:
+                    center_overlay_calibrate(self)
                 self.settings.gui_recenter_eyes = False
+                self.baseconfig.save()
                 PlaySound(
                     resource_path("Audio/completed.wav"), SND_FILENAME | SND_ASYNC
                 )

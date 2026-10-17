@@ -11,6 +11,7 @@ import platform
 import socket as _socket
 import struct
 import logging
+import json
 import cv2
 import tkinter as tk
 from tkinter import ttk
@@ -517,6 +518,24 @@ class DataCollectionWindow:
             shutil.rmtree(output_dir)
         os.makedirs(output_dir)
 
+        # Camera setup is metadata only. NEXT and these captures use raw frames.
+        with open(os.path.join(output_dir, "capture_manifest.json"), "w", encoding="utf-8") as f:
+            json.dump({
+                "schema": "etvr-capture-v1",
+                "image_coordinate_frame": "raw_camera",
+                "eyes": [
+                    {"eye": "Left" if eye.eye_id.name == "LEFT" else "Right",
+                     "camera_rotation_degrees": int(eye.config.rotation_angle)}
+                    for eye in self.eyes if eye.started()
+                ],
+                "dilation_reference": {
+                    "target_type": "illumination_phase_only",
+                    "backdrop_gray_8bit": {"dim": 24, "bright": 208},
+                    "adaptation_seconds": 3,
+                    "frames_per_phase": 12,
+                },
+            }, f, indent=2)
+
         n = len(self.active_queues)
         timestamp_files = []
         for label in self.active_eye_labels:
@@ -765,6 +784,12 @@ class DataCollectionWindow:
                     timestamp_files, drain_to_video, base_idx,
                     udp_sock, cmd_sock,
                 )
+            if use_overlay and not self.session_cancel.is_set():
+                base_idx = self._run_dilation_reference_pass(
+                    seed, output_dir, n, video_writers,
+                    timestamp_files, drain_to_video, base_idx,
+                    udp_sock, cmd_sock,
+                )
             # Blink-at-dot: mid-blink frames with a held-neutral brow (the
             # anti-"blink wiggles eyebrow" pass). Overlay pins the dot; without
             # the overlay a center-gaze TTS variant runs instead.
@@ -845,7 +870,8 @@ class DataCollectionWindow:
         except Exception:
             logger.exception("Dropped a full-session video frame for eye index %d", j)
 
-    def _do_overlay_capture(self, seed, output_dir, n, video_writers, timestamp_files, label, idx):
+    def _do_overlay_capture(self, seed, output_dir, n, video_writers, timestamp_files, label, idx,
+                            image_dir=None):
         frames = [None] * n
         frame_nums = [None] * n
         for j in range(n):
@@ -885,7 +911,7 @@ class DataCollectionWindow:
         for j in range(n):
             if frames[j] is not None:
                 img_fn = os.path.join(
-                    output_dir,
+                    image_dir or output_dir,
                     f"{DATA_COLLECTION_VERSION}_{seed}_{self.active_eye_labels[j]}_{idx + 1:02d}_{label}.png",
                 )
                 cv2.imwrite(img_fn, frames[j])
@@ -1173,6 +1199,59 @@ class DataCollectionWindow:
                 break
 
         return overlay_idx
+
+    def _run_dilation_reference_pass(self, seed, output_dir, n, video_writers,
+                                     timestamp_files, drain_to_video, base_idx,
+                                     udp_sock, cmd_sock):
+        """Collect fixation-matched dim/bright references, not diameter labels."""
+        image_dir = os.path.join(output_dir, "DILATION_REFERENCE")
+
+        def command(value, message=None):
+            payload = struct.pack(">i", value)
+            if message is not None:
+                payload += message.encode("utf-8")
+            cmd_sock.sendto(payload, ("127.0.0.1", OVERLAY_CMD_PORT))
+
+        def wait_brightness_ack():
+            deadline = time.time() + 2.5
+            while time.time() < deadline and not self.session_cancel.is_set():
+                drain_to_video()
+                try:
+                    data, _ = udp_sock.recvfrom(16)
+                except _socket.timeout:
+                    continue
+                if len(data) >= 4 and struct.unpack(">i", data[:4])[0] == 22:
+                    return True
+            return False
+
+        try:
+            command(120)  # Center fixation target.
+            command(50, "Look at the center dot")
+            for code, phase in ((130, "dim"), (131, "bright")):
+                if self.session_cancel.is_set():
+                    break
+                command(code)
+                if not wait_brightness_ack():
+                    logger.warning("Overlay does not support dilation illumination; skipping reference pass")
+                    break
+                os.makedirs(image_dir, exist_ok=True)
+                until = time.time() + 3.0
+                while time.time() < until and not self.session_cancel.is_set():
+                    drain_to_video()
+                    time.sleep(0.01)
+                for _ in range(12):
+                    if self.session_cancel.is_set():
+                        break
+                    drain_to_video()
+                    time.sleep(0.18)
+                    self._do_overlay_capture(
+                        seed, output_dir, n, video_writers, timestamp_files,
+                        f"dilation_{phase}", base_idx, image_dir=image_dir)
+                    base_idx += 1
+        finally:
+            command(132)  # Restore neutral illumination for subsequent passes.
+            command(121)
+        return base_idx
 
     def _cleanup_session(self):
         for i, eye in enumerate(self.eyes):
