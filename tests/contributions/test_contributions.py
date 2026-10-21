@@ -1,10 +1,14 @@
 """Run independently: pytest --confcutdir=tests/contributions tests/contributions."""
 import hashlib
+import io
 import json
+import os
 from pathlib import Path
+import struct
 import sys
 import threading
 import zipfile
+import zlib
 
 import pytest
 import requests
@@ -15,14 +19,22 @@ from contributions.client import ContributionClient, Paused, ServiceError, diges
 from contributions import verification
 
 
+def frame(width=240, height=240):
+    """A PNG signature/IHDR header followed by incompressible test bytes."""
+    header = struct.pack(">IIBBBBB", width, height, 8, 0, 0, 0, 0)
+    return (b"\x89PNG\r\n\x1a\n" + struct.pack(">I", 13) + b"IHDR" + header
+            + struct.pack(">I", zlib.crc32(b"IHDR" + header)) + os.urandom(25000))
+
+
 @pytest.fixture
 def setup_client(tmp_path):
     identity = pyrage.x25519.Identity.generate()
-    config = {"enabled": True, "recipient": str(identity.to_public()), "chunk_bytes": 8192,
+    public = str(identity.to_public())
+    config = {"protocol": 3, "enabled": True, "recipients": [public], "chunk_bytes": 8192,
               "max_bytes": {"dataset": 131072}, "terms": {"dataset": {"version": "dataset-test", "text": "18+ private test notice"}}}
-    client = ContributionClient(directory=tmp_path / "private")
+    client = ContributionClient(directory=tmp_path / "private", recipients=[public])
     source = tmp_path / "capture.zip"
-    pixels = __import__("os").urandom(25000)
+    pixels = frame()
     with zipfile.ZipFile(source, "w") as archive:
         archive.writestr("capture_manifest.json", json.dumps({"schema": "etvr-capture-v1", "eyes": []}))
         archive.writestr("v6_Abc123456_Left_01_gaze.png", pixels)
@@ -41,10 +53,65 @@ def test_real_age_encryption_and_receipt_evidence(setup_client):
     client, sid = prepared(setup_client)
     row = client.read(sid)
     plain = pyrage.decrypt(client.paths(sid)[1].read_bytes(), [identity])
-    with zipfile.ZipFile(__import__("io").BytesIO(plain)) as archive:
+    with zipfile.ZipFile(io.BytesIO(plain)) as archive:
         assert archive.read("v6_Abc123456_Left_01_gaze.png") == pixels
+        bound = json.loads(archive.read("submission.json"))
     assert row["terms_sha256"] == hashlib.sha256(config["terms"]["dataset"]["text"].encode()).hexdigest()
-    assert row["hmd"] == "Free typed HMD" and row["state"] == "prepared"
+    assert row["hmd"] == "Free typed HMD" and row["state"] == "prepared" and row["schema"] == 3
+    # The HMD text and consent evidence are bound to this submission inside the ciphertext.
+    assert bound == {"schema": "etvr-submission-v1", "id": sid, "kind": "dataset", "hmd": "Free typed HMD",
+                     "terms_version": row["terms_version"], "terms_sha256": row["terms_sha256"]}
+
+
+def test_service_cannot_choose_the_encryption_key(setup_client):
+    client, config, _, source, _ = setup_client
+    unpinned = ContributionClient(directory=client.directory)
+    real = config.copy()
+    unpinned.request = client.request = lambda *a, **kw: real
+    del client.config
+    attacker = str(pyrage.x25519.Identity.generate().to_public())
+    for advertised in ([attacker], [*config["recipients"], attacker], []):
+        real["recipients"] = advertised
+        with pytest.raises(ValueError, match="cannot verify"):
+            client.prepare(source, "HMD", config["terms"]["dataset"], threading.Event(), lambda *a: None)
+    real.update(recipients=config["recipients"], protocol=2)
+    with pytest.raises(ValueError, match="cannot verify"):
+        client.config()
+    # A service that is not pinned in this release can never receive an upload.
+    real["protocol"] = 3
+    with pytest.raises(ValueError, match="cannot verify"):
+        unpinned.config()
+    assert client.config()["recipients"] == config["recipients"]
+    assert not client.receipts() and not list(client.directory.glob("*.age"))
+
+
+def test_hmd_text_is_cleaned_and_invalid_captures_fail_before_encryption(setup_client, tmp_path):
+    client, config, identity, source, _ = setup_client
+    sid = client.prepare(source, "  Bigscreen\u202e Beyond\n2e ", config["terms"]["dataset"],
+                         threading.Event(), lambda *a: None)
+    assert client.read(sid)["hmd"] == "Bigscreen Beyond 2e"
+    for hmd in ("", "\u200b\n", "x" * 161):
+        with pytest.raises(ValueError, match="HMD"):
+            client.prepare(source, hmd, config["terms"]["dataset"], threading.Event(), lambda *a: None)
+    bogus = tmp_path / "bogus.zip"
+    with zipfile.ZipFile(bogus, "w") as archive:
+        archive.writestr("capture_manifest.json", json.dumps({"schema": "etvr-capture-v1", "eyes": []}))
+        archive.writestr("v6_Abc123456_Left_01_gaze.png", b"not a png")
+    with pytest.raises(ValueError, match="Invalid PNG"):
+        client.prepare(bogus, "HMD", config["terms"]["dataset"], threading.Event(), lambda *a: None)
+    assert [row["id"] for row in client.receipts()] == [sid]
+
+
+def test_legacy_receipt_cannot_start_a_new_plaintext_session(setup_client):
+    client, sid = prepared(setup_client)
+    receipt = client.read(sid)
+    receipt["schema"] = 2
+    save(client.paths(sid)[0], receipt)
+    def missing(*a, **kw):
+        raise ServiceError(404)
+    client.request = missing
+    with pytest.raises(ValueError, match="older EyeTrackVR"):
+        client.resume(sid, lambda *a: "token", lambda *a: True, threading.Event(), lambda *a: None)
 
 
 def test_disabled_or_changed_consent_never_prepares_upload(setup_client):
@@ -74,6 +141,7 @@ def test_interrupt_resume_skips_confirmed_chunks_and_cleans_payload(setup_client
         if path == "/v1/submissions":
             created = True
             assert kwargs["json"]["challenge"] == "in-app-token"
+            assert "hmd" not in kwargs["json"] and "Free typed" not in json.dumps(kwargs["json"])
             return {"status": "uploading", "received": []}
         if method == "PUT":
             part = int(path.rsplit("/", 1)[1])
@@ -207,3 +275,22 @@ def test_embedded_helper_disables_external_navigation(monkeypatch):
     assert webview.settings["ALLOW_DOWNLOADS"] is False
     assert captured["url"] == "https://verify.example/challenge?embedded=1"
     assert not captured.get("js_api")
+
+
+@pytest.mark.parametrize("code, expected", [("daily_quota", "Today's upload limit"),
+                                            ("network_quota", "Your network"),
+                                            ("lifetime_quota", "full for now"),
+                                            ("<script>", "upload limit has been reached"),
+                                            (None, "upload limit has been reached")])
+def test_quota_refusals_explain_what_happened_and_who_to_ping(setup_client, monkeypatch, code, expected):
+    client = setup_client[0]
+    class Response:
+        status_code = 429
+        def __enter__(self): return self
+        def __exit__(self, *a): pass
+        def json(self): return {"error": "server text is never shown", "code": code}
+    monkeypatch.setattr(requests, "request", lambda *a, **kw: Response())
+    with pytest.raises(ServiceError) as error:
+        client.request("POST", "/v1/submissions", "capability", json={})
+    assert expected in str(error.value) and "prohurtz on Discord" in str(error.value)
+    assert "server text" not in str(error.value)

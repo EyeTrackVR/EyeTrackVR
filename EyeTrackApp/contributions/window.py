@@ -10,8 +10,15 @@ from tkinter.scrolledtext import ScrolledText
 
 import requests
 
-from .client import ContributionClient, Paused, save, outside_git
+from .bundles import MAX_HMD, clean_hmd
+from .client import QUOTA_MESSAGES, SUPPORT, ContributionClient, Paused, save, outside_git
 from .verification import verify_in_app
+
+# Suggestions only: free text stays allowed, and maintainers bin every submission themselves.
+HMD_SUGGESTIONS = ("Valve Index", "HTC Vive", "HTC Vive Pro / Pro 2", "Bigscreen Beyond",
+                   "Bigscreen Beyond 2 / 2e", "Meta Quest 2", "Meta Quest 3", "Meta Quest 3S",
+                   "Meta Quest Pro", "Pimax Crystal", "Pico 4", "Varjo Aero", "HP Reverb G2",
+                   "PlayStation VR2", "Shiftall MeganeX", "Somnium VR1")
 
 
 class ContributionWindow:
@@ -115,7 +122,7 @@ class ContributionWindow:
                 canvas.yview_scroll(-1 if event.delta > 0 else 1, "units")
         self.window.bind("<MouseWheel>", scroll_recording, add="+")
         ttk.Label(recording, text="Help improve eye tracking", font=("Segoe UI", 14, "bold")).pack(anchor="w", pady=(8, 12))
-        self.intro = ttk.Label(recording, text="One guided session, from recording to upload. We attach the recording you make here automatically. Nothing is uploaded until you agree and choose to send it.", wraplength=640, justify="left")
+        self.intro = ttk.Label(recording, text="One guided session, from recording to upload. We attach the recording you make here automatically. Nothing is uploaded until you agree and choose to send it, and everything you send is encrypted on this computer first.", wraplength=640, justify="left")
         self.intro.pack(fill="x", pady=(0, 20))
         ttk.Label(recording, text="Before you begin", font=("Segoe UI", 11, "bold")).pack(anchor="w", pady=(0, 8))
         self.instructions = ttk.Label(recording, text="1. Start tracking and check that your cameras are working.\n2. Put on your headset and open SteamVR.\n3. Follow the voice prompts and the targets in VR.", wraplength=640, justify="left")
@@ -124,9 +131,12 @@ class ContributionWindow:
             variable=self.capture_controller.use_overlay_var if self.capture_controller else tk.BooleanVar(master=self.window, value=True))
         self.overlay.pack(anchor="w", pady=(0, 16))
         ttk.Label(recording, text="What HMD?", font=("Segoe UI", 11, "bold")).pack(anchor="w", pady=(8, 6))
-        self.hmd_entry = ttk.Entry(recording, textvariable=self.hmd)
+        self.hmd_entry = ttk.Combobox(recording, textvariable=self.hmd, values=HMD_SUGGESTIONS)
         self.hmd_entry.pack(fill="x")
-        ttk.Label(recording, text="Type your headset model in your own words. No account or email is required.").pack(anchor="w", pady=8)
+        self.hmd_hint = ttk.Label(recording, wraplength=640, justify="left")
+        self.hmd_hint.pack(anchor="w", pady=8)
+        self.hmd.trace_add("write", lambda *_: self.update_hmd_hint())
+        self.update_hmd_hint()
         ttk.Button(recording, text="Read the collection agreement first", command=self.preview_agreement).pack(anchor="w", pady=12)
 
         capture = self.pages[1]
@@ -177,12 +187,17 @@ class ContributionWindow:
         transfer = self.pages[3]
         self.transfer_title = ttk.Label(transfer, text="Ready to upload securely", font=("Segoe UI", 16, "bold"))
         self.transfer_title.pack(anchor="w", pady=(24, 12))
-        self.transfer_hint = ttk.Label(transfer, text="EyeTrackVR encrypts your recording before sending it. Verification stays inside the app.", wraplength=640)
+        self.transfer_hint = ttk.Label(transfer, text="Your recording and headset description are encrypted on this computer "
+                                       "to the EyeTrackVR maintainers' key built into this app. The upload service only "
+                                       "stores encrypted data and cannot read it. Verification stays inside the app.", wraplength=640)
         self.transfer_hint.pack(fill="x", pady=(0, 24))
         self.progress = ttk.Progressbar(transfer, maximum=100)
         self.progress.pack(fill="x", pady=12)
         self.pause = ttk.Button(transfer, text="Pause upload", command=self.cancel.set, state="disabled")
         self.pause.pack(anchor="w", pady=12)
+        self.backup_button = ttk.Button(transfer, text="Back up withdrawal receipt…", state="disabled",
+                                        command=lambda: self.export_receipt(self._capture_receipt))
+        self.backup_button.pack(anchor="w", pady=8)
         self.new_session_button = ttk.Button(transfer, text="Record another session", command=self.new_session)
         self.new_session_button.pack(anchor="w", pady=8)
         ttk.Label(transfer, text="If your connection drops, use Your contributions → Resume.\nYour exact encrypted upload is kept on this computer.", wraplength=640).pack(anchor="w", pady=16)
@@ -199,10 +214,12 @@ class ContributionWindow:
         history.columnconfigure(0, weight=1)
         history.rowconfigure(1, weight=1)
         ttk.Label(history, text="Resume an upload or withdraw a contribution", font=("Segoe UI", 13, "bold")).grid(row=0, column=0, sticky="w", pady=(0, 12))
-        self.history = ttk.Treeview(history, columns=("hmd", "state", "size"), show="headings", height=6, selectmode="browse")
-        for key, title in (("hmd", "HMD"), ("state", "Last known status"), ("size", "Size")):
+        self.history = ttk.Treeview(history, columns=("prepared", "hmd", "state", "size", "id"), show="headings",
+                                    height=6, selectmode="browse")
+        for key, title, width in (("prepared", "Prepared", 90), ("hmd", "HMD", 150), ("state", "Last known status", 120),
+                                  ("size", "Size", 70), ("id", "Submission ID", 90)):
             self.history.heading(key, text=title)
-            self.history.column(key, width=130, minwidth=80)
+            self.history.column(key, width=width, minwidth=60)
         self.history.grid(row=1, column=0, sticky="nsew")
         scrollbar = ttk.Scrollbar(history, orient="vertical", command=self.history.yview)
         scrollbar.grid(row=1, column=1, sticky="ns")
@@ -217,10 +234,12 @@ class ContributionWindow:
         self.export_button.grid(row=1, column=0, padx=(0, 8), pady=4)
         self.import_button = ttk.Button(actions, text="Restore receipt…", command=self.import_receipt)
         self.import_button.grid(row=1, column=1, padx=(0, 8), pady=4)
+        self.copy_button = ttk.Button(actions, text="Copy submission ID", command=self.copy_id)
+        self.copy_button.grid(row=0, column=2, padx=(0, 8), pady=4)
         self.receipt_help = ttk.Label(history,
             text="Keep your private receipts for withdrawal. A receipt backup does not include the encrypted resume file.\n\n"
-                 "Lost your receipt? Contact support@fovea-labs.com. Include your submission ID and upload date/time if available. "
-                 "Never email or share the private receipt itself.",
+                 "Need help? Contact support@fovea-labs.com with your submission ID (Copy submission ID) and upload date. "
+                 "The ID is safe to share; never email or share the private receipt itself.",
             wraplength=620, justify="left")
         self.receipt_help.grid(row=3, column=0, sticky="ew", pady=8)
 
@@ -235,9 +254,23 @@ class ContributionWindow:
 
     def _resize_wrap(self, event):
         if event.widget is self.window:
-            for widget in (self.intro, self.instructions, self.capture_instructions, self.capture_status_label, self.file_label, self.terms_summary, self.transfer_hint, self.receipt_help):
+            for widget in (self.intro, self.instructions, self.hmd_hint, self.capture_instructions, self.capture_status_label, self.file_label, self.terms_summary, self.transfer_hint, self.receipt_help):
                 widget.configure(wraplength=max(280, event.width - 130))
             self.status_label.configure(wraplength=max(240, event.width - 160))
+
+    def update_hmd_hint(self):
+        text = self.hmd.get()
+        try:
+            cleaned = clean_hmd(text)
+        except ValueError:
+            cleaned = None
+        if not text.strip():
+            hint = "Pick your headset or type it in your own words, including any mods. No account or email is required."
+        elif cleaned is None:
+            hint = f"Use at most {MAX_HMD} characters ({len(text.strip())} now)."
+        else:
+            hint = f"Encrypted with your recording · {len(cleaned)}/{MAX_HMD} characters"
+        self.hmd_hint.configure(text=hint)
 
     def _load_bundled_notice(self):
         try:
@@ -272,6 +305,7 @@ class ContributionWindow:
         self.back.configure(state="disabled" if blocked or self.step == 0 else "normal")
         self.record_button.configure(state="normal" if not blocked and self.capture_controller else "disabled")
         self.stop_record_button.configure(state="normal" if self.capture_active else "disabled")
+        self.backup_button.configure(state="normal" if not blocked and self._capture_receipt in self.rows else "disabled")
 
     def go_back(self):
         if self.busy or self.capture_active:
@@ -284,8 +318,10 @@ class ContributionWindow:
 
     def continue_flow(self):
         if self.step == 0:
-            if not self.hmd.get().strip():
-                self.status.set("Enter your HMD before starting the guided capture.")
+            try:
+                clean_hmd(self.hmd.get())
+            except ValueError:
+                self.status.set(f"Enter your HMD (1–{MAX_HMD} characters) before starting the guided capture.")
                 self.hmd_entry.focus_set()
                 return
             self.show_step(1)
@@ -371,8 +407,8 @@ class ContributionWindow:
     def set_busy(self, busy):
         self.busy = busy
         blocked = busy or self.capture_active
-        for widget in (self.hmd_entry, self.overlay, self.consent, self.resume_button,
-                       self.withdraw_button, self.export_button, self.import_button, self.new_session_button):
+        for widget in (self.hmd_entry, self.overlay, self.consent, self.resume_button, self.withdraw_button,
+                       self.export_button, self.import_button, self.copy_button, self.new_session_button):
             widget.configure(state="disabled" if blocked else "normal")
         self.retry.configure(state="disabled" if blocked else "normal")
         self.back.configure(state="disabled" if busy or self.step == 0 else "normal")
@@ -447,14 +483,21 @@ class ContributionWindow:
             self.run(lambda: ("status", self.client.resume(sid, verify_in_app, self.request_consent,
                                                           self.cancel, self.report_progress)))
 
+    def copy_id(self):
+        sid = self.selected()
+        if sid:
+            self.window.clipboard_clear()
+            self.window.clipboard_append(sid)
+            self.status.set("Submission ID copied. It identifies your contribution for support but cannot withdraw it.")
+
     def withdraw(self):
         sid = self.selected()
         if sid and messagebox.askyesno("Withdraw contribution", "Stop future use of this contribution and request deletion?\n"
                                       "Hosted downloads will be blocked immediately after confirmation by the service.", parent=self.window):
             self.run(lambda: ("status", self.client.withdraw(sid)))
 
-    def export_receipt(self):
-        sid = self.selected()
+    def export_receipt(self, sid=None):
+        sid = sid or self.selected()
         if not sid:
             return
         path = filedialog.asksaveasfilename(parent=self.window, title="Save private withdrawal receipt",
@@ -491,8 +534,8 @@ class ContributionWindow:
         self.history.delete(*self.history.get_children())
         self.rows = {r["id"]: r for r in self.client.receipts()}
         for sid, record in self.rows.items():
-            self.history.insert("", "end", iid=sid, values=(record.get("hmd", ""), record.get("state", "prepared"),
-                               f'{record["size"] / 1024**2:.1f} MiB'))
+            self.history.insert("", "end", iid=sid, values=(record.get("prepared", ""), record.get("hmd", ""),
+                               record.get("state", "prepared"), f'{record["size"] / 1024**2:.1f} MiB', sid[:8]))
         if select in self.rows:
             self.history.selection_set(select)
 
@@ -545,7 +588,9 @@ class ContributionWindow:
                     if kind == "error":
                         self.status.set(value)
                         if self.config is None:
-                            self.availability.set("Unable to connect · Agreement available offline · Refresh to retry")
+                            self.availability.set("Uploads unavailable · Update EyeTrackVR · Withdrawal still works"
+                                                  if "Update EyeTrackVR" in value else
+                                                  "Unable to connect · Agreement available offline · Refresh to retry")
                         self.transfer_title.configure(text="Upload paused")
                     elif value[0] == "config":
                         self.config = value[1]
@@ -554,9 +599,19 @@ class ContributionWindow:
                         self.set_busy(False)
                         self.status.set("Enter your HMD, then continue to the guided capture." if self.config["enabled"] else
                                         "Collection is currently closed. Saved receipts remain available for withdrawal.")
+                        full = self.config.get("quota_full") if self.config["enabled"] else None
+                        if full:
+                            # Warn before a long capture; an upload prepared now waits locally for Resume.
+                            self.availability.set(("Collection full for now" if full == "lifetime_quota" else
+                                                   "Today's upload limit reached") + " · Ping prohurtz on Discord")
+                            self.status.set(QUOTA_MESSAGES[full] if full == "lifetime_quota" else
+                                            "Today's upload limit for all contributors has been reached. You can still "
+                                            "record now: your encrypted upload is kept on this computer to Resume after "
+                                            "midnight UTC. Or " + SUPPORT + ".")
                     else:
                         self.transfer_title.configure(text="Upload complete" if value[1] in {"pending", "approved"} else "Contribution updated")
-                        self.status.set({"pending": "Uploaded successfully. Awaiting private maintainer review.",
+                        self.status.set({"pending": "Uploaded successfully. Awaiting private maintainer review. "
+                                                    "Back up your withdrawal receipt in case this computer is reset.",
                                          "approved": "Contribution approved.", "withdrawn": "Withdrawn. Hosted downloads are blocked; cleanup is scheduled.",
                                          "cancelled": "Local preparation cancelled; no hosted submission was found."}.get(value[1], "Status: " + value[1]))
         except queue.Empty:
