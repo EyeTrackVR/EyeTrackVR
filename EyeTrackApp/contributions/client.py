@@ -12,15 +12,20 @@ import secrets
 import subprocess
 import tempfile
 import threading
+import time
 import uuid
 from urllib.parse import urlsplit
 
 import requests
 
-from .bundles import dataset_bundle
+from .bundles import clean_hmd, dataset_bundle, inspect_bundle, submission_record
 from .private_files import restrict_access
 
 SERVICE = "https://etvr-dataset-sync-staging.beauldb.workers.dev"
+# End-to-end encryption: the upload service never chooses the key. Each release pins
+# the maintainers' public age recipients per service; rotating them needs a new release.
+PINNED_RECIPIENTS = {SERVICE: ("age1nvpq3esls93mpg6q9l7hwtwz050dl9stz99x5sfecdanpa3ftdtqmw7cyj",)}
+PROTOCOL = 3
 ID = re.compile(r"[a-f0-9]{32}")
 SHA = re.compile(r"[a-f0-9]{64}")
 TERMINAL = {"pending", "approved", "rejected", "withdrawn"}
@@ -30,17 +35,33 @@ class Paused(Exception):
     """The exact ciphertext and receipt remain available for resume."""
 
 
+SUPPORT = "ping prohurtz on Discord"
+# Keyed by the Worker's machine-readable error code; the upload is always kept for Resume.
+QUOTA_MESSAGES = {
+    "daily_quota": "Today's upload limit for all contributors has been reached. Your encrypted recording is "
+                   "saved on this computer: use Your contributions → Resume after midnight UTC, or " + SUPPORT + ".",
+    "network_quota": "Your network has reached today's upload limit. Your encrypted recording is saved on this "
+                     "computer: use Your contributions → Resume after midnight UTC, or " + SUPPORT + ".",
+    "lifetime_quota": "The collection is full for now. Your encrypted recording is saved on this computer; "
+                      + SUPPORT + " to get it uploaded.",
+    "chunk_attempts": "This upload failed too many times. Withdraw it and record again, or " + SUPPORT + ".",
+    "rate_limited": "Too many requests right now. Wait a minute, then use Resume.",
+}
+
+
 class ServiceError(ValueError):
-    def __init__(self, status):
-        self.status = status
-        messages = {401: "The private receipt was not accepted.",
+    def __init__(self, status, code=None):
+        self.status, self.code = status, code
+        messages = {400: "The service rejected this upload's details. Update EyeTrackVR and try again.",
+                    401: "The private receipt was not accepted.",
                     403: "Verification was not accepted. Please verify again.",
                     404: "This submission or service is unavailable.",
                     409: "This upload changed or expired. Refresh its status.",
                     413: "This recording exceeds the upload size limit.",
-                    429: "The contribution limit has been reached. Please try later.",
+                    429: "The upload limit has been reached. Please try later, or " + SUPPORT + ".",
                     503: "Collection is closed or temporarily unavailable."}
-        super().__init__(messages.get(status, f"The contribution service returned HTTP {status}."))
+        super().__init__(QUOTA_MESSAGES.get(code) or
+                         messages.get(status, f"The contribution service returned HTTP {status}."))
 
 
 def origin(value):
@@ -105,8 +126,9 @@ def save(path, value):
 
 
 class ContributionClient:
-    def __init__(self, service=SERVICE, directory=None):
+    def __init__(self, service=SERVICE, directory=None, recipients=None):
         self.service = origin(service)
+        self.recipients = tuple(recipients or PINNED_RECIPIENTS.get(self.service, ()))
         self.directory = private_directory(directory if directory is not None else receipt_home())
 
     @contextlib.contextmanager
@@ -142,7 +164,12 @@ class ContributionClient:
         with requests.request(method, self.service + path, headers=headers, timeout=(10, 120),
                               allow_redirects=False, **kwargs) as response:
             if not 200 <= response.status_code < 300:
-                raise ServiceError(response.status_code)
+                try:
+                    code = response.json().get("code")
+                except (ValueError, AttributeError):
+                    code = None
+                # Only known codes select a message; service text is never shown verbatim.
+                raise ServiceError(response.status_code, code if code in QUOTA_MESSAGES else None)
             return response.json()
 
     def config(self):
@@ -151,6 +178,14 @@ class ContributionClient:
                 or type(config.get("max_bytes", {}).get("dataset")) is not int
                 or not 1 <= config["max_bytes"]["dataset"] <= 256 * 1024**2):
             raise ValueError("Invalid contribution service configuration")
+        advertised = config.get("recipients")
+        if (config.get("protocol") != PROTOCOL or not self.recipients or not isinstance(advertised, list)
+                or sorted(advertised) != sorted(self.recipients)):
+            # Never encrypt to a key this release cannot vouch for, even if the service offers one.
+            raise ValueError("This EyeTrackVR version cannot verify the service's encryption key. "
+                             "Update EyeTrackVR to contribute. Saved receipts can still withdraw.")
+        if config.get("quota_full") not in QUOTA_MESSAGES:
+            config["quota_full"] = None
         return config
 
     def paths(self, sid):
@@ -167,7 +202,8 @@ class ContributionClient:
         return data
 
     def validate(self, data):
-        if (data.get("schema") != 2 or not ID.fullmatch(data.get("id", ""))
+        # Schema 2 receipts predate encrypted HMD text; they can still resume or withdraw.
+        if (data.get("schema") not in {2, 3} or not ID.fullmatch(data.get("id", ""))
                 or data.get("api") != self.service or data.get("kind") != "dataset"
                 or not re.fullmatch(r"[A-Za-z0-9_-]{43}", data.get("withdrawal_token", ""))
                 or not SHA.fullmatch(data.get("sha256", ""))
@@ -187,7 +223,7 @@ class ContributionClient:
                 rows.append(self.read(path.stem))
             except (ValueError, OSError, TypeError):
                 continue
-        return rows
+        return sorted(rows, key=lambda row: (str(row.get("prepared", "")), row["id"]), reverse=True)
 
     @staticmethod
     def check_pause(cancel):
@@ -200,31 +236,35 @@ class ContributionClient:
             raise ValueError("Collection is currently closed")
         if config["terms"]["dataset"] != agreed_terms:
             raise ValueError("The collection terms changed. Review the updated terms before uploading.")
-        if not hmd.strip() or len(hmd.strip()) > 160:
-            raise ValueError("Enter your HMD in at most 160 characters")
+        hmd = clean_hmd(hmd)
         if Path(source).stat().st_size > 256 * 1024**2:
             raise ValueError("This archive exceeds the 256 MiB preparation limit")
         sid = uuid.uuid4().hex
         receipt, ciphertext = self.paths(sid)
+        terms_sha256 = hashlib.sha256(agreed_terms["text"].encode()).hexdigest()
         self.check_pause(cancel)
         progress("Preparing and encrypting locally…", 0, 0)
         with tempfile.TemporaryDirectory(prefix="prepare-", dir=self.directory) as tmp:
             bundle = Path(tmp) / "capture.zip"
-            dataset_bundle(source, bundle)
+            # The HMD text and consent binding travel only inside the ciphertext.
+            dataset_bundle(source, bundle, submission_record(
+                sid, "dataset", agreed_terms["version"], terms_sha256, hmd))
+            self.check_pause(cancel)
+            # Maintainers reject anything inspect_bundle rejects; fail here, before upload.
+            inspect_bundle(bundle)
             self.check_pause(cancel)
             # age-compatible Rust implementation; no external executable or private key.
             from pyrage import encrypt_file, x25519
             if bundle.stat().st_size > config["max_bytes"]["dataset"]:
                 raise ValueError("This recording exceeds the upload size limit")
             temporary = Path(tmp) / "payload.age"
-            encrypt_file(str(bundle), str(temporary), [x25519.Recipient.from_str(config["recipient"])])
+            encrypt_file(str(bundle), str(temporary), [x25519.Recipient.from_str(key) for key in self.recipients])
             if temporary.stat().st_size > config["max_bytes"]["dataset"]:
                 raise ValueError("The encrypted recording exceeds the upload size limit")
             temporary.chmod(0o600)
-            record = {"schema": 2, "api": self.service, "id": sid, "withdrawal_token": secrets.token_urlsafe(32),
-                      "kind": "dataset", "hmd": hmd.strip(), "consent": True,
-                      "terms_version": agreed_terms["version"],
-                      "terms_sha256": hashlib.sha256(agreed_terms["text"].encode()).hexdigest(),
+            record = {"schema": 3, "api": self.service, "id": sid, "withdrawal_token": secrets.token_urlsafe(32),
+                      "kind": "dataset", "hmd": hmd, "consent": True, "prepared": time.strftime("%Y-%m-%d"),
+                      "terms_version": agreed_terms["version"], "terms_sha256": terms_sha256,
                       "size": temporary.stat().st_size, "sha256": digest(temporary),
                       "chunk_bytes": config["chunk_bytes"], "chunks": hashes(temporary, config["chunk_bytes"]),
                       "state": "prepared"}
@@ -260,6 +300,8 @@ class ContributionClient:
         if state is None:
             if record.get("state") in TERMINAL | {"cancelled"}:
                 raise ValueError("This submission is no longer available to resume")
+            if record["schema"] < 3:
+                raise ValueError("This upload was prepared by an older EyeTrackVR version. Withdraw it and record again.")
             config = self.config()
             if not config["enabled"]:
                 raise ValueError("Collection is currently closed; your upload is retained for resume")
@@ -276,7 +318,7 @@ class ContributionClient:
             self.check_pause(cancel)
             if not isinstance(token, str) or not 0 < len(token) <= 2048:
                 raise ValueError("In-app verification was not completed")
-            fields = ("id", "kind", "hmd", "consent", "terms_version", "terms_sha256", "size", "sha256", "chunks")
+            fields = ("id", "kind", "consent", "terms_version", "terms_sha256", "size", "sha256", "chunks")
             body = {k: record[k] for k in fields}
             body["challenge"] = token
             state = self.request("POST", "/v1/submissions", record["withdrawal_token"], json=body)

@@ -8,7 +8,7 @@ import tkinter as tk
 import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "EyeTrackApp"))
-from contributions.client import ContributionClient
+from contributions.client import ContributionClient, save
 from contributions.window import ContributionWindow
 
 
@@ -178,3 +178,43 @@ def test_capture_engine_uses_one_window_and_attaches_its_result(root, tmp_path, 
     controller.close()
     assert ui.window.winfo_exists()  # Reused when Contribute is opened again.
     ui.window.destroy()
+
+
+def test_hmd_guidance_and_support_details_without_exposing_the_receipt(root, tmp_path):
+    ui = window(root, tmp_path)
+    assert "Valve Index" in ui.hmd_entry.cget("values")
+    ui.hmd.set("x" * 200)
+    assert "at most" in ui.hmd_hint.cget("text")
+    ui.continue_flow()
+    assert ui.step == 0 and "HMD" in ui.status.get()
+    ui.hmd.set("Bigscreen Beyond‮  2e")
+    assert "Encrypted" in ui.hmd_hint.cget("text")
+    sid = "b" * 32
+    chunk = "c" * 64
+    save(ui.client.paths(sid)[0], {
+        "schema": 3, "api": ui.client.service, "id": sid, "withdrawal_token": "t" * 43, "kind": "dataset",
+        "hmd": "Bigscreen Beyond 2e", "consent": True, "prepared": "2026-10-20", "terms_version": "test",
+        "terms_sha256": chunk, "size": 2048, "sha256": chunk, "chunk_bytes": 1024, "chunks": [chunk, chunk],
+        "state": "pending"})
+    ui.refresh_history(sid)
+    assert ui.history.item(sid)["values"][0] == "2026-10-20"
+    assert ui.history.item(sid)["values"][-1] == sid[:8]
+    ui.copy_id()
+    assert ui.window.clipboard_get() == sid and "t" * 43 not in ui.window.clipboard_get()
+    assert str(ui.backup_button.cget("state")) == "disabled"
+    ui._capture_receipt = sid
+    ui.update_navigation()
+    assert str(ui.backup_button.cget("state")) == "normal"
+    ui.close()
+
+
+def test_full_daily_quota_is_announced_before_recording(root, tmp_path):
+    client = ContributionClient(directory=tmp_path / "private")
+    client.config = lambda: {"enabled": True, "quota_full": "daily_quota",
+                             "terms": {"dataset": {"version": "test", "text": "Current 18+ terms"}}}
+    ui = ContributionWindow(root, client=client)
+    ui.window.withdraw()
+    drain(root, lambda: ui.config is not None)
+    assert "upload limit reached" in ui.availability.get() and "prohurtz" in ui.availability.get()
+    assert "prohurtz on Discord" in ui.status.get() and "Resume" in ui.status.get()
+    ui.close()

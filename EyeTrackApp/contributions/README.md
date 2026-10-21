@@ -68,3 +68,23 @@ Malformed local verification IPC is ignored. urllib3 is constrained to >=2.8.0,<
 The detailed review, cross-owner tests, live audit and residual risks are recorded in
 ETVR-Dataset-Sync/docs/SECURITY_REVIEW_2026-10-18.md. Old copies of a leaked receipt
 remain capabilities until explicitly revoked; moving a backup does not rotate it.
+
+
+Credential split and release checks (2026-10-20): contributor clients still contain
+no maintainer credentials. The optional local Worker integration now downloads with
+the independent read-only sync fixture token. The dataset-sync repository documents
+upload/review/pull/withdrawal and deployment in docs/OPERATIONS.md and records the
+live test in docs/SECURITY_REVIEW_2026-10-20.md. Windows packaging was rebuilt and
+its frozen native helper tested with tests/contributions/packaged_smoke.py. The
+Python projects require certifi >=2026.10.19 alongside urllib3 >=2.8.0. Linux/macOS
+native verification still requires platform QA.
+
+
+Protocol 3 (2026-10-20): uploads are end to end encrypted to the maintainer recipients
+pinned in client.py (PINNED_RECIPIENTS); the service's advertised list must match or
+uploads stop with an update message. HMD text is cleaned (bidi/control characters
+removed) and travels only inside the ciphertext with a submission.json binding the
+ID and agreed terms. prepare() runs bundles.inspect_bundle on its own output, the same
+check maintainers apply after decryption. Schema 2 receipts can still withdraw and
+resume existing sessions. Keep PINNED_RECIPIENTS in step with ETVR-Dataset-Sync
+src/etvr_sync/core.py and worker/collection.json.
