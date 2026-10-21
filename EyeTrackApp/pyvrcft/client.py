@@ -406,6 +406,14 @@ class VRCFTClient:
                 # avatar-change detection.
                 self._log_throttled("recv", "Failed to handle OSC packet", exc_info=True)
 
+    def notify_avatar_change(self, avatar_id: str) -> None:
+        """/avatar/change caught by EyeTrackVR's own OSC receiver. Resolving
+        fetches the avatar over HTTP, so keep it off the caller's thread."""
+        threading.Thread(
+            target=self._dispatch, args=("/avatar/change", [avatar_id]), daemon=True,
+            name="pyvrcft-avatar",
+        ).start()
+
     def _dispatch(self, address: str, args: list) -> None:
         if address == "/avatar/change" and args and isinstance(args[0], str):
             self._resolve_avatar(args[0])

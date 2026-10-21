@@ -402,6 +402,8 @@ mode_pyvrcft = "pyVRCFT (experimental)"
 mode_pyvrcft_tip = "Experimental: send Unified Expressions straight to VRChat using the built-in PY-VRCFT port — no VRCFaceTracking app or module needed. Auto-detects the avatar (OSCQuery/mDNS) and its declared FT params. Replaces VRCFT; don't run both. Uses the OSC send/receive ports below."
 receive = "Receive"
 receive_tip = "Listen for incoming OSC messages from VRChat (e.g. calibration toggles from in-game)."
+oscquery = "Auto port (OSCQuery)"
+oscquery_tip = "Let VRChat find the receiver automatically (OSCQuery) instead of using the fixed Receiver Port, so it can run alongside VRCFaceTracking and other OSC apps. Same PC as VRChat only; falls back to the Receiver Port if it can't start."
 # Validation error messages (shown when an invalid combination is picked)
 err_one_vrcft_version = "Only one version of VRCFT params can be turned on"
 err_output_mode_conflict = "Either VRCNative or VRCFT output can be active at a time"

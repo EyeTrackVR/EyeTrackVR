@@ -108,17 +108,25 @@ def discover_vrchat_oscquery(timeout: float = 3.0, instance_prefix: str = "VRCha
         return None
 
     try:
-        sock.sendto(_build_query(SERVICE), (MDNS_GROUP, MDNS_PORT))
-        deadline = time.monotonic() + timeout
+        # Responders answer the same multicast question at most once a second
+        # (RFC 6762 §6), so a single query sent right after another app's can
+        # go unanswered. Ask again a little over a second later.
+        start = time.monotonic()
+        deadline = start + timeout
+        resend_at = [start, start + 1.1, start + 2.2]
         while True:
-            remaining = deadline - time.monotonic()
+            now = time.monotonic()
+            remaining = deadline - now
             if remaining <= 0:
                 return None
-            sock.settimeout(remaining)
+            while resend_at and resend_at[0] <= now:
+                resend_at.pop(0)
+                sock.sendto(_build_query(SERVICE), (MDNS_GROUP, MDNS_PORT))
+            sock.settimeout(min(remaining, (resend_at[0] - now) if resend_at else remaining))
             try:
                 data, _addr = sock.recvfrom(4096)
             except socket.timeout:
-                return None
+                continue
             except OSError:
                 return None
             for name, port, _target in _parse_srv_records(data):

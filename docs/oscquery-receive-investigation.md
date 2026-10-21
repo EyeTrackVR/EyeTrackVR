@@ -1,7 +1,43 @@
 # OSCQuery for the OSC receive side: investigation
 
-Status: research and a throwaway spike only. No app code was changed.
-Date: 2026-10-20. Branch at time of writing: `pro-v4-tracking-algos`.
+Status: implemented on 2026-10-21 with Plan B (in-house responder, no zeroconf). The
+investigation below, from 2026-10-20, is kept for the reasoning and sources.
+
+## Implementation (2026-10-21)
+
+Maintainers chose not to ship LGPL code, so the advertiser is all standard library:
+`EyeTrackApp/osc/oscquery.py`.
+
+- **Setting:** "Auto port (OSCQuery)" next to "Receive" (`gui_osc_oscquery`, default
+  off). It is greyed out while Receive is off. Translated in all five languages.
+- **Receiver:** in Auto mode `OSCReceiver` binds `127.0.0.1:0` and advertises it. If
+  the advertiser cannot start (for example port 5353 cannot be bound) it logs a
+  warning and binds the fixed Receiver Port as before. Fixed mode is unchanged.
+  Toggling the setting restarts the receiver.
+- **HTTP:** `ThreadingHTTPServer` on `127.0.0.1:0` serves `?HOST_INFO`, the tree,
+  `?ATTRIBUTE` queries (204 if absent) and 404 for unknown paths. The tree lists
+  `/avatar/change` plus every registered listener address. The first request is
+  logged as "VRChat can now find the OSC receiver".
+- **mDNS responder:** one UDP socket on `0.0.0.0:5353` with address reuse, joined to
+  224.0.0.251 on loopback, the default interface and each local IPv4 address. It
+  answers PTR, SRV, TXT, A and ANY questions for `<instance>._oscjson._tcp.local`
+  and `<instance>._osc._udp.local` (plus the `_services._dns-sd` meta query), always
+  with A 127.0.0.1. It announces twice on start (RFC 6762 §8.3), sends goodbyes
+  (TTL 0) on stop, sends legacy unicast replies to one-shot queriers, honours the
+  QU bit, and rate-limits multicast answers to once per second per question.
+  Malformed packets, including name-pointer loops, are ignored.
+- **pyvrcft:** `/avatar/change` received by ETVR is forwarded to
+  `VRCFTClient.notify_avatar_change`, fixing stale parameters after an avatar
+  switch while Receive is on (fixed or Auto mode). pyvrcft's VRChat lookup now
+  re-sends its query about 1.1 s and 2.2 s in, so the once-per-second responder
+  limit can't make it miss.
+- **Tests:** `tests/test_oscquery.py` covers the tree, answers, goodbyes, malformed
+  packets, HTTP, loopback-only binding, receiver wiring, fallback, avatar
+  forwarding, and a real multicast round trip (skipped where CI has no multicast).
+
+Still unverified: discovery by a real VRChat client, firewall prompt behaviour, and
+Linux. The receiver's fixed mode still binds the *send* address (`gui_osc_address`),
+so Receive with a Quest's IP as the send address likely fails. That is a separate fix.
 
 ## TL;DR
 

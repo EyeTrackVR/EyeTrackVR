@@ -39,6 +39,7 @@ from osc.OSCMessage import OSCMessage, OSCMessageType
 from osc.VRCFTModuleMessenger import VRCFTModuleSender
 from osc.VRChatOSCSender import VRChatOSCSender
 from osc.PyVRCFTSender import PyVRCFTSender
+from osc.oscquery import LOOPBACK, OSCQueryAdvertiser
 import queue
 import threading
 
@@ -50,6 +51,8 @@ _LOG_INTERVAL_S = 5.0
 
 # Sentinel: the message carries a NaN/inf and must not reach the wire.
 _DROP = object()
+
+AVATAR_CHANGE_ADDRESS = "/avatar/change"
 
 
 class _ThrottledLog:
@@ -187,6 +190,15 @@ class OSCManager:
         self.osc_receiver_thread: Optional[threading.Thread] = None
         self._last_sender_sig: tuple | None = None
         self._last_receiver_sig: tuple | None = None
+        # pyVRCFT never gets /avatar/change while this receiver owns the input
+        # (its own receive port is released), so hand avatar switches over.
+        self.listeners[AVATAR_CHANGE_ADDRESS] = [self._forward_avatar_change]
+
+    def _forward_avatar_change(self, message: OSCMessage) -> None:
+        sender = self.osc_sender.pyvrcft_sender if self.osc_sender is not None else None
+        client = sender.client if sender is not None else None
+        if client is not None and isinstance(message.data, str):
+            client.notify_avatar_change(message.data)
 
     def start(self):
         self.setup_sender()
@@ -213,6 +225,7 @@ class OSCManager:
             bool(s.gui_ROSC),
             _sig_port(s.gui_osc_receiver_port),
             str(s.gui_osc_address).strip(),
+            bool(s.gui_osc_oscquery),
         )
 
     def setup_sender(self):
@@ -262,6 +275,7 @@ class OSCManager:
             "gui_ROSC",
             "gui_osc_receiver_port",
             "gui_osc_address",
+            "gui_osc_oscquery",
         }
     )
 
@@ -456,11 +470,44 @@ class OSCReceiver:
         self.dispatcher = dispatcher.Dispatcher()
         self.listeners = listeners
         self.server_thread = None
+        self.advertiser: Optional[OSCQueryAdvertiser] = None
+        # OSCUDPServer needs a dedicated serve_forever thread so shutdown can be
+        # requested from the manager thread.
         self.server = None
+        if getattr(self.config, "gui_osc_oscquery", False):
+            self.server = self._bind_oscquery()
+        if self.server is None:
+            self.server = self._bind_fixed()
+
+    def endpoints(self) -> dict[str, tuple[str, int, str]]:
+        """OSCQuery nodes for the addresses this receiver handles (write-only)."""
+        nodes = {AVATAR_CHANGE_ADDRESS: ("s", 2, "Avatar change")}
+        for address in self.listeners:
+            nodes.setdefault(address, ("T", 2, "EyeTrackVR control"))
+        return nodes
+
+    def _bind_oscquery(self):
+        """Any free loopback port, advertised to VRChat; None to fall back to the fixed port."""
+        server = None
         try:
-            # OSCUDPServer needs a dedicated serve_forever thread so shutdown can be
-            # requested from the manager thread.
-            self.server = osc_server.OSCUDPServer(
+            server = osc_server.OSCUDPServer((LOOPBACK, 0), self.dispatcher)
+            self.advertiser = OSCQueryAdvertiser()
+            self.advertiser.start(server.server_address[1], self.endpoints())
+            return server
+        except Exception as exc:  # noqa: mDNS port, firewall or socket trouble
+            logger.warning(
+                "OSCQuery unavailable (%s); falling back to fixed receiver port %s",
+                exc,
+                self.config.gui_osc_receiver_port,
+            )
+            self.advertiser = None
+            if server is not None:
+                server.server_close()
+            return None
+
+    def _bind_fixed(self):
+        try:
+            return osc_server.OSCUDPServer(
                 (self.config.gui_osc_address, int(self.config.gui_osc_receiver_port)),
                 self.dispatcher,
             )
@@ -471,10 +518,15 @@ class OSCReceiver:
                 self.config.gui_osc_receiver_port,
                 exc,
             )
+            return None
 
     def shutdown(self):
         logger.info("Exiting OSC receiver")
         try:
+            # Say goodbye over mDNS before the port closes so VRChat stops sending.
+            if self.advertiser is not None:
+                self.advertiser.stop()
+                self.advertiser = None
             if self.server is not None:
                 self.server.shutdown()
                 # shutdown() only stops serve_forever; close the socket so the

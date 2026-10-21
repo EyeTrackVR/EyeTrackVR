@@ -425,6 +425,9 @@ class EyeTrackSettingsConfig(BaseModel):
     gui_thresh_add: int = 11
     gui_update_check: bool = True
     gui_ROSC: bool = False
+    # Receive on any free port and let VRChat find it via OSCQuery (mDNS)
+    # instead of gui_osc_receiver_port; falls back to that port on failure.
+    gui_osc_oscquery: bool = False
     gui_circular_crop_right: bool = False
     gui_circular_crop_left: bool = False
     ibo_filter_samples: int = 400

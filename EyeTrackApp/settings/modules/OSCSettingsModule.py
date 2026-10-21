@@ -11,6 +11,7 @@ from localization import tr
 
 class OSCValidationModel(BaseValidationModel):
     gui_ROSC: bool
+    gui_osc_oscquery: bool
     gui_vrc_native: bool
     gui_osc_vrcft_v1: bool
     gui_osc_vrcft_v2: bool
@@ -41,6 +42,7 @@ class OSCSettingsModule(BaseSettingsModule):
         super().__init__(config=config, widget_id=widget_id, **kwargs)
         self.validation_model = OSCValidationModel
         self.gui_ROSC = f"-ROSC{widget_id}-"
+        self.gui_osc_oscquery = f"-OSCQUERY{widget_id}-"
         self.gui_vrc_native = f"-VRCNATIVE{widget_id}-"
         self.gui_osc_output_mode = f"-OSCOUTMODE{widget_id}-"
         self.gui_osc_vrcft_v1 = f"-OSCVRCFTV1{widget_id}-"
@@ -108,3 +110,14 @@ class OSCSettingsModule(BaseSettingsModule):
         receive_cb = ttk.Checkbutton(osc_bar, text=tr("osc.receive"), variable=ros_var)
         receive_cb.pack(side="left", padx=(24, 8))
         attach_tooltip(receive_cb, tr("osc.receive_tip"))
+
+        oscquery_var = tk.BooleanVar(value=bool(self.config.gui_osc_oscquery))
+        self.tk_vars[self.gui_osc_oscquery] = oscquery_var
+        oscquery_cb = ttk.Checkbutton(osc_bar, text=tr("osc.oscquery"), variable=oscquery_var)
+        oscquery_cb.pack(side="left", padx=(0, 8))
+        attach_tooltip(oscquery_cb, tr("osc.oscquery_tip"))
+        # Auto port only matters while receiving.
+        def sync_oscquery_state(*_):
+            oscquery_cb.configure(state="normal" if ros_var.get() else "disabled")
+        ros_var.trace_add("write", sync_oscquery_state)
+        sync_oscquery_state()
