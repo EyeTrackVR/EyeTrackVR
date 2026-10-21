@@ -198,15 +198,39 @@ def _windows_camera_metadata() -> list[tuple[str, str]]:
     return result
 
 
-def _linux_camera_metadata() -> list[tuple[str, str]]:
+_V4L2_SYSFS_DIR = "/sys/class/video4linux"
+
+
+def _linux_is_capture_node(dev_name: str) -> bool:
+    """False for the extra metadata-only node a UVC camera registers alongside
+    its capture node (``videoN`` + ``videoN+1``, same name). That node never
+    delivers frames, shows up as a duplicate "Cam (1)/(2)" entry, and makes
+    name-based rebinding in resolve_uvc_address_to_index see two matches and
+    give up. The kernel numbers a device's nodes from 0 in sysfs ``index``; the
+    capture node is 0. When sysfs is missing or unreadable keep the node: a
+    stray duplicate beats hiding a real camera."""
+    try:
+        with open(os.path.join(_V4L2_SYSFS_DIR, dev_name, "index")) as f:
+            return int(f.read().strip() or 0) == 0
+    except (OSError, ValueError):
+        return True
+
+
+def _linux_camera_metadata() -> list[tuple[int, str, str]]:
     # /sys/class/video4linux exposes the device name; /dev/v4l/by-id has stable
     # symlinks keyed on USB descriptor. We iterate /dev/video* in numeric order
-    # (v4l2 indices match cv2 indices) and resolve each to its by-id symlink if
+    # (v4l2 node N is cv2 index N) and resolve each to its by-id symlink if
     # one exists. Devices without a by-id entry fall back to the sysfs name.
+    # Returns (index, name, address): metadata nodes are dropped, so the list
+    # position no longer equals the cv2 index and the real N is carried along.
     video_devs = []
     try:
         for entry in sorted(os.listdir("/dev")):
-            if entry.startswith("video") and entry[5:].isdigit():
+            if (
+                entry.startswith("video")
+                and entry[5:].isdigit()
+                and _linux_is_capture_node(entry)
+            ):
                 video_devs.append((int(entry[5:]), f"/dev/{entry}"))
     except OSError:
         return []
@@ -223,16 +247,16 @@ def _linux_camera_metadata() -> list[tuple[str, str]]:
             except OSError:
                 pass
 
-    result: list[tuple[str, str]] = []
-    for _, dev_path in video_devs:
+    result: list[tuple[int, str, str]] = []
+    for index, dev_path in video_devs:
         name = "Camera"
         try:
-            with open(f"/sys/class/video4linux/{os.path.basename(dev_path)}/name") as f:
+            with open(os.path.join(_V4L2_SYSFS_DIR, os.path.basename(dev_path), "name")) as f:
                 name = f.read().strip() or name
         except OSError:
             pass
         address = by_id_map.get(dev_path, dev_path)
-        result.append((name, address))
+        result.append((index, name, address))
     return result
 
 
@@ -258,14 +282,19 @@ def _macos_camera_metadata() -> list[tuple[str, str]]:
         return []
 
 
-def _platform_metadata() -> list[tuple[str, str]]:
+def _platform_metadata() -> list[tuple[int, str, str]]:
+    """``[(cv2_index, name, address), ...]``. Windows and macOS pair names with
+    cv2 indices positionally; Linux reports each node's own index because it
+    skips metadata-only nodes."""
     if sys.platform.startswith("win"):
-        return _windows_camera_metadata()
-    if sys.platform == "darwin":
-        return _macos_camera_metadata()
-    if sys.platform.startswith("linux"):
+        metadata = _windows_camera_metadata()
+    elif sys.platform == "darwin":
+        metadata = _macos_camera_metadata()
+    elif sys.platform.startswith("linux"):
         return _linux_camera_metadata()
-    return []
+    else:
+        return []
+    return [(pos, name, address) for pos, (name, address) in enumerate(metadata)]
 
 
 _uvc_list_cache: "list[dict] | None" = None
@@ -308,11 +337,11 @@ def _list_uvc_cameras_uncached() -> "list[dict]":
     if metadata:
         return [
             {
-                "index": pos,
-                "name": name or f"Camera {pos}",
-                "address": address or f"index:{pos}",
+                "index": idx,
+                "name": name or f"Camera {idx}",
+                "address": address or f"index:{idx}",
             }
-            for pos, (name, address) in enumerate(metadata)
+            for idx, name, address in metadata
         ]
     indices = _probe_cv2_indices()
     return [
@@ -469,6 +498,10 @@ def _probe_serial_for_jpeg(device: str, baud: int, timeout_s: float) -> bool:
 
     conn = None
     try:
+        # exclusive=True: Windows ports are exclusive anyway; on POSIX pyserial
+        # takes an flock so the probe fails rather than sharing a port another
+        # flock-aware opener holds. (POSIX opens are otherwise shared, which is
+        # why discover_etvr_serial_cameras skips configured capture ports.)
         conn = serial.Serial(
             port=device,
             baudrate=baud,
@@ -476,6 +509,7 @@ def _probe_serial_for_jpeg(device: str, baud: int, timeout_s: float) -> bool:
             dsrdtr=False,
             rtscts=False,
             timeout=0.15,
+            exclusive=True,
         )
         # Discard any bytes already in the OS buffer (bootloader noise, partial
         # frames from a previous session) so the SOI search starts clean.
@@ -507,8 +541,24 @@ def _probe_serial_for_jpeg(device: str, baud: int, timeout_s: float) -> bool:
             pass
 
 
+def _serial_port_key(device) -> str:
+    """Comparable identity for a serial port path: case-insensitive on Windows
+    (``com5`` == ``COM5``), symlink-resolved on POSIX so a configured
+    ``/dev/serial/by-id/...`` matches the ``/dev/ttyUSB0`` comports() lists."""
+    device = str(device or "").strip()
+    if not device:
+        return ""
+    if sys.platform.startswith("win"):
+        return device.upper()
+    try:
+        return os.path.realpath(device)
+    except (OSError, ValueError):
+        return device
+
+
 def discover_etvr_serial_cameras(
     timeout_s: float = _SERIAL_PROBE_TIMEOUT_S,
+    skip_devices: "Iterable[object]" = (),
 ) -> list[tuple[str, str]]:
     """Return ``[(label, device), ...]`` for COM/tty ports currently streaming
     ETVR-style MJPEG. ``device`` is the raw port path the rest of the app
@@ -516,9 +566,11 @@ def discover_etvr_serial_cameras(
 
     Probes run in parallel under a small thread pool so the wall-clock scan
     stays near ``timeout_s`` even on machines with multiple candidate ports.
-    Ports that are already held by the live capture thread will fail to open
-    and are silently dropped: that's correct, since the user already has
-    them configured.
+
+    ``skip_devices`` are the configured capture sources; matching ports are
+    never opened. On Windows a live port would just fail to open, but on
+    Linux/macOS opens are shared, so probing the tracker's port (and flushing
+    its input buffer) would steal bytes from the running capture.
 
     Safe to call from a worker thread. Do not call from the UI thread; serial
     opens can stall for hundreds of milliseconds on some drivers."""
@@ -528,7 +580,14 @@ def discover_etvr_serial_cameras(
         return []
 
     baud = _SERIAL_BAUD_DARWIN if sys.platform == "darwin" else _SERIAL_BAUD_DEFAULT
-    candidates = [p for p in list_ports.comports() if _looks_like_usable_serial(p)]
+    skip = {
+        _serial_port_key(d) for d in skip_devices
+        if isinstance(d, str) and d.strip()
+    }
+    candidates = [
+        p for p in list_ports.comports()
+        if _looks_like_usable_serial(p) and _serial_port_key(p.device) not in skip
+    ]
     if not candidates:
         return []
 

@@ -375,6 +375,11 @@ class BaseSettingsWidget:
                 default_values[key] = default_val
                 if widget_key in module.tk_vars:
                     module.tk_vars[widget_key].set(default_val)
+            # Vars that get_values_map derives other keys from (radio groups)
+            # would otherwise write the old choice back on the next tick.
+            reset_hook = getattr(module, "reset_to_defaults", None)
+            if reset_hook is not None:
+                reset_hook(base_settings)
         print(f"\033[92m[INFO] Config reset, saving\033[0m")
         self._cancel_debounced_settings_save()
         self.is_saving = True

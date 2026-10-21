@@ -82,10 +82,14 @@ def parse(data: bytes):
     """Parse an OSC packet into a list of (address, [args]) tuples.
 
     Handles messages and (nested) bundles; unknown arg types abort that
-    message's remaining args but keep what was parsed.
+    message's remaining args but keep what was parsed. Never raises on
+    malformed input and always terminates.
     """
     out = []
-    _parse_into(data, out)
+    try:
+        _parse_into(data, out)
+    except (struct.error, ValueError, IndexError, RecursionError):
+        pass  # malformed packet: keep whatever parsed cleanly
     return out
 
 
@@ -95,6 +99,11 @@ def _parse_into(data: bytes, out: list) -> None:
         while offset + 4 <= len(data):
             (size,) = struct.unpack_from(">i", data, offset)
             offset += 4
+            # A non-positive size would never advance (negative even rewinds),
+            # spinning the receive thread forever; an oversized one is truncated.
+            # Either way the rest of the bundle is garbage, so stop here.
+            if size <= 0 or offset + size > len(data):
+                return
             _parse_into(data[offset : offset + size], out)
             offset += size
         return

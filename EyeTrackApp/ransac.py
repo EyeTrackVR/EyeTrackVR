@@ -207,6 +207,15 @@ def get_center_noclamp(center_xy, radius):
     )
 
 
+def ransac_blink_file_path(eye_id) -> str:
+    """Per-eye RANSAC blink statistics file. Read and write must use the same
+    name: the reader used to say "blink" while the writer said "BLINK", so on
+    case-sensitive filesystems the saved statistics were never loaded."""
+    if eye_id == EyeId.LEFT:
+        return "RANSAC_BLINK_LEFT.cfg"
+    return "RANSAC_BLINK_RIGHT.cfg"
+
+
 def RANSAC3D(self, hsrac_en):
     f = False
     ranf = False
@@ -364,47 +373,44 @@ def RANSAC3D(self, hsrac_en):
             cx = int(clamp(cx + ransac_lower_x, 0, csx))
             cy = int(clamp(cy + ransac_lower_y, 0, csy))
 
-    for cnt in contours:
-        (x, y, w, h) = cv2.boundingRect(cnt)
-        perscalarw = w / csx
-        perscalarh = h / csy
-        if self.settings.gui_RANSACBLINK:
-            if self.ran_blink_check_for_file:
-                if self.eye_id in [EyeId.LEFT]:
-                    file_path = "RANSAC_blink_LEFT.cfg"
-                if self.eye_id in [EyeId.RIGHT]:
-                    file_path = "RANSAC_blink_RIGHT.cfg"
-                else:
-                    file_path = "RANSAC_blink_RIGHT.cfg"
+    if self.settings.gui_RANSACBLINK and contours:
+        if self.ran_blink_check_for_file:
+            file_path = ransac_blink_file_path(self.eye_id)
+            if os.path.exists(file_path):
+                with open(file_path, "r") as file:
+                    self.blink_list = [float(line.strip()) for line in file]
+                self._ransac_blink_p92 = None
+            else:
+                logger.info(
+                    "RANSAC blink config '%s' not found. Waiting for calibration.",
+                    file_path,
+                )
+            self.ran_blink_check_for_file = False
 
-                if os.path.exists(file_path):
-                    with open(file_path, "r") as file:
-                        self.blink_list = [float(line.strip()) for line in file]
-                else:
-                    logger.info(
-                        "RANSAC blink config '%s' not found. Waiting for calibration.",
-                        file_path,
-                    )
-                self.ran_blink_check_for_file = False
+        # Bounding-box aspect delta per contour. Loop vars must not reuse w/h:
+        # those are the ellipse-fit axes returned as pupil_width/height.
+        blink_deltas = []
+        for cnt in contours:
+            (_bx, _by, box_w, box_h) = cv2.boundingRect(cnt)
+            blink_deltas.append(abs(box_w / csx - box_h / csy))
 
+        for delta in blink_deltas:
             if len(self.blink_list) == 10000:
-                if self.eye_id in [EyeId.LEFT]:
-                    with open("RANSAC_BLINK_LEFT.cfg", "w") as file:
-                        for item in self.blink_list:
-                            file.write(str(item) + "\n")
-
-                if self.eye_id in [EyeId.RIGHT]:
-                    with open("RANSAC_BLINK_RIGHT.cfg", "w") as file:
-                        for item in self.blink_list:
-                            file.write(str(item) + "\n")
-
-                self.blink_list.append(abs(perscalarw - perscalarh))
-
+                with open(ransac_blink_file_path(self.eye_id), "w") as file:
+                    for item in self.blink_list:
+                        file.write(str(item) + "\n")
+                self.blink_list.append(delta)
             elif len(self.blink_list) < 10000:
-                self.blink_list.append(abs(perscalarw - perscalarh))
+                self.blink_list.append(delta)
 
-            if abs(perscalarw - perscalarh) >= np.percentile(self.blink_list, 92):
-                blink = 0.0
+        # The 92nd percentile is O(n) over up to 10k samples: compute it once
+        # per frame (not per contour), and not at all once the list is frozen.
+        cached = getattr(self, "_ransac_blink_p92", None)
+        if cached is None or cached[0] != len(self.blink_list):
+            cached = (len(self.blink_list), float(np.percentile(self.blink_list, 92)))
+            self._ransac_blink_p92 = cached
+        if max(blink_deltas) >= cached[1]:
+            blink = 0.0
 
     try:
         cv2.drawContours(

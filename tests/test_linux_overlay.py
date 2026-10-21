@@ -11,7 +11,7 @@ TOOLS = Path(__file__).resolve().parents[1] / "EyeTrackApp" / "Tools" / "linux"
 
 def test_source_checkout_ships_linux_x86_64_overlay(monkeypatch):
     monkeypatch.setattr(calibration.sys, "platform", "linux")
-    path = Path(calibration._overlay_executable())
+    path = Path(calibration._overlay_executable()).resolve()
     assert path == TOOLS / "EyeTrackVR-Overlay"
     header = path.read_bytes()[:20]
     assert header[:6] == b"\x7fELF\x02\x01"  # 64-bit, little endian

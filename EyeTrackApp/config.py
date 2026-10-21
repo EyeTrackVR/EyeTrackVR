@@ -27,8 +27,10 @@ LICENSE: Babble Software Distribution License 1.0
 import json
 import logging
 import os.path
-import shutil
 import sys
+import tempfile
+import threading
+import time
 import numpy as np
 from pydantic import (
     BaseModel,
@@ -43,6 +45,9 @@ import os
 from eye import EyeId
 
 logger = logging.getLogger(__name__)
+
+# Eye threads, LEAP, calibration workers and the Tk thread all call save().
+_SAVE_LOCK = threading.Lock()
 
 def _user_data_dir() -> str:
     """Directory holding the settings file.
@@ -556,6 +561,34 @@ class EyeTrackSettingsConfig(BaseModel):
         return data
 
 
+def _atomic_write(path: str, text: str) -> None:
+    directory = os.path.dirname(os.path.abspath(path))
+    fd, tmp_path = tempfile.mkstemp(
+        prefix=os.path.basename(path) + ".", suffix=".tmp", dir=directory
+    )
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as tmp_file:
+            tmp_file.write(text)
+            tmp_file.flush()
+            os.fsync(tmp_file.fileno())
+        # Windows refuses the replace while a reader (or AV scanner) holds the
+        # target open; that clears within milliseconds.
+        for attempt in range(10):
+            try:
+                os.replace(tmp_path, path)
+                return
+            except PermissionError:
+                if attempt == 9:
+                    raise
+                time.sleep(0.02)
+    except BaseException:
+        try:
+            os.remove(tmp_path)
+        except OSError:
+            pass
+        raise
+
+
 class EyeTrackConfig(BaseModel):
     version: int = CURRENT_CONFIG_VERSION
     right_eye: EyeTrackCameraConfig = EyeTrackCameraConfig()
@@ -568,29 +601,31 @@ class EyeTrackConfig(BaseModel):
     _listeners: list = PrivateAttr(default_factory=list)
 
     @staticmethod
+    def _load_file(path: str) -> "EyeTrackConfig":
+        with open(path, "r", encoding="utf-8") as settings_file:
+            raw = json.load(settings_file)
+        if not isinstance(raw, dict):
+            raise TypeError(f"root is {type(raw).__name__}, expected object")
+        return EyeTrackConfig(**_migrate_config_dict(raw))
+
+    @staticmethod
     def load():
         if not os.path.exists(CONFIG_FILE_NAME):
             logger.info("No settings file, using base settings")
             return EyeTrackConfig()
         try:
-            with open(CONFIG_FILE_NAME, "r") as settings_file:
-                raw = json.load(settings_file)
-            return EyeTrackConfig(**_migrate_config_dict(raw))
-        except (json.JSONDecodeError, ValidationError):
-            logger.info("Failed to load settings file")
-            load_config = None
-            if os.path.exists(BACKUP_CONFIG_FILE_NAME):
-                try:
-                    with open(BACKUP_CONFIG_FILE_NAME, "r") as settings_file:
-                        raw = json.load(settings_file)
-                    load_config = EyeTrackConfig(**_migrate_config_dict(raw))
-                    logger.info("Using backup settings")
-                except (json.JSONDecodeError, ValidationError):
-                    pass
-            if load_config is None:
-                logger.info("Using base settings")
-                load_config = EyeTrackConfig()
-            return load_config
+            return EyeTrackConfig._load_file(CONFIG_FILE_NAME)
+        except Exception as e:
+            logger.warning("Failed to load settings file: %r", e)
+        if os.path.exists(BACKUP_CONFIG_FILE_NAME):
+            try:
+                load_config = EyeTrackConfig._load_file(BACKUP_CONFIG_FILE_NAME)
+                logger.info("Using backup settings")
+                return load_config
+            except Exception as e:
+                logger.warning("Failed to load backup settings file: %r", e)
+        logger.info("Using base settings")
+        return EyeTrackConfig()
 
     def validate_camera_address_conflict(self, eye_id, capture_source):
         match eye_id:
@@ -657,15 +692,17 @@ class EyeTrackConfig(BaseModel):
 
     def save(self):
         # make sure this is only called if there is a change
-        if os.path.exists(CONFIG_FILE_NAME):
+        with _SAVE_LOCK:
+            data = json.dumps(self.model_dump(warnings=False))
+            # A corrupt main file must never overwrite a good backup.
             try:
-                shutil.copy(CONFIG_FILE_NAME, BACKUP_CONFIG_FILE_NAME)
-            except shutil.SameFileError:
+                with open(CONFIG_FILE_NAME, "r", encoding="utf-8") as current:
+                    previous = current.read()
+                if isinstance(json.loads(previous), dict):
+                    _atomic_write(BACKUP_CONFIG_FILE_NAME, previous)
+            except (OSError, ValueError):
                 pass
-            except (OSError, IOError):
-                pass
-        with open(CONFIG_FILE_NAME, "w") as settings_file:
-            json.dump(obj=self.model_dump(warnings=False), fp=settings_file)
+            _atomic_write(CONFIG_FILE_NAME, data)
         logger.info("Config saved successfully")
 
     def register_listener_callback(self, callback):

@@ -198,12 +198,25 @@ class RobustCalibrationSession:
 
     # ── Triggers ─────────────────────────────────────────────────────────────
 
+    def _reset_polynomial(self) -> None:
+        self.poly_coeffs_x = None
+        self.poly_coeffs_y = None
+        self.poly_trained = False
+        if hasattr(self, "_poly_source"):
+            del self._poly_source
+
     def start_express(self, overlay_driven: bool = False) -> None:
         self.phase = CalibrationPhase.EXPRESS
         self.express_target_idx = 0
         self._express_frame_counts = [0] * NUM_EXPRESS_TARGETS
         self._express_raw = [[] for _ in range(NUM_EXPRESS_TARGETS)]
         self.express_calibrated = False
+        # A new express run moves the centre/bounds and replaces the card
+        # anchors, so any previous polynomial no longer matches them. Drop it
+        # now; otherwise, when the card fit is skipped, the stale polynomial
+        # would keep driving output against the new calibration.
+        self._express_target_medians = []
+        self._reset_polynomial()
         self._overlay_driven: bool = overlay_driven
         self._status = EXPRESS_TARGET_HINTS[0]
         logger.info("Robust cal [Express]: started (overlay_driven=%s)", overlay_driven)
@@ -403,11 +416,19 @@ class RobustCalibrationSession:
         Sets poly_coeffs_x/y and poly_trained=True on success.
         Returns True if fitting succeeded.
         """
-        meds = self._express_target_medians
-        targets = _EXPRESS_GAZE_TARGETS
-        if not meds or len(meds) < 6 or len(meds) != len(targets):
-            logger.warning("Card poly: not enough medians (%d), skipping", len(meds) if meds else 0)
+        # Medians are stored by target index (None = no frames for that card),
+        # so each one is paired with its own gaze target even when an earlier
+        # card is missing.
+        pairs = [
+            (med, target)
+            for med, target in zip(self._express_target_medians, _EXPRESS_GAZE_TARGETS)
+            if med is not None
+        ]
+        if len(pairs) < 6:
+            logger.warning("Card poly: not enough medians (%d), skipping", len(pairs))
             return False
+        meds = [m for m, _ in pairs]
+        targets = [t for _, t in pairs]
 
         n = len(meds)
         X = np.array([self._poly_features(rx, ry) for rx, ry in meds], dtype=np.float64)
@@ -482,8 +503,11 @@ class RobustCalibrationSession:
         # IQR removes frames where the ML tracker snapped to the image centre
         # (pupil occluded at extreme gaze angle) before computing the
         # representative raw position for each card.
-        target_meds: list[Tuple[float, float]] = []
-        for frames in self._express_raw:
+        # Indexed by target: target_meds[i] belongs to _EXPRESS_GAZE_TARGETS[i],
+        # None when that target got no frames. Compacting the list instead
+        # shifted every later anchor onto the wrong gaze target.
+        target_meds: list[Optional[Tuple[float, float]]] = []
+        for idx, frames in enumerate(self._express_raw):
             if frames:
                 clean = self._clean_card_samples(frames)
                 mx = float(np.median([x for x, y in clean]))
@@ -492,10 +516,13 @@ class RobustCalibrationSession:
                 if len(clean) < len(frames):
                     logger.debug(
                         "Card IQR: kept %d/%d frames for target %d",
-                        len(clean), len(frames), len(target_meds) - 1,
+                        len(clean), len(frames), idx,
                     )
+            else:
+                target_meds.append(None)
+        valid_meds = [m for m in target_meds if m is not None]
 
-        if not target_meds:
+        if not valid_meds:
             logger.warning("Robust cal [Express]: all targets empty, aborting")
             self.phase = CalibrationPhase.DONE
             self._status = "Express failed: no valid targets"
@@ -504,6 +531,10 @@ class RobustCalibrationSession:
         # Store for polynomial anchor injection during pursuit fitting
         self._express_target_medians = target_meds
 
+        # Bounds from per-target medians (min/max across the 9 representative points)
+        all_med_x = [m[0] for m in valid_meds]
+        all_med_y = [m[1] for m in valid_meds]
+
         # Target 0 is the center gaze point (user looking straight ahead).
         # Use its median as the normalization origin so forward → (0, 0).
         if self._express_raw[0]:
@@ -511,12 +542,10 @@ class RobustCalibrationSession:
             self.express_center_x = float(np.median([x for x, y in center_frames]))
             self.express_center_y = float(np.median([y for x, y in center_frames]))
         else:
-            self.express_center_x = target_meds[0][0]
-            self.express_center_y = target_meds[0][1]
-
-        # Bounds from per-target medians (min/max across the 9 representative points)
-        all_med_x = [m[0] for m in target_meds]
-        all_med_y = [m[1] for m in target_meds]
+            # No centre card: midpoint of the other cards' extent (the same
+            # fallback from_dict uses for saves without a stored centre).
+            self.express_center_x = (min(all_med_x) + max(all_med_x)) / 2.0
+            self.express_center_y = (min(all_med_y) + max(all_med_y)) / 2.0
         self.express_x_min = float(min(all_med_x))
         self.express_x_max = float(max(all_med_x))
         self.express_y_min = float(min(all_med_y))
@@ -599,10 +628,17 @@ class RobustCalibrationSession:
             logger.info("Robust cal: blink not calibrated, using all %d frames", total)
 
         if len(clean) < _MIN_POLY_FRAMES:
-            logger.warning("Robust cal: only %d clean frames, polynomial not fitted", len(clean))
-            self.poly_trained = False
+            # Keep whatever polynomial was already in place (card fit or an
+            # earlier pursuit): DONE triggers a save, and clearing it here
+            # used to permanently delete a good calibration over one bad run.
+            logger.warning(
+                "Robust cal: only %d clean frames, polynomial not fitted "
+                "(keeping previous fit: %s)", len(clean), self.poly_trained,
+            )
             self.phase = CalibrationPhase.DONE
             self._status = f"Polynomial fit failed - {len(clean)} frames (need {_MIN_POLY_FRAMES})"
+            if self.poly_trained:
+                self._status += "; previous calibration kept"
             return
 
         # ── Velocity-based per-sample weights ────────────────────────────────
@@ -629,7 +665,7 @@ class RobustCalibrationSession:
         #   fall back to reconstructed anchors with lower weight.
         anchor_meds = self._express_target_medians
         _has_card_poly = getattr(self, "_poly_source", None) == "card"
-        if not anchor_meds and self.express_calibrated:
+        if not any(m is not None for m in anchor_meds) and self.express_calibrated:
             _cx = self.express_center_x
             _cy = self.express_center_y
             _xn, _xx = self.express_x_min, self.express_x_max
@@ -656,11 +692,12 @@ class RobustCalibrationSession:
         else:
             _anchor_w = max(5.0, n_clean * 0.02)
         anchors: list[tuple[float, float, float, float]] = []
-        for i, (raw_x, raw_y) in enumerate(anchor_meds):
-            if i >= len(_EXPRESS_GAZE_TARGETS):
-                break
-            gx, gy = _EXPRESS_GAZE_TARGETS[i]
-            anchors.append((raw_x, raw_y, gx, gy))
+        # anchor_meds is indexed by target; skip missing cards rather than
+        # letting them shift later medians onto the wrong gaze target.
+        for med, (gx, gy) in zip(anchor_meds, _EXPRESS_GAZE_TARGETS):
+            if med is None:
+                continue
+            anchors.append((med[0], med[1], gx, gy))
         logger.info(
             "Robust cal [Poly]: %d pursuit frames + %d card anchors (w=%.1f, card_prior=%s)",
             n_clean, len(anchors), _anchor_w, _has_card_poly,
@@ -801,9 +838,15 @@ class RobustCalibrationSession:
         sess.poly_trained = bool(d.get("poly_trained", d.get("svr_trained", False)))
         if "express_target_medians" in d:
             try:
-                sess._express_target_medians = [
-                    (float(x), float(y)) for x, y in d["express_target_medians"]
+                meds = [
+                    None if m is None else (float(m[0]), float(m[1]))
+                    for m in d["express_target_medians"]
                 ]
+                # Older saves compacted out missing targets, so a short list
+                # can't be matched back to its gaze targets; drop it and let
+                # pursuit reconstruct anchors from the express bounds instead.
+                if len(meds) == NUM_EXPRESS_TARGETS:
+                    sess._express_target_medians = meds
             except Exception:
                 pass
         if sess.poly_trained and "poly_coeffs_x" in d:

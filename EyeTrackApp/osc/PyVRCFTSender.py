@@ -16,6 +16,7 @@ happens on the port's own timer (~100 Hz), decoupled from tracking framerate.
 """
 
 import logging
+import math
 
 from eye import EyeId
 from osc.OSCMessage import OSCMessage
@@ -24,6 +25,19 @@ from osc.VRChatOSCSender import VRChatOSCSender
 from pyvrcft import UnifiedTrackingData, VRCFTClient
 
 logger = logging.getLogger(__name__)
+
+
+def _finite(value, fallback: float) -> float:
+    """float(value), or ``fallback`` (the previous value) if NaN/inf.
+
+    Holding the last good value keeps the avatar steady through a bad frame,
+    and keeps NaN out of the port's stateful pupil min/max normalization.
+    """
+    try:
+        value = float(value)
+    except (TypeError, ValueError):
+        return fallback
+    return value if math.isfinite(value) else fallback
 
 
 class PyVRCFTSender:
@@ -48,7 +62,18 @@ class PyVRCFTSender:
         embedded port rely on OSCQuery for avatar detection instead of fighting
         for it.
         """
-        recv_port = int(config.gui_osc_receiver_port)
+        try:
+            recv_port = int(config.gui_osc_receiver_port)
+        except (TypeError, ValueError, OverflowError):
+            recv_port = -1
+        if not 1 <= recv_port <= 65535:
+            logger.warning(
+                "pyVRCFT: invalid OSC receiver port %r; relying on OSCQuery only",
+                config.gui_osc_receiver_port,
+            )
+            recv_port = 0
+        # OSCManager restarts this sender whenever gui_ROSC toggles, so this
+        # decision is re-made (and the port released) at runtime too.
         if config.gui_ROSC:
             recv_port = 0
         self.client = VRCFTClient(
@@ -81,12 +106,15 @@ class PyVRCFTSender:
 
     @staticmethod
     def _apply_eye(eye, eye_info, openness):
-        eye.gaze = (float(eye_info.x), float(eye_info.y))
-        eye.openness = float(openness)
+        eye.gaze = (_finite(eye_info.x, eye.gaze_x), _finite(eye_info.y, eye.gaze_y))
+        eye.openness = _finite(openness, eye.openness)
         # EyeTrackVR's pupil_dilation is already ~normalized; the port re-runs
         # VRCFT's stateful min/max normalization on top, treating this as a
         # diameter. Good enough for the experimental mode.
-        eye.pupil_diameter_mm = float(eye_info.pupil_dilation)
+        eye.pupil_diameter_mm = _finite(eye_info.pupil_dilation, eye.pupil_diameter_mm)
+
+    def _set_shape(self, name: str, value) -> None:
+        self.data.shapes[name] = _finite(value, self.data.shapes[name])
 
     def output_osc_info(self, osc_message: OSCMessage, main_config, config):
         if self.client is None:
@@ -101,23 +129,23 @@ class PyVRCFTSender:
         openness = (
             1.0 - eye_info.blink if config.osc_invert_eye_close else eye_info.blink
         )
-        squeeze = float(eye_info.squeeze)
+        squeeze = eye_info.squeeze
 
         if self.is_single_eye:
             self._apply_eye(self.data.eye.left, eye_info, openness)
             self._apply_eye(self.data.eye.right, eye_info, openness)
-            self.data.shapes["EyeSquintLeft"] = squeeze
-            self.data.shapes["EyeSquintRight"] = squeeze
-            self.data.shapes["CheekSquintLeft"] = squeeze
-            self.data.shapes["CheekSquintRight"] = squeeze
+            self._set_shape("EyeSquintLeft", squeeze)
+            self._set_shape("EyeSquintRight", squeeze)
+            self._set_shape("CheekSquintLeft", squeeze)
+            self._set_shape("CheekSquintRight", squeeze)
         elif eye_id == EyeId.LEFT:
             self._apply_eye(self.data.eye.left, eye_info, openness)
-            self.data.shapes["EyeSquintLeft"] = squeeze
-            self.data.shapes["CheekSquintLeft"] = squeeze
+            self._set_shape("EyeSquintLeft", squeeze)
+            self._set_shape("CheekSquintLeft", squeeze)
         elif eye_id == EyeId.RIGHT:
             self._apply_eye(self.data.eye.right, eye_info, openness)
-            self.data.shapes["EyeSquintRight"] = squeeze
-            self.data.shapes["CheekSquintRight"] = squeeze
+            self._set_shape("EyeSquintRight", squeeze)
+            self._set_shape("CheekSquintRight", squeeze)
 
         # Recomputes the full v2 parameter set from the shared frame and queues
         # only changed values; the port's send thread puts them on the wire.
@@ -127,14 +155,13 @@ class PyVRCFTSender:
         if self.client is None:
             return
         is_single = VRChatOSCSender.get_is_single_eye(main_config.eye_display_id)
-        brow_val = float(brow_val)
         # The other modes drive v2/BrowExpression directly. Here we set the
         # underlying brow shapes so the pipeline derives the same value:
         # BrowExpression = min(1, innerUp*0.5 + outerUp*0.5) - browDown.
         if is_single or eye_id == EyeId.LEFT:
-            self.data.shapes["BrowInnerUpLeft"] = brow_val
-            self.data.shapes["BrowOuterUpLeft"] = brow_val
+            self._set_shape("BrowInnerUpLeft", brow_val)
+            self._set_shape("BrowOuterUpLeft", brow_val)
         if is_single or eye_id == EyeId.RIGHT:
-            self.data.shapes["BrowInnerUpRight"] = brow_val
-            self.data.shapes["BrowOuterUpRight"] = brow_val
+            self._set_shape("BrowInnerUpRight", brow_val)
+            self._set_shape("BrowOuterUpRight", brow_val)
         self.client.update_tracking(self.data)

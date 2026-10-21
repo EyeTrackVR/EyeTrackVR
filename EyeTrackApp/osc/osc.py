@@ -25,9 +25,11 @@ LICENSE: Babble Software Distribution License 1.0
 """
 
 import logging
-from time import sleep
-from typing import Dict, Optional, Iterable, Callable
+import math
+import time
+from typing import Any, Dict, Optional, Iterable, Callable
 
+import numpy as np
 from pythonosc import udp_client
 from pythonosc import osc_server
 from pythonosc import dispatcher
@@ -41,6 +43,130 @@ import queue
 import threading
 
 logger = logging.getLogger(__name__)
+
+# How often a repeating OSC failure (bad value, sendto error, ...) may be logged.
+# The sender runs at tracking rate, so an unthrottled log would flood the file.
+_LOG_INTERVAL_S = 5.0
+
+# Sentinel: the message carries a NaN/inf and must not reach the wire.
+_DROP = object()
+
+
+class _ThrottledLog:
+    """Log a repeating failure at most once per interval per key, and report
+    how many identical events were suppressed in between."""
+
+    def __init__(self, interval: float = _LOG_INTERVAL_S):
+        self.interval = interval
+        self._state: dict[str, tuple[float, int]] = {}
+
+    def log(self, level: int, key: str, msg: str, *args, exc_info=False) -> None:
+        now = time.monotonic()
+        last, suppressed = self._state.get(key, (None, 0))
+        if last is not None and now - last < self.interval:
+            self._state[key] = (last, suppressed + 1)
+            return
+        if suppressed:
+            msg += " (%d similar suppressed)"
+            args = (*args, suppressed)
+        logger.log(level, msg, *args, exc_info=exc_info)
+        self._state[key] = (now, 0)
+
+
+def _to_osc_arg(value: Any):
+    """One OSC argument as a plain Python type python-osc can encode.
+
+    numpy scalars (np.float32, np.int64, np.bool_) are rejected by python-osc's
+    type inference with a ValueError, so unwrap them. Non-finite floats yield
+    _DROP: a NaN/inf param can wedge avatar animators, and holding the last good
+    value on the avatar is less disruptive than snapping to a neutral pose.
+    """
+    if isinstance(value, np.generic) or (
+        isinstance(value, np.ndarray) and value.ndim == 0
+    ):
+        value = value.item()
+    if isinstance(value, float) and not math.isfinite(value):
+        return _DROP
+    return value
+
+
+def sanitize_osc_value(value: Any):
+    """Sanitize a send_message() value (scalar or sequence); _DROP if unsendable."""
+    if isinstance(value, np.ndarray) and value.ndim > 0:
+        value = value.tolist()
+    if isinstance(value, (list, tuple)):
+        out = [_to_osc_arg(v) for v in value]
+        if any(v is _DROP for v in out):
+            return _DROP
+        return out if isinstance(value, list) else tuple(out)
+    return _to_osc_arg(value)
+
+
+def validate_osc_endpoint(label: str, address: Any, port: Any) -> tuple[str, int] | None:
+    """Return (host, port) if usable, else log why and return None."""
+    host = str(address).strip() if address is not None else ""
+    if not host:
+        logger.error("%s OSC output disabled: address is empty", label)
+        return None
+    try:
+        port_int = int(port)
+    except (TypeError, ValueError, OverflowError):
+        port_int = None
+    if port_int is None or not 1 <= port_int <= 65535:
+        logger.error(
+            "%s OSC output disabled: port %r is not in the range 1-65535", label, port
+        )
+        return None
+    return host, port_int
+
+
+def _sig_port(value):
+    """Port for change-detection signatures; never raises on bad input
+    (an invalid port must still restart the sender so it can log it)."""
+    try:
+        return int(value)
+    except (TypeError, ValueError, OverflowError):
+        return str(value)
+
+
+class SafeOSCClient:
+    """Send boundary around a SimpleUDPClient: sanitizes arguments and turns
+    per-message failures into throttled log lines instead of exceptions, so
+    one bad value or a transient sendto error never stops the OSC sender.
+
+    ``client`` may be None (invalid endpoint); sends are then no-ops.
+    """
+
+    def __init__(self, client, label: str, log: _ThrottledLog):
+        self.client = client
+        self.label = label
+        self._log = log
+
+    def send_message(self, address: str, value) -> None:
+        if self.client is None:
+            return
+        clean = sanitize_osc_value(value)
+        if clean is _DROP:
+            self._log.log(
+                logging.WARNING,
+                f"nonfinite:{self.label}",
+                "Dropped %s OSC message %s with non-finite value %r",
+                self.label,
+                address,
+                value,
+            )
+            return
+        try:
+            self.client.send_message(address, clean)
+        except Exception as exc:  # noqa: one failed send must not kill the thread
+            self._log.log(
+                logging.WARNING,
+                f"send:{self.label}",
+                "%s OSC send of %s failed: %s",
+                self.label,
+                address,
+                exc,
+            )
 
 
 class OSCManager:
@@ -69,20 +195,23 @@ class OSCManager:
     def _sender_signature(self) -> tuple:
         s = self.settings
         return (
-            int(s.gui_osc_port),
+            _sig_port(s.gui_osc_port),
             str(s.gui_VRCFTModuleIPAddress).strip(),
-            int(s.gui_VRCFTModulePort),
+            _sig_port(s.gui_VRCFTModulePort),
             bool(s.gui_use_module),
             bool(s.gui_pyvrcft),
             str(s.gui_osc_address).strip(),
-            int(s.gui_osc_receiver_port),
+            _sig_port(s.gui_osc_receiver_port),
+            # pyVRCFT binds the receiver port only while ROSC is off, so toggling
+            # ROSC must restart the sender to release / reclaim that port.
+            bool(s.gui_ROSC),
         )
 
     def _receiver_signature(self) -> tuple:
         s = self.settings
         return (
             bool(s.gui_ROSC),
-            int(s.gui_osc_receiver_port),
+            _sig_port(s.gui_osc_receiver_port),
             str(s.gui_osc_address).strip(),
         )
 
@@ -116,9 +245,8 @@ class OSCManager:
 
         self.listeners[osc_address].extend(callbacks)
 
-    def update(self, data: dict):
-        keys = set(data.keys())
-        sender_trigger_keys = {
+    SENDER_TRIGGER_KEYS = frozenset(
+        {
             "gui_osc_port",
             "gui_VRCFTModulePort",
             "gui_VRCFTModuleIPAddress",
@@ -126,23 +254,37 @@ class OSCManager:
             "gui_pyvrcft",
             "gui_osc_address",
             "gui_osc_receiver_port",
+            "gui_ROSC",
         }
-        if sender_trigger_keys.intersection(keys):
-            new_sig = self._sender_signature()
-            if new_sig != self._last_sender_sig:
-                self.stop_sender()
-                self.setup_sender()
-
-        receiver_trigger_keys = {
+    )
+    RECEIVER_TRIGGER_KEYS = frozenset(
+        {
             "gui_ROSC",
             "gui_osc_receiver_port",
             "gui_osc_address",
         }
-        if receiver_trigger_keys.intersection(keys):
-            new_r = self._receiver_signature()
-            if new_r != self._last_receiver_sig:
-                self.stop_receiver()
-                self.setup_receiver()
+    )
+
+    def update(self, data: dict):
+        keys = set(data.keys())
+        restart_sender = bool(
+            self.SENDER_TRIGGER_KEYS.intersection(keys)
+            and self._sender_signature() != self._last_sender_sig
+        )
+        restart_receiver = bool(
+            self.RECEIVER_TRIGGER_KEYS.intersection(keys)
+            and self._receiver_signature() != self._last_receiver_sig
+        )
+        # Release ports before anything rebinds them: the old receiver must let
+        # go of the receiver port before a pyVRCFT sender (ROSC off) claims it,
+        # and the old sender before a new receiver (ROSC on) binds it.
+        if restart_receiver:
+            self.stop_receiver()
+        if restart_sender:
+            self.stop_sender()
+            self.setup_sender()
+        if restart_receiver:
+            self.setup_receiver()
 
     def shutdown(self):
         self.stop_sender()
@@ -150,7 +292,8 @@ class OSCManager:
 
     def stop_sender(self):
         self.sender_cancellation_event.set()
-        self.osc_sender_thread.join()
+        if self.osc_sender_thread is not None:
+            self.osc_sender_thread.join()
 
     def stop_receiver(self):
         if self.osc_receiver_thread:
@@ -175,25 +318,57 @@ class OSCSender:
 
         self.vrc_client = None
         self.vrcft_client = None
+        self._log = _ThrottledLog()
+
+    @staticmethod
+    def _make_client(label: str, address, port):
+        """Create a SimpleUDPClient, or log clearly and return None.
+
+        SimpleUDPClient resolves the host up front, so an unresolvable name
+        (socket.gaierror) or bad port (OverflowError) surfaces here.
+        """
+        endpoint = validate_osc_endpoint(label, address, port)
+        if endpoint is None:
+            return None
+        try:
+            return udp_client.SimpleUDPClient(*endpoint)
+        except Exception as exc:  # noqa
+            logger.error(
+                "%s OSC output disabled: cannot send to %s:%s (%s)",
+                label,
+                endpoint[0],
+                endpoint[1],
+                exc,
+            )
+            return None
 
     def run(self):
-        self.vrc_client = udp_client.SimpleUDPClient(
-            self.config.gui_osc_address, int(self.config.gui_osc_port)
+        self.vrc_client = self._make_client(
+            "VRChat", self.config.gui_osc_address, self.config.gui_osc_port
         )
-        self.vrcft_client = udp_client.SimpleUDPClient(
+        self.vrcft_client = self._make_client(
+            "VRCFT module",
             self.config.gui_VRCFTModuleIPAddress,
-            int(self.config.gui_VRCFTModulePort),
+            self.config.gui_VRCFTModulePort,
         )
+        # Senders only ever see the sanitizing wrappers; the raw clients stay
+        # on self for inspection.
+        safe_vrc = SafeOSCClient(self.vrc_client, "VRChat", self._log)
+        safe_vrcft = SafeOSCClient(self.vrcft_client, "VRCFT module", self._log)
 
-        vrc_osc_output_client = self.vrc_client
+        vrc_osc_output_client = safe_vrc
         if self.config.gui_use_module:
-            vrc_osc_output_client = self.vrcft_client
+            vrc_osc_output_client = safe_vrcft
 
         # Experimental: route through the embedded PY-VRCFT port instead of the
         # SimpleUDPClient param paths. It owns its own transport, so the vrc/
         # vrcft clients above are simply left idle when this is active.
         use_pyvrcft = bool(self.config.gui_pyvrcft)
-        if use_pyvrcft:
+        if use_pyvrcft and self.vrc_client is None:
+            # Same host/port as the VRChat client, which already logged why.
+            logger.error("pyVRCFT sender not started: VRChat OSC endpoint is invalid")
+            use_pyvrcft = False
+        elif use_pyvrcft:
             try:
                 self.pyvrcft_sender.start(self.config)
             except Exception:  # noqa
@@ -206,6 +381,9 @@ class OSCSender:
             while not self.cancellation_event.is_set():
                 try:
                     osc_message: OSCMessage = self.msg_queue.get(block=True, timeout=0.1)
+                except queue.Empty:
+                    continue
+                try:
                     match osc_message.type:
                         case OSCMessageType.EYE_INFO:
                             if use_pyvrcft:
@@ -223,7 +401,7 @@ class OSCSender:
                                 )
                         case OSCMessageType.VRCFT_MODULE_INFO:
                             self.module_sender.send(
-                                osc_message=osc_message, client=self.vrcft_client
+                                osc_message=osc_message, client=safe_vrcft
                             )
                         case OSCMessageType.EYEBROW_INFO:
                             eye_id, brow_val = osc_message.data
@@ -243,9 +421,24 @@ class OSCSender:
                         case _:
                             logger.warning("Encountered OSC message without a handler: %s", osc_message.type)
                 except TypeError:
-                    continue
-                except queue.Empty:
-                    continue
+                    # Historically swallowed silently (e.g. data not yet populated).
+                    self._log.log(
+                        logging.DEBUG,
+                        "typeerror",
+                        "Skipped malformed OSC message",
+                        exc_info=True,
+                    )
+                except Exception:  # noqa: one bad message must never stop OSC output
+                    self._log.log(
+                        logging.ERROR,
+                        f"handler:{getattr(osc_message, 'type', None)}",
+                        "Failed to send OSC message %s",
+                        getattr(osc_message, "type", None),
+                        exc_info=True,
+                    )
+                finally:
+                    # Lets callers (tests) wait on msg_queue.join() for delivery.
+                    self.msg_queue.task_done()
         finally:
             if use_pyvrcft:
                 self.pyvrcft_sender.stop()
@@ -284,6 +477,9 @@ class OSCReceiver:
         try:
             if self.server is not None:
                 self.server.shutdown()
+                # shutdown() only stops serve_forever; close the socket so the
+                # port is free for a restarted pyVRCFT sender right away.
+                self.server.server_close()
             if self.server_thread is not None:
                 self.server_thread.join()
         except Exception:  # noqa

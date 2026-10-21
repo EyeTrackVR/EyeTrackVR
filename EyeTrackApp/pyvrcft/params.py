@@ -16,9 +16,19 @@ the avatar declares.
 
 from __future__ import annotations
 
+import math
 import re
 
 DEFAULT_PREFIX = "/avatar/parameters/"
+
+
+def is_finite_value(value) -> bool:
+    """False if a float (or any float in a tuple) is NaN/inf. Non-floats pass."""
+    if isinstance(value, tuple):
+        return all(is_finite_value(v) for v in value)
+    if isinstance(value, float):
+        return math.isfinite(value)
+    return True
 
 
 def suffix_regex(name: str) -> re.Pattern:
@@ -55,7 +65,13 @@ class OutputSlot:
         raise NotImplementedError
 
     def update(self, value: float):
-        """Return the wire value if it changed since last send, else None."""
+        """Return the wire value if it changed since last send, else None.
+
+        Non-finite input is skipped (None) so the avatar holds its last good
+        value: a NaN float would poison the avatar's animator, and NaN in the
+        binary/bool encodings would raise or flip bits arbitrarily."""
+        if not is_finite_value(value):
+            return None
         wire = self.encode(value)
         if wire == self._last:
             return None
@@ -94,6 +110,8 @@ class BinaryBitSlot(OutputSlot):
 
     def encode(self, value: float):
         # Exact port of BinaryBaseParameter.ProcessBinary
+        if not math.isfinite(value):
+            return False  # int(nan * max_int) would raise ValueError
         if not self.has_negative and value < 0:
             return False
         value = abs(value)

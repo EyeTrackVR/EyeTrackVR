@@ -1,5 +1,5 @@
 from queue import Queue
-from time import sleep
+from time import monotonic, sleep
 from unittest import mock
 
 import pytest
@@ -7,6 +7,18 @@ import pytest
 from osc.osc import OSCManager, OSCMessage
 from osc.OSCMessage import OSCMessageType
 from tests import EyeInfoMock, SimpleUDPClientMock
+
+
+def _wait_until_sent(msg_queue, timeout=5.0):
+    """Block until the sender thread has fully handled every queued message.
+
+    Shutting down right after put() races the sender thread (it checks the
+    cancellation event between messages), which made these tests flaky under
+    load in a full-suite run.
+    """
+    deadline = monotonic() + timeout
+    while msg_queue.unfinished_tasks and monotonic() < deadline:
+        sleep(0.005)
 
 
 @pytest.mark.parametrize(
@@ -69,6 +81,7 @@ def test_send_command_native_params_single_eye(main_config_native_params, messag
         for message in messages:
             sleep(0.01)
             msg_queue.put(message)
+        _wait_until_sent(msg_queue)
         client.shutdown()
 
         assert msg_queue.empty()
@@ -108,16 +121,17 @@ def test_send_command_native_params_single_eye(main_config_native_params, messag
                 ),
             ],
             [
-                ("/tracking/eye/EyesClosedAmount", 0.0),
-                ("/tracking/eye/EyesClosedAmount", 0.0),
+                # Dual-eye native blink is the average of both eyes; the left eye
+                # has not reported yet, so its default openness (0.7) is averaged
+                # in: 1 - (1.0 + 0.7) / 2.
+                ("/tracking/eye/EyesClosedAmount", 0.15000000000000002),
                 # we're expecting 621 as left_y here because that's the default value
                 # before the first state update with real data, but that's ok
                 # we're gonna be like 10 messages deep before anyone starts playing
                 # and if they already are, they won't be able to notice
                 ("/tracking/eye/LeftRightVec", [0.0, 621.0, 1.0, 0.0, 0.0, 1.0]),
-                ("/tracking/eye/EyesClosedAmount", 0.5),
-                ("/tracking/eye/EyesClosedAmount", 0.5),
-                ("/tracking/eye/LeftRightVec", [0.0, 5.0, 1.0, 0.0, 0.0, 1.0]),
+                ("/tracking/eye/EyesClosedAmount", 0.25),
+                ("/tracking/eye/LeftRightVec", [10.0, 5.0, 1.0, 0.0, 0.0, 1.0]),
             ],
         ),
         # binary blink
@@ -151,12 +165,7 @@ def test_send_command_native_params_single_eye(main_config_native_params, messag
                 ),
             ],
             [
-                ("/tracking/eye/EyesClosedAmount", 1.0),
-                ("/tracking/eye/EyesClosedAmount", 1.0),
-                ("/tracking/eye/EyesClosedAmount", 1.0),
-                ("/tracking/eye/EyesClosedAmount", 1.0),
-                ("/tracking/eye/EyesClosedAmount", 1.0),
-                ("/tracking/eye/EyesClosedAmount", 1.0),
+                ("/tracking/eye/EyesClosedAmount", 0.65),
                 ("/tracking/eye/LeftRightVec", [0.0, 621.0, 1.0, 0.0, 0.0, 1.0]),
                 ("/tracking/eye/EyesClosedAmount", 1.0),
                 ("/tracking/eye/EyesClosedAmount", 1.0),
@@ -164,7 +173,7 @@ def test_send_command_native_params_single_eye(main_config_native_params, messag
                 ("/tracking/eye/EyesClosedAmount", 1.0),
                 ("/tracking/eye/EyesClosedAmount", 1.0),
                 ("/tracking/eye/EyesClosedAmount", 1.0),
-                ("/tracking/eye/LeftRightVec", [0.0, 5.0, 1.0, 0.0, 0.0, 1.0]),
+                ("/tracking/eye/LeftRightVec", [10.0, 5.0, 1.0, 0.0, 0.0, 1.0]),
             ],
         ),
     ],
@@ -184,6 +193,7 @@ def test_send_command_native_params_dual_eye(main_config_native_params, eye_data
         for message in eye_data:
             sleep(0.01)
             msg_queue.put(message)
+        _wait_until_sent(msg_queue)
         client.shutdown()
 
         assert msg_queue.empty()
@@ -223,12 +233,7 @@ def test_send_command_native_params_dual_eye(main_config_native_params, eye_data
                 ),
             ],
             [
-                ("/tracking/eye/EyesClosedAmount", 1.0),
-                ("/tracking/eye/EyesClosedAmount", 1.0),
-                ("/tracking/eye/EyesClosedAmount", 1.0),
-                ("/tracking/eye/EyesClosedAmount", 1.0),
-                ("/tracking/eye/EyesClosedAmount", 1.0),
-                ("/tracking/eye/EyesClosedAmount", 1.0),
+                ("/tracking/eye/EyesClosedAmount", 0.65),
                 ("/tracking/eye/LeftRightVec", [0.0, 621.0, 1.0, 0.0, 0.0, 1.0]),
                 ("/tracking/eye/EyesClosedAmount", 1.0),
                 ("/tracking/eye/EyesClosedAmount", 1.0),
@@ -237,12 +242,7 @@ def test_send_command_native_params_dual_eye(main_config_native_params, eye_data
                 ("/tracking/eye/EyesClosedAmount", 1.0),
                 ("/tracking/eye/EyesClosedAmount", 1.0),
                 ("/tracking/eye/EyesClosedAmount", 1.0),
-                ("/tracking/eye/EyesClosedAmount", 1.0),
-                ("/tracking/eye/EyesClosedAmount", 1.0),
-                ("/tracking/eye/EyesClosedAmount", 1.0),
-                ("/tracking/eye/EyesClosedAmount", 1.0),
-                ("/tracking/eye/EyesClosedAmount", 1.0),
-                ("/tracking/eye/LeftRightVec", [0.0, 5.0, 1.0, 0.0, 0.0, 1.0]),
+                ("/tracking/eye/LeftRightVec", [10.0, 5.0, 1.0, 0.0, 0.0, 1.0]),
             ],
         ),
     ],
@@ -263,6 +263,7 @@ def test_send_command_native_params_eye_outer_side_falloff(main_config_native_pa
         for message in eye_data:
             msg_queue.put(message)
             sleep(1)
+        _wait_until_sent(msg_queue)
         client.shutdown()
 
         assert msg_queue.empty()

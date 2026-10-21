@@ -65,13 +65,19 @@ class TrackingAlgorithmModule(BaseSettingsModule):
         ]
         self._algo_entries = self._basic_entries + self._advanced_entries
 
-    def build(self, parent):
-        selected = "next"
+    def _selected_from(self, settings) -> str:
         for _label, name, _key, config_field in self._algo_entries:
-            if getattr(self.config, config_field, False):
-                selected = name
-                break
-        self.selected_algo = tk.StringVar(value=selected)
+            if getattr(settings, config_field, False):
+                return name
+        return "next"
+
+    def reset_to_defaults(self, defaults):
+        selected_algo = getattr(self, "selected_algo", None)
+        if selected_algo is not None:
+            selected_algo.set(self._selected_from(defaults))
+
+    def build(self, parent):
+        self.selected_algo = tk.StringVar(value=self._selected_from(self.config))
         for _label, name, key, config_field in self._algo_entries:
             self.tk_vars[key] = tk.BooleanVar(
                 value=bool(getattr(self.config, config_field, False))

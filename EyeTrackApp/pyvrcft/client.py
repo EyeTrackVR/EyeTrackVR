@@ -19,6 +19,7 @@ Behavior mirrors VRCFT:
 from __future__ import annotations
 
 import logging
+import math
 import socket
 import threading
 import time
@@ -32,11 +33,23 @@ from .expressions import (
     native_eyelids_relevant,
     native_gaze_relevant,
 )
-from .params import DEFAULT_PREFIX, FloatSlot, OutputSlot, resolve_slots, suffix_regex
+from .params import (
+    DEFAULT_PREFIX,
+    FloatSlot,
+    OutputSlot,
+    is_finite_value,
+    resolve_slots,
+    suffix_regex,
+)
 
 logger = logging.getLogger("pyvrcft")
 
 V2_PREFIX = "v2/"
+
+# Minimum seconds between repeats of the same background-thread error. The send
+# loop ticks at ~100 Hz, so a persistent sendto failure would otherwise log
+# a full traceback every ~10 ms.
+LOG_THROTTLE_S = 5.0
 
 
 class _DirectSlot(OutputSlot):
@@ -103,6 +116,7 @@ class VRCFTClient:
         self._threads: list[threading.Thread] = []
         self._send_sock: socket.socket | None = None
         self._recv_sock: socket.socket | None = None
+        self._log_state: dict[str, tuple[float, int]] = {}  # key -> (last, suppressed)
 
     # ------------------------------------------------------------- public API
 
@@ -114,9 +128,14 @@ class VRCFTClient:
         avatar's actual address/encoding; unsupported params are just held.
         """
         key = name if (not v2 or name.startswith(V2_PREFIX)) else V2_PREFIX + name
+        value = float(value)
+        if not math.isfinite(value):
+            # Hold the last good value rather than forwarding NaN/inf (one bad
+            # tracking frame should not glitch or wedge the avatar).
+            return
         with self._lock:
             new = key not in self._values
-            self._values[key] = float(value)
+            self._values[key] = value
             if new:
                 self._resolve_one(key)
 
@@ -164,6 +183,8 @@ class VRCFTClient:
     def send_direct(self, address: str, *values) -> None:
         """Queue a message to an absolute OSC address, always sent (deduped).
         e.g. ft.send_direct("/tracking/eye/EyesClosedAmount", 0.1)"""
+        if not is_finite_value(tuple(values)):
+            return  # keep the previous pending value; see set()
         with self._lock:
             slot = self._direct.get(address)
             if slot is None:
@@ -180,7 +201,7 @@ class VRCFTClient:
             self._recv_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
             self._recv_sock.bind(("127.0.0.1", self.recv_port))
             self._recv_sock.settimeout(0.5)
-        except OSError:
+        except (OSError, OverflowError):  # OverflowError: port out of range
             logger.warning(
                 "Could not bind OSC receive port %d (is VRCFT or another OSC app "
                 "running?). Avatar-change detection is disabled; relying on "
@@ -286,51 +307,85 @@ class VRCFTClient:
 
     # ---------------------------------------------------------------- threads
 
+    def _log_throttled(self, key: str, msg: str, *args, exc_info=False) -> None:
+        """logger.error at most once per LOG_THROTTLE_S per key."""
+        now = time.monotonic()
+        last, suppressed = self._log_state.get(key, (None, 0))
+        if last is not None and now - last < LOG_THROTTLE_S:
+            self._log_state[key] = (last, suppressed + 1)
+            return
+        if suppressed:
+            msg += " (%d similar suppressed)"
+            args = (*args, suppressed)
+        logger.error(msg, *args, exc_info=exc_info)
+        self._log_state[key] = (now, 0)
+
+    def _emit(self, messages: list, slot: OutputSlot, value) -> None:
+        """Encode one slot's value if changed. A bad value only skips this
+        slot; it never escapes into (and kills) the send thread."""
+        try:
+            wire = slot.update(value)
+            if wire is not None:
+                args = wire if isinstance(wire, tuple) else (wire,)
+                messages.append(osc.encode_message(slot.address, list(args)))
+        except Exception:
+            self._log_throttled(
+                "encode", "Failed to encode %s=%r", slot.address, value, exc_info=True
+            )
+
+    def _collect_messages(self) -> list:
+        messages = []
+        with self._lock:
+            force = self.force_relevant
+            for name, value in self._values.items():
+                if force:
+                    # VRCFT's forceRelevant: default address, raw float
+                    slot = self._force_slots.get(name)
+                    if slot is None:
+                        slot = self._force_slots[name] = FloatSlot(DEFAULT_PREFIX + name)
+                    slots = (slot,)
+                else:
+                    slots = self._slots.get(name, ())
+                for slot in slots:
+                    self._emit(messages, slot, value)
+            for name, value in self._bool_values.items():
+                if force:
+                    slot = self._force_slots.get(name)
+                    if slot is None:
+                        slot = self._force_slots[name] = _RawBoolSlot(DEFAULT_PREFIX + name)
+                    slots = (slot,)
+                else:
+                    slots = self._bool_slots.get(name, ())
+                for slot in slots:
+                    self._emit(messages, slot, value)
+            for slot in self._direct.values():
+                if slot.pending is None:
+                    continue
+                self._emit(messages, slot, slot.pending)
+        return messages
+
     def _send_loop(self) -> None:
         while self._running:
             start = time.monotonic()
-            messages = []
-            with self._lock:
-                force = self.force_relevant
-                for name, value in self._values.items():
-                    if force:
-                        # VRCFT's forceRelevant: default address, raw float
-                        slot = self._force_slots.get(name)
-                        if slot is None:
-                            slot = self._force_slots[name] = FloatSlot(DEFAULT_PREFIX + name)
-                        slots = (slot,)
-                    else:
-                        slots = self._slots.get(name, ())
-                    for slot in slots:
-                        wire = slot.update(value)
-                        if wire is not None:
-                            messages.append(osc.encode_message(slot.address, [wire]))
-                for name, value in self._bool_values.items():
-                    if force:
-                        slot = self._force_slots.get(name)
-                        if slot is None:
-                            slot = self._force_slots[name] = _RawBoolSlot(DEFAULT_PREFIX + name)
-                        slots = (slot,)
-                    else:
-                        slots = self._bool_slots.get(name, ())
-                    for slot in slots:
-                        wire = slot.update(value)
-                        if wire is not None:
-                            messages.append(osc.encode_message(slot.address, [wire]))
-                for slot in self._direct.values():
-                    if slot.pending is None:
-                        continue
-                    wire = slot.update(slot.pending)
-                    if wire is not None:
-                        args = wire if isinstance(wire, tuple) else (wire,)
-                        messages.append(osc.encode_message(slot.address, list(args)))
-
-            if messages and self._send_sock is not None:
-                try:
-                    for bundle in osc.pack_bundles(messages):
-                        self._send_sock.sendto(bundle, (self.send_host, self.send_port))
-                except OSError:
-                    logger.exception("OSC send failed")
+            try:
+                messages = self._collect_messages()
+                sock = self._send_sock
+                if messages and sock is not None:
+                    try:
+                        for bundle in osc.pack_bundles(messages):
+                            sock.sendto(bundle, (self.send_host, self.send_port))
+                    except OSError as exc:
+                        if self._running:  # not just stop() closing the socket
+                            self._log_throttled(
+                                "sendto",
+                                "OSC send to %s:%s failed: %s",
+                                self.send_host,
+                                self.send_port,
+                                exc,
+                            )
+            except Exception:
+                # Never let one bad frame end avatar output for the session.
+                self._log_throttled("send-loop", "pyvrcft send loop error", exc_info=True)
 
             elapsed = time.monotonic() - start
             time.sleep(max(0.0, self.interval - elapsed))
@@ -343,8 +398,13 @@ class VRCFTClient:
                 continue
             except OSError:
                 return
-            for address, args in osc.parse(data):
-                self._dispatch(address, args)
+            try:
+                for address, args in osc.parse(data):
+                    self._dispatch(address, args)
+            except Exception:
+                # Malformed packets or a failing avatar lookup must not end
+                # avatar-change detection.
+                self._log_throttled("recv", "Failed to handle OSC packet", exc_info=True)
 
     def _dispatch(self, address: str, args: list) -> None:
         if address == "/avatar/change" and args and isinstance(args[0], str):
