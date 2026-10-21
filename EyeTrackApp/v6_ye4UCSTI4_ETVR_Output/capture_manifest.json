@@ -1,0 +1,23 @@
+{
+  "schema": "etvr-capture-v1",
+  "image_coordinate_frame": "raw_camera",
+  "eyes": [
+    {
+      "eye": "Right",
+      "camera_rotation_degrees": 0
+    },
+    {
+      "eye": "Left",
+      "camera_rotation_degrees": 0
+    }
+  ],
+  "dilation_reference": {
+    "target_type": "illumination_phase_only",
+    "backdrop_gray_8bit": {
+      "dim": 24,
+      "bright": 208
+    },
+    "adaptation_seconds": 3,
+    "frames_per_phase": 12
+  }
+}

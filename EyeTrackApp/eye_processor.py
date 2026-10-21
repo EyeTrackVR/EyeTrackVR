@@ -821,15 +821,12 @@ class EyeProcessor:
         self.current_algorithm = EyeInfoOrigin.DADDY
 
     def NEXTM(self):
-        """NEXT end-to-end tracking, mono or stereo depending on how many eyes
-        are connected.
+        """NEXT tracking with native single/dual-eye Hybrid inference.
 
-        One eye streaming: the per-eye mono model runs one pass on this eye's
-        frame. Both eyes streaming: the stereo model runs a single pass over
-        both eyes and this thread reads its slice (shared gaze + this eye's
-        per-eye expressions). The stereo pass never waits for the other camera
-        (see next_stereo_model), so a slow or stuttering eye can't hold this one
-        back, and a camera that goes away drops the tracker back to mono.
+        Hybrid keeps the shared session active even with one camera; missing
+        or stale eyes use the trained black sentinel. Legacy variants switch
+        between their separate mono and stereo builds. Inference never waits
+        for the other camera (see next_stereo_model).
 
         All downstream handling (flips, smart-cal, recenter, lid remap, OSC) is
         shared by both paths via _next_apply()."""
@@ -852,10 +849,10 @@ class EyeProcessor:
         variant = getattr(self.settings, "gui_model_variant", "ETVR")
         coord = get_stereo_coordinator(variant, self.settings.gui_use_gpu)
         if coord is not None:
-            # Always publish the frame (a cheap store) so the other eye can see
-            # that this one is alive, even while we're still running mono.
+            # Publish independently; Hybrid can infer immediately from this
+            # eye alone, while legacy stereo still needs an active peer.
             coord.submit(self.eye_id, next_frame, self.current_capture_ts)
-            if coord.peer_active(self.eye_id):
+            if coord.supports_single_eye or coord.peer_active(self.eye_id):
                 self._next_mode_changed(True)
                 gaze_x, gaze_y, eyebrow, eyelid, squeeze = coord.run(
                     self.eye_id, base_cutoff, base_beta
@@ -864,6 +861,10 @@ class EyeProcessor:
                 return
 
         self._next_mode_changed(False)
+        if self.next_runner is None:
+            self.next_runner = External_Run_NEXT(
+                variant, self.settings.gui_use_gpu, self.eye_id
+            )
         gaze_x, gaze_y, eyebrow, eyelid, squeeze = self.next_runner.run(
             next_frame, base_cutoff, base_beta
         )
@@ -881,7 +882,7 @@ class EyeProcessor:
         logger.info(
             "NEXT %s: %s model",
             "LEFT" if self.eye_id == EyeId.LEFT else "RIGHT",
-            "stereo (both eyes)" if stereo else "mono (one eye)",
+            "shared Hybrid/stereo" if stereo else "per-eye",
         )
 
     def _next_apply(self, gaze_x, gaze_y, eyebrow, eyelid, squeeze):
@@ -1209,24 +1210,27 @@ class EyeProcessor:
             if self.daddy_runner is not None:
                 self.daddy_runner = None
 
-        # NEXT covers both the mono and the stereo model now: NEXTM picks per
-        # frame based on how many eyes are streaming. gui_NEXT_BSB is the
+        # NEXT uses native single/dual-eye Hybrid for ETVR, BSB and PSVR, and
+        # separate mono/stereo builds for legacy variants. gui_NEXT_BSB is the
         # retired "NEXT BSB (stereo)" tracker; configs that still carry it are
         # migrated on load, and it's honored here so a stale flag can never
         # leave the user with no tracker at all.
         if self.settings.gui_NEXT or self.settings.gui_NEXT_BSB:
             variant = getattr(self.settings, "gui_model_variant", "ETVR")
             use_gpu = bool(self.settings.gui_use_gpu)
-            # The mono runner stays loaded even while the stereo model is
-            # driving both eyes: it's the fallback the moment a camera drops.
-            # Reload if the selected model variant or execution device changed.
-            if self.next_runner is not None and (
-                getattr(self.next_runner, "variant", None) != variant
-                or getattr(self.next_runner, "use_gpu", None) != use_gpu
-            ):
+            coord = get_stereo_coordinator(variant, use_gpu)
+            if coord is not None and coord.supports_single_eye:
+                # Both eye threads share this session, including in mono mode.
+                # Avoid also allocating two unused per-eye model sessions.
                 self.next_runner = None
-            if self.next_runner is None:
-                self.next_runner = External_Run_NEXT(variant, use_gpu)
+            else:
+                if self.next_runner is not None and (
+                    getattr(self.next_runner, "variant", None) != variant
+                    or getattr(self.next_runner, "use_gpu", None) != use_gpu
+                ):
+                    self.next_runner = None
+                if self.next_runner is None:
+                    self.next_runner = External_Run_NEXT(variant, use_gpu, self.eye_id)
             enabled_algorithms.append(self.NEXTM)
         else:
             if self.next_runner is not None:

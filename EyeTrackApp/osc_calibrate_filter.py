@@ -44,27 +44,18 @@ from utils.misc_utils import resource_path
 from utils.robust_calibration import RobustCalibrationSession, CalibrationPhase
 from utils.bs_detector import BSDetector
 from pathlib import Path
+from utils.overlay_launch import overlay_executable, overlay_language_arg
 
 logger = logging.getLogger(__name__)
 
 
 def _overlay_executable() -> str:
-    """Resolve the in-VR calibration overlay binary for this platform.
-
-    Windows builds ship ``Tools/EyeTrackVR-Overlay.exe``. On Linux/macOS we
-    look for a native binary of the same name (no extension) so a future port
-    dropped into Tools/ lights up automatically. Raises FileNotFoundError when
-    unavailable; callers' existing except/finally blocks log it and reset
-    calibration state, so on-screen calibration remains usable.
+    """Resolve the in-VR calibration overlay binary for this platform (see
+    utils.overlay_launch). Raises FileNotFoundError when unavailable; callers'
+    existing except/finally blocks log it and reset calibration state, so
+    on-screen calibration remains usable.
     """
-    name = "EyeTrackVR-Overlay.exe" if sys.platform == "win32" else "EyeTrackVR-Overlay"
-    path = resource_path(f"Tools/{name}")
-    if not os.path.isfile(path):
-        raise FileNotFoundError(
-            f"in-VR overlay binary not found at {path}; overlay calibration "
-            "currently ships with Windows builds only"
-        )
-    return path
+    return overlay_executable()
 
 tool = Path("Tools")
 
@@ -229,14 +220,14 @@ def center_overlay_calibrate(self):
     sock = None
     try:
         overlay_path = _overlay_executable()
-        # Set working directory to the tools folder so overlay can find assets/Purple_Dot.png
+        # Run from the tools folder so the overlay finds its assets/ (font)
         tools_dir = os.path.dirname(overlay_path)
         # Bind before launching the overlay so no UDP packets are dropped due to
         # the socket not being ready when the overlay sends its first signal.
         sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         sock.bind(("127.0.0.1", 2112))
         subprocess.Popen(
-            [overlay_path, "center"],
+            [overlay_path, "center", overlay_language_arg()],
             cwd=tools_dir,
             stdout=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL,
@@ -268,7 +259,7 @@ def overlay_calibrate_3d(self):
     sock = None
     try:
         overlay_path = _overlay_executable()
-        # Set working directory to the tools folder so overlay can find assets/Purple_Dot.png
+        # Run from the tools folder so the overlay finds its assets/ (font)
         tools_dir = os.path.dirname(overlay_path)
         # Bind before launching the overlay so no UDP packets are dropped due to
         # the socket not being ready when the overlay sends its first signal.
@@ -277,7 +268,7 @@ def overlay_calibrate_3d(self):
         sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         sock.bind(("127.0.0.1", 2112))
         subprocess.Popen(
-            [overlay_path],
+            [overlay_path, overlay_language_arg()],
             cwd=tools_dir,
             stdout=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL,
@@ -384,7 +375,7 @@ def overlay_ellipse_calibrate(eye_processors: list, settings, baseconfig) -> Non
         sock.settimeout(120.0)
         sock.bind(("127.0.0.1", 2112))
         subprocess.Popen(
-            [overlay_path, "ellipse"],
+            [overlay_path, "ellipse", overlay_language_arg()],
             cwd=tools_dir,
             stdout=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL,
@@ -980,7 +971,7 @@ def next_smartcal_overlay(eye_processors: list, settings, baseconfig) -> None:
         sock.settimeout(120.0)
         sock.bind(("127.0.0.1", 2112))
         subprocess.Popen(
-            [overlay_path, "finetune"],
+            [overlay_path, "finetune", overlay_language_arg()],
             cwd=tools_dir,
             stdout=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL,

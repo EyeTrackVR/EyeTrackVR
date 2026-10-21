@@ -193,6 +193,68 @@ status_blinkdot_skipped = "Blink Pass skipped: overlay does not support the pinn
 status_closed_roam = "Closed-Eye Pass: keep eyes closed and move your face and brows around"
 
 # ---------------------------------------------------------------------------
+# Data Collection voice prompts and the matching in-VR overlay text.
+# Spoken with the system text-to-speech voice for this language (English is
+# used when no such voice is installed). In the *_panel strings "\n" separates
+# the overlay card's title from its subtitle. These are only what the user sees
+# and hears; recorded files keep their English labels.
+# ---------------------------------------------------------------------------
+[data_collection_prompts]
+look_left = "Look left"
+look_left_squint = "Look left and squint"
+look_right = "Look right"
+look_right_squint = "Look right and squint"
+look_up = "Look up"
+look_up_squint = "Look up and squint"
+look_down = "Look down"
+look_down_squint = "Look down and squint"
+look_top_left = "Look top-left"
+look_top_right = "Look top-right"
+look_bottom_left = "Look bottom-left"
+look_bottom_right = "Look bottom-right"
+look_straight = "Look straight"
+look_straight_squint = "Look straight and squint"
+close_eyes = "Close your eyes"
+squeeze_shut = "Squeeze your eyes shut"
+widen_straight = "Widen your eyes and look straight"
+widen_left = "Widen your eyes and look left"
+widen_right = "Widen your eyes and look right"
+brows_up_full = "Raise eyebrows fully and look forward"
+brows_up_half = "Raise eyebrows halfway and look forward"
+brows_down_full = "Lower eyebrows fully and look forward"
+brows_down_half = "Lower eyebrows halfway and look forward"
+close_random = "Close your eyes and look in random direction"
+full_circle = "Look in a full circle starting now"
+# Short cues around each snapshot, and the end of the session
+now = "now"
+captured = "captured"
+done = "you are done"
+# Overlay passes: spoken instruction
+pass_gaze = "Follow the dot as it moves"
+pass_squint = "Squint and follow the dot"
+pass_widen = "Widen eyes and follow the dot"
+pass_brows_dn_full = "Lower eyebrows fully and follow the dot"
+pass_brows_up_full = "Raise eyebrows fully and follow the dot"
+pass_brows_dn_half = "Lower eyebrows halfway and follow the dot"
+pass_brows_up_half = "Raise eyebrows halfway and follow the dot"
+# Overlay passes: card shown in VR ("title\nsubtitle")
+panel_gaze = "Follow the dot\nKeep your head still"
+panel_squint = "Squint\nFollow the dot"
+panel_widen = "Widen your eyes\nFollow the dot"
+panel_brows_dn_full = "Lower eyebrows fully\nFollow the dot"
+panel_brows_up_full = "Raise eyebrows fully\nFollow the dot"
+panel_brows_dn_half = "Lower eyebrows halfway\nFollow the dot"
+panel_brows_up_half = "Raise eyebrows halfway\nFollow the dot"
+blinkdot = "Blink repeatedly while looking at each dot. Keep your eyebrows relaxed and still."
+blinkdot_panel = "Blink repeatedly\nLook at the dot"
+blink_no_overlay = "Look straight ahead and blink repeatedly. Keep your eyebrows relaxed and still."
+closed_roam = "Close your eyes and keep them closed. Now move your face, brows, and cheeks around."
+closed_roam_panel = "Close your eyes\nMove your face and brows around"
+headset_shift = "Look at the center dot and shift your headset around in all directions"
+headset_shift_panel = "Look at the center dot\nShift your headset around"
+center_dot_panel = "Look at the center dot"
+
+# ---------------------------------------------------------------------------
 # Settings scaffolding: section headers, Advanced toggle, Reset/Delete
 # ---------------------------------------------------------------------------
 [settings_base]
@@ -258,13 +320,13 @@ next_calib_lids_brows_tip = "During NEXT Smart Calib, also calibrate eyelid and 
 max_tracking_speed = "Max Tracking Speed (Hz)"
 max_tracking_speed_tip = "Maximum frames per second the tracker will process. Lower = less CPU, but jerkier motion. 60 Hz is comfortable for most setups."
 model = "Model"
-model_tip = "Which NEXT model variant to load. ETVR is the default; BSB follows Bigscreen setup mode automatically. PSVR is manual-only and loads NEXT_PSVR.onnx. Tobii loads its matching variant. With two eyes connected a matching stereo build is used automatically when one is shipped. The Lite options load an fp16 NEXT build."
+model_tip = "Choose the trained NEXT Hybrid model for your hardware: ETVR, BSB, or PSVR. Each supports one or two eyes. Lite selects the matching fp16 export. BSB follows Bigscreen setup mode automatically; PSVR and PSVR Lite are manual choices that stay selected when setup mode changes. Tobii loads its matching legacy model."
 advanced_heading = "Tracking Algorithm (advanced)"
 leap_tip = "LEAP: neural-network pupil tracker. Best general-purpose choice; handles low contrast and partial occlusion well."
 ahrac_tip = "AHRAC: adaptive HSF + RANSAC. Falls back to RANSAC when HSF can't lock on. Good middle ground."
 daddy_tip = "DADDY: older neural-network tracker. Heavier than LEAP; usually no reason to pick this unless LEAP misbehaves on your camera."
 ransac3d_tip = "RANSAC 3D: fits an ellipse to the pupil edge in 3D. Robust to lighting changes but slower than LEAP."
-next_tip = "NEXT: end-to-end neural network tracker. Takes the raw camera frame and directly outputs gaze, eyebrow, eyelid, and squint. With two eyes connected it automatically runs the stereo model (both eyes in one pass, shared gaze, per-eye eyebrow/eyelid/squint); with one eye it runs the mono model."
+next_tip = "NEXT: end-to-end neural network tracker. Takes the raw camera frame and directly outputs gaze, eyebrow, eyelid, and squint. ETVR, BSB, and PSVR each use a trained Hybrid model for single-eye or dual-eye tracking, with shared gaze and per-eye expressions. An unavailable or stale eye is handled automatically."
 ahsf_tip = "AHSF: adaptive Haar surround feature. Fast classical tracker."
 hsrac_tip = "HSRAC: Haar surround + RANSAC. Older HSF/RANSAC hybrid."
 hsf_tip = "HSF: Haar surround feature. Classical, very fast, less robust."

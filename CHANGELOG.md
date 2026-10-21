@@ -3,6 +3,11 @@
 [![semantic versioning](https://img.shields.io/badge/semantic%20versioning-2.0.0-green.svg)](https://semver.org)
 > All notable changes to this project will be documented in this file
 
+## 2026-10-20
+
+- Update BSB to its newly trained Hybrid fp32/fp16 exports and ship the PSVR Hybrid family. Add PSVR Lite to the model selector, share Hybrid single/dual-eye routing across all three hardware families, and cover hardware-specific selection, Bigscreen eye crops, missing-eye routing, and camera transitions.
+- Replace the ETVR NEXT mono/stereo exports with the newly trained ETVR Hybrid fp32/fp16 models. Use the shared session for either camera or both, preserve black-frame missing-eye and stale-camera routing, and consume the primary eight channels of the twelve-output Hybrid contract. Add regression coverage for single-eye slots, camera transitions, and Lite inference.
+
 ## [1.0.0-HSF-and-new-algos-feature-branch.11](https://github.com/EyeTrackVR/EyeTrackVR/compare/v1.0.0-HSF-and-new-algos-feature-branch.10...v1.0.0-HSF-and-new-algos-feature-branch.11) (2023-10-08)
 
 

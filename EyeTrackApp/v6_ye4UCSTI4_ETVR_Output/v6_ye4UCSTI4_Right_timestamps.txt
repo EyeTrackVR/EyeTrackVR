@@ -1,0 +1,5 @@
+# Format: <frame_number> <prompt_text>
+# Version: v6
+# Recorded on: 2026-10-17 20:20:58
+# Seed: ye4UCSTI4
+

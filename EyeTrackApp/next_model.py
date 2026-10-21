@@ -19,7 +19,7 @@
                                        @@@@@@@@@@@@@@@@@
                                       @@@@@@@@@@@@@(
 
-NEXT End-to-End Model: 224x224 RGB input, 5-output regression (gaze, eyebrow, eyelid, squint).
+NEXT End-to-End Model: raw RGB inference (gaze, eyebrow, eyelid, squint).
 Algorithm App Implementation By: Prohurtz
 
 Copyright (c) 2026 EyeTrackVR <3
@@ -33,6 +33,7 @@ from collections import deque
 import numpy as np
 import cv2
 import onnxruntime
+from eye import EyeId
 from one_euro_filter import OneEuroFilter
 from utils.misc_utils import resource_path
 from utils.onnx_runtime import DML_INFERENCE_LOCK, create_inference_session
@@ -60,33 +61,41 @@ _BROW_MEDIAN_WINDOW = 5
 _GAZE_MEDIAN_WINDOW = 3
 
 # Supported model variants. The selector in the GUI picks one of these and the
-# matching ONNX file (Models/NEXT_<VARIANT>.onnx) is loaded. The "<BASE> LITE"
-# variants load an fp16 build (Models/NEXT_<BASE>.fp16.onnx): smaller and faster,
-# at a small precision cost.
-MODEL_VARIANTS = ("ETVR", "BSB", "PSVR", "TOBII", "ETVR LITE", "BSB LITE")
+# matching hardware-specific Hybrid export is loaded for ETVR, BSB and PSVR.
+# The "<BASE> LITE" variants select the matching fp16 build.
+MODEL_VARIANTS = ("ETVR", "BSB", "PSVR", "TOBII", "ETVR LITE", "BSB LITE", "PSVR LITE")
+HYBRID_MODEL_STEMS = {
+    "ETVR": "NEXT_ETVR_HYBRID",
+    "BSB": "NEXT_ETVR_HYBRID_BSB",
+    "PSVR": "NEXT_ETVR_HYBRID_PSVR",
+}
 DEFAULT_MODEL_VARIANT = "ETVR"
 # Suffix that marks an fp16 ("Lite") variant.
 _LITE_SUFFIX = " LITE"
+# Preserve the app's deployed stereo gaze-Y convention in both Hybrid paths.
+SHARED_GAZE_Y_SIGN = -1.0
 
 
 def model_file_for_variant(variant: str) -> str:
     """Map a variant name to its ONNX file path.
 
-    ETVR/BSB/PSVR/TOBII -> Models/NEXT_<VARIANT>.onnx
-    '<BASE> LITE'  -> Models/NEXT_<BASE>.fp16.onnx (half-precision)
+    ETVR, BSB and PSVR use their matching Hybrid exports for one or two
+    cameras. Lite selects the matching fp16 export. Legacy variants retain
+    NEXT_<VARIANT>.onnx.
 
     If a requested fp16 build isn't present on disk, fall back to the full-precision
     base model so the Lite option still tracks (just without the fp16 speedup)."""
     variant = (variant or DEFAULT_MODEL_VARIANT).upper()
     if variant not in MODEL_VARIANTS:
         variant = DEFAULT_MODEL_VARIANT
-    if variant.endswith(_LITE_SUFFIX):
-        base = variant[: -len(_LITE_SUFFIX)].strip()
-        fp16 = f"Models/NEXT_{base}.fp16.onnx"
+    lite = variant.endswith(_LITE_SUFFIX)
+    base = variant[: -len(_LITE_SUFFIX)].strip() if lite else variant
+    stem = HYBRID_MODEL_STEMS.get(base, f"NEXT_{base}")
+    if lite:
+        fp16 = f"Models/{stem}.fp16.onnx"
         if os.path.exists(resource_path(fp16)):
             return fp16
-        return f"Models/NEXT_{base}.onnx"
-    return f"Models/NEXT_{variant}.onnx"
+    return f"Models/{stem}.onnx"
 
 # ImageNet normalization constants (CHW channel order after BGR->RGB)
 _MEAN = np.array([0.485, 0.456, 0.406], dtype=np.float32).reshape(3, 1, 1)
@@ -102,9 +111,10 @@ class NEXT_cls:
       - eyebrow / eyelid / squeeze : sigmoid range [0, 1]
     """
 
-    def __init__(self, variant: str = DEFAULT_MODEL_VARIANT, use_gpu: bool = False):
+    def __init__(self, variant: str = DEFAULT_MODEL_VARIANT, use_gpu: bool = False, eye_id=EyeId.LEFT):
         self.variant = variant
         self.use_gpu = bool(use_gpu)
+        self.eye_id = eye_id
         onnxruntime.disable_telemetry_events()
         options = onnxruntime.SessionOptions()
         options.inter_op_num_threads = 1
@@ -130,7 +140,7 @@ class NEXT_cls:
         self.input_dtype = np.float16 if "float16" in model_input.type else np.float32
 
         # Input resolution comes from the graph, not a hardcoded constant: newer
-        # exports (e.g. BSB) run at 160px while ETVR runs at 224px.
+        # Hybrid exports run at 160px; legacy models can use other sizes.
         self.input_size = int(model_input.shape[-1])
 
         # Preprocessing contract comes from the metadata stamped at export. Newer
@@ -140,6 +150,9 @@ class NEXT_cls:
         # un-normalizes the input and produces garbage predictions.
         meta = ort_session.get_modelmeta().custom_metadata_map
         self.raw_input = meta.get("preprocess") == "rgb-raw-0-255"
+        # Normally Hybrid uses the shared coordinator. This per-eye fallback
+        # must also honor the Hybrid contract if a shared session is unavailable.
+        self.hybrid = meta.get("hybrid") == "per-eye-gaze"
 
         # Temporal exports stack T frames channel-wise (oldest -> newest,
         # `frame_stride` camera frames apart) and declare it in the metadata.
@@ -207,6 +220,13 @@ class NEXT_cls:
         # bake it into the graph and take raw 0..255 (see self.raw_input).
         if not self.raw_input:
             img = (img / 255.0 - _MEAN) / _STD
+        if getattr(self, "hybrid", False):
+            black = np.zeros_like(img)
+            if not self.raw_input:
+                black = (black - _MEAN) / _STD
+            img = np.concatenate(
+                (img, black) if self.eye_id == EyeId.LEFT else (black, img), axis=0
+            )
         if self.temporal_frames > 1:
             # Channel-stack the history oldest -> newest at frame_stride
             # spacing; while the buffer is still filling (first few frames
@@ -229,6 +249,10 @@ class NEXT_cls:
         else:
             result = self.ort_session.run(None, {self.input_name: img})
         raw = result[0][0].astype(np.float32)
+        if getattr(self, "hybrid", False):
+            base = 0 if self.eye_id == EyeId.LEFT else 3
+            # Same gaze-Y convention as the shared Hybrid/stereo runner.
+            raw = np.concatenate((raw[base:base + 3], [raw[6], raw[7] * SHARED_GAZE_Y_SIGN]))
 
         # Reject super-fast jitter with a running median before smoothing, so
         # single-frame spikes never enter the One-Euro's derivative term (which
@@ -250,10 +274,10 @@ class NEXT_cls:
 
 
 class External_Run_NEXT:
-    def __init__(self, variant: str = DEFAULT_MODEL_VARIANT, use_gpu: bool = False):
+    def __init__(self, variant: str = DEFAULT_MODEL_VARIANT, use_gpu: bool = False, eye_id=EyeId.LEFT):
         self.variant = variant
         self.use_gpu = bool(use_gpu)
-        self.algo = NEXT_cls(variant, self.use_gpu)
+        self.algo = NEXT_cls(variant, self.use_gpu, eye_id)
 
     def run(self, bgr_frame: np.ndarray, base_cutoff: float = 0.0004, base_beta: float = 0.9):
         """Run End2End inference on a raw BGR frame.

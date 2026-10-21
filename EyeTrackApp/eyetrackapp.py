@@ -24,6 +24,18 @@ LICENSE: Babble Software Distribution License 1.0
 ------------------------------------------------------------------------------------------------------
 """
 
+import sys
+
+# A separate native webview event loop is needed alongside Tk. Handle it before
+# camera/model initialization, including in the frozen desktop executable.
+if __name__ == "__main__" and sys.argv[1:2] == ["--contribution-verification"]:
+    from contributions.verification import run_helper
+    try:
+        run_helper(*sys.argv[2:])
+    except Exception:
+        raise SystemExit(1) from None
+    raise SystemExit(0)
+
 import logging
 import os
 import shutil
