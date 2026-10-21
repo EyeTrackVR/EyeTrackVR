@@ -11,6 +11,12 @@ EyeTrackApp/build
 EyeTrackApp/dist
 build
 dist
+.env
+.env.*
+*.agekey
+*.payload.age
+*.receipt.json
+*.local.json
 EyeTrackApp/IBO_LEFT.png
 EyeTrackApp/IBO_RIGHT.png
 

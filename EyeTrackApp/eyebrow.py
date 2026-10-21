@@ -44,7 +44,7 @@ logger = logging.getLogger(__name__)
 # matching ONNX file (Models/Eyebrow_<VARIANT>.onnx) is loaded. The "<BASE> LITE"
 # variants are the fp16 NEXT builds; the eyebrow model has no fp16 build, so Lite
 # falls back to the base variant's eyebrow file here.
-MODEL_VARIANTS = ("ETVR", "BSB", "PSVR", "TOBII", "ETVR LITE", "BSB LITE")
+MODEL_VARIANTS = ("ETVR", "BSB", "PSVR", "TOBII", "ETVR LITE", "BSB LITE", "PSVR LITE")
 DEFAULT_MODEL_VARIANT = "ETVR"
 # Suffix that marks an fp16 ("Lite") variant.
 _LITE_SUFFIX = " LITE"

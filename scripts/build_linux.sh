@@ -20,7 +20,7 @@ export PATH="$HOME/.local/bin:/root/.local/bin:$PATH"
 BUILD_ROOT="$HOME/etvr-build"
 SRC_DIR="$BUILD_ROOT/src"
 VENV_DIR="$BUILD_ROOT/venv"
-APP_SUBDIR="eyetrackapp"
+APP_SUBDIR="EyeTrackApp"
 
 echo "[linux-build] syncing sources to native filesystem..."
 mkdir -p "$SRC_DIR"
@@ -58,6 +58,8 @@ LD_LIBRARY_PATH="${PY_LIBDIR}${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}" \
 
 BUNDLE="dist/EyeTrackVR"
 test -x "$BUNDLE/eyetrackvr" || { echo "ERROR: bundle missing eyetrackvr binary"; exit 1; }
+
+test -x "$BUNDLE/_internal/Tools/linux/EyeTrackVR-Overlay"
 
 echo "[linux-build] smoke test: bundled binary starts and imports..."
 # Run WITHOUT the build env's LD_LIBRARY_PATH, exactly like an end-user machine.

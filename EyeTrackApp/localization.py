@@ -156,6 +156,21 @@ def tr(key: str, **fmt: Any) -> str:
     return value
 
 
+def tr_english(key: str, **fmt: Any) -> str:
+    """Like ``tr`` but always English. For fallbacks that must not be in the
+    active language, e.g. the text-to-speech line spoken when no voice for the
+    active language is installed."""
+    value = _lookup(_base_catalog, key)
+    if value is None:
+        return tr(key, **fmt)
+    if fmt:
+        try:
+            return value.format(**fmt)
+        except (KeyError, IndexError, ValueError):
+            return value
+    return value
+
+
 def available_languages() -> list[dict[str, str]]:
     """Discover selectable languages by scanning ``lang/*.toml``.
 

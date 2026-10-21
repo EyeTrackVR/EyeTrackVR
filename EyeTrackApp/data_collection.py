@@ -6,7 +6,6 @@ import random
 import zipfile
 import threading
 import subprocess
-import webbrowser
 import platform
 import socket as _socket
 import struct
@@ -16,7 +15,8 @@ import cv2
 import tkinter as tk
 from tkinter import ttk
 
-from localization import tr
+from localization import tr, tr_english, get_active_language
+from utils.overlay_launch import overlay_executable, overlay_command
 
 DATA_COLLECTION_VERSION = "v6"
 
@@ -24,14 +24,26 @@ logger = logging.getLogger(__name__)
 
 speech_lock = threading.Lock()
 
-def speak(text):
+def speak(text, lang="en", fallback=None):
+    """Speak ``text`` (language ``lang``) on a background thread; returns an
+    Event set when done. ``fallback`` (English) is spoken instead when the
+    system has no voice for ``lang``."""
     done_event = threading.Event()
     threading.Thread(
         target=_speak_platform_specific,
-        args=(text, done_event),
+        args=(text, lang, fallback or text, done_event),
         daemon=True,
     ).start()
     return done_event
+
+def say(key):
+    """Speak a ``data_collection_prompts`` line in the app's UI language."""
+    full = f"data_collection_prompts.{key}"
+    return speak(tr(full), get_active_language(), tr_english(full))
+
+def prompt_text(key):
+    """A ``data_collection_prompts`` line in the app's UI language."""
+    return tr(f"data_collection_prompts.{key}")
 
 def _run_tts_command(command, timeout, stdin_text=None):
     import shutil
@@ -52,7 +64,20 @@ def _run_tts_command(command, timeout, stdin_text=None):
     except (FileNotFoundError, subprocess.SubprocessError, OSError):
         return False
 
-def _speak_linux(text):
+# espeak voice names where they differ from the UI language code.
+_ESPEAK_VOICES = {"zh": "cmn"}
+
+def _speak_linux(text, lang, fallback):
+    if lang != "en":
+        voice = _ESPEAK_VOICES.get(lang, lang)
+        for command in (
+            ["spd-say", "--wait", "-l", lang, text],
+            ["espeak-ng", "-v", voice, text],
+            ["espeak", "-v", voice, text],
+        ):
+            if _run_tts_command(command, timeout=20):
+                return
+        text = fallback   # no voice for this language: say it in English
     linux_tts_commands = (
         ["spd-say", "--wait", text],
         ["espeak-ng", text],
@@ -63,20 +88,34 @@ def _speak_linux(text):
             return
     _run_tts_command(["festival", "--tts"], timeout=20, stdin_text=text)
 
-def _speak_platform_specific(text, done_event):
+# The text travels in environment variables, never inside the script, so quotes
+# or non-ASCII characters in a translation cannot break the command. Picks an
+# installed voice for the language; without one, speaks the English fallback.
+_WINDOWS_TTS = (
+    "Add-Type -AssemblyName System.Speech; "
+    "$s = New-Object System.Speech.Synthesis.SpeechSynthesizer; "
+    "$t = $env:ETVR_TTS_TEXT; "
+    "function Pick($c) { $s.GetInstalledVoices() | Where-Object { $_.Enabled -and "
+    "$_.VoiceInfo.Culture.TwoLetterISOLanguageName -eq $c } | Select-Object -First 1 }; "
+    "$v = Pick $env:ETVR_TTS_LANG; "
+    "if (-not $v -and $env:ETVR_TTS_LANG -ne 'en') { $t = $env:ETVR_TTS_FALLBACK; $v = Pick 'en' }; "
+    "if ($v) { $s.SelectVoice($v.VoiceInfo.Name) }; "
+    "$s.Speak($t)"
+)
+
+def _speak_platform_specific(text, lang, fallback, done_event):
     try:
         with speech_lock:
             system = platform.system().lower()
             if system == "darwin":
                 subprocess.run(["say", text], check=False, timeout=10, creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
             elif system == "windows":
-                ps_cmd = (
-                    f'Add-Type -AssemblyName System.Speech; '
-                    f'(New-Object System.Speech.Synthesis.SpeechSynthesizer).Speak("{text}");'
-                )
-                subprocess.run(["powershell", "-Command", ps_cmd], check=False, timeout=20, creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
+                env = dict(os.environ, ETVR_TTS_TEXT=text, ETVR_TTS_LANG=lang or "en",
+                           ETVR_TTS_FALLBACK=fallback)
+                subprocess.run(["powershell", "-NoProfile", "-Command", _WINDOWS_TTS], env=env,
+                               check=False, timeout=20, creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
             elif system == "linux":
-                _speak_linux(text)
+                _speak_linux(text, lang or "en", fallback)
     except Exception:
         pass
     finally:
@@ -115,45 +154,49 @@ def _zip_output(seed, output_dir):
     return zip_name
 
 
+# (dot_code, label, prompt key). The English label names the saved snapshots
+# and timestamp entries (training labels: never translate it); the prompt key
+# picks what is spoken and shown, from lang/*.toml [data_collection_prompts].
 PROMPT_DATA = [
-    (1,    "Look left"),
-    (1,    "Look left and squint"),
-    (2,    "Look right"),
-    (2,    "Look right and squint"),
-    (3,    "Look up"),
-    (3,    "Look up and squint"),
-    (4,    "Look down"),
-    (4,    "Look down and squint"),
-    (6,    "Look top-left"),
-    (5,    "Look top-right"),
-    (8,    "Look bottom-left"),
-    (7,    "Look bottom-right"),
-    (0,    "Look straight"),
-    (0,    "Look straight and squint"),
-    (None, "Close your eyes"),
-    (None, "Squeeze your eyes shut"),
-    (0,    "Widen your eyes and look straight"),
-    (1,    "Widen your eyes and look left"),
-    (2,    "Widen your eyes and look right"),
-    (0,    "Raise eyebrows fully and look forward"),
-    (0,    "Raise eyebrows halfway and look forward"),
-    (0,    "Lower eyebrows fully and look forward"),
-    (0,    "Lower eyebrows halfway and look forward"),
-    (None, "Close your eyes and look in random direction"),
-    (None, "Look in a full circle starting now"),
+    (1,    "Look left",                                   "look_left"),
+    (1,    "Look left and squint",                        "look_left_squint"),
+    (2,    "Look right",                                  "look_right"),
+    (2,    "Look right and squint",                       "look_right_squint"),
+    (3,    "Look up",                                     "look_up"),
+    (3,    "Look up and squint",                          "look_up_squint"),
+    (4,    "Look down",                                   "look_down"),
+    (4,    "Look down and squint",                        "look_down_squint"),
+    (6,    "Look top-left",                               "look_top_left"),
+    (5,    "Look top-right",                              "look_top_right"),
+    (8,    "Look bottom-left",                            "look_bottom_left"),
+    (7,    "Look bottom-right",                           "look_bottom_right"),
+    (0,    "Look straight",                               "look_straight"),
+    (0,    "Look straight and squint",                    "look_straight_squint"),
+    (None, "Close your eyes",                             "close_eyes"),
+    (None, "Squeeze your eyes shut",                      "squeeze_shut"),
+    (0,    "Widen your eyes and look straight",           "widen_straight"),
+    (1,    "Widen your eyes and look left",               "widen_left"),
+    (2,    "Widen your eyes and look right",              "widen_right"),
+    (0,    "Raise eyebrows fully and look forward",       "brows_up_full"),
+    (0,    "Raise eyebrows halfway and look forward",     "brows_up_half"),
+    (0,    "Lower eyebrows fully and look forward",       "brows_down_full"),
+    (0,    "Lower eyebrows halfway and look forward",     "brows_down_half"),
+    (None, "Close your eyes and look in random direction", "close_random"),
+    (None, "Look in a full circle starting now",          "full_circle"),
 ]
 
 OVERLAY_PASSES = [
-    # (overlay_cmd, label_prefix, tts_text, n_jitter)
+    # (overlay_cmd, label_prefix, prompt key, n_jitter). The prompt key selects
+    # both the spoken line ("pass_<key>") and the overlay card ("panel_<key>").
     # gaze/squint/widen: bumped to 20 so the full 22-point grid gets sampled
     # (evenly-spaced skip picks 20 of 22, preserving outer+intermediate+center coverage).
-    (100, "gaze",          "Follow the dot as it moves",                20),
-    (101, "squint",        "Squint and follow the dot",                 20),
-    (102, "widen",         "Widen eyes and follow the dot",             20),
-    (105, "brows_dn_full", "Lower eyebrows fully and follow the dot",    4),
-    (103, "brows_up_full", "Raise eyebrows fully and follow the dot",    4),
-    (106, "brows_dn_half", "Lower eyebrows halfway and follow the dot",  4),
-    (104, "brows_up_half", "Raise eyebrows halfway and follow the dot",  4),
+    (100, "gaze",          "gaze",          20),
+    (101, "squint",        "squint",        20),
+    (102, "widen",         "widen",         20),
+    (105, "brows_dn_full", "brows_dn_full",  4),
+    (103, "brows_up_full", "brows_up_full",  4),
+    (106, "brows_dn_half", "brows_dn_half",  4),
+    (104, "brows_up_half", "brows_up_half",  4),
 ]
 
 # Maps DC_POS index (sent by overlay as signal 0–8) to label name.
@@ -278,6 +321,15 @@ OVERLAY_CMD_PORT = 2113
 OVERLAY_CMD_PIN_DOT  = 113   # >iff x y: persistent dot at (x, y); overlay acks 21
 OVERLAY_CMD_UNPIN    = 114   # hide the pinned dot
 OVERLAY_SIG_PINNED   = 21
+OVERLAY_CMD_TEXT     = 50    # >i + UTF-8: instruction card ("title\nsubtitle")
+
+
+def _overlay_text(cmd_sock, text):
+    """Show ``text`` on the overlay's instruction card. Sent BEFORE the matching
+    voice prompt starts so the card is up while it is being read, not after;
+    the overlay keeps it when the pass/target command follows."""
+    cmd_sock.sendto(struct.pack(">i", OVERLAY_CMD_TEXT) + text.encode("utf-8"),
+                    ("127.0.0.1", OVERLAY_CMD_PORT))
 
 
 def _drain_udp_socket(sock):
@@ -305,169 +357,57 @@ def _drain_udp_socket(sock):
         sock.settimeout(1.0)
 
 def _apply_theme_to_titlebar(root: tk.Toplevel) -> None:
-    if platform.system() != "Windows":
-        return
-    try:
-        import ctypes
-        root.update_idletasks()
-        wid = root.winfo_id()
-        user32 = ctypes.windll.user32
-        ga_root = 2
-        hwnd = user32.GetAncestor(wid, ga_root)
-        if not hwnd:
-            hwnd = user32.GetParent(wid)
-        if not hwnd:
-            return
-        DWMWA_USE_IMMERSIVE_DARK_MODE = 20
-        value = ctypes.c_int(1)
-        ctypes.windll.dwmapi.DwmSetWindowAttribute(
-            ctypes.c_void_p(hwnd),
-            DWMWA_USE_IMMERSIVE_DARK_MODE,
-            ctypes.byref(value),
-            ctypes.sizeof(value),
-        )
-    except Exception:
-        pass
+    from contributions.native import decorate
+    decorate(root)
 
 
 class DataCollectionWindow:
     def __init__(self, parent, eyes):
         self.parent = parent
         self.eyes = eyes
-        self.window = tk.Toplevel(parent)
-        self.window.title(tr("data_collection.title"))
-        self.window.withdraw()
-        self.window.resizable(False, False)
-        self.window.protocol("WM_DELETE_WINDOW", self.close)
-        
-        def _set_window_icon():
-            # Must guard INSIDE the after-callback: .ico iconbitmap raises
-            # TclError on Linux/macOS, and an exception thrown in a Tk callback
-            # escapes any try/except around the .after() scheduling call.
-            try:
-                from utils.misc_utils import resource_path
-                self.window.iconbitmap(resource_path("Images/logo.ico"))
-            except Exception:
-                pass
-
-        self.window.after(100, _set_window_icon)
-        
-        self.window.after(100, lambda: _apply_theme_to_titlebar(self.window))
-
         self.session_running = False
         self.session_cancel = threading.Event()
         self.gui_queue = queue.Queue()
-        
         self.active_queues = []
         self.active_eye_labels = []
         self._video_writer_sizes = []
+        self._latest_capture = None
+        self.use_overlay_var = tk.BooleanVar(master=parent, value=True)
+        self._contributions = None
+        self.window = None
 
-        self._build_ui()
+    def _create_window(self):
+        from contributions.window import ContributionWindow
+        self._contributions = ContributionWindow(self.parent, capture_controller=self)
+        self.window = self._contributions.window
+        self._status_var = self._contributions.capture_status
+        self._start_btn = self._contributions.record_button
+        self._stop_btn = self._contributions.stop_record_button
+        self.window.withdraw()
         self._poll_gui_queue()
 
     def show(self):
-        self.window.transient(self.parent)
-        self.window.update_idletasks()
-        mw = self.parent.winfo_width()
-        mh = self.parent.winfo_height()
-        mx = self.parent.winfo_rootx()
-        my = self.parent.winfo_rooty()
-        pw = self.window.winfo_reqwidth()
-        ph = self.window.winfo_reqheight()
-        x = mx + max(0, (mw - pw) // 2)
-        y = my + max(0, (mh - ph) // 2)
-        self.window.geometry(f"+{x}+{y}")
+        if self._contributions is None:
+            try:
+                self._create_window()
+            except (OSError, ValueError):
+                from tkinter import messagebox
+                messagebox.showerror("Contributions", "Could not open private contribution storage. Check access to your user data folder.", parent=self.parent)
+                return
         self.window.deiconify()
+        self.window.update_idletasks()
+        width, height = self.window.winfo_width(), self.window.winfo_height()
+        x = self.parent.winfo_rootx() + max(0, (self.parent.winfo_width() - width) // 2)
+        y = self.parent.winfo_rooty() + max(0, (self.parent.winfo_height() - height) // 2)
+        x = max(0, min(x, self.window.winfo_screenwidth() - width))
+        y = max(0, min(y, self.window.winfo_screenheight() - height - 60))
+        self.window.geometry(f"+{x}+{y}")
         self.window.lift()
         self.window.focus_set()
 
     def close(self):
-        if self.session_running:
-            self.session_cancel.set()
-        try:
-            self.window.withdraw()
-        except tk.TclError:
-            pass
-
-    def _build_ui(self):
-        _bg = self.window.cget("background")
-        _content = ttk.Frame(self.window, padding=16)
-        _content.pack(fill="both", expand=True)
-        
-        tk.Label(
-            _content,
-            text=tr("data_collection.title"),
-            font=("Segoe UI", 12, "bold"),
-            bg=_bg,
-            fg="#e8e8e8",
-        ).pack(anchor="w", pady=(0, 6))
-
-        ttk.Label(
-            _content,
-            text=tr("data_collection.intro"),
-            wraplength=400,
-            justify="left",
-        ).pack(anchor="w", pady=(0, 6))
-
-        ttk.Label(
-            _content,
-            text=tr("data_collection.vr_instructions"),
-            font=("Segoe UI", 10, "bold"),
-            wraplength=400,
-            justify="left",
-        ).pack(anchor="w", pady=(0, 16))
-
-        self.use_overlay_var = tk.BooleanVar(value=True)
-        ttk.Checkbutton(
-            _content,
-            text=tr("data_collection.use_overlay"),
-            variable=self.use_overlay_var,
-        ).pack(anchor="w", pady=(0, 8))
-
-        self._status_var = tk.StringVar(value=tr("data_collection.status_ready"))
-        ttk.Label(
-            _content,
-            textvariable=self._status_var,
-            wraplength=400,
-            justify="left"
-        ).pack(anchor="w", pady=(0, 8))
-
-        btn_row = ttk.Frame(_content)
-        btn_row.pack(fill="x", pady=(0, 8))
-
-        self._start_btn = ttk.Button(
-            btn_row,
-            text=tr("data_collection.start"),
-            command=self._start_collection,
-            style="Accent.TButton",
-        )
-        self._start_btn.pack(side="left", padx=(0, 8))
-
-        self._stop_btn = ttk.Button(
-            btn_row,
-            text=tr("data_collection.stop"),
-            command=self._stop_collection,
-            state="disabled",
-        )
-        self._stop_btn.pack(side="left", padx=(0, 8))
-
-        ttk.Button(
-            btn_row,
-            text=tr("data_collection.open_submissions"),
-            command=lambda: webbrowser.open("https://ask.eyetrackvr.dev/next-leap-data-collection"),
-        ).pack(side="left", padx=(0, 8))
-
-        ttk.Button(
-            btn_row,
-            text=tr("data_collection.open_folder"),
-            command=self._open_folder,
-        ).pack(side="left")
-
-        _close_row = ttk.Frame(self.window)
-        _close_row.pack(fill="x", padx=16, pady=(0, 16))
-        ttk.Button(
-            _close_row, text=tr("data_collection.close"), command=self.close
-        ).pack(side="right")
+        if self._contributions is not None:
+            self._contributions.close()
 
     def _open_folder(self):
         output_dir = os.path.join(os.getcwd())
@@ -480,8 +420,11 @@ class DataCollectionWindow:
             subprocess.Popen(["xdg-open", output_dir])
 
     def _start_collection(self):
-        if self.session_running:
+        if self.session_running or self._contributions.busy:
             return
+        self._latest_capture = None
+        self._contributions.clear_capture()
+        self._use_overlay = self.use_overlay_var.get()
         
         self.active_queues = []
         self.active_eye_labels = []
@@ -502,16 +445,26 @@ class DataCollectionWindow:
         self._start_btn.configure(state="disabled")
         self._stop_btn.configure(state="normal")
         self._status_var.set(tr("data_collection.status_starting"))
-        threading.Thread(target=self._run_collection, daemon=True).start()
+        self._contributions.capture_started()
+        threading.Thread(target=self._capture_worker, daemon=True).start()
 
     def _stop_collection(self):
         self.session_cancel.set()
+
+    def _capture_worker(self):
+        try:
+            self._run_collection()
+        except Exception:
+            logger.exception("Capture could not finish")
+            self.session_cancel.set()
+            self.gui_queue.put(("status", "Recording could not finish. Please try again."))
+            self._cleanup_session()
 
     def _run_collection(self):
         seed = "".join(random.choices(string.ascii_letters + string.digits, k=9))
         output_dir = os.path.join(os.getcwd(), f"{DATA_COLLECTION_VERSION}_{seed}_ETVR_Output")
         
-        use_overlay = self.use_overlay_var.get()
+        use_overlay = self._use_overlay
 
         if os.path.exists(output_dir):
             import shutil
@@ -615,18 +568,13 @@ class DataCollectionWindow:
         send_cmd = None
 
         if use_overlay:
-            _overlay_name = (
-                "EyeTrackVR-Overlay.exe"
-                if platform.system() == "Windows"
-                else "EyeTrackVR-Overlay"
-            )
+            # Tools/ on Windows, Tools/linux/ on Linux (the native runtime folder).
             try:
-                from utils.misc_utils import resource_path
-                overlay_exe = resource_path(f"Tools/{_overlay_name}")
-            except Exception:
-                overlay_exe = os.path.join(os.getcwd(), "Tools", _overlay_name)
-            
-            if not os.path.isfile(overlay_exe):
+                overlay_exe = overlay_executable()
+            except FileNotFoundError:
+                overlay_exe = None
+
+            if overlay_exe is None:
                 self.gui_queue.put(("status", tr("data_collection.status_overlay_not_found")))
                 use_overlay = False
             else:
@@ -642,8 +590,7 @@ class DataCollectionWindow:
                     send_cmd = _send_cmd
 
                     def send_text(text, _sock=cmd_sock):
-                        encoded = text.encode("utf-8")
-                        _sock.sendto(struct.pack(">i", 50) + encoded, ("127.0.0.1", OVERLAY_CMD_PORT))
+                        _overlay_text(_sock, text)
 
                     # Widen the capture gaze range beyond the overlay's
                     # conservative defaults (fov.h: coverage 0.70, lateral 30°,
@@ -660,9 +607,10 @@ class DataCollectionWindow:
                     # keyword LABELS are version-gated in the trainer (dataset.py)
                     # so v5 captures keep their original scale.
                     overlay_proc = subprocess.Popen(
-                        [overlay_exe, "interactive",
-                         "--coverage=0.80", "--max-deg=36",
-                         "--max-deg-up=20", "--max-deg-down=40"],
+                        overlay_command("interactive",
+                                        "--coverage=0.80", "--max-deg=36",
+                                        "--max-deg-up=20", "--max-deg-down=40",
+                                        executable=overlay_exe),
                         cwd=os.path.dirname(overlay_exe),
                     )
 
@@ -690,22 +638,22 @@ class DataCollectionWindow:
                     use_overlay = False
 
         prompts_to_run = [
-            (dot_code, tts_text)
-            for dot_code, tts_text in PROMPT_DATA
+            (dot_code, label, key)
+            for dot_code, label, key in PROMPT_DATA
             if not (use_overlay and dot_code is not None)
         ]
         total_prompts = len(prompts_to_run)
 
         try:
-            for capture_count, (dot_code, tts_text) in enumerate(prompts_to_run):
+            for capture_count, (dot_code, label, key) in enumerate(prompts_to_run):
                 if self.session_cancel.is_set():
                     break
 
-                self.gui_queue.put(("status", tr("data_collection.status_speaking", text=tts_text, current=capture_count + 1, total=total_prompts)))
+                self.gui_queue.put(("status", tr("data_collection.status_speaking", text=prompt_text(key), current=capture_count + 1, total=total_prompts)))
 
                 if use_overlay:
-                    send_text(tts_text)
-                speech_done = speak(tts_text)
+                    send_text(prompt_text(key))
+                speech_done = say(key)
                 while not speech_done.is_set():
                     if self.session_cancel.is_set():
                         break
@@ -713,7 +661,7 @@ class DataCollectionWindow:
                     time.sleep(0.01)
 
                 if not self.session_cancel.is_set():
-                    speech_done = speak("now")
+                    speech_done = say("now")
                     t0 = time.time()
                     while (time.time() - t0 < 2.0) or not speech_done.is_set():
                         if self.session_cancel.is_set():
@@ -751,9 +699,9 @@ class DataCollectionWindow:
                 for j in range(n):
                     if frame_numbers[j] is not None:
                         with open(timestamp_files[j], "a") as f:
-                            f.write(f"{frame_numbers[j]} #{tts_text}#\n")
+                            f.write(f"{frame_numbers[j]} #{label}#\n")
 
-                clean = tts_text.lower().replace(" ", "_")
+                clean = label.lower().replace(" ", "_")
                 for j in range(n):
                     if prompt_frames[j] is not None:
                         img_fn = os.path.join(
@@ -764,7 +712,7 @@ class DataCollectionWindow:
 
                 if use_overlay:
                     send_cmd(98)
-                speech_done = speak("captured")
+                speech_done = say("captured")
                 while not speech_done.is_set():
                     if self.session_cancel.is_set():
                         break
@@ -814,6 +762,7 @@ class DataCollectionWindow:
                 )
 
         except Exception as e:
+            self.session_cancel.set()
             logger.exception("Data collection aborted by an unexpected error")
             self.gui_queue.put(("status", tr("data_collection.status_error", error=e)))
         finally:
@@ -838,12 +787,13 @@ class DataCollectionWindow:
 
             if not self.session_cancel.is_set():
                 zip_name = _zip_output(seed, output_dir)
+                self.gui_queue.put(("capture_ready", os.path.abspath(zip_name)))
                 try:
                     import shutil
                     shutil.rmtree(output_dir, ignore_errors=True)
                 except Exception:
                     pass
-                speak("you are done").wait()
+                say("done").wait()
                 self.gui_queue.put(("status", tr("data_collection.status_done", path=zip_name)))
             else:
                 self.gui_queue.put(("status", tr("data_collection.status_cancelled")))
@@ -921,7 +871,7 @@ class DataCollectionWindow:
         overlay_idx = base_idx
         total_passes = len(OVERLAY_PASSES)
 
-        for pass_num, (pass_cmd, label_prefix, tts_text, n_jitter) in enumerate(OVERLAY_PASSES):
+        for pass_num, (pass_cmd, label_prefix, key, n_jitter) in enumerate(OVERLAY_PASSES):
             if self.session_cancel.is_set():
                 break
 
@@ -932,8 +882,11 @@ class DataCollectionWindow:
             # gaze + squint then stopping before the widen/eyebrow passes. Log
             # the full traceback and move on to the next pass instead.
             try:
-                self.gui_queue.put(("status", tr("data_collection.status_overlay_pass", current=pass_num + 1, total=total_passes, text=tts_text)))
-                done = speak(tts_text)
+                self.gui_queue.put(("status", tr("data_collection.status_overlay_pass", current=pass_num + 1, total=total_passes, text=prompt_text(f"pass_{key}"))))
+                # Card first, then the voice: the overlay keeps this text when
+                # the pass command below starts the dots.
+                _overlay_text(cmd_sock, prompt_text(f"panel_{key}"))
+                done = say(f"pass_{key}")
                 while not done.is_set():
                     if self.session_cancel.is_set():
                         return overlay_idx
@@ -1051,9 +1004,8 @@ class DataCollectionWindow:
         overlay_idx = base_idx
         self.gui_queue.put(("status", tr("data_collection.status_blinkdot")))
 
-        cmd_sock.sendto(struct.pack(">i", 50) + b"Blink repeatedly\nlook at the dot",
-                        ("127.0.0.1", OVERLAY_CMD_PORT))
-        speech_done = speak("Blink repeatedly while looking at each dot. Keep your eyebrows relaxed and still.")
+        _overlay_text(cmd_sock, prompt_text("blinkdot_panel"))
+        speech_done = say("blinkdot")
         while not speech_done.is_set():
             if self.session_cancel.is_set():
                 return overlay_idx
@@ -1109,7 +1061,7 @@ class DataCollectionWindow:
         """No-overlay blink burst: fixate straight ahead and blink repeatedly.
         Center-gaze-only version of the blinkdot pass (label carries 0,0)."""
         self.gui_queue.put(("status", tr("data_collection.status_blinkdot")))
-        speech_done = speak("Look straight ahead and blink repeatedly. Keep your eyebrows relaxed and still.")
+        speech_done = say("blink_no_overlay")
         while not speech_done.is_set():
             if self.session_cancel.is_set():
                 return base_idx
@@ -1126,9 +1078,8 @@ class DataCollectionWindow:
         Works with or without the overlay (TTS carries the instruction)."""
         self.gui_queue.put(("status", tr("data_collection.status_closed_roam")))
         if use_overlay and cmd_sock is not None:
-            cmd_sock.sendto(struct.pack(">i", 50) + b"Close your eyes\nmove your face and brows around",
-                            ("127.0.0.1", OVERLAY_CMD_PORT))
-        speech_done = speak("Close your eyes and keep them closed. Now move your face, brows, and cheeks around.")
+            _overlay_text(cmd_sock, prompt_text("closed_roam_panel"))
+        speech_done = say("closed_roam")
         while not speech_done.is_set():
             if self.session_cancel.is_set():
                 return base_idx
@@ -1156,7 +1107,8 @@ class DataCollectionWindow:
         self.gui_queue.put(("status", tr("data_collection.status_headset_shift")))
 
         cmd_sock.sendto(struct.pack(">i", 120), ("127.0.0.1", OVERLAY_CMD_PORT))
-        speech_done = speak("Look at the center dot and shift your headset around in all directions")
+        _overlay_text(cmd_sock, prompt_text("headset_shift_panel"))
+        speech_done = say("headset_shift")
 
         # Wait for TTS to finish, then a 0.5s grace period before capturing
         while not speech_done.is_set():
@@ -1226,7 +1178,7 @@ class DataCollectionWindow:
 
         try:
             command(120)  # Center fixation target.
-            command(50, "Look at the center dot")
+            command(OVERLAY_CMD_TEXT, prompt_text("center_dot_panel"))
             for code, phase in ((130, "dim"), (131, "bright")):
                 if self.session_cancel.is_set():
                     break
@@ -1255,8 +1207,11 @@ class DataCollectionWindow:
 
     def _cleanup_session(self):
         for i, eye in enumerate(self.eyes):
-            if eye.started() and i < len(self.active_queues):
-                eye._effective_camera().remove_extra_output_queue(self.active_queues[i])
+            try:
+                if eye.started() and i < len(self.active_queues):
+                    eye._effective_camera().remove_extra_output_queue(self.active_queues[i])
+            except Exception:
+                logger.exception("Could not detach capture output queue")
         self.active_queues = []
         self.gui_queue.put(("session_done", None))
 
@@ -1266,10 +1221,14 @@ class DataCollectionWindow:
                 msg_type, data = self.gui_queue.get_nowait()
                 if msg_type == "status":
                     self._status_var.set(data)
+                elif msg_type == "capture_ready":
+                    if not self.session_cancel.is_set():
+                        self._latest_capture = data
                 elif msg_type == "session_done":
                     self.session_running = False
-                    self._start_btn.configure(state="normal")
-                    self._stop_btn.configure(state="disabled")
+                    if self.session_cancel.is_set():
+                        self._latest_capture = None
+                    self._contributions.capture_stopped(self._latest_capture)
             except queue.Empty:
                 break
         self.window.after(50, self._poll_gui_queue)

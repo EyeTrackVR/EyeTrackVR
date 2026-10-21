@@ -6,10 +6,10 @@ from utils.tooltips import attach_tooltip
 from localization import tr
 
 
-# Selectable model variants, shared by the NEXT and eyebrow models. Each maps
-# to Models/NEXT_<VARIANT>.onnx and Models/Eyebrow_<VARIANT>.onnx. The "<BASE> LITE"
-# options load the fp16 NEXT build (Models/NEXT_<BASE>.fp16.onnx).
-_MODEL_VARIANTS = ("ETVR", "BSB", "PSVR", "TOBII", "ETVR LITE", "BSB LITE")
+# Selectable model variants, shared by the NEXT and eyebrow models. NEXT uses
+# the hardware-specific Hybrid export for ETVR/BSB/PSVR; Lite selects fp16.
+# Independent eyebrow inference uses its base variant (PSVR falls back to ETVR).
+_MODEL_VARIANTS = ("ETVR", "BSB", "PSVR", "TOBII", "ETVR LITE", "BSB LITE", "PSVR LITE")
 
 
 class TrackingAlgorithmValidationModel(BaseValidationModel):
@@ -129,7 +129,7 @@ class TrackingAlgorithmModule(BaseSettingsModule):
             textvariable=model_var,
             values=list(_MODEL_VARIANTS),
             state="readonly",
-            width=8,
+            width=11,
         )
         combo.grid(row=0, column=1, sticky="w")
         attach_tooltip(combo, tr("algo_tracking.model_tip"))

@@ -10,12 +10,12 @@
                                     @@@@@@@@@@@@@@@@@@@@@@@@ @@@@@
                                 @@@@@@@@                @@@@@
 
-NEXT Stereo End-to-End Model.
+NEXT Hybrid / Stereo End-to-End Model.
 
 A single ONNX forward pass that takes BOTH eyes at once and returns per-eye
-expression outputs plus one shared gaze. This is the dual-eye sibling of
-next_model.py (which is per-eye / mono). The mono model is used when only one
-eye is connected; this one takes over as soon as both eyes are streaming.
+expression outputs plus one shared gaze. ETVR, BSB and PSVR use their native
+Hybrid models for one or two cameras, blacking out an unavailable eye. Legacy variants use
+their stereo build when both eyes stream and their mono build otherwise.
 
 ONNX contract (self-describing via metadata; see
 E2E_ETVR_Stereo/src/export_onnx_stereo.py):
@@ -29,6 +29,8 @@ E2E_ETVR_Stereo/src/export_onnx_stereo.py):
                     expressions sigmoid [0,1] (per eye); gaze tanh [-1,1] (shared).
   metadata        : missing_eye='black-frame', camera_timing='independent-latest',
                     gaze_y_axis='down'|'up', temporal_frames, frame_stride.
+  Hybrid appends four monocular gaze values at [8:12]. The default tracker
+  consumes [0:8], preserving shared gaze and per-eye expressions.
 
 CAMERA TIMING (the part the host app owns). The ETVR stereo model is trained to
 be desync aware, but the timing decision itself is made out here, because frame
@@ -64,6 +66,7 @@ import cv2
 import onnxruntime
 
 from eye import EyeId
+from next_model import HYBRID_MODEL_STEMS, SHARED_GAZE_Y_SIGN, model_file_for_variant
 from one_euro_filter import OneEuroFilter
 from utils.misc_utils import resource_path
 from utils.onnx_runtime import DML_INFERENCE_LOCK, create_inference_session
@@ -123,12 +126,17 @@ def stereo_variant_key(variant: str) -> tuple:
 
 
 def stereo_model_file(variant: str):
-    """The stereo ONNX for a GUI model variant, or None when that variant has
-    no stereo build on disk (then the caller stays on the mono model).
+    """The shared Hybrid/stereo ONNX for a GUI variant, or None if absent.
+
+    Hybrid variants use the same export as the per-eye fallback. Other
+    variants retain their legacy stereo filename.
 
     fp16 (the 'Lite' precision) falls back to the full-precision stereo model
     if the half-precision build isn't shipped."""
     base, fp16 = stereo_variant_key(variant)
+    if base in HYBRID_MODEL_STEMS:
+        hybrid = model_file_for_variant(variant)
+        return hybrid if os.path.exists(resource_path(hybrid)) else None
     if fp16:
         lite = f"Models/NEXT_{base}_STEREO.fp16.onnx"
         if os.path.exists(resource_path(lite)):
@@ -157,7 +165,7 @@ class _Frame:
 
 
 class NEXT_Stereo_cls:
-    """Wraps the stereo ONNX session + One-Euro/median smoothing on 8 outputs."""
+    """Wraps Hybrid/stereo ONNX and smooths its primary eight outputs."""
 
     def __init__(self, model_path: str, use_gpu: bool = False):
         self.model_path = model_path
@@ -193,6 +201,10 @@ class NEXT_Stereo_cls:
         # -> newest, frame_stride camera frames apart.
         self.temporal_frames = max(1, int(meta.get("temporal_frames", 1)))
         self.frame_stride = max(1, int(meta.get("frame_stride", 2)))
+        output_size = ort_session.get_outputs()[0].shape[-1]
+        if model_input.shape[1] != 6 * self.temporal_frames or output_size not in (8, 12):
+            raise ValueError("NEXT shared model requires 6*T input channels and 8 or 12 outputs")
+        self.supports_single_eye = meta.get("hybrid") == "per-eye-gaze" and output_size == 12
         # Gaze Y is normalized to the app's convention, which is whatever the
         # deployed mono NEXT exports do (they carry no axis stamp, and their
         # output is correct downstream with no flip). Every stereo export
@@ -204,8 +216,8 @@ class NEXT_Stereo_cls:
         # not consulted: ETVR stereo declares 'down', BSB stereo declares 'up'
         # (its head negates the mono head's Y), and both were observed flipped
         # in the app. Re-check on a headset if a future export changes its
-        # convention; this is the one line to flip.
-        self.gaze_y_sign = -1.0
+        # convention; SHARED_GAZE_Y_SIGN also controls the per-eye Hybrid fallback.
+        self.gaze_y_sign = SHARED_GAZE_Y_SIGN
 
         # Trained missing-eye sentinel: a spatially constant black frame, in
         # whatever input space this export expects.
@@ -249,7 +261,7 @@ class NEXT_Stereo_cls:
         return frame.thumb
 
     def forward(self, x: np.ndarray) -> np.ndarray:
-        """Raw 8-vector for one prepared [1, 6*T, H, W] input."""
+        """Raw 8- or 12-vector for one prepared [1, 6*T, H, W] input."""
         x = x.astype(self.input_dtype, copy=False)
         if self.uses_directml:
             with DML_INFERENCE_LOCK:
@@ -263,6 +275,9 @@ class NEXT_Stereo_cls:
     ) -> np.ndarray:
         """Axis normalization, missing-eye expression hold, median spike reject
         and One-Euro smoothing. Returns the filtered 8-vector in model order."""
+        # Hybrid extends the legacy stereo contract in place. Its auxiliary
+        # monocular gaze heads are not expression/filter channels.
+        raw = raw[:8].copy()
         self.one_euro_filter.min_cutoff[:] = base_cutoff * _FILTER_MUL
         self.one_euro_filter.beta[:] = base_beta * _FILTER_MUL
 
@@ -306,14 +321,15 @@ class StereoNextCoordinator:
     per-eye frame histories and the no-wait timing policy.
 
     Each eye thread submit()s every frame it captures (cheap: the frame is only
-    stored), asks peer_active() whether a stereo pass is warranted at all, and
-    then calls run() to get its slice of the result. run() never waits for the
-    peer camera: it always infers from whatever each eye has right now, with the
+    stored), and calls run() to get its slice of the result. Legacy models
+    also require peer_active(); Hybrid works with either eye alone. run() never
+    waits for the peer camera: it infers from whatever each eye has right now, with the
     older/stale eye replaced by the trained black-frame sentinel when keeping it
     would smear a moving gaze."""
 
     def __init__(self, model_path: str, use_gpu: bool = False):
         self.runner = NEXT_Stereo_cls(model_path, use_gpu)
+        self.supports_single_eye = self.runner.supports_single_eye
         self._state_lock = threading.Lock()
         self._infer_lock = threading.Lock()
         keep = max(2, (self.runner.temporal_frames - 1) * self.runner.frame_stride + 2)
@@ -467,9 +483,9 @@ _coordinator_lock = threading.Lock()
 
 
 def get_stereo_coordinator(variant: str, use_gpu: bool = False):
-    """Process-wide stereo coordinator (one ONNX session shared by both eyes),
-    or None when the selected model variant ships no stereo build or its
-    session could not be created. A None result means "stay on mono NEXT".
+    """Process-wide coordinator (one ONNX session shared by both eyes), or
+    None when the selected variant has no shared build or its session cannot
+    be created. A None result selects the per-eye NEXT fallback.
 
     Rebuilt when the variant, precision or execution device changes."""
     global _coordinator, _coordinator_key
@@ -482,17 +498,17 @@ def get_stereo_coordinator(variant: str, use_gpu: bool = False):
         coordinator = None
         if path is None:
             logger.info(
-                "No stereo NEXT model for variant %s; using the mono model for "
+                "No shared NEXT model for variant %s; using the per-eye model for "
                 "both eyes.", base,
             )
         else:
             try:
                 coordinator = StereoNextCoordinator(path, use_gpu)
-                logger.info("NEXT Stereo model loaded: %s", path)
+                logger.info("NEXT shared model loaded: %s", path)
             except Exception as exc:
                 logger.warning(
                     "NEXT Stereo session unavailable (%s); falling back to the "
-                    "mono model.", exc,
+                    "per-eye model.", exc,
                 )
         # Cached even when None so a missing model isn't retried every frame.
         _coordinator_key = key
