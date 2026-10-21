@@ -1,5 +1,6 @@
 import os
 import time
+import shutil
 import queue
 import string
 import random
@@ -369,7 +370,15 @@ class DataCollectionWindow:
         self.session_cancel = threading.Event()
         self.gui_queue = queue.Queue()
         self.active_queues = []
+        # Parallel to active_queues: the eye widget each queue belongs to and
+        # the camera it was attached to. Only started eyes get a queue, so
+        # index j here is NOT an index into self.eyes ([RIGHT, LEFT]).
+        self.active_eyes = []
+        self._attached_queues = []
         self.active_eye_labels = []
+        # Working folder of the recording in progress (AVI + PNGs); removed
+        # when the recording is cancelled or fails.
+        self._session_output_dir = None
         self._video_writer_sizes = []
         self._latest_capture = None
         self.use_overlay_var = tk.BooleanVar(master=parent, value=True)
@@ -427,13 +436,18 @@ class DataCollectionWindow:
         self._use_overlay = self.use_overlay_var.get()
         
         self.active_queues = []
+        self.active_eyes = []
+        self._attached_queues = []
         self.active_eye_labels = []
         
         for eye in self.eyes:
             if eye.started():
                 q = queue.Queue(maxsize=10)
-                eye._effective_camera().add_extra_output_queue(q)
+                camera = eye._effective_camera()
+                camera.add_extra_output_queue(q)
+                self._attached_queues.append((camera, q))
                 self.active_queues.append(q)
+                self.active_eyes.append(eye)
                 self.active_eye_labels.append("Left" if eye.eye_id.name == "LEFT" else "Right")
                 
         if not self.active_queues:
@@ -458,18 +472,23 @@ class DataCollectionWindow:
             logger.exception("Capture could not finish")
             self.session_cancel.set()
             self.gui_queue.put(("status", "Recording could not finish. Please try again."))
+            self._discard_session_output()
             self._cleanup_session()
 
     def _run_collection(self):
-        seed = "".join(random.choices(string.ascii_letters + string.digits, k=9))
-        output_dir = os.path.join(os.getcwd(), f"{DATA_COLLECTION_VERSION}_{seed}_ETVR_Output")
+        # Re-roll on the (unlikely) clash instead of wiping a folder an
+        # earlier session left behind: this session only ever deletes the
+        # folder it created.
+        while True:
+            seed = "".join(random.choices(string.ascii_letters + string.digits, k=9))
+            output_dir = os.path.join(os.getcwd(), f"{DATA_COLLECTION_VERSION}_{seed}_ETVR_Output")
+            if not os.path.exists(output_dir):
+                break
         
         use_overlay = self._use_overlay
 
-        if os.path.exists(output_dir):
-            import shutil
-            shutil.rmtree(output_dir)
         os.makedirs(output_dir)
+        self._session_output_dir = output_dir
 
         # Camera setup is metadata only. NEXT and these captures use raw frames.
         with open(os.path.join(output_dir, "capture_manifest.json"), "w", encoding="utf-8") as f:
@@ -510,9 +529,9 @@ class DataCollectionWindow:
                     try:
                         frame_data = self.active_queues[i].get_nowait()
                         frame = frame_data[0]
-                        if self.eyes[i].settings.gui_setup_mode == "bigscreen":
+                        if self.active_eyes[i].settings.gui_setup_mode == "bigscreen":
                             mid = frame.shape[1] // 2
-                            if self.eyes[i].eye_id.name == "LEFT":
+                            if self.active_eyes[i].eye_id.name == "LEFT":
                                 frame = frame[:, :mid]
                             else:
                                 frame = frame[:, mid:]
@@ -523,6 +542,14 @@ class DataCollectionWindow:
 
         if any(f is None for f in first_frames) and not self.session_cancel.is_set():
             self.gui_queue.put(("status", tr("data_collection.status_no_frames")))
+            self._discard_session_output()
+            self._cleanup_session()
+            return
+        if self.session_cancel.is_set():
+            # Stopped during warm-up: a missing first frame would otherwise
+            # crash the VideoWriter setup below.
+            self.gui_queue.put(("status", tr("data_collection.status_cancelled")))
+            self._discard_session_output()
             self._cleanup_session()
             return
 
@@ -548,9 +575,9 @@ class DataCollectionWindow:
                     try:
                         frame_data = self.active_queues[j].get_nowait()
                         frame = frame_data[0]
-                        if self.eyes[j].settings.gui_setup_mode == "bigscreen":
+                        if self.active_eyes[j].settings.gui_setup_mode == "bigscreen":
                             mid = frame.shape[1] // 2
-                            if self.eyes[j].eye_id.name == "LEFT":
+                            if self.active_eyes[j].eye_id.name == "LEFT":
                                 frame = frame[:, :mid]
                             else:
                                 frame = frame[:, mid:]
@@ -680,9 +707,9 @@ class DataCollectionWindow:
                     try:
                         frame_data = self.active_queues[j].get(timeout=5.0)
                         frame, frame_num = frame_data[0], frame_data[1]
-                        if self.eyes[j].settings.gui_setup_mode == "bigscreen":
+                        if self.active_eyes[j].settings.gui_setup_mode == "bigscreen":
                             mid = frame.shape[1] // 2
-                            if self.eyes[j].eye_id.name == "LEFT":
+                            if self.active_eyes[j].eye_id.name == "LEFT":
                                 frame = frame[:, :mid]
                             else:
                                 frame = frame[:, mid:]
@@ -788,14 +815,15 @@ class DataCollectionWindow:
             if not self.session_cancel.is_set():
                 zip_name = _zip_output(seed, output_dir)
                 self.gui_queue.put(("capture_ready", os.path.abspath(zip_name)))
-                try:
-                    import shutil
-                    shutil.rmtree(output_dir, ignore_errors=True)
-                except Exception:
-                    pass
+                # The ZIP sits beside the folder in cwd, so this only drops
+                # the working copy.
+                self._discard_session_output()
                 say("done").wait()
                 self.gui_queue.put(("status", tr("data_collection.status_done", path=zip_name)))
             else:
+                # Cancelled or failed: nothing is handed on, so don't leave
+                # the full AVI and PNGs behind in cwd.
+                self._discard_session_output()
                 self.gui_queue.put(("status", tr("data_collection.status_cancelled")))
 
             self._cleanup_session()
@@ -828,9 +856,9 @@ class DataCollectionWindow:
             try:
                 frame_data = self.active_queues[j].get(timeout=5.0)
                 frame, fnum = frame_data[0], frame_data[1]
-                if self.eyes[j].settings.gui_setup_mode == "bigscreen":
+                if self.active_eyes[j].settings.gui_setup_mode == "bigscreen":
                     mid = frame.shape[1] // 2
-                    if self.eyes[j].eye_id.name == "LEFT":
+                    if self.active_eyes[j].eye_id.name == "LEFT":
                         frame = frame[:, :mid]
                     else:
                         frame = frame[:, mid:]
@@ -1205,14 +1233,26 @@ class DataCollectionWindow:
             command(121)
         return base_idx
 
+    def _discard_session_output(self):
+        """Remove this session's working folder. Only the path _run_collection
+        created is touched, never the finished ZIP next to it."""
+        output_dir, self._session_output_dir = self._session_output_dir, None
+        if output_dir:
+            shutil.rmtree(output_dir, ignore_errors=True)
+
     def _cleanup_session(self):
-        for i, eye in enumerate(self.eyes):
+        # Detach exactly the queues _start_collection attached, from the camera
+        # each was attached to. Indexing self.eyes by queue position missed the
+        # left eye's queue when it ran alone, leaving the camera copying every
+        # frame into an orphan queue for each later recording.
+        attached, self._attached_queues = self._attached_queues, []
+        for camera, q in attached:
             try:
-                if eye.started() and i < len(self.active_queues):
-                    eye._effective_camera().remove_extra_output_queue(self.active_queues[i])
+                camera.remove_extra_output_queue(q)
             except Exception:
                 logger.exception("Could not detach capture output queue")
         self.active_queues = []
+        self.active_eyes = []
         self.gui_queue.put(("session_done", None))
 
     def _poll_gui_queue(self):

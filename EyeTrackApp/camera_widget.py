@@ -29,7 +29,7 @@ import tkinter as tk
 from tkinter import ttk
 from config import EyeTrackConfig
 from collections import deque
-from threading import Event, Thread
+from threading import Event, Lock, Thread
 import math
 import time
 from eye import EyeId, EyeInfo
@@ -172,6 +172,18 @@ class CameraWidget:
         self._resize_edge_state = None  # (x0,x1,y_fixed) or (y0,y1,x_fixed) for edge drags
         self.camera_thread: Thread | None = None
         self.tracking_thread: Thread | None = None
+        # Workers from an earlier run that outlived stop()'s join (e.g. stuck in
+        # a network cam.open). start() waits for them; see _start_after_stale_exit.
+        self._stale_threads: list[Thread] = []
+        self._start_lock = Lock()
+        # Bumped by start() and request_stop() so a deferred start that has
+        # been superseded or cancelled never fires.
+        self._start_generation = 0
+        # Called on the GUI thread as fn(eye_id, new_source) after the capture
+        # thread rebinds a uvc:Name@Address source to a new device address, so
+        # the app can update its own source fields (which would otherwise write
+        # the stale address back to config on the next apply_camera_inputs).
+        self.on_capture_source_rebound = None
 
     def build(self, parent, show_camera_controls=True, dpi_scale=1.0):
         self._dpi_scale = dpi_scale
@@ -926,9 +938,33 @@ class CameraWidget:
         return not self.cancellation_event.is_set()
 
     def start(self, run_camera_thread: bool = True):
-        # If we're already running, bail
-        if not self.cancellation_event.is_set():
-            return
+        with self._start_lock:
+            # If we're already running, bail
+            if not self.cancellation_event.is_set():
+                return
+            self._start_generation += 1
+            generation = self._start_generation
+            self._stale_threads = [t for t in self._stale_threads if t.is_alive()]
+            stale = list(self._stale_threads)
+            if not stale:
+                self._start_threads(run_camera_thread)
+                return
+        # A worker from the previous run is still alive. Camera and EyeProcessor
+        # read self.cancellation_event on every loop, so clearing it now would
+        # un-cancel that worker and leave two run() loops sharing
+        # self.cv2_camera. Wait for it off the GUI thread, then start.
+        logger.warning(
+            "Previous %s worker still running; deferring start until it exits",
+            self.eye_id,
+        )
+        Thread(
+            target=self._start_after_stale_exit,
+            args=(stale, generation, run_camera_thread),
+            daemon=True,
+        ).start()
+
+    def _start_threads(self, run_camera_thread: bool):
+        # Caller holds _start_lock.
         self.cancellation_event.clear()
         self.tracking_thread = Thread(target=self.ransac.run)
         self.tracking_thread.start()
@@ -938,6 +974,16 @@ class CameraWidget:
         else:
             self.camera_thread = None
 
+    def _start_after_stale_exit(self, stale, generation, run_camera_thread):
+        for t in stale:
+            t.join()
+        with self._start_lock:
+            self._stale_threads = [t for t in self._stale_threads if t.is_alive()]
+            # Superseded by a later start(), or stop() was requested meanwhile.
+            if generation != self._start_generation or not self.cancellation_event.is_set():
+                return
+            self._start_threads(run_camera_thread)
+
     def request_stop(self):
         """Signal camera/tracking workers without waiting for native I/O.
 
@@ -945,6 +991,9 @@ class CameraWidget:
         OpenCV/FFmpeg build.  Keeping signalling separate lets application
         shutdown cancel both eyes before it waits for either one.
         """
+        with self._start_lock:
+            # Cancel any start() still waiting on a previous run's worker.
+            self._start_generation += 1
         self.detach_shared_capture_event()
         self.camera.set_extra_output_queues([])
         self.cancellation_event.set()
@@ -958,16 +1007,26 @@ class CameraWidget:
             self.tracking_thread.join(
                 timeout=max(0.0, deadline - time.monotonic())
             )
-            if warn_if_alive and self.tracking_thread.is_alive():
-                logger.warning("Tracking thread (%s) did not exit within timeout", self.eye_id)
+            if self.tracking_thread.is_alive():
+                if warn_if_alive:
+                    logger.warning("Tracking thread (%s) did not exit within timeout", self.eye_id)
+                self._remember_stale_thread(self.tracking_thread)
             self.tracking_thread = None
         if self.camera_thread is not None:
             self.camera_thread.join(
                 timeout=max(0.0, deadline - time.monotonic())
             )
-            if warn_if_alive and self.camera_thread.is_alive():
-                logger.warning("Camera thread (%s) did not exit within timeout", self.eye_id)
+            if self.camera_thread.is_alive():
+                if warn_if_alive:
+                    logger.warning("Camera thread (%s) did not exit within timeout", self.eye_id)
+                self._remember_stale_thread(self.camera_thread)
             self.camera_thread = None
+
+    def _remember_stale_thread(self, thread: Thread) -> None:
+        # Still cancelled; it exits once its blocking call returns. Until then
+        # start() must not clear the shared cancellation_event.
+        with self._start_lock:
+            self._stale_threads.append(thread)
 
     def on_config_update(self, data):
         keys = set(data.keys())
@@ -1013,6 +1072,13 @@ class CameraWidget:
             new_source = self.config.capture_source
             if addr_var is not None and new_source:
                 addr_var.set(str(new_source))
+            # The main window builds widgets without camera_addr_var; its own
+            # source comboboxes must hear about the new address too.
+            if self.on_capture_source_rebound is not None and new_source:
+                try:
+                    self.on_capture_source_rebound(self.eye_id, new_source)
+                except Exception:
+                    logger.exception("Capture source rebind listener failed")
             self._schedule_main_config_save()
             logger.info(
                 "Persisted auto-rebound capture source for %s: %s",

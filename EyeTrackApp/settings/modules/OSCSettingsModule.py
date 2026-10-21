@@ -62,15 +62,23 @@ class OSCSettingsModule(BaseSettingsModule):
         values[self.gui_pyvrcft] = mode == "pyvrcft"
         return values
 
+    @staticmethod
+    def _output_mode_from(settings) -> str:
+        if settings.gui_pyvrcft:
+            return "pyvrcft"
+        if settings.gui_vrc_native:
+            return "native"
+        if settings.gui_osc_vrcft_v1:
+            return "vrcft_v1"
+        return "vrcft_v2"
+
+    def reset_to_defaults(self, defaults):
+        mode_var = self.tk_vars.get(self.gui_osc_output_mode)
+        if mode_var is not None:
+            mode_var.set(self._output_mode_from(defaults))
+
     def build(self, parent):
-        if self.config.gui_pyvrcft:
-            osc_out_initial = "pyvrcft"
-        elif self.config.gui_vrc_native:
-            osc_out_initial = "native"
-        elif self.config.gui_osc_vrcft_v1:
-            osc_out_initial = "vrcft_v1"
-        else:
-            osc_out_initial = "vrcft_v2"
+        osc_out_initial = self._output_mode_from(self.config)
 
         osc_bar = ttk.Frame(parent)
         osc_bar.grid(row=0, column=0, sticky="w", pady=2)

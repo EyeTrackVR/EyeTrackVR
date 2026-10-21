@@ -165,20 +165,18 @@ def to_gray(frame):
 
 
 @lru_cache(maxsize=lru_maxsize_vvs)
-def get_frameint_empty_array(frame_shape, pad, x_step, y_step, r_in, r_out):
-    frame_int_dtype = np.intc
-    frame_pad = np.empty(
-        (frame_shape[0] + (pad * 2), frame_shape[1] + (pad * 2)), dtype=np.uint8
-    )
-
-    row, col = frame_pad.shape
-
-    frame_int = np.empty((row + 1, col + 1), dtype=frame_int_dtype)
+def _get_frameint_index_data(frame_shape, pad, x_step, y_step, r_in, r_out):
+    # Only immutable geometry lives in this process-wide cache. The scratch
+    # buffers built from it (get_frameint_empty_array) used to be cached here
+    # too, which handed the SAME arrays to both eye threads whenever their ROIs
+    # matched in size; cv2 releases the GIL, so one eye's pupil was regularly
+    # computed from the other eye's image.
+    row = frame_shape[0] + (pad * 2)
+    col = frame_shape[1] + (pad * 2)
 
     y_steps_arr = np.arange(pad, row - pad, y_step, dtype=np.int16)
     x_steps_arr = np.arange(pad, col - pad, x_step, dtype=np.int16)
     len_sx, len_sy = len(x_steps_arr), len(y_steps_arr)
-    len_syx = (len_sy, len_sx)
     y_end = pad + (y_step * (len_sy - 1))
     x_end = pad + (x_step * (len_sx - 1))
 
@@ -187,15 +185,42 @@ def get_frameint_empty_array(frame_shape, pad, x_step, y_step, r_in, r_out):
     x_rin_m = slice(pad - r_in, x_end - r_in + 1, x_step)
     x_rin_p = slice(pad + r_in, x_end + r_in + 1, x_step)
 
-    in_p00 = frame_int[y_rin_m, x_rin_m]
-    in_p11 = frame_int[y_rin_p, x_rin_p]
-    in_p01 = frame_int[y_rin_m, x_rin_p]
-    in_p10 = frame_int[y_rin_p, x_rin_m]
-
     y_ro_m = np.maximum(y_steps_arr - r_out, 0)  # [:,np.newaxis]
     x_ro_m = np.maximum(x_steps_arr - r_out, 0)  # [np.newaxis,:]
     y_ro_p = np.minimum(row, y_steps_arr + r_out)  # [:,np.newaxis]
     x_ro_p = np.minimum(col, x_steps_arr + r_out)  # [np.newaxis,:]
+    for arr in (y_ro_m, x_ro_m, y_ro_p, x_ro_p):
+        arr.flags.writeable = False
+
+    return (
+        row,
+        col,
+        (len_sy, len_sx),
+        (y_rin_m, y_rin_p, x_rin_m, x_rin_p),
+        (y_ro_m, x_ro_m, y_ro_p, x_ro_p),
+    )
+
+
+def get_frameint_empty_array(frame_shape, pad, x_step, y_step, r_in, r_out):
+    """Allocate a fresh set of scratch buffers. Not cached: callers keep their
+    own (per HSF instance, see HSF_cls._get_buffers) so threads never share."""
+    frame_int_dtype = np.intc
+    (
+        row,
+        col,
+        len_syx,
+        (y_rin_m, y_rin_p, x_rin_m, x_rin_p),
+        (y_ro_m, x_ro_m, y_ro_p, x_ro_p),
+    ) = _get_frameint_index_data(frame_shape, pad, x_step, y_step, r_in, r_out)
+    len_sy = len_syx[0]
+
+    frame_pad = np.empty((row, col), dtype=np.uint8)
+    frame_int = np.empty((row + 1, col + 1), dtype=frame_int_dtype)
+
+    in_p00 = frame_int[y_rin_m, x_rin_m]
+    in_p11 = frame_int[y_rin_p, x_rin_p]
+    in_p01 = frame_int[y_rin_m, x_rin_p]
+    in_p10 = frame_int[y_rin_p, x_rin_m]
 
     inner_sum = np.empty(len_syx, dtype=frame_int_dtype)
     outer_sum = np.empty(len_syx, dtype=frame_int_dtype)
@@ -630,6 +655,11 @@ class HSF_cls(object):
 
         self.cap = None
 
+        # Scratch buffers for the integral-image convolution, owned by this
+        # instance (one per eye thread) and rebuilt only when the geometry
+        # changes. Small dict because radius_adjust cycles through radii.
+        self._buffers: dict = {}
+
         self.timedict = {
             "to_gray": [],
             "int_img": [],
@@ -656,6 +686,16 @@ class HSF_cls(object):
             self.current_image_gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
             return True
         return False
+
+    def _get_buffers(self, frame_shape, pad, x_step, y_step, r_in, r_out):
+        key = (frame_shape, pad, x_step, y_step, r_in, r_out)
+        bufs = self._buffers.get(key)
+        if bufs is None:
+            if len(self._buffers) >= lru_maxsize_vvs:
+                self._buffers.clear()
+            bufs = get_frameint_empty_array(*key)
+            self._buffers[key] = bufs
+        return bufs
 
     cct = 300
     ransac_lower_x = 100
@@ -712,7 +752,7 @@ class HSF_cls(object):
             response_list,
             frame_conv,
             frame_conv_stride,
-        ) = get_frameint_empty_array(
+        ) = self._get_buffers(
             gray_frame.shape, pad, step[0], step[1], hsf.r_in, hsf.r_out
         )
         # BORDER_CONSTANT is faster than BORDER_REPLICATE There seems to be almost no negative impact when BORDER_CONSTANT is used.

@@ -75,7 +75,7 @@ build-backend = "poetry.core.masonry.api"
 
 [tool.pytest.ini_options]
 addopts = "-ra -q"
-pythonpath = "."
+pythonpath = [".", "EyeTrackApp"]
 python_files = [
     "test_*.py"
 ]

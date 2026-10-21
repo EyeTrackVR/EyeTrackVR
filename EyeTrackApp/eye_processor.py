@@ -591,7 +591,15 @@ class EyeProcessor:
 
     def _ensure_pupil_axes_for_dilation(self) -> None:
         """EBPD expects ellipse axes in pixels; RANSAC3D sets pupil_width/height, other trackers only set radius."""
-        if self.pupil_width > 1e-3 and self.pupil_height > 1e-3:
+        # Only trust stored axes when this frame's tracker measured them
+        # (RANSAC3D / HSRAC / AHRAC). Otherwise they are left over from an
+        # earlier frame or tracker and would freeze the dilation input, so
+        # re-derive them from the current radius every frame.
+        if (
+            self.current_algorithm in (EyeInfoOrigin.RANSAC, EyeInfoOrigin.HSRAC)
+            and self.pupil_width > 1e-3
+            and self.pupil_height > 1e-3
+        ):
             return
         try:
             r = float(abs(self.radius))
@@ -700,16 +708,19 @@ class EyeProcessor:
         ):
             (
                 self.current_image_gray,
-                self.rawx,
-                self.rawy,
-                self.eyeopen,
+                leap_x,
+                leap_y,
+                leap_lid,
             ) = self.leap_runner.run(
                 self.current_image_gray,
                 self.current_image_gray_clean,
                 self.settings.gui_use_gpu,
             )
-            close_t, wide_t = leap_lid_thresholds_for_eye(self.settings, self.eye_id)
-            self.eyeopen = remap_leap_lid_openness(self.eyeopen, close_t, wide_t)
+            # None = LEAP has produced no result yet: keep the current values.
+            if leap_lid is not None:
+                self.rawx, self.rawy = leap_x, leap_y
+                close_t, wide_t = leap_lid_thresholds_for_eye(self.settings, self.eye_id)
+                self.eyeopen = remap_leap_lid_openness(leap_lid, close_t, wide_t)
 
         if (
             len(self.prev_y_list) >= 100
@@ -743,12 +754,7 @@ class EyeProcessor:
         self.prev_x = self.out_x
         self.prev_y = self.out_y
 
-        if self.eyebrow_runner is not None:
-            _brow = self.eyebrow_runner.get_result()
-        elif self._next_active:
-            _brow = self.next_eyebrow
-        else:
-            _brow = float("nan")
+        _brow = self._current_eyebrow()
         self.output_images_and_update(
             self.thresh,
             EyeInfo(
@@ -790,14 +796,22 @@ class EyeProcessor:
         self.thresh = self.current_image_gray.copy()
         (
             self.current_image_gray,
-            self.rawx,
-            self.rawy,
+            leap_x,
+            leap_y,
             eyeopen,
         ) = self.leap_runner.run(
             self.current_image_gray,
             self.current_image_gray_clean,
             self.settings.gui_use_gpu,
         )
+        self.current_algorithm = EyeInfoOrigin.LEAP
+        if eyeopen is None:
+            # No LEAP result yet (only before the very first inference): keep
+            # the previous gaze and the neutral default lid instead of
+            # reporting a fake blink and a corner gaze through cal_osc(0, 0).
+            self.thresh = self.current_image_gray.copy()
+            return
+        self.rawx, self.rawy = leap_x, leap_y
         # Publish raw lid (pre-remap) so the settings UI visualizer can show
         # where the user's eye currently sits relative to the close/widen markers.
         _set_runtime_value(f"raw_lid_{int(self.eye_id)}", float(eyeopen))
@@ -808,7 +822,6 @@ class EyeProcessor:
         self.out_x, self.out_y, self.avg_velocity = cal.cal_osc(
             self, self.rawx, self.rawy, self.angle
         )
-        self.current_algorithm = EyeInfoOrigin.LEAP
 
     def DADDYM(self):
         self.thresh = self.current_image_gray.copy()
@@ -1253,6 +1266,26 @@ class EyeProcessor:
             algorithm_slots[idx] = algo
         self._algorithm_slots = algorithm_slots
 
+    def _current_eyebrow(self) -> float:
+        """Eyebrow value for EyeInfo. NEXT's own eyebrow wins whenever NEXT is
+        the tracker (it is also the only EYEBROW_INFO sent then)."""
+        if self._next_active:
+            return self.next_eyebrow
+        if self.eyebrow_runner is not None:
+            return self.eyebrow_runner.get_result()
+        return float("nan")
+
+    def _service_eyebrow_runner(self, raw_frame: np.ndarray) -> None:
+        """Run the standalone eyebrow model when the EyeBrow toggle is on.
+        NEXT already outputs eyebrows, so while it is the active tracker the
+        runner is stopped: two models each sending EYEBROW_INFO every frame
+        made the OSC brow param flicker between them."""
+        if self.settings.gui_eyebrow and not self._next_active:
+            self._run_eyebrow(raw_frame)
+        elif self.eyebrow_runner is not None:
+            self.eyebrow_runner.stop()
+            self.eyebrow_runner = None
+
     def _run_eyebrow(self, raw_frame: np.ndarray) -> None:
         variant = getattr(self.settings, "gui_model_variant", "ETVR")
         # Reload if the selected model variant changed at runtime.
@@ -1371,11 +1404,7 @@ class EyeProcessor:
             elif not self.capture_crop_rotate_image():
                 continue
 
-            if self.settings.gui_eyebrow:
-                self._run_eyebrow(raw_frame)
-            elif self.eyebrow_runner is not None:
-                self.eyebrow_runner.stop()
-                self.eyebrow_runner = None
+            self._service_eyebrow_runner(raw_frame)
 
             self.current_image_gray = cv2.cvtColor(
                 self.current_image, cv2.COLOR_BGR2GRAY

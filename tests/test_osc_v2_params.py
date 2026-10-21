@@ -1,5 +1,5 @@
 from queue import Queue
-from time import sleep
+from time import monotonic, sleep
 from unittest import mock
 
 import pytest
@@ -7,6 +7,18 @@ import pytest
 from osc.osc import OSCManager, OSCMessage
 from osc.OSCMessage import OSCMessageType
 from tests import EyeInfoMock, SimpleUDPClientMock
+
+
+def _wait_until_sent(msg_queue, timeout=5.0):
+    """Block until the sender thread has fully handled every queued message.
+
+    Shutting down right after put() races the sender thread (it checks the
+    cancellation event between messages), which made these tests flaky under
+    load in a full-suite run.
+    """
+    deadline = monotonic() + timeout
+    while msg_queue.unfinished_tasks and monotonic() < deadline:
+        sleep(0.005)
 
 
 @pytest.mark.parametrize(
@@ -31,6 +43,12 @@ from tests import EyeInfoMock, SimpleUDPClientMock
             [
                 ("/avatar/parameters/v2/EyeX", 0),
                 ("/avatar/parameters/v2/EyeY", 0),
+                ("/avatar/parameters/v2/PupilDilation", 0),
+                ("/avatar/parameters/v2/CheekSquintLeft", 0.0),
+                ("/avatar/parameters/v2/CheekSquintRight", 0.0),
+                ("/avatar/parameters/v2/EyeSquintLeft", 0.0),
+                ("/avatar/parameters/v2/EyeSquintRight", 0.0),
+                ("/avatar/parameters/v2/EyeSquint", 0.0),
                 ("/avatar/parameters/v2/EyeLid", 1.0),
                 ("/avatar/parameters/v2/EyeLid", 1.0),
             ],
@@ -54,6 +72,12 @@ from tests import EyeInfoMock, SimpleUDPClientMock
             [
                 ("/avatar/parameters/v2/EyeX", 0),
                 ("/avatar/parameters/v2/EyeY", 0),
+                ("/avatar/parameters/v2/PupilDilation", 0),
+                ("/avatar/parameters/v2/CheekSquintLeft", 0.0),
+                ("/avatar/parameters/v2/CheekSquintRight", 0.0),
+                ("/avatar/parameters/v2/EyeSquintLeft", 0.0),
+                ("/avatar/parameters/v2/EyeSquintRight", 0.0),
+                ("/avatar/parameters/v2/EyeSquint", 0.0),
                 ("/avatar/parameters/v2/EyeLid", 1.0),
                 ("/avatar/parameters/v2/EyeLid", 1.0),
             ],
@@ -73,6 +97,7 @@ def test_send_command_v2_params_single_eye(main_config_v2_params, messages, expe
         for message in messages:
             sleep(0.01)
             msg_queue.put(message)
+        _wait_until_sent(msg_queue)
         client.shutdown()
 
         assert msg_queue.empty()
@@ -116,10 +141,18 @@ def test_send_command_v2_params_single_eye(main_config_v2_params, messages, expe
                 ("/avatar/parameters/v2/EyeRightX", 0),
                 ("/avatar/parameters/v2/EyeRightY", 0),
                 ("/avatar/parameters/v2/EyeLidRight", 1.0),
+                ("/avatar/parameters/v2/CheekSquintRight", 0.0),
+                ("/avatar/parameters/v2/EyeSquintRight", 0.0),
+                ("/avatar/parameters/v2/PupilDilation", 0.5),
+                ("/avatar/parameters/v2/EyeSquint", 0.0),
                 ("/avatar/parameters/v2/EyeLidLeft", 0.5),
                 ("/avatar/parameters/v2/EyeLeftX", 10),
                 ("/avatar/parameters/v2/EyeLeftY", 5),
                 ("/avatar/parameters/v2/EyeLidLeft", 0.5),
+                ("/avatar/parameters/v2/CheekSquintLeft", 0.0),
+                ("/avatar/parameters/v2/EyeSquintLeft", 0.0),
+                ("/avatar/parameters/v2/PupilDilation", 1.0),
+                ("/avatar/parameters/v2/EyeSquint", 0.0),
             ],
         ),
         # binary blink
@@ -162,6 +195,10 @@ def test_send_command_v2_params_single_eye(main_config_v2_params, messages, expe
                 ("/avatar/parameters/v2/EyeRightX", 0),
                 ("/avatar/parameters/v2/EyeRightY", 0),
                 ("/avatar/parameters/v2/EyeLidRight", 0.0),
+                ("/avatar/parameters/v2/CheekSquintRight", 0.0),
+                ("/avatar/parameters/v2/EyeSquintRight", 0.0),
+                ("/avatar/parameters/v2/PupilDilation", 0.5),
+                ("/avatar/parameters/v2/EyeSquint", 0.0),
                 ("/avatar/parameters/v2/EyeLidLeft", 0.0),
                 ("/avatar/parameters/v2/EyeLidLeft", 0.0),
                 ("/avatar/parameters/v2/EyeLidLeft", 0.0),
@@ -171,6 +208,10 @@ def test_send_command_v2_params_single_eye(main_config_v2_params, messages, expe
                 ("/avatar/parameters/v2/EyeLeftX", 10),
                 ("/avatar/parameters/v2/EyeLeftY", 5),
                 ("/avatar/parameters/v2/EyeLidLeft", 0.0),
+                ("/avatar/parameters/v2/CheekSquintLeft", 0.0),
+                ("/avatar/parameters/v2/EyeSquintLeft", 0.0),
+                ("/avatar/parameters/v2/PupilDilation", 1.0),
+                ("/avatar/parameters/v2/EyeSquint", 0.0),
             ],
         ),
     ],
@@ -190,6 +231,7 @@ def test_send_command_v2_params_dual_eye(main_config_v2_params, eye_data, expect
         for message in eye_data:
             sleep(0.01)
             msg_queue.put(message)
+        _wait_until_sent(msg_queue)
         client.shutdown()
 
         assert msg_queue.empty()
@@ -238,6 +280,10 @@ def test_send_command_v2_params_dual_eye(main_config_v2_params, eye_data, expect
                 ("/avatar/parameters/v2/EyeRightX", 0),
                 ("/avatar/parameters/v2/EyeRightY", 0),
                 ("/avatar/parameters/v2/EyeLidRight", 0.0),
+                ("/avatar/parameters/v2/CheekSquintRight", 0.0),
+                ("/avatar/parameters/v2/EyeSquintRight", 0.0),
+                ("/avatar/parameters/v2/PupilDilation", 0.5),
+                ("/avatar/parameters/v2/EyeSquint", 0.0),
                 ("/avatar/parameters/v2/EyeLidLeft", 0.0),
                 ("/avatar/parameters/v2/EyeLidLeft", 0.0),
                 ("/avatar/parameters/v2/EyeLidLeft", 0.0),
@@ -249,6 +295,10 @@ def test_send_command_v2_params_dual_eye(main_config_v2_params, eye_data, expect
                 ("/avatar/parameters/v2/EyeLeftX", 10),
                 ("/avatar/parameters/v2/EyeLeftY", 5),
                 ("/avatar/parameters/v2/EyeLidLeft", 0.0),
+                ("/avatar/parameters/v2/CheekSquintLeft", 0.0),
+                ("/avatar/parameters/v2/EyeSquintLeft", 0.0),
+                ("/avatar/parameters/v2/PupilDilation", 1.0),
+                ("/avatar/parameters/v2/EyeSquint", 0.0),
             ],
         ),
     ],
@@ -269,6 +319,7 @@ def test_send_command_v2_params_eye_outer_side_falloff(main_config_v2_params, ey
         for message in eye_data:
             msg_queue.put(message)
             sleep(1)
+        _wait_until_sent(msg_queue)
         client.shutdown()
 
         assert msg_queue.empty()

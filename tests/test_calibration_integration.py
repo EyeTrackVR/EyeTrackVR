@@ -11,7 +11,7 @@ import shutil
 import numpy as np
 
 # Add EyeTrackApp to path
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'EyeTrackApp'))
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'EyeTrackApp')))
 
 from utils.calibration_elipse import CalibrationEllipse
 from config import EyeTrackCameraConfig

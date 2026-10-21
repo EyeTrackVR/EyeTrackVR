@@ -1,5 +1,6 @@
 import csv
 import logging
+import logging.handlers
 import os
 import subprocess
 import sys
@@ -11,6 +12,8 @@ from pathlib import Path
 LOG_DIR_NAME = "logs"
 LOG_RETENTION_COUNT = 3
 LOG_NAME_PREFIX = "eyetrackapp"
+LOG_MAX_BYTES = 5 * 1024 * 1024
+LOG_BACKUP_COUNT = 3
 
 _current_log_path: Path | None = None
 
@@ -46,12 +49,14 @@ def _prune_old_logs(log_dir: Path) -> None:
         reverse=True,
     )
     for old_log in logs[LOG_RETENTION_COUNT:]:
-        try:
-            old_log.unlink()
-        except OSError:
-            logging.getLogger(__name__).debug(
-                "Could not remove old log file: %s", old_log, exc_info=True
-            )
+        # Also drop the session's rotated siblings (<name>.log.1 ...).
+        for path in [old_log, *log_dir.glob(f"{old_log.name}.*")]:
+            try:
+                path.unlink()
+            except OSError:
+                logging.getLogger(__name__).debug(
+                    "Could not remove old log file: %s", path, exc_info=True
+                )
 
 
 def _install_exception_hooks(logger: logging.Logger) -> None:
@@ -109,7 +114,12 @@ def setup_logging(app_name: str = "EyeTrackApp") -> Path:
         console_handler.setFormatter(ColorFormatter("[%(levelname)s] %(message)s"))
         root_logger.addHandler(console_handler)
 
-    file_handler = logging.FileHandler(log_path, encoding="utf-8")
+    file_handler = logging.handlers.RotatingFileHandler(
+        log_path,
+        maxBytes=LOG_MAX_BYTES,
+        backupCount=LOG_BACKUP_COUNT,
+        encoding="utf-8",
+    )
     file_handler.setLevel(logging.DEBUG)
     file_handler.setFormatter(
         logging.Formatter(

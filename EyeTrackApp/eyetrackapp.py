@@ -58,6 +58,7 @@ from camera_enum import (
     format_uvc_named_source,
     is_uvc_named_source,
     list_uvc_cameras,
+    parse_uvc_named_source,
 )
 from config import EyeTrackConfig
 from eye import EyeId
@@ -681,6 +682,8 @@ def main():
             )
             self.left_frame.pack(side="left", fill="y", padx=(0, 8))
             self.right_frame.pack(side="left", fill="y", padx=(8, 0))
+            for eye in eyes:
+                eye.on_capture_source_rebound = self._on_capture_source_rebound
 
             # Global calibration / recenter row. Replaces the per-eye buttons
             # that used to live in each camera widget; left/right always need
@@ -859,6 +862,46 @@ def main():
                         bool(value)
                     )
 
+        def _on_capture_source_rebound(self, eye_id, new_source):
+            """A capture thread rebound its uvc:Name@Address source to a new
+            address (camera replugged into another USB port). Point the source
+            fields at it; otherwise apply_camera_inputs writes the old address
+            back to config on the next page switch and the rebind never sticks."""
+            new_source = str(new_source)
+            new_name, _ = parse_uvc_named_source(new_source)
+            left_old = self._normalize_camera_input(self.left_camera_var.get())
+            right_old = self._normalize_camera_input(self.right_camera_var.get())
+            old_key = self._camera_tracking_state_key(left_old, right_old)
+            # One camera thread feeds both eyes when they share a source
+            # (Bigscreen / same device), so both fields move together.
+            if left_old is not None and left_old == right_old:
+                targets = [(self.left_camera_var, left_old), (self.right_camera_var, right_old)]
+            elif eye_id == EyeId.LEFT:
+                targets = [(self.left_camera_var, left_old)]
+            else:
+                targets = [(self.right_camera_var, right_old)]
+            for var, old in targets:
+                # Leave a field the user has since pointed elsewhere alone.
+                if not is_uvc_named_source(old) or parse_uvc_named_source(old)[0] != new_name:
+                    continue
+                label = var.get().strip()
+                if label in self._source_display_map:
+                    # Keep the friendly dropdown label; just re-target it.
+                    self._source_display_map[label] = new_source
+                else:
+                    var.set(new_source)
+                if var is self.left_camera_var:
+                    config.left_eye.capture_source = new_source
+                else:
+                    config.right_eye.capture_source = new_source
+            # Same layout, new address: don't let the next apply_camera_inputs
+            # read this as a source change and restart both eyes.
+            if self._last_camera_tracking_key == old_key:
+                self._last_camera_tracking_key = self._camera_tracking_state_key(
+                    self._normalize_camera_input(self.left_camera_var.get()),
+                    self._normalize_camera_input(self.right_camera_var.get()),
+                )
+
         def _normalize_camera_input(self, raw_value: str):
             value = (raw_value or "").strip()
             if value == "":
@@ -998,7 +1041,15 @@ def main():
                     futures = {
                         pool.submit(list_uvc_cameras): "uvc",
                         pool.submit(discover_etvr_mdns_sources): "mdns",
-                        pool.submit(discover_etvr_serial_cameras): "serial",
+                        # Configured ports are skipped: on Linux/macOS a probe
+                        # would share the live tracker port and steal its bytes.
+                        pool.submit(
+                            discover_etvr_serial_cameras,
+                            skip_devices=(
+                                config.left_eye.capture_source,
+                                config.right_eye.capture_source,
+                            ),
+                        ): "serial",
                     }
                     for fut in as_completed(futures):
                         key = futures[fut]

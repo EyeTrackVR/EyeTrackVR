@@ -116,6 +116,9 @@ def run_onnx_model(queues, session, frame):
 class LEAP_C:
     def __init__(self, eye_config: EyeTrackCameraConfig, config: EyeTrackConfig):
         self.last_lid = None
+        # (x, y, filtered lid) of the most recent worker result, repeated on
+        # frames where the worker has nothing new; None until the first one.
+        self._last_result = None
         # Mirrors eye_config.leap_calib_request_seq; when the config value
         # increments (user pressed "Redo Eyelid Calib"), we reset the sampling
         # window on the next frame. Initialised from the stored value so a
@@ -408,9 +411,21 @@ class LEAP_C:
             calib_array = np.array([per, per]).reshape(1, 2)
             per = self.one_euro_filter_float(calib_array)[0][0]
 
-            return imgvis, float(x * img_width), float(y * img_height), per
+            self._last_result = (
+                float(x * img_width),
+                float(y * img_height),
+                per,
+            )
+            return (imgvis,) + self._last_result
 
-        return self.current_image_gray, 0, 0, 0
+        # The async worker hasn't finished a frame yet (routine at high camera
+        # rates). Repeat the last valid result: returning 0s here read as a
+        # full blink (lid 0) and a corner gaze (x=y=0) on ~1 in 10 frames.
+        # Before the very first result there is nothing to repeat, so return
+        # None placeholders, which EyeProcessor treats as "no update".
+        if self._last_result is not None:
+            return (self.current_image_gray,) + self._last_result
+        return self.current_image_gray, None, None, None
 
 
 class External_Run_LEAP:

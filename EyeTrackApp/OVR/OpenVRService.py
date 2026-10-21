@@ -214,6 +214,12 @@ class OpenVRService:
                 INFO,
                 f"{Fore.CYAN}[INFO] SteamVR auto-launch not registered yet ({e.args[0]})",
             )
+        except OSError as e:
+            # e.g. unwritable app dir for the manifest; never fatal at startup.
+            self.logger.log(
+                WARN,
+                f"{Fore.YELLOW}[WARN] SteamVR auto-launch manifest could not be written ({e})",
+            )
 
     def poll_quit_event(self) -> bool:
         """Drain the OpenVR event queue. Returns True if SteamVR sent a quit event."""
@@ -280,21 +286,33 @@ class OpenVRService:
         if "gui_openvr_autostart" in data:
             try:
                 self.set_autostart(data["gui_openvr_autostart"])
-            except OpenVRException as e:
+            except (OpenVRException, OSError) as e:
                 self.autostart_enabled = False
                 if self.window is not None and hasattr(self.window, "set_openvr_autostart"):
                     self.window.set_openvr_autostart(False)
+                error = e.args[0] if isinstance(e, OpenVRException) else str(e)
                 self.logger.log(
                     WARN,
-                    f"{Fore.YELLOW}[WARN] Cannot enable steamvr autostart: {e.args[0]}",
+                    f"{Fore.YELLOW}[WARN] Cannot enable steamvr autostart: {error}",
                 )
-                popup_root = tk.Tk()
-                popup_root.withdraw()
-                messagebox.showwarning(
+                _show_warning(
                     tr("openvr.warning_title"),
-                    tr("openvr.autostart_failed", error=e.args[0]),
+                    tr("openvr.autostart_failed", error=error),
                 )
-                popup_root.destroy()
 
+
+def _show_warning(title: str, message: str) -> None:
+    # A second tk.Tk() alongside the app root breaks Tk variables/images, so
+    # parent the dialog to the existing root and only create one if none exists.
+    root = getattr(tk, "_default_root", None)
+    if root is not None:
+        messagebox.showwarning(title, message, parent=root)
+        return
+    popup_root = tk.Tk()
+    popup_root.withdraw()
+    try:
+        messagebox.showwarning(title, message, parent=popup_root)
+    finally:
+        popup_root.destroy()
 
 openvr_service = OpenVRService()
