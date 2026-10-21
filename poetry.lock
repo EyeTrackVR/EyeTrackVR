@@ -72,14 +72,14 @@ files = [
 
 [[package]]
 name = "certifi"
-version = "2026.5.20"
+version = "2026.10.19"
 description = "Python package for providing Mozilla's CA Bundle."
 optional = false
 python-versions = ">=3.7"
 groups = ["main"]
 files = [
-    {file = "certifi-2026.5.20-py3-none-any.whl", hash = "sha256:3c52e209ba0a4ad7aebe60436a4ab349c39e1e602e8c134221e546902ad25897"},
-    {file = "certifi-2026.5.20.tar.gz", hash = "sha256:69dea482ab64caa7b9f6aba1c6bf48bb6a5448d1c0f1b17ab42ad8c763a5344d"},
+    {file = "certifi-2026.10.19-py3-none-any.whl", hash = "sha256:42d35340cc5b9ba78e818ddbff0c5b1c2b779de448a340fd1b989f5fa8670e1b"},
+    {file = "certifi-2026.10.19.tar.gz", hash = "sha256:035c1e85572b141bf1c3a3eff0e33a8eb74917522f2559075ff8d2fea780a1ae"},
 ]
 
 [[package]]
@@ -2958,4 +2958,4 @@ files = [
 [metadata]
 lock-version = "2.1"
 python-versions = "~3.14.0"
-content-hash = "86e310683cbb23cb3e5fd0c265fad528252bfc6773d3f073b7cb479e6b118cda"
+content-hash = "693d4a5172c3eb5ff6ad9cd5d6ba55f8aaea6fb3b98d8aabc05e6602912556fc"

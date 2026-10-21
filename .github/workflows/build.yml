@@ -16,7 +16,7 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 permissions:
-  contents: write
+  contents: read
 
 jobs:
   build:
@@ -29,13 +29,14 @@ jobs:
     runs-on: ${{ matrix.os }}
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
         with:
           token: ${{ env.GITHUB_TOKEN }}
       - name: Set up Python
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v5
+        id: setup-python
         with:
-          python-version: 3.10.11
+          python-version: "3.14"
       - name: Setup Poetry
         uses: snok/install-poetry@v1
         with:
@@ -45,7 +46,7 @@ jobs:
 
       - name: Load cached wheels
         id: cached-pip-wheels
-        uses: actions/cache@v3
+        uses: actions/cache@v4
         with:
           path: ~/.cache
           key: venv-${{ runner.os }}-${{ steps.setup-python.outputs.python-version }}-${{ hashFiles('**/poetry.lock') }}
@@ -55,49 +56,66 @@ jobs:
       #----------------------------------------------
       - name: Load cached venv
         id: cached-poetry-dependencies
-        uses: actions/cache@v3
+        uses: actions/cache@v4
         with:
           path: .venv
           key: venv-${{ runner.os }}-${{ steps.setup-python.outputs.python-version }}-${{ hashFiles('**/poetry.lock') }}
 
       - name: Install python dependencies
         if: steps.cached-poetry-dependencies.outputs.cache-hit != 'true'
-        run: poetry install
+        run: poetry install --no-interaction --no-root
 
       - name: Install Linux dependencies
         if: ${{ matrix.os == 'ubuntu-latest'}}
-        run: sudo apt install build-essential curl wget libssl-dev
+        run: sudo apt-get update && sudo apt-get install -y build-essential curl wget libssl-dev xvfb
 
-      - run: source $VENV
+      - name: Contribution security and integration tests
+        run: |
+          if [[ "$RUNNER_OS" == "Linux" ]]; then
+            xvfb-run -a poetry run python -m pytest --confcutdir=tests/contributions tests/contributions -q
+          else
+            poetry run python -m pytest --confcutdir=tests/contributions tests/contributions -q
+          fi
 
-      - name: Build App
-        run: poetry run pyinstaller --noconfirm EyeTrackApp/eyetrackapp.spec EyeTrackApp/eyetrackapp.py
+      - name: Build Windows App
+        if: ${{ matrix.os == 'windows-latest' }}
+        working-directory: EyeTrackApp
+        run: poetry run pyinstaller --noconfirm --distpath ../dist eyetrackapp.spec
 
-      - name: Rename Linux Binary
+      - name: Build Linux App
+        if: ${{ matrix.os == 'ubuntu-latest' }}
+        working-directory: EyeTrackApp
+        run: poetry run pyinstaller --noconfirm --distpath ../build/linux-release eyetrackapp_linux.spec
+
+      - name: Package Linux runtime and resources
         if: ${{ matrix.os == 'ubuntu-latest' }}
         run: |
-          ls -a build
-          mv ./dist/eyetrackapp ./dist/eyetrackapp.bin
+          mkdir -p dist
+          tar -czf dist/EyeTrackVR-linux.tar.gz -C build/linux-release EyeTrackVR
 
-      - uses: actions/upload-artifact@v2
+      - uses: actions/upload-artifact@v4
         with:
-          name: production-files
+          name: production-files-${{ matrix.os }}
           path: dist
+          if-no-files-found: error
   deploy:
+    permissions:
+      contents: write
     runs-on: ubuntu-latest
     name: Deploy
     needs: [build]
     steps:
       - name: Checkout
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
         with:
           fetch-depth: 0
       - name: Create Directory
         run: mkdir -p dist
       - name: Download artifact
-        uses: actions/download-artifact@v2
+        uses: actions/download-artifact@v4
         with:
-          name: production-files
+          pattern: production-files-*
+          merge-multiple: true
           path: ./dist
       - name: Setup node
         uses: actions/setup-node@v3
@@ -116,14 +134,3 @@ jobs:
         run: |
           chmod +x ./.github/scripts/prepareCMD.sh
           semantic-release
-  cleanup:
-    name: Cleanup actions
-    needs:
-      - deploy
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
-    steps:
-      - name: "♻️ remove build artifacts"
-        uses: geekyeggo/delete-artifact@v1
-        with:
-          name: production-files
