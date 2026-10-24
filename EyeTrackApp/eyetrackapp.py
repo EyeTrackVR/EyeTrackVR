@@ -62,6 +62,7 @@ from camera_enum import (
 )
 from config import EyeTrackConfig
 from eye import EyeId
+from frame_eye import FRAME_LEFT_SOURCE, FRAME_RIGHT_SOURCE, is_frame_capture_source, is_steam_frame
 from localization import init_localization, tr
 from settings.VRCFTModuleSettings import VRCFTSettingsWidget
 from settings.general_settings_widget import SettingsWidget
@@ -75,7 +76,7 @@ from utils.version_utils import compare_app_versions
 
 
 
-APP_VERSION = "EyeTrackApp 0.3.0 BETA 9"
+APP_VERSION = "EyeTrackApp 0.3.0 BETA 10"
 setup_logging(APP_VERSION)
 logger = logging.getLogger(__name__)
 winmm = None
@@ -384,8 +385,18 @@ def main():
             self.focus_paused = False
             self.current_page = "tracking"
             initial_mode = getattr(config.settings, "gui_setup_mode", "etvr") or "etvr"
-            if initial_mode not in ("etvr", "bigscreen"):
+            on_frame = is_steam_frame()
+            if initial_mode not in ("etvr", "bigscreen", "frame") or (initial_mode == "frame" and not on_frame):
                 initial_mode = "etvr"
+            # Running on a Steam Frame with nothing configured yet: use the
+            # headset's own eye cameras without the user having to pick anything.
+            if (
+                on_frame
+                and initial_mode == "etvr"
+                and config.left_eye.capture_source in (None, "")
+                and config.right_eye.capture_source in (None, "")
+            ):
+                initial_mode = "frame"
             self.mode_var = tk.StringVar(value=initial_mode)
             self._last_camera_tracking_key = None
             self._timer_high_res = False
@@ -527,6 +538,21 @@ def main():
                 bsb_radio,
                 tr("tracking.setup_bigscreen_tip"),
             )
+            # Only offered on the headset itself: the eye cameras are read from
+            # its local dsp_service, which a PC has no way to reach.
+            if on_frame:
+                frame_radio = ttk.Radiobutton(
+                    setup_type,
+                    text=tr("tracking.setup_frame"),
+                    variable=self.mode_var,
+                    value="frame",
+                    command=self.on_mode_change,
+                )
+                frame_radio.pack(anchor="w", pady=4)
+                attach_tooltip(
+                    frame_radio,
+                    tr("tracking.setup_frame_tip"),
+                )
 
             _tracking_controls_outer = ttk.Frame(sidebar_inner)
             _tracking_controls_outer.pack(fill="x", pady=(0, 24))
@@ -778,7 +804,9 @@ def main():
             self.root.protocol("WM_DELETE_WINDOW", self.shutdown)
             config.register_listener_callback(self._on_vrcft_output_config_update)
             self._sync_vrcft_nav_visibility()
+            self._mode_ui_ready = False
             self.on_mode_change()
+            self._mode_ui_ready = True
             self.show_page("tracking")
             self._apply_initial_window_geometry()
             self._tick()
@@ -930,11 +958,31 @@ def main():
         def on_mode_change(self):
             mode = self.mode_var.get()
             is_bigscreen = mode == "bigscreen"
-            if is_bigscreen:
+            is_frame = mode == "frame"
+            # Frame mode pins both sources to the headset's eye cameras; leaving
+            # it clears them so the next mode starts from empty fields.
+            sources_changed = False
+            for var, frame_source in (
+                (self.left_camera_var, FRAME_LEFT_SOURCE),
+                (self.right_camera_var, FRAME_RIGHT_SOURCE),
+            ):
+                current = var.get().strip()
+                wanted = frame_source if is_frame else ("" if is_frame_capture_source(current) else current)
+                if current != wanted:
+                    var.set(wanted)
+                    sources_changed = True
+            if is_frame:
+                self.left_camera_entry.state(["disabled"])
+                self.right_camera_entry.state(["disabled"])
+                self.left_camera_label.configure(text=tr("tracking.frame_left_source"))
+                self.right_camera_label.configure(text=tr("tracking.frame_right_source"))
+            elif is_bigscreen:
+                self.left_camera_entry.state(["!disabled"])
                 self.right_camera_entry.state(["disabled"])
                 self.left_camera_label.configure(text=tr("tracking.source_uvc_index"))
                 self.right_camera_label.configure(text=tr("tracking.right_same_source"))
             else:
+                self.left_camera_entry.state(["!disabled"])
                 self.right_camera_entry.state(["!disabled"])
                 self.left_camera_label.configure(text=tr("tracking.left_source"))
                 self.right_camera_label.configure(text=tr("tracking.right_source"))
@@ -952,6 +1000,12 @@ def main():
                 default_variant = "BSB" if is_bigscreen else "ETVR"
                 if getattr(config.settings, "gui_model_variant", None) != default_variant:
                     config.update({"gui_model_variant": default_variant}, save=True)
+
+            # Switching into or out of Frame mode rewrote the sources: connect
+            # right away, like picking a source from the dropdown. At startup the
+            # tracking page applies them once the window is up.
+            if sources_changed and self._mode_ui_ready:
+                self.apply_camera_inputs()
 
         def scan_sources(self):
             self.status_var.set(tr("status.scanning"))

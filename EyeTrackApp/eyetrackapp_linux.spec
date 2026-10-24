@@ -5,10 +5,17 @@
 #   - Windows-only packages (pywinstyles/pygrabber/winotify/winsound) excluded
 #   - native Linux overlay and its loaders are required, with assets alongside
 #   - no .ico icon (Linux icons come from the .desktop entry + logo.png)
+#
+# aarch64 (Steam Frame, scripts/build_frame.sh) differences:
+#   - the pyopenvr wheel only ships x86 libs, so the arm64 libopenvr_api.so is
+#     supplied via ETVR_OPENVR_LIB and bundled under the name pyopenvr loads
+#   - the overlay runtime comes from Tools/linux-arm64/ and is optional; without
+#     it the app runs and overlay calibration reports the binary as missing
 
+import os
+import platform
 import sys ; sys.setrecursionlimit(sys.getrecursionlimit() * 5)
 from pathlib import Path
-import openvr
 
 block_cipher = None
 
@@ -18,23 +25,42 @@ resources = [
     ("Images/*", "Images/"),
     ("pye3d/refraction_models/*", "pye3d/refraction_models/"),
     ("Models/*", "Models/"),
-    ("Tools/linux/assets/*", "Tools/linux/assets/"),
     ("lang/*", "lang/"),
 ]
 
-# The pyopenvr wheel bundles per-arch shared libs next to openvr/__init__.py.
-_openvr_dir = Path(openvr.__file__).parent
-openvr_libs = [(str(p), "openvr") for p in _openvr_dir.glob("libopenvr_api*.so")]
-overlay = Path("Tools/linux/EyeTrackVR-Overlay")
-if not overlay.is_file():
+IS_ARM64 = platform.machine() in ("aarch64", "arm64")
+
+if IS_ARM64:
+    # pyopenvr picks libopenvr_api_64.so by pointer size, not CPU arch, and
+    # PyInstaller binaries keep their source name, so the file must be named so.
+    openvr_lib = Path(os.environ.get("ETVR_OPENVR_LIB", ""))
+    if not openvr_lib.is_file() or openvr_lib.name != "libopenvr_api_64.so":
+        raise FileNotFoundError("Set ETVR_OPENVR_LIB to an aarch64 libopenvr_api_64.so (scripts/build_frame.sh fetches one)")
+    openvr_libs = [(str(openvr_lib), "openvr")]
+else:
+    import openvr
+
+    # The pyopenvr wheel bundles per-arch shared libs next to openvr/__init__.py.
+    _openvr_dir = Path(openvr.__file__).parent
+    openvr_libs = [(str(p), "openvr") for p in _openvr_dir.glob("libopenvr_api*.so")]
+
+# The app always looks for the overlay in Tools/linux/, whatever the source folder.
+overlay_dir = Path("Tools/linux-arm64" if IS_ARM64 else "Tools/linux")
+overlay = overlay_dir / "EyeTrackVR-Overlay"
+overlay_libs = []
+if overlay.is_file():
+    overlay_libs.append((str(overlay), "Tools/linux"))
+    for name in ("libopenvr_api.so", "libopenxr_loader.so.1", "libjsoncpp.so.25", "libvulkan.so.1"):
+        path = overlay_dir / name
+        if not path.is_file():
+            raise FileNotFoundError(f"Missing overlay runtime: {path}")
+    overlay_libs += [(str(p), "Tools/linux") for p in overlay_dir.glob("*.so*")]
+    resources.append((f"{overlay_dir.as_posix()}/assets/*", "Tools/linux/assets/"))
+    resources.append((f"{overlay_dir.as_posix()}/licenses/*", "Tools/linux/licenses"))
+elif IS_ARM64:
+    print(f"WARNING: {overlay} not found; building without the in-VR calibration overlay")
+else:
     raise FileNotFoundError("Missing Tools/linux/EyeTrackVR-Overlay; copy the Linux runtime folder from the overlay repository")
-overlay_libs = [(str(overlay), "Tools/linux")]
-for name in ("libopenvr_api.so", "libopenxr_loader.so.1", "libjsoncpp.so.25", "libvulkan.so.1"):
-    path = overlay.parent / name
-    if not path.is_file():
-        raise FileNotFoundError(f"Missing overlay runtime: {path}")
-overlay_libs += [(str(p), "Tools/linux") for p in overlay.parent.glob("*.so*")]
-resources.append(("Tools/linux/licenses/*", "Tools/linux/licenses"))
 
 a = Analysis(
     ["eyetrackapp.py"],

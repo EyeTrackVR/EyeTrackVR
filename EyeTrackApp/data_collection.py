@@ -69,6 +69,8 @@ def _run_tts_command(command, timeout, stdin_text=None):
 _ESPEAK_VOICES = {"zh": "cmn"}
 
 def _speak_linux(text, lang, fallback):
+    """Speak with the first Linux TTS engine found. False when there is none
+    (a Steam Frame has none, inside or outside Steam's runtime)."""
     if lang != "en":
         voice = _ESPEAK_VOICES.get(lang, lang)
         for command in (
@@ -77,7 +79,7 @@ def _speak_linux(text, lang, fallback):
             ["espeak", "-v", voice, text],
         ):
             if _run_tts_command(command, timeout=20):
-                return
+                return True
         text = fallback   # no voice for this language: say it in English
     linux_tts_commands = (
         ["spd-say", "--wait", text],
@@ -86,8 +88,16 @@ def _speak_linux(text, lang, fallback):
     )
     for command in linux_tts_commands:
         if _run_tts_command(command, timeout=20):
-            return
-    _run_tts_command(["festival", "--tts"], timeout=20, stdin_text=text)
+            return True
+    return _run_tts_command(["festival", "--tts"], timeout=20, stdin_text=text)
+
+
+def _reading_seconds(text):
+    """About how long ``text`` takes to say, used to pace a prompt that could
+    not be spoken: the overlay card then stays up as long as the voice would
+    have, instead of the next step starting before it can be read."""
+    # Words for spaced scripts, characters for Chinese and Japanese.
+    return min(8.0, 0.6 + max(0.4 * len(text.split()), 0.06 * len(text)))
 
 # The text travels in environment variables, never inside the script, so quotes
 # or non-ASCII characters in a translation cannot break the command. Picks an
@@ -116,7 +126,8 @@ def _speak_platform_specific(text, lang, fallback, done_event):
                 subprocess.run(["powershell", "-NoProfile", "-Command", _WINDOWS_TTS], env=env,
                                check=False, timeout=20, creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
             elif system == "linux":
-                _speak_linux(text, lang or "en", fallback)
+                if not _speak_linux(text, lang or "en", fallback):
+                    time.sleep(_reading_seconds(text))
     except Exception:
         pass
     finally:
@@ -126,6 +137,12 @@ def get_best_codec():
     system = platform.system().lower()
     if system == "windows":
         codecs_to_try = [("XVID", "avi"), ("avc1", "mp4"), ("DIVX", "avi"), ("MJPG", "avi")]
+    elif platform.machine().lower() in ("aarch64", "arm64"):
+        # OpenCV's aarch64 ffmpeg maps H.264 to the V4L2 hardware encoder
+        # (h264_v4l2m2m). On a Steam Frame, merely opening it segfaults inside
+        # avcodec_open2 and takes the whole app down, so even this probe must
+        # never try it. XVID is software MPEG-4, as on Windows.
+        codecs_to_try = [("XVID", "avi"), ("MJPG", "avi")]
     else:
         codecs_to_try = [("avc1", "mp4"), ("H264", "mp4"), ("XVID", "avi"), ("MJPG", "avi")]
 
@@ -357,6 +374,83 @@ def _drain_udp_socket(sock):
         sock.setblocking(True)
         sock.settimeout(1.0)
 
+class _SessionRecorder:
+    """Writes every captured frame of a recording into its eye's full-session
+    video on a thread of its own, and keeps the newest frame per eye for the
+    labeled snapshots.
+
+    The capture passes used to drain the camera queues themselves, between
+    blocking waits on the overlay socket of up to a second. The queues hold 10
+    frames (about 0.1 s at the Steam Frame's 90 fps), so most of a pass's video
+    was dropped, and each snapshot was the oldest frame left in the queue rather
+    than one taken when the dot settled."""
+
+    POLL = 0.002
+
+    def __init__(self, queues, prepare, write):
+        self._queues = queues
+        self._prepare = prepare  # (j, frame) -> frame for eye j's video and snapshots
+        self._write = write      # (j, frame) -> None, never raises
+        self._cond = threading.Condition()
+        self._latest = [None] * len(queues)  # (frame, frame_number, serial) per eye
+        self._serial = [0] * len(queues)
+        self._stop = threading.Event()
+        self._thread = threading.Thread(target=self._run, name="capture-recorder", daemon=True)
+
+    def start(self):
+        self._thread.start()
+
+    def stop(self):
+        """Write out what is still queued, then end the thread."""
+        self._stop.set()
+        self._thread.join(timeout=10.0)
+
+    def _drain_once(self):
+        got = False
+        for j, q in enumerate(self._queues):
+            while True:
+                try:
+                    frame_data = q.get_nowait()
+                except queue.Empty:
+                    break
+                got = True
+                try:
+                    frame = self._prepare(j, frame_data[0])
+                except Exception:
+                    logger.exception("Dropped an unusable capture frame for eye index %d", j)
+                    continue
+                self._write(j, frame)
+                with self._cond:
+                    self._serial[j] += 1
+                    self._latest[j] = (frame, frame_data[1], self._serial[j])
+                    self._cond.notify_all()
+        return got
+
+    def _run(self):
+        while not self._stop.is_set():
+            if not self._drain_once():
+                self._stop.wait(self.POLL)
+        self._drain_once()
+        with self._cond:
+            self._cond.notify_all()
+
+    def next_frame(self, j, timeout):
+        """``(frame, frame_number)`` of a frame eye ``j`` delivered after this
+        call (the newest one by the time this thread wakes), so a snapshot shows
+        the eye after the prompt, not before it. Raises queue.Empty when none
+        arrives within ``timeout`` seconds."""
+        deadline = time.monotonic() + timeout
+        with self._cond:
+            seen = self._serial[j]
+            while self._serial[j] == seen:
+                remaining = deadline - time.monotonic()
+                if remaining <= 0 or self._stop.is_set():
+                    raise queue.Empty
+                self._cond.wait(remaining)
+            frame, frame_number, _ = self._latest[j]
+        return frame.copy(), frame_number
+
+
 def _apply_theme_to_titlebar(root: tk.Toplevel) -> None:
     from contributions.native import decorate
     decorate(root)
@@ -380,6 +474,7 @@ class DataCollectionWindow:
         # when the recording is cancelled or fails.
         self._session_output_dir = None
         self._video_writer_sizes = []
+        self._recorder = None
         self._latest_capture = None
         self.use_overlay_var = tk.BooleanVar(master=parent, value=True)
         self._contributions = None
@@ -520,6 +615,7 @@ class DataCollectionWindow:
             timestamp_files.append(ts)
 
         first_frames = [None] * n
+        first_fps = [0.0] * n
         deadline = time.time() + 10
         while any(f is None for f in first_frames) and time.time() < deadline:
             if self.session_cancel.is_set():
@@ -528,14 +624,8 @@ class DataCollectionWindow:
                 if first_frames[i] is None and not self.active_queues[i].empty():
                     try:
                         frame_data = self.active_queues[i].get_nowait()
-                        frame = frame_data[0]
-                        if self.active_eyes[i].settings.gui_setup_mode == "bigscreen":
-                            mid = frame.shape[1] // 2
-                            if self.active_eyes[i].eye_id.name == "LEFT":
-                                frame = frame[:, :mid]
-                            else:
-                                frame = frame[:, mid:]
-                        first_frames[i] = frame
+                        first_frames[i] = self._prepare_frame(i, frame_data[0])
+                        first_fps[i] = float(frame_data[2] or 0.0) if len(frame_data) > 2 else 0.0
                     except queue.Empty:
                         pass
             time.sleep(0.05)
@@ -565,29 +655,23 @@ class DataCollectionWindow:
             h, w = first_frames[i].shape[:2]
             is_color = len(first_frames[i].shape) == 3 and first_frames[i].shape[2] == 3
             fn = os.path.join(output_dir, f"{DATA_COLLECTION_VERSION}_{seed}_full_session_{self.active_eye_labels[i]}.{container}")
-            vw = cv2.VideoWriter(fn, fourcc, 60, (w, h), is_color)
+            # The container's nominal rate: the camera's measured rate (the
+            # Steam Frame runs 60-90 fps in a game), else the old fixed 60.
+            fps = round(first_fps[i]) if 10 <= first_fps[i] <= 240 else 60
+            vw = cv2.VideoWriter(fn, fourcc, fps, (w, h), is_color)
             video_writers.append(vw)
             self._video_writer_sizes.append((w, h))
 
-        def drain_to_video():
-            for j in range(n):
-                while not self.active_queues[j].empty():
-                    try:
-                        frame_data = self.active_queues[j].get_nowait()
-                        frame = frame_data[0]
-                        if self.active_eyes[j].settings.gui_setup_mode == "bigscreen":
-                            mid = frame.shape[1] // 2
-                            if self.active_eyes[j].eye_id.name == "LEFT":
-                                frame = frame[:, :mid]
-                            else:
-                                frame = frame[:, mid:]
-                        
-                        if len(frame.shape) == 3 and frame.shape[2] == 4:
-                            frame = cv2.cvtColor(frame, cv2.COLOR_BGRA2BGR)
+        recorder = _SessionRecorder(
+            self.active_queues, self._prepare_frame,
+            lambda j, frame: self._write_video_frame(video_writers[j], j, frame),
+        )
+        self._recorder = recorder
+        recorder.start()
 
-                        self._write_video_frame(video_writers[j], j, frame)
-                    except queue.Empty:
-                        break
+        def drain_to_video():
+            """The pacing hook every pass still calls between waits. Frames are
+            written by the recorder thread, so there is nothing to do here."""
 
         overlay_proc = None
         udp_sock = None
@@ -705,21 +789,7 @@ class DataCollectionWindow:
                 frame_numbers = [None] * n
                 for j in range(n):
                     try:
-                        frame_data = self.active_queues[j].get(timeout=5.0)
-                        frame, frame_num = frame_data[0], frame_data[1]
-                        if self.active_eyes[j].settings.gui_setup_mode == "bigscreen":
-                            mid = frame.shape[1] // 2
-                            if self.active_eyes[j].eye_id.name == "LEFT":
-                                frame = frame[:, :mid]
-                            else:
-                                frame = frame[:, mid:]
-                        
-                        if len(frame.shape) == 3 and frame.shape[2] == 4:
-                            frame = cv2.cvtColor(frame, cv2.COLOR_BGRA2BGR)
-                            
-                        prompt_frames[j] = frame.copy()
-                        frame_numbers[j] = frame_num
-                        self._write_video_frame(video_writers[j], j, frame)
+                        prompt_frames[j], frame_numbers[j] = recorder.next_frame(j, timeout=5.0)
                     except queue.Empty:
                         pass
 
@@ -809,6 +879,8 @@ class DataCollectionWindow:
                 except subprocess.TimeoutExpired:
                     overlay_proc.kill()
 
+            recorder.stop()
+            self._recorder = None
             for vw in video_writers:
                 vw.release()
 
@@ -827,6 +899,16 @@ class DataCollectionWindow:
                 self.gui_queue.put(("status", tr("data_collection.status_cancelled")))
 
             self._cleanup_session()
+
+    def _prepare_frame(self, j, frame):
+        """Eye ``j``'s image from a captured frame: its half of a bigscreen
+        frame, and BGR rather than BGRA."""
+        if self.active_eyes[j].settings.gui_setup_mode == "bigscreen":
+            mid = frame.shape[1] // 2
+            frame = frame[:, :mid] if self.active_eyes[j].eye_id.name == "LEFT" else frame[:, mid:]
+        if len(frame.shape) == 3 and frame.shape[2] == 4:
+            frame = cv2.cvtColor(frame, cv2.COLOR_BGRA2BGR)
+        return frame
 
     def _write_video_frame(self, writer, j, frame):
         """Write a frame to the full-session VideoWriter, conformed so the write
@@ -854,21 +936,7 @@ class DataCollectionWindow:
         frame_nums = [None] * n
         for j in range(n):
             try:
-                frame_data = self.active_queues[j].get(timeout=5.0)
-                frame, fnum = frame_data[0], frame_data[1]
-                if self.active_eyes[j].settings.gui_setup_mode == "bigscreen":
-                    mid = frame.shape[1] // 2
-                    if self.active_eyes[j].eye_id.name == "LEFT":
-                        frame = frame[:, :mid]
-                    else:
-                        frame = frame[:, mid:]
-                        
-                if len(frame.shape) == 3 and frame.shape[2] == 4:
-                    frame = cv2.cvtColor(frame, cv2.COLOR_BGRA2BGR)
-                    
-                frames[j] = frame.copy()
-                frame_nums[j] = fnum
-                self._write_video_frame(video_writers[j], j, frame)
+                frames[j], frame_nums[j] = self._recorder.next_frame(j, timeout=5.0)
             except queue.Empty:
                 pass
             except Exception:

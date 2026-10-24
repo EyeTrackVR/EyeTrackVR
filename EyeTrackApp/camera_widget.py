@@ -36,6 +36,7 @@ from eye import EyeId, EyeInfo
 from eye_processor import EyeProcessor, EyeInfoOrigin
 from queue import Queue, Empty
 from camera import Camera, CameraState
+from frame_eye import frame_eye_service, is_frame_capture_source
 import cv2
 from osc.OSCMessage import OSCMessageType, OSCMessage
 from utils.misc_utils import PlaySound, SND_FILENAME, SND_ASYNC, resource_path
@@ -1115,9 +1116,17 @@ class CameraWidget:
                 # instead so the area stays reserved and visually stable.
                 self._hide_output_viz()
             elif self._effective_camera_status() == CameraState.CONNECTING:
-                mode_readout = tr("camera.status_connecting")
+                if is_frame_capture_source(self.config.capture_source) and frame_eye_service.waiting:
+                    mode_readout = tr("camera.status_frame_waiting")
+                else:
+                    mode_readout = tr("camera.status_connecting")
             elif self._effective_camera_status() == CameraState.DISCONNECTED:
-                mode_readout = tr("camera.status_reconnecting")
+                if is_frame_capture_source(self.config.capture_source) and frame_eye_service.eye_tracking_off:
+                    mode_readout = tr("camera.status_frame_eye_tracking_off")
+                elif is_frame_capture_source(self.config.capture_source) and frame_eye_service.not_ready:
+                    mode_readout = tr("camera.status_frame_not_ready")
+                else:
+                    mode_readout = tr("camera.status_reconnecting")
             elif needs_roi_set:
                 mode_readout = tr("camera.status_awaiting_crop")
             elif self.ransac.calibration_start_time != None:

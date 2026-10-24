@@ -41,6 +41,9 @@ setup_etvr_tip = "Standard ETVR mode: two independent cameras (UVC, serial, or n
 # Radio: single-camera Bigscreen Beyond setup
 setup_bigscreen = "Bigscreen Beyond"
 setup_bigscreen_tip = "Bigscreen Beyond mode: one camera supplies both eye images side-by-side; ETVR splits them internally."
+# Radio: Steam Frame built-in eye cameras (only shown on the headset)
+setup_frame = "Steam Frame"
+setup_frame_tip = "Steam Frame mode: uses the headset's built-in eye cameras. Nothing to connect; tracking starts on its own."
 # Sidebar header above the camera source fields
 camera_settings = "Camera Settings"
 # Label for the left-eye capture source field (ETVR mode)
@@ -53,6 +56,9 @@ right_source_tip = "Capture source for the right eye. See the Left field for acc
 source_uvc_index = "Source (UVC Index):"
 # Label for the right field in Bigscreen mode (mirrors the left source)
 right_same_source = "Right (same source):"
+# Labels for the source fields in Steam Frame mode (fixed, not editable)
+frame_left_source = "Left (Steam Frame eye camera):"
+frame_right_source = "Right (Steam Frame eye camera):"
 # Button: scan for connected cameras
 scan_btn = "Scan"
 scan_btn_tip = "Search for connected cameras: USB webcams (UVC), ETVR serial trackers on COM ports, and network trackers on the LAN (mDNS)."
@@ -152,6 +158,11 @@ status_calibrating = "Calibrating"
 status_no_camera = "No camera set"
 status_connecting = "Connecting..."
 status_reconnecting = "Reconnecting..."
+# Steam Frame eye camera connected but no frames (headset not worn)
+status_frame_waiting = "Waiting for the eye cameras (put the headset on)"
+# Steam Frame eye cameras: SteamVR's eye tracker is off / not started yet
+status_frame_eye_tracking_off = "Eye tracking is off in SteamVR settings: turn it on to use the Frame's eye cameras"
+status_frame_not_ready = "Waiting for SteamVR eye tracking to start"
 status_awaiting_crop = "Awaiting Crop"
 status_calibration = "Calibration"
 status_tracking = "Tracking"

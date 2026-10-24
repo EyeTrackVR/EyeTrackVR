@@ -44,6 +44,10 @@ slower camera; on every new frame from either eye:
   - timestamp-skewed and moving: black out the older eye, follow the newest;
   - older than _STALE_AFTER_S: that eye is treated as missing (black frame).
 
+The one exception is a hardware-paired source (Steam Frame), whose cameras deliver
+both eyes together with one capture time: there the first eye waits a few
+milliseconds for its partner, so one pass covers the pair instead of two.
+
 Black frames are the trained missing-eye sentinel, so the model's own monocular
 gaze head takes over without any host-side special casing. Temporal histories
 are kept per eye, so one camera stuttering never corrupts or stalls the other.
@@ -66,6 +70,7 @@ import cv2
 import onnxruntime
 
 from eye import EyeId
+from frame_eye import is_steam_frame
 from next_model import HYBRID_MODEL_STEMS, SHARED_GAZE_Y_SIGN, model_file_for_variant
 from one_euro_filter import OneEuroFilter
 from utils.misc_utils import resource_path
@@ -110,6 +115,8 @@ _MOTION_SIZE = 48
 # camera that is really gone flips the whole tracker back to mono. Prevents
 # mode flapping around the staleness boundary.
 _PEER_ACTIVE_S = 1.0
+# Paired sources only: how long an eye waits for the other half of its pair.
+_PAIR_WAIT_S = 0.008
 
 # Suffix marking an fp16 ("Lite") variant, shared with next_model.py.
 _LITE_SUFFIX = " LITE"
@@ -173,7 +180,9 @@ class NEXT_Stereo_cls:
         onnxruntime.disable_telemetry_events()
         options = onnxruntime.SessionOptions()
         options.inter_op_num_threads = 1
-        options.intra_op_num_threads = 1
+        # The Frame has 8 cores and nothing else for the eye model to share with,
+        # and one thread caps a pass rate below its 72 fps cameras.
+        options.intra_op_num_threads = 2 if is_steam_frame() else 1
         options.execution_mode = onnxruntime.ExecutionMode.ORT_SEQUENTIAL
         options.graph_optimization_level = onnxruntime.GraphOptimizationLevel.ORT_ENABLE_ALL
         options.enable_mem_pattern = False
@@ -331,7 +340,10 @@ class StereoNextCoordinator:
         self.runner = NEXT_Stereo_cls(model_path, use_gpu)
         self.supports_single_eye = self.runner.supports_single_eye
         self._state_lock = threading.Lock()
+        self._submitted = threading.Condition(self._state_lock)
         self._infer_lock = threading.Lock()
+        # Set by the eye threads when both eyes come from one paired source.
+        self.paired = False
         keep = max(2, (self.runner.temporal_frames - 1) * self.runner.frame_stride + 2)
         self._hist = {
             EyeId.LEFT: deque(maxlen=keep),
@@ -361,6 +373,7 @@ class StereoNextCoordinator:
                 history.clear()
             history.append(_Frame(capture_ts, bgr_frame))
             self._ver[eye_id] += 1
+            self._submitted.notify_all()
 
     def peer_active(self, eye_id) -> bool:
         """True when the other eye is streaming, i.e. two eyes are connected and
@@ -379,6 +392,8 @@ class StereoNextCoordinator:
         # therefore cost exactly one pass per frame, and a CPU-bound session
         # with two independent cameras degrades to one pass per pair instead of
         # queueing up.
+        if self.paired:
+            self._wait_for_pair(eye_id)
         with self._infer_lock:
             with self._state_lock:
                 version = (self._ver[EyeId.LEFT], self._ver[EyeId.RIGHT])
@@ -406,6 +421,23 @@ class StereoNextCoordinator:
                 self.last_mode = mode
                 self.last_skew_ms = skew * 1000.0
         return slice_stereo_result(out, eye_id)
+
+    def _wait_for_pair(self, eye_id) -> None:
+        """Give the other half of this eye's camera pair a moment to arrive, so
+        one pass covers both eyes and the peer's run() reuses it. Never waits for
+        a peer that is absent or stale."""
+        peer = _OTHER_EYE[eye_id]
+        with self._submitted:
+            own = self._hist[eye_id]
+            if not own:
+                return
+            ts = own[-1].ts
+
+            def peer_caught_up():
+                h = self._hist[peer]
+                return not h or h[-1].ts >= ts or ts - h[-1].ts > _STALE_AFTER_S
+
+            self._submitted.wait_for(peer_caught_up, timeout=_PAIR_WAIT_S)
 
     def _covered_locked(self, eye_id, version) -> bool:
         """True when the stored result already answers this eye's newest frame:

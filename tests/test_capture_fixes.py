@@ -239,6 +239,89 @@ def _fake_linux_dev(monkeypatch, tmp_path, entries, sysfs):
     )
 
 
+def _feed(q, count, fps, start=0):
+    """A camera pushing ``count`` frames at ``fps`` into a 10-frame capture
+    queue the way Camera.push_image_to_queue does (oldest dropped when full)."""
+    for i in range(start, start + count):
+        item = (np.full((4, 4, 3), i % 256, np.uint8), i, fps, time.perf_counter())
+        try:
+            q.put_nowait(item)
+        except queue.Full:
+            q.get_nowait()
+            q.put_nowait(item)
+        time.sleep(1.0 / fps)
+
+
+def test_recorder_keeps_every_frame_while_the_capture_loop_blocks():
+    q = queue.Queue(maxsize=10)
+    written = []
+    rec = data_collection._SessionRecorder([q], lambda j, f: f, lambda j, f: written.append(int(f[0, 0, 0])))
+    rec.start()
+    # The capture loop is meanwhile blocked on the overlay socket for ~0.5 s.
+    _feed(q, 45, fps=90)
+    rec.stop()
+    assert written == [i % 256 for i in range(45)]
+
+
+def test_recorder_snapshot_is_the_next_frame_not_a_queued_one():
+    q = queue.Queue(maxsize=10)
+    rec = data_collection._SessionRecorder([q], lambda j, f: f, lambda j, f: None)
+    rec.start()
+    try:
+        _feed(q, 5, fps=200)
+        time.sleep(0.05)
+        got = []
+        waiter = threading.Thread(target=lambda: got.append(rec.next_frame(0, timeout=2.0)))
+        waiter.start()
+        time.sleep(0.05)  # the snapshot is requested, then the camera delivers
+        _feed(q, 3, 100, 100)
+        waiter.join()
+        frame, number = got[0]
+        # A frame from after the request (not one of the five queued before it).
+        assert number >= 100 and int(frame[0, 0, 0]) == number % 256
+        time.sleep(0.1)  # let the recorder take the feeder's last frames
+        with pytest.raises(queue.Empty):
+            rec.next_frame(0, timeout=0.05)
+    finally:
+        rec.stop()
+
+
+def test_prompt_without_a_tts_engine_waits_its_reading_time(monkeypatch):
+    monkeypatch.setattr(data_collection.platform, "system", lambda: "Linux")
+    monkeypatch.setattr(data_collection, "_run_tts_command", lambda *a, **k: False)
+    monkeypatch.setattr(data_collection, "_reading_seconds", lambda text: 0.2)
+    start = time.monotonic()
+    data_collection.speak("Look left and squint").wait(2.0)
+    assert time.monotonic() - start >= 0.19
+
+
+def test_reading_time_scales_with_the_prompt():
+    reading = data_collection._reading_seconds
+    assert reading("Captured") < reading("Look up and to the left and squint") <= 8.0
+    assert reading("向左看并眯眼睛") > reading("看")
+
+
+def test_arm64_codec_probe_never_tries_h264(monkeypatch):
+    tried = []
+
+    class Writer:
+        def __init__(self, path, fourcc, fps, size, color):
+            tried.append(fourcc)
+
+        def isOpened(self):
+            return True
+
+        def release(self):
+            pass
+
+    monkeypatch.setattr(data_collection.platform, "system", lambda: "Linux")
+    monkeypatch.setattr(data_collection.platform, "machine", lambda: "aarch64")
+    monkeypatch.setattr(data_collection.cv2, "VideoWriter", Writer)
+    _, codec, container = data_collection.get_best_codec()
+    h264 = {data_collection.cv2.VideoWriter_fourcc(*c) for c in ("avc1", "H264")}
+    assert (codec, container) == ("XVID", "avi") and not h264 & set(tried)
+
+
 def test_linux_listing_drops_uvc_metadata_nodes(monkeypatch, tmp_path):
     _fake_linux_dev(
         monkeypatch, tmp_path,

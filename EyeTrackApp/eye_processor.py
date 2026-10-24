@@ -862,6 +862,8 @@ class EyeProcessor:
         variant = getattr(self.settings, "gui_model_variant", "ETVR")
         coord = get_stereo_coordinator(variant, self.settings.gui_use_gpu)
         if coord is not None:
+            # The Frame's two cameras deliver each pair together.
+            coord.paired = self.settings.gui_setup_mode == "frame"
             # Publish independently; Hybrid can infer immediately from this
             # eye alone, while legacy stereo still needs an active peer.
             coord.submit(self.eye_id, next_frame, self.current_capture_ts)

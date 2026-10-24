@@ -98,12 +98,35 @@ jobs:
           name: production-files-${{ matrix.os }}
           path: dist
           if-no-files-found: error
+  build-frame:
+    name: Build Steam Frame (arm64)
+    runs-on: ubuntu-24.04-arm
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update -qq
+          grep -vE '^\s*(#|$)' scripts/frame/apt-packages.txt | xargs sudo apt-get install -y -qq --no-install-recommends
+      - name: Build Steam Frame zip and FrameDrop manifest
+        run: |
+          VERSION="$(tr -d '\r\n' < version.txt)"
+          SAFE_VERSION="$(printf '%s' "$VERSION" | sed -E 's/[^A-Za-z0-9.+_-]+/-/g')"
+          bash scripts/build_frame.sh "$VERSION" "$SAFE_VERSION" "$GITHUB_WORKSPACE" "$GITHUB_WORKSPACE/dist"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: production-files-steamframe
+          path: dist
+          if-no-files-found: error
   deploy:
     permissions:
       contents: write
     runs-on: ubuntu-latest
     name: Deploy
-    needs: [build]
+    needs: [build, build-frame]
     steps:
       - name: Checkout
         uses: actions/checkout@v4

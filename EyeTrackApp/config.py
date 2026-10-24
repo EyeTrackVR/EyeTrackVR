@@ -532,7 +532,8 @@ class EyeTrackSettingsConfig(BaseModel):
     # Bigscreen Beyond doesn't relaunch into normal ETVR mode (which would
     # then load whatever was saved as the right eye's source, in BSB that's
     # the same camera as the left, producing the "both eyes on one webcam"
-    # state).
+    # state). "etvr", "bigscreen" or "frame" (Steam Frame built-in eye cameras,
+    # only valid on the headset; see frame_eye.py).
     gui_setup_mode: str = "etvr"
 
     # UI language, as a locale code matching a file in the lang/ folder

@@ -155,6 +155,45 @@ def test_hybrid_tracks_connect_disconnect_and_moving_camera_skew(monkeypatch, va
     assert np.count_nonzero(inputs[-1][:, 3:6]) > 0
 
 
+@pytest.mark.parametrize("paired", [True, False])
+def test_paired_cameras_cost_one_pass_per_pair(monkeypatch, paired):
+    """Steam Frame delivers both eyes of a pair together: the first eye waits
+    briefly for its partner, so one pass covers both and the other eye reuses it."""
+    import threading
+    import time
+
+    # Longer than the real wait, because a short sleep on Windows can take 15 ms.
+    monkeypatch.setattr(next_stereo_model, "_PAIR_WAIT_S", 0.2)
+    coord = StereoNextCoordinator(stereo_model_file("ETVR"))
+    coord.paired = paired
+    passes = []
+    forward = coord.runner.forward
+    coord.runner.forward = lambda x: passes.append(1) or forward(x)
+
+    # A previous pair, so each eye has a peer that is streaming.
+    ts = time.perf_counter()
+    coord.submit(EyeId.LEFT, _image(1), ts - 0.03)
+    coord.submit(EyeId.RIGHT, _image(2), ts - 0.03)
+    coord.run(EyeId.LEFT, 0.0, 0.0)
+    passes.clear()
+
+    coord.submit(EyeId.LEFT, _image(1), ts)
+    left = threading.Thread(target=coord.run, args=(EyeId.LEFT, 0.0, 0.0))
+    left.start()
+    time.sleep(0.002)  # the right eye's thread is a little behind
+    coord.submit(EyeId.RIGHT, _image(2), ts)
+    left.join()
+    coord.run(EyeId.RIGHT, 0.0, 0.0)
+    assert len(passes) == (1 if paired else 2)
+    assert coord.last_mode == "both-synced"
+
+    # A paired eye whose partner never shows up still runs, after a short wait.
+    start = time.perf_counter()
+    coord.submit(EyeId.LEFT, _image(3), start)
+    coord.run(EyeId.LEFT, 0.0, 0.0)
+    assert time.perf_counter() - start < 1.0
+
+
 @pytest.mark.parametrize("eye", [EyeId.LEFT, EyeId.RIGHT])
 @pytest.mark.parametrize("hybrid_available", [True, False])
 @pytest.mark.parametrize("variant", ["ETVR", "BSB", "PSVR"])

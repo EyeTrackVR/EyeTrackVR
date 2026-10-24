@@ -36,6 +36,7 @@ from config import EyeTrackCameraConfig, EyeTrackSettingsConfig
 from enum import Enum
 import sys
 from camera_enum import is_uvc_named_source, parse_uvc_named_source, format_uvc_named_source, resolve_uvc_address_to_index, invalidate_uvc_camera_cache, claim_uvc_address, release_uvc_claim
+from frame_eye import frame_eye_service, frame_source_eye, is_frame_capture_source
 from PIL import Image
 from io import BytesIO
 
@@ -180,6 +181,11 @@ class Camera:
         # attempt, and the current (exponentially growing) delay used to set it.
         self._network_reconnect_backoff: float = 0.0
         self._network_reconnect_delay: float = 0.0
+        # Steam Frame built-in eye camera (frame://left|right): which eye this
+        # thread is subscribed to on the shared frame_eye_service, and the last
+        # frame sequence number it consumed.
+        self._frame_eye: str | None = None
+        self._frame_eye_seq = 0
 
     def __del__(self):
         if self.serial_connection is not None:
@@ -234,6 +240,24 @@ class Camera:
             pass
         self.serial_connection = None
         self.buffer = b""
+
+    def _close_frame_eye(self) -> None:
+        if self._frame_eye is not None:
+            self._frame_eye = None
+            frame_eye_service.unsubscribe()
+
+    def _open_frame_eye(self, source) -> None:
+        self._close_frame_eye()
+        self.current_capture_source = source
+        eye = frame_source_eye(str(source))
+        if eye is None:
+            logger.warning("Unknown Steam Frame eye camera source %r (use frame://left or frame://right)", source)
+            self.camera_status = CameraState.DISCONNECTED
+            return
+        frame_eye_service.subscribe()
+        self._frame_eye = eye
+        self._frame_eye_seq = 0
+        self.camera_status = CameraState.CONNECTING
 
     def _reset_frame_stats(self) -> None:
         """Clear fps / bps moving-average state. Called on source change so the readouts
@@ -337,6 +361,7 @@ class Camera:
                 # transition between them. Guarded against None so early shutdown doesn't crash.
                 self._release_cv2_camera()
                 self._close_serial_connection()
+                self._close_frame_eye()
                 return
             should_push = True
             # If things aren't open, retry until they are. Don't let read requests come in any earlier
@@ -345,10 +370,19 @@ class Camera:
             if new_source is not None and new_source != "":
                 source_changed = new_source != self.current_capture_source
                 addr = str(new_source)
-                if is_serial_capture_source(addr):
+                if is_frame_capture_source(addr):
+                    # The shared Frame eye service reconnects on its own; this
+                    # thread only (re)subscribes when the source changes.
+                    if source_changed or (self._frame_eye is None and frame_source_eye(addr) is not None):
+                        self._release_cv2_camera()
+                        self._close_serial_connection()
+                        self._reset_frame_stats()
+                        self._open_frame_eye(new_source)
+                elif is_serial_capture_source(addr):
                     # Switching to serial from any other backend: release their handles.
                     if source_changed:
                         self._release_cv2_camera()
+                        self._close_frame_eye()
                         self._reset_frame_stats()
                     if (
                         self.serial_connection is None
@@ -362,6 +396,7 @@ class Camera:
                     # Switching to cv2 (local UVC / HTTP MJPEG / file) from any other backend.
                     if source_changed:
                         self._close_serial_connection()
+                        self._close_frame_eye()
                         self._reset_frame_stats()
                         self._reset_network_reconnect_backoff()
                     if (
@@ -519,6 +554,7 @@ class Camera:
                 # Release any lingering handles so swapping "no source" then "new source" works cleanly.
                 self._release_cv2_camera()
                 self._close_serial_connection()
+                self._close_frame_eye()
                 self.current_capture_source = None
                 self.camera_status = CameraState.DISCONNECTED
                 if self.cancellation_event.wait(WAIT_TIME):
@@ -526,7 +562,14 @@ class Camera:
                 continue
             if self.config.capture_source is not None:
                 addr = str(self.current_capture_source)
-                if is_serial_capture_source(addr):
+                if self._frame_eye is not None:
+                    self.get_frame_eye_picture(True)
+                elif is_frame_capture_source(addr):
+                    # Bad frame:// address; already logged, wait for a fix in the GUI.
+                    if self.cancellation_event.wait(WAIT_TIME):
+                        return
+                    continue
+                elif is_serial_capture_source(addr):
                     self.get_serial_camera_picture(True)
                 else:
                     self.get_cv2_camera_picture(True)
@@ -602,6 +645,31 @@ class Camera:
             self._uvc_not_found_backoff = 0.0
             self._last_cv_cap_frame_time = 0.0
             pass
+
+    def get_frame_eye_picture(self, should_push):
+        """Next Steam Frame eye image from the shared dsp_service reader. Waits
+        briefly so this thread neither spins nor stalls cancellation."""
+        item = frame_eye_service.latest(self._frame_eye, self._frame_eye_seq, timeout=0.25)
+        if item is None:
+            # Connected but quiet is normal while the headset is off the face:
+            # SteamVR only runs the eye cameras while it is worn.
+            if not frame_eye_service.streaming:
+                self.camera_status = CameraState.DISCONNECTED
+            elif frame_eye_service.waiting:
+                self.camera_status = CameraState.CONNECTING
+            return
+        gray, seq, capture_ts = item
+        self._frame_eye_seq = seq
+        self.camera_status = CameraState.CONNECTED
+        self._update_frame_rate(gray.nbytes)
+        self.frame_number += 1
+        if should_push:
+            # The rest of the pipeline expects 3-channel BGR like every cv2 source.
+            # Pass the reader's capture time: both eyes of a camera pair share it
+            # closely, which lets the stereo model run one pass per pair.
+            self.push_image_to_queue(
+                cv2.cvtColor(gray, cv2.COLOR_GRAY2BGR), self.frame_number, self.fps, capture_ts
+            )
 
     def get_next_packet_bounds(self):
         # Non-blocking SOI scan: read only bytes already in the OS buffer.
@@ -757,7 +825,7 @@ class Camera:
             except queue.Full:
                 pass
 
-    def push_image_to_queue(self, image, frame_number, fps):
+    def push_image_to_queue(self, image, frame_number, fps, ts=None):
         # If there's backpressure, just yell. We really shouldn't have this unless we start getting
         # some sort of capture event conflict though.
         qsize = self.camera_output_outgoing.qsize()
@@ -766,7 +834,8 @@ class Camera:
                 "Capture queue backpressure of %s. Check for crash or timing issues in algorithm.",
                 qsize,
             )
-        ts = time.perf_counter()
+        if ts is None:
+            ts = time.perf_counter()
         self._put_frame_drop_oldest(
             self.camera_output_outgoing, (image, frame_number, fps, ts)
         )
