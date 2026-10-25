@@ -3,6 +3,16 @@
 [![semantic versioning](https://img.shields.io/badge/semantic%20versioning-2.0.0-green.svg)](https://semver.org)
 > All notable changes to this project will be documented in this file
 
+## 2026-10-24
+
+- Collection notices v2 (dataset and bug report): explicit consent for eye images that may be biometric or health-related data, a separate required consent checkbox for that and the US transfer, a written retention and destruction schedule, disclosure of AI-assisted screening and of the US transfer with its safeguards, a limited licence that ends on withdrawal, and rights, appeal and complaint routes for the EU/UK, US states, Japan, Korea and other regions.
+- Dataset notice v3: recordings are kept until withdrawn or no longer useful for EyeTrackVR models, with a review at least every 3 years instead of a fixed 365-day limit, and the signed confirmation now includes not living in Illinois, Colorado, Texas or Washington. Contributions made under earlier versions keep their 365-day limit; bug reports keep 90 days.
+- Add Having Issues? → Report a bug: a written description plus the recent app log (and optionally the previous session's log and app details), redacted and end-to-end encrypted on the user's computer, sent as the service's separate issue kind with its own notice, retention, receipts and quotas.
+- Harden Start and Stop With SteamVR: one app instance per user, background reconnects that register auto-launch when SteamVR starts later, replacement of registrations from another install path, crash detection, acknowledged quits, a tick that survives errors and a bounded shutdown; source-run manifests quote the script and set the working directory, and the installer removes the manifest on uninstall.
+- Faster startup: matplotlib, numba (AHSF) and requests load on first use and settings pages build when first opened (~3.8 s to ~2.5 s to first paint from source, ~60 MB less memory).
+- Show smaller tracking output visualizers beside the Algo Settings eye previews; label pyVRCFT as beta; remove GUI OFF; simplify the data collection window (no Refresh or agreement-preview button, narrower HMD field, automatic reconnect).
+- Split the NEXT model selector into a Headset dropdown (ETVR, BSB, PSVR/TOBII) and a Model Size slider running lightest to best: Nano, Micro, Mini, Small, Lite, Normal. Ship the tiny Hybrid exports for every headset and flag sizes below Lite as work in progress. Configs with an old "<HMD> Lite" choice migrate to the matching headset at size Lite, and Tobii (which never shipped a model) folds into PSVR, whose Hybrid is trained on the Tobii dataset. The NEXT tracker drops its "(beta)" tag.
+
 ## 2026-10-20
 
 - Update BSB to its newly trained Hybrid fp32/fp16 exports and ship the PSVR Hybrid family. Add PSVR Lite to the model selector, share Hybrid single/dual-eye routing across all three hardware families, and cover hardware-specific selection, Bigscreen eye crops, missing-eye routing, and camera transitions.

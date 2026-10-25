@@ -1,4 +1,3 @@
-from collections import deque
 from queue import Queue
 from types import SimpleNamespace
 
@@ -6,7 +5,7 @@ import numpy as np
 
 from eye import EyeId
 from eye_processor import EyeProcessor
-from next_model import NEXT_cls
+from next_model import NEXT_cls, TimedMedian
 from next_stereo_model import NEXT_Stereo_cls
 
 
@@ -37,9 +36,9 @@ def test_mono_next_preserves_model_y_axis():
     model.input_name = "input"
     model.ort_session = _StaticSession([0.1, 0.2, 0.3, 0.4, 0.65])
     model.one_euro_filter = _IdentityFilter(5)
-    model._brow_window = deque(maxlen=5)
-    model._gaze_x_window = deque(maxlen=3)
-    model._gaze_y_window = deque(maxlen=3)
+    model._brow_window = TimedMedian(5)
+    model._gaze_x_window = TimedMedian(3)
+    model._gaze_y_window = TimedMedian(3)
 
     _, gaze_y, _, _, _ = model.run(np.zeros((2, 2, 3), dtype=np.uint8))
 
@@ -60,10 +59,10 @@ def _stereo_model(*, gaze_y_sign=-1.0):
     )
     model.gaze_y_sign = gaze_y_sign
     model.one_euro_filter = _IdentityFilter(8)
-    model._brow_l_window = deque(maxlen=5)
-    model._brow_r_window = deque(maxlen=5)
-    model._gaze_x_window = deque(maxlen=3)
-    model._gaze_y_window = deque(maxlen=3)
+    model._brow_l_window = TimedMedian(5)
+    model._brow_r_window = TimedMedian(5)
+    model._gaze_x_window = TimedMedian(3)
+    model._gaze_y_window = TimedMedian(3)
     model._last_expr = {EyeId.LEFT: None, EyeId.RIGHT: None}
     return model
 

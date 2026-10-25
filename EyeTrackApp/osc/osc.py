@@ -40,6 +40,7 @@ from osc.VRCFTModuleMessenger import VRCFTModuleSender
 from osc.VRChatOSCSender import VRChatOSCSender
 from osc.PyVRCFTSender import PyVRCFTSender
 from osc.oscquery import LOOPBACK, OSCQueryAdvertiser
+from osc import streaming_target
 import queue
 import threading
 
@@ -188,6 +189,11 @@ class OSCManager:
         self.osc_receiver = None
         self.osc_sender_thread: Optional[threading.Thread] = None
         self.osc_receiver_thread: Optional[threading.Thread] = None
+        # "auto" OSC address: the streaming PC, re-resolved in the background.
+        self._auto_address: Optional[str] = None
+        self._auto_stop = threading.Event()
+        self._auto_thread: Optional[threading.Thread] = None
+        self._restart_lock = threading.Lock()
         self._last_sender_sig: tuple | None = None
         self._last_receiver_sig: tuple | None = None
         # pyVRCFT never gets /avatar/change while this receiver owns the input
@@ -203,6 +209,42 @@ class OSCManager:
     def start(self):
         self.setup_sender()
         self.setup_receiver()
+        self._auto_thread = threading.Thread(target=self._watch_auto_target, name="osc-auto-target", daemon=True)
+        self._auto_thread.start()
+
+    AUTO_CHECK_INTERVAL = 5.0
+
+    def osc_target_address(self) -> str:
+        """Where VRChat OSC goes: the address field, or the streaming PC for "auto"."""
+        if not streaming_target.is_auto(self.settings.gui_osc_address):
+            return str(self.settings.gui_osc_address).strip()
+        if self._auto_address is None:
+            # Startup: the Steam logs only. mDNS waits for the background check.
+            self._set_auto_address(*streaming_target.resolve(use_mdns=False))
+        return self._auto_address
+
+    def _set_auto_address(self, address: str, source: str) -> bool:
+        if address == self._auto_address:
+            return False
+        self._auto_address = address
+        logger.info("OSC address auto: sending to %s (%s)", address, source)
+        return True
+
+    def _watch_auto_target(self):
+        """Follow the streaming PC: a new Steam Link session, a switch between
+        USB and Wi-Fi, or the stream ending moves the "auto" target."""
+        while not self._auto_stop.wait(self.AUTO_CHECK_INTERVAL):
+            if not streaming_target.is_auto(self.settings.gui_osc_address):
+                continue
+            try:
+                changed = self._set_auto_address(*streaming_target.resolve())
+            except Exception:  # noqa: a bad log line must not end the watcher
+                logger.exception("OSC address auto: could not resolve the streaming PC")
+                continue
+            if changed:
+                with self._restart_lock:
+                    self.stop_sender()
+                    self.setup_sender()
 
     def _sender_signature(self) -> tuple:
         s = self.settings
@@ -232,7 +274,8 @@ class OSCManager:
         logger.info("Setting up OSC sender")
         self.sender_cancellation_event.clear()
         self.osc_sender = OSCSender(
-            self.sender_cancellation_event, self.osc_message_in_queue, self.config
+            self.sender_cancellation_event, self.osc_message_in_queue, self.config,
+            osc_address=self.osc_target_address(),
         )
         self.osc_sender_thread = threading.Thread(target=self.osc_sender.run)
         self.osc_sender_thread.start()
@@ -292,27 +335,30 @@ class OSCManager:
         # Release ports before anything rebinds them: the old receiver must let
         # go of the receiver port before a pyVRCFT sender (ROSC off) claims it,
         # and the old sender before a new receiver (ROSC on) binds it.
-        if restart_receiver:
-            self.stop_receiver()
-        if restart_sender:
-            self.stop_sender()
-            self.setup_sender()
-        if restart_receiver:
-            self.setup_receiver()
+        with self._restart_lock:
+            if restart_receiver:
+                self.stop_receiver()
+            if restart_sender:
+                self.stop_sender()
+                self.setup_sender()
+            if restart_receiver:
+                self.setup_receiver()
 
     def shutdown(self):
-        self.stop_sender()
-        self.stop_receiver()
+        # App exit: bounded waits, the process ends regardless.
+        self._auto_stop.set()
+        self.stop_sender(timeout=2.0)
+        self.stop_receiver(timeout=2.0)
 
-    def stop_sender(self):
+    def stop_sender(self, timeout=None):
         self.sender_cancellation_event.set()
         if self.osc_sender_thread is not None:
-            self.osc_sender_thread.join()
+            self.osc_sender_thread.join(timeout)
 
-    def stop_receiver(self):
+    def stop_receiver(self, timeout=None):
         if self.osc_receiver_thread:
             self.receiver_cancellation_event.set()
-            self.osc_receiver_thread.join()
+            self.osc_receiver_thread.join(timeout)
 
 
 class OSCSender:
@@ -321,11 +367,14 @@ class OSCSender:
         cancellation_event: threading.Event,
         msg_queue: queue.Queue[OSCMessage],
         main_config: EyeTrackConfig,
+        osc_address: Optional[str] = None,
     ):
         self.cancellation_event = cancellation_event
         self.msg_queue = msg_queue
         self.main_config = main_config
         self.config = main_config.settings
+        # VRChat's address, already resolved when the setting is "auto".
+        self.osc_address = osc_address if osc_address is not None else self.config.gui_osc_address
         self.vrc_sender = VRChatOSCSender()
         self.module_sender = VRCFTModuleSender()
         self.pyvrcft_sender = PyVRCFTSender()
@@ -358,7 +407,7 @@ class OSCSender:
 
     def run(self):
         self.vrc_client = self._make_client(
-            "VRChat", self.config.gui_osc_address, self.config.gui_osc_port
+            "VRChat", self.osc_address, self.config.gui_osc_port
         )
         self.vrcft_client = self._make_client(
             "VRCFT module",
@@ -374,7 +423,7 @@ class OSCSender:
         if self.config.gui_use_module:
             vrc_osc_output_client = safe_vrcft
 
-        # Experimental: route through the embedded PY-VRCFT port instead of the
+        # Beta: route through the embedded PY-VRCFT port instead of the
         # SimpleUDPClient param paths. It owns its own transport, so the vrc/
         # vrcft clients above are simply left idle when this is active.
         use_pyvrcft = bool(self.config.gui_pyvrcft)
@@ -384,7 +433,7 @@ class OSCSender:
             use_pyvrcft = False
         elif use_pyvrcft:
             try:
-                self.pyvrcft_sender.start(self.config)
+                self.pyvrcft_sender.start(self.config, send_host=self.osc_address)
             except Exception:  # noqa
                 logger.exception(
                     "Failed to start pyVRCFT sender; no eye OSC output this run"
@@ -505,16 +554,23 @@ class OSCReceiver:
                 server.server_close()
             return None
 
+    def _bind_address(self) -> str:
+        # "auto" means VRChat is on another machine, which can only reach a
+        # receiver listening on every interface.
+        if streaming_target.is_auto(self.config.gui_osc_address):
+            return "0.0.0.0"
+        return self.config.gui_osc_address
+
     def _bind_fixed(self):
         try:
             return osc_server.OSCUDPServer(
-                (self.config.gui_osc_address, int(self.config.gui_osc_receiver_port)),
+                (self._bind_address(), int(self.config.gui_osc_receiver_port)),
                 self.dispatcher,
             )
         except Exception as exc:  # noqa
             logger.error(
                 "Failed to start OSC receiver on %s:%s: %s",
-                self.config.gui_osc_address,
+                self._bind_address(),
                 self.config.gui_osc_receiver_port,
                 exc,
             )
@@ -533,7 +589,7 @@ class OSCReceiver:
                 # port is free for a restarted pyVRCFT sender right away.
                 self.server.server_close()
             if self.server_thread is not None:
-                self.server_thread.join()
+                self.server_thread.join(2.0)
         except Exception:  # noqa
             pass
 

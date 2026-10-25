@@ -9,7 +9,7 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "EyeTrackApp"))
 from contributions.client import ContributionClient, save
-from contributions.window import ContributionWindow
+from contributions.window import DATASET_CONSENTS, ContributionWindow
 
 
 @pytest.fixture(scope="module")
@@ -50,9 +50,43 @@ def test_terms_are_visible_and_consent_not_preselected(root, tmp_path):
     ui.close()
 
 
+def test_notice_sections_render_as_headings_without_changing_wording(root, tmp_path):
+    client = ContributionClient(directory=tmp_path / "private")
+    text = ("Dataset agreement\n\nBy ticking both boxes you confirm:\n1. First statement.\n2. Second statement.\n\n"
+            "Who we are. Fovea Labs LLC runs this.\n\nHow long we keep it. Our schedule.\n- Recordings: 365 days.")
+    client.config = lambda: {"enabled": True, "terms": {"dataset": {"version": "test", "text": text}}}
+    ui = ContributionWindow(root, client=client)
+    ui.window.withdraw()
+    drain(root, lambda: ui.config is not None)
+    shown = ui.notice.get("1.0", "end")
+    for words in ("1. First statement.", "2. Second statement.", "Fovea Labs LLC runs this.", "Recordings: 365 days."):
+        assert words in shown
+    headings = ui.notice.tag_ranges("heading")
+    assert [ui.notice.get(a, b).strip() for a, b in zip(headings[::2], headings[1::2])] == ["Who we are", "How long we keep it"]
+    assert ui.notice.yview()[0] == 0
+    # Short labels that point at the numbered statements in the notice.
+    assert (ui.consent.cget("text"), ui.consent_sensitive.cget("text")) == DATASET_CONSENTS
+    assert not any(label.startswith("Statement") for label in DATASET_CONSENTS)
+    # The page has its own title, so the notice's title line is not repeated; the wording otherwise is.
+    assert "Dataset agreement" not in shown
+    ui.show_step(2)
+    assert "Tick both boxes" in ui.upload_hint.cget("text")
+    ui.agree.set(True)
+    ui.agree_sensitive.set(True)
+    ui.update_navigation()
+    assert ui.upload_hint.cget("text") == ""
+    ui.close()
+
+
 def test_closed_collection_still_offers_withdrawal(root, tmp_path):
     ui = window(root, tmp_path, enabled=False)
     assert str(ui.upload.cget("state")) == "disabled"
+    # Per-contribution actions wait for a selection, then stay available while collection is closed.
+    assert str(ui.withdraw_button.cget("state")) == "disabled"
+    ui.rows["d" * 32] = {"id": "d" * 32, "state": "pending", "size": 1024**2}
+    ui.history.insert("", "end", iid="d" * 32, values=("2026-10-20", "Test HMD", "Awaiting review", "1.0 MiB", "dddddddd"))
+    ui.history.selection_set("d" * 32)
+    ui.update_history_buttons()
     assert str(ui.withdraw_button.cget("state")) == "normal"
     assert "closed" in ui.status.get()
     ui.close()
@@ -69,7 +103,8 @@ def test_worker_progress_and_pause_do_not_touch_tk_from_worker(root, tmp_path):
     ui.close()
     assert ui.cancel.is_set() and ui.window.winfo_exists()
     drain(root, lambda: not ui.busy)
-    assert "successfully" in ui.status.get()
+    # The Upload page reports the outcome; the footer only carries errors and live progress.
+    assert ui.upload_state == "complete" and ui.status.get() == ""
     ui.close()
 
 
@@ -86,9 +121,13 @@ def test_recording_advances_to_readable_agreement_before_upload(root, tmp_path):
     assert not hasattr(ui, "pick_source")
     assert not hasattr(ui, "choose")
     assert "Current 18+ terms" in ui.notice.get("1.0", "end")
-    assert not ui.agree.get()
+    assert not ui.agree.get() and not ui.agree_sensitive.get()
     assert str(ui.upload.cget("state")) == "disabled"
     ui.agree.set(True)
+    ui.update_navigation()
+    # The separate sensitive-data/transfer consent is required too.
+    assert str(ui.upload.cget("state")) == "disabled"
+    ui.agree_sensitive.set(True)
     ui.update_navigation()
     assert str(ui.upload.cget("state")) == "normal"
     ui.close()
@@ -105,6 +144,8 @@ def test_connection_failure_never_leaves_agreement_blank(root, tmp_path):
     ui.show_step(2)
     assert "Fovea Labs LLC" in ui.notice.get("1.0", "end")
     assert "support@fovea-labs.com" in ui.notice.get("1.0", "end")
+    # The short labels stay in place whichever notice is shown.
+    assert (ui.consent.cget("text"), ui.consent_sensitive.cget("text")) == DATASET_CONSENTS
     assert str(ui.upload.cget("state")) == "disabled"
     assert "offline" in ui.availability.get().lower()
     ui.close()
@@ -120,6 +161,7 @@ def test_cancelled_capture_cannot_reuse_previous_recording(root, tmp_path):
     assert ui._capture_path is None
     ui.capture_stopped(None)
     ui.agree.set(True)
+    ui.agree_sensitive.set(True)
     ui.update_navigation()
     assert ui.step == 1 and ui._capture_path is None
     assert str(ui.upload.cget("state")) == "disabled"
@@ -135,6 +177,7 @@ def test_existing_preparation_cannot_create_another_submission(root, tmp_path):
     ui.capture_stopped(capture)
     ui._capture_receipt = "a" * 32
     ui.agree.set(True)
+    ui.agree_sensitive.set(True)
     ui.update_navigation()
     assert str(ui.upload.cget("state")) == "disabled"
     ui.close()

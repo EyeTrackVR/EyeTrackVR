@@ -8,12 +8,15 @@ import pytest
 
 from eye import EyeId
 from eye_processor import EyeProcessor
-from next_model import NEXT_cls, model_file_for_variant
+from next_model import MODEL_SIZES, NEXT_cls, compose_variant, model_file_for_variant
 from next_stereo_model import NEXT_Stereo_cls, StereoNextCoordinator, _Frame, stereo_model_file
 import next_model
 import next_stereo_model
 
-HYBRID_VARIANTS = ("ETVR", "ETVR LITE", "BSB", "BSB LITE", "PSVR", "PSVR LITE")
+# Every shipped headset x model size, so each export is held to the same contract.
+HYBRID_VARIANTS = tuple(
+    compose_variant(hmd, size) for hmd in ("ETVR", "BSB", "PSVR") for size in MODEL_SIZES
+)
 
 
 class _IdentityFilter:
@@ -46,7 +49,23 @@ def test_hardware_selects_one_hybrid_artifact_for_both_camera_modes(base, stem):
         expected = f"Models/{stem}{suffix}"
         assert model_file_for_variant(variant) == expected
         assert stereo_model_file(variant) == expected
-    assert model_file_for_variant("TOBII") == "Models/NEXT_TOBII.onnx"
+    # Tobii shares the PSVR family (trained on the Tobii dataset).
+    assert model_file_for_variant("TOBII") == "Models/NEXT_ETVR_HYBRID_PSVR.onnx"
+
+
+@pytest.mark.parametrize("base,suffix", [("ETVR", ""), ("BSB", "_BSB"), ("PSVR", "_PSVR")])
+@pytest.mark.parametrize("size", ["SMALL", "MINI", "MICRO", "NANO"])
+def test_hardware_selects_its_tiny_export_for_each_size(base, suffix, size):
+    expected = f"Models/NEXT_ETVR_HYBRID_TINY_{size}{suffix}.onnx"
+    assert model_file_for_variant(f"{base} {size}") == expected
+    assert stereo_model_file(f"{base} {size}") == expected
+
+
+@pytest.mark.parametrize("base", ["ETVR", "BSB", "PSVR"])
+@pytest.mark.parametrize("size", ["SMALL", "NANO"])
+def test_missing_tiny_export_falls_back_to_full_model(monkeypatch, base, size):
+    monkeypatch.setattr(next_model.os.path, "exists", lambda path: "_TINY_" not in path)
+    assert model_file_for_variant(f"{base} {size}") == model_file_for_variant(base)
 
 
 @pytest.mark.parametrize("base", ["ETVR", "BSB", "PSVR"])

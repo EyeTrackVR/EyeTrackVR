@@ -37,11 +37,15 @@ Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{
 [Files]
 Source: "..\dist\{#MyAppExeName}"; DestDir: "{app}"; Flags: ignoreversion
 ; Excludes: never ship local user settings that ended up in dist\ from test runs
-Source: "..\dist\*"; DestDir: "{app}"; Excludes: "eyetrack_settings.json,eyetrack_settings.backup,logs\*"; Flags: ignoreversion recursesubdirs createallsubdirs
+Source: "..\dist\*"; DestDir: "{app}"; Excludes: "eyetrack_settings.json,eyetrack_settings.backup,logs\*,app.vrmanifest"; Flags: ignoreversion recursesubdirs createallsubdirs
 ; NOTE: Don't use "Flags: ignoreversion" on any shared system files
 
 [Dirs]
 Name: {app}; Permissions: users-full
+
+[UninstallDelete]
+; Written at runtime for SteamVR auto-launch; without it SteamVR stops launching the removed app.
+Type: files; Name: "{app}pp.vrmanifest"
 
 [Icons]
 Name: "{autoprograms}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"

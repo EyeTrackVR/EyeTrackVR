@@ -35,6 +35,7 @@ from eye import EyeId
 from utils.img_utils import tk_photo_from_rgb
 from utils.logging_utils import open_logs
 from localization import tr
+from output_viz import OutputVisualizer
 
 from settings.BaseSettings import BaseSettingsWidget
 from settings.modules.AdvancedTrackingAlgoSettingsModule import (
@@ -55,6 +56,7 @@ class AlgoSettingsWidget(BaseSettingsWidget):
         self._eye_widgets = []
         self._preview_labels: list[tk.Label] = []
         self._preview_photos: list = []
+        self._preview_viz: list[OutputVisualizer] = []
         self._preview_dim = 120
         self._dpi_scale = 1.0
         self._advanced_popup: tk.Toplevel | None = None
@@ -209,19 +211,27 @@ class AlgoSettingsWidget(BaseSettingsWidget):
 
         self._preview_labels = []
         self._preview_photos = []
+        self._preview_viz = []
 
         for eye in self._eye_widgets:
             col = ttk.Frame(row)
-            col.pack(side="left", padx=(0, 12))
+            col.pack(side="left", padx=(0, 16))
             label_text = tr("algo_widget.left_eye") if eye.eye_id == EyeId.LEFT else tr("algo_widget.right_eye")
-            ttk.Label(col, text=label_text).pack(pady=(0, 2))
-            holder = tk.Frame(col, width=dim, height=dim, bg="#1e1f23", bd=0, highlightthickness=0)
-            holder.pack()
+            ttk.Label(col, text=label_text).pack(anchor="w", pady=(0, 2))
+            pair = ttk.Frame(col)
+            pair.pack(anchor="w")
+            holder = tk.Frame(pair, width=dim, height=dim, bg="#1e1f23", bd=0, highlightthickness=0)
+            holder.pack(side="left")
             holder.pack_propagate(False)
             lbl = tk.Label(holder, bg="#1e1f23", bd=0, highlightthickness=0)
             lbl.pack(fill="both", expand=True)
+            # Same tracking output view as the main page, scaled down beside the preview.
+            viz = OutputVisualizer(pair, dim, self._dpi_scale)
+            viz.canvas.pack(side="left", anchor="n", padx=(6, 0))
+            viz.hide()
             self._preview_labels.append(lbl)
             self._preview_photos.append(None)
+            self._preview_viz.append(viz)
 
     def render_tick(self):
         super().render_tick()  # throttled settings validation (0.2 s)
@@ -233,15 +243,21 @@ class AlgoSettingsWidget(BaseSettingsWidget):
         dim = self._preview_dim
         for i, eye in enumerate(self._eye_widgets):
             lbl = self._preview_labels[i]
-            frame = None
+            frame = eye_info = None
             try:
                 while True:
                     item = eye.image_queue.get_nowait()
                     frame = item[0]
+                    eye_info = item[1] if len(item) > 1 else None
             except Empty:
                 pass
             if frame is None:
                 continue
+            if eye_info is not None:
+                try:
+                    self._preview_viz[i].draw(eye_info)
+                except Exception:
+                    pass
             try:
                 if frame.ndim == 2:
                     half_w = frame.shape[1] // 2

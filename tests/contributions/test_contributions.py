@@ -294,3 +294,15 @@ def test_quota_refusals_explain_what_happened_and_who_to_ping(setup_client, monk
         client.request("POST", "/v1/submissions", "capability", json={})
     assert expected in str(error.value) and "prohurtz on Discord" in str(error.value)
     assert "server text" not in str(error.value)
+
+
+@pytest.mark.parametrize("name,ok", [
+    ("v6_NhOhvOtnI_Left_26_blinkdot_x+0.000_y+0.000.png", True),
+    ("v6_NhOhvOtnI_Right_31_blinkdot_x-0.412_y+0.275.png", True),
+    ("v6_NhOhvOtnI_Left_01_gaze.png", True),
+    ("v6_NhOhvOtnI_Left_01_../escape.png", False),
+    ("v6_NhOhvOtnI_Left_01_a b.png", False),
+])
+def test_capture_allowlist_accepts_signed_blinkdot_labels(name, ok):
+    from contributions.bundles import CAPTURE
+    assert bool(CAPTURE.fullmatch(name)) is ok

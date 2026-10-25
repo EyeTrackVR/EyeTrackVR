@@ -176,4 +176,58 @@ not a broken connection:
 * An earlier version wrote the enable words back to 0 on every reconnect. That cut off the streams
   SteamVR was using and caused a "Reconnecting..." loop every 3–5 s.
 
+## OSC to the streaming PC (`auto` address)
+
+On the headset, VRChat usually runs on the PC that Steam Link streams from, so `127.0.0.1`
+reaches nothing. On a Frame the OSC address defaults to **`auto`**. It's switched once, only from
+`127.0.0.1`/`localhost`, and `gui_osc_auto_on_frame` records that. `auto` resolves the PC in this
+order ([`osc/streaming_target.py`](../EyeTrackApp/osc/streaming_target.py)):
+
+1. **The live Steam Link VR session** (`~/.local/share/Steam/logs/vrlink.txt`). After the newest
+   `Starting session`, the link marked `PEERED: true` names its `SetPeer` peer. The session counts
+   until its output stream logs `unconnected`. Seen so far: the USB cable (`10.86.200.234`), the
+   headset's hotspot (`10.35.78.x`) and Wi-Fi.
+2. **Steam remote play** (`remote_connections.txt`): the newest address the paired PC broadcast on
+   port 27036.
+3. **VRChat's mDNS answer** for `_oscjson._tcp`. Its records say `127.0.0.1`, so the reply's
+   source address is used instead.
+4. Otherwise `127.0.0.1`.
+
+A background check runs every 5 s and restarts the sender when the PC changes, for example when
+you switch between USB and Wi-Fi. Typing an address overrides `auto`. Type `127.0.0.1` for VRChat
+running natively on the headset. With `auto`, the fixed-port OSC receiver listens on all
+interfaces.
+
+On the PC, VRChat must accept OSC on UDP 9000 from the network, so allow VRChat through Windows
+Firewall. pyVRCFT mode sends VRChat's native `/tracking/eye/*` endpoints without any avatar
+information. Avatar-specific face-tracking parameters also need VRChat's avatar data. Its OSCQuery
+server is only reachable on the PC itself, so the headset needs `/avatar/change` sent to it. Use
+the VRChat launch option `--osc=9000:<headset ip>:9001` for that. This isn't verified yet.
+
+## Data collection on the headset
+
+* **Video codec.** OpenCV's aarch64 ffmpeg maps H.264 (`avc1`/`H264`) to the V4L2 hardware
+  encoder `h264_v4l2m2m`. On the Frame, just opening it segfaults inside `avcodec_open2` and kills
+  the app. So on aarch64 `get_best_codec()` only tries XVID, then MJPG, both software encoders.
+* **Full-rate recording.** A recorder thread writes every frame of each eye's full-session video.
+  It also hands each labeled snapshot the next frame after the prompt. The passes used to drain
+  the 10-frame capture queues themselves, between overlay-socket waits of up to 1 s. At 60–90 fps
+  that dropped most of the video, and each snapshot was the oldest queued frame. The video's
+  nominal rate is the camera's measured rate.
+* **Voice prompts.** The Frame has no text-to-speech engine, neither on the host nor in Steam
+  Linux Runtime 4. So `build_frame.sh` bundles Ubuntu's espeak-ng into `_internal/Tools/tts/`,
+  together with its libraries (including the PulseAudio client), its voice data and its license
+  notices. espeak-ng is GPL-3.0 and runs as a separate program. Data collection runs it with
+  `ESPEAK_DATA_PATH` and `LD_LIBRARY_PATH` pointing into that folder, before trying any system
+  engine. Playback goes through the session's PipeWire/PulseAudio server, which the runtime
+  passes through as it does for games. If nothing can speak, a prompt waits for its estimated
+  reading time instead, so its overlay card still stays up long enough to read.
+* **Tracking pauses while recording.** On the Frame, starting a recording sets
+  `frame_eye.models_paused_for_recording`, and the recording's cleanup clears it. While it's set,
+  the eye threads keep draining their camera queues but run no models, so OSC output holds its
+  last values. The CPU can't run the models and also record both eyes at 90 fps. On a PC,
+  tracking keeps running during a recording, as before.
+* **Output.** Recordings are written to the app's working folder,
+  `~/devkit-game/<name>/` for a FrameDrop install.
+
 * **Inference is CPU-only** (CPU onnxruntime, same as the x86 Linux bundle).

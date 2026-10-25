@@ -14,7 +14,7 @@ import zlib
 from pathlib import Path
 
 CAPTURE = re.compile(r"^v[0-9]+_[A-Za-z0-9]{9}_(?:full_session_(?P<video_eye>Left|Right)\.(?:avi|mp4)|"
-                     r"(?P<eye>Left|Right)_(?:timestamps\.txt|[0-9]+_[A-Za-z0-9_.-]+\.png))$", re.I)
+                     r"(?P<eye>Left|Right)_(?:timestamps\.txt|[0-9]+_[A-Za-z0-9_.+-]+\.png))$", re.I)
 ISSUE = re.compile(r"^(?:description\.txt|log-(?:[1-9]|10)\.txt)$")
 SUBMISSION = "etvr-submission-v1"
 MAX_UNPACKED = 2 * 1024**3

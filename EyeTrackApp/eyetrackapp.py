@@ -48,7 +48,6 @@ from tkinter import ttk
 import sv_ttk
 import queue
 import cv2
-import requests
 import threading
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from camera_widget import CameraWidget
@@ -149,6 +148,9 @@ def set_timer_resolution(enabled):
 
 def _check_for_updates_bg(config) -> None:
     """Fetch latest GitHub release on a daemon thread; notifies if outdated."""
+    # Imported here, off the startup path (~200 ms).
+    import requests
+
     try:
         if not config.settings.gui_update_check:
             return
@@ -221,6 +223,24 @@ def _check_for_updates_bg(config) -> None:
 
 
 def main():
+    # One copy per user: a second (opened by hand, or auto-launched by SteamVR
+    # while one already runs) would fight the first over cameras and OSC ports.
+    # Checked before the config is touched so the second copy writes nothing.
+    from utils import single_instance
+    if not single_instance.acquire():
+        logger.warning("EyeTrackVR is already running; this copy is exiting")
+        try:
+            from tkinter import messagebox
+            init_localization(getattr(EyeTrackConfig.load().settings, "gui_language", "en"))
+            notice = tk.Tk()
+            notice.withdraw()
+            notice.after(8000, notice.destroy)  # never linger if nobody is at the desktop
+            messagebox.showinfo("EyeTrackVR", tr("openvr.already_running"), parent=notice)
+            notice.destroy()
+        except Exception:
+            pass
+        return
+
     config: EyeTrackConfig = EyeTrackConfig.load()
     config.save()
 
@@ -228,6 +248,25 @@ def main():
     # text at creation time, so the language must be resolved up front; changing
     # it in Settings persists the choice and prompts a restart.
     init_localization(getattr(config.settings, "gui_language", "en"))
+
+    def _bug_report_details() -> str:
+        """Non-identifying setup summary appended to bug reports (user can untick it)."""
+        import platform
+        from next_model import variant_from_settings
+
+        s = config.settings
+        trackers = [name for name in ("NEXT", "LEAP", "DADDY", "AHRAC", "RANSAC3D", "AHSF", "HSRAC", "HSF")
+                    if getattr(s, "gui_" + name, False)]
+        return "\n".join((
+            f"App: {APP_VERSION}",
+            f"OS: {platform.platform()} ({platform.machine()})",
+            f"Python: {platform.python_version()}{' frozen' if getattr(sys, 'frozen', False) else ''}",
+            f"Setup mode: {s.gui_setup_mode}",
+            f"Tracker: {', '.join(trackers) or 'none'}",
+            f"NEXT model: {variant_from_settings(s)}",
+            f"GPU: {s.gui_use_gpu}",
+            f"pyVRCFT: {s.gui_pyvrcft}",
+        ))
 
     cancellation_event = threading.Event()
     # Ensure we always have a local reference, even if OpenVR autostart is disabled
@@ -252,6 +291,15 @@ def main():
             # where it was enabled while SteamVR was closed.
             if config.settings.gui_openvr_autostart:
                 openvr_service.ensure_registered()
+
+    if is_steam_frame() and not config.settings.gui_osc_auto_on_frame:
+        # VRChat runs on the PC the headset streams from, not on the headset, so
+        # default the OSC address to "auto" once. An address the user typed is
+        # kept, and so is 127.0.0.1 typed later (VRChat running on the headset).
+        if str(config.settings.gui_osc_address).strip() in ("127.0.0.1", "localhost"):
+            config.settings.gui_osc_address = "auto"
+        config.settings.gui_osc_auto_on_frame = True
+        config.save()
 
     osc_queue: queue.Queue[OSCMessage] = queue.Queue(maxsize=10)
 
@@ -426,9 +474,14 @@ def main():
             self.content.pack(fill="both", expand=True, padx=8, pady=(0, 16))
 
             self.tracking_tab = ttk.Frame(self.content)
-            self.settings_frame = settings[0].build(self.content)
-            self.algo_frame = settings[1].build(self.content, eye_widgets=eyes, dpi_scale=self._dpi_scale)
-            self.vrcft_frame = settings[2].build(self.content)
+            # Settings pages are built the first time they open: building all
+            # three up front cost ~0.4 s and two thirds of the startup widgets.
+            self._page_builders = {
+                "settings": lambda: settings[0].build(self.content),
+                "algo": lambda: settings[1].build(self.content, eye_widgets=eyes, dpi_scale=self._dpi_scale),
+                "vrcft": lambda: settings[2].build(self.content),
+            }
+            self._page_frames = {}
 
             # "Having Issues?" popup: floats over the current page, same pattern
             # as the Advanced Algo Settings popup.
@@ -438,7 +491,8 @@ def main():
             self._issues_popup.withdraw()
             self._issues_popup.resizable(False, False)
             self._issues_popup.protocol("WM_DELETE_WINDOW", self._on_issues_popup_close)
-            apply_theme_to_titlebar(self._issues_popup)
+            # Themed on first show: pywinstyles forces a full layout pass (~0.3 s).
+            self._issues_popup_themed = False
 
             self._data_collection_popup = DataCollectionWindow(self.root, eyes)
 
@@ -491,6 +545,31 @@ def main():
                 style="Accent.TButton",
             ).pack(side="left", padx=(0, 8))
             ttk.Button(issues_btn_row, text=tr("issues.discord_btn"), command=_open_discord).pack(side="left")
+
+            # Bug reports: written description plus logs, encrypted to the
+            # developers and kept apart from dataset contributions.
+            tk.Label(
+                _issues_content,
+                text=tr("issues.header_bug"),
+                font=_issues_hdr_font,
+                bg=_hdr_bg,
+                fg="#e8e8e8",
+            ).pack(anchor="w", pady=(16, 6))
+            ttk.Label(
+                _issues_content,
+                text=tr("issues.body_bug"),
+                wraplength=issues_wrap,
+                justify="left",
+            ).pack(anchor="w", pady=(0, 10))
+
+            def _launch_bug_report():
+                self._on_issues_popup_close()
+                self._show_bug_report()
+
+            ttk.Button(
+                _issues_content, text=tr("issues.report_bug_btn"), command=_launch_bug_report
+            ).pack(anchor="w", pady=(0, 8))
+            self._bug_report = None
 
             _issues_close_row = ttk.Frame(self._issues_popup)
             _issues_close_row.pack(fill="x", padx=16, pady=(0, 16))
@@ -755,10 +834,9 @@ def main():
             self._next_smartcal_reset_visible = False
             bottom = ttk.Frame(self.root)
             bottom.pack(fill="x", padx=8, pady=4)
-            ttk.Button(bottom, text=tr("tracking.gui_off_btn"), command=self.gui_off).pack(side="left")
             ttk.Button(
                 bottom, text=tr("issues.title"), command=self._toggle_issues_popup
-            ).pack(side="left", padx=(10, 0))
+            ).pack(side="left")
             ttk.Button(
                 bottom, text=tr("tracking.contribute_data_btn"), command=self._toggle_data_collection_popup
             ).pack(side="left", padx=(10, 0))
@@ -884,11 +962,12 @@ def main():
             self.root.geometry(f"{w}x{h}")
 
         def set_openvr_autostart(self, value):
+            # The settings page may not be built yet; it then reads config when it opens.
             for module in settings[0].initialized_modules:
                 if hasattr(module, "gui_openvr_autostart"):
-                    module.tk_vars[getattr(module, "gui_openvr_autostart")].set(
-                        bool(value)
-                    )
+                    var = module.tk_vars.get(getattr(module, "gui_openvr_autostart"))
+                    if var is not None:
+                        var.set(bool(value))
 
         def _on_capture_source_rebound(self, eye_id, new_source):
             """A capture thread rebound its uvc:Name@Address source to a new
@@ -1215,6 +1294,12 @@ def main():
             config.save()
             self._sync_timer_resolution()
 
+        def _page_frame(self, page_name: str):
+            frame = self._page_frames.get(page_name)
+            if frame is None:
+                frame = self._page_frames[page_name] = self._page_builders[page_name]()
+            return frame
+
         def show_page(self, page_name: str):
             """Switch tabs. Heavy work (camera thread joins, config apply) is deferred so the UI can redraw first."""
             if page_name == "vrcft" and not self._vrcft_module_settings_enabled():
@@ -1222,12 +1307,7 @@ def main():
             self._nav_teardown_seq += 1
             seq = self._nav_teardown_seq
             self.current_page = page_name
-            for frame in [
-                self.tracking_tab,
-                self.settings_frame,
-                self.algo_frame,
-                self.vrcft_frame,
-            ]:
+            for frame in [self.tracking_tab, *self._page_frames.values()]:
                 frame.pack_forget()
 
             if page_name in ("settings", "algo", "vrcft"):
@@ -1241,17 +1321,17 @@ def main():
                 self.root.update_idletasks()
                 self.root.after(0, lambda s=seq: self._deferred_enter_tracking(s))
             elif page_name == "settings":
-                self.settings_frame.pack(fill="both", expand=True)
+                self._page_frame("settings").pack(fill="both", expand=True)
                 self._sync_nav_buttons()
                 self.root.update_idletasks()
                 self.root.after(0, lambda s=seq: self._deferred_enter_settings(s))
             elif page_name == "algo":
-                self.algo_frame.pack(fill="both", expand=True)
+                self._page_frame("algo").pack(fill="both", expand=True)
                 self._sync_nav_buttons()
                 self.root.update_idletasks()
                 self.root.after(0, lambda s=seq: self._deferred_enter_algo(s))
             elif page_name == "vrcft":
-                self.vrcft_frame.pack(fill="both", expand=True)
+                self._page_frame("vrcft").pack(fill="both", expand=True)
                 self._sync_nav_buttons()
                 self.root.update_idletasks()
                 self.root.after(0, lambda s=seq: self._deferred_enter_vrcft(s))
@@ -1307,8 +1387,18 @@ def main():
         def _toggle_data_collection_popup(self):
             self._data_collection_popup.show()
 
+        def _show_bug_report(self):
+            # Built on first use so startup never pays for it.
+            if self._bug_report is None or not self._bug_report.window.winfo_exists():
+                from contributions.report_window import ReportWindow
+                self._bug_report = ReportWindow(self.root, details=_bug_report_details)
+            self._bug_report.show()
+
         def _show_issues_popup(self):
             popup = self._issues_popup
+            if not self._issues_popup_themed:
+                self._issues_popup_themed = True
+                apply_theme_to_titlebar(popup)
             popup.transient(self.root)
             popup.update_idletasks()
             mw = self.root.winfo_width()
@@ -1331,30 +1421,6 @@ def main():
                 self._issues_popup.withdraw()
             except tk.TclError:
                 pass
-
-        def gui_off(self):
-            config.settings.gui_disable_gui = True
-            settings[0].stop()
-            settings[1].stop()
-            settings[2].stop()
-            config.save()
-            self.root.withdraw()
-            dialog = tk.Toplevel()
-            dialog.title("ETVR")
-            apply_theme_to_titlebar(dialog)
-            ttk.Label(dialog, text=tr("tracking.gui_disabled_msg")).pack(padx=12, pady=8)
-
-            def enable_gui():
-                config.settings.gui_disable_gui = False
-                config.save()
-                logger.info("GUI enabled")
-                dialog.destroy()
-                self.root.deiconify()
-
-            ttk.Button(dialog, text=tr("tracking.enable_gui_btn"), command=enable_gui).pack(
-                padx=12, pady=(0, 8)
-            )
-            dialog.protocol("WM_DELETE_WINDOW", enable_gui)
 
         def _any_eye_calibrating(self):
             for eye in eyes:
@@ -1557,10 +1623,28 @@ def main():
                 self._calibration_btn_text.set(text)
 
         def _tick(self):
-            if openvr_service is not None and openvr_service.poll_quit_event():
-                logger.info("SteamVR quit, shutting down EyeTrackApp")
-                self.shutdown()
-                return
+            # The tick drives SteamVR quit detection as well as rendering, so
+            # an exception in one frame must never end the after() chain.
+            interval = 33
+            try:
+                interval = self._tick_body()
+            except Exception:
+                logger.exception("UI tick failed; continuing")
+            if interval is not None:
+                self.root.after(interval, self._tick)
+
+        def _tick_body(self):
+            """One UI frame. Returns the delay to the next tick, or None after shutdown."""
+            if openvr_service is not None:
+                try:
+                    quit_requested = openvr_service.poll_quit_event()
+                except Exception:
+                    logger.exception("SteamVR poll failed")
+                    quit_requested = False
+                if quit_requested:
+                    logger.info("SteamVR quit, shutting down EyeTrackApp")
+                    self.shutdown()
+                    return None
 
             try:
                 has_focus = self.root.focus_displayof() is not None
@@ -1591,29 +1675,55 @@ def main():
                 if setting.started():
                     setting.render_tick()
 
-            self.root.after(interval, self._tick)
+            return interval
 
         def shutdown(self):
+            if getattr(self, "_shutting_down", False):
+                return
+            self._shutting_down = True
             logger.info("Exiting EyeTrackApp")
-            # Signal every eye before joining any of them.  A dead HTTP camera
-            # can leave FFmpeg inside its native open timeout, and the old
-            # sequential five-second joins made Tk look hung (up to ten seconds
-            # for two eyes).  Normal camera restarts still use stop()'s longer
-            # orderly wait; final process shutdown gets one small shared budget.
-            for eye in eyes:
-                eye.request_stop()
-            shutdown_deadline = time.monotonic() + 0.5
-            for eye in eyes:
-                eye.stop(
-                    join_timeout=max(0.0, shutdown_deadline - time.monotonic()),
-                    warn_if_alive=False,
-                )
-            cancellation_event.set()
-            osc_manager.shutdown()
-            if getattr(self, "_timer_high_res", False):
-                set_timer_resolution(False)
-            self.root.destroy()
-            os._exit(0)
+            # Whatever fails below, the process must exit: a half-stopped app
+            # left running after SteamVR quits would hold cameras and ports.
+            # A watchdog ends a shutdown that hangs in native code.
+            threading.Timer(8.0, lambda: os._exit(0)).start()
+            try:
+                # Keep settings edited within the debounce window.
+                for setting in settings:
+                    try:
+                        setting.flush_pending_save()
+                    except Exception:
+                        logger.exception("Could not save pending settings on exit")
+                # Signal every eye before joining any of them.  A dead HTTP camera
+                # can leave FFmpeg inside its native open timeout, and the old
+                # sequential five-second joins made Tk look hung (up to ten seconds
+                # for two eyes).  Normal camera restarts still use stop()'s longer
+                # orderly wait; final process shutdown gets one small shared budget.
+                for eye in eyes:
+                    eye.request_stop()
+                shutdown_deadline = time.monotonic() + 0.5
+                for eye in eyes:
+                    eye.stop(
+                        join_timeout=max(0.0, shutdown_deadline - time.monotonic()),
+                        warn_if_alive=False,
+                    )
+                cancellation_event.set()
+                osc_manager.shutdown()
+                if getattr(self, "_timer_high_res", False):
+                    set_timer_resolution(False)
+            except Exception:
+                logger.exception("Error during shutdown")
+            finally:
+                try:
+                    if openvr_service is not None:
+                        openvr_service._shutdown()
+                except Exception:
+                    pass
+                try:
+                    self.root.destroy()
+                except Exception:
+                    pass
+                logging.shutdown()
+                os._exit(0)
 
     app = AppUI()
     if (not is_macos) and (openvr_service is not None):

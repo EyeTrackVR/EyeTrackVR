@@ -33,3 +33,5 @@ libxcb-cursor0
 libfontconfig1
 libdbus-1-3
 libnss3
+# voice prompts for data collection: bundled into Tools/tts/ (the Frame has no TTS)
+espeak-ng

@@ -29,6 +29,7 @@ LICENSE: Babble Software Distribution License 1.0
 
 import os
 import logging
+import time
 from collections import deque
 import numpy as np
 import cv2
@@ -42,7 +43,14 @@ logger = logging.getLogger(__name__)
 
 os.environ["OMP_NUM_THREADS"] = "1"
 
-# Median window (frames) applied to the raw eyebrow before the One-Euro filter.
+# NEXT smoothing is tuned in time, not per inference pass. Both eyes feed one
+# shared filter, so two cameras used to mean twice the passes and a visibly
+# faster response than one camera (or than slower cameras). Every NEXT filter
+# now steps at this fixed rate: 120 Hz, i.e. two 60 fps eyes, which keeps the
+# established dual-eye feel and gives one eye the same response.
+NEXT_FILTER_STEP_S = 1.0 / 120.0
+
+# Median window (samples at NEXT_FILTER_STEP_S) applied to the raw eyebrow before the One-Euro filter.
 # A running median rejects very fast jitter from single frame spikes and frame to
 # frame oscillation that the One Euro speed term would otherwise pass, and it
 # costs only ~(N-1)/2 frames of lag, which is negligible for a slow brow signal.
@@ -60,41 +68,96 @@ _BROW_MEDIAN_WINDOW = 5
 # stronger rejection at the cost of a touch more lag.
 _GAZE_MEDIAN_WINDOW = 3
 
-# Supported model variants. The selector in the GUI picks one of these and the
-# matching hardware-specific Hybrid export is loaded for ETVR, BSB and PSVR.
-# The "<BASE> LITE" variants select the matching fp16 build.
-MODEL_VARIANTS = ("ETVR", "BSB", "PSVR", "TOBII", "ETVR LITE", "BSB LITE", "PSVR LITE")
+
+class TimedMedian:
+    """Causal running median over a fixed span of time rather than a fixed
+    number of passes. The span is `samples` steps of NEXT_FILTER_STEP_S, so at
+    lower pass rates it holds fewer samples (less lag), but never fewer than
+    three: rejecting a one-frame spike needs one frame either side."""
+
+    def __init__(self, samples: int, step_s: float = NEXT_FILTER_STEP_S, min_samples: int = 3):
+        self.span_s = (samples - 0.5) * step_s
+        self.min_samples = min(min_samples, samples)
+        self._items = deque(maxlen=samples)
+
+    def __call__(self, value: float, t: float) -> float:
+        items = self._items
+        items.append((t, value))
+        while len(items) > self.min_samples and t - items[0][0] > self.span_s:
+            items.popleft()
+        return float(np.median([v for _, v in items]))
+
+# A NEXT model is picked by two settings: the headset (HMD) it was trained for
+# and its size. The headset selects the matching Hybrid export family.
+HMD_TYPES = ("ETVR", "BSB", "PSVR")
+# PSVR and Tobii share one model family (the PSVR Hybrid is trained on the
+# Tobii dataset), so older TOBII selections resolve to PSVR.
+HMD_ALIASES = {"TOBII": "PSVR", "PSVR/TOBII": "PSVR"}
 HYBRID_MODEL_STEMS = {
     "ETVR": "NEXT_ETVR_HYBRID",
     "BSB": "NEXT_ETVR_HYBRID_BSB",
     "PSVR": "NEXT_ETVR_HYBRID_PSVR",
 }
 DEFAULT_MODEL_VARIANT = "ETVR"
-# Suffix that marks an fp16 ("Lite") variant.
-_LITE_SUFFIX = " LITE"
+# Model sizes, lightest first (the GUI slider runs left -> right in this order).
+# NORMAL is the full MobileNetV3 Hybrid and LITE its fp16 export; SMALL..NANO
+# are the embedded-class tiny towers (NEXT_ETVR_HYBRID_TINY_<SIZE>[_BSB|_PSVR]).
+MODEL_SIZES = ("NANO", "MICRO", "MINI", "SMALL", "LITE", "NORMAL")
+DEFAULT_MODEL_SIZE = "NORMAL"
+# Sizes below Lite are still work in progress; the GUI flags them as such.
+EXPERIMENTAL_MODEL_SIZES = ("NANO", "MICRO", "MINI", "SMALL")
+# Every selectable "<HMD>[ <SIZE>]" variant string (NORMAL carries no suffix).
+MODEL_VARIANTS = tuple(HMD_TYPES) + tuple(
+    f"{hmd} {size}"
+    for size in reversed(MODEL_SIZES) if size != DEFAULT_MODEL_SIZE
+    for hmd in HMD_TYPES
+)
 # Preserve the app's deployed stereo gaze-Y convention in both Hybrid paths.
 SHARED_GAZE_Y_SIGN = -1.0
+
+
+def split_variant(variant: str) -> tuple:
+    """(hmd, size) for a "<HMD>[ <SIZE>]" variant string. Aliases (TOBII)
+    resolve to their headset; unknown parts fall back to the defaults."""
+    parts = str(variant or DEFAULT_MODEL_VARIANT).upper().split()
+    hmd = HMD_ALIASES.get(parts[0], parts[0]) if parts else DEFAULT_MODEL_VARIANT
+    if hmd not in HMD_TYPES:
+        hmd = DEFAULT_MODEL_VARIANT
+    size = parts[1] if len(parts) > 1 and parts[1] in MODEL_SIZES else DEFAULT_MODEL_SIZE
+    return hmd, size
+
+
+def compose_variant(hmd: str, size: str = DEFAULT_MODEL_SIZE) -> str:
+    """Inverse of split_variant: the canonical variant string for a pair."""
+    hmd, size = split_variant(f"{hmd} {size}")
+    return hmd if size == DEFAULT_MODEL_SIZE else f"{hmd} {size}"
+
+
+def variant_from_settings(settings) -> str:
+    """The NEXT variant selected by the headset + model size settings."""
+    hmd, legacy_size = split_variant(getattr(settings, "gui_model_variant", DEFAULT_MODEL_VARIANT))
+    size = str(getattr(settings, "gui_model_size", "") or legacy_size).upper()
+    return compose_variant(hmd, size)
 
 
 def model_file_for_variant(variant: str) -> str:
     """Map a variant name to its ONNX file path.
 
     ETVR, BSB and PSVR use their matching Hybrid exports for one or two
-    cameras. Lite selects the matching fp16 export. Legacy variants retain
-    NEXT_<VARIANT>.onnx.
+    cameras: NORMAL the full model, LITE its fp16 export and SMALL..NANO the
+    tiny exports.
 
-    If a requested fp16 build isn't present on disk, fall back to the full-precision
-    base model so the Lite option still tracks (just without the fp16 speedup)."""
-    variant = (variant or DEFAULT_MODEL_VARIANT).upper()
-    if variant not in MODEL_VARIANTS:
-        variant = DEFAULT_MODEL_VARIANT
-    lite = variant.endswith(_LITE_SUFFIX)
-    base = variant[: -len(_LITE_SUFFIX)].strip() if lite else variant
-    stem = HYBRID_MODEL_STEMS.get(base, f"NEXT_{base}")
-    if lite:
-        fp16 = f"Models/{stem}.fp16.onnx"
-        if os.path.exists(resource_path(fp16)):
-            return fp16
+    If a requested size isn't present on disk, fall back to the full-precision
+    base model so the selection still tracks."""
+    hmd, size = split_variant(variant)
+    stem = HYBRID_MODEL_STEMS[hmd]
+    candidate = None
+    if size == "LITE":
+        candidate = f"Models/{stem}.fp16.onnx"
+    elif size in EXPERIMENTAL_MODEL_SIZES:
+        candidate = f"Models/NEXT_ETVR_HYBRID_TINY_{size}{stem[len('NEXT_ETVR_HYBRID'):]}.onnx"
+    if candidate and os.path.exists(resource_path(candidate)):
+        return candidate
     return f"Models/{stem}.onnx"
 
 # ImageNet normalization constants (CHW channel order after BGR->RGB)
@@ -166,14 +229,15 @@ class NEXT_cls:
 
         # Initialize with dummy arrays; updated dynamically in run()
         self.one_euro_filter = OneEuroFilter(
-            np.zeros(5, dtype=np.float32), min_cutoff=1.0, beta=0.0
+            np.zeros(5, dtype=np.float32), min_cutoff=1.0, beta=0.0,
+            step_s=NEXT_FILTER_STEP_S,
         )
 
         # Recent raw eyebrow values for the running-median jitter reject (see run()).
-        self._brow_window = deque(maxlen=_BROW_MEDIAN_WINDOW)
+        self._brow_window = TimedMedian(_BROW_MEDIAN_WINDOW)
         # Recent raw gaze values for the same spike reject on x / y (see run()).
-        self._gaze_x_window = deque(maxlen=_GAZE_MEDIAN_WINDOW)
-        self._gaze_y_window = deque(maxlen=_GAZE_MEDIAN_WINDOW)
+        self._gaze_x_window = TimedMedian(_GAZE_MEDIAN_WINDOW)
+        self._gaze_y_window = TimedMedian(_GAZE_MEDIAN_WINDOW)
 
     def reset_history(self):
         """Drop the temporal frame stack. Called when this model takes over
@@ -260,12 +324,10 @@ class NEXT_cls:
         # eyelid/squeeze are untouched. Gaze uses a shorter window to stay
         # responsive (see _GAZE_MEDIAN_WINDOW). Array order: [eyebrow, eyelid,
         # squeeze, gaze_x, gaze_y].
-        self._brow_window.append(float(raw[0]))
-        raw[0] = float(np.median(self._brow_window))
-        self._gaze_x_window.append(float(raw[3]))
-        raw[3] = float(np.median(self._gaze_x_window))
-        self._gaze_y_window.append(float(raw[4]))
-        raw[4] = float(np.median(self._gaze_y_window))
+        now = time.perf_counter()
+        raw[0] = self._brow_window(float(raw[0]), now)
+        raw[3] = self._gaze_x_window(float(raw[3]), now)
+        raw[4] = self._gaze_y_window(float(raw[4]), now)
 
         out = self.one_euro_filter(raw)
 

@@ -1,5 +1,4 @@
 import numpy as np
-import matplotlib.pyplot as plt
 
 from localization import tr
 
@@ -159,6 +158,9 @@ class CalibrationEllipse:
         return float(cx + dx), float(cy + dy)
 
     def fit_and_visualize(self):
+        # Imported on use: matplotlib costs ~0.5 s and ~30 MB at app startup.
+        import matplotlib.pyplot as plt
+
         plt.figure(figsize=(10, 8))
 
         plt.plot(self.xs, self.ys, "k.", label=tr("calibration.plot_samples"), alpha=0.5)

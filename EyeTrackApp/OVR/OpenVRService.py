@@ -1,7 +1,11 @@
 import openvr
 import os
+import shlex
+import subprocess
 import sys
 import json
+import threading
+import time
 from logging import getLogger, WARN, INFO
 import tkinter as tk
 from tkinter import messagebox
@@ -12,6 +16,16 @@ from localization import tr
 
 class OpenVRException(Exception):
     pass
+
+
+class SteamVRNotRunning(OpenVRException):
+    """SteamVR is closed: a soft condition, applied later when it starts."""
+
+
+# How often to retry connecting while SteamVR is closed, and to check that a
+# connected SteamVR is still alive (a crashed vrserver sends no quit event).
+_RECONNECT_S = 5.0
+_LIVENESS_S = 5.0
 
 
 def _is_frozen() -> bool:
@@ -46,16 +60,84 @@ def _launch_target():
 
     Frozen build : launch the executable directly, no arguments.
     From source  : launch the Python interpreter with the entry script as its
-                   argument, so ``python eyetrackapp.py`` is reproduced. The
-                   old code always used ``sys.executable`` with no arguments,
-                   which meant a from-source install registered ``python.exe``
-                   with no script and SteamVR launched a do-nothing interpreter.
+                   (quoted) argument, so ``python eyetrackapp.py`` is
+                   reproduced. On Windows the windowless pythonw.exe is used
+                   when present so no console window opens with SteamVR.
     """
     binary = os.path.abspath(sys.executable)
     if _is_frozen():
         return binary, ""
+    if sys.platform == "win32":
+        windowless = os.path.join(os.path.dirname(binary), "pythonw.exe")
+        if os.path.isfile(windowless):
+            binary = windowless
     entry = os.path.abspath(sys.argv[0]) if sys.argv and sys.argv[0] else ""
-    return binary, entry
+    if not entry:
+        return binary, ""
+    # SteamVR splits the arguments string itself; double quotes keep a path with spaces whole.
+    return binary, subprocess.list2cmdline([entry])
+
+
+def _unquote(arguments: str) -> str:
+    try:
+        parts = shlex.split(arguments, posix=sys.platform != "win32")
+    except ValueError:
+        return arguments
+    return parts[0].strip('"') if parts else ""
+
+
+def _same_path(a: str, b: str) -> bool:
+    return os.path.normcase(os.path.abspath(a)) == os.path.normcase(os.path.abspath(b))
+
+
+def _vrserver_running() -> bool:
+    """Whether SteamVR's server process exists. Unknown platforms report True
+    so the check can only ever drop a dead connection, never a live one."""
+    try:
+        if sys.platform.startswith("linux"):
+            for pid in os.listdir("/proc"):
+                if pid.isdigit():
+                    try:
+                        with open(f"/proc/{pid}/comm", "rb") as comm:
+                            if comm.read().strip() == b"vrserver":
+                                return True
+                    except OSError:
+                        continue
+            return False
+        if sys.platform == "win32":
+            return _windows_process_running("vrserver.exe")
+    except Exception:
+        pass
+    return True
+
+
+def _windows_process_running(name: str) -> bool:
+    import ctypes
+    from ctypes import wintypes
+
+    class PROCESSENTRY32W(ctypes.Structure):
+        _fields_ = [("dwSize", wintypes.DWORD), ("cntUsage", wintypes.DWORD),
+                    ("th32ProcessID", wintypes.DWORD), ("th32DefaultHeapID", ctypes.c_void_p),
+                    ("th32ModuleID", wintypes.DWORD), ("cntThreads", wintypes.DWORD),
+                    ("th32ParentProcessID", wintypes.DWORD), ("pcPriClassBase", ctypes.c_long),
+                    ("dwFlags", wintypes.DWORD), ("szExeFile", ctypes.c_wchar * 260)]
+
+    kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+    kernel32.CreateToolhelp32Snapshot.restype = wintypes.HANDLE
+    snapshot = kernel32.CreateToolhelp32Snapshot(0x00000002, 0)  # TH32CS_SNAPPROCESS
+    if snapshot in (None, wintypes.HANDLE(-1).value):
+        return True
+    try:
+        entry = PROCESSENTRY32W()
+        entry.dwSize = ctypes.sizeof(PROCESSENTRY32W)
+        ok = kernel32.Process32FirstW(snapshot, ctypes.byref(entry))
+        while ok:
+            if entry.szExeFile.lower() == name:
+                return True
+            ok = kernel32.Process32NextW(snapshot, ctypes.byref(entry))
+        return False
+    finally:
+        kernel32.CloseHandle(snapshot)
 
 
 class OpenVRService:
@@ -68,7 +150,16 @@ class OpenVRService:
         # Tracks the user's desired state so poll/reconnect only run when the
         # "Start and Stop With SteamVR" option is actually enabled.
         self.autostart_enabled: bool = False
-        self._reconnect_ticks: int = 0
+        # Registration succeeded against the SteamVR we are connected to.
+        self._registered: bool = False
+        # openvr.init can take ~100 ms while SteamVR is closed, so reconnects
+        # run on a worker thread; the lock serializes every OpenVR session change.
+        self._lock = threading.RLock()
+        self._connecting = False
+        self._next_reconnect = 0.0
+        self._next_liveness = 0.0
+        self._liveness_running = False
+        self._server_gone = False
         self.logger = getLogger(__name__)
 
     @property
@@ -81,6 +172,9 @@ class OpenVRService:
             "app_key": self.appKey,
             "launch_type": "binary",
             "is_dashboard_overlay": True,
+            # The config and logs resolve relative to the app; never inherit
+            # whatever directory SteamVR happens to launch from.
+            "working_directory": _app_dir(),
             "strings": {
                 "en_us": {
                     "name": "EyeTrackVR",
@@ -105,16 +199,12 @@ class OpenVRService:
         with open(self.manifestPath, "w", encoding="utf-8") as f:
             json.dump(self._build_manifest(), f, indent=2)
 
-    def initialize(self) -> bool:
-        if self.is_initialized:
-            return True
-
+    def _connect(self) -> None:
         try:
             openvr.init(openvr.VRApplication_Background)
             self.app = openvr.IVRApplications()
-            self.is_initialized = True
         except openvr.error_code.InitError_Init_NoServerForBackgroundApp:
-            raise OpenVRException("SteamVR is not running")
+            raise SteamVRNotRunning("SteamVR is not running")
         except (
             openvr.error_code.InitError_Init_HmdNotFound,
             openvr.error_code.InitError_Init_HmdNotFoundPresenceFailed,
@@ -122,22 +212,36 @@ class OpenVRService:
             raise OpenVRException("No headset connected")
         except openvr.error_code.InitError_Init_PathRegistryNotFound:
             raise OpenVRException("SteamVR might not be installed")
-        except OpenVRException:
-            raise
         except Exception as e:
             raise OpenVRException(
                 f"Unknown SteamVR initialization error ({e.__class__.__name__})"
             )
-        return True
+        # Tell SteamVR this process is the auto-launch app, so it doesn't start
+        # a second copy of a manually opened EyeTrackVR.
+        try:
+            self.app.identifyApplication(os.getpid(), self.appKey)
+        except Exception:
+            pass
+
+    def initialize(self) -> bool:
+        with self._lock:
+            if self.is_initialized:
+                return True
+            self._connect()
+            self.is_initialized = True
+            self._server_gone = False
+            return True
 
     def _shutdown(self) -> None:
-        if self.is_initialized:
-            try:
-                openvr.shutdown()
-            except Exception:
-                pass
-        self.is_initialized = False
-        self.app = None
+        with self._lock:
+            if self.is_initialized:
+                try:
+                    openvr.shutdown()
+                except Exception:
+                    pass
+            self.is_initialized = False
+            self._registered = False
+            self.app = None
 
     def _call_app_api(self, action: str, callback) -> None:
         """Call an IVRApplications method and normalize binding errors.
@@ -153,49 +257,104 @@ class OpenVRService:
             detail = str(e).strip() or e.__class__.__name__
             raise OpenVRException(f"{action} failed: {detail}") from e
 
-    def _register(self) -> None:
-        """(Re)write the manifest and register it for auto-launch.
+    def _remove_stale_registration(self) -> None:
+        """Drop a registration for this app key that points at another install.
 
-        Requires a running SteamVR: raises OpenVRException("SteamVR is not
-        running") otherwise.
-        """
-        self.initialize()
+        Linux tarballs unpack to a versioned folder, and a reinstall or a moved
+        checkout changes the path too. SteamVR refuses a second manifest with the
+        same key, so auto-launch would keep starting the old (or missing) binary."""
+        try:
+            if not self.app.isApplicationInstalled(self.appKey):
+                return
+            old_binary = self.app.getApplicationPropertyString(
+                self.appKey, openvr.VRApplicationProperty_BinaryPath_String)
+            old_arguments = self.app.getApplicationPropertyString(
+                self.appKey, openvr.VRApplicationProperty_Arguments_String)
+        except Exception:
+            return
+        binary, arguments = _launch_target()
+        if old_binary and _same_path(old_binary, binary) and _unquote(old_arguments or "") == _unquote(arguments):
+            return
+        candidates = []
+        if old_binary:
+            candidates.append(os.path.join(os.path.dirname(old_binary), "app.vrmanifest"))
+        script = _unquote(old_arguments or "")
+        if script:
+            candidates.append(os.path.join(os.path.dirname(script), "app.vrmanifest"))
+        for path in candidates:
+            if _same_path(path, self.manifestPath):
+                continue
+            try:
+                self.app.removeApplicationManifest(path)
+                self.logger.log(INFO, f"[INFO] Removed stale SteamVR registration {path}")
+            except Exception:
+                pass
+
+    def _register_connected(self) -> None:
+        """Write the manifest and register it for auto-launch (session must be open)."""
         self.write_manifest()
-        self._call_app_api(
-            "Register manifest",
-            lambda: self.app.addApplicationManifest(self.manifestPath),
-        )
+        self._remove_stale_registration()
+        try:
+            self._call_app_api(
+                "Register manifest",
+                lambda: self.app.addApplicationManifest(self.manifestPath),
+            )
+        except OpenVRException as e:
+            key_taken = getattr(openvr.error_code, "ApplicationError_AppKeyAlreadyExists", ())
+            if not isinstance(e.__cause__, key_taken):
+                raise
+            # A registration we could not identify still holds the key: replace it.
+            self._call_app_api(
+                "Register manifest",
+                lambda: self.app.removeApplicationManifest(self.manifestPath),
+            )
+            self._call_app_api(
+                "Register manifest",
+                lambda: self.app.addApplicationManifest(self.manifestPath),
+            )
         self._call_app_api(
             "Enable auto-launch",
             lambda: self.app.setApplicationAutoLaunch(self.appKey, True),
         )
+        self._registered = True
         self.logger.log(
             INFO,
             f"{Fore.GREEN}[INFO] Registered EyeTrackVR for SteamVR auto-launch",
         )
 
+    def _register(self) -> None:
+        """(Re)write the manifest and register it for auto-launch.
+
+        Requires a running SteamVR: raises SteamVRNotRunning otherwise.
+        """
+        with self._lock:
+            self.initialize()
+            self._register_connected()
+
     def _unregister(self) -> None:
         """Best-effort removal of the auto-launch registration and manifest."""
-        try:
-            self.initialize()
-            if self.app is not None:
-                try:
-                    self.app.setApplicationAutoLaunch(self.appKey, False)
-                except Exception:
-                    pass
-                try:
-                    self.app.removeApplicationManifest(self.manifestPath)
-                except Exception:
-                    pass
-        except OpenVRException:
-            # SteamVR isn't running; deleting the manifest file is enough,
-            # since SteamVR won't auto-launch an app whose manifest no longer exists.
-            pass
-        try:
-            if os.path.exists(self.manifestPath):
-                os.remove(self.manifestPath)
-        except OSError:
-            pass
+        with self._lock:
+            try:
+                self.initialize()
+                if self.app is not None:
+                    try:
+                        self.app.setApplicationAutoLaunch(self.appKey, False)
+                    except Exception:
+                        pass
+                    try:
+                        self.app.removeApplicationManifest(self.manifestPath)
+                    except Exception:
+                        pass
+            except OpenVRException:
+                # SteamVR isn't running; deleting the manifest file is enough,
+                # since SteamVR won't auto-launch an app whose manifest no longer exists.
+                pass
+            self._registered = False
+            try:
+                if os.path.exists(self.manifestPath):
+                    os.remove(self.manifestPath)
+            except OSError:
+                pass
 
     def ensure_registered(self) -> None:
         """Re-assert auto-launch registration at startup.
@@ -221,36 +380,87 @@ class OpenVRService:
                 f"{Fore.YELLOW}[WARN] SteamVR auto-launch manifest could not be written ({e})",
             )
 
+    def _connect_in_background(self) -> None:
+        """Worker: connect to a SteamVR that started after us, then register."""
+        try:
+            with self._lock:
+                if self.is_initialized or not self.autostart_enabled:
+                    return
+                self._connect()
+                # Registering here covers enabling the option while SteamVR was
+                # closed: otherwise SteamVR would only learn of us on the next run.
+                if not self._registered:
+                    try:
+                        self._register_connected()
+                    except (OpenVRException, OSError) as e:
+                        self.logger.log(WARN, f"[WARN] SteamVR auto-launch registration failed ({e})")
+                self.is_initialized = True
+                self._server_gone = False
+                self.logger.log(INFO, "[INFO] Connected to SteamVR")
+        except OpenVRException:
+            pass
+        except Exception:
+            self.logger.exception("SteamVR connection attempt failed")
+        finally:
+            self._connecting = False
+
+    def _check_liveness(self) -> None:
+        try:
+            self._server_gone = not _vrserver_running()
+        finally:
+            self._liveness_running = False
+
     def poll_quit_event(self) -> bool:
-        """Drain the OpenVR event queue. Returns True if SteamVR sent a quit event."""
+        """Drain the OpenVR event queue. Returns True if SteamVR sent a quit event.
+
+        Called on the Tk thread every tick; never blocks on SteamVR."""
         if not self.autostart_enabled:
             return False
+        now = time.monotonic()
 
         if not self.is_initialized:
             # Lazily (re)connect so we can still detect SteamVR shutting down
-            # even when SteamVR started *after* this app. Throttled so we don't
-            # call openvr.init() on every ~33 ms tick while SteamVR is closed.
-            self._reconnect_ticks += 1
-            if self._reconnect_ticks < 150:
-                return False
-            self._reconnect_ticks = 0
-            try:
-                self.initialize()
-            except OpenVRException:
-                return False
+            # even when SteamVR started *after* this app.
+            if not self._connecting and now >= self._next_reconnect:
+                self._next_reconnect = now + _RECONNECT_S
+                self._connecting = True
+                threading.Thread(target=self._connect_in_background, daemon=True,
+                                 name="SteamVRConnect").start()
+            return False
 
+        if self._server_gone:
+            # SteamVR crashed or was killed: no quit event will ever come.
+            self.logger.log(INFO, "[INFO] SteamVR is gone; waiting for it to start again")
+            self._shutdown()
+            self._server_gone = False
+            self._next_reconnect = now + _RECONNECT_S
+            return False
+        if not self._liveness_running and now >= self._next_liveness:
+            self._next_liveness = now + _LIVENESS_S
+            self._liveness_running = True
+            threading.Thread(target=self._check_liveness, daemon=True, name="SteamVRLiveness").start()
+
+        if not self._lock.acquire(blocking=False):
+            return False  # a registration is in progress; poll next tick
         try:
             system = openvr.VRSystem()
             event = openvr.VREvent_t()
             while system.pollNextEvent(event):
                 if event.eventType == openvr.VREvent_Quit:
+                    # Tell SteamVR we are exiting so it doesn't wait on us.
+                    try:
+                        system.acknowledgeQuit_Exiting()
+                    except Exception:
+                        pass
                     self._shutdown()
                     return True
         except Exception:
             # Lost the connection (e.g. SteamVR closed without a clean quit
-            # event). Drop it and let the throttled reconnect above retry;
-            # don't force-quit the whole app on a transient polling error.
+            # event). Drop it and let the reconnect above retry; don't
+            # force-quit the whole app on a transient polling error.
             self._shutdown()
+        finally:
+            self._lock.release()
         return False
 
     def set_autostart(self, enabled: bool):
@@ -258,24 +468,21 @@ class OpenVRService:
         if enabled:
             try:
                 self._register()
-            except OpenVRException as e:
-                # SteamVR not running yet: keep the user's choice and apply it
-                # the next time the app starts with SteamVR open (ensure_registered).
-                # Only "not running" is soft; any other error propagates so the
-                # UI can surface it and revert the checkbox.
-                if "not running" in str(e).lower():
-                    self.logger.log(
-                        INFO,
-                        f"{Fore.CYAN}[INFO] SteamVR not running; auto-launch will be "
-                        f"registered the next time EyeTrackVR starts with SteamVR open.",
-                    )
-                    # Still drop a manifest so a manual SteamVR scan can find it.
-                    try:
-                        self.write_manifest()
-                    except OSError:
-                        pass
-                    return
-                raise
+            except SteamVRNotRunning:
+                # SteamVR not running yet: keep the user's choice. The background
+                # reconnect registers as soon as SteamVR starts. Any other error
+                # propagates so the UI can surface it and revert the checkbox.
+                self.logger.log(
+                    INFO,
+                    f"{Fore.CYAN}[INFO] SteamVR not running; auto-launch will be "
+                    f"registered as soon as SteamVR starts.",
+                )
+                # Still drop a manifest so a manual SteamVR scan can find it.
+                try:
+                    self.write_manifest()
+                except OSError:
+                    pass
+                self._next_reconnect = 0.0
         else:
             self._unregister()
             # Stop listening for SteamVR quit events once the option is off.

@@ -33,3 +33,5 @@ EyeTrackApp/IBO_RIGHT.png
 release/
 INNO/Output/
 eyetrackapp/INNO/Output/
+# SteamVR auto-launch manifest, written at runtime
+app.vrmanifest

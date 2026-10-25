@@ -139,6 +139,11 @@ def _dsp_service_listening() -> bool:
 
 _is_steam_frame: bool | None = None
 
+# Set while data collection records on a Steam Frame: the eye threads keep
+# draining their camera queues but run no tracking models, so the recording
+# gets the CPU and the full camera rate.
+models_paused_for_recording = threading.Event()
+
 
 def is_steam_frame() -> bool:
     """True when running on a Steam Frame with its eye-camera service available."""

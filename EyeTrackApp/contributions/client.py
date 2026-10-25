@@ -18,7 +18,7 @@ from urllib.parse import urlsplit
 
 import requests
 
-from .bundles import clean_hmd, dataset_bundle, inspect_bundle, submission_record
+from .bundles import clean_hmd, dataset_bundle, inspect_bundle, issue_bundle, submission_record
 from .private_files import restrict_access
 
 SERVICE = "https://etvr-dataset-sync-staging.beauldb.workers.dev"
@@ -46,6 +46,16 @@ QUOTA_MESSAGES = {
                       + SUPPORT + " to get it uploaded.",
     "chunk_attempts": "This upload failed too many times. Withdraw it and record again, or " + SUPPORT + ".",
     "rate_limited": "Too many requests right now. Wait a minute, then use Resume.",
+}
+# Bug reports have their own quotas on the service; same codes, report wording.
+ISSUE_QUOTA_MESSAGES = {
+    "daily_quota": "Today's bug report limit for everyone has been reached. Your encrypted report is saved "
+                   "and will send when you retry after midnight UTC, or " + SUPPORT + ".",
+    "network_quota": "Your network has sent today's maximum number of bug reports. Your encrypted report is "
+                     "saved; retry after midnight UTC, or " + SUPPORT + ".",
+    "lifetime_quota": "Bug reports are full for now. Please " + SUPPORT + " instead.",
+    "chunk_attempts": "This report failed to send too many times. Please " + SUPPORT + ".",
+    "rate_limited": "Too many requests right now. Wait a minute, then retry.",
 }
 
 
@@ -87,14 +97,21 @@ def private_directory(path):
     return path
 
 
-def receipt_home():
+def _data_home():
     if os.name == "nt":
-        base = Path(os.environ.get("LOCALAPPDATA", Path.home() / "AppData/Local"))
-    elif __import__("sys").platform == "darwin":
-        base = Path.home() / "Library/Application Support"
-    else:
-        base = Path(os.environ.get("XDG_DATA_HOME", Path.home() / ".local/share"))
-    return base / "EyeTrackVR/contributions"
+        return Path(os.environ.get("LOCALAPPDATA", Path.home() / "AppData/Local"))
+    if __import__("sys").platform == "darwin":
+        return Path.home() / "Library/Application Support"
+    return Path(os.environ.get("XDG_DATA_HOME", Path.home() / ".local/share"))
+
+
+def receipt_home():
+    return _data_home() / "EyeTrackVR/contributions"
+
+
+def issue_home():
+    """Bug-report receipts live apart from dataset contributions."""
+    return _data_home() / "EyeTrackVR/issue-reports"
 
 
 def digest(path):
@@ -186,6 +203,8 @@ class ContributionClient:
                              "Update EyeTrackVR to contribute. Saved receipts can still withdraw.")
         if config.get("quota_full") not in QUOTA_MESSAGES:
             config["quota_full"] = None
+        if config.get("issue_quota_full") not in ISSUE_QUOTA_MESSAGES:
+            config["issue_quota_full"] = None
         return config
 
     def paths(self, sid):
@@ -204,7 +223,7 @@ class ContributionClient:
     def validate(self, data):
         # Schema 2 receipts predate encrypted HMD text; they can still resume or withdraw.
         if (data.get("schema") not in {2, 3} or not ID.fullmatch(data.get("id", ""))
-                or data.get("api") != self.service or data.get("kind") != "dataset"
+                or data.get("api") != self.service or data.get("kind") not in {"dataset", "issue"}
                 or not re.fullmatch(r"[A-Za-z0-9_-]{43}", data.get("withdrawal_token", ""))
                 or not SHA.fullmatch(data.get("sha256", ""))
                 or type(data.get("size")) is not int or not 0 < data["size"] <= 256 * 1024**2
@@ -231,49 +250,64 @@ class ContributionClient:
             raise Paused("Paused. Resume will reuse the exact encrypted payload.")
 
     def prepare(self, source, hmd, agreed_terms, cancel, progress):
-        config = self.config()
-        if not config["enabled"]:
-            raise ValueError("Collection is currently closed")
-        if config["terms"]["dataset"] != agreed_terms:
-            raise ValueError("The collection terms changed. Review the updated terms before uploading.")
         hmd = clean_hmd(hmd)
         if Path(source).stat().st_size > 256 * 1024**2:
             raise ValueError("This archive exceeds the 256 MiB preparation limit")
+        # The HMD text and consent binding travel only inside the ciphertext.
+        return self._seal("dataset", agreed_terms, cancel, progress, lambda bundle, submission:
+                          dataset_bundle(source, bundle, submission), hmd=hmd)
+
+    def prepare_issue(self, description, logs, agreed_terms, cancel, progress):
+        """Encrypt a written bug report plus explicitly chosen text logs (redacted by issue_bundle)."""
+        return self._seal("issue", agreed_terms, cancel, progress, lambda bundle, submission:
+                          issue_bundle(description, logs, bundle, submission))
+
+    def _seal(self, kind, agreed_terms, cancel, progress, build, hmd=None):
+        noun = "recording" if kind == "dataset" else "report"
+        config = self.config()
+        if not config["enabled"]:
+            raise ValueError("Collection is currently closed")
+        if config["terms"][kind] != agreed_terms:
+            raise ValueError("The collection terms changed. Review the updated terms before uploading.")
+        limit = config["max_bytes"].get(kind)
+        if type(limit) is not int or not 1 <= limit <= 256 * 1024**2:
+            raise ValueError("Invalid contribution service configuration")
         sid = uuid.uuid4().hex
         receipt, ciphertext = self.paths(sid)
         terms_sha256 = hashlib.sha256(agreed_terms["text"].encode()).hexdigest()
         self.check_pause(cancel)
         progress("Preparing and encrypting locally…", 0, 0)
         with tempfile.TemporaryDirectory(prefix="prepare-", dir=self.directory) as tmp:
-            bundle = Path(tmp) / "capture.zip"
-            # The HMD text and consent binding travel only inside the ciphertext.
-            dataset_bundle(source, bundle, submission_record(
-                sid, "dataset", agreed_terms["version"], terms_sha256, hmd))
+            bundle = Path(tmp) / (kind + ".zip")
+            build(bundle, submission_record(sid, kind, agreed_terms["version"], terms_sha256, hmd))
             self.check_pause(cancel)
             # Maintainers reject anything inspect_bundle rejects; fail here, before upload.
-            inspect_bundle(bundle)
+            inspect_bundle(bundle, kind)
             self.check_pause(cancel)
             # age-compatible Rust implementation; no external executable or private key.
             from pyrage import encrypt_file, x25519
-            if bundle.stat().st_size > config["max_bytes"]["dataset"]:
-                raise ValueError("This recording exceeds the upload size limit")
+            if bundle.stat().st_size > limit:
+                raise ValueError(f"This {noun} exceeds the upload size limit")
             temporary = Path(tmp) / "payload.age"
             encrypt_file(str(bundle), str(temporary), [x25519.Recipient.from_str(key) for key in self.recipients])
-            if temporary.stat().st_size > config["max_bytes"]["dataset"]:
-                raise ValueError("The encrypted recording exceeds the upload size limit")
+            if temporary.stat().st_size > limit:
+                raise ValueError(f"The encrypted {noun} exceeds the upload size limit")
             temporary.chmod(0o600)
             record = {"schema": 3, "api": self.service, "id": sid, "withdrawal_token": secrets.token_urlsafe(32),
-                      "kind": "dataset", "hmd": hmd, "consent": True, "prepared": time.strftime("%Y-%m-%d"),
+                      "kind": kind, "consent": True, "prepared": time.strftime("%Y-%m-%d"),
                       "terms_version": agreed_terms["version"], "terms_sha256": terms_sha256,
                       "size": temporary.stat().st_size, "sha256": digest(temporary),
                       "chunk_bytes": config["chunk_bytes"], "chunks": hashes(temporary, config["chunk_bytes"]),
                       "state": "prepared"}
+            if hmd is not None:
+                record["hmd"] = hmd
             os.replace(temporary, ciphertext)
             save(receipt, record)
         return sid
 
     def resume(self, sid, verify, consent, cancel, progress):
         record = self.read(sid)
+        noun = "recording" if record["kind"] == "dataset" else "report"
         receipt, ciphertext = self.paths(sid)
         prefix = "/v1/submissions/" + sid
         def call(method, suffix="", **kwargs):
@@ -307,7 +341,7 @@ class ContributionClient:
                 raise ValueError("Collection is currently closed; your upload is retained for resume")
             if record["chunk_bytes"] != config["chunk_bytes"]:
                 raise ValueError("Upload chunk size changed. Cancel this preparation and start a new contribution.")
-            terms = config["terms"]["dataset"]
+            terms = config["terms"][record["kind"]]
             if (record["terms_version"] != terms["version"] or record["terms_sha256"] != hashlib.sha256(terms["text"].encode()).hexdigest()):
                 if not consent(terms):
                     raise Paused("Updated terms were not accepted. Upload remains paused.")
@@ -321,7 +355,12 @@ class ContributionClient:
             fields = ("id", "kind", "consent", "terms_version", "terms_sha256", "size", "sha256", "chunks")
             body = {k: record[k] for k in fields}
             body["challenge"] = token
-            state = self.request("POST", "/v1/submissions", record["withdrawal_token"], json=body)
+            try:
+                state = self.request("POST", "/v1/submissions", record["withdrawal_token"], json=body)
+            except ServiceError as error:
+                if record["kind"] == "issue" and error.code in ISSUE_QUOTA_MESSAGES:
+                    raise ValueError(ISSUE_QUOTA_MESSAGES[error.code]) from None
+                raise
         received = {item["part"]: item["sha256"] for item in state["received"]}
         if any(type(p) is not int or not 0 <= p < len(record["chunks"]) or record["chunks"][p] != h
                for p, h in received.items()):
@@ -329,7 +368,7 @@ class ContributionClient:
         record["state"] = "uploading"
         save(receipt, record)
         done = sum(min(record["chunk_bytes"], record["size"] - p * record["chunk_bytes"]) for p in received)
-        progress("Uploading encrypted recording…", done, record["size"])
+        progress(f"Uploading encrypted {noun}…", done, record["size"])
         with ciphertext.open("rb") as stream:
             for part, expected in enumerate(record["chunks"]):
                 if part in received:
@@ -345,7 +384,7 @@ class ContributionClient:
                         def read(inner, count=-1):
                             self.check_pause(cancel)
                             data = super().read(count)
-                            progress("Sending encrypted recording…", done + inner.tell(), record["size"])
+                            progress(f"Sending encrypted {noun}…", done + inner.tell(), record["size"])
                             return data
                     try:
                         call("PUT", "/chunks/" + str(part), data=Upload(block),
@@ -360,7 +399,7 @@ class ContributionClient:
                         if cancel.wait(2**attempt):
                             self.check_pause(cancel)
                 done += len(block)
-                progress("Uploaded encrypted recording…", done, record["size"])
+                progress(f"Uploaded encrypted {noun}…", done, record["size"])
         self.check_pause(cancel)
         state = call("POST", "/complete", json={})
         record["state"] = state["status"]

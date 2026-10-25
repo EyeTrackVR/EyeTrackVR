@@ -71,7 +71,13 @@ import onnxruntime
 
 from eye import EyeId
 from frame_eye import is_steam_frame
-from next_model import HYBRID_MODEL_STEMS, SHARED_GAZE_Y_SIGN, model_file_for_variant
+from next_model import (
+    NEXT_FILTER_STEP_S,
+    SHARED_GAZE_Y_SIGN,
+    TimedMedian,
+    model_file_for_variant,
+    split_variant,
+)
 from one_euro_filter import OneEuroFilter
 from utils.misc_utils import resource_path
 from utils.onnx_runtime import DML_INFERENCE_LOCK, create_inference_session
@@ -118,40 +124,16 @@ _PEER_ACTIVE_S = 1.0
 # Paired sources only: how long an eye waits for the other half of its pair.
 _PAIR_WAIT_S = 0.008
 
-# Suffix marking an fp16 ("Lite") variant, shared with next_model.py.
-_LITE_SUFFIX = " LITE"
-
 _OTHER_EYE = {EyeId.LEFT: EyeId.RIGHT, EyeId.RIGHT: EyeId.LEFT}
 
 
-def stereo_variant_key(variant: str) -> tuple:
-    """(base variant, fp16) for a GUI model-variant string."""
-    value = str(variant or "ETVR").upper()
-    if value.endswith(_LITE_SUFFIX):
-        return value[: -len(_LITE_SUFFIX)].strip(), True
-    return value, False
-
-
 def stereo_model_file(variant: str):
-    """The shared Hybrid/stereo ONNX for a GUI variant, or None if absent.
+    """The shared Hybrid ONNX for a GUI variant, or None if absent.
 
-    Hybrid variants use the same export as the per-eye fallback. Other
-    variants retain their legacy stereo filename.
-
-    fp16 (the 'Lite' precision) falls back to the full-precision stereo model
-    if the half-precision build isn't shipped."""
-    base, fp16 = stereo_variant_key(variant)
-    if base in HYBRID_MODEL_STEMS:
-        hybrid = model_file_for_variant(variant)
-        return hybrid if os.path.exists(resource_path(hybrid)) else None
-    if fp16:
-        lite = f"Models/NEXT_{base}_STEREO.fp16.onnx"
-        if os.path.exists(resource_path(lite)):
-            return lite
-    full = f"Models/NEXT_{base}_STEREO.onnx"
-    if os.path.exists(resource_path(full)):
-        return full
-    return None
+    Every headset and model size uses the same export as the per-eye
+    fallback."""
+    hybrid = model_file_for_variant(variant)
+    return hybrid if os.path.exists(resource_path(hybrid)) else None
 
 
 class _Frame:
@@ -233,13 +215,16 @@ class NEXT_Stereo_cls:
         black = np.zeros((3, self.input_size, self.input_size), dtype=np.float32)
         self.black = black if self.raw_input else ((black - _MEAN) / _STD)
 
+        # Fixed-step filter and time-span medians: one eye (one pass per frame)
+        # and two eyes (a pass per frame of either eye) respond identically.
         self.one_euro_filter = OneEuroFilter(
-            np.zeros(8, dtype=np.float32), min_cutoff=1.0, beta=0.0
+            np.zeros(8, dtype=np.float32), min_cutoff=1.0, beta=0.0,
+            step_s=NEXT_FILTER_STEP_S,
         )
-        self._brow_l_window = deque(maxlen=_BROW_MEDIAN_WINDOW)
-        self._brow_r_window = deque(maxlen=_BROW_MEDIAN_WINDOW)
-        self._gaze_x_window = deque(maxlen=_GAZE_MEDIAN_WINDOW)
-        self._gaze_y_window = deque(maxlen=_GAZE_MEDIAN_WINDOW)
+        self._brow_l_window = TimedMedian(_BROW_MEDIAN_WINDOW)
+        self._brow_r_window = TimedMedian(_BROW_MEDIAN_WINDOW)
+        self._gaze_x_window = TimedMedian(_GAZE_MEDIAN_WINDOW)
+        self._gaze_y_window = TimedMedian(_GAZE_MEDIAN_WINDOW)
         # Last raw expression triple each eye produced while it was actually
         # fed to the model (see postprocess).
         self._last_expr = {EyeId.LEFT: None, EyeId.RIGHT: None}
@@ -304,14 +289,11 @@ class NEXT_Stereo_cls:
                 raw[base:base + 3] = self._last_expr[eye]
 
         # Running-median spike reject on the two eyebrows and the shared gaze.
-        self._brow_l_window.append(float(raw[0]))
-        raw[0] = float(np.median(self._brow_l_window))
-        self._brow_r_window.append(float(raw[3]))
-        raw[3] = float(np.median(self._brow_r_window))
-        self._gaze_x_window.append(float(raw[6]))
-        raw[6] = float(np.median(self._gaze_x_window))
-        self._gaze_y_window.append(float(raw[7]))
-        raw[7] = float(np.median(self._gaze_y_window))
+        now = time.perf_counter()
+        raw[0] = self._brow_l_window(float(raw[0]), now)
+        raw[3] = self._brow_r_window(float(raw[3]), now)
+        raw[6] = self._gaze_x_window(float(raw[6]), now)
+        raw[7] = self._gaze_y_window(float(raw[7]), now)
 
         return self.one_euro_filter(raw).astype(np.float32)
 
@@ -519,10 +501,10 @@ def get_stereo_coordinator(variant: str, use_gpu: bool = False):
     None when the selected variant has no shared build or its session cannot
     be created. A None result selects the per-eye NEXT fallback.
 
-    Rebuilt when the variant, precision or execution device changes."""
+    Rebuilt when the headset, model size or execution device changes."""
     global _coordinator, _coordinator_key
-    base, fp16 = stereo_variant_key(variant)
-    key = (base, fp16, bool(use_gpu))
+    hmd, size = split_variant(variant)
+    key = (hmd, size, bool(use_gpu))
     with _coordinator_lock:
         if _coordinator_key == key:
             return _coordinator
@@ -531,7 +513,7 @@ def get_stereo_coordinator(variant: str, use_gpu: bool = False):
         if path is None:
             logger.info(
                 "No shared NEXT model for variant %s; using the per-eye model for "
-                "both eyes.", base,
+                "both eyes.", hmd,
             )
         else:
             try:

@@ -104,7 +104,11 @@ DEFAULT_LID_WIDEN_THRESHOLD = 0.9
 #           choice (no GUI control ever existed) and defaulted True, which
 #           both routed Start Calibration to the ellipse spiral and blocked
 #           the Smart Calib transform from being applied.
-CURRENT_CONFIG_VERSION: int = 5
+#   5 -> 6: the NEXT model selector split into a headset (gui_model_variant)
+#           and a model size (gui_model_size). "<HMD> LITE" variants become
+#           headset <HMD> at size LITE, and TOBII folds into PSVR (one shared
+#           model family).
+CURRENT_CONFIG_VERSION: int = 6
 
 
 def _migrate_config_dict(data: dict) -> dict:
@@ -178,6 +182,22 @@ def _migrate_config_dict(data: dict) -> dict:
             logger.info(
                 "Migrated config from v4: NEXT now always calibrates via Smart Calib"
             )
+
+    if stored < 6:
+        settings = data.get("settings")
+        if isinstance(settings, dict):
+            parts = str(settings.get("gui_model_variant") or "ETVR").upper().split()
+            if parts and parts[0] == "TOBII":
+                parts[0] = "PSVR"
+                settings["gui_model_variant"] = "PSVR"
+                logger.info("Migrated config from v5: TOBII model folded into PSVR")
+            if len(parts) > 1:
+                settings["gui_model_variant"] = parts[0]
+                settings["gui_model_size"] = parts[1]
+                logger.info(
+                    "Migrated config from v5: model %s split into headset + size",
+                    " ".join(parts),
+                )
 
     data["version"] = CURRENT_CONFIG_VERSION
     return data
@@ -386,10 +406,14 @@ class EyeTrackSettingsConfig(BaseModel):
     # neutral throughout the dot sequence, so those captures anchor "normal
     # open" / "neutral brow" to their target output values.
     gui_NEXT_calib_lids_brows: bool = True
-    # Model variant: ETVR / BSB / PSVR / TOBII. PSVR is a manual NEXT-only
-    # choice; setup-mode auto-selection remains limited to ETVR and BSB.
-    # Selects Models/NEXT_<VARIANT>.onnx and Models/Eyebrow_<VARIANT>.onnx.
+    # Headset (HMD) the models were trained for: ETVR / BSB / PSVR (shown as
+    # PSVR/TOBII). PSVR is a manual NEXT-only choice; setup-mode auto-selection remains
+    # limited to ETVR and BSB. Selects the NEXT Hybrid family and
+    # Models/Eyebrow_<VARIANT>.onnx.
     gui_model_variant: str = "ETVR"
+    # NEXT model size within that headset's family, lightest to best:
+    # NANO / MICRO / MINI / SMALL / LITE / NORMAL (see next_model.MODEL_SIZES).
+    gui_model_size: str = "NORMAL"
     # True once the user has manually picked a model variant. While False, the
     # variant tracks the main-tracking setup mode (bigscreen -> BSB, etvr -> ETVR).
     gui_model_variant_user_set: bool = False
@@ -404,7 +428,10 @@ class EyeTrackSettingsConfig(BaseModel):
     gui_min_cutoff: str = "0.003162"
     gui_speed_coefficient: str = "1.5250"
     gui_smoothing_intensity: int = 50
+    # "auto" (the Steam Frame default) sends to the PC Steam streams from; see
+    # osc/streaming_target.py.
     gui_osc_address: str = "127.0.0.1"
+    gui_osc_auto_on_frame: bool = False  # the one-time switch to "auto" on a Frame is done
     gui_osc_port: int = 9000
     gui_osc_receiver_port: int = 9001
     gui_osc_recenter_address: str = "/avatar/parameters/etvr_recenter"
@@ -450,8 +477,8 @@ class EyeTrackSettingsConfig(BaseModel):
     osc_eyes_pupil_dilation_address: str = "/avatar/parameters/EyesDilation"
     osc_invert_eye_close: bool = False
     gui_RANSACBLINK: bool = False
-
-    gui_disable_gui: bool = False
+    # gui_disable_gui (the GUI OFF button) is gone; old configs may still carry
+    # the key and pydantic ignores it.
 
     gui_right_eye_dominant: bool = False
     gui_left_eye_dominant: bool = False

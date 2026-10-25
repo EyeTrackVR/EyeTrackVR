@@ -40,26 +40,22 @@ os.environ["OMP_NUM_THREADS"] = (
 )
 logger = logging.getLogger(__name__)
 
-# Supported model variants. The selector in the GUI picks one of these and the
-# matching ONNX file (Models/Eyebrow_<VARIANT>.onnx) is loaded. The "<BASE> LITE"
-# variants are the fp16 NEXT builds; the eyebrow model has no fp16 build, so Lite
-# falls back to the base variant's eyebrow file here.
-MODEL_VARIANTS = ("ETVR", "BSB", "PSVR", "TOBII", "ETVR LITE", "BSB LITE", "PSVR LITE")
+# Supported headsets. The GUI headset selector picks one of these and the
+# matching ONNX file (Models/Eyebrow_<VARIANT>.onnx) is loaded. The eyebrow
+# model comes in one size only, so a NEXT model-size suffix ("ETVR LITE",
+# "BSB NANO", ...) resolves to the headset's eyebrow file.
+MODEL_VARIANTS = ("ETVR", "BSB", "PSVR")
 DEFAULT_MODEL_VARIANT = "ETVR"
-# Suffix that marks an fp16 ("Lite") variant.
-_LITE_SUFFIX = " LITE"
 
 
 def model_file_for_variant(variant: str) -> str:
-    """Map a variant name to its eyebrow ONNX path. The eyebrow model has no fp16
-    build, so '<BASE> LITE' resolves to the base variant's Eyebrow_<BASE>.onnx."""
-    variant = (variant or DEFAULT_MODEL_VARIANT).upper()
-    if variant not in MODEL_VARIANTS:
-        variant = DEFAULT_MODEL_VARIANT
-    if variant.endswith(_LITE_SUFFIX):
-        variant = variant[: -len(_LITE_SUFFIX)].strip()
-    # PSVR is a NEXT-only model family. Keep the independent eyebrow tracker on
-    # its general ETVR model instead of requiring an Eyebrow_PSVR artifact.
+    """Map a variant name to its eyebrow ONNX path, ignoring any NEXT
+    model-size suffix."""
+    parts = str(variant or DEFAULT_MODEL_VARIANT).upper().split()
+    variant = parts[0] if parts and parts[0] in MODEL_VARIANTS else DEFAULT_MODEL_VARIANT
+    # PSVR/Tobii is a NEXT-only model family. Keep the independent eyebrow
+    # tracker on its general ETVR model instead of requiring an Eyebrow_PSVR
+    # artifact.
     if variant == "PSVR":
         variant = "ETVR"
     return f"Models/Eyebrow_{variant}.onnx"

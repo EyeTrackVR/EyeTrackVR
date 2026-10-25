@@ -43,11 +43,16 @@ from config import (
 from pye3d.camera import CameraModel
 from pye3d.detector_3d import Detector3D, DetectorMode
 import queue
+
+import cv2
+import numpy as np
+
 from osc_calibrate_filter import *
 from daddy import External_Run_DADDY
 from leap import External_Run_LEAP
-from next_model import External_Run_NEXT
+from next_model import External_Run_NEXT, variant_from_settings
 from next_stereo_model import get_stereo_coordinator
+from frame_eye import models_paused_for_recording
 from haar_surround_feature import External_Run_HSF
 from ransac import *
 from blink import *
@@ -55,7 +60,6 @@ from utils.img_utils import circle_crop
 from eye import EyeId, EyeInfo, EyeInfoOrigin
 from intensity_based_openness import *
 from ellipse_based_pupil_dilation import *
-from AHSF import *
 from osc.OSCMessage import OSCMessageType, OSCMessage
 from eyebrow import EyeBrow
 from utils.calibration_elipse import *
@@ -312,7 +316,8 @@ class EyeProcessor:
         self.eyebrow_runner: EyeBrow | None = None
         self.cal = CalibrationEllipse()
         self.squeeze = 0.0
-        self.ahsf_detector = PupilDetectorHaar()
+        # Built on first use: AHSF pulls in numba (~0.5 s, ~36 MB) at import.
+        self.ahsf_detector = None
 
         # Robust calibration pipeline
         self.robust_cal = RobustCalibrationSession()
@@ -859,7 +864,7 @@ class EyeProcessor:
             mid = next_frame.shape[1] // 2
             next_frame = next_frame[:, :mid] if self.eye_id == EyeId.LEFT else next_frame[:, mid:]
 
-        variant = getattr(self.settings, "gui_model_variant", "ETVR")
+        variant = variant_from_settings(self.settings)
         coord = get_stereo_coordinator(variant, self.settings.gui_use_gpu)
         if coord is not None:
             # The Frame's two cameras deliver each pair together.
@@ -1166,6 +1171,13 @@ class EyeProcessor:
         # Walked past the end without success: reset for next frame.
         self.failed = 0
 
+    def _ahsf(self):
+        if getattr(self, "ahsf_detector", None) is None:
+            from AHSF import PupilDetectorHaar
+
+            self.ahsf_detector = PupilDetectorHaar()
+        return self.ahsf_detector
+
     def _rebuild_algorithm_slots(self) -> None:
         """Rebuild _algorithm_slots from current settings. Called each frame so
         algo changes take effect immediately without a thread restart. Runner
@@ -1175,12 +1187,12 @@ class EyeProcessor:
 
         if self.settings.gui_AHRAC:
             if self.ahsf_runner is None:
-                self.ahsf_runner = self.ahsf_detector
+                self.ahsf_runner = self._ahsf()
             enabled_algorithms.append(self.AHRACM)
 
         if self.settings.gui_AHSF:
             if self.ahsf_runner is None:
-                self.ahsf_runner = self.ahsf_detector
+                self.ahsf_runner = self._ahsf()
             enabled_algorithms.append(self.AHSFM)
 
         if self.settings.gui_HSF:
@@ -1231,7 +1243,7 @@ class EyeProcessor:
         # migrated on load, and it's honored here so a stale flag can never
         # leave the user with no tracker at all.
         if self.settings.gui_NEXT or self.settings.gui_NEXT_BSB:
-            variant = getattr(self.settings, "gui_model_variant", "ETVR")
+            variant = variant_from_settings(self.settings)
             use_gpu = bool(self.settings.gui_use_gpu)
             coord = get_stereo_coordinator(variant, use_gpu)
             if coord is not None and coord.supports_single_eye:
@@ -1371,6 +1383,9 @@ class EyeProcessor:
                     pass
             except queue.Empty:
                 continue
+
+            if models_paused_for_recording.is_set():
+                continue  # data collection is recording on a Steam Frame
 
             # Enforce tracking Hz limit
             max_hz = getattr(self.settings, "gui_max_tracking_speed", 0)

@@ -1,5 +1,5 @@
 """
-Experimental "pyVRCFT" output mode.
+Beta "pyVRCFT" output mode.
 
 Instead of emitting a handful of hard-coded ``/avatar/parameters/v2/*`` messages
 (the VRCFT-v2 mode) or feeding an external VRCFaceTracking module, this sender
@@ -48,7 +48,7 @@ class PyVRCFTSender:
         self.data.eye_tracking_active = True
         self.is_single_eye = False
 
-    def start(self, config):
+    def start(self, config, send_host=None):
         """Spin up the embedded VRCFT client's background threads.
 
         Sends to VRChat's OSC input (gui_osc_address:gui_osc_port) and listens
@@ -76,8 +76,9 @@ class PyVRCFTSender:
         # decision is re-made (and the port released) at runtime too.
         if config.gui_ROSC:
             recv_port = 0
+        send_host = str(send_host if send_host is not None else config.gui_osc_address)
         self.client = VRCFTClient(
-            send_host=str(config.gui_osc_address),
+            send_host=send_host,
             send_port=int(config.gui_osc_port),
             recv_port=recv_port,
         )
@@ -92,7 +93,7 @@ class PyVRCFTSender:
         self.client.start()
         logger.info(
             "pyVRCFT sender started -> %s:%s (recv :%s%s)",
-            config.gui_osc_address,
+            send_host,
             config.gui_osc_port,
             recv_port,
             " [OSCQuery-only, ROSC owns receiver]" if config.gui_ROSC else "",
@@ -110,7 +111,7 @@ class PyVRCFTSender:
         eye.openness = _finite(openness, eye.openness)
         # EyeTrackVR's pupil_dilation is already ~normalized; the port re-runs
         # VRCFT's stateful min/max normalization on top, treating this as a
-        # diameter. Good enough for the experimental mode.
+        # diameter. Good enough for the beta mode.
         eye.pupil_diameter_mm = _finite(eye_info.pupil_dilation, eye.pupil_diameter_mm)
 
     def _set_shape(self, name: str, value) -> None:

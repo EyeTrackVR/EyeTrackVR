@@ -75,4 +75,27 @@ assert client.withdraw(sid) == "withdrawn"
 response = requests.get(base + "/v1/sync/submissions/" + sid + "/chunks/0",
                         headers={"Authorization": "Bearer " + sync},timeout=30)
 assert response.status_code in (403,404,409)
-print(json.dumps({"id":sid,"resumed":True,"decrypted":True,"withdrawn":True}))
+
+# Bug report: separate receipts folder, issue terms, redacted log, same E2E encryption.
+reports = ContributionClient(base, root / "desktop-issues", recipients=[str(identity.to_public())])
+log = root / "eyetrackapp-e2e.log"
+log.write_text("ERROR camera lost at C:\\Users\\alice\\cam from 10.0.0.7\n", encoding="utf-8")
+issue_terms = reports.config()["terms"]["issue"]
+rid = reports.prepare_issue("Preview froze", [log], issue_terms, cancel, lambda *a: None)
+assert reports.resume(rid, lambda *a: "good-desktop-issue-token", lambda *a: False, cancel,
+                      lambda *a: None) == "pending"
+issue = reports.request("GET", "/v1/sync/submissions/" + rid, sync)
+assert issue["kind"] == "issue" and issue["hmd"] is None
+encrypted = b""
+for chunk in issue["chunks"]:
+    response = requests.get(base + "/v1/sync/submissions/" + rid + "/chunks/" + str(chunk["part"]),
+                            headers={"Authorization": "Bearer " + sync}, timeout=30)
+    response.raise_for_status()
+    encrypted += response.content
+with zipfile.ZipFile(io.BytesIO(pyrage.decrypt(encrypted, [identity]))) as archive:
+    assert archive.read("description.txt") == b"Preview froze"
+    text = archive.read("log-1.txt").decode()
+    assert "alice" not in text and "10.0.0.7" not in text
+    assert json.loads(archive.read("submission.json"))["kind"] == "issue"
+assert reports.withdraw(rid) == "withdrawn"
+print(json.dumps({"id":sid,"resumed":True,"decrypted":True,"withdrawn":True,"issue":True}))

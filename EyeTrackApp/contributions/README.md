@@ -12,8 +12,11 @@ attachment. Preparing the same recording twice is blocked; existing prepared
 submissions resume through Your contributions. Nothing uploads automatically.
 
 The manager fetches the current notice from the configured HTTPS service. The only
-dataset fields are HMD free text and an unchecked 18+/self-contribution consent
-control. It packages allowlisted captures, removes incidental archive metadata,
+dataset fields are HMD free text and two separate, unchecked consent controls:
+the agreement (18+/self-contribution) and explicit consent for possibly biometric
+or health-related eye images and the US transfer. Their labels are the notice's own
+numbered statements, so the recorded notice version and hash cover them. Bug
+reports have the same pair (agreement, US transfer). It packages allowlisted captures, removes incidental archive metadata,
 encrypts locally using pyrage's age-compatible streaming API and uploads encrypted
 chunks through the quota-enforcing Worker. No storage credentials or private
 decryption keys ship with the app. No private backend package dependency is needed.
@@ -88,3 +91,14 @@ ID and agreed terms. prepare() runs bundles.inspect_bundle on its own output, th
 check maintainers apply after decryption. Schema 2 receipts can still withdraw and
 resume existing sessions. Keep PINNED_RECIPIENTS in step with ETVR-Dataset-Sync
 src/etvr_sync/core.py and worker/collection.json.
+
+
+Bug reports (2026-10-24): Having Issues? → Report a bug opens report_window.py. The user
+writes a description and may attach the tail (last 3 MiB) of this session's log, the
+previous session's log, and a short app-details block (version, OS, tracker/model
+settings). issue_bundle redacts home paths, IPs, emails and tokens; the bundle is the
+service's separate "issue" kind with its own notice, 90-day retention and quotas, and
+receipts live in issue_home() (EyeTrackVR/issue-reports), never in Your contributions.
+Encryption, verification and upload reuse the dataset path. A failed send keeps the exact
+ciphertext and a retry of the unchanged report resumes it; an edited report replaces it.
+Maintainers pull reports with `etvr-dataset sync --kind issue --pending` (quarantine/issue/).

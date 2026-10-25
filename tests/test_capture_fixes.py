@@ -119,6 +119,18 @@ def test_single_left_eye_cleanup_detaches_its_queue(no_worker):
         w.session_running = False  # what _poll_gui_queue does on session_done
 
 
+@pytest.mark.parametrize("on_frame", [True, False])
+def test_recording_on_a_frame_pauses_tracking_until_it_ends(no_worker, monkeypatch, on_frame):
+    monkeypatch.setattr(data_collection, "is_steam_frame", lambda: on_frame)
+    paused = data_collection.models_paused_for_recording
+    paused.clear()
+    w = _make_window([FakeEye("RIGHT", True, FakeCamera()), FakeEye("LEFT", True, FakeCamera())])
+    w._start_collection()
+    assert paused.is_set() is on_frame
+    w._cleanup_session()
+    assert not paused.is_set()
+
+
 def test_cleanup_detaches_from_camera_used_at_start(no_worker):
     cam_at_start, cam_later = FakeCamera(), FakeCamera()
     eye = FakeEye("LEFT", True, cam_at_start)
@@ -293,6 +305,31 @@ def test_prompt_without_a_tts_engine_waits_its_reading_time(monkeypatch):
     start = time.monotonic()
     data_collection.speak("Look left and squint").wait(2.0)
     assert time.monotonic() - start >= 0.19
+
+
+def test_bundled_espeak_speaks_first_with_its_own_libraries(monkeypatch, tmp_path):
+    import utils.misc_utils
+
+    tts = tmp_path / "Tools" / "tts"
+    tts.mkdir(parents=True)
+    exe = tts / "espeak-ng"
+    exe.write_text("")
+    exe.chmod(0o755)
+    monkeypatch.setattr(utils.misc_utils, "resource_path", lambda rel: str(tmp_path / rel))
+    calls = []
+
+    def run(command, timeout, stdin_text=None, env=None):
+        calls.append((command, env))
+        return command[2] == "en"  # German isn't installed here: English fallback
+
+    monkeypatch.setattr(data_collection, "_run_tts_command", run)
+    assert data_collection._speak_linux("Schau nach links", "de", "Look left")
+    assert [c[0] for c in calls] == [
+        [str(exe), "-v", "de", "Schau nach links"],
+        [str(exe), "-v", "en", "Look left"],
+    ]
+    env = calls[0][1]
+    assert env["ESPEAK_DATA_PATH"] == str(tts) and env["LD_LIBRARY_PATH"] == str(tts / "lib")
 
 
 def test_reading_time_scales_with_the_prompt():

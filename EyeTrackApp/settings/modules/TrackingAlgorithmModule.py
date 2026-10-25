@@ -4,12 +4,21 @@ from tkinter import ttk
 
 from utils.tooltips import attach_tooltip
 from localization import tr
+from next_model import (
+    DEFAULT_MODEL_SIZE,
+    EXPERIMENTAL_MODEL_SIZES,
+    HMD_TYPES,
+    MODEL_SIZES,
+    split_variant,
+)
 
 
-# Selectable model variants, shared by the NEXT and eyebrow models. NEXT uses
-# the hardware-specific Hybrid export for ETVR/BSB/PSVR; Lite selects fp16.
-# Independent eyebrow inference uses its base variant (PSVR falls back to ETVR).
-_MODEL_VARIANTS = ("ETVR", "BSB", "PSVR", "TOBII", "ETVR LITE", "BSB LITE", "PSVR LITE")
+# Selectable headsets, shared by the NEXT and eyebrow models. NEXT uses the
+# headset's Hybrid family for ETVR/BSB/PSVR at the chosen model size.
+# Independent eyebrow inference uses the headset only (PSVR falls back to ETVR).
+_MODEL_VARIANTS = HMD_TYPES
+# Dropdown text per stored headset. PSVR and Tobii share one model family.
+_HEADSET_LABELS = {"ETVR": "ETVR", "BSB": "BSB", "PSVR": "PSVR/TOBII"}
 
 
 class TrackingAlgorithmValidationModel(BaseValidationModel):
@@ -23,6 +32,7 @@ class TrackingAlgorithmValidationModel(BaseValidationModel):
     gui_NEXT: bool
     gui_NEXT_calib_lids_brows: bool
     gui_model_variant: str
+    gui_model_size: str
     gui_max_tracking_speed: int
 
 
@@ -47,12 +57,13 @@ class TrackingAlgorithmModule(BaseSettingsModule):
         self.gui_NEXT = f"-NEXT{widget_id}-"
         self.gui_NEXT_calib_lids_brows = f"-NEXTCALIBLIDSBROWS{widget_id}-"
         self.gui_model_variant = f"-MODELVARIANT{widget_id}-"
+        self.gui_model_size = f"-MODELSIZE{widget_id}-"
         self.gui_max_tracking_speed = f"-MAXTRACKSPEED{widget_id}-"
 
         # Display order of the tracker radios: NEXT first (the default and the
         # one under active development), then LEAP, then DADDY.
         self._basic_entries = [
-            (tr("algo_tracking.next_beta"), "next", self.gui_NEXT, "gui_NEXT"),
+            ("NEXT", "next", self.gui_NEXT, "gui_NEXT"),
             ("LEAP", "leap", self.gui_LEAP, "gui_LEAP"),
             ("DADDY", "daddy", self.gui_DADDY, "gui_DADDY"),
         ]
@@ -118,39 +129,107 @@ class TrackingAlgorithmModule(BaseSettingsModule):
         )
         attach_tooltip(lids_brows_cb, tr("algo_tracking.next_calib_lids_brows_tip"))
 
-        # Shared model variant selector, placed next to Max Tracking Speed.
-        model_value = str(getattr(self.config, "gui_model_variant", "ETVR")).upper()
-        if model_value not in _MODEL_VARIANTS:
-            model_value = "ETVR"
-        model_var = tk.StringVar(value=model_value)
-        self.tk_vars[self.gui_model_variant] = model_var
-        self._model_var = model_var
+        # NEXT model: headset family plus a size slider (lightest -> best).
         model_frame = ttk.Frame(parent)
-        model_frame.grid(row=1, column=5, sticky="w", padx=(12, 8), pady=2)
-        model_lbl = ttk.Label(model_frame, text=tr("algo_tracking.model"))
-        model_lbl.grid(row=0, column=0, sticky="w", padx=(0, 4))
-        attach_tooltip(model_lbl, tr("algo_tracking.model_tip"))
-        combo = ttk.Combobox(
-            model_frame,
-            textvariable=model_var,
-            values=list(_MODEL_VARIANTS),
-            state="readonly",
-            width=11,
-        )
-        combo.grid(row=0, column=1, sticky="w")
-        attach_tooltip(combo, tr("algo_tracking.model_tip"))
-        self._model_combo = combo
-        # A manual selection sticks: it stops the setup-mode auto-shift from
-        # overriding the choice on future mode switches. <<ComboboxSelected>>
-        # only fires on user interaction, not on programmatic .set() from the
-        # sync listener below.
-        combo.bind("<<ComboboxSelected>>", self._on_model_user_selected)
+        model_frame.grid(row=3, column=0, columnspan=6, sticky="w", padx=8, pady=(2, 4))
+        self._build_model_selector(model_frame)
 
         # Keep the combobox in sync when the setup-mode auto-shift changes the
         # variant in config while this page is hidden (otherwise the stale tk var
         # would be saved back and revert the auto-shift on the next render tick).
         if self._main_config is not None:
             self._main_config.register_listener_callback(self._on_model_variant_synced)
+
+    def _build_model_selector(self, parent):
+        hmd, legacy_size = split_variant(getattr(self.config, "gui_model_variant", "ETVR"))
+        size = str(getattr(self.config, "gui_model_size", "") or legacy_size).upper()
+        if size not in MODEL_SIZES:
+            size = DEFAULT_MODEL_SIZE
+        model_var = tk.StringVar(value=hmd)
+        self.tk_vars[self.gui_model_variant] = model_var
+        self._model_var = model_var
+        size_var = tk.StringVar(value=size)
+        self.tk_vars[self.gui_model_size] = size_var
+        self._size_var = size_var
+
+        hmd_lbl = ttk.Label(parent, text=tr("algo_tracking.headset"))
+        hmd_lbl.grid(row=0, column=0, sticky="w", padx=(0, 4))
+        attach_tooltip(hmd_lbl, tr("algo_tracking.headset_tip"))
+        # The combobox shows labels; model_var keeps the stored headset key.
+        label_var = tk.StringVar(value=_HEADSET_LABELS[hmd])
+        combo = ttk.Combobox(
+            parent,
+            textvariable=label_var,
+            values=[_HEADSET_LABELS[h] for h in _MODEL_VARIANTS],
+            state="readonly",
+            width=11,
+        )
+        combo.grid(row=0, column=1, sticky="w")
+        attach_tooltip(combo, tr("algo_tracking.headset_tip"))
+        self._model_combo = combo
+        # A manual selection sticks: it stops the setup-mode auto-shift from
+        # overriding the choice on future mode switches. <<ComboboxSelected>>
+        # only fires on user interaction, not on programmatic .set() from the
+        # sync listener below.
+        def on_selected(event=None):
+            model_var.set(split_variant(label_var.get())[0])
+            self._on_model_user_selected(event)
+
+        combo.bind("<<ComboboxSelected>>", on_selected)
+
+        # Model size: one notch per MODEL_SIZES entry, lightest on the left and
+        # the best (most compute) on the right.
+        size_lbl = ttk.Label(parent, text=tr("algo_tracking.model_size"))
+        size_lbl.grid(row=0, column=2, sticky="w", padx=(16, 4))
+        attach_tooltip(size_lbl, tr("algo_tracking.model_size_tip"))
+        ttk.Label(parent, text=tr("algo_tracking.model_size_lightest"), foreground="#888888").grid(
+            row=0, column=3, sticky="e", padx=(0, 2)
+        )
+        index_var = tk.DoubleVar(value=MODEL_SIZES.index(size))
+        scale = ttk.Scale(
+            parent,
+            from_=0,
+            to=len(MODEL_SIZES) - 1,
+            variable=index_var,
+            orient="horizontal",
+            length=140,
+            command=lambda v: size_var.set(MODEL_SIZES[int(round(float(v)))]),
+        )
+        scale.grid(row=0, column=4, sticky="w")
+        attach_tooltip(scale, tr("algo_tracking.model_size_tip"))
+        ttk.Label(parent, text=tr("algo_tracking.model_size_best"), foreground="#888888").grid(
+            row=0, column=5, sticky="w", padx=(2, 6)
+        )
+        value_lbl = ttk.Label(parent, width=8)
+        value_lbl.grid(row=0, column=6, sticky="w")
+        warning = ttk.Label(
+            parent,
+            text=tr("algo_tracking.model_size_wip"),
+            foreground="#e0a030",
+            wraplength=420,
+        )
+        warning.grid(row=1, column=2, columnspan=5, sticky="w", padx=(16, 0), pady=(2, 0))
+
+        def refresh(*_args):
+            value = str(size_var.get()).upper()
+            if value not in MODEL_SIZES:
+                value = DEFAULT_MODEL_SIZE
+            idx = MODEL_SIZES.index(value)
+            # Snap the slider to its notch (drags report fractional positions).
+            if index_var.get() != idx:
+                index_var.set(idx)
+            value_lbl.configure(text=tr(f"algo_tracking.model_size_{value.lower()}"))
+            label = _HEADSET_LABELS[split_variant(model_var.get())[0]]
+            if label_var.get() != label:
+                label_var.set(label)
+            if value in EXPERIMENTAL_MODEL_SIZES:
+                warning.grid()
+            else:
+                warning.grid_remove()
+
+        size_var.trace_add("write", refresh)
+        model_var.trace_add("write", refresh)
+        refresh()
 
     def _on_model_user_selected(self, _event=None):
         """Mark the variant as user-chosen so setup-mode changes stop overriding it."""
@@ -171,9 +250,7 @@ class TrackingAlgorithmModule(BaseSettingsModule):
         var = getattr(self, "_model_var", None)
         if var is None:
             return
-        value = str(data["gui_model_variant"]).upper()
-        if value not in _MODEL_VARIANTS:
-            value = "ETVR"
+        value, _size = split_variant(data["gui_model_variant"])
         try:
             if var.get() != value:
                 var.set(value)

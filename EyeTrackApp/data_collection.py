@@ -18,6 +18,7 @@ from tkinter import ttk
 
 from localization import tr, tr_english, get_active_language
 from utils.overlay_launch import overlay_executable, overlay_command
+from frame_eye import is_steam_frame, models_paused_for_recording
 
 DATA_COLLECTION_VERSION = "v6"
 
@@ -46,13 +47,13 @@ def prompt_text(key):
     """A ``data_collection_prompts`` line in the app's UI language."""
     return tr(f"data_collection_prompts.{key}")
 
-def _run_tts_command(command, timeout, stdin_text=None):
+def _run_tts_command(command, timeout, stdin_text=None, env=None):
     import shutil
     if shutil.which(command[0]) is None:
         return False
     try:
         if stdin_text is None:
-            result = subprocess.run(command, check=False, timeout=timeout, creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
+            result = subprocess.run(command, check=False, timeout=timeout, env=env, creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
             return result.returncode == 0
         proc = subprocess.Popen(command, stdin=subprocess.PIPE, creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
         try:
@@ -68,9 +69,30 @@ def _run_tts_command(command, timeout, stdin_text=None):
 # espeak voice names where they differ from the UI language code.
 _ESPEAK_VOICES = {"zh": "cmn"}
 
+
+def _bundled_espeak():
+    """``(executable, env)`` for the espeak-ng the Steam Frame build ships in
+    Tools/tts/ (the headset has no TTS engine of its own), or None."""
+    from utils.misc_utils import resource_path
+
+    tts = resource_path("Tools/tts")
+    exe = os.path.join(tts, "espeak-ng")
+    if not os.access(exe, os.X_OK):
+        return None
+    env = dict(os.environ, ESPEAK_DATA_PATH=tts, LD_LIBRARY_PATH=os.path.join(tts, "lib"))
+    return exe, env
+
+
 def _speak_linux(text, lang, fallback):
-    """Speak with the first Linux TTS engine found. False when there is none
-    (a Steam Frame has none, inside or outside Steam's runtime)."""
+    """Speak with the bundled espeak-ng, else the first system TTS engine
+    found. False when there is none."""
+    bundled = _bundled_espeak()
+    if bundled is not None:
+        exe, env = bundled
+        if _run_tts_command([exe, "-v", _ESPEAK_VOICES.get(lang, lang), text], timeout=20, env=env):
+            return True
+        if lang != "en" and _run_tts_command([exe, "-v", "en", fallback], timeout=20, env=env):
+            return True
     if lang != "en":
         voice = _ESPEAK_VOICES.get(lang, lang)
         for command in (
@@ -551,6 +573,11 @@ class DataCollectionWindow:
 
         self.session_running = True
         self.session_cancel.clear()
+        if is_steam_frame():
+            # The Frame's CPU can't run the tracking models and record both
+            # eyes at 90 fps: pause tracking until the recording ends.
+            models_paused_for_recording.set()
+            logger.info("Tracking paused while data collection records")
         self._start_btn.configure(state="disabled")
         self._stop_btn.configure(state="normal")
         self._status_var.set(tr("data_collection.status_starting"))
@@ -761,6 +788,7 @@ class DataCollectionWindow:
                     break
 
                 self.gui_queue.put(("status", tr("data_collection.status_speaking", text=prompt_text(key), current=capture_count + 1, total=total_prompts)))
+                self.gui_queue.put(("progress", (capture_count + 1, total_prompts)))
 
                 if use_overlay:
                     send_text(prompt_text(key))
@@ -979,6 +1007,7 @@ class DataCollectionWindow:
             # the full traceback and move on to the next pass instead.
             try:
                 self.gui_queue.put(("status", tr("data_collection.status_overlay_pass", current=pass_num + 1, total=total_passes, text=prompt_text(f"pass_{key}"))))
+                self.gui_queue.put(("progress", (pass_num + 1, total_passes)))
                 # Card first, then the voice: the overlay keeps this text when
                 # the pass command below starts the dots.
                 _overlay_text(cmd_sock, prompt_text(f"panel_{key}"))
@@ -1321,6 +1350,9 @@ class DataCollectionWindow:
                 logger.exception("Could not detach capture output queue")
         self.active_queues = []
         self.active_eyes = []
+        if models_paused_for_recording.is_set():
+            models_paused_for_recording.clear()
+            logger.info("Tracking resumed after data collection")
         self.gui_queue.put(("session_done", None))
 
     def _poll_gui_queue(self):
@@ -1329,6 +1361,8 @@ class DataCollectionWindow:
                 msg_type, data = self.gui_queue.get_nowait()
                 if msg_type == "status":
                     self._status_var.set(data)
+                elif msg_type == "progress":
+                    self._contributions.capture_progress_update(*data)
                 elif msg_type == "capture_ready":
                     if not self.session_cancel.is_set():
                         self._latest_capture = data

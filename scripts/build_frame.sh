@@ -97,8 +97,35 @@ BUNDLE="dist/EyeTrackVR"
 test -x "$BUNDLE/eyetrackvr" || { echo "ERROR: bundle missing eyetrackvr binary"; exit 1; }
 test -f "$BUNDLE/_internal/openvr/libopenvr_api_64.so" || { echo "ERROR: bundle missing arm64 libopenvr_api"; exit 1; }
 
+echo "[frame-build] bundling espeak-ng for the data-collection voice prompts..."
+# The Frame has no text-to-speech engine, on the host or in Steam Linux Runtime
+# 4, so the prompts were silent. espeak-ng is a separate GPL-3.0 program run as
+# a subprocess, shipped with its libraries (PulseAudio client included; the
+# runtime passes the session's sound server through) and its license notices.
+# glibc, libstdc++ and libgcc stay system-provided.
+TTS="$BUNDLE/_internal/Tools/tts"
+rm -rf "$TTS"
+mkdir -p "$TTS/lib" "$TTS/licenses"
+install -m 0755 /usr/bin/espeak-ng "$TTS/espeak-ng"
+cp -a /usr/lib/aarch64-linux-gnu/espeak-ng-data "$TTS/"
+ldd /usr/bin/espeak-ng | awk '/=> \// {print $3}' \
+    | grep -vE '/(libc|libm|libdl|libpthread|librt|libstdc\+\+|libgcc_s|ld-linux-aarch64)\.so' \
+    | while read -r lib; do install -m 0644 "$lib" "$TTS/lib/$(basename "$lib")"; done
+for pkg in espeak-ng espeak-ng-data libespeak-ng1 libpcaudio0 libsonic0 libpulse0; do
+    notice="/usr/share/doc/$pkg/copyright"
+    if [ -f "$notice" ]; then
+        install -m 0644 "$notice" "$TTS/licenses/$pkg-copyright.txt"
+    fi
+done
+if LD_LIBRARY_PATH="$TTS/lib" ldd "$TTS/espeak-ng" | grep -q 'not found'; then
+    echo "ERROR: unresolved espeak-ng library" >&2
+    exit 1
+fi
+LD_LIBRARY_PATH="$TTS/lib" ESPEAK_DATA_PATH="$TTS" "$TTS/espeak-ng" -q "voice check" \
+    || { echo "ERROR: bundled espeak-ng does not run" >&2; exit 1; }
+
 echo "[frame-build] checking bundled glibc symbol versions..."
-NEEDED_GLIBC="$(find "$BUNDLE" -type f \( -name '*.so*' -o -name eyetrackvr \) -exec objdump -T {} + 2>/dev/null \
+NEEDED_GLIBC="$(find "$BUNDLE" -type f \( -name '*.so*' -o -name eyetrackvr -o -name espeak-ng \) -exec objdump -T {} + 2>/dev/null \
     | grep -oE 'GLIBC_[0-9]+\.[0-9]+' | sed 's/GLIBC_//' | sort -Vu | tail -1)"
 echo "[frame-build] bundle requires glibc $NEEDED_GLIBC"
 if [ "$(printf '%s\n%s\n' "$NEEDED_GLIBC" "$MAX_GLIBC" | sort -V | tail -1)" != "$MAX_GLIBC" ]; then
