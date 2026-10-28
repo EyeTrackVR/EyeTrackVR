@@ -150,6 +150,52 @@ def test_registration_from_another_install_is_replaced(ovr, monkeypatch, tmp_pat
     service.app.setApplicationAutoLaunch.assert_called_once_with(service.appKey, True)
 
 
+def test_manifest_is_written_next_to_the_settings(ovr, monkeypatch, tmp_path):
+    monkeypatch.setattr(ovr, "_app_dir", lambda: str(tmp_path / "install"))
+    monkeypatch.setattr(ovr, "_USER_DATA_DIR", str(tmp_path / "config"))
+    assert ovr.OpenVRService().manifestPath == str(tmp_path / "config" / "app.vrmanifest")
+
+    # Windows and source checkouts keep their settings in the app folder.
+    monkeypatch.setattr(ovr, "_USER_DATA_DIR", "")
+    assert ovr.OpenVRService().manifestPath == str(tmp_path / "install" / "app.vrmanifest")
+
+
+def test_manifest_left_next_to_the_app_is_unregistered(ovr, monkeypatch, tmp_path):
+    install_dir = tmp_path / "install"
+    install_dir.mkdir()
+    (install_dir / "app.vrmanifest").write_text("{}")
+    binary = str(install_dir / "eyetrackvr")
+    monkeypatch.setattr(ovr, "_app_dir", lambda: str(install_dir))
+    monkeypatch.setattr(ovr, "_launch_target", lambda: (binary, ""))
+    monkeypatch.setattr(ovr, "_USER_DATA_DIR", str(tmp_path / "config"))
+    service = _connected(ovr)
+    service.app.isApplicationInstalled.return_value = True
+    service.app.getApplicationPropertyString.side_effect = lambda key, prop: (
+        binary if prop == "binary" else "")
+    service._register_connected()
+    service.app.removeApplicationManifest.assert_called_once_with(str(install_dir / "app.vrmanifest"))
+    service.app.addApplicationManifest.assert_called_once_with(str(tmp_path / "config" / "app.vrmanifest"))
+    assert not (install_dir / "app.vrmanifest").exists()
+
+
+def test_turning_off_auto_launch_also_removes_the_old_manifest(ovr, monkeypatch, tmp_path):
+    install_dir = tmp_path / "install"
+    config_dir = tmp_path / "config"
+    install_dir.mkdir()
+    config_dir.mkdir()
+    (install_dir / "app.vrmanifest").write_text("{}")
+    (config_dir / "app.vrmanifest").write_text("{}")
+    monkeypatch.setattr(ovr, "_app_dir", lambda: str(install_dir))
+    monkeypatch.setattr(ovr, "_USER_DATA_DIR", str(config_dir))
+    service = _connected(ovr)
+    service._unregister()
+    service.app.setApplicationAutoLaunch.assert_called_once_with(service.appKey, False)
+    assert [c.args[0] for c in service.app.removeApplicationManifest.call_args_list] == [
+        str(config_dir / "app.vrmanifest"), str(install_dir / "app.vrmanifest")]
+    assert not (install_dir / "app.vrmanifest").exists()
+    assert not (config_dir / "app.vrmanifest").exists()
+
+
 def test_same_install_is_not_removed(ovr, monkeypatch):
     service = _connected(ovr)
     monkeypatch.setattr(ovr, "_launch_target", lambda: (r"C:\app\EyeTrackApp.exe", ""))
