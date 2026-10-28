@@ -135,15 +135,17 @@ def test_source_manifest_quotes_script_and_sets_working_directory(ovr, monkeypat
     assert ovr._unquote(app["arguments"]) == str(script)
 
 
-def test_registration_from_another_install_is_replaced(ovr, monkeypatch):
+def test_registration_from_another_install_is_replaced(ovr, monkeypatch, tmp_path):
     service = _connected(ovr)
-    monkeypatch.setattr(ovr, "_launch_target", lambda: (r"C:\new\EyeTrackApp.exe", ""))
-    monkeypatch.setattr(ovr, "_app_dir", lambda: r"C:\new")
+    new_dir = tmp_path / "new"
+    old_dir = tmp_path / "old"
+    monkeypatch.setattr(ovr, "_launch_target", lambda: (str(new_dir / "EyeTrackApp.exe"), ""))
+    monkeypatch.setattr(ovr, "_app_dir", lambda: str(new_dir))
     service.app.isApplicationInstalled.return_value = True
     service.app.getApplicationPropertyString.side_effect = lambda key, prop: (
-        r"C:\old\EyeTrackApp.exe" if prop == "binary" else "")
+        str(old_dir / "EyeTrackApp.exe") if prop == "binary" else "")
     service._register_connected()
-    service.app.removeApplicationManifest.assert_called_once_with(os.path.join(r"C:\old", "app.vrmanifest"))
+    service.app.removeApplicationManifest.assert_called_once_with(str(old_dir / "app.vrmanifest"))
     service.app.addApplicationManifest.assert_called_once()
     service.app.setApplicationAutoLaunch.assert_called_once_with(service.appKey, True)
 
