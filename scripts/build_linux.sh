@@ -69,10 +69,22 @@ echo "[linux-build] smoke test: bundled binary starts and imports..."
 #   rc=0: clean exit
 #   "no display" in output: headless box; still proves libs link and unpack
 # Anything else (missing .so, ImportError, instant crash) fails the build.
+# Run it in an empty temporary directory with its own config and state
+# directories, so it doesn't use or change the builder's EyeTrackVR settings.
+SMOKE_DIR="$(mktemp -d)"
 set +e
-SMOKE_OUT="$(timeout 20 env -u LD_LIBRARY_PATH "$BUNDLE/eyetrackvr" 2>&1)"
+SMOKE_OUT="$(
+    cd "$SMOKE_DIR" || exit 1
+    unset LD_LIBRARY_PATH
+    export XDG_CONFIG_HOME="$SMOKE_DIR/config"
+    export XDG_STATE_HOME="$SMOKE_DIR/state"
+    timeout 20 "$BUNDLE/eyetrackvr" 2>&1
+)"
 SMOKE_RC=$?
 set -e
+rm -rf -- "${SMOKE_DIR:?}"
+# The app writes logs/ next to its executable. Don't ship the smoke test's log.
+rm -rf -- "${BUNDLE:?}/logs"
 if [ $SMOKE_RC -eq 0 ] || [ $SMOKE_RC -eq 124 ] \
     || echo "$SMOKE_OUT" | grep -qiE "no display name|couldn't connect to display|no \$DISPLAY"; then
     echo "[linux-build] smoke test OK (rc=$SMOKE_RC)"
