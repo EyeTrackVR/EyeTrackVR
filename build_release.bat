@@ -45,6 +45,37 @@ if not exist "eyetrackapp\dist\eyetrackapp.exe" (
 )
 
 echo.
+echo [2b/6] Building SteamVR gaze driver ...
+REM Shipped beside the exe (not inside it: the onefile exe unpacks to a temp folder,
+REM and SteamVR needs a stable path). The app registers it when foveation gaze is on.
+cmake -S steamvr_driver -B build\steamvr_driver -A x64 >nul
+if errorlevel 1 goto :fail
+cmake --build build\steamvr_driver --config Release
+if errorlevel 1 goto :fail
+if exist "eyetrackapp\dist\steamvr_driver" rmdir /s /q "eyetrackapp\dist\steamvr_driver"
+xcopy /e /i /q /y "build\steamvr_driver\eyetrackvr" "eyetrackapp\dist\steamvr_driver\eyetrackvr" >nul
+if errorlevel 1 goto :fail
+if not exist "eyetrackapp\dist\steamvr_driver\eyetrackvr\bin\win64\driver_eyetrackvr.dll" (
+    echo ERROR: driver_eyetrackvr.dll missing after the driver build
+    goto :fail
+)
+
+echo.
+echo [2c/6] Building OpenXR eye gaze layer ...
+REM Also beside the exe; the app installs it as an implicit OpenXR layer when foveation gaze is on.
+cmake -S openxr_layer -B build\openxr_layer -A x64 >nul
+if errorlevel 1 goto :fail
+cmake --build build\openxr_layer --config Release
+if errorlevel 1 goto :fail
+if exist "eyetrackapp\dist\openxr_layer" rmdir /s /q "eyetrackapp\dist\openxr_layer"
+xcopy /e /i /q /y "build\openxr_layer\eyetrackvr_openxr_layer" "eyetrackapp\dist\openxr_layer" >nul
+if errorlevel 1 goto :fail
+if not exist "eyetrackapp\dist\openxr_layer\XR_APILAYER_EYETRACKVR_eye_gaze.dll" (
+    echo ERROR: XR_APILAYER_EYETRACKVR_eye_gaze.dll missing after the layer build
+    goto :fail
+)
+
+echo.
 echo [3/6] Building Windows installer with Inno Setup ...
 if not exist "%ISCC%" (
     echo ERROR: Inno Setup 6 not found at "%ISCC%"

@@ -45,7 +45,11 @@ Name: {app}; Permissions: users-full
 
 [UninstallDelete]
 ; Written at runtime for SteamVR auto-launch; without it SteamVR stops launching the removed app.
-Type: files; Name: "{app}pp.vrmanifest"
+Type: files; Name: "{app}\app.vrmanifest"
+
+[UninstallRun]
+; Remove the SteamVR gaze driver registration and the OpenXR eye gaze layer (set up while foveation gaze is on).
+Filename: "{app}\{#MyAppExeName}"; Parameters: "--unregister-integrations"; RunOnceId: "UnregisterIntegrations"; Flags: runhidden waituntilterminated
 
 [Icons]
 Name: "{autoprograms}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"

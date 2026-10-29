@@ -276,6 +276,9 @@ class NEXT_Stereo_cls:
         self.one_euro_filter.beta[:] = base_beta * _FILTER_MUL
 
         raw[7] *= self.gaze_y_sign
+        # Shared gaze straight from the model, before any filtering: foveated
+        # rendering wants it unsmoothed (see EyeInfo.dfr_x).
+        self.last_raw_gaze = (float(raw[6]), float(raw[7]))
 
         # An eye fed a black frame has its expressions zeroed by design, which
         # downstream would read as a blink plus a dropped eyebrow. Gaze is
@@ -333,6 +336,7 @@ class StereoNextCoordinator:
         }
         self._ver = {EyeId.LEFT: 0, EyeId.RIGHT: 0}
         self._result = None  # latest filtered 8-vector
+        self._raw_gaze = None  # (gaze_x, gaze_y) of the same pass, before filtering
         self._result_ver = None  # (left_ver, right_ver) it was computed from
         # Capture timestamp each eye actually contributed to _result, None when
         # that eye was blacked out. Used to skip a redundant second pass.
@@ -395,6 +399,7 @@ class StereoNextCoordinator:
             with self._state_lock:
                 out = self.runner.postprocess(raw, valid, base_cutoff, base_beta)
                 self._result = out
+                self._raw_gaze = getattr(self.runner, "last_raw_gaze", None)
                 self._result_ver = version
                 for eye in (EyeId.LEFT, EyeId.RIGHT):
                     self._result_ts[eye] = (
@@ -403,6 +408,12 @@ class StereoNextCoordinator:
                 self.last_mode = mode
                 self.last_skew_ms = skew * 1000.0
         return slice_stereo_result(out, eye_id)
+
+    def raw_gaze(self):
+        """Shared (gaze_x, gaze_y) of the latest pass before median and One-Euro
+        filtering, or None before the first pass."""
+        with self._state_lock:
+            return self._raw_gaze
 
     def _wait_for_pair(self, eye_id) -> None:
         """Give the other half of this eye's camera pair a moment to arrive, so

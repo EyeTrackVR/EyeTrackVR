@@ -10,6 +10,8 @@ DESKTOP_FILE="${HOME}/.local/share/applications/EyeTrackVR.desktop"
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 if [ "${1:-}" = "--remove" ]; then
+    # Remove the SteamVR driver registration and OpenXR layer before their files go.
+    [ -x "$APP_DIR/eyetrackvr" ] && "$APP_DIR/eyetrackvr" --unregister-integrations || true
     rm -rf "$APP_DIR"
     rm -f "$BIN_LINK" "$DESKTOP_FILE"
     echo "EyeTrackVR removed. (Settings in ~/.config/EyeTrackVR were kept.)"

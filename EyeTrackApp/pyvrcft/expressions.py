@@ -387,8 +387,8 @@ def compute_outputs(data: UnifiedTrackingData):
     out["v2/Head/PosY"] = data.head.pos_y
     out["v2/Head/PosZ"] = data.head.pos_z
 
-    lp, ly = _native_pitch_yaw(left, data)
-    rp, ry = _native_pitch_yaw(right, data)
+    lp, ly = native_pitch_yaw(left, data)
+    rp, ry = native_pitch_yaw(right, data)
     native = {
         "/tracking/eye/LeftRightPitchYaw": (lp, ly, rp, ry),
         "/tracking/eye/EyesClosedAmount": (1 - combined.openness,),
@@ -396,7 +396,7 @@ def compute_outputs(data: UnifiedTrackingData):
     return out, native
 
 
-def _native_pitch_yaw(eye: SingleEyeData, data: "UnifiedTrackingData"):
+def native_pitch_yaw(eye: SingleEyeData, data: "UnifiedTrackingData"):
     """(pitch, yaw) degrees for one eye's native endpoint.
 
     Default with no FOV scale set uses VRCFT's tangent convention based on atan(gaze), so

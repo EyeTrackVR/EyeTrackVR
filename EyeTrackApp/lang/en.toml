@@ -422,6 +422,8 @@ receive = "Receive"
 receive_tip = "Listen for incoming OSC messages from VRChat (e.g. calibration toggles from in-game)."
 oscquery = "Auto port (OSCQuery)"
 oscquery_tip = "Let VRChat find the receiver automatically (OSCQuery) instead of using the fixed Receiver Port, so it can run alongside VRCFaceTracking and other OSC apps. Same PC as VRChat only; falls back to the Receiver Port if it can't start."
+foveation_gaze = "Foveated rendering gaze"
+foveation_gaze_tip = "Also share gaze with foveated rendering tools on this PC: PimaxMagic4All (UDP port 9020) and integrations that read EyeTrackVR's gaze shared memory. Works with any output mode. Also sets up EyeTrackVR's SteamVR driver and OpenXR layer, so OpenXR games get eye gaze on any headset, in SteamVR, Monado, WiVRn and other runtimes (restart SteamVR and games after changing this)."
 # Validation error messages (shown when an invalid combination is picked)
 err_one_vrcft_version = "Only one version of VRCFT params can be turned on"
 err_output_mode_conflict = "Either VRCNative or VRCFT output can be active at a time"

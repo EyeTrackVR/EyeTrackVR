@@ -1,0 +1,17 @@
+{
+    "file_format_version": "1.0.0",
+    "api_layer": {
+        "name": "XR_APILAYER_EYETRACKVR_eye_gaze",
+        "library_path": "./@ETVR_LAYER_FILE@",
+        "api_version": "1.0",
+        "implementation_version": "1",
+        "description": "EyeTrackVR eye gaze (XR_EXT_eye_gaze_interaction) for runtimes without it",
+        "instance_extensions": [
+            {
+                "name": "XR_EXT_eye_gaze_interaction",
+                "extension_version": "1"
+            }
+        ],
+        "disable_environment": "DISABLE_XR_APILAYER_EYETRACKVR_eye_gaze"
+    }
+}

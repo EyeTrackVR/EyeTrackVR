@@ -94,6 +94,29 @@ else
     exit 1
 fi
 
+echo "[linux-build] building the SteamVR gaze driver..."
+# Beside the executable, where the app looks for it when registering it with SteamVR.
+DRIVER_BUILD="$BUILD_ROOT/steamvr_driver"
+rm -rf "$DRIVER_BUILD"
+cmake -S "$REPO_ROOT/steamvr_driver" -B "$DRIVER_BUILD" -G Ninja -DCMAKE_BUILD_TYPE=Release >/dev/null
+cmake --build "$DRIVER_BUILD"
+rm -rf "$BUNDLE/steamvr_driver"
+mkdir -p "$BUNDLE/steamvr_driver"
+cp -a "$DRIVER_BUILD/eyetrackvr" "$BUNDLE/steamvr_driver/"
+test -f "$BUNDLE/steamvr_driver/eyetrackvr/bin/linux64/driver_eyetrackvr.so" \
+    || { echo "ERROR: driver_eyetrackvr.so missing after the driver build"; exit 1; }
+
+echo "[linux-build] building the OpenXR eye gaze layer..."
+# For Monado / WiVRn and other OpenXR runtimes; the app installs it as an implicit layer.
+LAYER_BUILD="$BUILD_ROOT/openxr_layer"
+rm -rf "$LAYER_BUILD"
+cmake -S "$REPO_ROOT/openxr_layer" -B "$LAYER_BUILD" -G Ninja -DCMAKE_BUILD_TYPE=Release >/dev/null
+cmake --build "$LAYER_BUILD"
+rm -rf "$BUNDLE/openxr_layer"
+cp -a "$LAYER_BUILD/eyetrackvr_openxr_layer" "$BUNDLE/openxr_layer"
+test -f "$BUNDLE/openxr_layer/libXR_APILAYER_EYETRACKVR_eye_gaze.so" \
+    || { echo "ERROR: libXR_APILAYER_EYETRACKVR_eye_gaze.so missing after the layer build"; exit 1; }
+
 echo "[linux-build] assembling tarball..."
 STAGE="$BUILD_ROOT/stage/EyeTrackVR-$SAFE_VERSION"
 rm -rf "$BUILD_ROOT/stage"

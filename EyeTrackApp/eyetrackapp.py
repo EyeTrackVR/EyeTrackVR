@@ -36,6 +36,13 @@ if __name__ == "__main__" and sys.argv[1:2] == ["--contribution-verification"]:
         raise SystemExit(1) from None
     raise SystemExit(0)
 
+# Run by the uninstallers: remove EyeTrackVR's SteamVR driver registration and OpenXR layer.
+if __name__ == "__main__" and sys.argv[1:2] == ["--unregister-integrations"]:
+    from OVR import OpenXRLayerRegistration, SteamVRDriverRegistration
+    SteamVRDriverRegistration.sync_quietly(False)
+    OpenXRLayerRegistration.sync_quietly(False)
+    raise SystemExit(0)
+
 import logging
 import os
 import shutil

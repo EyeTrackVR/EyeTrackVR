@@ -318,6 +318,10 @@ class NEXT_cls:
             # Same gaze-Y convention as the shared Hybrid/stereo runner.
             raw = np.concatenate((raw[base:base + 3], [raw[6], raw[7] * SHARED_GAZE_Y_SIGN]))
 
+        # Gaze straight from the model, before any filtering: foveated
+        # rendering wants it unsmoothed (see EyeInfo.dfr_x).
+        self.last_raw_gaze = (float(raw[3]), float(raw[4]))
+
         # Reject super-fast jitter with a running median before smoothing, so
         # single-frame spikes never enter the One-Euro's derivative term (which
         # would amplify them). Applied to the eyebrow and both gaze channels;
@@ -347,6 +351,11 @@ class External_Run_NEXT:
         Returns (gaze_x, gaze_y, eyebrow, eyelid, squeeze).
         """
         return self.algo.run(bgr_frame, base_cutoff, base_beta)
+
+    @property
+    def raw_gaze(self):
+        """(gaze_x, gaze_y) of the last run() before median and One-Euro filtering, or None."""
+        return getattr(self.algo, "last_raw_gaze", None)
 
     def reset_history(self):
         """Drop the temporal frame stack (see NEXT_cls.reset_history)."""

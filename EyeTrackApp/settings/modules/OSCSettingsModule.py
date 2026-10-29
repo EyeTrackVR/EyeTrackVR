@@ -17,6 +17,7 @@ class OSCValidationModel(BaseValidationModel):
     gui_osc_vrcft_v2: bool
     gui_pyvrcft: bool
     gui_use_module: bool
+    gui_foveation_gaze: bool
 
     @model_validator(mode="after")
     def check_osc_vrcft_versions(self):
@@ -49,6 +50,7 @@ class OSCSettingsModule(BaseSettingsModule):
         self.gui_osc_vrcft_v2 = f"-OSCVRCFTV2{widget_id}-"
         self.gui_pyvrcft = f"-OSCPYVRCFT{widget_id}-"
         self.gui_use_module = f"-OSCUSEMODULE{widget_id}-"
+        self.gui_foveation_gaze = f"-OSCFOVEATION{widget_id}-"
 
     def get_values_map(self) -> dict:
         values = {}
@@ -121,3 +123,9 @@ class OSCSettingsModule(BaseSettingsModule):
             oscquery_cb.configure(state="normal" if ros_var.get() else "disabled")
         ros_var.trace_add("write", sync_oscquery_state)
         sync_oscquery_state()
+
+        foveation_var = tk.BooleanVar(value=bool(self.config.gui_foveation_gaze))
+        self.tk_vars[self.gui_foveation_gaze] = foveation_var
+        foveation_cb = ttk.Checkbutton(osc_bar, text=tr("osc.foveation_gaze"), variable=foveation_var)
+        foveation_cb.pack(side="left", padx=(0, 8))
+        attach_tooltip(foveation_cb, tr("osc.foveation_gaze_tip"))

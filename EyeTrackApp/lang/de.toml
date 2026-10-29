@@ -589,6 +589,8 @@ receive_tip = "Lauscht auf eingehende OSC-Nachrichten von VRChat (z. B. Kalibrie
 oscquery = "Automatischer Port (OSCQuery)"
 # EN: "Let VRChat find the receiver automatically (OSCQuery) instead of using the fixed Receiver Port, so it can run alongside VRCFaceTracking and other OSC apps. Same PC as VRChat only; falls back to the Receiver Port if it can't start."
 oscquery_tip = "VRChat findet den Empfänger automatisch (OSCQuery), statt den festen Empfänger-Port zu nutzen. So läuft er parallel zu VRCFaceTracking und anderen OSC-Apps. Nur auf demselben PC wie VRChat; fällt auf den Empfänger-Port zurück, wenn der Start fehlschlägt."
+foveation_gaze = "Blick für Foveated Rendering"
+foveation_gaze_tip = "Teilt den Blick zusätzlich mit Foveated-Rendering-Tools auf diesem PC: PimaxMagic4All (UDP-Port 9020) und Integrationen, die den Blick-Shared-Memory von EyeTrackVR lesen. Funktioniert mit jedem Ausgabemodus. Richtet außerdem den SteamVR-Treiber und die OpenXR-Ebene von EyeTrackVR ein, damit OpenXR-Spiele auf jedem Headset Blickdaten bekommen, in SteamVR, Monado, WiVRn und anderen Runtimes (SteamVR und Spiele nach dem Ändern neu starten)."
 # EN: "Only one version of VRCFT params can be turned on"
 err_one_vrcft_version = "Es kann nur eine Version der VRCFT-Parameter aktiviert werden"
 # EN: "Either VRCNative or VRCFT output can be active at a time"

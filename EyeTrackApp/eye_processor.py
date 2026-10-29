@@ -282,6 +282,10 @@ class EyeProcessor:
         self._last_tracking_pull_mono: float = 0.0
         self.out_y = 0.0
         self.out_x = 0.0
+        # Calibrated but unfiltered gaze for foveated rendering (EyeInfo.dfr_x);
+        # None until a tracker has produced one.
+        self.dfr_x: float | None = None
+        self.dfr_y: float | None = None
         self.rawx = 0.0
         self.rawy = 0.0
         self.eyeopen = 0.9
@@ -787,6 +791,9 @@ class EyeProcessor:
                     self.avg_velocity,
                     _brow,
                     self.squeeze,
+                    self.current_capture_ts,
+                    dfr_x=self.dfr_x,
+                    dfr_y=self.dfr_y,
                 ),
             ),
         )
@@ -877,7 +884,9 @@ class EyeProcessor:
                 gaze_x, gaze_y, eyebrow, eyelid, squeeze = coord.run(
                     self.eye_id, base_cutoff, base_beta
                 )
-                self._next_apply(gaze_x, gaze_y, eyebrow, eyelid, squeeze)
+                self._next_apply(
+                    gaze_x, gaze_y, eyebrow, eyelid, squeeze, raw_gaze=coord.raw_gaze()
+                )
                 return
 
         self._next_mode_changed(False)
@@ -888,7 +897,9 @@ class EyeProcessor:
         gaze_x, gaze_y, eyebrow, eyelid, squeeze = self.next_runner.run(
             next_frame, base_cutoff, base_beta
         )
-        self._next_apply(gaze_x, gaze_y, eyebrow, eyelid, squeeze)
+        self._next_apply(
+            gaze_x, gaze_y, eyebrow, eyelid, squeeze, raw_gaze=self.next_runner.raw_gaze
+        )
 
     def _next_mode_changed(self, stereo: bool) -> None:
         """Handle a mono/stereo handover: reset the incoming model's temporal
@@ -905,10 +916,35 @@ class EyeProcessor:
             "shared Hybrid/stereo" if stereo else "per-eye",
         )
 
-    def _next_apply(self, gaze_x, gaze_y, eyebrow, eyelid, squeeze):
+    def _next_dfr_gaze(self, raw_x: float, raw_y: float) -> tuple[float, float]:
+        """Foveated-rendering gaze: the model's unfiltered gaze through the same
+        Smart Calib transform, flips and recenter offset as the OSC gaze, with no
+        median / One-Euro smoothing. Call after the recenter offset is updated."""
+        x, y = raw_x, raw_y
+        if self._next_smartcal_w is not None and self._next_smartcal_b is not None:
+            x, y = next_smartcal_apply(
+                self._next_smartcal_w, self._next_smartcal_b,
+                self._next_smartcal_warp, raw_x, raw_y,
+            )
+            # Same native-range bound as the OSC gaze: a strong transform must
+            # not throw the foveal region off the display.
+            x = float(np.clip(x, -1.0, 1.0))
+            y = float(np.clip(y, -1.0, 1.0))
+        if self.eye_id == EyeId.RIGHT:
+            if self.settings.gui_flip_x_axis_right:
+                x = -x
+        elif self.settings.gui_flip_x_axis_left:
+            x = -x
+        if self.settings.gui_flip_y_axis:
+            y = -y
+        return x - self._next_recenter_offset_x, y - self._next_recenter_offset_y
+
+    def _next_apply(self, gaze_x, gaze_y, eyebrow, eyelid, squeeze, raw_gaze=None):
         """Shared NEXT post-processing for the mono and stereo model paths:
         user-configured flips, smart-calibration, recenter, eyelid remap, and
-        the OSC enqueue. Inputs preserve the model's native axis orientation."""
+        the OSC enqueue. Inputs preserve the model's native axis orientation.
+        ``raw_gaze`` is the same gaze before the runner's filtering; it becomes
+        the foveated-rendering gaze (self.dfr_x / dfr_y)."""
         # Raw model gaze, before user-configured flips, in [-1, 1].
         model_gaze_x, model_gaze_y = gaze_x, gaze_y
 
@@ -1014,6 +1050,11 @@ class EyeProcessor:
 
         gaze_x -= self._next_recenter_offset_x
         gaze_y -= self._next_recenter_offset_y
+
+        if raw_gaze is not None:
+            self.dfr_x, self.dfr_y = self._next_dfr_gaze(*raw_gaze)
+        else:  # runner without a raw tap: fall back to the OSC gaze
+            self.dfr_x, self.dfr_y = gaze_x, gaze_y
 
         dx = gaze_x - self.out_x
         dy = gaze_y - self.out_y

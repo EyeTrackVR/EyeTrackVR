@@ -589,6 +589,8 @@ receive_tip = "监听来自 VRChat 的传入 OSC 消息（例如游戏内的校�
 oscquery = "自动端口 (OSCQuery)"
 # EN: "Let VRChat find the receiver automatically (OSCQuery) instead of using the fixed Receiver Port, so it can run alongside VRCFaceTracking and other OSC apps. Same PC as VRChat only; falls back to the Receiver Port if it can't start."
 oscquery_tip = "让 VRChat 自动发现接收端 (OSCQuery)，而不是使用固定的接收端口，从而可与 VRCFaceTracking 等其他 OSC 应用同时运行。仅支持与 VRChat 位于同一台电脑；无法启动时会改用接收端口。"
+foveation_gaze = "注视点渲染视线"
+foveation_gaze_tip = "同时与本机的注视点渲染工具共享视线：PimaxMagic4All（UDP 端口 9020）以及读取 EyeTrackVR 视线共享内存的集成。适用于任何输出模式。 同时设置 EyeTrackVR 的 SteamVR 驱动和 OpenXR 层，使 OpenXR 游戏在任何头显上、在 SteamVR、Monado、WiVRn 等运行时中获得视线（更改后请重启 SteamVR 和游戏）。"
 # EN: "Only one version of VRCFT params can be turned on"
 err_one_vrcft_version = "只能开启一个版本的 VRCFT 参数"
 # EN: "Either VRCNative or VRCFT output can be active at a time"

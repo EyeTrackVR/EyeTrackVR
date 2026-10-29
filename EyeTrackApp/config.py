@@ -496,6 +496,10 @@ class EyeTrackSettingsConfig(BaseModel):
     # embedded PY-VRCFT port (osc/PyVRCFTSender.py), replacing VRCFT. Auto-adapts
     # to v2 / legacy v1 / native-eye avatars from one tracking frame.
     gui_pyvrcft: bool = True
+    # Also share gaze with foveated rendering tools on this PC (PimaxMagic4All
+    # on UDP 9020 and the gaze shared memory, osc/FoveationGazeSender.py),
+    # alongside any output mode above.
+    gui_foveation_gaze: bool = False
     gui_pupil_dilation: bool = False
 
     gui_VRCFTModulePort: int = 8889

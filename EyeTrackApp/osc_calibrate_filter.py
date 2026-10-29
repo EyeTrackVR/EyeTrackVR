@@ -1234,6 +1234,9 @@ class cal:
 
         # Capture calibrated output before snap-hold / falloff adjustments for logging.
         _pre_snap_x, _pre_snap_y = out_x, out_y
+        # Foveated-rendering gaze: calibrated and unclamped, before snap hold,
+        # falloff and the One-Euro filter (EyeInfo.dfr_x). VRChat keeps out_x.
+        _fov_x, _fov_y = dfr_x, dfr_y
 
         # ── Snap-to-center hold ───────────────────────────────────────────────────
         # When the pupil tracker loses the pupil at an extreme gaze angle it
@@ -1311,10 +1314,15 @@ class cal:
         if self.settings.gui_flip_y_axis:
             out_y = -out_y
             dfr_y = -dfr_y
+            _fov_y = -_fov_y
 
         if flipx:
             out_x = -out_x
             dfr_x = -dfr_x
+            _fov_x = -_fov_x
+
+        if math.isfinite(_fov_x) and math.isfinite(_fov_y):
+            self.dfr_x, self.dfr_y = float(_fov_x), float(_fov_y)
 
         # ── DFR output (unclamped, before 1€ filter) ──────────────────────────
         if getattr(self.settings, "gui_dfr_enabled", False):

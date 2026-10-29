@@ -59,3 +59,10 @@ class EyeInfo:
     avg_velocity: float
     eyebrow: float = float("nan")
     squeeze: float = 0.0
+    # time.perf_counter() when the camera frame behind this sample was captured.
+    capture_ts: float | None = None
+    # Calibrated gaze with no smoothing (no median / One-Euro / falloff / snap
+    # hold / blink hold), for foveated rendering. x / y above stay the
+    # filtered gaze VRChat gets. None when the tracker has no unfiltered tap.
+    dfr_x: float | None = None
+    dfr_y: float | None = None

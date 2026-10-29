@@ -231,8 +231,10 @@ def test_processor_uses_hybrid_without_an_active_peer(monkeypatch, eye, hybrid_a
     processor._next_mode_changed = Mock()
     processor.next_runner = Mock()
     processor.next_runner.run.return_value = (0.2, 0.3, 0.4, 0.5, 0.6)
+    processor.next_runner.raw_gaze = (0.25, 0.35)
     coord = SimpleNamespace(
-        supports_single_eye=hybrid_available, submit=Mock(), run=Mock(), peer_active=Mock()
+        supports_single_eye=hybrid_available, submit=Mock(), run=Mock(), peer_active=Mock(),
+        raw_gaze=Mock(return_value=(0.15, 0.25)),
     )
     coord.run.return_value = (0.1, 0.2, 0.3, 0.4, 0.5)
     coord.peer_active.return_value = False
@@ -251,11 +253,13 @@ def test_processor_uses_hybrid_without_an_active_peer(monkeypatch, eye, hybrid_a
         coord.peer_active.assert_not_called()
         coord.run.assert_called_once_with(eye, 0.0004, 0.9)
         processor.next_runner.run.assert_not_called()
-        processor._next_apply.assert_called_once_with(*coord.run.return_value)
+        processor._next_apply.assert_called_once_with(*coord.run.return_value, raw_gaze=(0.15, 0.25))
     else:
         coord.run.assert_not_called()
         processor.next_runner.run.assert_called_once()
-        processor._next_apply.assert_called_once_with(*processor.next_runner.run.return_value)
+        processor._next_apply.assert_called_once_with(
+            *processor.next_runner.run.return_value, raw_gaze=(0.25, 0.35)
+        )
 
 
 @pytest.mark.parametrize("variant", ["ETVR", "BSB", "PSVR"])

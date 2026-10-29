@@ -39,6 +39,7 @@ from osc.OSCMessage import OSCMessage, OSCMessageType
 from osc.VRCFTModuleMessenger import VRCFTModuleSender
 from osc.VRChatOSCSender import VRChatOSCSender
 from osc.PyVRCFTSender import PyVRCFTSender
+from osc.FoveationGazeSender import FOVEATION_HOST, FOVEATION_PORT, FoveationGazeSender
 from osc.oscquery import LOOPBACK, OSCQueryAdvertiser
 from osc import streaming_target
 import queue
@@ -209,6 +210,7 @@ class OSCManager:
     def start(self):
         self.setup_sender()
         self.setup_receiver()
+        self._sync_integrations()
         self._auto_thread = threading.Thread(target=self._watch_auto_target, name="osc-auto-target", daemon=True)
         self._auto_thread.start()
 
@@ -259,6 +261,7 @@ class OSCManager:
             # pyVRCFT binds the receiver port only while ROSC is off, so toggling
             # ROSC must restart the sender to release / reclaim that port.
             bool(s.gui_ROSC),
+            bool(s.gui_foveation_gaze),
         )
 
     def _receiver_signature(self) -> tuple:
@@ -311,6 +314,7 @@ class OSCManager:
             "gui_osc_address",
             "gui_osc_receiver_port",
             "gui_ROSC",
+            "gui_foveation_gaze",
         }
     )
     RECEIVER_TRIGGER_KEYS = frozenset(
@@ -322,8 +326,26 @@ class OSCManager:
         }
     )
 
+    def _sync_integrations(self) -> threading.Thread:
+        """While foveation gaze is on, register EyeTrackVR's SteamVR driver and install its OpenXR
+        layer; remove both otherwise. Off the caller's thread: it touches SteamVR's config file
+        and the OpenXR layer registry / folder."""
+        from OVR import OpenXRLayerRegistration, SteamVRDriverRegistration
+
+        enabled = bool(self.settings.gui_foveation_gaze)
+
+        def sync():
+            SteamVRDriverRegistration.sync_quietly(enabled)
+            OpenXRLayerRegistration.sync_quietly(enabled)
+
+        thread = threading.Thread(target=sync, name="vr-integrations-sync", daemon=True)
+        thread.start()
+        return thread
+
     def update(self, data: dict):
         keys = set(data.keys())
+        if "gui_foveation_gaze" in keys:
+            self._sync_integrations()
         restart_sender = bool(
             self.SENDER_TRIGGER_KEYS.intersection(keys)
             and self._sender_signature() != self._last_sender_sig
@@ -378,9 +400,11 @@ class OSCSender:
         self.vrc_sender = VRChatOSCSender()
         self.module_sender = VRCFTModuleSender()
         self.pyvrcft_sender = PyVRCFTSender()
+        self.foveation_sender = FoveationGazeSender()
 
         self.vrc_client = None
         self.vrcft_client = None
+        self.foveation_client = None
         self._log = _ThrottledLog()
 
     @staticmethod
@@ -440,6 +464,21 @@ class OSCSender:
                 )
                 use_pyvrcft = False
 
+        # Foveated rendering tools (PimaxMagic4All) read gaze on this PC,
+        # independent of the VRChat output mode above.
+        use_foveation = bool(self.config.gui_foveation_gaze)
+        if use_foveation:
+            self.foveation_client = self._make_client(
+                "Foveation gaze", FOVEATION_HOST, FOVEATION_PORT
+            )
+            if self.foveation_client is None:
+                use_foveation = False
+            else:
+                self.foveation_sender.start(
+                    self.config,
+                    SafeOSCClient(self.foveation_client, "Foveation gaze", self._log),
+                )
+
         try:
             while not self.cancellation_event.is_set():
                 try:
@@ -449,6 +488,8 @@ class OSCSender:
                 try:
                     match osc_message.type:
                         case OSCMessageType.EYE_INFO:
+                            if use_foveation:
+                                self._send_foveation(osc_message)
                             if use_pyvrcft:
                                 self.pyvrcft_sender.output_osc_info(
                                     osc_message=osc_message,
@@ -505,6 +546,24 @@ class OSCSender:
         finally:
             if use_pyvrcft:
                 self.pyvrcft_sender.stop()
+            if use_foveation:
+                self.foveation_sender.stop()
+
+    def _send_foveation(self, osc_message: OSCMessage) -> None:
+        # Its own guard: a foveation failure must not cost the VRChat send.
+        try:
+            self.foveation_sender.output_osc_info(
+                osc_message=osc_message,
+                main_config=self.main_config,
+                config=self.config,
+            )
+        except Exception:  # noqa
+            self._log.log(
+                logging.ERROR,
+                "handler:foveation",
+                "Failed to send foveation gaze",
+                exc_info=True,
+            )
 
 
 class OSCReceiver:
