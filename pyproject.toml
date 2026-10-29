@@ -82,11 +82,6 @@ pythonpath = [".", "EyeTrackApp"]
 python_files = [
     "test_*.py"
 ]
-[[tool.poetry.source]]
-name = "ort-cuda-13"
-url = "https://aiinfra.pkgs.visualstudio.com/PublicPackages/_packaging/onnxruntime-cuda-12/pypi/simple/"
-priority = "explicit"
-
 
 [tool.ruff.lint.per-file-ignores]
 # Legacy star imports between the tracking modules.
