@@ -44,6 +44,7 @@ Usage::
     label = tr("settings.use_gpu")   # -> "Aceleración por GPU"
     status = tr("status.tracking_mode", mode="Dual")  # {mode} placeholder
 """
+
 from __future__ import annotations
 
 import logging
@@ -98,8 +99,9 @@ def init_localization(lang_code: str | None) -> None:
     lang_dir = _lang_dir()
     _base_catalog = _load_toml(os.path.join(lang_dir, f"{DEFAULT_LANGUAGE}.toml"))
     if not _base_catalog:
-        logger.error("English catalog (%s.toml) missing or empty; UI text will "
-                     "fall back to raw keys.", DEFAULT_LANGUAGE)
+        logger.error(
+            "English catalog (%s.toml) missing or empty; UI text will fall back to raw keys.", DEFAULT_LANGUAGE
+        )
 
     code = (lang_code or DEFAULT_LANGUAGE).strip() or DEFAULT_LANGUAGE
     if code == DEFAULT_LANGUAGE:
@@ -197,17 +199,19 @@ def available_languages() -> list[dict[str, str]]:
         if not code or code in seen:
             continue
         seen.add(code)
-        langs.append({
-            "code": code,
-            "name": str(meta.get("name") or code),
-            "native_name": str(meta.get("native_name") or meta.get("name") or code),
-        })
+        langs.append(
+            {
+                "code": code,
+                "name": str(meta.get("name") or code),
+                "native_name": str(meta.get("native_name") or meta.get("name") or code),
+            }
+        )
 
     # Guarantee English is present and first even if en.toml lacks [meta].
     if DEFAULT_LANGUAGE not in seen:
         langs.insert(0, {"code": DEFAULT_LANGUAGE, "name": "English", "native_name": "English"})
 
-    langs.sort(key=lambda l: (l["code"] != DEFAULT_LANGUAGE, l["native_name"].lower()))
+    langs.sort(key=lambda lang: (lang["code"] != DEFAULT_LANGUAGE, lang["native_name"].lower()))
     return langs
 
 

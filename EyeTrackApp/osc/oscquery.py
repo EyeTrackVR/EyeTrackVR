@@ -93,8 +93,9 @@ def record(name: str, rtype: int, ttl: int, rdata: bytes, unique: bool) -> bytes
     return encode_name(name) + struct.pack(">HHIH", rtype, rclass, ttl, len(rdata)) + rdata
 
 
-def build_packet(answers: list[bytes], additionals: list[bytes], qid: int = 0,
-                 questions: bytes = b"", qdcount: int = 0) -> bytes:
+def build_packet(
+    answers: list[bytes], additionals: list[bytes], qid: int = 0, questions: bytes = b"", qdcount: int = 0
+) -> bytes:
     header = struct.pack(">HHHHHH", qid, 0x8400, qdcount, len(answers), 0, len(additionals))
     return header + questions + b"".join(answers) + b"".join(additionals)
 
@@ -249,7 +250,7 @@ class MDNSResponder:
                 return
             try:
                 self._handle(packet, address, port)
-            except Exception:  # noqa: a hostile packet must never stop the responder
+            except Exception:  # a hostile packet must never stop the responder
                 logger.debug("Ignoring malformed mDNS packet", exc_info=True)
 
     def _handle(self, packet: bytes, address: str, port: int) -> None:
@@ -272,8 +273,7 @@ class MDNSResponder:
             if answers:
                 self._sock.sendto(build_packet(answers, additionals), (address, port))
         now = time.monotonic()
-        due = [q for q in multicast
-               if now - self._last_multicast.get((q[0], q[1]), 0.0) >= _MULTICAST_INTERVAL_S]
+        due = [q for q in multicast if now - self._last_multicast.get((q[0], q[1]), 0.0) >= _MULTICAST_INTERVAL_S]
         answers, additionals, keys = self.answer(due)
         if answers:
             for key in keys:

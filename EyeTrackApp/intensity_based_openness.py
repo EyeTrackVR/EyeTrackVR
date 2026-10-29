@@ -91,9 +91,7 @@ def data2csv(data_u32, filepath):
     # For data checking
     nonzero_index = np.nonzero(data_u32)  # (row,col)
     data_list = data_u32[nonzero_index].tolist()
-    datalines = [
-        "{},{},{}\n".format(x, y, val) for y, x, val in zip(*nonzero_index, data_list)
-    ]
+    datalines = ["{},{},{}\n".format(x, y, val) for y, x, val in zip(*nonzero_index, data_list)]
     with open(filepath, "w", encoding="utf-8") as out_f:
         out_f.write("x,y,intensity\n")
         out_f.writelines(datalines)
@@ -113,9 +111,7 @@ def u32_1ch_to_u16_3ch(img):
 def u16_3ch_to_u32_1ch(img):
     # The image format with the most bits that can be displayed on Windows without additional software and that opencv can handle is PNG's uint16
     out = img[:, :, 0].astype(np.float64)  # float64 = max 2^53
-    cv2.add(
-        out, img[:, :, 1].astype(np.float64) * np.float64(65536), dst=out
-    )  # opencv did not have uint32 type
+    cv2.add(out, img[:, :, 1].astype(np.float64) * np.float64(65536), dst=out)  # opencv did not have uint32 type
     return out.astype(np.uint32)  # cast
 
 
@@ -158,9 +154,7 @@ class IntensityBasedOpeness:
         min_cutoff = 0.0004
         beta = 0.9
         noisy_point = np.array([1, 1])
-        self.one_euro_filter = OneEuroFilter(
-            noisy_point, min_cutoff=min_cutoff, beta=beta
-        )
+        self.one_euro_filter = OneEuroFilter(noisy_point, min_cutoff=min_cutoff, beta=beta)
 
     def check(self, frameshape):
         # 0 in data is used as the initial value.
@@ -205,9 +199,7 @@ class IntensityBasedOpeness:
                 logger.info("Blink calibration file does not exist: %s", self.imgfile)
                 req_newdata = True
         else:
-            if self.data.shape != frameshape or not np.array_equal(
-                self.img_roi, self.now_roi
-            ):
+            if self.data.shape != frameshape or not np.array_equal(self.img_roi, self.now_roi):
                 # If the ROI recorded in the image file differs from the current ROI
                 # TODO: Migrate compatible calibration data instead of resetting on ROI/frame size changes.
                 logger.info("Blink calibration frame size changed; resetting data.")
@@ -240,10 +232,6 @@ class IntensityBasedOpeness:
         int_x, int_y = int(x), int(y)
         if int_x < 0 or int_y < 0:
             return self.prev_val
-        upper_x = min(int_x + 25, frame.shape[1] - 1)  # TODO: Make radius configurable.
-        lower_x = max(int_x - 25, 0)
-        upper_y = min(int_y + 25, frame.shape[0] - 1)
-        lower_y = max(int_y - 25, 0)
 
         #   frame_crop = frame[lower_y:upper_y, lower_x:upper_x]
         # frame = safe_crop(frame, lower_x, lower_y, upper_x, upper_y, False)
@@ -261,9 +249,7 @@ class IntensityBasedOpeness:
             self.filterlist.popleft()
 
         try:
-            if intensity >= np.percentile(
-                self.filterlist, 99
-            ):  # filter abnormally high values
+            if intensity >= np.percentile(self.filterlist, 99):  # filter abnormally high values
                 intensity = self.maxval
 
         except (ValueError, IndexError) as e:
@@ -292,7 +278,7 @@ class IntensityBasedOpeness:
             int_y = 1
             oob = True
 
-        if oob != True and self.data.any():
+        if not oob and self.data.any():
             data_val = self.data[int_y, int_x]
         else:
             data_val = 0
@@ -304,9 +290,7 @@ class IntensityBasedOpeness:
             changed = True
             newval_flg = True
         else:
-            if (
-                intensity < data_val
-            ):  # if current intensity value is less (more pupil), save that
+            if intensity < data_val:  # if current intensity value is less (more pupil), save that
                 self.data[int_y, int_x] = intensity  # set value
                 changed = True
             else:
@@ -320,9 +304,7 @@ class IntensityBasedOpeness:
         if self.maxval == 0:  # that value is not yet saved
             self.maxval = intensity  # set value at 0 index
         else:
-            if (
-                intensity > self.maxval
-            ):  # if current intensity value is more (less pupil), save that NOTE: we have the
+            if intensity > self.maxval:  # if current intensity value is more (less pupil), save that NOTE: we have the
                 self.maxval = intensity - 5  # set value at 0 index
             else:
                 intensityd = max(
@@ -352,9 +334,7 @@ class IntensityBasedOpeness:
 
             eyeopen = np.clip(eyeopen, 0.0, 1.0)
 
-        if changed and (
-            (time.time() - self.lct) > 11
-        ):  # save every 5 seconds if something changed to save disk usage
+        if changed and ((time.time() - self.lct) > 11):  # save every 5 seconds if something changed to save disk usage
             self.save()
             self.lct = time.time()
 

@@ -1,4 +1,5 @@
 """OSCQuery receive: tree, mDNS answers, HTTP server, receiver wiring and fallback."""
+
 import json
 import os
 import socket
@@ -74,11 +75,14 @@ def test_tree_nests_paths_and_indexes_every_node():
     avatar = root["CONTENTS"]["avatar"]
     assert avatar["FULL_PATH"] == "/avatar" and avatar["ACCESS"] == 0
     leaf = avatar["CONTENTS"]["parameters"]["CONTENTS"]["etvr_recenter"]
-    assert leaf == {"FULL_PATH": "/avatar/parameters/etvr_recenter", "ACCESS": 2, "TYPE": "T",
-                    "DESCRIPTION": "recenter"}
+    assert leaf == {
+        "FULL_PATH": "/avatar/parameters/etvr_recenter",
+        "ACCESS": 2,
+        "TYPE": "T",
+        "DESCRIPTION": "recenter",
+    }
     assert index["/avatar/change"]["TYPE"] == "s"
-    assert set(index) == {"/", "/avatar", "/avatar/change", "/avatar/parameters",
-                          "/avatar/parameters/etvr_recenter"}
+    assert set(index) == {"/", "/avatar", "/avatar/change", "/avatar/parameters", "/avatar/parameters/etvr_recenter"}
 
 
 def test_ptr_question_gets_full_service_answer():
@@ -97,13 +101,19 @@ def test_ptr_question_gets_full_service_answer():
 
 def test_unrelated_questions_and_responses_are_ignored():
     responder = MDNSResponder("EyeTrackVR-TEST01", {oscquery.OSCJSON_SERVICE: 4321})
-    _, questions = parse_query(_query(("_http._tcp.local", TYPE_PTR), ("VRChat-Client-AB12._oscjson._tcp.local", TYPE_SRV)))
+    _, questions = parse_query(
+        _query(("_http._tcp.local", TYPE_PTR), ("VRChat-Client-AB12._oscjson._tcp.local", TYPE_SRV))
+    )
     assert responder.answer(questions) == ([], [], [])
     response = bytearray(_query((oscquery.OSCJSON_SERVICE, TYPE_PTR)))
     response[2] |= 0x80  # QR: a response, e.g. our own announcement looped back
     assert parse_query(bytes(response)) is None
-    for garbage in (b"", b"\x00" * 11, _query((oscquery.OSCJSON_SERVICE, TYPE_PTR))[:20],
-                    struct.pack(">HHHHHH", 0, 0, 1, 0, 0, 0) + b"\xc0\x0c"):  # pointer loop
+    for garbage in (
+        b"",
+        b"\x00" * 11,
+        _query((oscquery.OSCJSON_SERVICE, TYPE_PTR))[:20],
+        struct.pack(">HHHHHH", 0, 0, 1, 0, 0, 0) + b"\xc0\x0c",
+    ):  # pointer loop
         assert parse_query(garbage) is None
 
 
@@ -174,6 +184,7 @@ def test_receiver_advertises_a_free_port_and_receives(main_config, no_multicast)
 def test_receiver_falls_back_to_fixed_port_when_mdns_fails(main_config, monkeypatch):
     def unavailable(self):
         raise OSError("mDNS port unavailable")
+
     monkeypatch.setattr(MDNSResponder, "start", unavailable)
     settings = main_config.settings
     settings.gui_osc_oscquery = True
@@ -232,6 +243,7 @@ def test_real_mdns_round_trip_on_loopback():
         pytest.skip(f"cannot bind mDNS here: {exc}")
     try:
         from pyvrcft import mdns
+
         found = mdns.discover_vrchat_oscquery(timeout=4.0, instance_prefix="EyeTrackVR-")
         if found is None and os.environ.get("CI"):
             pytest.skip("multicast is not delivered in this CI environment")

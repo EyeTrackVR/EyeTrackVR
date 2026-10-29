@@ -17,57 +17,125 @@ Formulas are ported 1:1 from:
 from __future__ import annotations
 
 import math
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 
 # The UnifiedExpressions enum (VRCFT's ~70 base shapes), same names.
 # ("Max" is a C# sentinel, not a real shape, and is omitted.)
 UNIFIED_EXPRESSIONS = (
     # Eye
-    "EyeSquintRight", "EyeSquintLeft", "EyeWideRight", "EyeWideLeft",
+    "EyeSquintRight",
+    "EyeSquintLeft",
+    "EyeWideRight",
+    "EyeWideLeft",
     # Eyebrow
-    "BrowPinchRight", "BrowPinchLeft", "BrowLowererRight", "BrowLowererLeft",
-    "BrowInnerUpRight", "BrowInnerUpLeft", "BrowOuterUpRight", "BrowOuterUpLeft",
+    "BrowPinchRight",
+    "BrowPinchLeft",
+    "BrowLowererRight",
+    "BrowLowererLeft",
+    "BrowInnerUpRight",
+    "BrowInnerUpLeft",
+    "BrowOuterUpRight",
+    "BrowOuterUpLeft",
     # Nose
-    "NasalDilationRight", "NasalDilationLeft", "NasalConstrictRight", "NasalConstrictLeft",
+    "NasalDilationRight",
+    "NasalDilationLeft",
+    "NasalConstrictRight",
+    "NasalConstrictLeft",
     # Cheek
-    "CheekSquintRight", "CheekSquintLeft", "CheekPuffRight", "CheekPuffLeft",
-    "CheekSuckRight", "CheekSuckLeft",
+    "CheekSquintRight",
+    "CheekSquintLeft",
+    "CheekPuffRight",
+    "CheekPuffLeft",
+    "CheekSuckRight",
+    "CheekSuckLeft",
     # Jaw
-    "JawOpen", "JawRight", "JawLeft", "JawForward", "JawBackward",
-    "JawClench", "JawMandibleRaise", "MouthClosed",
+    "JawOpen",
+    "JawRight",
+    "JawLeft",
+    "JawForward",
+    "JawBackward",
+    "JawClench",
+    "JawMandibleRaise",
+    "MouthClosed",
     # Lip push/pull
-    "LipSuckUpperRight", "LipSuckUpperLeft", "LipSuckLowerRight", "LipSuckLowerLeft",
-    "LipSuckCornerRight", "LipSuckCornerLeft",
-    "LipFunnelUpperRight", "LipFunnelUpperLeft", "LipFunnelLowerRight", "LipFunnelLowerLeft",
-    "LipPuckerUpperRight", "LipPuckerUpperLeft", "LipPuckerLowerRight", "LipPuckerLowerLeft",
+    "LipSuckUpperRight",
+    "LipSuckUpperLeft",
+    "LipSuckLowerRight",
+    "LipSuckLowerLeft",
+    "LipSuckCornerRight",
+    "LipSuckCornerLeft",
+    "LipFunnelUpperRight",
+    "LipFunnelUpperLeft",
+    "LipFunnelLowerRight",
+    "LipFunnelLowerLeft",
+    "LipPuckerUpperRight",
+    "LipPuckerUpperLeft",
+    "LipPuckerLowerRight",
+    "LipPuckerLowerLeft",
     # Upper lip raiser
-    "MouthUpperUpRight", "MouthUpperUpLeft", "MouthUpperDeepenRight", "MouthUpperDeepenLeft",
-    "NoseSneerRight", "NoseSneerLeft",
+    "MouthUpperUpRight",
+    "MouthUpperUpLeft",
+    "MouthUpperDeepenRight",
+    "MouthUpperDeepenLeft",
+    "NoseSneerRight",
+    "NoseSneerLeft",
     # Lower lip depressor
-    "MouthLowerDownRight", "MouthLowerDownLeft",
+    "MouthLowerDownRight",
+    "MouthLowerDownLeft",
     # Mouth direction
-    "MouthUpperRight", "MouthUpperLeft", "MouthLowerRight", "MouthLowerLeft",
+    "MouthUpperRight",
+    "MouthUpperLeft",
+    "MouthLowerRight",
+    "MouthLowerLeft",
     # Smile
-    "MouthCornerPullRight", "MouthCornerPullLeft",
-    "MouthCornerSlantRight", "MouthCornerSlantLeft",
+    "MouthCornerPullRight",
+    "MouthCornerPullLeft",
+    "MouthCornerSlantRight",
+    "MouthCornerSlantLeft",
     # Sad
-    "MouthFrownRight", "MouthFrownLeft", "MouthStretchRight", "MouthStretchLeft",
-    "MouthDimpleRight", "MouthDimpleLeft",
-    "MouthRaiserUpper", "MouthRaiserLower",
-    "MouthPressRight", "MouthPressLeft", "MouthTightenerRight", "MouthTightenerLeft",
+    "MouthFrownRight",
+    "MouthFrownLeft",
+    "MouthStretchRight",
+    "MouthStretchLeft",
+    "MouthDimpleRight",
+    "MouthDimpleLeft",
+    "MouthRaiserUpper",
+    "MouthRaiserLower",
+    "MouthPressRight",
+    "MouthPressLeft",
+    "MouthTightenerRight",
+    "MouthTightenerLeft",
     # Tongue
-    "TongueOut", "TongueUp", "TongueDown", "TongueRight", "TongueLeft",
-    "TongueRoll", "TongueBendDown", "TongueCurlUp", "TongueSquish", "TongueFlat",
-    "TongueTwistRight", "TongueTwistLeft",
+    "TongueOut",
+    "TongueUp",
+    "TongueDown",
+    "TongueRight",
+    "TongueLeft",
+    "TongueRoll",
+    "TongueBendDown",
+    "TongueCurlUp",
+    "TongueSquish",
+    "TongueFlat",
+    "TongueTwistRight",
+    "TongueTwistLeft",
     # Throat/neck
-    "SoftPalateClose", "ThroatSwallow", "NeckFlexRight", "NeckFlexLeft",
+    "SoftPalateClose",
+    "ThroatSwallow",
+    "NeckFlexRight",
+    "NeckFlexLeft",
 )
 
 _UNIFIED_EXPRESSION_SET = frozenset(UNIFIED_EXPRESSIONS)
 
 SIMPLE_EXPRESSIONS = (
-    "BrowUpRight", "BrowUpLeft", "BrowDownRight", "BrowDownLeft",
-    "MouthSmileRight", "MouthSmileLeft", "MouthSadRight", "MouthSadLeft",
+    "BrowUpRight",
+    "BrowUpLeft",
+    "BrowDownRight",
+    "BrowDownLeft",
+    "MouthSmileRight",
+    "MouthSmileLeft",
+    "MouthSadRight",
+    "MouthSadLeft",
 )
 
 
@@ -194,6 +262,7 @@ class UnifiedTrackingData:
 # --------------------------------------------------------------------------
 # Simple expressions (UnifiedSimplifier.ExpressionMap)
 
+
 def compute_simple(w: ShapeWeights) -> dict:
     return {
         "BrowUpRight": w["BrowOuterUpRight"] * 0.60 + w["BrowInnerUpRight"] * 0.40,
@@ -209,6 +278,7 @@ def compute_simple(w: ShapeWeights) -> dict:
 
 # --------------------------------------------------------------------------
 # Full v2 output set (UnifiedExpressionsParameters + UnifiedHeadParameters)
+
 
 def compute_outputs(data: UnifiedTrackingData):
     """Compute VRCFT's complete output for one frame.
@@ -273,12 +343,10 @@ def compute_outputs(data: UnifiedTrackingData):
     out["v2/BrowOuterUp"] = (w["BrowOuterUpLeft"] + w["BrowOuterUpRight"]) / 2.0
     # -1 = 'Angry', +1 = 'Worried'
     out["v2/BrowExpressionRight"] = (
-        min(1, w["BrowInnerUpRight"] * 0.5 + w["BrowOuterUpRight"] * 0.5)
-        - simple["BrowDownRight"]
+        min(1, w["BrowInnerUpRight"] * 0.5 + w["BrowOuterUpRight"] * 0.5) - simple["BrowDownRight"]
     )
     out["v2/BrowExpressionLeft"] = (
-        min(1, w["BrowInnerUpLeft"] * 0.5 + w["BrowOuterUpLeft"] * 0.5)
-        - simple["BrowDownLeft"]
+        min(1, w["BrowInnerUpLeft"] * 0.5 + w["BrowOuterUpLeft"] * 0.5) - simple["BrowDownLeft"]
     )
     out["v2/BrowExpression"] = (
         min(1, (w["BrowInnerUpRight"] + w["BrowOuterUpRight"]) * 0.5)
@@ -295,19 +363,17 @@ def compute_outputs(data: UnifiedTrackingData):
     out["v2/CheekSquint"] = (w["CheekSquintLeft"] + w["CheekSquintRight"]) / 2.0
     out["v2/CheekPuffSuckLeft"] = w["CheekPuffLeft"] - w["CheekSuckLeft"]
     out["v2/CheekPuffSuckRight"] = w["CheekPuffRight"] - w["CheekSuckRight"]
-    out["v2/CheekPuffSuck"] = (
-        (w["CheekPuffRight"] + w["CheekPuffLeft"]) / 2.0
-        - (w["CheekSuckRight"] + w["CheekSuckLeft"]) / 2.0
-    )
+    out["v2/CheekPuffSuck"] = (w["CheekPuffRight"] + w["CheekPuffLeft"]) / 2.0 - (
+        w["CheekSuckRight"] + w["CheekSuckLeft"]
+    ) / 2.0
     out["v2/CheekSuck"] = (w["CheekSuckLeft"] + w["CheekSuckRight"]) / 2.0
 
     # --- Mouth direction
     out["v2/MouthUpperX"] = w["MouthUpperRight"] - w["MouthUpperLeft"]
     out["v2/MouthLowerX"] = w["MouthLowerRight"] - w["MouthLowerLeft"]
-    out["v2/MouthX"] = (
-        (w["MouthUpperRight"] + w["MouthLowerRight"]) / 2.0
-        - (w["MouthUpperLeft"] + w["MouthLowerLeft"]) / 2.0
-    )
+    out["v2/MouthX"] = (w["MouthUpperRight"] + w["MouthLowerRight"]) / 2.0 - (
+        w["MouthUpperLeft"] + w["MouthLowerLeft"]
+    ) / 2.0
 
     # --- Lips
     suck_upper = (w["LipSuckUpperRight"] + w["LipSuckUpperLeft"]) / 2.0
@@ -325,8 +391,7 @@ def compute_outputs(data: UnifiedTrackingData):
     out["v2/LipPuckerRight"] = (w["LipPuckerUpperRight"] + w["LipPuckerLowerRight"]) / 2.0
     out["v2/LipPuckerLeft"] = (w["LipPuckerUpperLeft"] + w["LipPuckerLowerLeft"]) / 2.0
     out["v2/LipPucker"] = (
-        w["LipPuckerUpperRight"] + w["LipPuckerUpperLeft"]
-        + w["LipPuckerLowerRight"] + w["LipPuckerLowerLeft"]
+        w["LipPuckerUpperRight"] + w["LipPuckerUpperLeft"] + w["LipPuckerLowerRight"] + w["LipPuckerLowerLeft"]
     ) / 4.0
     # Compacted
     out["v2/LipSuckFunnelUpper"] = suck_upper - funnel_upper
@@ -340,8 +405,10 @@ def compute_outputs(data: UnifiedTrackingData):
     out["v2/MouthUpperUp"] = w["MouthUpperUpRight"] * 0.5 + w["MouthUpperUpLeft"] * 0.5
     out["v2/MouthLowerDown"] = w["MouthLowerDownRight"] * 0.5 + w["MouthLowerDownLeft"] * 0.5
     out["v2/MouthOpen"] = (
-        w["MouthUpperUpRight"] * 0.25 + w["MouthUpperUpLeft"] * 0.25
-        + w["MouthLowerDownRight"] * 0.25 + w["MouthLowerDownLeft"] * 0.25
+        w["MouthUpperUpRight"] * 0.25
+        + w["MouthUpperUpLeft"] * 0.25
+        + w["MouthLowerDownRight"] * 0.25
+        + w["MouthLowerDownLeft"] * 0.25
     )
     out["v2/MouthStretch"] = (w["MouthStretchRight"] + w["MouthStretchLeft"]) / 2.0
     out["v2/MouthTightener"] = (w["MouthTightenerRight"] + w["MouthTightenerLeft"]) / 2.0
@@ -357,21 +424,21 @@ def compute_outputs(data: UnifiedTrackingData):
     out["v2/MouthCornerYLeft"] = w["MouthCornerSlantLeft"] - w["MouthFrownLeft"]
     out["v2/MouthCornerYRight"] = w["MouthCornerSlantRight"] - w["MouthFrownRight"]
     out["v2/MouthCornerY"] = (
-        w["MouthCornerSlantLeft"] - w["MouthFrownLeft"]
-        + w["MouthCornerSlantRight"] - w["MouthFrownRight"]
+        w["MouthCornerSlantLeft"] - w["MouthFrownLeft"] + w["MouthCornerSlantRight"] - w["MouthFrownRight"]
     ) * 0.5
     out["v2/SmileFrownRight"] = simple["MouthSmileRight"] - w["MouthFrownRight"]
     out["v2/SmileFrownLeft"] = simple["MouthSmileLeft"] - w["MouthFrownLeft"]
     out["v2/SmileFrown"] = (
-        simple["MouthSmileRight"] * 0.5 + simple["MouthSmileLeft"] * 0.5
-        - w["MouthFrownRight"] * 0.5 - w["MouthFrownLeft"] * 0.5
+        simple["MouthSmileRight"] * 0.5
+        + simple["MouthSmileLeft"] * 0.5
+        - w["MouthFrownRight"] * 0.5
+        - w["MouthFrownLeft"] * 0.5
     )
     out["v2/SmileSadRight"] = simple["MouthSmileRight"] - simple["MouthSadRight"]
     out["v2/SmileSadLeft"] = simple["MouthSmileLeft"] - simple["MouthSadLeft"]
-    out["v2/SmileSad"] = (
-        (simple["MouthSmileLeft"] + simple["MouthSmileRight"]) / 2.0
-        - (simple["MouthSadLeft"] + simple["MouthSadRight"]) / 2.0
-    )
+    out["v2/SmileSad"] = (simple["MouthSmileLeft"] + simple["MouthSmileRight"]) / 2.0 - (
+        simple["MouthSadLeft"] + simple["MouthSadRight"]
+    ) / 2.0
 
     # --- Tongue
     out["v2/TongueX"] = w["TongueRight"] - w["TongueLeft"]
@@ -434,6 +501,7 @@ def native_pitch_yaw(eye: SingleEyeData, data: "UnifiedTrackingData"):
 # This matches how EyeTrackVR's own v1 output has always driven them, so v1
 # avatars tuned against EyeTrackVR behave identically under this port.
 
+
 def compute_legacy_outputs(data: UnifiedTrackingData) -> dict:
     """Compute VRCFT v1 (legacy) eye parameters for one frame.
 
@@ -493,13 +561,10 @@ def compute_legacy_outputs(data: UnifiedTrackingData) -> dict:
 # the matched avatar params are known VRCFT names; the name test alone is
 # a close, slightly more conservative approximation.)
 
+
 def native_gaze_relevant(avatar_params) -> bool:
-    return not any(
-        "Eye" in p.name and ("X" in p.name or "Y" in p.name) for p in avatar_params
-    )
+    return not any("Eye" in p.name and ("X" in p.name or "Y" in p.name) for p in avatar_params)
 
 
 def native_eyelids_relevant(avatar_params) -> bool:
-    return not any(
-        "Eye" in p.name and ("Open" in p.name or "Lid" in p.name) for p in avatar_params
-    )
+    return not any("Eye" in p.name and ("Open" in p.name or "Lid" in p.name) for p in avatar_params)

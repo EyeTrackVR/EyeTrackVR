@@ -42,9 +42,7 @@ class AdvancedTrackingAlgoSettingsModule(BaseSettingsModule):
             next_val = max(min_v, min(max_v, next_val))
             var.set(next_val)
 
-        ttk.Label(parent, text=label).grid(
-            row=row, column=0, sticky="w", padx=8, pady=2
-        )
+        ttk.Label(parent, text=label).grid(row=row, column=0, sticky="w", padx=8, pady=2)
         ttk.Scale(
             parent,
             from_=min_v,
@@ -99,9 +97,7 @@ class AdvancedTrackingAlgoSettingsModule(BaseSettingsModule):
             col = idx // rows_per_column
             var = tk.BooleanVar(value=default)
             self.tk_vars[key] = var
-            ttk.Checkbutton(parent, text=label, variable=var).grid(
-                row=row, column=col, sticky="w", padx=8, pady=2
-            )
+            ttk.Checkbutton(parent, text=label, variable=var).grid(row=row, column=col, sticky="w", padx=8, pady=2)
         row = rows_per_column
 
         ttk.Separator(parent, orient="horizontal").grid(

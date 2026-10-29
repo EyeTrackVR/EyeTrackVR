@@ -87,6 +87,7 @@ class TimedMedian:
             items.popleft()
         return float(np.median([v for _, v in items]))
 
+
 # A NEXT model is picked by two settings: the headset (HMD) it was trained for
 # and its size. The headset selects the matching Hybrid export family.
 HMD_TYPES = ("ETVR", "BSB", "PSVR")
@@ -108,9 +109,7 @@ DEFAULT_MODEL_SIZE = "NORMAL"
 EXPERIMENTAL_MODEL_SIZES = ("NANO", "MICRO", "MINI", "SMALL")
 # Every selectable "<HMD>[ <SIZE>]" variant string (NORMAL carries no suffix).
 MODEL_VARIANTS = tuple(HMD_TYPES) + tuple(
-    f"{hmd} {size}"
-    for size in reversed(MODEL_SIZES) if size != DEFAULT_MODEL_SIZE
-    for hmd in HMD_TYPES
+    f"{hmd} {size}" for size in reversed(MODEL_SIZES) if size != DEFAULT_MODEL_SIZE for hmd in HMD_TYPES
 )
 # Preserve the app's deployed stereo gaze-Y convention in both Hybrid paths.
 SHARED_GAZE_Y_SIGN = -1.0
@@ -155,14 +154,15 @@ def model_file_for_variant(variant: str) -> str:
     if size == "LITE":
         candidate = f"Models/{stem}.fp16.onnx"
     elif size in EXPERIMENTAL_MODEL_SIZES:
-        candidate = f"Models/NEXT_ETVR_HYBRID_TINY_{size}{stem[len('NEXT_ETVR_HYBRID'):]}.onnx"
+        candidate = f"Models/NEXT_ETVR_HYBRID_TINY_{size}{stem[len('NEXT_ETVR_HYBRID') :]}.onnx"
     if candidate and os.path.exists(resource_path(candidate)):
         return candidate
     return f"Models/{stem}.onnx"
 
+
 # ImageNet normalization constants (CHW channel order after BGR->RGB)
 _MEAN = np.array([0.485, 0.456, 0.406], dtype=np.float32).reshape(3, 1, 1)
-_STD  = np.array([0.229, 0.224, 0.225], dtype=np.float32).reshape(3, 1, 1)
+_STD = np.array([0.229, 0.224, 0.225], dtype=np.float32).reshape(3, 1, 1)
 
 
 class NEXT_cls:
@@ -223,13 +223,13 @@ class NEXT_cls:
         # entirely, so this is fully backward compatible.
         self.temporal_frames = int(meta.get("temporal_frames", 1))
         self.frame_stride = int(meta.get("frame_stride", 2))
-        self._frame_history = deque(
-            maxlen=(self.temporal_frames - 1) * self.frame_stride + 1
-        )
+        self._frame_history = deque(maxlen=(self.temporal_frames - 1) * self.frame_stride + 1)
 
         # Initialize with dummy arrays; updated dynamically in run()
         self.one_euro_filter = OneEuroFilter(
-            np.zeros(5, dtype=np.float32), min_cutoff=1.0, beta=0.0,
+            np.zeros(5, dtype=np.float32),
+            min_cutoff=1.0,
+            beta=0.0,
             step_s=NEXT_FILTER_STEP_S,
         )
 
@@ -249,28 +249,34 @@ class NEXT_cls:
     def run(self, bgr_frame: np.ndarray, base_cutoff: float = 0.0004, base_beta: float = 0.9):
         # Update filter parameters based on smoothing slider base values
         # Array order: [eyebrow, eyelid, squeeze, gaze_x, gaze_y]
-        
+
         # User requested:
         # - Eyebrows filtered the most (lowest cutoff/beta)
         # - Gaze & Squeeze next
         # - Eyelids the least (highest cutoff/beta)
-        
-        # We apply multipliers to the base slider values to achieve this ordering.
-        _cutoff = np.array([
-            base_cutoff * 1.0,   # eyebrow (most)
-            base_cutoff * 10.0,  # eyelid (least)
-            base_cutoff * 5.0,   # squeeze (next)
-            base_cutoff * 0.1,   # gaze_x (next)
-            base_cutoff * 0.1,   # gaze_y (next)
-        ], dtype=np.float32)
 
-        _beta = np.array([
-            base_beta * 1.0,     # eyebrow (most)
-            base_beta * 10.0,    # eyelid (least)
-            base_beta * 5.0,     # squeeze (next)
-            base_beta * 0.1,     # gaze_x (next)
-            base_beta * 0.1,     # gaze_y (next)
-        ], dtype=np.float32)
+        # We apply multipliers to the base slider values to achieve this ordering.
+        _cutoff = np.array(
+            [
+                base_cutoff * 1.0,  # eyebrow (most)
+                base_cutoff * 10.0,  # eyelid (least)
+                base_cutoff * 5.0,  # squeeze (next)
+                base_cutoff * 0.1,  # gaze_x (next)
+                base_cutoff * 0.1,  # gaze_y (next)
+            ],
+            dtype=np.float32,
+        )
+
+        _beta = np.array(
+            [
+                base_beta * 1.0,  # eyebrow (most)
+                base_beta * 10.0,  # eyelid (least)
+                base_beta * 5.0,  # squeeze (next)
+                base_beta * 0.1,  # gaze_x (next)
+                base_beta * 0.1,  # gaze_y (next)
+            ],
+            dtype=np.float32,
+        )
 
         self.one_euro_filter.min_cutoff[:] = _cutoff
         self.one_euro_filter.beta[:] = _beta
@@ -288,9 +294,7 @@ class NEXT_cls:
             black = np.zeros_like(img)
             if not self.raw_input:
                 black = (black - _MEAN) / _STD
-            img = np.concatenate(
-                (img, black) if self.eye_id == EyeId.LEFT else (black, img), axis=0
-            )
+            img = np.concatenate((img, black) if self.eye_id == EyeId.LEFT else (black, img), axis=0)
         if self.temporal_frames > 1:
             # Channel-stack the history oldest -> newest at frame_stride
             # spacing; while the buffer is still filling (first few frames
@@ -298,8 +302,10 @@ class NEXT_cls:
             self._frame_history.append(img)
             h = self._frame_history
             img = np.concatenate(
-                [h[max(0, len(h) - 1 - (self.temporal_frames - 1 - k) * self.frame_stride)]
-                 for k in range(self.temporal_frames)],
+                [
+                    h[max(0, len(h) - 1 - (self.temporal_frames - 1 - k) * self.frame_stride)]
+                    for k in range(self.temporal_frames)
+                ],
                 axis=0,
             )
         img = img[np.newaxis]  # NCHW batch dim
@@ -316,7 +322,7 @@ class NEXT_cls:
         if getattr(self, "hybrid", False):
             base = 0 if self.eye_id == EyeId.LEFT else 3
             # Same gaze-Y convention as the shared Hybrid/stereo runner.
-            raw = np.concatenate((raw[base:base + 3], [raw[6], raw[7] * SHARED_GAZE_Y_SIGN]))
+            raw = np.concatenate((raw[base : base + 3], [raw[6], raw[7] * SHARED_GAZE_Y_SIGN]))
 
         # Gaze straight from the model, before any filtering: foveated
         # rendering wants it unsmoothed (see EyeInfo.dfr_x).

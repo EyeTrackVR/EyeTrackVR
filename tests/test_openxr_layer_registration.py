@@ -18,12 +18,20 @@ def _layer(root):
     d = root / "openxr_layer"
     d.mkdir(parents=True)
     (d / reg._library_name()).write_bytes(b"\0")
-    (d / reg.MANIFEST).write_text(json.dumps({
-        "file_format_version": "1.0.0",
-        "api_layer": {"name": reg.LAYER_NAME, "library_path": "./" + reg._library_name(),
-                      "api_version": "1.0", "implementation_version": "1",
-                      "disable_environment": "DISABLE_" + reg.LAYER_NAME},
-    }))
+    (d / reg.MANIFEST).write_text(
+        json.dumps(
+            {
+                "file_format_version": "1.0.0",
+                "api_layer": {
+                    "name": reg.LAYER_NAME,
+                    "library_path": "./" + reg._library_name(),
+                    "api_version": "1.0",
+                    "implementation_version": "1",
+                    "disable_environment": "DISABLE_" + reg.LAYER_NAME,
+                },
+            }
+        )
+    )
     return d
 
 
@@ -107,7 +115,9 @@ def test_linux_install_writes_absolute_library_path(tmp_path, linux):
     # Moved install: the manifest follows it.
     moved = _layer(tmp_path / "moved")
     assert _sync_linux(True, moved, implicit) == reg.INSTALLED
-    assert json.loads((implicit / reg.MANIFEST).read_text())["api_layer"]["library_path"] == str(moved / reg._library_name())
+    assert json.loads((implicit / reg.MANIFEST).read_text())["api_layer"]["library_path"] == str(
+        moved / reg._library_name()
+    )
 
 
 def test_linux_remove_leaves_other_layers(tmp_path, linux):
@@ -125,7 +135,10 @@ def test_implicit_dir_follows_xdg_data_home(monkeypatch, tmp_path):
     monkeypatch.setenv("XDG_DATA_HOME", str(tmp_path / "data"))
     assert reg._xdg_implicit_layer_dir() == tmp_path / "data" / "openxr" / "1" / "api_layers" / "implicit.d"
     monkeypatch.delenv("XDG_DATA_HOME")
-    assert reg._xdg_implicit_layer_dir() == reg.Path.home() / ".local" / "share" / "openxr" / "1" / "api_layers" / "implicit.d"
+    assert (
+        reg._xdg_implicit_layer_dir()
+        == reg.Path.home() / ".local" / "share" / "openxr" / "1" / "api_layers" / "implicit.d"
+    )
 
 
 # ------------------------------------------------------------------ common
@@ -165,9 +178,11 @@ def test_osc_manager_syncs_driver_and_layer_with_the_toggle(main_config_v2_param
         assert len(calls) == n, calls
 
     s = main_config_v2_params.settings
-    with mock.patch("OVR.SteamVRDriverRegistration.sync_quietly", side_effect=lambda e: calls.append(("driver", e))), \
-         mock.patch("OVR.OpenXRLayerRegistration.sync_quietly", side_effect=lambda e: calls.append(("layer", e))), \
-         mock.patch("osc.osc.udp_client.SimpleUDPClient"):
+    with (
+        mock.patch("OVR.SteamVRDriverRegistration.sync_quietly", side_effect=lambda e: calls.append(("driver", e))),
+        mock.patch("OVR.OpenXRLayerRegistration.sync_quietly", side_effect=lambda e: calls.append(("layer", e))),
+        mock.patch("osc.osc.udp_client.SimpleUDPClient"),
+    ):
         manager = OSCManager(config=main_config_v2_params, osc_message_in_queue=Queue())
         manager.start()
         try:

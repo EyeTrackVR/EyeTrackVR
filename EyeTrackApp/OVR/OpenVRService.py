@@ -117,11 +117,18 @@ def _windows_process_running(name: str) -> bool:
     from ctypes import wintypes
 
     class PROCESSENTRY32W(ctypes.Structure):
-        _fields_ = [("dwSize", wintypes.DWORD), ("cntUsage", wintypes.DWORD),
-                    ("th32ProcessID", wintypes.DWORD), ("th32DefaultHeapID", ctypes.c_void_p),
-                    ("th32ModuleID", wintypes.DWORD), ("cntThreads", wintypes.DWORD),
-                    ("th32ParentProcessID", wintypes.DWORD), ("pcPriClassBase", ctypes.c_long),
-                    ("dwFlags", wintypes.DWORD), ("szExeFile", ctypes.c_wchar * 260)]
+        _fields_ = [
+            ("dwSize", wintypes.DWORD),
+            ("cntUsage", wintypes.DWORD),
+            ("th32ProcessID", wintypes.DWORD),
+            ("th32DefaultHeapID", ctypes.c_void_p),
+            ("th32ModuleID", wintypes.DWORD),
+            ("cntThreads", wintypes.DWORD),
+            ("th32ParentProcessID", wintypes.DWORD),
+            ("pcPriClassBase", ctypes.c_long),
+            ("dwFlags", wintypes.DWORD),
+            ("szExeFile", ctypes.c_wchar * 260),
+        ]
 
     kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
     kernel32.CreateToolhelp32Snapshot.restype = wintypes.HANDLE
@@ -223,9 +230,7 @@ class OpenVRService:
         except openvr.error_code.InitError_Init_PathRegistryNotFound:
             raise OpenVRException("SteamVR might not be installed")
         except Exception as e:
-            raise OpenVRException(
-                f"Unknown SteamVR initialization error ({e.__class__.__name__})"
-            )
+            raise OpenVRException(f"Unknown SteamVR initialization error ({e.__class__.__name__})")
         # Tell SteamVR this process is the auto-launch app, so it doesn't start
         # a second copy of a manually opened EyeTrackVR.
         try:
@@ -277,14 +282,17 @@ class OpenVRService:
             if not self.app.isApplicationInstalled(self.appKey):
                 return
             old_binary = self.app.getApplicationPropertyString(
-                self.appKey, openvr.VRApplicationProperty_BinaryPath_String)
+                self.appKey, openvr.VRApplicationProperty_BinaryPath_String
+            )
             old_arguments = self.app.getApplicationPropertyString(
-                self.appKey, openvr.VRApplicationProperty_Arguments_String)
+                self.appKey, openvr.VRApplicationProperty_Arguments_String
+            )
         except Exception:
             return
         binary, arguments = _launch_target()
-        same_install = (old_binary and _same_path(old_binary, binary)
-                        and _unquote(old_arguments or "") == _unquote(arguments))
+        same_install = (
+            old_binary and _same_path(old_binary, binary) and _unquote(old_arguments or "") == _unquote(arguments)
+        )
         candidates = []
         if old_binary and not same_install:
             candidates.append(os.path.join(os.path.dirname(old_binary), "app.vrmanifest"))
@@ -448,8 +456,7 @@ class OpenVRService:
             if not self._connecting and now >= self._next_reconnect:
                 self._next_reconnect = now + _RECONNECT_S
                 self._connecting = True
-                threading.Thread(target=self._connect_in_background, daemon=True,
-                                 name="SteamVRConnect").start()
+                threading.Thread(target=self._connect_in_background, daemon=True, name="SteamVRConnect").start()
             return False
 
         if self._server_gone:
@@ -498,8 +505,7 @@ class OpenVRService:
                 # propagates so the UI can surface it and revert the checkbox.
                 self.logger.log(
                     INFO,
-                    f"{Fore.CYAN}[INFO] SteamVR not running; auto-launch will be "
-                    f"registered as soon as SteamVR starts.",
+                    f"{Fore.CYAN}[INFO] SteamVR not running; auto-launch will be registered as soon as SteamVR starts.",
                 )
                 # Still drop a manifest so a manual SteamVR scan can find it.
                 try:
@@ -545,5 +551,6 @@ def _show_warning(title: str, message: str) -> None:
         messagebox.showwarning(title, message, parent=popup_root)
     finally:
         popup_root.destroy()
+
 
 openvr_service = OpenVRService()

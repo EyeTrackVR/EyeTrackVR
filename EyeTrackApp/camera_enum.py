@@ -46,11 +46,11 @@ def parse_uvc_named_source(s: str) -> tuple[str, str]:
     """Split ``uvc:<name>@<address>`` into (name, address). The address is the
     portion after the LAST ``@`` to tolerate ``@`` characters appearing in
     camera names (which DirectShow does occasionally produce)."""
-    body = s[len(_UVC_PREFIX):]
+    body = s[len(_UVC_PREFIX) :]
     at = body.rfind("@")
     if at < 0:
         return body, ""
-    return body[:at], body[at + 1:]
+    return body[:at], body[at + 1 :]
 
 
 def format_uvc_named_source(name: str, address: str) -> str:
@@ -84,7 +84,10 @@ def _windows_pnp_name_to_deviceid() -> dict[str, list[str]]:
     try:
         out = subprocess.run(
             ["powershell", "-NoProfile", "-Command", ps],
-            capture_output=True, text=True, timeout=8, check=False,
+            capture_output=True,
+            text=True,
+            timeout=8,
+            check=False,
             creationflags=subprocess.CREATE_NO_WINDOW,
         )
         if out.returncode != 0 or not out.stdout.strip():
@@ -140,8 +143,7 @@ def _windows_camera_metadata() -> list[tuple[str, str]]:
         from pygrabber.dshow_graph import FilterGraph  # type: ignore
     except ImportError:
         logger.warning(
-            "pygrabber not installed; Windows camera names may be mis-ordered. "
-            "Reinstall dependencies to fix."
+            "pygrabber not installed; Windows camera names may be mis-ordered. Reinstall dependencies to fix."
         )
         return _windows_wmi_only_metadata(pnp_map)
 
@@ -158,6 +160,7 @@ def _windows_camera_metadata() -> list[tuple[str, str]]:
     _com_up = False
     try:
         import comtypes  # pygrabber's own COM layer, always present with pygrabber
+
         try:
             comtypes.CoInitialize()
             _com_up = True
@@ -226,11 +229,7 @@ def _linux_camera_metadata() -> list[tuple[int, str, str]]:
     video_devs = []
     try:
         for entry in sorted(os.listdir("/dev")):
-            if (
-                entry.startswith("video")
-                and entry[5:].isdigit()
-                and _linux_is_capture_node(entry)
-            ):
+            if entry.startswith("video") and entry[5:].isdigit() and _linux_is_capture_node(entry):
                 video_devs.append((int(entry[5:]), f"/dev/{entry}"))
     except OSError:
         return []
@@ -264,7 +263,10 @@ def _macos_camera_metadata() -> list[tuple[str, str]]:
     try:
         out = subprocess.run(
             ["system_profiler", "-json", "SPCameraDataType"],
-            capture_output=True, text=True, timeout=8, check=False,
+            capture_output=True,
+            text=True,
+            timeout=8,
+            check=False,
         )
         if out.returncode != 0 or not out.stdout.strip():
             return []
@@ -319,6 +321,8 @@ def release_uvc_claim(owner_id: int) -> None:
     """Release a previously claimed device address."""
     with _claimed_lock:
         _claimed.pop(owner_id, None)
+
+
 # How long (seconds) to reuse a camera list before re-enumerating. Must be long
 # enough that reconnect-retry loops from two camera threads don't trigger
 # concurrent DirectShow enumerations that compete with active camera handles and
@@ -344,10 +348,7 @@ def _list_uvc_cameras_uncached() -> "list[dict]":
             for idx, name, address in metadata
         ]
     indices = _probe_cv2_indices()
-    return [
-        {"index": idx, "name": f"Camera {idx}", "address": f"index:{idx}"}
-        for idx in indices
-    ]
+    return [{"index": idx, "name": f"Camera {idx}", "address": f"index:{idx}"} for idx in indices]
 
 
 def list_uvc_cameras() -> "list[dict]":
@@ -580,25 +581,16 @@ def discover_etvr_serial_cameras(
         return []
 
     baud = _SERIAL_BAUD_DARWIN if sys.platform == "darwin" else _SERIAL_BAUD_DEFAULT
-    skip = {
-        _serial_port_key(d) for d in skip_devices
-        if isinstance(d, str) and d.strip()
-    }
+    skip = {_serial_port_key(d) for d in skip_devices if isinstance(d, str) and d.strip()}
     candidates = [
-        p for p in list_ports.comports()
-        if _looks_like_usable_serial(p) and _serial_port_key(p.device) not in skip
+        p for p in list_ports.comports() if _looks_like_usable_serial(p) and _serial_port_key(p.device) not in skip
     ]
     if not candidates:
         return []
 
     results: list[tuple[str, str]] = []
-    with ThreadPoolExecutor(
-        max_workers=min(_SERIAL_PROBE_WORKERS, len(candidates))
-    ) as pool:
-        futures = {
-            pool.submit(_probe_serial_for_jpeg, p.device, baud, timeout_s): p
-            for p in candidates
-        }
+    with ThreadPoolExecutor(max_workers=min(_SERIAL_PROBE_WORKERS, len(candidates))) as pool:
+        futures = {pool.submit(_probe_serial_for_jpeg, p.device, baud, timeout_s): p for p in candidates}
         for fut in as_completed(futures):
             port = futures[fut]
             try:
@@ -675,15 +667,17 @@ def resolve_uvc_address_to_index(
             if len(unclaimed) == 1:
                 if unclaimed[0]["address"] != address:
                     logger.info(
-                        "UVC '%s': stored address '%s' not present; auto-routing to "
-                        "unclaimed camera '%s'.",
-                        name, address, unclaimed[0]["address"],
+                        "UVC '%s': stored address '%s' not present; auto-routing to unclaimed camera '%s'.",
+                        name,
+                        address,
+                        unclaimed[0]["address"],
                     )
                 return unclaimed[0]["index"], unclaimed[0]["address"]
             if len(unclaimed) == 0:
                 logger.debug(
                     "UVC name fallback skipped for '%s': the only present match is "
-                    "claimed by another camera; not stealing it.", name,
+                    "claimed by another camera; not stealing it.",
+                    name,
                 )
             else:
                 # Multiple unclaimed cameras share this name; a name-only match
@@ -691,10 +685,13 @@ def resolve_uvc_address_to_index(
                 logger.debug(
                     "UVC name fallback skipped for '%s': %d unclaimed cameras share "
                     "that name; re-select from the dropdown to re-assign by address.",
-                    name, len(unclaimed),
+                    name,
+                    len(unclaimed),
                 )
     logger.debug(
         "UVC resolve failed for '%s'@'%s'; enumerated: %s",
-        name, address, [(c["name"], c["address"]) for c in cams],
+        name,
+        address,
+        [(c["name"], c["address"]) for c in cams],
     )
     return None

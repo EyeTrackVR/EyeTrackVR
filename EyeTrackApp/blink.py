@@ -44,9 +44,7 @@ def BLINK(self):
     intensity = np.sum(self.current_image_gray_clean)
 
     # Reset filter on (re)calibration. Use a bounded deque so append is O(1).
-    if self.calibration_start_time is not None or not isinstance(
-        getattr(self, "filterlist", None), deque
-    ):
+    if self.calibration_start_time is not None or not isinstance(getattr(self, "filterlist", None), deque):
         self.filterlist = deque(maxlen=_FILTER_MAXLEN)
     self.filterlist.append(intensity)
 

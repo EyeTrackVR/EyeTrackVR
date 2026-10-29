@@ -90,9 +90,7 @@ class TrackingAlgorithmModule(BaseSettingsModule):
     def build(self, parent):
         self.selected_algo = tk.StringVar(value=self._selected_from(self.config))
         for _label, name, key, config_field in self._algo_entries:
-            self.tk_vars[key] = tk.BooleanVar(
-                value=bool(getattr(self.config, config_field, False))
-            )
+            self.tk_vars[key] = tk.BooleanVar(value=bool(getattr(self.config, config_field, False)))
         # Radio buttons live in their own frame so their column widths are
         # independent of the slider row below (which would otherwise force
         # column 1 wide via the Scale widget, creating a gap between LEAP and AHRAC).
@@ -100,9 +98,7 @@ class TrackingAlgorithmModule(BaseSettingsModule):
         radio_frame.grid(row=0, column=0, columnspan=5, sticky="w")
         self._render_radio_grid(radio_frame, self._basic_entries, ncol=4)
 
-        speed_var = tk.IntVar(
-            value=int(getattr(self.config, "gui_max_tracking_speed", 60))
-        )
+        speed_var = tk.IntVar(value=int(getattr(self.config, "gui_max_tracking_speed", 60)))
         self.tk_vars[self.gui_max_tracking_speed] = speed_var
         self._add_slider_with_controls(
             parent,
@@ -115,18 +111,14 @@ class TrackingAlgorithmModule(BaseSettingsModule):
 
         # Directly under the speed slider: opt out of having NEXT Smart Calib
         # anchor this user's neutral eyelid / eyebrow readings.
-        lids_brows_var = tk.BooleanVar(
-            value=bool(getattr(self.config, "gui_NEXT_calib_lids_brows", True))
-        )
+        lids_brows_var = tk.BooleanVar(value=bool(getattr(self.config, "gui_NEXT_calib_lids_brows", True)))
         self.tk_vars[self.gui_NEXT_calib_lids_brows] = lids_brows_var
         lids_brows_cb = ttk.Checkbutton(
             parent,
             text=tr("algo_tracking.next_calib_lids_brows"),
             variable=lids_brows_var,
         )
-        lids_brows_cb.grid(
-            row=2, column=0, columnspan=3, sticky="w", padx=8, pady=(2, 4)
-        )
+        lids_brows_cb.grid(row=2, column=0, columnspan=3, sticky="w", padx=8, pady=(2, 4))
         attach_tooltip(lids_brows_cb, tr("algo_tracking.next_calib_lids_brows_tip"))
 
         # NEXT model: headset family plus a size slider (lightest -> best).
@@ -167,6 +159,7 @@ class TrackingAlgorithmModule(BaseSettingsModule):
         combo.grid(row=0, column=1, sticky="w")
         attach_tooltip(combo, tr("algo_tracking.headset_tip"))
         self._model_combo = combo
+
         # A manual selection sticks: it stops the setup-mode auto-shift from
         # overriding the choice on future mode switches. <<ComboboxSelected>>
         # only fires on user interaction, not on programmatic .set() from the
@@ -261,9 +254,7 @@ class TrackingAlgorithmModule(BaseSettingsModule):
         ttk.Label(parent, text=tr("algo_tracking.advanced_heading")).grid(
             row=0, column=0, columnspan=4, sticky="w", padx=8, pady=(2, 2)
         )
-        self._render_radio_grid(
-            parent, self._advanced_entries, ncol=3, row_offset=1
-        )
+        self._render_radio_grid(parent, self._advanced_entries, ncol=3, row_offset=1)
 
     def _render_radio_grid(self, parent, entries, ncol, row_offset=0) -> dict:
         """Render radio buttons and return {name: (row, col)} for each entry."""
@@ -272,9 +263,7 @@ class TrackingAlgorithmModule(BaseSettingsModule):
         for idx, (label, name, _key, _config_field) in enumerate(entries):
             row = (idx % rows_per_column) + row_offset
             col = idx // rows_per_column
-            rb = ttk.Radiobutton(
-                parent, text=label, variable=self.selected_algo, value=name
-            )
+            rb = ttk.Radiobutton(parent, text=label, variable=self.selected_algo, value=name)
             rb.grid(row=row, column=col, sticky="w", padx=8, pady=2)
             attach_tooltip(rb, tr(f"algo_tracking.{name}_tip"))
             positions[name] = (row, col)

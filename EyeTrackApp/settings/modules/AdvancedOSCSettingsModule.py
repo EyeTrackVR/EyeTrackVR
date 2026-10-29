@@ -74,18 +74,12 @@ class AdvancedOSCSettingsModule(BaseSettingsModule):
             ),
         ]
         for row, (left, right) in enumerate(paired_fields):
-            ttk.Label(parent, text=left[0]).grid(
-                row=row, column=0, sticky="w", padx=8, pady=2
-            )
+            ttk.Label(parent, text=left[0]).grid(row=row, column=0, sticky="w", padx=8, pady=2)
             left_var = tk.StringVar(value=str(left[2]))
             self.tk_vars[left[1]] = left_var
-            ttk.Entry(parent, textvariable=left_var, width=left[3]).grid(
-                row=row, column=1, sticky="w", padx=8, pady=2
-            )
+            ttk.Entry(parent, textvariable=left_var, width=left[3]).grid(row=row, column=1, sticky="w", padx=8, pady=2)
             if right is not None:
-                ttk.Label(parent, text=right[0]).grid(
-                    row=row, column=2, sticky="w", padx=8, pady=2
-                )
+                ttk.Label(parent, text=right[0]).grid(row=row, column=2, sticky="w", padx=8, pady=2)
                 right_var = tk.StringVar(value=str(right[2]))
                 self.tk_vars[right[1]] = right_var
                 ttk.Entry(parent, textvariable=right_var, width=right[3]).grid(

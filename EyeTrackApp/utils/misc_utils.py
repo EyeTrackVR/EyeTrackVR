@@ -30,9 +30,7 @@ else:
     # First available CLI player wins. paplay covers PulseAudio/PipeWire
     # (virtually every desktop distro), aplay is the ALSA fallback, afplay
     # is macOS. Resolved once at import so PlaySound stays cheap.
-    _PLAYER = next(
-        (p for p in ("paplay", "aplay", "afplay") if shutil.which(p)), None
-    )
+    _PLAYER = next((p for p in ("paplay", "aplay", "afplay") if shutil.which(p)), None)
 
     def PlaySound(sound, flags=0):  # noqa: F811 - deliberate platform override
         """winsound.PlaySound-compatible shim. Only the (filename, ASYNC)
@@ -69,9 +67,7 @@ def lst_median(lst, ordered=False):
 
 class FastMedian:
     # https://github.com/emilianavt/OpenSeeFace/blob/6f24efc4f58eb7cca47ec2146d934eabcc207e46/remedian.py
-    def __init__(
-        self, inits: typing.Optional[typing.Sequence] = [], k=64
-    ):  # after some experimentation, 64 works ok
+    def __init__(self, inits: typing.Optional[typing.Sequence] = [], k=64):  # after some experimentation, 64 works ok
         self.all, self.k = [], k
         self.more, self.__median = None, None
         if inits is not None:
@@ -80,9 +76,7 @@ class FastMedian:
     # When full, push the median of current values to next list, then reset.
     def __add__(self, x):
         self.__median = None
-        self.all.append(
-            x
-        )  # It would be faster to pre-allocate an array and assign it by index.
+        self.all.append(x)  # It would be faster to pre-allocate an array and assign it by index.
         if len(self.all) == self.k:
             self.more = self.more or FastMedian(k=self.k)
             self.more + self.__medianPrim(self.all)

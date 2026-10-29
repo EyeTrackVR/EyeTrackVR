@@ -153,9 +153,7 @@ def resolve_slots(name: str, avatar_params, bool_threshold: float = 0.5):
             bits.setdefault(shift, p.address)
 
     negative_pat = suffix_regex(name + "Negative")
-    negative = next(
-        (p for p in avatar_params if p.type is bool and negative_pat.search(p.address)), None
-    )
+    negative = next((p for p in avatar_params if p.type is bool and negative_pat.search(p.address)), None)
 
     if bits:
         max_int = 2 ** len(bits)

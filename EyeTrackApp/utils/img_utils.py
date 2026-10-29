@@ -72,8 +72,8 @@ def tk_photo_from_rgb(rgb, master):
         except Exception as exc:
             _imagetk_failed = True
             logger.warning(
-                "Pillow's Tk image bridge is unavailable (%s); falling back to "
-                "tkinter's PPM decoder for previews.", exc,
+                "Pillow's Tk image bridge is unavailable (%s); falling back to tkinter's PPM decoder for previews.",
+                exc,
             )
 
     h, w = rgb.shape[:2]

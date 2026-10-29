@@ -257,9 +257,7 @@ def test_nan_values_are_dropped_not_fatal(main_config_v2_params):
         finally:
             manager.shutdown()
     sent = manager.osc_sender.vrc_client.messages
-    assert all(
-        not (isinstance(v, float) and not math.isfinite(v)) for _, v in sent
-    ), sent
+    assert all(not (isinstance(v, float) and not math.isfinite(v)) for _, v in sent), sent
     # Non-finite params were skipped (avatar holds last value); the rest of the
     # frame and the next frame still went out.
     assert ("/avatar/parameters/v2/EyeY", 0.5) in sent
@@ -345,13 +343,8 @@ def test_client_set_ignores_non_finite():
 
 def _binary_avatar():
     names = ["JawOpen1", "JawOpen2", "JawOpen4"]
-    params = [
-        AvatarParameter(name=n, address=f"/avatar/parameters/FT/v2/{n}", type=bool)
-        for n in names
-    ]
-    params.append(
-        AvatarParameter(name="EyeLeftX", address="/avatar/parameters/FT/v2/EyeLeftX", type=float)
-    )
+    params = [AvatarParameter(name=n, address=f"/avatar/parameters/FT/v2/{n}", type=bool) for n in names]
+    params.append(AvatarParameter(name="EyeLeftX", address="/avatar/parameters/FT/v2/EyeLeftX", type=float))
     return AvatarInfo(id="avtr_test", name="test", parameters=params)
 
 
@@ -420,9 +413,7 @@ def test_pyvrcft_sender_holds_last_value_on_nan():
     eye = sender.data.eye.left
     info = EyeInfoMock(x=0.2, y=0.1, blink=1.0, pupil_dilation=0.5, avg_velocity=0)
     sender._apply_eye(eye, info, 1.0)
-    bad = EyeInfoMock(
-        x=float("nan"), y=float("inf"), blink=1.0, pupil_dilation=float("nan"), avg_velocity=0
-    )
+    bad = EyeInfoMock(x=float("nan"), y=float("inf"), blink=1.0, pupil_dilation=float("nan"), avg_velocity=0)
     sender._apply_eye(eye, bad, float("nan"))
     assert (eye.gaze_x, eye.gaze_y, eye.openness, eye.pupil_diameter_mm) == (0.2, 0.1, 1.0, 0.5)
     sender._set_shape("EyeSquintLeft", 0.3)

@@ -35,7 +35,6 @@ import numpy as np
 from pydantic import (
     BaseModel,
     PrivateAttr,
-    ValidationError,
     field_serializer,
     field_validator,
     model_validator,
@@ -48,6 +47,7 @@ logger = logging.getLogger(__name__)
 
 # Eye threads, LEAP, calibration workers and the Tk thread all call save().
 _SAVE_LOCK = threading.Lock()
+
 
 def _user_data_dir() -> str:
     """Directory holding the settings file.
@@ -143,10 +143,7 @@ def _migrate_config_dict(data: dict) -> dict:
 
     if stored < 3:
         settings = data.get("settings")
-        legacy_next_cal = (
-            isinstance(settings, dict)
-            and bool(settings.get("gui_NEXT_calibration", False))
-        )
+        legacy_next_cal = isinstance(settings, dict) and bool(settings.get("gui_NEXT_calibration", False))
         for key in ("left_eye", "right_eye", "bsb2e"):
             eye = data.get(key)
             if not isinstance(eye, dict):
@@ -156,9 +153,7 @@ def _migrate_config_dict(data: dict) -> dict:
                 and eye.get("calib_evecs") is not None
                 and eye.get("calib_XOFF") is not None
             )
-            eye["next_classic_calibration_active"] = bool(
-                legacy_next_cal and has_fit
-            )
+            eye["next_classic_calibration_active"] = bool(legacy_next_cal and has_fit)
         logger.info("Migrated config from v2: recorded NEXT calibration ownership")
 
     if stored < 4:
@@ -179,9 +174,7 @@ def _migrate_config_dict(data: dict) -> dict:
         # Calibration to the spiral or suppress the Smart Calib fit.
         settings = data.get("settings")
         if isinstance(settings, dict) and settings.pop("gui_NEXT_calibration", None) is not None:
-            logger.info(
-                "Migrated config from v4: NEXT now always calibrates via Smart Calib"
-            )
+            logger.info("Migrated config from v4: NEXT now always calibrates via Smart Calib")
 
     if stored < 6:
         settings = data.get("settings")
@@ -307,9 +300,7 @@ class EyeTrackCameraConfig(BaseModel):
             return None
         return np.array(self.calib_center, dtype=float)
 
-    def set_calibration_data(
-        self, axes: np.ndarray, evecs: np.ndarray, center: np.ndarray
-    ):
+    def set_calibration_data(self, axes: np.ndarray, evecs: np.ndarray, center: np.ndarray):
         """Set all calibration data from NumPy arrays (auto-converts to lists)"""
         self.calib_axes = axes.tolist()
         self.calib_evecs = evecs.tolist()
@@ -317,11 +308,7 @@ class EyeTrackCameraConfig(BaseModel):
 
     def has_calibration_data(self) -> bool:
         """Check if calibration data is present"""
-        return (
-            self.calib_axes is not None
-            and self.calib_evecs is not None
-            and self.calib_center is not None
-        )
+        return self.calib_axes is not None and self.calib_evecs is not None and self.calib_center is not None
 
     def update_capture_source(self, new_camera_address: str):
         if not new_camera_address:
@@ -338,10 +325,7 @@ class EyeTrackCameraConfig(BaseModel):
             self.capture_source = int(new_camera_address)
             return
 
-        if (
-            new_camera_address.startswith(("COM", "/dev"))
-            or "://" in new_camera_address
-        ):
+        if new_camera_address.startswith(("COM", "/dev")) or "://" in new_camera_address:
             self.capture_source = new_camera_address
             return
 
@@ -580,27 +564,17 @@ class EyeTrackSettingsConfig(BaseModel):
             return data
 
         if "leap_lid_close_threshold" in data:
-            data.setdefault(
-                "leap_lid_close_threshold_left", data["leap_lid_close_threshold"]
-            )
-            data.setdefault(
-                "leap_lid_close_threshold_right", data["leap_lid_close_threshold"]
-            )
+            data.setdefault("leap_lid_close_threshold_left", data["leap_lid_close_threshold"])
+            data.setdefault("leap_lid_close_threshold_right", data["leap_lid_close_threshold"])
         if "leap_lid_widen_threshold" in data:
-            data.setdefault(
-                "leap_lid_widen_threshold_left", data["leap_lid_widen_threshold"]
-            )
-            data.setdefault(
-                "leap_lid_widen_threshold_right", data["leap_lid_widen_threshold"]
-            )
+            data.setdefault("leap_lid_widen_threshold_left", data["leap_lid_widen_threshold"])
+            data.setdefault("leap_lid_widen_threshold_right", data["leap_lid_widen_threshold"])
         return data
 
 
 def _atomic_write(path: str, text: str) -> None:
     directory = os.path.dirname(os.path.abspath(path))
-    fd, tmp_path = tempfile.mkstemp(
-        prefix=os.path.basename(path) + ".", suffix=".tmp", dir=directory
-    )
+    fd, tmp_path = tempfile.mkstemp(prefix=os.path.basename(path) + ".", suffix=".tmp", dir=directory)
     try:
         with os.fdopen(fd, "w", encoding="utf-8") as tmp_file:
             tmp_file.write(text)
@@ -628,9 +602,7 @@ class EyeTrackConfig(BaseModel):
     version: int = CURRENT_CONFIG_VERSION
     right_eye: EyeTrackCameraConfig = EyeTrackCameraConfig()
     left_eye: EyeTrackCameraConfig = EyeTrackCameraConfig()
-    bsb2e: EyeTrackCameraConfig = (
-        EyeTrackCameraConfig()
-    )  # should we do independent per bsb eye?
+    bsb2e: EyeTrackCameraConfig = EyeTrackCameraConfig()  # should we do independent per bsb eye?
     settings: EyeTrackSettingsConfig = EyeTrackSettingsConfig()
     eye_display_id: EyeId = EyeId.RIGHT
     _listeners: list = PrivateAttr(default_factory=list)
@@ -682,9 +654,7 @@ class EyeTrackConfig(BaseModel):
                 return False
         return True
 
-    def update_eye_model_config(
-        self, eye_id: EyeId, data: dict, should_save=True, should_notify=True
-    ) -> bool:
+    def update_eye_model_config(self, eye_id: EyeId, data: dict, should_save=True, should_notify=True) -> bool:
         """
         A more granular method for updating a particular model so that everything that relies on it
         will get notified about any changes. This acts like a small pub-sub layer:
@@ -693,9 +663,7 @@ class EyeTrackConfig(BaseModel):
 
         # The app really doesn't like address clashes, so we have to validate it as soon as possible
         # otherwise we crash
-        if "capture_source" in data and not self.validate_camera_address_conflict(
-            eye_id, data["capture_source"]
-        ):
+        if "capture_source" in data and not self.validate_camera_address_conflict(eye_id, data["capture_source"]):
             return False
 
         match eye_id:

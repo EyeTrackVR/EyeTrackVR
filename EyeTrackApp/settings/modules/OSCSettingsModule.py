@@ -88,22 +88,16 @@ class OSCSettingsModule(BaseSettingsModule):
         osc_bar.grid(row=0, column=0, sticky="w", pady=2)
         mode_var = tk.StringVar(value=osc_out_initial)
         self.tk_vars[self.gui_osc_output_mode] = mode_var
-        native_rb = ttk.Radiobutton(
-            osc_bar, text=tr("osc.mode_native"), variable=mode_var, value="native"
-        )
+        native_rb = ttk.Radiobutton(osc_bar, text=tr("osc.mode_native"), variable=mode_var, value="native")
         native_rb.pack(side="left", padx=(8, 4))
         attach_tooltip(native_rb, tr("osc.mode_native_tip"))
-        v2_rb = ttk.Radiobutton(
-            osc_bar, text=tr("osc.mode_vrcft_v2"), variable=mode_var, value="vrcft_v2"
-        )
+        v2_rb = ttk.Radiobutton(osc_bar, text=tr("osc.mode_vrcft_v2"), variable=mode_var, value="vrcft_v2")
         v2_rb.pack(side="left", padx=4)
         attach_tooltip(v2_rb, tr("osc.mode_vrcft_v2_tip"))
         # VRCFT v1 (legacy) is hidden from the GUI but kept in the backend:
         # get_values_map still maps a saved "vrcft_v1" mode, and
         # output_v1_params still runs, so existing v1 configs keep working.
-        pyvrcft_rb = ttk.Radiobutton(
-            osc_bar, text=tr("osc.mode_pyvrcft"), variable=mode_var, value="pyvrcft"
-        )
+        pyvrcft_rb = ttk.Radiobutton(osc_bar, text=tr("osc.mode_pyvrcft"), variable=mode_var, value="pyvrcft")
         pyvrcft_rb.pack(side="left", padx=4)
         attach_tooltip(pyvrcft_rb, tr("osc.mode_pyvrcft_tip"))
 
@@ -118,9 +112,11 @@ class OSCSettingsModule(BaseSettingsModule):
         oscquery_cb = ttk.Checkbutton(osc_bar, text=tr("osc.oscquery"), variable=oscquery_var)
         oscquery_cb.pack(side="left", padx=(0, 8))
         attach_tooltip(oscquery_cb, tr("osc.oscquery_tip"))
+
         # Auto port only matters while receiving.
         def sync_oscquery_state(*_):
             oscquery_cb.configure(state="normal" if ros_var.get() else "disabled")
+
         ros_var.trace_add("write", sync_oscquery_state)
         sync_oscquery_state()
 

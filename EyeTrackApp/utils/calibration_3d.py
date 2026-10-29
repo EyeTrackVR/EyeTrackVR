@@ -87,9 +87,7 @@ class CalibrationProcessor:
         return direction
 
     # Compute the convergence point given 2D points for both eyes
-    def compute_convergence_point(
-        self, left_point_2d, right_point_2d, P_left, P_right, IPD
-    ):
+    def compute_convergence_point(self, left_point_2d, right_point_2d, P_left, P_right, IPD):
         left_eye_pos = np.array([-IPD / 2, 0, 0])
         right_eye_pos = np.array([IPD / 2, 0, 0])
 

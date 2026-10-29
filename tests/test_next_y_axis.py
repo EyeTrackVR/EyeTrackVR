@@ -54,9 +54,7 @@ def _stereo_model(*, gaze_y_sign=-1.0):
     model.input_dtype = np.float32
     model.uses_directml = False
     model.input_name = "input"
-    model.ort_session = _StaticSession(
-        [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, -0.65]
-    )
+    model.ort_session = _StaticSession([0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, -0.65])
     model.gaze_y_sign = gaze_y_sign
     model.one_euro_filter = _IdentityFilter(8)
     model._brow_l_window = TimedMedian(5)
@@ -94,9 +92,7 @@ def test_stereo_next_holds_expressions_for_a_blacked_out_eye():
 
     model.ort_session = _StaticSession([0.9, 0.9, 0.9, 0.0, 0.0, 0.0, 0.7, -0.65])
     raw = model.forward(np.zeros((1, 6, 2, 2), dtype=np.float32))
-    out = model.postprocess(
-        raw, {EyeId.LEFT: True, EyeId.RIGHT: False}, 0.0, 0.0
-    )
+    out = model.postprocess(raw, {EyeId.LEFT: True, EyeId.RIGHT: False}, 0.0, 0.0)
 
     # Left tracks the new values (its eyebrow through the running median of
     # 0.1 and 0.9), right holds its last real triple instead of reporting the

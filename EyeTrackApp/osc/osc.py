@@ -86,9 +86,7 @@ def _to_osc_arg(value: Any):
     _DROP: a NaN/inf param can wedge avatar animators, and holding the last good
     value on the avatar is less disruptive than snapping to a neutral pose.
     """
-    if isinstance(value, np.generic) or (
-        isinstance(value, np.ndarray) and value.ndim == 0
-    ):
+    if isinstance(value, np.generic) or (isinstance(value, np.ndarray) and value.ndim == 0):
         value = value.item()
     if isinstance(value, float) and not math.isfinite(value):
         return _DROP
@@ -118,9 +116,7 @@ def validate_osc_endpoint(label: str, address: Any, port: Any) -> tuple[str, int
     except (TypeError, ValueError, OverflowError):
         port_int = None
     if port_int is None or not 1 <= port_int <= 65535:
-        logger.error(
-            "%s OSC output disabled: port %r is not in the range 1-65535", label, port
-        )
+        logger.error("%s OSC output disabled: port %r is not in the range 1-65535", label, port)
         return None
     return host, port_int
 
@@ -163,7 +159,7 @@ class SafeOSCClient:
             return
         try:
             self.client.send_message(address, clean)
-        except Exception as exc:  # noqa: one failed send must not kill the thread
+        except Exception as exc:  # one failed send must not kill the thread
             self._log.log(
                 logging.WARNING,
                 f"send:{self.label}",
@@ -240,7 +236,7 @@ class OSCManager:
                 continue
             try:
                 changed = self._set_auto_address(*streaming_target.resolve())
-            except Exception:  # noqa: a bad log line must not end the watcher
+            except Exception:  # a bad log line must not end the watcher
                 logger.exception("OSC address auto: could not resolve the streaming PC")
                 continue
             if changed:
@@ -277,7 +273,9 @@ class OSCManager:
         logger.info("Setting up OSC sender")
         self.sender_cancellation_event.clear()
         self.osc_sender = OSCSender(
-            self.sender_cancellation_event, self.osc_message_in_queue, self.config,
+            self.sender_cancellation_event,
+            self.osc_message_in_queue,
+            self.config,
             osc_address=self.osc_target_address(),
         )
         self.osc_sender_thread = threading.Thread(target=self.osc_sender.run)
@@ -288,9 +286,7 @@ class OSCManager:
         if self.settings.gui_ROSC:
             self.receiver_cancellation_event.clear()
             logger.info("Setting up OSC receiver")
-            self.osc_receiver = OSCReceiver(
-                self.receiver_cancellation_event, self.config, self.listeners
-            )
+            self.osc_receiver = OSCReceiver(self.receiver_cancellation_event, self.config, self.listeners)
             self.osc_receiver_thread = threading.Thread(target=self.osc_receiver.run)
             self.osc_receiver_thread.start()
         else:
@@ -347,12 +343,10 @@ class OSCManager:
         if "gui_foveation_gaze" in keys:
             self._sync_integrations()
         restart_sender = bool(
-            self.SENDER_TRIGGER_KEYS.intersection(keys)
-            and self._sender_signature() != self._last_sender_sig
+            self.SENDER_TRIGGER_KEYS.intersection(keys) and self._sender_signature() != self._last_sender_sig
         )
         restart_receiver = bool(
-            self.RECEIVER_TRIGGER_KEYS.intersection(keys)
-            and self._receiver_signature() != self._last_receiver_sig
+            self.RECEIVER_TRIGGER_KEYS.intersection(keys) and self._receiver_signature() != self._last_receiver_sig
         )
         # Release ports before anything rebinds them: the old receiver must let
         # go of the receiver port before a pyVRCFT sender (ROSC off) claims it,
@@ -430,9 +424,7 @@ class OSCSender:
             return None
 
     def run(self):
-        self.vrc_client = self._make_client(
-            "VRChat", self.osc_address, self.config.gui_osc_port
-        )
+        self.vrc_client = self._make_client("VRChat", self.osc_address, self.config.gui_osc_port)
         self.vrcft_client = self._make_client(
             "VRCFT module",
             self.config.gui_VRCFTModuleIPAddress,
@@ -459,18 +451,14 @@ class OSCSender:
             try:
                 self.pyvrcft_sender.start(self.config, send_host=self.osc_address)
             except Exception:  # noqa
-                logger.exception(
-                    "Failed to start pyVRCFT sender; no eye OSC output this run"
-                )
+                logger.exception("Failed to start pyVRCFT sender; no eye OSC output this run")
                 use_pyvrcft = False
 
         # Foveated rendering tools (PimaxMagic4All) read gaze on this PC,
         # independent of the VRChat output mode above.
         use_foveation = bool(self.config.gui_foveation_gaze)
         if use_foveation:
-            self.foveation_client = self._make_client(
-                "Foveation gaze", FOVEATION_HOST, FOVEATION_PORT
-            )
+            self.foveation_client = self._make_client("Foveation gaze", FOVEATION_HOST, FOVEATION_PORT)
             if self.foveation_client is None:
                 use_foveation = False
             else:
@@ -504,9 +492,7 @@ class OSCSender:
                                     config=self.config,
                                 )
                         case OSCMessageType.VRCFT_MODULE_INFO:
-                            self.module_sender.send(
-                                osc_message=osc_message, client=safe_vrcft
-                            )
+                            self.module_sender.send(osc_message=osc_message, client=safe_vrcft)
                         case OSCMessageType.EYEBROW_INFO:
                             eye_id, brow_val = osc_message.data
                             if use_pyvrcft:
@@ -532,7 +518,7 @@ class OSCSender:
                         "Skipped malformed OSC message",
                         exc_info=True,
                     )
-                except Exception:  # noqa: one bad message must never stop OSC output
+                except Exception:  # one bad message must never stop OSC output
                     self._log.log(
                         logging.ERROR,
                         f"handler:{getattr(osc_message, 'type', None)}",
@@ -602,7 +588,7 @@ class OSCReceiver:
             self.advertiser = OSCQueryAdvertiser()
             self.advertiser.start(server.server_address[1], self.endpoints())
             return server
-        except Exception as exc:  # noqa: mDNS port, firewall or socket trouble
+        except Exception as exc:  # mDNS port, firewall or socket trouble
             logger.warning(
                 "OSCQuery unavailable (%s); falling back to fixed receiver port %s",
                 exc,
@@ -670,5 +656,5 @@ class OSCReceiver:
                 self.cancellation_event.wait(10)
 
             self.shutdown()
-        except Exception as exc:  # noqa:
+        except Exception as exc:
             logger.error("OSC receiver stopped unexpectedly: %s", exc)

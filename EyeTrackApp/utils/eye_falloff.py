@@ -109,11 +109,7 @@ def velocity_falloff(self, var, out_x, out_y, inst_velocity: float = 0.0):
     global _latched_eye
 
     settings = self.settings
-    if not (
-        settings.gui_right_eye_dominant
-        or settings.gui_left_eye_dominant
-        or settings.gui_outer_side_falloff
-    ):
+    if not (settings.gui_right_eye_dominant or settings.gui_left_eye_dominant or settings.gui_outer_side_falloff):
         return out_x, out_y
 
     eye_id = self.eye_id

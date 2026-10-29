@@ -14,7 +14,6 @@ import logging
 import json
 import cv2
 import tkinter as tk
-from tkinter import ttk
 
 from localization import tr, tr_english, get_active_language
 from utils.overlay_launch import overlay_executable, overlay_command
@@ -25,6 +24,7 @@ DATA_COLLECTION_VERSION = "v6"
 logger = logging.getLogger(__name__)
 
 speech_lock = threading.Lock()
+
 
 def speak(text, lang="en", fallback=None):
     """Speak ``text`` (language ``lang``) on a background thread; returns an
@@ -38,24 +38,32 @@ def speak(text, lang="en", fallback=None):
     ).start()
     return done_event
 
+
 def say(key):
     """Speak a ``data_collection_prompts`` line in the app's UI language."""
     full = f"data_collection_prompts.{key}"
     return speak(tr(full), get_active_language(), tr_english(full))
 
+
 def prompt_text(key):
     """A ``data_collection_prompts`` line in the app's UI language."""
     return tr(f"data_collection_prompts.{key}")
 
+
 def _run_tts_command(command, timeout, stdin_text=None, env=None):
     import shutil
+
     if shutil.which(command[0]) is None:
         return False
     try:
         if stdin_text is None:
-            result = subprocess.run(command, check=False, timeout=timeout, env=env, creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
+            result = subprocess.run(
+                command, check=False, timeout=timeout, env=env, creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0)
+            )
             return result.returncode == 0
-        proc = subprocess.Popen(command, stdin=subprocess.PIPE, creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
+        proc = subprocess.Popen(
+            command, stdin=subprocess.PIPE, creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0)
+        )
         try:
             proc.communicate(input=stdin_text.encode("utf-8"), timeout=timeout)
         except subprocess.TimeoutExpired:
@@ -65,6 +73,7 @@ def _run_tts_command(command, timeout, stdin_text=None, env=None):
         return proc.returncode == 0
     except (FileNotFoundError, subprocess.SubprocessError, OSError):
         return False
+
 
 # espeak voice names where they differ from the UI language code.
 _ESPEAK_VOICES = {"zh": "cmn"}
@@ -102,7 +111,7 @@ def _speak_linux(text, lang, fallback):
         ):
             if _run_tts_command(command, timeout=20):
                 return True
-        text = fallback   # no voice for this language: say it in English
+        text = fallback  # no voice for this language: say it in English
     linux_tts_commands = (
         ["spd-say", "--wait", text],
         ["espeak-ng", text],
@@ -121,6 +130,7 @@ def _reading_seconds(text):
     # Words for spaced scripts, characters for Chinese and Japanese.
     return min(8.0, 0.6 + max(0.4 * len(text.split()), 0.06 * len(text)))
 
+
 # The text travels in environment variables, never inside the script, so quotes
 # or non-ASCII characters in a translation cannot break the command. Picks an
 # installed voice for the language; without one, speaks the English fallback.
@@ -136,17 +146,24 @@ _WINDOWS_TTS = (
     "$s.Speak($t)"
 )
 
+
 def _speak_platform_specific(text, lang, fallback, done_event):
     try:
         with speech_lock:
             system = platform.system().lower()
             if system == "darwin":
-                subprocess.run(["say", text], check=False, timeout=10, creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
+                subprocess.run(
+                    ["say", text], check=False, timeout=10, creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0)
+                )
             elif system == "windows":
-                env = dict(os.environ, ETVR_TTS_TEXT=text, ETVR_TTS_LANG=lang or "en",
-                           ETVR_TTS_FALLBACK=fallback)
-                subprocess.run(["powershell", "-NoProfile", "-Command", _WINDOWS_TTS], env=env,
-                               check=False, timeout=20, creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
+                env = dict(os.environ, ETVR_TTS_TEXT=text, ETVR_TTS_LANG=lang or "en", ETVR_TTS_FALLBACK=fallback)
+                subprocess.run(
+                    ["powershell", "-NoProfile", "-Command", _WINDOWS_TTS],
+                    env=env,
+                    check=False,
+                    timeout=20,
+                    creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+                )
             elif system == "linux":
                 if not _speak_linux(text, lang or "en", fallback):
                     time.sleep(_reading_seconds(text))
@@ -154,6 +171,7 @@ def _speak_platform_specific(text, lang, fallback, done_event):
         pass
     finally:
         done_event.set()
+
 
 def get_best_codec():
     system = platform.system().lower()
@@ -184,6 +202,7 @@ def get_best_codec():
 
     return cv2.VideoWriter_fourcc(*"MJPG"), "MJPG", "avi"
 
+
 def _zip_output(seed, output_dir):
     zip_name = f"{DATA_COLLECTION_VERSION}_{seed}_ETVR_User_Data_Output.zip"
     with zipfile.ZipFile(zip_name, "w", zipfile.ZIP_DEFLATED) as zf:
@@ -198,31 +217,31 @@ def _zip_output(seed, output_dir):
 # and timestamp entries (training labels: never translate it); the prompt key
 # picks what is spoken and shown, from lang/*.toml [data_collection_prompts].
 PROMPT_DATA = [
-    (1,    "Look left",                                   "look_left"),
-    (1,    "Look left and squint",                        "look_left_squint"),
-    (2,    "Look right",                                  "look_right"),
-    (2,    "Look right and squint",                       "look_right_squint"),
-    (3,    "Look up",                                     "look_up"),
-    (3,    "Look up and squint",                          "look_up_squint"),
-    (4,    "Look down",                                   "look_down"),
-    (4,    "Look down and squint",                        "look_down_squint"),
-    (6,    "Look top-left",                               "look_top_left"),
-    (5,    "Look top-right",                              "look_top_right"),
-    (8,    "Look bottom-left",                            "look_bottom_left"),
-    (7,    "Look bottom-right",                           "look_bottom_right"),
-    (0,    "Look straight",                               "look_straight"),
-    (0,    "Look straight and squint",                    "look_straight_squint"),
-    (None, "Close your eyes",                             "close_eyes"),
-    (None, "Squeeze your eyes shut",                      "squeeze_shut"),
-    (0,    "Widen your eyes and look straight",           "widen_straight"),
-    (1,    "Widen your eyes and look left",               "widen_left"),
-    (2,    "Widen your eyes and look right",              "widen_right"),
-    (0,    "Raise eyebrows fully and look forward",       "brows_up_full"),
-    (0,    "Raise eyebrows halfway and look forward",     "brows_up_half"),
-    (0,    "Lower eyebrows fully and look forward",       "brows_down_full"),
-    (0,    "Lower eyebrows halfway and look forward",     "brows_down_half"),
+    (1, "Look left", "look_left"),
+    (1, "Look left and squint", "look_left_squint"),
+    (2, "Look right", "look_right"),
+    (2, "Look right and squint", "look_right_squint"),
+    (3, "Look up", "look_up"),
+    (3, "Look up and squint", "look_up_squint"),
+    (4, "Look down", "look_down"),
+    (4, "Look down and squint", "look_down_squint"),
+    (6, "Look top-left", "look_top_left"),
+    (5, "Look top-right", "look_top_right"),
+    (8, "Look bottom-left", "look_bottom_left"),
+    (7, "Look bottom-right", "look_bottom_right"),
+    (0, "Look straight", "look_straight"),
+    (0, "Look straight and squint", "look_straight_squint"),
+    (None, "Close your eyes", "close_eyes"),
+    (None, "Squeeze your eyes shut", "squeeze_shut"),
+    (0, "Widen your eyes and look straight", "widen_straight"),
+    (1, "Widen your eyes and look left", "widen_left"),
+    (2, "Widen your eyes and look right", "widen_right"),
+    (0, "Raise eyebrows fully and look forward", "brows_up_full"),
+    (0, "Raise eyebrows halfway and look forward", "brows_up_half"),
+    (0, "Lower eyebrows fully and look forward", "brows_down_full"),
+    (0, "Lower eyebrows halfway and look forward", "brows_down_half"),
     (None, "Close your eyes and look in random direction", "close_random"),
-    (None, "Look in a full circle starting now",          "full_circle"),
+    (None, "Look in a full circle starting now", "full_circle"),
 ]
 
 OVERLAY_PASSES = [
@@ -230,21 +249,27 @@ OVERLAY_PASSES = [
     # both the spoken line ("pass_<key>") and the overlay card ("panel_<key>").
     # gaze/squint/widen: bumped to 20 so the full 22-point grid gets sampled
     # (evenly-spaced skip picks 20 of 22, preserving outer+intermediate+center coverage).
-    (100, "gaze",          "gaze",          20),
-    (101, "squint",        "squint",        20),
-    (102, "widen",         "widen",         20),
-    (105, "brows_dn_full", "brows_dn_full",  4),
-    (103, "brows_up_full", "brows_up_full",  4),
-    (106, "brows_dn_half", "brows_dn_half",  4),
-    (104, "brows_up_half", "brows_up_half",  4),
+    (100, "gaze", "gaze", 20),
+    (101, "squint", "squint", 20),
+    (102, "widen", "widen", 20),
+    (105, "brows_dn_full", "brows_dn_full", 4),
+    (103, "brows_up_full", "brows_up_full", 4),
+    (106, "brows_dn_half", "brows_dn_half", 4),
+    (104, "brows_up_half", "brows_up_half", 4),
 ]
 
 # Maps DC_POS index (sent by overlay as signal 0–8) to label name.
 # Order matches C++ DC_POS: clockwise outer ring, then center.
 OVERLAY_POINT_NAMES = {
-    0: "upper_left",  1: "up",          2: "upper_right",
-    3: "right",       4: "lower_right", 5: "down",
-    6: "lower_left",  7: "left",        8: "center",
+    0: "upper_left",
+    1: "up",
+    2: "upper_right",
+    3: "right",
+    4: "lower_right",
+    5: "down",
+    6: "lower_left",
+    7: "left",
+    8: "center",
 }
 
 # Jitter grid base positions ordered as a smooth snake path.
@@ -265,31 +290,31 @@ OVERLAY_POINT_NAMES = {
 # so this grid deliberately spends its points on the mid+outer field instead.
 _JITTER_GRID_BASE = [
     # ── left outer column (bottom → top) ──────────────────────────────
-    (-0.60, -0.60),   # equal-eccentricity outer bottom-left
-    (-0.85, -0.26),   # outer left mid-low
-    (-0.43, -0.46),   # intermediate lower-left
-    (-0.36,  0.00),   # intermediate left-center
-    (-0.85,  0.33),   # outer left mid-high
-    (-0.43,  0.46),   # intermediate upper-left
-    (-0.60,  0.60),   # equal-eccentricity outer top-left
+    (-0.60, -0.60),  # equal-eccentricity outer bottom-left
+    (-0.85, -0.26),  # outer left mid-low
+    (-0.43, -0.46),  # intermediate lower-left
+    (-0.36, 0.00),  # intermediate left-center
+    (-0.85, 0.33),  # outer left mid-high
+    (-0.43, 0.46),  # intermediate upper-left
+    (-0.60, 0.60),  # equal-eccentricity outer top-left
     # ── cross to top-center, spiral inward ────────────────────────────
-    ( 0.00,  0.85),   # outer top-center
-    ( 0.00,  0.39),   # intermediate upper-center
-    (-0.26,  0.16),   # near-center upper-left
-    (-0.17, -0.23),   # near-center lower-left
-    ( 0.00, -0.39),   # intermediate lower-center
+    (0.00, 0.85),  # outer top-center
+    (0.00, 0.39),  # intermediate upper-center
+    (-0.26, 0.16),  # near-center upper-left
+    (-0.17, -0.23),  # near-center lower-left
+    (0.00, -0.39),  # intermediate lower-center
     # ── bottom-center, spiral outward right ───────────────────────────
-    ( 0.00, -0.85),   # outer bottom-center
-    ( 0.43, -0.46),   # intermediate lower-right
-    ( 0.26, -0.16),   # near-center lower-right
-    ( 0.36,  0.00),   # intermediate right-center
-    ( 0.17,  0.23),   # near-center upper-right
-    ( 0.43,  0.46),   # intermediate upper-right
+    (0.00, -0.85),  # outer bottom-center
+    (0.43, -0.46),  # intermediate lower-right
+    (0.26, -0.16),  # near-center lower-right
+    (0.36, 0.00),  # intermediate right-center
+    (0.17, 0.23),  # near-center upper-right
+    (0.43, 0.46),  # intermediate upper-right
     # ── right outer column (top → bottom) ─────────────────────────────
-    ( 0.60,  0.60),   # equal-eccentricity outer top-right
-    ( 0.85,  0.33),   # outer right mid-high
-    ( 0.85, -0.26),   # outer right mid-low
-    ( 0.60, -0.60),   # equal-eccentricity outer bottom-right
+    (0.60, 0.60),  # equal-eccentricity outer top-right
+    (0.85, 0.33),  # outer right mid-high
+    (0.85, -0.26),  # outer right mid-low
+    (0.60, -0.60),  # equal-eccentricity outer bottom-right
 ]
 
 # The HMD FOV is rectangular per axis but the lens-visible corner is generally
@@ -299,6 +324,7 @@ _JITTER_GRID_BASE = [
 # One millith inside 0.88 so three-decimal filename/command rounding cannot
 # push a point just back outside the intended boundary.
 _JITTER_MAX_RADIUS = 0.879
+
 
 def _jittered_grid_positions(session_seed, pass_index, n=22, jitter=0.12):
     """Return n positions following the base path, each offset by a small random amount.
@@ -312,7 +338,7 @@ def _jittered_grid_positions(session_seed, pass_index, n=22, jitter=0.12):
         y = max(-1.0, min(1.0, by + rng.uniform(-jitter, jitter)))
         r2 = x * x + y * y
         if r2 > _JITTER_MAX_RADIUS * _JITTER_MAX_RADIUS:
-            scale = _JITTER_MAX_RADIUS / (r2 ** 0.5)
+            scale = _JITTER_MAX_RADIUS / (r2**0.5)
             x *= scale
             y *= scale
         all_pos.append((round(x, 3), round(y, 3)))
@@ -320,6 +346,7 @@ def _jittered_grid_positions(session_seed, pass_index, n=22, jitter=0.12):
         return all_pos
     step = len(all_pos) / n
     return [all_pos[int(i * step)] for i in range(n)]
+
 
 # ── Blink-at-dot pass ─────────────────────────────────────────────────────────
 # The user fixates a pinned dot and blinks repeatedly with a relaxed brow.
@@ -334,8 +361,8 @@ def _jittered_grid_positions(session_seed, pass_index, n=22, jitter=0.12):
 # the decorrelation this pass exists for.
 _BLINKDOT_BASE = [(-0.45, 0.35), (0.45, 0.35), (0.45, -0.35), (-0.45, -0.35)]
 _BLINKDOT_JITTER = 0.12
-BLINKDOT_BURST_FRAMES = 15      # per position
-BLINKDOT_BURST_INTERVAL = 0.2   # ~3 s of blinking per position
+BLINKDOT_BURST_FRAMES = 15  # per position
+BLINKDOT_BURST_INTERVAL = 0.2  # ~3 s of blinking per position
 
 # ── Closed-eye roam pass ──────────────────────────────────────────────────────
 # Eyes held shut while the user moves face/brows/cheeks around: diversifies
@@ -344,6 +371,7 @@ BLINKDOT_BURST_INTERVAL = 0.2   # ~3 s of blinking per position
 # are all changing or unobservable and get zero weight.
 CLOSED_ROAM_FRAMES = 25
 CLOSED_ROAM_INTERVAL = 0.2
+
 
 def _blinkdot_positions(session_seed):
     rng = random.Random(f"{session_seed}:blinkdot")
@@ -354,22 +382,22 @@ def _blinkdot_positions(session_seed):
         out.append((round(x, 3), round(y, 3)))
     return out
 
-OVERLAY_PORT     = 2112
+
+OVERLAY_PORT = 2112
 OVERLAY_CMD_PORT = 2113
 
 # Overlay command codes used by the passes below (see modes.cpp InteractiveMode).
-OVERLAY_CMD_PIN_DOT  = 113   # >iff x y: persistent dot at (x, y); overlay acks 21
-OVERLAY_CMD_UNPIN    = 114   # hide the pinned dot
-OVERLAY_SIG_PINNED   = 21
-OVERLAY_CMD_TEXT     = 50    # >i + UTF-8: instruction card ("title\nsubtitle")
+OVERLAY_CMD_PIN_DOT = 113  # >iff x y: persistent dot at (x, y); overlay acks 21
+OVERLAY_CMD_UNPIN = 114  # hide the pinned dot
+OVERLAY_SIG_PINNED = 21
+OVERLAY_CMD_TEXT = 50  # >i + UTF-8: instruction card ("title\nsubtitle")
 
 
 def _overlay_text(cmd_sock, text):
     """Show ``text`` on the overlay's instruction card. Sent BEFORE the matching
     voice prompt starts so the card is up while it is being read, not after;
     the overlay keeps it when the pass/target command follows."""
-    cmd_sock.sendto(struct.pack(">i", OVERLAY_CMD_TEXT) + text.encode("utf-8"),
-                    ("127.0.0.1", OVERLAY_CMD_PORT))
+    cmd_sock.sendto(struct.pack(">i", OVERLAY_CMD_TEXT) + text.encode("utf-8"), ("127.0.0.1", OVERLAY_CMD_PORT))
 
 
 def _drain_udp_socket(sock):
@@ -396,6 +424,7 @@ def _drain_udp_socket(sock):
         sock.setblocking(True)
         sock.settimeout(1.0)
 
+
 class _SessionRecorder:
     """Writes every captured frame of a recording into its eye's full-session
     video on a thread of its own, and keeps the newest frame per eye for the
@@ -412,7 +441,7 @@ class _SessionRecorder:
     def __init__(self, queues, prepare, write):
         self._queues = queues
         self._prepare = prepare  # (j, frame) -> frame for eye j's video and snapshots
-        self._write = write      # (j, frame) -> None, never raises
+        self._write = write  # (j, frame) -> None, never raises
         self._cond = threading.Condition()
         self._latest = [None] * len(queues)  # (frame, frame_number, serial) per eye
         self._serial = [0] * len(queues)
@@ -475,6 +504,7 @@ class _SessionRecorder:
 
 def _apply_theme_to_titlebar(root: tk.Toplevel) -> None:
     from contributions.native import decorate
+
     decorate(root)
 
 
@@ -504,6 +534,7 @@ class DataCollectionWindow:
 
     def _create_window(self):
         from contributions.window import ContributionWindow
+
         self._contributions = ContributionWindow(self.parent, capture_controller=self)
         self.window = self._contributions.window
         self._status_var = self._contributions.capture_status
@@ -518,7 +549,12 @@ class DataCollectionWindow:
                 self._create_window()
             except (OSError, ValueError):
                 from tkinter import messagebox
-                messagebox.showerror("Contributions", "Could not open private contribution storage. Check access to your user data folder.", parent=self.parent)
+
+                messagebox.showerror(
+                    "Contributions",
+                    "Could not open private contribution storage. Check access to your user data folder.",
+                    parent=self.parent,
+                )
                 return
         self.window.deiconify()
         self.window.update_idletasks()
@@ -551,12 +587,12 @@ class DataCollectionWindow:
         self._latest_capture = None
         self._contributions.clear_capture()
         self._use_overlay = self.use_overlay_var.get()
-        
+
         self.active_queues = []
         self.active_eyes = []
         self._attached_queues = []
         self.active_eye_labels = []
-        
+
         for eye in self.eyes:
             if eye.started():
                 q = queue.Queue(maxsize=10)
@@ -566,7 +602,7 @@ class DataCollectionWindow:
                 self.active_queues.append(q)
                 self.active_eyes.append(eye)
                 self.active_eye_labels.append("Left" if eye.eye_id.name == "LEFT" else "Right")
-                
+
         if not self.active_queues:
             self._status_var.set(tr("data_collection.status_no_cameras"))
             return
@@ -606,7 +642,7 @@ class DataCollectionWindow:
             output_dir = os.path.join(os.getcwd(), f"{DATA_COLLECTION_VERSION}_{seed}_ETVR_Output")
             if not os.path.exists(output_dir):
                 break
-        
+
         use_overlay = self._use_overlay
 
         os.makedirs(output_dir)
@@ -614,21 +650,28 @@ class DataCollectionWindow:
 
         # Camera setup is metadata only. NEXT and these captures use raw frames.
         with open(os.path.join(output_dir, "capture_manifest.json"), "w", encoding="utf-8") as f:
-            json.dump({
-                "schema": "etvr-capture-v1",
-                "image_coordinate_frame": "raw_camera",
-                "eyes": [
-                    {"eye": "Left" if eye.eye_id.name == "LEFT" else "Right",
-                     "camera_rotation_degrees": int(eye.config.rotation_angle)}
-                    for eye in self.eyes if eye.started()
-                ],
-                "dilation_reference": {
-                    "target_type": "illumination_phase_only",
-                    "backdrop_gray_8bit": {"dim": 24, "bright": 208},
-                    "adaptation_seconds": 3,
-                    "frames_per_phase": 12,
+            json.dump(
+                {
+                    "schema": "etvr-capture-v1",
+                    "image_coordinate_frame": "raw_camera",
+                    "eyes": [
+                        {
+                            "eye": "Left" if eye.eye_id.name == "LEFT" else "Right",
+                            "camera_rotation_degrees": int(eye.config.rotation_angle),
+                        }
+                        for eye in self.eyes
+                        if eye.started()
+                    ],
+                    "dilation_reference": {
+                        "target_type": "illumination_phase_only",
+                        "backdrop_gray_8bit": {"dim": 24, "bright": 208},
+                        "adaptation_seconds": 3,
+                        "frames_per_phase": 12,
+                    },
                 },
-            }, f, indent=2)
+                f,
+                indent=2,
+            )
 
         n = len(self.active_queues)
         timestamp_files = []
@@ -681,7 +724,9 @@ class DataCollectionWindow:
         for i in range(n):
             h, w = first_frames[i].shape[:2]
             is_color = len(first_frames[i].shape) == 3 and first_frames[i].shape[2] == 3
-            fn = os.path.join(output_dir, f"{DATA_COLLECTION_VERSION}_{seed}_full_session_{self.active_eye_labels[i]}.{container}")
+            fn = os.path.join(
+                output_dir, f"{DATA_COLLECTION_VERSION}_{seed}_full_session_{self.active_eye_labels[i]}.{container}"
+            )
             # The container's nominal rate: the camera's measured rate (the
             # Steam Frame runs 60-90 fps in a game), else the old fixed 60.
             fps = round(first_fps[i]) if 10 <= first_fps[i] <= 240 else 60
@@ -690,7 +735,8 @@ class DataCollectionWindow:
             self._video_writer_sizes.append((w, h))
 
         recorder = _SessionRecorder(
-            self.active_queues, self._prepare_frame,
+            self.active_queues,
+            self._prepare_frame,
             lambda j, frame: self._write_video_frame(video_writers[j], j, frame),
         )
         self._recorder = recorder
@@ -725,6 +771,7 @@ class DataCollectionWindow:
 
                     def _send_cmd(val, _sock=cmd_sock):
                         _sock.sendto(struct.pack(">i", val), ("127.0.0.1", OVERLAY_CMD_PORT))
+
                     send_cmd = _send_cmd
 
                     def send_text(text, _sock=cmd_sock):
@@ -745,10 +792,14 @@ class DataCollectionWindow:
                     # keyword LABELS are version-gated in the trainer (dataset.py)
                     # so v5 captures keep their original scale.
                     overlay_proc = subprocess.Popen(
-                        overlay_command("interactive",
-                                        "--coverage=0.80", "--max-deg=36",
-                                        "--max-deg-up=20", "--max-deg-down=40",
-                                        executable=overlay_exe),
+                        overlay_command(
+                            "interactive",
+                            "--coverage=0.80",
+                            "--max-deg=36",
+                            "--max-deg-up=20",
+                            "--max-deg-down=40",
+                            executable=overlay_exe,
+                        ),
                         cwd=os.path.dirname(overlay_exe),
                     )
 
@@ -759,7 +810,7 @@ class DataCollectionWindow:
                         drain_to_video()
                         try:
                             data, _ = udp_sock.recvfrom(16)
-                            val, = struct.unpack(">i", data[:4])
+                            (val,) = struct.unpack(">i", data[:4])
                             if val == 255:
                                 ready = True
                                 break
@@ -776,9 +827,7 @@ class DataCollectionWindow:
                     use_overlay = False
 
         prompts_to_run = [
-            (dot_code, label, key)
-            for dot_code, label, key in PROMPT_DATA
-            if not (use_overlay and dot_code is not None)
+            (dot_code, label, key) for dot_code, label, key in PROMPT_DATA if not (use_overlay and dot_code is not None)
         ]
         total_prompts = len(prompts_to_run)
 
@@ -787,7 +836,17 @@ class DataCollectionWindow:
                 if self.session_cancel.is_set():
                     break
 
-                self.gui_queue.put(("status", tr("data_collection.status_speaking", text=prompt_text(key), current=capture_count + 1, total=total_prompts)))
+                self.gui_queue.put(
+                    (
+                        "status",
+                        tr(
+                            "data_collection.status_speaking",
+                            text=prompt_text(key),
+                            current=capture_count + 1,
+                            total=total_prompts,
+                        ),
+                    )
+                )
                 self.gui_queue.put(("progress", (capture_count + 1, total_prompts)))
 
                 if use_overlay:
@@ -847,21 +906,40 @@ class DataCollectionWindow:
             base_idx = len(prompts_to_run)
             if use_overlay and not self.session_cancel.is_set():
                 base_idx = self._run_overlay_passes(
-                    seed, output_dir, n, video_writers,
-                    timestamp_files, drain_to_video, base_idx,
-                    udp_sock, send_cmd, cmd_sock,
+                    seed,
+                    output_dir,
+                    n,
+                    video_writers,
+                    timestamp_files,
+                    drain_to_video,
+                    base_idx,
+                    udp_sock,
+                    send_cmd,
+                    cmd_sock,
                 )
             if use_overlay and not self.session_cancel.is_set():
                 base_idx = self._run_headset_shift_pass(
-                    seed, output_dir, n, video_writers,
-                    timestamp_files, drain_to_video, base_idx,
-                    udp_sock, cmd_sock,
+                    seed,
+                    output_dir,
+                    n,
+                    video_writers,
+                    timestamp_files,
+                    drain_to_video,
+                    base_idx,
+                    udp_sock,
+                    cmd_sock,
                 )
             if use_overlay and not self.session_cancel.is_set():
                 base_idx = self._run_dilation_reference_pass(
-                    seed, output_dir, n, video_writers,
-                    timestamp_files, drain_to_video, base_idx,
-                    udp_sock, cmd_sock,
+                    seed,
+                    output_dir,
+                    n,
+                    video_writers,
+                    timestamp_files,
+                    drain_to_video,
+                    base_idx,
+                    udp_sock,
+                    cmd_sock,
                 )
             # Blink-at-dot: mid-blink frames with a held-neutral brow (the
             # anti-"blink wiggles eyebrow" pass). Overlay pins the dot; without
@@ -869,21 +947,39 @@ class DataCollectionWindow:
             if not self.session_cancel.is_set():
                 if use_overlay:
                     base_idx = self._run_blinkdot_pass(
-                        seed, output_dir, n, video_writers,
-                        timestamp_files, drain_to_video, base_idx,
-                        udp_sock, send_cmd, cmd_sock,
+                        seed,
+                        output_dir,
+                        n,
+                        video_writers,
+                        timestamp_files,
+                        drain_to_video,
+                        base_idx,
+                        udp_sock,
+                        send_cmd,
+                        cmd_sock,
                     )
                 else:
                     base_idx = self._run_blink_pass_no_overlay(
-                        seed, output_dir, n, video_writers,
-                        timestamp_files, drain_to_video, base_idx,
+                        seed,
+                        output_dir,
+                        n,
+                        video_writers,
+                        timestamp_files,
+                        drain_to_video,
+                        base_idx,
                     )
             # Closed-eye roam: closed-lid appearance under a moving face/brow.
             if not self.session_cancel.is_set():
                 base_idx = self._run_closed_roam_pass(
-                    seed, output_dir, n, video_writers,
-                    timestamp_files, drain_to_video, base_idx,
-                    use_overlay, cmd_sock,
+                    seed,
+                    output_dir,
+                    n,
+                    video_writers,
+                    timestamp_files,
+                    drain_to_video,
+                    base_idx,
+                    use_overlay,
+                    cmd_sock,
                 )
 
         except Exception as e:
@@ -958,8 +1054,7 @@ class DataCollectionWindow:
         except Exception:
             logger.exception("Dropped a full-session video frame for eye index %d", j)
 
-    def _do_overlay_capture(self, seed, output_dir, n, video_writers, timestamp_files, label, idx,
-                            image_dir=None):
+    def _do_overlay_capture(self, seed, output_dir, n, video_writers, timestamp_files, label, idx, image_dir=None):
         frames = [None] * n
         frame_nums = [None] * n
         for j in range(n):
@@ -974,7 +1069,8 @@ class DataCollectionWindow:
                 # this eye's capture for this point.
                 logger.exception(
                     "Overlay capture failed for eye index %d (label=%s); skipping this frame",
-                    j, label,
+                    j,
+                    label,
                 )
 
         for j in range(n):
@@ -990,8 +1086,19 @@ class DataCollectionWindow:
                 )
                 cv2.imwrite(img_fn, frames[j])
 
-    def _run_overlay_passes(self, seed, output_dir, n, video_writers, timestamp_files,
-                             drain_to_video, base_idx, udp_sock, send_cmd, cmd_sock):
+    def _run_overlay_passes(
+        self,
+        seed,
+        output_dir,
+        n,
+        video_writers,
+        timestamp_files,
+        drain_to_video,
+        base_idx,
+        udp_sock,
+        send_cmd,
+        cmd_sock,
+    ):
         overlay_idx = base_idx
         total_passes = len(OVERLAY_PASSES)
 
@@ -1006,7 +1113,17 @@ class DataCollectionWindow:
             # gaze + squint then stopping before the widen/eyebrow passes. Log
             # the full traceback and move on to the next pass instead.
             try:
-                self.gui_queue.put(("status", tr("data_collection.status_overlay_pass", current=pass_num + 1, total=total_passes, text=prompt_text(f"pass_{key}"))))
+                self.gui_queue.put(
+                    (
+                        "status",
+                        tr(
+                            "data_collection.status_overlay_pass",
+                            current=pass_num + 1,
+                            total=total_passes,
+                            text=prompt_text(f"pass_{key}"),
+                        ),
+                    )
+                )
                 self.gui_queue.put(("progress", (pass_num + 1, total_passes)))
                 # Card first, then the voice: the overlay keeps this text when
                 # the pass command below starts the dots.
@@ -1035,16 +1152,17 @@ class DataCollectionWindow:
                         continue
                     if len(data) < 4:
                         continue
-                    value, = struct.unpack(">i", data[:4])
+                    (value,) = struct.unpack(">i", data[:4])
                     if 0 <= value <= 8:
                         label = f"{label_prefix}_{OVERLAY_POINT_NAMES[value]}"
-                        self._do_overlay_capture(seed, output_dir, n, video_writers,
-                                                 timestamp_files, label, overlay_idx)
+                        self._do_overlay_capture(
+                            seed, output_dir, n, video_writers, timestamp_files, label, overlay_idx
+                        )
                         overlay_idx += 1
-                    elif value == 10:   # overlay entered jittered-grid phase
+                    elif value == 10:  # overlay entered jittered-grid phase
                         phase1_done = True
                         break
-                    elif value == 19:   # safety fallback
+                    elif value == 19:  # safety fallback
                         break
 
                 if not phase1_done or self.session_cancel.is_set():
@@ -1073,8 +1191,9 @@ class DataCollectionWindow:
 
                     if captured and not self.session_cancel.is_set():
                         label = f"{label_prefix}_x{gx:+.3f}_y{gy:+.3f}"
-                        self._do_overlay_capture(seed, output_dir, n, video_writers,
-                                                 timestamp_files, label, overlay_idx)
+                        self._do_overlay_capture(
+                            seed, output_dir, n, video_writers, timestamp_files, label, overlay_idx
+                        )
                         overlay_idx += 1
 
                 if self.session_cancel.is_set():
@@ -1094,17 +1213,28 @@ class DataCollectionWindow:
             except Exception:
                 logger.exception(
                     "Overlay pass %d/%d (%s) failed; skipping to the next pass",
-                    pass_num + 1, total_passes, label_prefix,
+                    pass_num + 1,
+                    total_passes,
+                    label_prefix,
                 )
                 self.gui_queue.put(
-                    ("status", tr("data_collection.status_pass_errored", current=pass_num + 1, total=total_passes, label=label_prefix))
+                    (
+                        "status",
+                        tr(
+                            "data_collection.status_pass_errored",
+                            current=pass_num + 1,
+                            total=total_passes,
+                            label=label_prefix,
+                        ),
+                    )
                 )
                 continue
 
         return overlay_idx
 
-    def _burst_capture(self, seed, output_dir, n, video_writers, timestamp_files,
-                       drain_to_video, label, idx, frames, interval):
+    def _burst_capture(
+        self, seed, output_dir, n, video_writers, timestamp_files, drain_to_video, label, idx, frames, interval
+    ):
         """Capture `frames` snapshots ~`interval` seconds apart under one label.
         Returns the next free capture index. Mirrors the headset-shift pass's
         cadence (drain, wait, drain, capture) so full-session video keeps
@@ -1115,13 +1245,23 @@ class DataCollectionWindow:
             drain_to_video()
             time.sleep(max(interval - 0.02, 0.0))
             drain_to_video()
-            self._do_overlay_capture(seed, output_dir, n, video_writers,
-                                     timestamp_files, label, idx)
+            self._do_overlay_capture(seed, output_dir, n, video_writers, timestamp_files, label, idx)
             idx += 1
         return idx
 
-    def _run_blinkdot_pass(self, seed, output_dir, n, video_writers, timestamp_files,
-                           drain_to_video, base_idx, udp_sock, send_cmd, cmd_sock):
+    def _run_blinkdot_pass(
+        self,
+        seed,
+        output_dir,
+        n,
+        video_writers,
+        timestamp_files,
+        drain_to_video,
+        base_idx,
+        udp_sock,
+        send_cmd,
+        cmd_sock,
+    ):
         """Blink-at-dot: pin the overlay dot at 4 jittered positions; the user
         blinks repeatedly at each while holding a neutral brow (burst capture).
         Falls back gracefully if the overlay exe predates cmd 113 (no ack 21):
@@ -1141,8 +1281,7 @@ class DataCollectionWindow:
             if self.session_cancel.is_set():
                 break
             _drain_udp_socket(udp_sock)
-            cmd_sock.sendto(struct.pack(">iff", OVERLAY_CMD_PIN_DOT, gx, gy),
-                            ("127.0.0.1", OVERLAY_CMD_PORT))
+            cmd_sock.sendto(struct.pack(">iff", OVERLAY_CMD_PIN_DOT, gx, gy), ("127.0.0.1", OVERLAY_CMD_PORT))
 
             # Wait for the pin ack (21). An old overlay exe ignores 113 and
             # never acks so skip the pass instead of labeling gaze at a dot the
@@ -1174,15 +1313,23 @@ class DataCollectionWindow:
 
             label = f"blinkdot_x{gx:+.3f}_y{gy:+.3f}"
             overlay_idx = self._burst_capture(
-                seed, output_dir, n, video_writers, timestamp_files, drain_to_video,
-                label, overlay_idx, BLINKDOT_BURST_FRAMES, BLINKDOT_BURST_INTERVAL)
+                seed,
+                output_dir,
+                n,
+                video_writers,
+                timestamp_files,
+                drain_to_video,
+                label,
+                overlay_idx,
+                BLINKDOT_BURST_FRAMES,
+                BLINKDOT_BURST_INTERVAL,
+            )
 
         cmd_sock.sendto(struct.pack(">i", OVERLAY_CMD_UNPIN), ("127.0.0.1", OVERLAY_CMD_PORT))
-        send_cmd(98)   # clear overlay text
+        send_cmd(98)  # clear overlay text
         return overlay_idx
 
-    def _run_blink_pass_no_overlay(self, seed, output_dir, n, video_writers,
-                                   timestamp_files, drain_to_video, base_idx):
+    def _run_blink_pass_no_overlay(self, seed, output_dir, n, video_writers, timestamp_files, drain_to_video, base_idx):
         """No-overlay blink burst: fixate straight ahead and blink repeatedly.
         Center-gaze-only version of the blinkdot pass (label carries 0,0)."""
         self.gui_queue.put(("status", tr("data_collection.status_blinkdot")))
@@ -1193,12 +1340,21 @@ class DataCollectionWindow:
             drain_to_video()
             time.sleep(0.01)
         return self._burst_capture(
-            seed, output_dir, n, video_writers, timestamp_files, drain_to_video,
-            "blinkdot_x+0.000_y+0.000", base_idx,
-            BLINKDOT_BURST_FRAMES * 2, BLINKDOT_BURST_INTERVAL)
+            seed,
+            output_dir,
+            n,
+            video_writers,
+            timestamp_files,
+            drain_to_video,
+            "blinkdot_x+0.000_y+0.000",
+            base_idx,
+            BLINKDOT_BURST_FRAMES * 2,
+            BLINKDOT_BURST_INTERVAL,
+        )
 
-    def _run_closed_roam_pass(self, seed, output_dir, n, video_writers, timestamp_files,
-                              drain_to_video, base_idx, use_overlay, cmd_sock):
+    def _run_closed_roam_pass(
+        self, seed, output_dir, n, video_writers, timestamp_files, drain_to_video, base_idx, use_overlay, cmd_sock
+    ):
         """Closed-eye roam: eyes shut, move face/brows/cheeks around (burst).
         Works with or without the overlay (TTS carries the instruction)."""
         self.gui_queue.put(("status", tr("data_collection.status_closed_roam")))
@@ -1219,15 +1375,25 @@ class DataCollectionWindow:
             time.sleep(0.01)
 
         base_idx = self._burst_capture(
-            seed, output_dir, n, video_writers, timestamp_files, drain_to_video,
-            "closed_roam", base_idx, CLOSED_ROAM_FRAMES, CLOSED_ROAM_INTERVAL)
+            seed,
+            output_dir,
+            n,
+            video_writers,
+            timestamp_files,
+            drain_to_video,
+            "closed_roam",
+            base_idx,
+            CLOSED_ROAM_FRAMES,
+            CLOSED_ROAM_INTERVAL,
+        )
 
         if use_overlay and cmd_sock is not None:
             cmd_sock.sendto(struct.pack(">i", 98), ("127.0.0.1", OVERLAY_CMD_PORT))
         return base_idx
 
-    def _run_headset_shift_pass(self, seed, output_dir, n, video_writers, timestamp_files,
-                                 drain_to_video, base_idx, udp_sock, cmd_sock):
+    def _run_headset_shift_pass(
+        self, seed, output_dir, n, video_writers, timestamp_files, drain_to_video, base_idx, udp_sock, cmd_sock
+    ):
         overlay_idx = base_idx
         self.gui_queue.put(("status", tr("data_collection.status_headset_shift")))
 
@@ -1256,8 +1422,7 @@ class DataCollectionWindow:
             drain_to_video()
             time.sleep(0.18)
             drain_to_video()
-            self._do_overlay_capture(seed, output_dir, n, video_writers,
-                                     timestamp_files, "hshift_center", overlay_idx)
+            self._do_overlay_capture(seed, output_dir, n, video_writers, timestamp_files, "hshift_center", overlay_idx)
             overlay_idx += 1
 
         cmd_sock.sendto(struct.pack(">i", 121), ("127.0.0.1", OVERLAY_CMD_PORT))
@@ -1271,15 +1436,15 @@ class DataCollectionWindow:
                 continue
             if len(data) < 4:
                 continue
-            val, = struct.unpack(">i", data[:4])
+            (val,) = struct.unpack(">i", data[:4])
             if val == 19:
                 break
 
         return overlay_idx
 
-    def _run_dilation_reference_pass(self, seed, output_dir, n, video_writers,
-                                     timestamp_files, drain_to_video, base_idx,
-                                     udp_sock, cmd_sock):
+    def _run_dilation_reference_pass(
+        self, seed, output_dir, n, video_writers, timestamp_files, drain_to_video, base_idx, udp_sock, cmd_sock
+    ):
         """Collect fixation-matched dim/bright references, not diameter labels."""
         image_dir = os.path.join(output_dir, "DILATION_REFERENCE")
 
@@ -1322,8 +1487,15 @@ class DataCollectionWindow:
                     drain_to_video()
                     time.sleep(0.18)
                     self._do_overlay_capture(
-                        seed, output_dir, n, video_writers, timestamp_files,
-                        f"dilation_{phase}", base_idx, image_dir=image_dir)
+                        seed,
+                        output_dir,
+                        n,
+                        video_writers,
+                        timestamp_files,
+                        f"dilation_{phase}",
+                        base_idx,
+                        image_dir=image_dir,
+                    )
                     base_idx += 1
         finally:
             command(132)  # Restore neutral illumination for subsequent passes.

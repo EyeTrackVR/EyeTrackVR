@@ -96,9 +96,7 @@ _GAZE_MEDIAN_WINDOW = 3
 # mono ordering intent: eyebrows filtered most, gaze & squeeze next, eyelids
 # least, duplicated across the left/right expression triples.
 #          ebL  elidL  sqL   ebR  elidR  sqR   gx   gy
-_FILTER_MUL = np.array(
-    [1.0, 10.0, 5.0, 1.0, 10.0, 5.0, 0.1, 0.1], dtype=np.float32
-)
+_FILTER_MUL = np.array([1.0, 10.0, 5.0, 1.0, 10.0, 5.0, 0.1, 0.1], dtype=np.float32)
 
 # ImageNet normalization constants (CHW), only used for the (not expected)
 # legacy case where an export didn't bake normalization into the graph.
@@ -218,7 +216,9 @@ class NEXT_Stereo_cls:
         # Fixed-step filter and time-span medians: one eye (one pass per frame)
         # and two eyes (a pass per frame of either eye) respond identically.
         self.one_euro_filter = OneEuroFilter(
-            np.zeros(8, dtype=np.float32), min_cutoff=1.0, beta=0.0,
+            np.zeros(8, dtype=np.float32),
+            min_cutoff=1.0,
+            beta=0.0,
             step_s=NEXT_FILTER_STEP_S,
         )
         self._brow_l_window = TimedMedian(_BROW_MEDIAN_WINDOW)
@@ -248,9 +248,7 @@ class NEXT_Stereo_cls:
     def thumb(self, frame: _Frame) -> np.ndarray:
         """Small grayscale copy used for the stationary-eye test."""
         if frame.thumb is None:
-            small = cv2.resize(
-                frame.bgr, (_MOTION_SIZE, _MOTION_SIZE), interpolation=cv2.INTER_AREA
-            )
+            small = cv2.resize(frame.bgr, (_MOTION_SIZE, _MOTION_SIZE), interpolation=cv2.INTER_AREA)
             frame.thumb = cv2.cvtColor(small, cv2.COLOR_BGR2GRAY).astype(np.float32)
         return frame.thumb
 
@@ -264,9 +262,7 @@ class NEXT_Stereo_cls:
             result = self.ort_session.run(None, {self.input_name: x})
         return result[0][0].astype(np.float32)
 
-    def postprocess(
-        self, raw: np.ndarray, valid: dict, base_cutoff: float, base_beta: float
-    ) -> np.ndarray:
+    def postprocess(self, raw: np.ndarray, valid: dict, base_cutoff: float, base_beta: float) -> np.ndarray:
         """Axis normalization, missing-eye expression hold, median spike reject
         and One-Euro smoothing. Returns the filtered 8-vector in model order."""
         # Hybrid extends the legacy stereo contract in place. Its auxiliary
@@ -287,9 +283,9 @@ class NEXT_Stereo_cls:
         # can't fake a blink. The zeros never reach the smoothing state either.
         for eye, base in ((EyeId.LEFT, 0), (EyeId.RIGHT, 3)):
             if valid.get(eye, True):
-                self._last_expr[eye] = raw[base:base + 3].copy()
+                self._last_expr[eye] = raw[base : base + 3].copy()
             elif self._last_expr[eye] is not None:
-                raw[base:base + 3] = self._last_expr[eye]
+                raw[base : base + 3] = self._last_expr[eye]
 
         # Running-median spike reject on the two eyebrows and the shared gaze.
         now = time.perf_counter()
@@ -402,9 +398,7 @@ class StereoNextCoordinator:
                 self._raw_gaze = getattr(self.runner, "last_raw_gaze", None)
                 self._result_ver = version
                 for eye in (EyeId.LEFT, EyeId.RIGHT):
-                    self._result_ts[eye] = (
-                        snapshot[eye][-1].ts if valid[eye] and snapshot[eye] else None
-                    )
+                    self._result_ts[eye] = snapshot[eye][-1].ts if valid[eye] and snapshot[eye] else None
                 self.last_mode = mode
                 self.last_skew_ms = skew * 1000.0
         return slice_stereo_result(out, eye_id)
@@ -459,9 +453,7 @@ class StereoNextCoordinator:
         fresh_l = bool(left) and (now - left[-1].ts) <= _STALE_AFTER_S
         fresh_r = bool(right) and (now - right[-1].ts) <= _STALE_AFTER_S
         if not (fresh_l and fresh_r):
-            mode = (
-                "left-only" if fresh_l else "right-only" if fresh_r else "none"
-            )
+            mode = "left-only" if fresh_l else "right-only" if fresh_r else "none"
             return {EyeId.LEFT: fresh_l, EyeId.RIGHT: fresh_r}, 0.0, mode
 
         ts_l, ts_r = left[-1].ts, right[-1].ts
@@ -486,19 +478,13 @@ class StereoNextCoordinator:
         if not usable or not history:
             return [self.runner.black] * frames
         stride = self.runner.frame_stride
-        return [
-            self.runner.chw(
-                history[max(0, len(history) - 1 - (frames - 1 - k) * stride)]
-            )
-            for k in range(frames)
-        ]
+        return [self.runner.chw(history[max(0, len(history) - 1 - (frames - 1 - k) * stride)]) for k in range(frames)]
 
     def _build_input(self, snapshot: dict, valid: dict) -> np.ndarray:
         """[1, 6*T, H, W], left then right within each time step."""
         left = self._eye_stack(snapshot[EyeId.LEFT], valid[EyeId.LEFT])
         right = self._eye_stack(snapshot[EyeId.RIGHT], valid[EyeId.RIGHT])
-        steps = [part for k in range(self.runner.temporal_frames)
-                 for part in (left[k], right[k])]
+        steps = [part for k in range(self.runner.temporal_frames) for part in (left[k], right[k])]
         return np.ascontiguousarray(np.concatenate(steps, axis=0))[np.newaxis]
 
 
@@ -523,8 +509,8 @@ def get_stereo_coordinator(variant: str, use_gpu: bool = False):
         coordinator = None
         if path is None:
             logger.info(
-                "No shared NEXT model for variant %s; using the per-eye model for "
-                "both eyes.", hmd,
+                "No shared NEXT model for variant %s; using the per-eye model for both eyes.",
+                hmd,
             )
         else:
             try:
@@ -532,8 +518,8 @@ def get_stereo_coordinator(variant: str, use_gpu: bool = False):
                 logger.info("NEXT shared model loaded: %s", path)
             except Exception as exc:
                 logger.warning(
-                    "NEXT Stereo session unavailable (%s); falling back to the "
-                    "per-eye model.", exc,
+                    "NEXT Stereo session unavailable (%s); falling back to the per-eye model.",
+                    exc,
                 )
         # Cached even when None so a missing model isn't retried every frame.
         _coordinator_key = key

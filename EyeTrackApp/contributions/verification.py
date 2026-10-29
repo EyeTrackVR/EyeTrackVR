@@ -3,6 +3,7 @@
 Only an ephemeral Turnstile token crosses an authenticated loopback connection.
 No JS API exposes native filesystem, receipts, camera state, or app objects.
 """
+
 import hmac
 import json
 from pathlib import Path
@@ -39,8 +40,12 @@ def verify_in_app(service, cancel):
             command = [sys.executable, *args]
         else:
             command = [sys.executable, str(Path(__file__).resolve().parents[1] / "eyetrackapp.py"), *args]
-        process = subprocess.Popen(command, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
-                                   creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
+        process = subprocess.Popen(
+            command,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+        )
         try:
             until = time.monotonic() + 300
             while time.monotonic() < until:
@@ -50,7 +55,9 @@ def verify_in_app(service, cancel):
                     connection, _ = listener.accept()
                 except socket.timeout:
                     if process.poll() is not None:
-                        raise ValueError("Verification closed or could not start. Ensure the embedded webview runtime is installed.")
+                        raise ValueError(
+                            "Verification closed or could not start. Ensure the embedded webview runtime is installed."
+                        )
                     continue
                 with connection:
                     connection.settimeout(1)
@@ -81,20 +88,31 @@ def verify_in_app(service, cancel):
 
 def run_helper(service, port, nonce):
     import webview
+
     service = origin(service)
     expected = service + "/challenge?embedded=1"
-    webview.settings.update(OPEN_EXTERNAL_LINKS_IN_BROWSER=False, ALLOW_DOWNLOADS=False,
-                            ALLOW_FILE_URLS=False, OPEN_DEVTOOLS_IN_DEBUG=False)
-    window = webview.create_window("EyeTrackVR — Verify contribution", expected,
-                                   width=620, height=480, min_size=(480, 380),
-                                   background_color="#20242b", text_select=False)
+    webview.settings.update(
+        OPEN_EXTERNAL_LINKS_IN_BROWSER=False, ALLOW_DOWNLOADS=False, ALLOW_FILE_URLS=False, OPEN_DEVTOOLS_IN_DEBUG=False
+    )
+    window = webview.create_window(
+        "EyeTrackVR — Verify contribution",
+        expected,
+        width=620,
+        height=480,
+        min_size=(480, 380),
+        background_color="#20242b",
+        text_select=False,
+    )
     from .native import asset, dark_titlebar
+
     if sys.platform == "win32":
+
         def style_native():
             try:
                 dark_titlebar(window.native.Handle.ToInt64())
             except (AttributeError, OSError):
                 pass
+
         window.events.shown += style_native
     closed = threading.Event()
     window.events.closed += closed.set

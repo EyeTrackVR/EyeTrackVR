@@ -70,7 +70,7 @@ def vrlink_peer(text: str) -> str | None:
     starts = [m.end() for m in _SESSION_START.finditer(text)]
     if not starts:
         return None
-    session = text[starts[-1]:]
+    session = text[starts[-1] :]
     peers = {local: peer for local, peer in _SET_PEER.findall(session)}
     peered = [local for local in _PEERED.findall(session) if local in peers]
     if not peered:

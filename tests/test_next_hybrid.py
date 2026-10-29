@@ -14,9 +14,7 @@ import next_model
 import next_stereo_model
 
 # Every shipped headset x model size, so each export is held to the same contract.
-HYBRID_VARIANTS = tuple(
-    compose_variant(hmd, size) for hmd in ("ETVR", "BSB", "PSVR") for size in MODEL_SIZES
-)
+HYBRID_VARIANTS = tuple(compose_variant(hmd, size) for hmd in ("ETVR", "BSB", "PSVR") for size in MODEL_SIZES)
 
 
 class _IdentityFilter:
@@ -39,11 +37,14 @@ def _image(seed=1):
     return np.random.default_rng(seed).integers(0, 256, (64, 80, 3), dtype=np.uint8)
 
 
-@pytest.mark.parametrize("base,stem", [
-    ("ETVR", "NEXT_ETVR_HYBRID"),
-    ("BSB", "NEXT_ETVR_HYBRID_BSB"),
-    ("PSVR", "NEXT_ETVR_HYBRID_PSVR"),
-])
+@pytest.mark.parametrize(
+    "base,stem",
+    [
+        ("ETVR", "NEXT_ETVR_HYBRID"),
+        ("BSB", "NEXT_ETVR_HYBRID_BSB"),
+        ("PSVR", "NEXT_ETVR_HYBRID_PSVR"),
+    ],
+)
 def test_hardware_selects_one_hybrid_artifact_for_both_camera_modes(base, stem):
     for variant, suffix in ((base, ".onnx"), (base + " LITE", ".fp16.onnx")):
         expected = f"Models/{stem}{suffix}"
@@ -121,7 +122,7 @@ def test_per_eye_hybrid_fallback_matches_shared_inference(hybrid, eye):
     pair = (actual, shared.black) if eye == EyeId.LEFT else (shared.black, actual)
     raw = shared.forward(np.concatenate(pair, axis=0)[None])
     base = 0 if eye == EyeId.LEFT else 3
-    expected = [raw[6], -raw[7], *raw[base:base + 3]]
+    expected = [raw[6], -raw[7], *raw[base : base + 3]]
     np.testing.assert_allclose(fallback.run(image), expected, atol=1e-5)
 
 
@@ -224,8 +225,11 @@ def test_processor_uses_hybrid_without_an_active_peer(monkeypatch, eye, hybrid_a
     processor.current_image_gray = np.zeros((64, 80), dtype=np.uint8)
     processor.current_capture_ts = 1000.0
     processor.settings = SimpleNamespace(
-        gui_min_cutoff=0.0004, gui_speed_coefficient=0.9,
-        gui_setup_mode=setup, gui_model_variant=variant, gui_use_gpu=False,
+        gui_min_cutoff=0.0004,
+        gui_speed_coefficient=0.9,
+        gui_setup_mode=setup,
+        gui_model_variant=variant,
+        gui_use_gpu=False,
     )
     processor._next_apply = Mock()
     processor._next_mode_changed = Mock()
@@ -233,7 +237,10 @@ def test_processor_uses_hybrid_without_an_active_peer(monkeypatch, eye, hybrid_a
     processor.next_runner.run.return_value = (0.2, 0.3, 0.4, 0.5, 0.6)
     processor.next_runner.raw_gaze = (0.25, 0.35)
     coord = SimpleNamespace(
-        supports_single_eye=hybrid_available, submit=Mock(), run=Mock(), peer_active=Mock(),
+        supports_single_eye=hybrid_available,
+        submit=Mock(),
+        run=Mock(),
+        peer_active=Mock(),
         raw_gaze=Mock(return_value=(0.15, 0.25)),
     )
     coord.run.return_value = (0.1, 0.2, 0.3, 0.4, 0.5)
@@ -257,17 +264,24 @@ def test_processor_uses_hybrid_without_an_active_peer(monkeypatch, eye, hybrid_a
     else:
         coord.run.assert_not_called()
         processor.next_runner.run.assert_called_once()
-        processor._next_apply.assert_called_once_with(
-            *processor.next_runner.run.return_value, raw_gaze=(0.25, 0.35)
-        )
+        processor._next_apply.assert_called_once_with(*processor.next_runner.run.return_value, raw_gaze=(0.25, 0.35))
 
 
 @pytest.mark.parametrize("variant", ["ETVR", "BSB", "PSVR"])
 def test_processor_does_not_allocate_unused_per_eye_sessions(monkeypatch, variant):
     settings = SimpleNamespace(
-        gui_AHRAC=False, gui_AHSF=False, gui_HSF=False, gui_HSRAC=False,
-        gui_DADDY=False, gui_NEXT=True, gui_NEXT_BSB=False, gui_LEAP=False,
-        gui_LEAP_lid=False, gui_RANSAC3D=False, gui_model_variant=variant, gui_use_gpu=False,
+        gui_AHRAC=False,
+        gui_AHSF=False,
+        gui_HSF=False,
+        gui_HSRAC=False,
+        gui_DADDY=False,
+        gui_NEXT=True,
+        gui_NEXT_BSB=False,
+        gui_LEAP=False,
+        gui_LEAP_lid=False,
+        gui_RANSAC3D=False,
+        gui_model_variant=variant,
+        gui_use_gpu=False,
     )
     coord = SimpleNamespace(supports_single_eye=True)
     get_coord = Mock(return_value=coord)

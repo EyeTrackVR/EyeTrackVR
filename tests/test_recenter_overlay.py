@@ -12,9 +12,7 @@ from utils.calibration_elipse import CalibrationEllipse
 
 @pytest.mark.parametrize("use_overlay", [False, True])
 @pytest.mark.parametrize("eye_id", [calibration.EyeId.LEFT, calibration.EyeId.RIGHT])
-def test_recenter_respects_overlay_setting_and_saves_center(
-    monkeypatch, eyetrack_settings_config, use_overlay, eye_id
-):
+def test_recenter_respects_overlay_setting_and_saves_center(monkeypatch, eyetrack_settings_config, use_overlay, eye_id):
     settings = eyetrack_settings_config
     settings.gui_use_overlay_cal = use_overlay
     settings.gui_recenter_eyes = True
@@ -34,9 +32,7 @@ def test_recenter_respects_overlay_setting_and_saves_center(
         should_print_calibration_warning=False,
         _recenter_armed_at=None,
         _recenter_delay_s=0.2,
-        baseconfig=SimpleNamespace(
-            save=lambda: saved_centers.append((config.calib_XOFF, config.calib_YOFF))
-        ),
+        baseconfig=SimpleNamespace(save=lambda: saved_centers.append((config.calib_XOFF, config.calib_YOFF))),
     )
     overlay = Mock()
     sound = Mock()

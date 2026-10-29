@@ -4,6 +4,7 @@ Shared byte-for-byte by EyeTrackVR (producer) and ETVR-Dataset-Sync (consumer).
 Anyone can encrypt to the public recipient, so maintainers run inspect_bundle on
 every decrypted archive; the app's own packaging is never trusted. No auto log discovery.
 """
+
 import json
 import re
 import shutil
@@ -13,8 +14,11 @@ import zipfile
 import zlib
 from pathlib import Path
 
-CAPTURE = re.compile(r"^v[0-9]+_[A-Za-z0-9]{9}_(?:full_session_(?P<video_eye>Left|Right)\.(?:avi|mp4)|"
-                     r"(?P<eye>Left|Right)_(?:timestamps\.txt|[0-9]+_[A-Za-z0-9_.+-]+\.png))$", re.I)
+CAPTURE = re.compile(
+    r"^v[0-9]+_[A-Za-z0-9]{9}_(?:full_session_(?P<video_eye>Left|Right)\.(?:avi|mp4)|"
+    r"(?P<eye>Left|Right)_(?:timestamps\.txt|[0-9]+_[A-Za-z0-9_.+-]+\.png))$",
+    re.I,
+)
 ISSUE = re.compile(r"^(?:description\.txt|log-(?:[1-9]|10)\.txt)$")
 SUBMISSION = "etvr-submission-v1"
 MAX_UNPACKED = 2 * 1024**3
@@ -45,11 +49,19 @@ def check_submission(value):
     """The encrypted binding between a bundle, its submission ID and the consent it was made under."""
     if not isinstance(value, dict) or value.get("kind") not in {"dataset", "issue"}:
         raise ValueError("Invalid submission record")
-    keys = {"schema", "id", "kind", "terms_version", "terms_sha256"} | ({"hmd"} if value["kind"] == "dataset" else set())
-    if (set(value) != keys or value["schema"] != SUBMISSION
-            or not isinstance(value["id"], str) or not re.fullmatch(r"[0-9a-f]{32}", value["id"])
-            or not isinstance(value["terms_version"], str) or not 0 < len(value["terms_version"]) <= 100
-            or not isinstance(value["terms_sha256"], str) or not re.fullmatch(r"[0-9a-f]{64}", value["terms_sha256"])):
+    keys = {"schema", "id", "kind", "terms_version", "terms_sha256"} | (
+        {"hmd"} if value["kind"] == "dataset" else set()
+    )
+    if (
+        set(value) != keys
+        or value["schema"] != SUBMISSION
+        or not isinstance(value["id"], str)
+        or not re.fullmatch(r"[0-9a-f]{32}", value["id"])
+        or not isinstance(value["terms_version"], str)
+        or not 0 < len(value["terms_version"]) <= 100
+        or not isinstance(value["terms_sha256"], str)
+        or not re.fullmatch(r"[0-9a-f]{64}", value["terms_sha256"])
+    ):
         raise ValueError("Invalid submission record")
     if value["kind"] == "dataset" and clean_hmd(value["hmd"]) != value["hmd"]:
         raise ValueError("Invalid HMD description in submission record")
@@ -57,8 +69,13 @@ def check_submission(value):
 
 
 def submission_record(sid, kind, terms_version, terms_sha256, hmd=None):
-    value = {"schema": SUBMISSION, "id": sid, "kind": kind,
-             "terms_version": terms_version, "terms_sha256": terms_sha256}
+    value = {
+        "schema": SUBMISSION,
+        "id": sid,
+        "kind": kind,
+        "terms_version": terms_version,
+        "terms_sha256": terms_sha256,
+    }
     if kind == "dataset":
         value["hmd"] = clean_hmd(hmd)
     return json.dumps(check_submission(value), sort_keys=True, ensure_ascii=False).encode()
@@ -76,25 +93,34 @@ def check_manifest(value):
     if not isinstance(eyes, list) or len(eyes) > 2:
         raise ValueError("Invalid eye metadata")
     for eye in eyes:
-        if (not isinstance(eye, dict) or set(eye) - {"eye", "camera_rotation_degrees"}
-                or eye.get("eye") not in {"Left", "Right"}
-                or type(eye.get("camera_rotation_degrees")) is not int
-                or not -360 <= eye["camera_rotation_degrees"] <= 360):
+        if (
+            not isinstance(eye, dict)
+            or set(eye) - {"eye", "camera_rotation_degrees"}
+            or eye.get("eye") not in {"Left", "Right"}
+            or type(eye.get("camera_rotation_degrees")) is not int
+            or not -360 <= eye["camera_rotation_degrees"] <= 360
+        ):
             raise ValueError("Unexpected eye metadata")
     dilation = value.get("dilation_reference")
     if dilation is not None:
         if not isinstance(dilation, dict) or set(dilation) != {
-            "target_type", "backdrop_gray_8bit", "adaptation_seconds", "frames_per_phase"
+            "target_type",
+            "backdrop_gray_8bit",
+            "adaptation_seconds",
+            "frames_per_phase",
         }:
             raise ValueError("Unexpected dilation metadata")
         gray = dilation["backdrop_gray_8bit"]
-        if (dilation["target_type"] != "illumination_phase_only"
-                or not isinstance(gray, dict) or set(gray) != {"dim", "bright"}
-                or any(type(v) is not int or not 0 <= v <= 255 for v in gray.values())
-                or type(dilation["adaptation_seconds"]) not in (int, float)
-                or not 0 <= dilation["adaptation_seconds"] <= 60
-                or type(dilation["frames_per_phase"]) is not int
-                or not 1 <= dilation["frames_per_phase"] <= 1000):
+        if (
+            dilation["target_type"] != "illumination_phase_only"
+            or not isinstance(gray, dict)
+            or set(gray) != {"dim", "bright"}
+            or any(type(v) is not int or not 0 <= v <= 255 for v in gray.values())
+            or type(dilation["adaptation_seconds"]) not in (int, float)
+            or not 0 <= dilation["adaptation_seconds"] <= 60
+            or type(dilation["frames_per_phase"]) is not int
+            or not 1 <= dilation["frames_per_phase"] <= 1000
+        ):
             raise ValueError("Invalid dilation metadata")
     return value
 
@@ -147,8 +173,9 @@ def dataset_bundle(source, destination, submission=None):
                     raise ValueError(f"Unrecognized capture member: {name!r}; export a clean capture ZIP")
                 elif name.endswith("_timestamps.txt"):
                     text = archive.read(entry).decode("utf-8")
-                    data = "\n".join(line for line in text.splitlines()
-                                     if not line.startswith("# Recorded on:")).encode()
+                    data = "\n".join(
+                        line for line in text.splitlines() if not line.startswith("# Recorded on:")
+                    ).encode()
                 else:
                     # Stream recordings: a capture can be far larger than comfortable memory.
                     with archive.open(entry) as reader, target.open(member_info(name, entry.file_size), "w") as writer:
@@ -173,8 +200,10 @@ def check_capture(archive, entry, match, eyes):
         while reader.read(1024 * 1024):
             pass
     name = entry.filename.lower()
-    eye = eyes.setdefault((match["video_eye"] or match["eye"]).capitalize(),
-                          {"frames": 0, "frame_sizes": [], "videos": 0, "video_bytes": 0, "timestamps": False})
+    eye = eyes.setdefault(
+        (match["video_eye"] or match["eye"]).capitalize(),
+        {"frames": 0, "frame_sizes": [], "videos": 0, "video_bytes": 0, "timestamps": False},
+    )
     if name.endswith(".png"):
         if len(header) < 24 or header[:8] != PNG or header[12:16] != b"IHDR":
             raise ValueError(f"Invalid PNG frame: {entry.filename[:80]!r}")
@@ -187,8 +216,13 @@ def check_capture(archive, entry, match, eyes):
     elif name.endswith(".txt"):
         check_text(archive, entry, 64 * 1024**2)
         eye["timestamps"] = True
-    elif (name.endswith(".avi") and header[:4] == b"RIFF" and header[8:12] == b"AVI "
-          or name.endswith(".mp4") and header[4:8] == b"ftyp"):
+    elif (
+        name.endswith(".avi")
+        and header[:4] == b"RIFF"
+        and header[8:12] == b"AVI "
+        or name.endswith(".mp4")
+        and header[4:8] == b"ftyp"
+    ):
         eye["videos"] += 1
         eye["video_bytes"] += entry.file_size
     else:
@@ -204,8 +238,12 @@ def _inspect(path, kind):
             raise ValueError("Archive exceeds safe member/expanded-size limits")
         for entry in entries:
             name = entry.filename
-            if (name in names or entry.is_dir() or any(c in name for c in "/\\:\x00")
-                    or (entry.external_attr >> 16) & 0o170000 == 0o120000):
+            if (
+                name in names
+                or entry.is_dir()
+                or any(c in name for c in "/\\:\x00")
+                or (entry.external_attr >> 16) & 0o170000 == 0o120000
+            ):
                 raise ValueError(f"Unsafe or duplicate archive member: {name[:80]!r}")
             if entry.flag_bits & 0x1 or entry.compress_type not in (zipfile.ZIP_STORED, zipfile.ZIP_DEFLATED):
                 raise ValueError(f"Unsupported archive member encoding: {name[:80]!r}")
@@ -248,8 +286,9 @@ def redact(text):
     # Deliberately conservative; always inspect the prepared archive before submitting.
     text = re.sub(r"(?i)(?:[A-Z]:[\\/]+Users[\\/]+|/home/|/Users/)[^\\/\s]+", "<HOME>", text)
     text = re.sub(r"(?i)\bBearer\s+\S+", "Bearer <REDACTED>", text)
-    text = re.sub(r"(?i)\b(password|passwd|token|secret|api[_-]?key|authorization)\s*[:=]\s*\S+",
-                  r"\1=<REDACTED>", text)
+    text = re.sub(
+        r"(?i)\b(password|passwd|token|secret|api[_-]?key|authorization)\s*[:=]\s*\S+", r"\1=<REDACTED>", text
+    )
     text = re.sub(r"\b(?:\d{1,3}\.){3}\d{1,3}\b", "<IP>", text)
     text = re.sub(r"(?<!\w)(?:[0-9a-fA-F]{0,4}:){2,}[0-9a-fA-F:]{0,39}(?!\w)", "<IP>", text)
     text = re.sub(r"\b[\w.+-]+@[\w.-]+\.[A-Za-z]{2,}\b", "<EMAIL>", text)

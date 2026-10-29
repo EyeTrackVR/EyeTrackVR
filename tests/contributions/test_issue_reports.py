@@ -1,4 +1,5 @@
 """Bug reports: encrypted issue bundles, separate receipts and quotas, and the report window."""
+
 import io
 import json
 from pathlib import Path
@@ -12,19 +13,27 @@ import pyrage
 import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "EyeTrackApp"))
-from contributions import report_window
 from contributions.client import ContributionClient, ISSUE_QUOTA_MESSAGES, ServiceError, issue_home, receipt_home
 from contributions.report_window import ReportWindow, previous_log, write_tail
 
-TERMS = {"dataset": {"version": "dataset-test", "text": "18+ dataset notice"},
-         "issue": {"version": "issue-test", "text": "18+ issue notice"}}
+TERMS = {
+    "dataset": {"version": "dataset-test", "text": "18+ dataset notice"},
+    "issue": {"version": "issue-test", "text": "18+ issue notice"},
+}
 
 
 @pytest.fixture
 def issue_client(tmp_path):
     identity = pyrage.x25519.Identity.generate()
-    config = {"protocol": 3, "enabled": True, "recipients": [str(identity.to_public())], "chunk_bytes": 8192,
-              "max_bytes": {"dataset": 131072, "issue": 65536}, "terms": TERMS, "issue_quota_full": None}
+    config = {
+        "protocol": 3,
+        "enabled": True,
+        "recipients": [str(identity.to_public())],
+        "chunk_bytes": 8192,
+        "max_bytes": {"dataset": 131072, "issue": 65536},
+        "terms": TERMS,
+        "issue_quota_full": None,
+    }
     client = ContributionClient(directory=tmp_path / "issues", recipients=[str(identity.to_public())])
     client.config = lambda: config
     return client, identity
@@ -33,10 +42,12 @@ def issue_client(tmp_path):
 def test_issue_report_is_encrypted_redacted_and_bound(issue_client, tmp_path):
     client, identity = issue_client
     log = tmp_path / "app.log"
-    log.write_text("ERROR crash at C:\\Users\\alice\\EyeTrackVR from 192.168.1.20 mail bob@example.com\n",
-                   encoding="utf-8")
-    sid = client.prepare_issue("Tracking froze after 5 minutes", [log], TERMS["issue"],
-                               threading.Event(), lambda *a: None)
+    log.write_text(
+        "ERROR crash at C:\\Users\\alice\\EyeTrackVR from 192.168.1.20 mail bob@example.com\n", encoding="utf-8"
+    )
+    sid = client.prepare_issue(
+        "Tracking froze after 5 minutes", [log], TERMS["issue"], threading.Event(), lambda *a: None
+    )
     row = client.read(sid)
     assert row["kind"] == "issue" and "hmd" not in row and row["state"] == "prepared"
     plain = pyrage.decrypt(client.paths(sid)[1].read_bytes(), [identity])
@@ -61,11 +72,13 @@ def test_issue_report_respects_issue_size_limit(issue_client, tmp_path):
 def test_issue_quota_refusal_uses_report_wording(issue_client):
     client, _ = issue_client
     sid = client.prepare_issue("Report", [], TERMS["issue"], threading.Event(), lambda *a: None)
+
     def request(method, path, token=None, **kwargs):
         if method == "GET":
             raise ServiceError(404)
         assert kwargs["json"]["kind"] == "issue" and kwargs["json"]["terms_version"] == "issue-test"
         raise ServiceError(429, "network_quota")
+
     client.request = request
     with pytest.raises(ValueError) as error:
         client.resume(sid, lambda *a: "token", lambda *a: False, threading.Event(), lambda *a: None)
@@ -89,12 +102,14 @@ def test_write_tail_keeps_newest_utf8_text(tmp_path):
 
 def test_previous_log_skips_the_current_session(tmp_path, monkeypatch):
     import utils.logging_utils as logging_utils
+
     monkeypatch.setattr(logging_utils, "log_directory", lambda: tmp_path)
     older, current = tmp_path / "eyetrackapp-20260101-000000.log", tmp_path / "eyetrackapp-20260102-000000.log"
     older.write_text("crash", encoding="utf-8")
     current.write_text("now", encoding="utf-8")
     now = time.time()
     import os
+
     os.utime(older, (now - 100, now - 100))
     os.utime(current, (now, now))
     assert previous_log(current) == older
@@ -130,6 +145,7 @@ class FakeClient:
 
     def exclusive(self):
         import contextlib
+
         return contextlib.nullcontext()
 
     def config(self):
@@ -209,10 +225,20 @@ def test_report_window_retries_the_same_report_and_remakes_edited_ones(root, tmp
 def test_dataset_window_ignores_issue_receipts(root, tmp_path):
     from contributions.client import save
     from contributions.window import ContributionWindow
+
     client = ContributionClient(directory=tmp_path / "private")
     client.config = lambda: {"enabled": True, "terms": TERMS}
-    base = {"schema": 3, "api": client.service, "withdrawal_token": "A" * 43, "sha256": "0" * 64, "size": 10,
-            "chunk_bytes": 1024, "chunks": ["0" * 64], "prepared": "2026-10-24", "state": "pending"}
+    base = {
+        "schema": 3,
+        "api": client.service,
+        "withdrawal_token": "A" * 43,
+        "sha256": "0" * 64,
+        "size": 10,
+        "chunk_bytes": 1024,
+        "chunks": ["0" * 64],
+        "prepared": "2026-10-24",
+        "state": "pending",
+    }
     for sid, kind in (("a" * 32, "dataset"), ("b" * 32, "issue")):
         save(client.paths(sid)[0], {**base, "id": sid, "kind": kind})
     ui = ContributionWindow(root, client=client)

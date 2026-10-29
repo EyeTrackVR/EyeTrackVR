@@ -2,21 +2,11 @@ from EyeTrackApp.utils.version_utils import compare_app_versions, parse_app_vers
 
 
 def test_beta_build_is_newer_than_older_four_part_release():
-    assert (
-        compare_app_versions(
-            "EyeTrackApp 0.3.0 BETA 7", "EyeTrackApp 0.2.5.6"
-        )
-        == 1
-    )
+    assert compare_app_versions("EyeTrackApp 0.3.0 BETA 7", "EyeTrackApp 0.2.5.6") == 1
 
 
 def test_newer_beta_build_is_an_update():
-    assert (
-        compare_app_versions(
-            "EyeTrackApp 0.3.0 BETA 7", "EyeTrackApp 0.3.0 BETA 8"
-        )
-        == -1
-    )
+    assert compare_app_versions("EyeTrackApp 0.3.0 BETA 7", "EyeTrackApp 0.3.0 BETA 8") == -1
 
 
 def test_final_release_is_newer_than_beta_of_same_version():

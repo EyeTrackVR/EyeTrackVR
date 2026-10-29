@@ -6,6 +6,7 @@ overlay has built-in text for every language in ``lang/``; an unknown code
 (e.g. a newly dropped-in language) falls back to English there, while the text
 the app itself sends during data collection still comes from ``lang/``.
 """
+
 from __future__ import annotations
 
 import os

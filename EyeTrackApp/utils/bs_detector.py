@@ -25,9 +25,9 @@ from typing import Optional
 import numpy as np
 
 _INTENSITY_TRIGGER: int = 60
-_PATCH_HALF: int = 2            # → 5×5 patch
+_PATCH_HALF: int = 2  # → 5×5 patch
 _MAX_VELOCITY_FRAC: float = 0.40
-_MAX_DT_S: float = 0.10         # ignore velocity check after a long frame gap
+_MAX_DT_S: float = 0.10  # ignore velocity check after a long frame gap
 
 
 class BSDetector:

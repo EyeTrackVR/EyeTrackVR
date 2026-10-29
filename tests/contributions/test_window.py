@@ -1,5 +1,5 @@
 """Tk lifecycle and capture handoff checks without starting cameras or models."""
-import json
+
 from pathlib import Path
 import sys
 import time
@@ -52,8 +52,10 @@ def test_terms_are_visible_and_consent_not_preselected(root, tmp_path):
 
 def test_notice_sections_render_as_headings_without_changing_wording(root, tmp_path):
     client = ContributionClient(directory=tmp_path / "private")
-    text = ("Dataset agreement\n\nBy ticking both boxes you confirm:\n1. First statement.\n2. Second statement.\n\n"
-            "Who we are. Fovea Labs LLC runs this.\n\nHow long we keep it. Our schedule.\n- Recordings: 365 days.")
+    text = (
+        "Dataset agreement\n\nBy ticking both boxes you confirm:\n1. First statement.\n2. Second statement.\n\n"
+        "Who we are. Fovea Labs LLC runs this.\n\nHow long we keep it. Our schedule.\n- Recordings: 365 days."
+    )
     client.config = lambda: {"enabled": True, "terms": {"dataset": {"version": "test", "text": text}}}
     ui = ContributionWindow(root, client=client)
     ui.window.withdraw()
@@ -62,7 +64,10 @@ def test_notice_sections_render_as_headings_without_changing_wording(root, tmp_p
     for words in ("1. First statement.", "2. Second statement.", "Fovea Labs LLC runs this.", "Recordings: 365 days."):
         assert words in shown
     headings = ui.notice.tag_ranges("heading")
-    assert [ui.notice.get(a, b).strip() for a, b in zip(headings[::2], headings[1::2])] == ["Who we are", "How long we keep it"]
+    assert [ui.notice.get(a, b).strip() for a, b in zip(headings[::2], headings[1::2])] == [
+        "Who we are",
+        "How long we keep it",
+    ]
     assert ui.notice.yview()[0] == 0
     # Short labels that point at the numbered statements in the notice.
     assert (ui.consent.cget("text"), ui.consent_sensitive.cget("text")) == DATASET_CONSENTS
@@ -84,7 +89,9 @@ def test_closed_collection_still_offers_withdrawal(root, tmp_path):
     # Per-contribution actions wait for a selection, then stay available while collection is closed.
     assert str(ui.withdraw_button.cget("state")) == "disabled"
     ui.rows["d" * 32] = {"id": "d" * 32, "state": "pending", "size": 1024**2}
-    ui.history.insert("", "end", iid="d" * 32, values=("2026-10-20", "Test HMD", "Awaiting review", "1.0 MiB", "dddddddd"))
+    ui.history.insert(
+        "", "end", iid="d" * 32, values=("2026-10-20", "Test HMD", "Awaiting review", "1.0 MiB", "dddddddd")
+    )
     ui.history.selection_set("d" * 32)
     ui.update_history_buttons()
     assert str(ui.withdraw_button.cget("state")) == "normal"
@@ -94,10 +101,12 @@ def test_closed_collection_still_offers_withdrawal(root, tmp_path):
 
 def test_worker_progress_and_pause_do_not_touch_tk_from_worker(root, tmp_path):
     ui = window(root, tmp_path)
+
     def operation():
         ui.report_progress("Uploading", 50, 100)
         assert ui.cancel.wait(3)
         return ("status", "pending")
+
     ui.run(operation)
     assert ui.busy
     ui.close()
@@ -135,8 +144,10 @@ def test_recording_advances_to_readable_agreement_before_upload(root, tmp_path):
 
 def test_connection_failure_never_leaves_agreement_blank(root, tmp_path):
     client = ContributionClient(directory=tmp_path / "private")
+
     def offline():
         raise ValueError("Offline")
+
     client.config = offline
     ui = ContributionWindow(root, client=client)
     ui.window.withdraw()
@@ -186,17 +197,22 @@ def test_existing_preparation_cannot_create_another_submission(root, tmp_path):
 def test_capture_engine_uses_one_window_and_attaches_its_result(root, tmp_path, monkeypatch):
     from types import SimpleNamespace
     import data_collection
+
     monkeypatch.setattr("contributions.client.receipt_home", lambda: tmp_path / "private")
-    monkeypatch.setattr(ContributionClient, "config", lambda _: {
-        "enabled": True, "terms": {"dataset": {"version": "test", "text": "Current terms"}}})
+    monkeypatch.setattr(
+        ContributionClient,
+        "config",
+        lambda _: {"enabled": True, "terms": {"dataset": {"version": "test", "text": "Current terms"}}},
+    )
     camera = SimpleNamespace(add_extra_output_queue=lambda _: None, remove_extra_output_queue=lambda _: None)
-    eye = SimpleNamespace(started=lambda: True, _effective_camera=lambda: camera,
-                          eye_id=SimpleNamespace(name="LEFT"))
+    eye = SimpleNamespace(started=lambda: True, _effective_camera=lambda: camera, eye_id=SimpleNamespace(name="LEFT"))
     capture = tmp_path / "only_this_capture.zip"
     capture.write_bytes(b"synthetic fixture")
+
     def run(self):
         self.gui_queue.put(("capture_ready", str(capture)))
         self._cleanup_session()
+
     monkeypatch.setattr(data_collection.DataCollectionWindow, "_run_collection", run)
     controller = data_collection.DataCollectionWindow(root, [eye])
     assert controller.window is None  # No connection/window before the user opens the flow.
@@ -211,9 +227,11 @@ def test_capture_engine_uses_one_window_and_attaches_its_result(root, tmp_path, 
     assert ui.step == 2 and ui._capture_path == capture.resolve()
     assert not ui.agree.get() and not ui.busy
     assert not controller.active_queues
+
     # An engine failure in the next session clears the previous attachment.
     def fail(self):
         raise RuntimeError("synthetic capture failure")
+
     monkeypatch.setattr(data_collection.DataCollectionWindow, "_run_collection", fail)
     ui.start_capture()
     drain(root, lambda: not controller.session_running)
@@ -234,11 +252,26 @@ def test_hmd_guidance_and_support_details_without_exposing_the_receipt(root, tmp
     assert "Encrypted" in ui.hmd_hint.cget("text")
     sid = "b" * 32
     chunk = "c" * 64
-    save(ui.client.paths(sid)[0], {
-        "schema": 3, "api": ui.client.service, "id": sid, "withdrawal_token": "t" * 43, "kind": "dataset",
-        "hmd": "Bigscreen Beyond 2e", "consent": True, "prepared": "2026-10-20", "terms_version": "test",
-        "terms_sha256": chunk, "size": 2048, "sha256": chunk, "chunk_bytes": 1024, "chunks": [chunk, chunk],
-        "state": "pending"})
+    save(
+        ui.client.paths(sid)[0],
+        {
+            "schema": 3,
+            "api": ui.client.service,
+            "id": sid,
+            "withdrawal_token": "t" * 43,
+            "kind": "dataset",
+            "hmd": "Bigscreen Beyond 2e",
+            "consent": True,
+            "prepared": "2026-10-20",
+            "terms_version": "test",
+            "terms_sha256": chunk,
+            "size": 2048,
+            "sha256": chunk,
+            "chunk_bytes": 1024,
+            "chunks": [chunk, chunk],
+            "state": "pending",
+        },
+    )
     ui.refresh_history(sid)
     assert ui.history.item(sid)["values"][0] == "2026-10-20"
     assert ui.history.item(sid)["values"][-1] == sid[:8]
@@ -253,8 +286,11 @@ def test_hmd_guidance_and_support_details_without_exposing_the_receipt(root, tmp
 
 def test_full_daily_quota_is_announced_before_recording(root, tmp_path):
     client = ContributionClient(directory=tmp_path / "private")
-    client.config = lambda: {"enabled": True, "quota_full": "daily_quota",
-                             "terms": {"dataset": {"version": "test", "text": "Current 18+ terms"}}}
+    client.config = lambda: {
+        "enabled": True,
+        "quota_full": "daily_quota",
+        "terms": {"dataset": {"version": "test", "text": "Current 18+ terms"}},
+    }
     ui = ContributionWindow(root, client=client)
     ui.window.withdraw()
     drain(root, lambda: ui.config is not None)

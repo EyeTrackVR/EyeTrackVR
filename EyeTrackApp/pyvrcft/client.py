@@ -212,13 +212,9 @@ class VRCFTClient:
 
         self._threads = [threading.Thread(target=self._send_loop, daemon=True, name="pyvrcft-send")]
         if self._recv_sock is not None:
-            self._threads.append(
-                threading.Thread(target=self._recv_loop, daemon=True, name="pyvrcft-recv")
-            )
+            self._threads.append(threading.Thread(target=self._recv_loop, daemon=True, name="pyvrcft-recv"))
         if self.use_oscquery:
-            self._threads.append(
-                threading.Thread(target=self._discover_loop, daemon=True, name="pyvrcft-mdns")
-            )
+            self._threads.append(threading.Thread(target=self._discover_loop, daemon=True, name="pyvrcft-mdns"))
         for t in self._threads:
             t.start()
 
@@ -287,9 +283,7 @@ class VRCFTClient:
     def _resolve_one(self, name: str) -> None:
         """Build output slots for one logical param (caller holds the lock)."""
         if self.avatar is not None:
-            self._slots[name] = resolve_slots(
-                name, self.avatar.parameters, self.bool_threshold
-            )
+            self._slots[name] = resolve_slots(name, self.avatar.parameters, self.bool_threshold)
         else:
             self._slots[name] = []
 
@@ -299,9 +293,7 @@ class VRCFTClient:
         if self.avatar is not None:
             pattern = suffix_regex(name)
             slots = [
-                _RawBoolSlot(p.address)
-                for p in self.avatar.parameters
-                if p.type is bool and pattern.search(p.address)
+                _RawBoolSlot(p.address) for p in self.avatar.parameters if p.type is bool and pattern.search(p.address)
             ]
         self._bool_slots[name] = slots
 
@@ -329,9 +321,7 @@ class VRCFTClient:
                 args = wire if isinstance(wire, tuple) else (wire,)
                 messages.append(osc.encode_message(slot.address, list(args)))
         except Exception:
-            self._log_throttled(
-                "encode", "Failed to encode %s=%r", slot.address, value, exc_info=True
-            )
+            self._log_throttled("encode", "Failed to encode %s=%r", slot.address, value, exc_info=True)
 
     def _collect_messages(self) -> list:
         messages = []
@@ -410,7 +400,9 @@ class VRCFTClient:
         """/avatar/change caught by EyeTrackVR's own OSC receiver. Resolving
         fetches the avatar over HTTP, so keep it off the caller's thread."""
         threading.Thread(
-            target=self._dispatch, args=("/avatar/change", [avatar_id]), daemon=True,
+            target=self._dispatch,
+            args=("/avatar/change", [avatar_id]),
+            daemon=True,
             name="pyvrcft-avatar",
         ).start()
 

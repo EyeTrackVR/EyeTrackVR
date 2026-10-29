@@ -148,23 +148,15 @@ def test_reset_hooks_restore_osc_mode_and_algorithm():
     from settings.modules.OSCSettingsModule import OSCSettingsModule
     from settings.modules.TrackingAlgorithmModule import TrackingAlgorithmModule
 
-    user = EyeTrackSettingsConfig(
-        gui_vrc_native=True, gui_pyvrcft=False, gui_LEAP=True, gui_NEXT=False
-    )
+    user = EyeTrackSettingsConfig(gui_vrc_native=True, gui_pyvrcft=False, gui_LEAP=True, gui_NEXT=False)
     defaults = EyeTrackSettingsConfig()
 
     osc = OSCSettingsModule(config=user, widget_id="t")
-    osc.tk_vars = {
-        getattr(osc, field): _Var(getattr(user, field))
-        for field in osc.validation_model.model_fields
-    }
+    osc.tk_vars = {getattr(osc, field): _Var(getattr(user, field)) for field in osc.validation_model.model_fields}
     osc.tk_vars[osc.gui_osc_output_mode] = _Var("native")
 
     algo = TrackingAlgorithmModule(config=user, widget_id="t")
-    algo.tk_vars = {
-        getattr(algo, field): _Var(getattr(user, field))
-        for field in algo.validation_model.model_fields
-    }
+    algo.tk_vars = {getattr(algo, field): _Var(getattr(user, field)) for field in algo.validation_model.model_fields}
     algo.selected_algo = _Var("leap")
 
     widget = Mock()

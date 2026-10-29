@@ -59,6 +59,8 @@ def model_file_for_variant(variant: str) -> str:
     if variant == "PSVR":
         variant = "ETVR"
     return f"Models/Eyebrow_{variant}.onnx"
+
+
 _IMAGENET_MEAN = np.array([0.485, 0.456, 0.406], dtype=np.float32).reshape(3, 1, 1)
 _IMAGENET_STD = np.array([0.229, 0.224, 0.225], dtype=np.float32).reshape(3, 1, 1)
 _INV_255 = np.float32(1.0 / 255.0)
@@ -116,9 +118,7 @@ class EyeBrow:
         opts.intra_op_num_threads = 1
         opts.graph_optimization_level = onnxruntime.GraphOptimizationLevel.ORT_ENABLE_ALL
         opts.enable_mem_pattern = False
-        self._session = onnxruntime.InferenceSession(
-            model_path, opts, providers=["CPUExecutionProvider"]
-        )
+        self._session = onnxruntime.InferenceSession(model_path, opts, providers=["CPUExecutionProvider"])
         self._input_name = self._session.get_inputs()[0].name
         self._filter: _OneEuroFilter | None = None
         self._result: float = 0.0

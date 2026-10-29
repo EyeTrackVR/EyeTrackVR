@@ -57,9 +57,7 @@ def test_next_visualizer_uses_raw_uncropped_unrotated_frame():
 
 
 def test_next_bigscreen_visualizer_uses_only_the_selected_eye_half():
-    processor = _processor(
-        next_active=True, setup_mode="bigscreen", eye_id=EyeId.RIGHT
-    )
+    processor = _processor(next_active=True, setup_mode="bigscreen", eye_id=EyeId.RIGHT)
     raw = np.zeros((8, 18, 3), dtype=np.uint8)
     raw[:, :9] = (0, 0, 20)
     raw[:, 9:] = (0, 0, 220)

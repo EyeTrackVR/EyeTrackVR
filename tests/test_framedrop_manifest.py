@@ -20,10 +20,20 @@ def run(monkeypatch, tmp_path, url):
     zip_path = tmp_path / "app.zip"
     zip_path.write_bytes(b"zip bytes")
     out = tmp_path / "app.framedrop.json"
-    monkeypatch.setattr("sys.argv", [
-        "write_framedrop_manifest.py", "--zip", str(zip_path), "--url", url,
-        "--out", str(out), "--manifest-url", f"{BASE}/app.framedrop.json",
-    ])
+    monkeypatch.setattr(
+        "sys.argv",
+        [
+            "write_framedrop_manifest.py",
+            "--zip",
+            str(zip_path),
+            "--url",
+            url,
+            "--out",
+            str(out),
+            "--manifest-url",
+            f"{BASE}/app.framedrop.json",
+        ],
+    )
     manifest_writer.main()
     return json.loads(out.read_text(encoding="utf-8"))
 

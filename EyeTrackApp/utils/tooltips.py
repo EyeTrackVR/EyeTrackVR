@@ -17,6 +17,7 @@ Design choices that fix the macOS/Aqua flicker we hit with a naïve approach:
 * **Hide via ``withdraw``.** Destroying the Toplevel each time is slow and
   leaves a brief ghost on Aqua. ``withdraw`` is immediate.
 """
+
 from __future__ import annotations
 
 import tkinter as tk

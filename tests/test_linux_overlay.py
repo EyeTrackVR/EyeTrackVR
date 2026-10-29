@@ -2,6 +2,7 @@
 
 from pathlib import Path
 import struct
+import sys
 
 import osc_calibrate_filter as calibration
 
@@ -10,7 +11,7 @@ TOOLS = Path(__file__).resolve().parents[1] / "EyeTrackApp" / "Tools" / "linux"
 
 
 def test_source_checkout_ships_linux_x86_64_overlay(monkeypatch):
-    monkeypatch.setattr(calibration.sys, "platform", "linux")
+    monkeypatch.setattr(sys, "platform", "linux")
     path = Path(calibration._overlay_executable()).resolve()
     assert path == TOOLS / "EyeTrackVR-Overlay"
     header = path.read_bytes()[:20]

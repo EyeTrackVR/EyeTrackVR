@@ -44,9 +44,19 @@ def test_session_prompt_keys_exist():
     keys = {key for _code, _label, key in data_collection.PROMPT_DATA}
     for _cmd, _prefix, key, _n in data_collection.OVERLAY_PASSES:
         keys |= {f"pass_{key}", f"panel_{key}"}
-    keys |= {"now", "captured", "done", "blinkdot", "blinkdot_panel", "blink_no_overlay",
-             "closed_roam", "closed_roam_panel", "headset_shift", "headset_shift_panel",
-             "center_dot_panel"}
+    keys |= {
+        "now",
+        "captured",
+        "done",
+        "blinkdot",
+        "blinkdot_panel",
+        "blink_no_overlay",
+        "closed_roam",
+        "closed_roam_panel",
+        "headset_shift",
+        "headset_shift_panel",
+        "center_dot_panel",
+    }
     assert keys <= set(en), sorted(keys - set(en))
     # Labels name the training files and must stay English and unique.
     labels = [label for _code, label, _key in data_collection.PROMPT_DATA]
@@ -75,7 +85,8 @@ def test_bundled_overlay_supports_every_app_language():
     exe = _runnable_overlay()
     if exe is None or not exe.is_file():
         pytest.skip("no runnable overlay binary for this platform")
-    out = subprocess.run([str(exe), "--list-langs"], capture_output=True, text=True,
-                         timeout=30, check=True).stdout.split()
+    out = subprocess.run(
+        [str(exe), "--list-langs"], capture_output=True, text=True, timeout=30, check=True
+    ).stdout.split()
     missing = set(_codes()) - set(out)
     assert not missing, f"overlay lacks built-in text for {sorted(missing)}; rebuild it"

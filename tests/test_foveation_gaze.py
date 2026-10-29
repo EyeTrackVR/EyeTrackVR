@@ -154,9 +154,7 @@ def test_non_finite_gaze_is_not_sent(main_config_v2_params):
 
 def test_foveation_failure_does_not_cost_vrchat_output(main_config_v2_params):
     main_config_v2_params.settings.gui_foveation_gaze = True
-    with mock.patch.object(
-        foveation_module.FoveationGazeSender, "output_osc_info", side_effect=RuntimeError("boom")
-    ):
+    with mock.patch.object(foveation_module.FoveationGazeSender, "output_osc_info", side_effect=RuntimeError("boom")):
         manager, _ = _run(main_config_v2_params, [_eye_msg(x=0.3)])
     assert ("/avatar/parameters/v2/EyeX", 0.3) in manager.osc_sender.vrc_client.messages
 

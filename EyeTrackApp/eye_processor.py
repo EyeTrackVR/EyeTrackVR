@@ -108,9 +108,7 @@ def remap_leap_lid_openness(raw: float, close_t: float, wide_t: float) -> float:
     return float(t * 0.75)
 
 
-def leap_lid_thresholds_for_eye(
-    settings: "EyeTrackSettingsConfig", eye_id: EyeId
-) -> tuple[float, float]:
+def leap_lid_thresholds_for_eye(settings: "EyeTrackSettingsConfig", eye_id: EyeId) -> tuple[float, float]:
     if eye_id == EyeId.LEFT:
         return (
             float(settings.leap_lid_close_threshold_left),
@@ -122,15 +120,10 @@ def leap_lid_thresholds_for_eye(
     )
 
 
-def next_eyelid_tuning_active(
-    settings: "EyeTrackSettingsConfig", eye_id: EyeId
-) -> bool:
+def next_eyelid_tuning_active(settings: "EyeTrackSettingsConfig", eye_id: EyeId) -> bool:
     """True only after the user moves this eye away from NEXT's raw defaults."""
     close_t, widen_t = leap_lid_thresholds_for_eye(settings, eye_id)
-    return (
-        abs(close_t - DEFAULT_LID_CLOSE_THRESHOLD) > 1e-9
-        or abs(widen_t - DEFAULT_LID_WIDEN_THRESHOLD) > 1e-9
-    )
+    return abs(close_t - DEFAULT_LID_CLOSE_THRESHOLD) > 1e-9 or abs(widen_t - DEFAULT_LID_WIDEN_THRESHOLD) > 1e-9
 
 
 class EyeProcessor:
@@ -227,22 +220,14 @@ class EyeProcessor:
         self._next_smartcal_dot_started = 0.0
         self._next_smartcal_samples = {}
         self._next_smartcal_w = (
-            list(self.config.next_smartcal_w)
-            if getattr(self.config, "next_smartcal_w", None) is not None
-            else None
+            list(self.config.next_smartcal_w) if getattr(self.config, "next_smartcal_w", None) is not None else None
         )
         self._next_smartcal_b = (
-            list(self.config.next_smartcal_b)
-            if getattr(self.config, "next_smartcal_b", None) is not None
-            else None
+            list(self.config.next_smartcal_b) if getattr(self.config, "next_smartcal_b", None) is not None else None
         )
         self._next_smartcal_warp = getattr(self.config, "next_smartcal_warp", None)
-        self._next_smartcal_lid_neutral = getattr(
-            self.config, "next_smartcal_lid_neutral", None
-        )
-        self._next_smartcal_brow_neutral = getattr(
-            self.config, "next_smartcal_brow_neutral", None
-        )
+        self._next_smartcal_lid_neutral = getattr(self.config, "next_smartcal_lid_neutral", None)
+        self._next_smartcal_brow_neutral = getattr(self.config, "next_smartcal_brow_neutral", None)
         # Validate transforms persisted by older builds (which saved fits with
         # no sanity checks): a degenerate transform pins the clipped gaze output
         # to the corners, which reads as "tracking completely broken". Ignore
@@ -253,7 +238,9 @@ class EyeProcessor:
             logger.warning(
                 "NEXT smart cal (eye %s): stored transform W=%s B=%s warp=%s is "
                 "degenerate - ignoring it. Re-run NEXT Smart Calib to fit a new one.",
-                self.eye_id, self._next_smartcal_w, self._next_smartcal_b,
+                self.eye_id,
+                self._next_smartcal_w,
+                self._next_smartcal_b,
                 self._next_smartcal_warp,
             )
             self._next_smartcal_w = None
@@ -340,9 +327,7 @@ class EyeProcessor:
             min_cutoff = 0.0004
             beta = 0.9
         noisy_point = np.array([1, 1])
-        self.one_euro_filter = OneEuroFilter(
-            noisy_point, min_cutoff=min_cutoff, beta=beta
-        )
+        self.one_euro_filter = OneEuroFilter(noisy_point, min_cutoff=min_cutoff, beta=beta)
         self._crop_geom_cache_key = None
         self._crop_matrix = None
         self._crop_fits_in_bounds = None
@@ -395,15 +380,12 @@ class EyeProcessor:
             # readout isn't anchored to an outlier for the rest of the window.
             if 0.0 <= latency_ms < 10_000.0:
                 self._tracking_latency_samples.append((now, latency_ms))
-            while (
-                self._tracking_latency_samples
-                and self._tracking_latency_samples[0][0] < cutoff
-            ):
+            while self._tracking_latency_samples and self._tracking_latency_samples[0][0] < cutoff:
                 self._tracking_latency_samples.popleft()
             if self._tracking_latency_samples:
-                self.output_latency_ms = sum(
-                    s[1] for s in self._tracking_latency_samples
-                ) / len(self._tracking_latency_samples)
+                self.output_latency_ms = sum(s[1] for s in self._tracking_latency_samples) / len(
+                    self._tracking_latency_samples
+                )
 
     def output_images_and_update(self, threshold_image, output_information: EyeInfo):
         if self.image_queue_outgoing.qsize() > 0:
@@ -429,23 +411,15 @@ class EyeProcessor:
             preview_frame = self.current_raw_frame
             if self.settings.gui_setup_mode == "bigscreen":
                 mid = preview_frame.shape[1] // 2
-                preview_frame = (
-                    preview_frame[:, :mid]
-                    if self.eye_id == EyeId.LEFT
-                    else preview_frame[:, mid:]
-                )
+                preview_frame = preview_frame[:, :mid] if self.eye_id == EyeId.LEFT else preview_frame[:, mid:]
             preview_image = cv2.cvtColor(preview_frame, cv2.COLOR_BGR2GRAY)
             # NEXT has no threshold image. Its old threshold panel was merely a
             # copy of the cropped working image, so keep both panels consistent
             # with the raw model input while NEXT is active.
             threshold_image = preview_image
 
-        preview_image = cv2.resize(
-            preview_image, (150, 150), interpolation=cv2.INTER_AREA
-        )
-        threshold_image = cv2.resize(
-            threshold_image, (150, 150), interpolation=cv2.INTER_AREA
-        )
+        preview_image = cv2.resize(preview_image, (150, 150), interpolation=cv2.INTER_AREA)
+        threshold_image = cv2.resize(threshold_image, (150, 150), interpolation=cv2.INTER_AREA)
         image_stack = np.concatenate((preview_image, threshold_image), axis=1)
 
         try:
@@ -502,12 +476,8 @@ class EyeProcessor:
             # fill with avg color + 10.
             # fill with white (self.current_image_white) and average in-bounds color (self.current_image).
             normalized_rotation = float(self.config.rotation_angle) % 360.0
-            no_rotation = (
-                normalized_rotation < 1e-6 or 360.0 - normalized_rotation < 1e-6
-            )
-            integer_roi = all(
-                float(v).is_integer() for v in (roi_x, roi_y, roi_w, roi_h)
-            )
+            no_rotation = normalized_rotation < 1e-6 or 360.0 - normalized_rotation < 1e-6
+            integer_roi = all(float(v).is_integer() for v in (roi_x, roi_y, roi_w, roi_h))
             if no_rotation and integer_roi:
                 x0 = int(roi_x)
                 y0 = int(roi_y)
@@ -531,18 +501,14 @@ class EyeProcessor:
             if self._crop_geom_cache_key != geom_key:
                 crop_matrix = np.float32([[1, 0, -roi_x], [0, 1, -roi_y], [0, 0, 1]])
                 img_center = (roi_w / 2, roi_h / 2)
-                rotation_matrix = cv2.getRotationMatrix2D(
-                    img_center, self.config.rotation_angle, 1
-                )
+                rotation_matrix = cv2.getRotationMatrix2D(img_center, self.config.rotation_angle, 1)
                 matrix = np.matmul(rotation_matrix, crop_matrix)
                 inv_matrix = np.linalg.inv(np.vstack((matrix, [0, 0, 1])))[:-1]
                 corners = np.matmul(
                     [[0, 0, 1], [roi_w, 0, 1], [0, roi_h, 1], [roi_w, roi_h, 1]],
                     np.transpose(inv_matrix),
                 )
-                fits_in_bounds = all(
-                    0 <= x <= img_w and 0 <= y <= img_h for (x, y) in corners
-                )
+                fits_in_bounds = all(0 <= x <= img_w and 0 <= y <= img_h for (x, y) in corners)
                 self._crop_geom_cache_key = geom_key
                 self._crop_matrix = matrix
                 self._crop_fits_in_bounds = fits_in_bounds
@@ -638,9 +604,8 @@ class EyeProcessor:
             pass
 
     def _apply_circular_crop_if_enabled(self) -> None:
-        circular_crop_enabled = (
-            (self.eye_id == EyeId.LEFT and self.settings.gui_circular_crop_left)
-            or (self.eye_id == EyeId.RIGHT and self.settings.gui_circular_crop_right)
+        circular_crop_enabled = (self.eye_id == EyeId.LEFT and self.settings.gui_circular_crop_left) or (
+            self.eye_id == EyeId.RIGHT and self.settings.gui_circular_crop_right
         )
         if not circular_crop_enabled:
             return
@@ -688,10 +653,7 @@ class EyeProcessor:
         if self.settings.gui_BLINK and not self._next_active:
             self.eyeopen = BLINK(self)
 
-        if (
-            self.settings.gui_IBO and self.eyeopen != 0.0
-            and not self._next_active
-        ):
+        if self.settings.gui_IBO and self.eyeopen != 0.0 and not self._next_active:
             # TODO: Separate RANSAC blink state from the shared eye openness guard.
             self.eyeopen = self.ibo.intense(
                 self.rawx,
@@ -706,15 +668,10 @@ class EyeProcessor:
             if self.eyeopen < ibo_close_t:
                 self.eyeopen = 0.0
 
-            if self.bd_blink == True:
+            if self.bd_blink:
                 logger.debug("Blink detected")
 
-        if (
-            self.settings.gui_LEAP_lid
-            and self.eyeopen != 0.0
-            and not self.settings.gui_LEAP
-            and not self._next_active
-        ):
+        if self.settings.gui_LEAP_lid and self.eyeopen != 0.0 and not self.settings.gui_LEAP and not self._next_active:
             (
                 self.current_image_gray,
                 leap_x,
@@ -731,9 +688,7 @@ class EyeProcessor:
                 close_t, wide_t = leap_lid_thresholds_for_eye(self.settings, self.eye_id)
                 self.eyeopen = remap_leap_lid_openness(leap_lid, close_t, wide_t)
 
-        if (
-            len(self.prev_y_list) >= 100
-        ):
+        if len(self.prev_y_list) >= 100:
             self.prev_y_list.pop(0)
             self.prev_y_list.append(self.out_y)
         else:
@@ -831,18 +786,12 @@ class EyeProcessor:
             close_t, wide_t = leap_lid_thresholds_for_eye(self.settings, self.eye_id)
             self.eyeopen = remap_leap_lid_openness(eyeopen, close_t, wide_t)
         self.thresh = self.current_image_gray.copy()
-        self.out_x, self.out_y, self.avg_velocity = cal.cal_osc(
-            self, self.rawx, self.rawy, self.angle
-        )
+        self.out_x, self.out_y, self.avg_velocity = cal.cal_osc(self, self.rawx, self.rawy, self.angle)
 
     def DADDYM(self):
         self.thresh = self.current_image_gray.copy()
-        self.rawx, self.rawy, self.radius = self.daddy_runner.run(
-            self.current_image_gray
-        )
-        self.out_x, self.out_y, self.avg_velocity = cal.cal_osc(
-            self, self.rawx, self.rawy, self.angle
-        )
+        self.rawx, self.rawy, self.radius = self.daddy_runner.run(self.current_image_gray)
+        self.out_x, self.out_y, self.avg_velocity = cal.cal_osc(self, self.rawx, self.rawy, self.angle)
         self.current_algorithm = EyeInfoOrigin.DADDY
 
     def NEXTM(self):
@@ -881,25 +830,15 @@ class EyeProcessor:
             coord.submit(self.eye_id, next_frame, self.current_capture_ts)
             if coord.supports_single_eye or coord.peer_active(self.eye_id):
                 self._next_mode_changed(True)
-                gaze_x, gaze_y, eyebrow, eyelid, squeeze = coord.run(
-                    self.eye_id, base_cutoff, base_beta
-                )
-                self._next_apply(
-                    gaze_x, gaze_y, eyebrow, eyelid, squeeze, raw_gaze=coord.raw_gaze()
-                )
+                gaze_x, gaze_y, eyebrow, eyelid, squeeze = coord.run(self.eye_id, base_cutoff, base_beta)
+                self._next_apply(gaze_x, gaze_y, eyebrow, eyelid, squeeze, raw_gaze=coord.raw_gaze())
                 return
 
         self._next_mode_changed(False)
         if self.next_runner is None:
-            self.next_runner = External_Run_NEXT(
-                variant, self.settings.gui_use_gpu, self.eye_id
-            )
-        gaze_x, gaze_y, eyebrow, eyelid, squeeze = self.next_runner.run(
-            next_frame, base_cutoff, base_beta
-        )
-        self._next_apply(
-            gaze_x, gaze_y, eyebrow, eyelid, squeeze, raw_gaze=self.next_runner.raw_gaze
-        )
+            self.next_runner = External_Run_NEXT(variant, self.settings.gui_use_gpu, self.eye_id)
+        gaze_x, gaze_y, eyebrow, eyelid, squeeze = self.next_runner.run(next_frame, base_cutoff, base_beta)
+        self._next_apply(gaze_x, gaze_y, eyebrow, eyelid, squeeze, raw_gaze=self.next_runner.raw_gaze)
 
     def _next_mode_changed(self, stereo: bool) -> None:
         """Handle a mono/stereo handover: reset the incoming model's temporal
@@ -923,8 +862,11 @@ class EyeProcessor:
         x, y = raw_x, raw_y
         if self._next_smartcal_w is not None and self._next_smartcal_b is not None:
             x, y = next_smartcal_apply(
-                self._next_smartcal_w, self._next_smartcal_b,
-                self._next_smartcal_warp, raw_x, raw_y,
+                self._next_smartcal_w,
+                self._next_smartcal_b,
+                self._next_smartcal_warp,
+                raw_x,
+                raw_y,
             )
             # Same native-range bound as the OSC gaze: a strong transform must
             # not throw the foveal region off the display.
@@ -965,16 +907,13 @@ class EyeProcessor:
         # sampling past the hold poisons this dot with the next dot's fixation.
         _sc_dot = self._next_smartcal_active_dot
         if _sc_dot is not None and (
-            time.monotonic() - self._next_smartcal_dot_started
-            <= NEXT_SMARTCAL_CAPTURE_WINDOW_S
+            time.monotonic() - self._next_smartcal_dot_started <= NEXT_SMARTCAL_CAPTURE_WINDOW_S
         ):
             # Lid and brow ride along in the same sample: the user holds a
             # neutral face for the whole sequence, so these are captures of
             # "eyes normally open, brow at rest" (pooled across dots at fit
             # time). Costs nothing extra and needs no second calibration pass.
-            self._next_smartcal_samples.setdefault(_sc_dot, []).append(
-                (sc_gaze_x, sc_gaze_y, eyeopen_raw, eyebrow)
-            )
+            self._next_smartcal_samples.setdefault(_sc_dot, []).append((sc_gaze_x, sc_gaze_y, eyeopen_raw, eyebrow))
 
         # Apply the fitted (warp + affine) transform (smart calib) to map raw
         # model gaze -> calibrated gaze. The arctanh warp un-saturates the
@@ -983,8 +922,11 @@ class EyeProcessor:
         # transform always applies.
         if self._next_smartcal_w is not None and self._next_smartcal_b is not None:
             _cal_x, _cal_y = next_smartcal_apply(
-                self._next_smartcal_w, self._next_smartcal_b,
-                self._next_smartcal_warp, sc_gaze_x, sc_gaze_y,
+                self._next_smartcal_w,
+                self._next_smartcal_b,
+                self._next_smartcal_warp,
+                sc_gaze_x,
+                sc_gaze_y,
             )
             # Keep the result in the model's native output range so a strong
             # transform can't push extreme values downstream to OSC.
@@ -1009,11 +951,13 @@ class EyeProcessor:
         # same dot sequence as the gaze fit; a no-op until that has run.
         if self.settings.gui_NEXT_calib_lids_brows:
             eyeopen_raw = next_smartcal_neutral_apply(
-                eyeopen_raw, self._next_smartcal_lid_neutral,
+                eyeopen_raw,
+                self._next_smartcal_lid_neutral,
                 NEXT_SMARTCAL_LID_TARGET,
             )
             eyebrow = next_smartcal_neutral_apply(
-                eyebrow, self._next_smartcal_brow_neutral,
+                eyebrow,
+                self._next_smartcal_brow_neutral,
                 NEXT_SMARTCAL_BROW_TARGET,
             )
 
@@ -1063,12 +1007,8 @@ class EyeProcessor:
         self.out_y = gaze_y
 
         if next_eyelid_tuning_active(self.settings, self.eye_id):
-            close_t, wide_t = leap_lid_thresholds_for_eye(
-                self.settings, self.eye_id
-            )
-            self.eyeopen = remap_leap_lid_openness(
-                eyeopen_raw, close_t, wide_t
-            )
+            close_t, wide_t = leap_lid_thresholds_for_eye(self.settings, self.eye_id)
+            self.eyeopen = remap_leap_lid_openness(eyeopen_raw, close_t, wide_t)
         else:
             # Fresh installs preserve the model's eyelid output (Smart Calib's
             # neutral anchor aside) until the user changes Manual Eyelid Tuning.
@@ -1081,10 +1021,12 @@ class EyeProcessor:
 
         self.squeeze = squeeze
         self.next_eyebrow = eyebrow
-        self._enqueue_osc_message(OSCMessage(
-            type=OSCMessageType.EYEBROW_INFO,
-            data=(self.eye_id, eyebrow),
-        ))
+        self._enqueue_osc_message(
+            OSCMessage(
+                type=OSCMessageType.EYEBROW_INFO,
+                data=(self.eye_id, eyebrow),
+            )
+        )
         self.current_algorithm = EyeInfoOrigin.NEXT
 
     def AHRACM(self):
@@ -1113,18 +1055,14 @@ class EyeProcessor:
         if self.settings.gui_RANSACBLINK:  # might be redundant
             self.eyeopen = ranblink
 
-        self.out_x, self.out_y, self.avg_velocity = cal.cal_osc(
-            self, self.rawx, self.rawy, self.angle
-        )
+        self.out_x, self.out_y, self.avg_velocity = cal.cal_osc(self, self.rawx, self.rawy, self.angle)
         self.current_algorithm = EyeInfoOrigin.HSRAC
 
     def HSRACM(self):
         self._apply_circular_crop_if_enabled()
 
         self.hsrac_enabled = True
-        self.rawx, self.rawy, self.thresh, self.radius = self.hsf_runner.run(
-            self.current_image_gray
-        )
+        self.rawx, self.rawy, self.thresh, self.radius = self.hsf_runner.run(self.current_image_gray)
         (
             self.rawx,
             self.rawy,
@@ -1137,20 +1075,14 @@ class EyeProcessor:
         if self.settings.gui_RANSACBLINK:  # might be redundant
             self.eyeopen = ranblink
 
-        self.out_x, self.out_y, self.avg_velocity = cal.cal_osc(
-            self, self.rawx, self.rawy, self.angle
-        )
+        self.out_x, self.out_y, self.avg_velocity = cal.cal_osc(self, self.rawx, self.rawy, self.angle)
         self.current_algorithm = EyeInfoOrigin.HSRAC
 
     def HSFM(self):
         self._apply_circular_crop_if_enabled()
         # TODO: Reinitialize the HSF runner when the ROI resolution changes.
-        self.rawx, self.rawy, self.thresh, self.radius = self.hsf_runner.run(
-            self.current_image_gray
-        )
-        self.out_x, self.out_y, self.avg_velocity = cal.cal_osc(
-            self, self.rawx, self.rawy, self.angle
-        )
+        self.rawx, self.rawy, self.thresh, self.radius = self.hsf_runner.run(self.current_image_gray)
+        self.out_x, self.out_y, self.avg_velocity = cal.cal_osc(self, self.rawx, self.rawy, self.angle)
         self.current_algorithm = EyeInfoOrigin.HSF
 
     def RANSAC3DM(self):
@@ -1167,9 +1099,7 @@ class EyeProcessor:
         ) = RANSAC3D(self, True)
         if self.settings.gui_RANSACBLINK:
             self.eyeopen = ranblink
-        self.out_x, self.out_y, self.avg_velocity = cal.cal_osc(
-            self, self.rawx, self.rawy, self.angle
-        )
+        self.out_x, self.out_y, self.avg_velocity = cal.cal_osc(self, self.rawx, self.rawy, self.angle)
         self.current_algorithm = EyeInfoOrigin.RANSAC
 
     def AHSFM(self):
@@ -1182,9 +1112,7 @@ class EyeProcessor:
             self.radius,
         ) = self.ahsf_runner.detect_etvr(self.current_image_gray)
         self.thresh = self.current_image_gray
-        self.out_x, self.out_y, self.avg_velocity = cal.cal_osc(
-            self, self.rawx, self.rawy, self.angle
-        )
+        self.out_x, self.out_y, self.avg_velocity = cal.cal_osc(self, self.rawx, self.rawy, self.angle)
         self.current_algorithm = EyeInfoOrigin.HSF
 
     def ALGOSELECT(self):
@@ -1360,10 +1288,12 @@ class EyeProcessor:
         else:
             frame = raw_frame
         self.eyebrow_runner.submit(frame)
-        self._enqueue_osc_message(OSCMessage(
-            type=OSCMessageType.EYEBROW_INFO,
-            data=(self.eye_id, self.eyebrow_runner.get_result()),
-        ))
+        self._enqueue_osc_message(
+            OSCMessage(
+                type=OSCMessageType.EYEBROW_INFO,
+                data=(self.eye_id, self.eyebrow_runner.get_result()),
+            )
+        )
 
     def run(self):
         # Reset HSF runner on each thread start so a fresh runner is built from
@@ -1375,33 +1305,25 @@ class EyeProcessor:
                 logger.info("Exiting tracking thread")
                 return
 
-            if (
-                not self._next_active
-                and (self.config.roi_window_w <= 0 or self.config.roi_window_h <= 0)
-            ):
+            if not self._next_active and (self.config.roi_window_w <= 0 or self.config.roi_window_h <= 0):
                 # At this point, we're waiting for the user to set up the ROI window in the GUI.
                 if self.cancellation_event.wait(0.1):
                     return
                 continue
-            if (
-                not self._next_active
-                and (
-                    self.camera_model is None
-                    or self.detector_3d is None
-                    or self.camera_model.resolution
-                    != (
-                        self.config.roi_window_w,
-                        self.config.roi_window_h,
-                    )
+            if not self._next_active and (
+                self.camera_model is None
+                or self.detector_3d is None
+                or self.camera_model.resolution
+                != (
+                    self.config.roi_window_w,
+                    self.config.roi_window_h,
                 )
             ):
                 self.camera_model = CameraModel(
                     focal_length=self.config.focal_length,
                     resolution=(self.config.roi_window_w, self.config.roi_window_h),
                 )
-                self.detector_3d = Detector3D(
-                    camera=self.camera_model, long_term_mode=DetectorMode.blocking
-                )
+                self.detector_3d = Detector3D(camera=self.camera_model, long_term_mode=DetectorMode.blocking)
 
             try:
                 (
@@ -1464,9 +1386,7 @@ class EyeProcessor:
 
             self._service_eyebrow_runner(raw_frame)
 
-            self.current_image_gray = cv2.cvtColor(
-                self.current_image, cv2.COLOR_BGR2GRAY
-            )
+            self.current_image_gray = cv2.cvtColor(self.current_image, cv2.COLOR_BGR2GRAY)
             if self._needs_gray_clean_copy():
                 self.current_image_gray_clean = self.current_image_gray.copy()
             else:

@@ -29,6 +29,7 @@ from utils.robust_calibration import (
 
 # ── HSF: per-instance scratch buffers ────────────────────────────────────────
 
+
 def _blob_image(cx, cy, shape=(100, 120), r=8):
     img = np.full(shape, 200, dtype=np.uint8)
     cv2.circle(img, (cx, cy), r, 10, -1)
@@ -89,6 +90,7 @@ def test_hsf_two_threads_each_find_their_own_pupil(monkeypatch):
 
 # ── LEAP: no worker result yet ───────────────────────────────────────────────
 
+
 def _bare_leap():
     leap = LEAP_C.__new__(LEAP_C)
     leap._last_result = None
@@ -147,9 +149,7 @@ def test_leapm_skips_update_when_leap_has_no_result():
     proc.settings = SimpleNamespace(gui_use_gpu=False, gui_LEAP_lid=True)
     proc.current_image_gray = np.zeros((10, 10), dtype=np.uint8)
     proc.current_image_gray_clean = proc.current_image_gray
-    proc.leap_runner = SimpleNamespace(
-        run=lambda img, clean, gpu: (img, None, None, None)
-    )
+    proc.leap_runner = SimpleNamespace(run=lambda img, clean, gpu: (img, None, None, None))
     proc.rawx, proc.rawy = 12.0, 34.0
     proc.out_x, proc.out_y = 0.3, -0.2
     proc.eyeopen = 0.8
@@ -163,6 +163,7 @@ def test_leapm_skips_update_when_leap_has_no_result():
 
 
 # ── Robust calibration ───────────────────────────────────────────────────────
+
 
 def _raw_for(gx, gy):
     # A known linear camera mapping (image Y grows downward).
@@ -260,6 +261,7 @@ def test_indexed_medians_round_trip_and_legacy_short_list_is_dropped():
 
 # ── RANSAC: ellipse axes + blink file ────────────────────────────────────────
 
+
 def _ransac_processor(eye_id):
     img = np.full((80, 80), 220, dtype=np.uint8)
     cv2.ellipse(img, (40, 40), (14, 8), 0, 0, 360, 0, -1)
@@ -273,9 +275,7 @@ def _ransac_processor(eye_id):
         current_image_gray_clean=img.copy(),
         settings=SimpleNamespace(gui_thresh_add=20, gui_RANSACBLINK=True),
         failed=0,
-        detector_3d=SimpleNamespace(
-            update_and_detect=lambda *_: (_ for _ in ()).throw(KeyError("x"))
-        ),
+        detector_3d=SimpleNamespace(update_and_detect=lambda *_: (_ for _ in ()).throw(KeyError("x"))),
         last_projected_sphere={},
         current_frame_number=1,
         current_fps=60,
@@ -288,9 +288,7 @@ def test_ransac_returns_ellipse_axes_and_loads_own_blink_file(tmp_path, monkeypa
     monkeypatch.chdir(tmp_path)
     (tmp_path / ransac.ransac_blink_file_path(EyeId.LEFT)).write_text("0.1\n0.2\n")
     (tmp_path / ransac.ransac_blink_file_path(EyeId.RIGHT)).write_text("0.9\n")
-    monkeypatch.setattr(
-        ransac, "fit_rotated_ellipse_ransac", lambda data, rng: (40.0, 40.0, 7.5, 4.25, 0.0)
-    )
+    monkeypatch.setattr(ransac, "fit_rotated_ellipse_ransac", lambda data, rng: (40.0, 40.0, 7.5, 4.25, 0.0))
 
     proc = _ransac_processor(EyeId.LEFT)
     *_, w, h = ransac.RANSAC3D(proc, False)
@@ -325,6 +323,7 @@ def test_ransac_blink_percentile_computed_once_per_frame(tmp_path, monkeypatch):
 
 # ── Dilation axes for trackers that don't measure them ───────────────────────
 
+
 def test_dilation_axes_follow_radius_for_non_ransac_trackers():
     proc = EyeProcessor.__new__(EyeProcessor)
     proc.current_algorithm = EyeInfoOrigin.RANSAC
@@ -343,6 +342,7 @@ def test_dilation_axes_follow_radius_for_non_ransac_trackers():
 
 
 # ── Eyebrow: NEXT preferred over the standalone model ────────────────────────
+
 
 class _FakeBrow:
     instances = []

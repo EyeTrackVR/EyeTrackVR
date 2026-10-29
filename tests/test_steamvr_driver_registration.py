@@ -7,7 +7,6 @@ import time
 from queue import Queue
 from unittest import mock
 
-import pytest
 
 from OVR import SteamVRDriverRegistration as reg
 from osc.osc import OSCManager
@@ -117,8 +116,10 @@ def test_osc_manager_follows_the_toggle(main_config_v2_params):
         assert len(calls) == n, calls
 
     s = main_config_v2_params.settings
-    with mock.patch("OVR.SteamVRDriverRegistration.sync_quietly", side_effect=calls.append), \
-         mock.patch("osc.osc.udp_client.SimpleUDPClient"):
+    with (
+        mock.patch("OVR.SteamVRDriverRegistration.sync_quietly", side_effect=calls.append),
+        mock.patch("osc.osc.udp_client.SimpleUDPClient"),
+    ):
         manager = OSCManager(config=main_config_v2_params, osc_message_in_queue=Queue())
         manager.start()
         try:

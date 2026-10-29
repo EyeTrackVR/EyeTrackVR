@@ -185,9 +185,7 @@ class PupilDetectorHaar:
         self._img_boundary = (0, 0, 0, 0)
         self._init_rect_down = (0, 0, 0, 0)
 
-    def detect_etvr(
-        self, img_gray
-    ) -> Tuple[np.ndarray, np.ndarray, float, float, float]:
+    def detect_etvr(self, img_gray) -> Tuple[np.ndarray, np.ndarray, float, float, float]:
         """
         Runs the full detection and returns a visualized image and ETVR-specific data.
 
@@ -249,9 +247,7 @@ class PupilDetectorHaar:
         # 5. Return the requested 5-tuple
         return vis_img, resize_img, rawx, rawy, radius
 
-    def detect(
-        self, img_gray: np.ndarray
-    ) -> Tuple[Tuple[int, int, int, int], Tuple[float, float]]:
+    def detect(self, img_gray: np.ndarray) -> Tuple[Tuple[int, int, int, int], Tuple[float, float]]:
         if img_gray.dtype != np.uint8:
             raise TypeError("img_gray must be uint8 [0,255]")
 
@@ -265,9 +261,7 @@ class PupilDetectorHaar:
 
     def _preprocess(self, img_gray: np.ndarray) -> np.ndarray:
         h, w = img_gray.shape
-        self._ratio_down = max(
-            w / self.target_resolution[0], h / self.target_resolution[1], 1.0
-        )
+        self._ratio_down = max(w / self.target_resolution[0], h / self.target_resolution[1], 1.0)
         new_w = int(round(w / self._ratio_down))
         new_h = int(round(h / self._ratio_down))
 

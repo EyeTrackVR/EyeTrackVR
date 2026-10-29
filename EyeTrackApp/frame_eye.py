@@ -125,7 +125,7 @@ def frame_source_eye(addr: str) -> str | None:
     """``frame://left`` -> ``"left"``; None for anything that is not a Frame eye."""
     if not is_frame_capture_source(addr):
         return None
-    eye = addr.strip().lower()[len(FRAME_SOURCE_PREFIX):].strip("/")
+    eye = addr.strip().lower()[len(FRAME_SOURCE_PREFIX) :].strip("/")
     return eye if eye in EYE_RINGS else None
 
 
@@ -150,9 +150,7 @@ def is_steam_frame() -> bool:
     global _is_steam_frame
     if _is_steam_frame is None:
         _is_steam_frame = (
-            platform.system() == "Linux"
-            and platform.machine() in ("aarch64", "arm64")
-            and _dsp_service_listening()
+            platform.system() == "Linux" and platform.machine() in ("aarch64", "arm64") and _dsp_service_listening()
         )
     return _is_steam_frame
 
@@ -164,8 +162,10 @@ def validate_layout(words: memoryview, layout: Layout) -> str | None:
     if layout.ctrl_base + max(layout.locks_l, layout.locks_r) + 4 * layout.slots > len(words) * 4:
         return "control words beyond mapping"
     ring_end = (
-        layout.ctrl_base + max(layout.ring_l, layout.ring_r)
-        + (layout.slots - 1) * layout.slot_stride + layout.frame_bytes
+        layout.ctrl_base
+        + max(layout.ring_l, layout.ring_r)
+        + (layout.slots - 1) * layout.slot_stride
+        + layout.frame_bytes
     )
     if ring_end > REGION_BYTES:
         return "frame ring beyond mapping"
@@ -331,7 +331,7 @@ class DspClient:
         left to SteamVR's tracker, which claims and frees it."""
         lay = self.layout
         off = lay.ctrl_base + getattr(lay, EYE_RINGS[eye].ring) + idx * lay.slot_stride
-        return self._data[off:off + lay.width * lay.height]
+        return self._data[off : off + lay.width * lay.height]
 
     def drain(self) -> int:
         """Read and drop any messages; unread ones fill the socket and upset the
@@ -372,16 +372,16 @@ class DspClient:
 class FrameEyeService:
     """Process-wide reader shared by the left and right Camera threads."""
 
-    ACTIVE_POLL = 0.001      # while frames are flowing
-    IDLE_POLL = 0.02         # after IDLE_AFTER without a frame
+    ACTIVE_POLL = 0.001  # while frames are flowing
+    IDLE_POLL = 0.02  # after IDLE_AFTER without a frame
     IDLE_AFTER = 0.5
-    WAITING_AFTER = 1.0      # report "waiting for frames" to the cameras
+    WAITING_AFTER = 1.0  # report "waiting for frames" to the cameras
     WAIT_LOG_AFTER = 3.0
-    MAX_LAYOUT_FAULTS = 3    # consecutive out-of-range index reads before reconnecting
+    MAX_LAYOUT_FAULTS = 3  # consecutive out-of-range index reads before reconnecting
     RETRY_MIN, RETRY_MAX = 5.0, 60.0  # Babble's reopen backoff
-    NOT_READY_RETRY = 2.0    # cameras not set up yet: cheap read-only probe, so retry steadily
+    NOT_READY_RETRY = 2.0  # cameras not set up yet: cheap read-only probe, so retry steadily
     CHECK_INTERVAL = 0.5
-    PAIR_WINDOW = 0.005      # the two eyes of one camera pair land this close together
+    PAIR_WINDOW = 0.005  # the two eyes of one camera pair land this close together
 
     def __init__(self, client_factory=DspClient, clock=time.monotonic):
         self._client_factory = client_factory
@@ -398,7 +398,7 @@ class FrameEyeService:
         self.camera_fps = 0.0
         self.last_error = ""
         self.streaming = False  # connected to dsp_service with a valid layout
-        self.waiting = False    # connected, but no frames lately (headset not worn?)
+        self.waiting = False  # connected, but no frames lately (headset not worn?)
         self.not_ready = False  # dsp_service is up, SteamVR's eye tracker hasn't started
         self.eye_tracking_off = False  # ...because it's turned off in SteamVR settings
 
@@ -458,7 +458,7 @@ class FrameEyeService:
             self._boxes[eye] = box
             logger.info("Steam Frame %s eye image at x=%d y=%d, %dx%d", eye, *box)
         x, y, w, h = box
-        img = img[y:y + h, x:x + w]
+        img = img[y : y + h, x : x + w]
         if EYE_RINGS[eye].upside_down:
             img = img[::-1, ::-1]
         img = np.ascontiguousarray(img)

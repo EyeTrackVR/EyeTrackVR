@@ -1,6 +1,5 @@
 from datetime import datetime, timedelta
 import os
-import sys
 import time
 from typing import Iterable
 
@@ -45,9 +44,7 @@ class BaseSettingsWidget:
     def _HIDE_ADVANCED_TEXT(self):
         return tr("settings_base.hide_advanced")
 
-    def __init__(
-        self, widget_id: EyeId, main_config: EyeTrackConfig, settings_modules: Iterable
-    ):
+    def __init__(self, widget_id: EyeId, main_config: EyeTrackConfig, settings_modules: Iterable):
         self.widget_id = widget_id
         self.main_config = main_config
         self.config = main_config.settings
@@ -55,9 +52,7 @@ class BaseSettingsWidget:
         self.error_printout_timeout = 2
         self.reset_button_key = f"RESET_SETTINGS{widget_id}"
         self.is_saving = False
-        self.initialized_modules = self._initialize_modules(
-            settings_modules=settings_modules, widget_id=widget_id
-        )
+        self.initialized_modules = self._initialize_modules(settings_modules=settings_modules, widget_id=widget_id)
         self.cancellation_event = Event()
         self.cancellation_event.set()
         self.frame = None
@@ -189,8 +184,7 @@ class BaseSettingsWidget:
 
     def _initialize_modules(self, settings_modules, widget_id):
         return [
-            module(config=self.config, settings=self.main_config, widget_id=widget_id)
-            for module in settings_modules
+            module(config=self.config, settings=self.main_config, widget_id=widget_id) for module in settings_modules
         ]
 
     def build(self, parent) -> ttk.Frame:
@@ -254,9 +248,7 @@ class BaseSettingsWidget:
 
         diagnostics_row = ttk.Frame(self._advanced_section)
         diagnostics_row.pack(fill="x", padx=8, pady=(6, 4), anchor="w")
-        ttk.Button(
-            diagnostics_row, text=tr("settings_base.open_logs"), command=open_logs
-        ).pack(side="left")
+        ttk.Button(diagnostics_row, text=tr("settings_base.open_logs"), command=open_logs).pack(side="left")
 
         self._advanced_visible = False
 
@@ -344,8 +336,7 @@ class BaseSettingsWidget:
             except OSError as e:
                 print(f"{Fore.RED}[ERROR]{Fore.RESET} Could not delete {path}: {e}")
         print(
-            f"{Fore.GREEN}[INFO]{Fore.RESET} Deleted config file(s): "
-            f"{', '.join(removed) if removed else 'none found'}"
+            f"{Fore.GREEN}[INFO]{Fore.RESET} Deleted config file(s): {', '.join(removed) if removed else 'none found'}"
         )
 
         # Hand off to the main window's shutdown sequence so camera threads,
@@ -367,7 +358,7 @@ class BaseSettingsWidget:
     def reset_config(self):
         default_values = {}
         base_settings = EyeTrackSettingsConfig()
-        print(f"\033[92m[INFO] Resetting config to defaults\033[0m")
+        print("\033[92m[INFO] Resetting config to defaults\033[0m")
         for module in self.initialized_modules:
             for key in module.get_key_for_panel_defaults():
                 default_val = getattr(base_settings, key)
@@ -380,7 +371,7 @@ class BaseSettingsWidget:
             reset_hook = getattr(module, "reset_to_defaults", None)
             if reset_hook is not None:
                 reset_hook(base_settings)
-        print(f"\033[92m[INFO] Config reset, saving\033[0m")
+        print("\033[92m[INFO] Config reset, saving\033[0m")
         self._cancel_debounced_settings_save()
         self.is_saving = True
         self._update_and_save_config(default_values)

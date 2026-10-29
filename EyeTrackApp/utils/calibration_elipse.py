@@ -181,9 +181,7 @@ class CalibrationEllipse:
             el_y = self.center[1] + scaled_axes[1] * np.sin(t)
 
             plt.plot(el_x, el_y, "b-", linewidth=2, label=tr("calibration.plot_fit"))
-            plt.plot(
-                self.center[0], self.center[1], "r+", markersize=15, label=tr("calibration.plot_center")
-            )
+            plt.plot(self.center[0], self.center[1], "r+", markersize=15, label=tr("calibration.plot_center"))
 
             plt.hlines(
                 self.center[1],

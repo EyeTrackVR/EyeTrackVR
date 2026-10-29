@@ -25,9 +25,7 @@ def _settle_times(monkeypatch, passes_per_s, valid, step_s):
     monkeypatch.setattr("next_stereo_model.time.perf_counter", lambda: clock[0])
     model = NEXT_Stereo_cls.__new__(NEXT_Stereo_cls)
     model.gaze_y_sign = 1.0
-    model.one_euro_filter = one_euro_filter.OneEuroFilter(
-        np.zeros(8, dtype=np.float32), step_s=step_s
-    )
+    model.one_euro_filter = one_euro_filter.OneEuroFilter(np.zeros(8, dtype=np.float32), step_s=step_s)
     model._brow_l_window = TimedMedian(5)
     model._brow_r_window = TimedMedian(5)
     model._gaze_x_window = TimedMedian(3)
@@ -69,10 +67,8 @@ def test_per_pass_filter_was_rate_dependent(monkeypatch):
 def test_fixed_step_filter_state_is_rate_independent(monkeypatch, rate):
     clock = [0.0]
     monkeypatch.setattr(one_euro_filter, "perf_counter", lambda: clock[0])
-    reference = one_euro_filter.OneEuroFilter(np.zeros(1), min_cutoff=0.5, beta=0.3,
-                                              step_s=NEXT_FILTER_STEP_S)
-    filt = one_euro_filter.OneEuroFilter(np.zeros(1), min_cutoff=0.5, beta=0.3,
-                                         step_s=NEXT_FILTER_STEP_S)
+    reference = one_euro_filter.OneEuroFilter(np.zeros(1), min_cutoff=0.5, beta=0.3, step_s=NEXT_FILTER_STEP_S)
+    filt = one_euro_filter.OneEuroFilter(np.zeros(1), min_cutoff=0.5, beta=0.3, step_s=NEXT_FILTER_STEP_S)
     # Hold a constant input: then the elapsed time, not the call pattern, must
     # decide the state. Compare at a time both call patterns land on.
     x = np.array([1.0])

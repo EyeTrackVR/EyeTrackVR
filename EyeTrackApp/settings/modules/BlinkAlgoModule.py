@@ -100,12 +100,8 @@ class BlinkAlgoSettingsModule(BaseSettingsModule):
             var.set(f"{next_val:.2f}")
 
         ttk.Entry(frame, textvariable=var, width=6).grid(row=0, column=0, sticky="w")
-        ttk.Button(frame, text="-", width=2, command=lambda: bump(-1)).grid(
-            row=0, column=1, sticky="w", padx=(4, 2)
-        )
-        ttk.Button(frame, text="+", width=2, command=lambda: bump(1)).grid(
-            row=0, column=2, sticky="w", padx=(2, 0)
-        )
+        ttk.Button(frame, text="-", width=2, command=lambda: bump(-1)).grid(row=0, column=1, sticky="w", padx=(4, 2))
+        ttk.Button(frame, text="+", width=2, command=lambda: bump(1)).grid(row=0, column=2, sticky="w", padx=(2, 0))
         return frame
 
     @staticmethod
@@ -147,9 +143,13 @@ class BlinkAlgoSettingsModule(BaseSettingsModule):
         canvas.grid(row=0, column=0, sticky="w")
         readout_frame = ttk.Frame(wrap)
         readout_frame.grid(row=0, column=1, sticky="w", padx=(6, 0))
-        raw_readout = ttk.Label(readout_frame, text=tr("algo_blink.readout_raw", value="--"), width=10, foreground="#bbbbbb")
+        raw_readout = ttk.Label(
+            readout_frame, text=tr("algo_blink.readout_raw", value="--"), width=10, foreground="#bbbbbb"
+        )
         raw_readout.pack(anchor="w")
-        adj_readout = ttk.Label(readout_frame, text=tr("algo_blink.readout_adj", value="--"), width=10, foreground="#9999ff")
+        adj_readout = ttk.Label(
+            readout_frame, text=tr("algo_blink.readout_adj", value="--"), width=10, foreground="#9999ff"
+        )
         adj_readout.pack(anchor="w")
         canvas.bind(
             "<ButtonPress-1>",
@@ -191,8 +191,12 @@ class BlinkAlgoSettingsModule(BaseSettingsModule):
         for bx, lbl in ((x_zero, "0"), (x_one, "1")):
             canvas.create_line(bx, bar_top, bx, bar_bot + 2, fill="#aaaaaa", width=1)
             canvas.create_text(
-                bx, bar_bot + 4, text=lbl, fill="#888888",
-                font=("Segoe UI", 7), anchor="n",
+                bx,
+                bar_bot + 4,
+                text=lbl,
+                fill="#888888",
+                font=("Segoe UI", 7),
+                anchor="n",
             )
 
         # Threshold markers with grab-handle nubs, drawn on top of all zones.
@@ -273,15 +277,11 @@ class BlinkAlgoSettingsModule(BaseSettingsModule):
         blink_lbl = ttk.Label(col, text=tr("algo_blink.blink_point"))
         blink_lbl.grid(row=1, column=0, sticky="w", padx=(0, 8), pady=2)
         attach_tooltip(blink_lbl, tr("algo_blink.blink_point_tip"))
-        self._build_threshold_entry(col, close_var).grid(
-            row=1, column=1, sticky="w", pady=2
-        )
+        self._build_threshold_entry(col, close_var).grid(row=1, column=1, sticky="w", pady=2)
         wide_lbl = ttk.Label(col, text=tr("algo_blink.wide_eye_point"))
         wide_lbl.grid(row=2, column=0, sticky="w", padx=(0, 8), pady=2)
         attach_tooltip(wide_lbl, tr("algo_blink.wide_eye_point_tip"))
-        self._build_threshold_entry(col, widen_var).grid(
-            row=2, column=1, sticky="w", pady=2
-        )
+        self._build_threshold_entry(col, widen_var).grid(row=2, column=1, sticky="w", pady=2)
         self._build_viz_canvas(col, eye_id, close_var, widen_var).grid(
             row=3, column=0, columnspan=2, sticky="w", pady=(6, 0)
         )
@@ -295,18 +295,10 @@ class BlinkAlgoSettingsModule(BaseSettingsModule):
 
         # Build manual threshold variables eagerly so validation and live model
         # updates continue even while the disclosure panel is collapsed.
-        left_close = tk.StringVar(
-            value=f"{float(self.config.leap_lid_close_threshold_left):.2f}"
-        )
-        left_widen = tk.StringVar(
-            value=f"{float(self.config.leap_lid_widen_threshold_left):.2f}"
-        )
-        right_close = tk.StringVar(
-            value=f"{float(self.config.leap_lid_close_threshold_right):.2f}"
-        )
-        right_widen = tk.StringVar(
-            value=f"{float(self.config.leap_lid_widen_threshold_right):.2f}"
-        )
+        left_close = tk.StringVar(value=f"{float(self.config.leap_lid_close_threshold_left):.2f}")
+        left_widen = tk.StringVar(value=f"{float(self.config.leap_lid_widen_threshold_left):.2f}")
+        right_close = tk.StringVar(value=f"{float(self.config.leap_lid_close_threshold_right):.2f}")
+        right_widen = tk.StringVar(value=f"{float(self.config.leap_lid_widen_threshold_right):.2f}")
         self.tk_vars[self.leap_lid_close_threshold_left] = left_close
         self.tk_vars[self.leap_lid_widen_threshold_left] = left_widen
         self.tk_vars[self.leap_lid_close_threshold_right] = right_close
@@ -319,9 +311,7 @@ class BlinkAlgoSettingsModule(BaseSettingsModule):
         )
 
         manual_row = ttk.Frame(parent)
-        manual_row.grid(
-            row=1, column=0, columnspan=3, sticky="w", padx=8, pady=(0, 2)
-        )
+        manual_row.grid(row=1, column=0, columnspan=3, sticky="w", padx=8, pady=(0, 2))
         self._manual_tuning_button = ttk.Button(
             manual_row,
             text=f"{tr('algo_blink.manual_tuning')} ▾",
@@ -346,6 +336,7 @@ class BlinkAlgoSettingsModule(BaseSettingsModule):
                     setattr(cfg, field, float(var.get()))
                 except (ValueError, TypeError):
                     pass
+
             return _cb
 
         left_close.trace_add(
@@ -365,15 +356,13 @@ class BlinkAlgoSettingsModule(BaseSettingsModule):
             _live_float(self.config, "leap_lid_widen_threshold_right", right_widen),
         )
 
-        self._build_eye_column(
-            manual, tr("algo_blink.left_eye"), _EYE_ID_LEFT, left_close, left_widen
-        ).grid(row=1, column=0, sticky="nw", padx=(8, 12), pady=4)
-        ttk.Separator(manual, orient="vertical").grid(
-            row=1, column=1, sticky="ns", pady=4
+        self._build_eye_column(manual, tr("algo_blink.left_eye"), _EYE_ID_LEFT, left_close, left_widen).grid(
+            row=1, column=0, sticky="nw", padx=(8, 12), pady=4
         )
-        self._build_eye_column(
-            manual, tr("algo_blink.right_eye"), _EYE_ID_RIGHT, right_close, right_widen
-        ).grid(row=1, column=2, sticky="nw", padx=(12, 8), pady=4)
+        ttk.Separator(manual, orient="vertical").grid(row=1, column=1, sticky="ns", pady=4)
+        self._build_eye_column(manual, tr("algo_blink.right_eye"), _EYE_ID_RIGHT, right_close, right_widen).grid(
+            row=1, column=2, sticky="nw", padx=(12, 8), pady=4
+        )
         ttk.Button(
             manual,
             text=tr("algo_blink.reset_defaults"),
@@ -385,15 +374,11 @@ class BlinkAlgoSettingsModule(BaseSettingsModule):
         # Calibration duration + min blink size now live under Advanced; the
         # tk vars are created here so they exist for the validation model
         # whether or not the user has expanded the Advanced section.
-        self._eyelid_duration_var = tk.StringVar(
-            value=str(self.config.calibration_duration)
-        )
+        self._eyelid_duration_var = tk.StringVar(value=str(self.config.calibration_duration))
         self.tk_vars[self.leap_calibration_duration] = self._eyelid_duration_var
         self.tk_vars[self.calibration_duration] = self._eyelid_duration_var
 
-        self._leap_min_span_var = tk.StringVar(
-            value=str(self.config.leap_lid_min_calibration_span)
-        )
+        self._leap_min_span_var = tk.StringVar(value=str(self.config.leap_lid_min_calibration_span))
         self.tk_vars[self.leap_lid_min_calibration_span] = self._leap_min_span_var
 
         cal_frame = ttk.Frame(parent)
@@ -474,15 +459,11 @@ class BlinkAlgoSettingsModule(BaseSettingsModule):
         cal_dur_lbl = ttk.Label(parent, text=tr("algo_blink.calibration_duration"))
         cal_dur_lbl.grid(row=3, column=0, sticky="w", padx=8, pady=2)
         attach_tooltip(cal_dur_lbl, tr("algo_blink.calibration_duration_tip"))
-        ttk.Entry(parent, textvariable=self._eyelid_duration_var, width=8).grid(
-            row=3, column=1, sticky="w", pady=2
-        )
+        ttk.Entry(parent, textvariable=self._eyelid_duration_var, width=8).grid(row=3, column=1, sticky="w", pady=2)
         min_span_lbl = ttk.Label(parent, text=tr("algo_blink.min_blink_size"))
         min_span_lbl.grid(row=4, column=0, sticky="w", padx=8, pady=2)
         attach_tooltip(min_span_lbl, tr("algo_blink.min_blink_size_tip"))
-        ttk.Entry(parent, textvariable=self._leap_min_span_var, width=8).grid(
-            row=4, column=1, sticky="w", pady=2
-        )
+        ttk.Entry(parent, textvariable=self._leap_min_span_var, width=8).grid(row=4, column=1, sticky="w", pady=2)
 
     def _on_redo_eyelid_calib(self):
         """Bump every eye's recalibration sequence so LEAP_C resets its

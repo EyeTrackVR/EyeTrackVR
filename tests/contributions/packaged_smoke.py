@@ -4,6 +4,7 @@ The loopback page supplies a fixture token only to exercise packaged WebView2 an
 nonce IPC. It cannot pass real Siteverify and is never used for an upload.
 Run manually with the packaging Python environment and the built executable path.
 """
+
 import argparse
 import certifi
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -23,9 +24,12 @@ def main():
     args = parser.parse_args()
     archive = CArchiveReader(str(args.executable))
     names = archive.toc
-    required = ["contributions\\notice.json", "pyrage\\pyrage.pyd",
-                "webview\\lib\\Microsoft.Web.WebView2.Core.dll",
-                "webview\\lib\\runtimes\\win-x64\\native\\WebView2Loader.dll"]
+    required = [
+        "contributions\\notice.json",
+        "pyrage\\pyrage.pyd",
+        "webview\\lib\\Microsoft.Web.WebView2.Core.dll",
+        "webview\\lib\\runtimes\\win-x64\\native\\WebView2Loader.dll",
+    ]
     assert all(name in names for name in required), "Missing packaged contribution runtime"
     pyz = archive.open_embedded_archive("PYZ.pyz")
     for name in ["client", "bundles", "verification", "private_files", "window", "native"]:
@@ -39,13 +43,16 @@ def main():
             if self.path != "/challenge?embedded=1":
                 self.send_error(404)
                 return
-            body = ('<!doctype html><title>EyeTrackVR packaging check</title>'
-                    '<input id="token" type="hidden" value="' + fixture + '">').encode()
+            body = (
+                "<!doctype html><title>EyeTrackVR packaging check</title>"
+                '<input id="token" type="hidden" value="' + fixture + '">'
+            ).encode()
             self.send_response(200)
             self.send_header("Content-Type", "text/html")
             self.send_header("Content-Length", str(len(body)))
             self.end_headers()
             self.wfile.write(body)
+
         def log_message(self, *_):
             pass
 
@@ -56,9 +63,17 @@ def main():
             listener.listen(1)
             listener.settimeout(120)
             origin = "http://127.0.0.1:" + str(http.server_address[1])
-            process = subprocess.Popen([str(args.executable.resolve()), "--contribution-verification",
-                                        origin, str(listener.getsockname()[1]), nonce],
-                                       stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            process = subprocess.Popen(
+                [
+                    str(args.executable.resolve()),
+                    "--contribution-verification",
+                    origin,
+                    str(listener.getsockname()[1]),
+                    nonce,
+                ],
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+            )
             try:
                 connection, _ = listener.accept()
                 with connection:
@@ -73,11 +88,24 @@ def main():
                 assert process.wait(timeout=15) == 0
             finally:
                 if process.poll() is None:
-                    subprocess.run(["taskkill", "/PID", str(process.pid), "/T", "/F"],
-                                   stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                    subprocess.run(
+                        ["taskkill", "/PID", str(process.pid), "/T", "/F"],
+                        stdout=subprocess.DEVNULL,
+                        stderr=subprocess.DEVNULL,
+                    )
                 http.shutdown()
-    print(json.dumps({"frozen_native_webview": True, "nonce_ipc": True, "offline_notice": True,
-                      "age_native_module": True, "updated_ca_bundle": True, "external_browser": False}))
+    print(
+        json.dumps(
+            {
+                "frozen_native_webview": True,
+                "nonce_ipc": True,
+                "offline_notice": True,
+                "age_native_module": True,
+                "updated_ca_bundle": True,
+                "external_browser": False,
+            }
+        )
+    )
 
 
 if __name__ == "__main__":

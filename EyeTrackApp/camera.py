@@ -35,10 +35,16 @@ import time
 from config import EyeTrackCameraConfig, EyeTrackSettingsConfig
 from enum import Enum
 import sys
-from camera_enum import is_uvc_named_source, parse_uvc_named_source, format_uvc_named_source, resolve_uvc_address_to_index, invalidate_uvc_camera_cache, claim_uvc_address, release_uvc_claim
+from camera_enum import (
+    is_uvc_named_source,
+    parse_uvc_named_source,
+    format_uvc_named_source,
+    resolve_uvc_address_to_index,
+    invalidate_uvc_camera_cache,
+    claim_uvc_address,
+    release_uvc_claim,
+)
 from frame_eye import frame_eye_service, frame_source_eye, is_frame_capture_source
-from PIL import Image
-from io import BytesIO
 
 WAIT_TIME = 0.1
 logger = logging.getLogger(__name__)
@@ -63,9 +69,7 @@ def is_serial_capture_source(addr: str) -> bool:
     Returns True if the capture source address is a serial port.
     """
     return (
-        addr.startswith("COM")
-        or addr.startswith("/dev/cu")
-        or addr.startswith("/dev/tty")  # Windows  # macOS  # Linux
+        addr.startswith("COM") or addr.startswith("/dev/cu") or addr.startswith("/dev/tty")  # Windows  # macOS  # Linux
     )
 
 
@@ -208,10 +212,7 @@ class Camera:
 
     def _is_local_file_video_cached(self, capture_source) -> bool:
         key = capture_source
-        if (
-            self._file_video_source_cache is not None
-            and self._file_video_source_cache[0] == key
-        ):
+        if self._file_video_source_cache is not None and self._file_video_source_cache[0] == key:
             return self._file_video_source_cache[1]
         v = is_local_file_video_capture_source(capture_source)
         self._file_video_source_cache = (key, v)
@@ -299,8 +300,7 @@ class Camera:
             actual_height = cam.get(cv2.CAP_PROP_FRAME_HEIGHT)
             actual_fps = cam.get(cv2.CAP_PROP_FPS)
             logger.info(
-                "UVC profile: %sx%s @ %s fps, format=%s "
-                "(MJPG accepted=%s, FPS accepted=%s)",
+                "UVC profile: %sx%s @ %s fps, format=%s (MJPG accepted=%s, FPS accepted=%s)",
                 int(actual_width),
                 int(actual_height),
                 actual_fps,
@@ -320,12 +320,8 @@ class Camera:
         if self._network_reconnect_delay <= 0.0:
             self._network_reconnect_delay = _NETWORK_RECONNECT_BACKOFF_MIN
         else:
-            self._network_reconnect_delay = min(
-                self._network_reconnect_delay * 2.0, _NETWORK_RECONNECT_BACKOFF_MAX
-            )
-        self._network_reconnect_backoff = (
-            time.monotonic() + self._network_reconnect_delay
-        )
+            self._network_reconnect_delay = min(self._network_reconnect_delay * 2.0, _NETWORK_RECONNECT_BACKOFF_MAX)
+        self._network_reconnect_backoff = time.monotonic() + self._network_reconnect_delay
 
     def _update_frame_rate(self, frame_bytes: int) -> None:
         """Update fps / bps moving averages for the most recently received frame.
@@ -363,7 +359,6 @@ class Camera:
                 self._close_serial_connection()
                 self._close_frame_eye()
                 return
-            should_push = True
             # If things aren't open, retry until they are. Don't let read requests come in any earlier
             # than this, otherwise we can deadlock ourselves.
             new_source = self.config.capture_source
@@ -391,7 +386,6 @@ class Camera:
                     ):
                         self.current_capture_source = new_source
                         self.start_serial_connection(new_source)
-                        should_push = False
                 else:
                     # Switching to cv2 (local UVC / HTTP MJPEG / file) from any other backend.
                     if source_changed:
@@ -488,14 +482,12 @@ class Camera:
                                 self.current_capture_source = _canonical
                                 self.uvc_rebind_pending = True
                                 logger.info(
-                                    "UVC '%s': updated stored address '%s' -> '%s' "
-                                    "(will persist once frames arrive).",
-                                    _name, _addr, _resolved_addr,
+                                    "UVC '%s': updated stored address '%s' -> '%s' (will persist once frames arrive).",
+                                    _name,
+                                    _addr,
+                                    _resolved_addr,
                                 )
-                            if (
-                                sys.platform.startswith("linux")
-                                and _resolved_addr.startswith("/dev/")
-                            ):
+                            if sys.platform.startswith("linux") and _resolved_addr.startswith("/dev/"):
                                 open_source = _resolved_addr
                             else:
                                 open_source = _idx
@@ -524,9 +516,7 @@ class Camera:
                         try:
                             cam.open(open_source, _backend)
                         except cv2.error as e:
-                            logger.warning(
-                                "Failed to open capture source %s: %s", new_source, e
-                            )
+                            logger.warning("Failed to open capture source %s: %s", new_source, e)
                             self.camera_status = CameraState.DISCONNECTED
                             self._release_cv2_camera()
                             if _is_network_source:
@@ -583,9 +573,7 @@ class Camera:
             self.camera_status = CameraState.DISCONNECTED
             return
         try:
-            is_file_video = self._is_local_file_video_cached(
-                self.current_capture_source
-            )
+            is_file_video = self._is_local_file_video_cached(self.current_capture_source)
             is_http = is_http_capture_source(str(self.current_capture_source))
             # Live HTTP and UVC cameras are paced entirely by OpenCV/the source.
             throttle_source = is_file_video
@@ -634,8 +622,7 @@ class Camera:
                 )
             else:
                 logger.warning(
-                    "Capture source problem, assuming camera disconnected and "
-                    "waiting for reconnect: %s",
+                    "Capture source problem, assuming camera disconnected and waiting for reconnect: %s",
                     exc,
                 )
             self.camera_status = CameraState.DISCONNECTED
@@ -667,9 +654,7 @@ class Camera:
             # The rest of the pipeline expects 3-channel BGR like every cv2 source.
             # Pass the reader's capture time: both eyes of a camera pair share it
             # closely, which lets the stereo model run one pass per pair.
-            self.push_image_to_queue(
-                cv2.cvtColor(gray, cv2.COLOR_GRAY2BGR), self.frame_number, self.fps, capture_ts
-            )
+            self.push_image_to_queue(cv2.cvtColor(gray, cv2.COLOR_GRAY2BGR), self.frame_number, self.fps, capture_ts)
 
     def get_next_packet_bounds(self):
         # Non-blocking SOI scan: read only bytes already in the OS buffer.
@@ -761,9 +746,7 @@ class Camera:
                 self.frame_number += 1
                 self.push_image_to_queue(image, self.frame_number, self.fps)
         except Exception:
-            logger.warning(
-                "Serial capture source problem, assuming camera disconnected and waiting for reconnect."
-            )
+            logger.warning("Serial capture source problem, assuming camera disconnected and waiting for reconnect.")
             self._close_serial_connection()
             self.camera_status = CameraState.DISCONNECTED
 
@@ -786,9 +769,7 @@ class Camera:
             self.camera_status = CameraState.DISCONNECTED
             return
         try:
-            rate = (
-                115200 if sys.platform == "darwin" else 3000000
-            )  # Higher baud rate not working on macOS
+            rate = 115200 if sys.platform == "darwin" else 3000000  # Higher baud rate not working on macOS
             # timeout=0.25: read() returns every 250 ms so get_next_packet_bounds()
             # can check cancellation/source-change promptly without blocking forever.
             conn = serial.Serial(
@@ -836,8 +817,6 @@ class Camera:
             )
         if ts is None:
             ts = time.perf_counter()
-        self._put_frame_drop_oldest(
-            self.camera_output_outgoing, (image, frame_number, fps, ts)
-        )
+        self._put_frame_drop_oldest(self.camera_output_outgoing, (image, frame_number, fps, ts))
         for extra_q in self._extra_output_queues:
             self._put_frame_drop_oldest(extra_q, (image.copy(), frame_number, fps, ts))

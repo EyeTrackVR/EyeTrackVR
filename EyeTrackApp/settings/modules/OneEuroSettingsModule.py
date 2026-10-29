@@ -22,7 +22,6 @@ from typing_extensions import Annotated
 from settings.modules.BaseModule import (
     BaseSettingsModule,
     BaseValidationModel,
-    ValidationResult,
 )
 import tkinter as tk
 from tkinter import ttk
@@ -36,10 +35,10 @@ from localization import tr
 # (min_cutoff=0.0004, beta=0.9) and the extremes still feel like meaningful
 # choices rather than degenerate ones. min_cutoff is log-interpolated, beta
 # linear: matches how each affects the filter perceptually.
-_MIN_CUTOFF_LOG_MAX = math.log10(0.5)     # intensity=0
+_MIN_CUTOFF_LOG_MAX = math.log10(0.5)  # intensity=0
 _MIN_CUTOFF_LOG_MIN = math.log10(0.00002)  # intensity=100
-_BETA_MAX = 3.0                            # intensity=0
-_BETA_MIN = 0.05                           # intensity=100
+_BETA_MAX = 3.0  # intensity=0
+_BETA_MIN = 0.05  # intensity=100
 
 
 def _derive_one_euro_params(intensity: int) -> tuple[str, str]:
@@ -47,7 +46,7 @@ def _derive_one_euro_params(intensity: int) -> tuple[str, str]:
     config / eye_processor expect."""
     t = max(0, min(100, int(intensity))) / 100.0
     log_cutoff = _MIN_CUTOFF_LOG_MAX + t * (_MIN_CUTOFF_LOG_MIN - _MIN_CUTOFF_LOG_MAX)
-    min_cutoff = 10.0 ** log_cutoff
+    min_cutoff = 10.0**log_cutoff
     beta = _BETA_MAX + t * (_BETA_MIN - _BETA_MAX)
     # Format to a stable precision so the validate() change-detection
     # compares as equal across saves (otherwise every move triggers a write).

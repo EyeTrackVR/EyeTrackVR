@@ -80,9 +80,7 @@ def load_avatar_config(avatar_id: str) -> AvatarInfo | None:
                 if py_type is None:
                     continue
                 address = inp.get("address", "")
-                params.append(
-                    AvatarParameter(name=address.rsplit("/", 1)[-1], address=address, type=py_type)
-                )
+                params.append(AvatarParameter(name=address.rsplit("/", 1)[-1], address=address, type=py_type))
             return AvatarInfo(id=avatar_id, name=config.get("name", ""), parameters=params)
     return None
 
@@ -125,6 +123,4 @@ def _walk_oscquery_node(node: dict, out: list) -> None:
     tag = node.get("TYPE") or ""
     py_type = _OSC_TAG_MAP.get(tag[:1])
     if address and py_type:
-        out.append(
-            AvatarParameter(name=address.rsplit("/", 1)[-1], address=address, type=py_type)
-        )
+        out.append(AvatarParameter(name=address.rsplit("/", 1)[-1], address=address, type=py_type))

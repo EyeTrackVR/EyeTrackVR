@@ -33,14 +33,11 @@ from utils.eye_falloff import velocity_falloff
 from utils.logging_utils import TrackingLogger
 import socket
 import struct
-import sys
 import threading
 import os
 import subprocess
 import math
-from utils.calibration_3d import receive_calibration_data, converge_3d
 from utils.calibration_elipse import *
-from utils.misc_utils import resource_path
 from utils.robust_calibration import RobustCalibrationSession, CalibrationPhase
 from utils.bs_detector import BSDetector
 from pathlib import Path
@@ -57,6 +54,7 @@ def _overlay_executable() -> str:
     """
     return overlay_executable()
 
+
 tool = Path("Tools")
 
 
@@ -70,9 +68,7 @@ class AsyncCall(object):
         self.callback = callback
 
     def __call__(self, *args, **kwargs):
-        self.thread = threading.Thread(
-            target=self.run, name=self.callable.__name__, args=args, kwargs=kwargs
-        )
+        self.thread = threading.Thread(target=self.run, name=self.callable.__name__, args=args, kwargs=kwargs)
         self.thread.start()
         return self
 
@@ -326,6 +322,7 @@ def _dispatch_dfr(settings, eye_id: int, x: float, y: float) -> None:
 
 # ── Robust calibration persistence helper ─────────────────────────────────────
 
+
 def _save_robust_calib(eye_processor) -> None:
     """Serialize RobustCalibrationSession → config → disk."""
     try:
@@ -338,9 +335,7 @@ def _save_robust_calib(eye_processor) -> None:
 
 def _mark_next_classic_calibration_active(eye_processor) -> None:
     """Record whether the latest ellipse fit belongs to NEXT or a pixel tracker."""
-    eye_processor.config.next_classic_calibration_active = bool(
-        getattr(eye_processor, "_next_active", False)
-    )
+    eye_processor.config.next_classic_calibration_active = bool(getattr(eye_processor, "_next_active", False))
 
 
 # ── Overlay ellipse calibration (port 2112) ───────────────────────────────────
@@ -402,12 +397,9 @@ def overlay_ellipse_calibrate(eye_processors: list, settings, baseconfig) -> Non
                     ep._ellipse_collect_active = False
                     if len(ep.cal.xs) >= 2:
                         evecs, axes = ep.cal.fit_ellipse()
-                        if not (isinstance(evecs, int) and isinstance(axes, int)
-                                and evecs == 0 and axes == 0):
-                            ep.config.calib_evecs = list(
-                                evecs.tolist() if hasattr(evecs, "tolist") else evecs)
-                            ep.config.calib_axes = list(
-                                axes.tolist() if hasattr(axes, "tolist") else axes)
+                        if not (isinstance(evecs, int) and isinstance(axes, int) and evecs == 0 and axes == 0):
+                            ep.config.calib_evecs = list(evecs.tolist() if hasattr(evecs, "tolist") else evecs)
+                            ep.config.calib_axes = list(axes.tolist() if hasattr(axes, "tolist") else axes)
                             if ep.cal.center is not None:
                                 ep.config.calib_XOFF = float(ep.cal.center[0])
                                 ep.config.calib_YOFF = float(ep.cal.center[1])
@@ -438,20 +430,15 @@ def overlay_ellipse_calibrate(eye_processors: list, settings, baseconfig) -> Non
                 for ep in eye_processors:
                     ep._ellipse_collect_active = False
                     evecs, axes = ep.cal.fit_ellipse()
-                    if not (isinstance(evecs, int) and isinstance(axes, int)
-                            and evecs == 0 and axes == 0):
-                        ep.config.calib_evecs = list(evecs.tolist()
-                                                     if hasattr(evecs, "tolist") else evecs)
-                        ep.config.calib_axes = list(axes.tolist()
-                                                    if hasattr(axes, "tolist") else axes)
+                    if not (isinstance(evecs, int) and isinstance(axes, int) and evecs == 0 and axes == 0):
+                        ep.config.calib_evecs = list(evecs.tolist() if hasattr(evecs, "tolist") else evecs)
+                        ep.config.calib_axes = list(axes.tolist() if hasattr(axes, "tolist") else axes)
                         if ep.cal.center is not None:
                             ep.config.calib_XOFF = float(ep.cal.center[0])
                             ep.config.calib_YOFF = float(ep.cal.center[1])
                         _mark_next_classic_calibration_active(ep)
                         ep.baseconfig.save()
-                        logger.info(
-                            "Ellipse cal: fitted from %d samples", len(ep.cal.xs)
-                        )
+                        logger.info("Ellipse cal: fitted from %d samples", len(ep.cal.xs))
                 settings.calib_mode = "classic"
                 PlaySound(resource_path("Audio/completed.wav"), SND_FILENAME | SND_ASYNC)
                 var.overlay_active = False
@@ -531,10 +518,17 @@ _SMARTCAL_OVERLAY_CAP_DOWN = 40.0
 # it is FIT to (its calibration target) is derived separately by
 # next_smartcal_targets() so the inset outer ring is not treated as full-scale.
 NEXT_SMARTCAL_DOTS = (
-    (0.0, 0.8), (0.760845, 0.247214), (0.470228, -0.647214),
-    (-0.470228, -0.647214), (-0.760845, 0.247214),
-    (0.246870, 0.339787), (0.399444, -0.129787), (0.0, -0.42),
-    (-0.399444, -0.129787), (-0.246870, 0.339787), (0.0, 0.0),
+    (0.0, 0.8),
+    (0.760845, 0.247214),
+    (0.470228, -0.647214),
+    (-0.470228, -0.647214),
+    (-0.760845, 0.247214),
+    (0.246870, 0.339787),
+    (0.399444, -0.129787),
+    (0.0, -0.42),
+    (-0.399444, -0.129787),
+    (-0.246870, 0.339787),
+    (0.0, 0.0),
 )
 NEXT_SMARTCAL_DONE_SIGNAL = 100
 
@@ -563,6 +557,7 @@ def next_smartcal_targets(settings):
     the centre offset (overlay center_deg) is absorbed by the affine bias as
     before. Edges are floored at their cap (an edge inside the cap would re-pin
     the output) and kept below 90° so tan stays finite."""
+
     def _edge(name, cap):
         e = float(getattr(settings, name, cap))
         return min(89.0, max(cap, e))
@@ -578,6 +573,7 @@ def next_smartcal_targets(settings):
         ky = k_up if ny >= 0.0 else k_down
         targets.append((nx * kx, ny * ky))
     return targets
+
 
 # The overlay holds each dot for 0.5 s (DC_HOLD_S in modes.cpp) after emitting
 # its signal, then the NEXT dot appears/shrinks for ~0.65 s before ITS signal,
@@ -671,24 +667,25 @@ def _fit_next_smartcal_neutrals(eye_processors: list) -> bool:
     saved_any = False
     for ep in eye_processors:
         eye = getattr(ep, "eye_id", "?")
-        pooled = [
-            s for pts in (getattr(ep, "_next_smartcal_samples", {}) or {}).values()
-            for s in pts if len(s) >= 4
-        ]
+        pooled = [s for pts in (getattr(ep, "_next_smartcal_samples", {}) or {}).values() for s in pts if len(s) >= 4]
         if len(pooled) < _SMARTCAL_MIN_NEUTRAL_SAMPLES:
             logger.warning(
-                "NEXT smart cal (eye %s): only %d lid/brow samples (<%d); "
-                "keeping previous lid/brow calibration.",
-                eye, len(pooled), _SMARTCAL_MIN_NEUTRAL_SAMPLES,
+                "NEXT smart cal (eye %s): only %d lid/brow samples (<%d); keeping previous lid/brow calibration.",
+                eye,
+                len(pooled),
+                _SMARTCAL_MIN_NEUTRAL_SAMPLES,
             )
             continue
         arr = np.asarray(pooled, dtype=np.float64)
         lid = float(np.median(arr[:, 2]))
         brow = float(np.median(arr[:, 3]))
         logger.info(
-            "NEXT smart cal (eye %s): neutral lid %.3f -> %.2f, brow %.3f -> %.2f "
-            "(%d samples)",
-            eye, lid, NEXT_SMARTCAL_LID_TARGET, brow, NEXT_SMARTCAL_BROW_TARGET,
+            "NEXT smart cal (eye %s): neutral lid %.3f -> %.2f, brow %.3f -> %.2f (%d samples)",
+            eye,
+            lid,
+            NEXT_SMARTCAL_LID_TARGET,
+            brow,
+            NEXT_SMARTCAL_BROW_TARGET,
             len(pooled),
         )
         if not _SMARTCAL_LID_NEUTRAL_MIN <= lid <= _SMARTCAL_LID_NEUTRAL_MAX:
@@ -696,7 +693,10 @@ def _fit_next_smartcal_neutrals(eye_processors: list) -> bool:
                 "NEXT smart cal (eye %s): neutral eyelid %.3f is outside "
                 "[%.2f, %.2f] - were the eyes open and relaxed? Keeping the "
                 "previous lid calibration.",
-                eye, lid, _SMARTCAL_LID_NEUTRAL_MIN, _SMARTCAL_LID_NEUTRAL_MAX,
+                eye,
+                lid,
+                _SMARTCAL_LID_NEUTRAL_MIN,
+                _SMARTCAL_LID_NEUTRAL_MAX,
             )
         else:
             ep.config.next_smartcal_lid_neutral = lid
@@ -706,7 +706,10 @@ def _fit_next_smartcal_neutrals(eye_processors: list) -> bool:
             logger.warning(
                 "NEXT smart cal (eye %s): neutral eyebrow %.3f is outside "
                 "[%.2f, %.2f]. Keeping the previous brow calibration.",
-                eye, brow, _SMARTCAL_BROW_NEUTRAL_MIN, _SMARTCAL_BROW_NEUTRAL_MAX,
+                eye,
+                brow,
+                _SMARTCAL_BROW_NEUTRAL_MIN,
+                _SMARTCAL_BROW_NEUTRAL_MAX,
             )
         else:
             ep.config.next_smartcal_brow_neutral = brow
@@ -767,7 +770,9 @@ def next_smartcal_transform_is_sane(w, b, warp=None) -> bool:
     # snap-to-extreme degeneracy.
     for ang in np.linspace(0.0, 2.0 * math.pi, 8, endpoint=False):
         cx, cy = next_smartcal_apply(
-            w, b, warp,
+            w,
+            b,
+            warp,
             math.cos(ang) * _SMARTCAL_SANITY_EARLY_R,
             math.sin(ang) * _SMARTCAL_SANITY_EARLY_R,
         )
@@ -795,9 +800,7 @@ def reset_next_smartcal(eye_processors: list, baseconfig) -> None:
         ep.config.next_smartcal_lid_neutral = None
         ep.config.next_smartcal_brow_neutral = None
     baseconfig.save()
-    logger.info(
-        "NEXT smart cal: transforms cleared (raw model gaze, lid and brow restored)."
-    )
+    logger.info("NEXT smart cal: transforms cleared (raw model gaze, lid and brow restored).")
 
 
 def _fit_next_smartcal(eye_processors: list, baseconfig, settings) -> bool:
@@ -825,26 +828,30 @@ def _fit_next_smartcal(eye_processors: list, baseconfig, settings) -> bool:
             if len(pts) < _SMARTCAL_MIN_SAMPLES_PER_DOT:
                 logger.debug(
                     "NEXT smart cal (eye %s): dot %d has %d samples (<%d): dropped.",
-                    eye, dot, len(pts), _SMARTCAL_MIN_SAMPLES_PER_DOT,
+                    eye,
+                    dot,
+                    len(pts),
+                    _SMARTCAL_MIN_SAMPLES_PER_DOT,
                 )
                 continue
             arr = np.asarray(pts, dtype=np.float64)
             # Median over the hold window rejects blinks / transient outliers.
             raws.append([float(np.median(arr[:, 0])), float(np.median(arr[:, 1]))])
             tgts.append(targets[dot])
-            fit_weights.append(
-                _SMARTCAL_CENTER_WEIGHT if dot == len(NEXT_SMARTCAL_DOTS) - 1 else 1.0
-            )
+            fit_weights.append(_SMARTCAL_CENTER_WEIGHT if dot == len(NEXT_SMARTCAL_DOTS) - 1 else 1.0)
 
         if len(raws) < _SMARTCAL_MIN_DOTS:
             logger.warning(
                 "NEXT smart cal (eye %s): only %d/%d dots captured (<%d); skipping fit.",
-                eye, len(raws), len(NEXT_SMARTCAL_DOTS), _SMARTCAL_MIN_DOTS,
+                eye,
+                len(raws),
+                len(NEXT_SMARTCAL_DOTS),
+                _SMARTCAL_MIN_DOTS,
             )
             continue
 
-        R = np.asarray(raws, dtype=np.float64)          # N x 2 raw gaze
-        T = np.asarray(tgts, dtype=np.float64)          # N x 2 target gaze
+        R = np.asarray(raws, dtype=np.float64)  # N x 2 raw gaze
+        T = np.asarray(tgts, dtype=np.float64)  # N x 2 target gaze
 
         # Diagnostic dump (INFO so it shows without debug config): the captured
         # raw median for each held dot against its target. Lets a rejected fit be
@@ -855,10 +862,7 @@ def _fit_next_smartcal(eye_processors: list, baseconfig, settings) -> bool:
             "NEXT smart cal (eye %s) captures [raw]->[target]  (samples/dot=%s):\n%s",
             eye,
             {d: len(samples.get(d, [])) for d in range(len(NEXT_SMARTCAL_DOTS))},
-            "\n".join(
-                f"  ({R[i, 0]:+.3f}, {R[i, 1]:+.3f}) -> ({T[i, 0]:+.3f}, {T[i, 1]:+.3f})"
-                for i in range(len(R))
-            ),
+            "\n".join(f"  ({R[i, 0]:+.3f}, {R[i, 1]:+.3f}) -> ({T[i, 0]:+.3f}, {T[i, 1]:+.3f})" for i in range(len(R))),
         )
 
         # Degenerate-input guard: the dots span most of the gaze range, so the
@@ -871,7 +875,9 @@ def _fit_next_smartcal(eye_processors: list, baseconfig, settings) -> bool:
                 "NEXT smart cal (eye %s): raw gaze spread %.3f/%.3f (x/y) is too "
                 "small to fit - was the eye following the dots? Keeping previous "
                 "calibration.",
-                eye, float(spread[0]), float(spread[1]),
+                eye,
+                float(spread[0]),
+                float(spread[1]),
             )
             continue
 
@@ -882,11 +888,11 @@ def _fit_next_smartcal(eye_processors: list, baseconfig, settings) -> bool:
             Rc = np.clip(R, -_SMARTCAL_WARP_CLAMP, _SMARTCAL_WARP_CLAMP)
             G = np.arctanh(Rc)
         else:
-            G = R                                       # plain raw-space affine
+            G = R  # plain raw-space affine
         gx = G[:, 0]
         gy = G[:, 1]
         ones = np.ones(len(G))
-        A = np.column_stack([gx, gy, ones])             # N x 3  [gx, gy, 1]
+        A = np.column_stack([gx, gy, ones])  # N x 3  [gx, gy, 1]
         # Weighted least squares. Multiplying rows by sqrt(weight) makes the
         # centre anchor count more without duplicating or over-sampling frames.
         sw = np.sqrt(np.asarray(fit_weights, dtype=np.float64))
@@ -894,15 +900,14 @@ def _fit_next_smartcal(eye_processors: list, baseconfig, settings) -> bool:
         Tx = T[:, 0] * sw
         Ty = T[:, 1] * sw
         try:
-            sol_x, *_ = np.linalg.lstsq(Aw, Tx, rcond=None)   # [w11, w12, b1]
-            sol_y, *_ = np.linalg.lstsq(Aw, Ty, rcond=None)   # [w21, w22, b2]
+            sol_x, *_ = np.linalg.lstsq(Aw, Tx, rcond=None)  # [w11, w12, b1]
+            sol_y, *_ = np.linalg.lstsq(Aw, Ty, rcond=None)  # [w21, w22, b2]
         except np.linalg.LinAlgError as e:
             logger.warning("NEXT smart cal (eye %s): solve failed: %s", eye, e)
             continue
 
-        w = [float(sol_x[0]), float(sol_x[1]),
-             float(sol_y[0]), float(sol_y[1])]           # [w11, w12, w21, w22]
-        b = [float(sol_x[2]), float(sol_y[2])]           # [b1, b2]
+        w = [float(sol_x[0]), float(sol_x[1]), float(sol_y[0]), float(sol_y[1])]  # [w11, w12, w21, w22]
+        b = [float(sol_x[2]), float(sol_y[2])]  # [b1, b2]
 
         # A usable fit must land close to its own fitting points AND look like
         # a gentle polish. Otherwise keep whatever the user had before.
@@ -914,8 +919,11 @@ def _fit_next_smartcal(eye_processors: list, baseconfig, settings) -> bool:
                 "NEXT smart cal (eye %s): fit residual %.3f exceeds %.2f "
                 "(attempted W=%s B=%s): captures look inconsistent. Keeping "
                 "previous calibration.",
-                eye, residual, _SMARTCAL_MAX_RESIDUAL,
-                [round(v, 4) for v in w], [round(v, 4) for v in b],
+                eye,
+                residual,
+                _SMARTCAL_MAX_RESIDUAL,
+                [round(v, 4) for v in w],
+                [round(v, 4) for v in b],
             )
             continue
         if not next_smartcal_transform_is_sane(w, b, warp):
@@ -923,7 +931,9 @@ def _fit_next_smartcal(eye_processors: list, baseconfig, settings) -> bool:
                 "NEXT smart cal (eye %s): rejected degenerate transform W=%s B=%s "
                 "(gain/bias/monotonicity out of bounds). Keeping previous "
                 "calibration.",
-                eye, [round(v, 4) for v in w], [round(v, 4) for v in b],
+                eye,
+                [round(v, 4) for v in w],
+                [round(v, 4) for v in b],
             )
             continue
 
@@ -935,10 +945,13 @@ def _fit_next_smartcal(eye_processors: list, baseconfig, settings) -> bool:
         ep._next_smartcal_warp = warp
         saved_any = True
         logger.info(
-            "NEXT smart cal (eye %s): fit from %d dots (warp=%s): W=%s B=%s "
-            "(residual %.3f)",
-            eye, len(raws), warp,
-            [round(v, 4) for v in w], [round(v, 4) for v in b], residual,
+            "NEXT smart cal (eye %s): fit from %d dots (warp=%s): W=%s B=%s (residual %.3f)",
+            eye,
+            len(raws),
+            warp,
+            [round(v, 4) for v in w],
+            [round(v, 4) for v in b],
+            residual,
         )
 
     # The lid/brow anchors are fit independently of the gaze transform: they
@@ -1043,9 +1056,7 @@ class cal:
         )
 
         if has_valid_calib:
-            if not self.cal.init_from_save(
-                self.config.calib_evecs, self.config.calib_axes
-            ):
+            if not self.cal.init_from_save(self.config.calib_evecs, self.config.calib_axes):
                 # If init_from_save fails, treat as uncalibrated
                 if self.should_print_calibration_warning:
                     logger.error(
@@ -1078,21 +1089,13 @@ class cal:
             flipx = self.settings.gui_flip_x_axis_left
 
         if self.calibration_start_time is not None:
-            if (
-                time.time() - self.calibration_start_time
-                >= self.settings.calibration_duration
-            ):
+            if time.time() - self.calibration_start_time >= self.settings.calibration_duration:
                 self.calibration_start_time = None
 
                 # Only save ellipse calibration data if samples were actually collected
                 evecs, axes = self.cal.fit_ellipse()
                 # Check if fit was successful (returns (0, 0) on failure)
-                if not (
-                    isinstance(evecs, int)
-                    and isinstance(axes, int)
-                    and evecs == 0
-                    and axes == 0
-                ):
+                if not (isinstance(evecs, int) and isinstance(axes, int) and evecs == 0 and axes == 0):
                     self.config.calib_evecs = list(evecs.tolist() if hasattr(evecs, "tolist") else evecs)
                     self.config.calib_axes = list(axes.tolist() if hasattr(axes, "tolist") else axes)
                     if self.cal.center is not None:
@@ -1103,9 +1106,7 @@ class cal:
                         self.config.calib_YOFF = cy
                     _mark_next_classic_calibration_active(self)
                     self.baseconfig.save()
-                    PlaySound(
-                        resource_path("Audio/completed.wav"), SND_FILENAME | SND_ASYNC
-                    )
+                    PlaySound(resource_path("Audio/completed.wav"), SND_FILENAME | SND_ASYNC)
                 else:
                     # No samples collected - only save the offset (for Recenter Eyes)
                     # Don't overwrite existing ellipse calibration
@@ -1126,7 +1127,7 @@ class cal:
                 self.blink_clear = False
                 self.settings.gui_recenter_eyes = False
 
-        if self.settings.gui_recenter_eyes == True:
+        if self.settings.gui_recenter_eyes:
             self.config.calib_XOFF = cx
             self.config.calib_YOFF = cy
             # Time-based gate (previously a 10-frame counter tuned for ~50 fps
@@ -1141,17 +1142,18 @@ class cal:
                     center_overlay_calibrate(self)
                 self.settings.gui_recenter_eyes = False
                 self.baseconfig.save()
-                PlaySound(
-                    resource_path("Audio/completed.wav"), SND_FILENAME | SND_ASYNC
-                )
+                PlaySound(resource_path("Audio/completed.wav"), SND_FILENAME | SND_ASYNC)
                 self._recenter_armed_at = None
         else:
             self._recenter_armed_at = None
 
         # ── Overlay ellipse continuous sampling ───────────────────────────────────
-        if (getattr(self, "_ellipse_collect_active", False)
-                and cx is not None and cy is not None
-                and self.calibration_start_time is None):
+        if (
+            getattr(self, "_ellipse_collect_active", False)
+            and cx is not None
+            and cy is not None
+            and self.calibration_start_time is None
+        ):
             self.cal.add_sample(float(cx), float(cy))
             if has_valid_calib:
                 self.cal.init_from_save(self.config.calib_evecs, self.config.calib_axes)
@@ -1224,13 +1226,9 @@ class cal:
                 dfr_x, dfr_y = _robust_cal.normalize_express(cx, cy, clamp=False)
         else:
             # Classic ellipse path
-            out_x, out_y = self.cal.normalize(
-                (cx, cy), (self.config.calib_XOFF, self.config.calib_YOFF)
-            )
+            out_x, out_y = self.cal.normalize((cx, cy), (self.config.calib_XOFF, self.config.calib_YOFF))
             # DFR: unclamped classic normalize
-            dfr_x, dfr_y = self.cal.normalize(
-                (cx, cy), (self.config.calib_XOFF, self.config.calib_YOFF), clip=False
-            )
+            dfr_x, dfr_y = self.cal.normalize((cx, cy), (self.config.calib_XOFF, self.config.calib_YOFF), clip=False)
 
         # Capture calibrated output before snap-hold / falloff adjustments for logging.
         _pre_snap_x, _pre_snap_y = out_x, out_y
@@ -1257,9 +1255,7 @@ class cal:
 
             _was_extreme = abs(self._last_cal_x) >= 0.50 or abs(self._last_cal_y) >= 0.50
             _now_center = abs(out_x) <= 0.30 and abs(out_y) <= 0.30
-            _jump = math.sqrt(
-                (out_x - self._last_cal_x) ** 2 + (out_y - self._last_cal_y) ** 2
-            )
+            _jump = math.sqrt((out_x - self._last_cal_x) ** 2 + (out_y - self._last_cal_y) ** 2)
             _big_jump = _jump > 0.40
 
             # In full-robust mode (poly trained) require BS detector confirmation
@@ -1270,11 +1266,7 @@ class cal:
                 _is_snap = _is_snap and not _bs_valid
 
             if _is_snap:
-                _kp_noise = (
-                    var.l_keypoint_noise
-                    if self.eye_id == EyeId.LEFT
-                    else var.r_keypoint_noise
-                )
+                _kp_noise = var.l_keypoint_noise if self.eye_id == EyeId.LEFT else var.r_keypoint_noise
                 _hold_rate = max(8.0, 20.0 - min(12.0, _kp_noise * 80.0))
                 _drift = min(1.0, self._cal_hold_frames / _hold_rate)
                 out_x = self._last_cal_x + _drift * (out_x - self._last_cal_x)
@@ -1300,7 +1292,10 @@ class cal:
                     var.r_eye_velocity = max(var.r_eye_velocity, var.l_eye_velocity * 2.0 + 0.5)
                 logger.debug(
                     "Snap hold (frame %d, drift=%.2f): holding (%.2f, %.2f)",
-                    self._cal_hold_frames, _drift, out_x, out_y,
+                    self._cal_hold_frames,
+                    _drift,
+                    out_x,
+                    out_y,
                 )
             else:
                 self._snap_active = False
@@ -1346,17 +1341,11 @@ class cal:
             or self.settings.gui_left_eye_dominant
             or self.settings.gui_right_eye_dominant
         ):
-            inst_velocity = _update_eye_velocity(
-                self.eye_id, float(out_x), float(out_y), time.time()
-            )
-            _roi_diag = math.sqrt(
-                self.config.roi_window_w ** 2 + self.config.roi_window_h ** 2
-            )
+            inst_velocity = _update_eye_velocity(self.eye_id, float(out_x), float(out_y), time.time())
+            _roi_diag = math.sqrt(self.config.roi_window_w**2 + self.config.roi_window_h**2)
             _update_keypoint_noise(self.eye_id, float(cx), float(cy), _roi_diag)
 
-        out_x, out_y = velocity_falloff(
-            self, var, out_x, out_y, inst_velocity=inst_velocity
-        )
+        out_x, out_y = velocity_falloff(self, var, out_x, out_y, inst_velocity=inst_velocity)
 
         try:
             _oef = self.one_euro_filter
@@ -1380,9 +1369,7 @@ class cal:
         # Report this eye's own smoothed velocity (was previously a single
         # shared scalar across both eyes, which made the downstream falloff
         # comparison meaningless).
-        my_velocity = (
-            var.l_eye_velocity if self.eye_id == EyeId.LEFT else var.r_eye_velocity
-        )
+        my_velocity = var.l_eye_velocity if self.eye_id == EyeId.LEFT else var.r_eye_velocity
         self._stable_out_x = float(out_x)
         self._stable_out_y = float(out_y)
         self._stable_velocity = float(my_velocity)
@@ -1390,6 +1377,7 @@ class cal:
         _tlog = TrackingLogger.get()
         if _tlog is not None:
             from utils.eye_falloff import _latched_eye as _fe_latch
+
             _tlog.record(
                 t=time.time(),
                 eye="L" if self.eye_id == EyeId.LEFT else "R",
@@ -1402,9 +1390,7 @@ class cal:
                 snap=getattr(self, "_snap_active", False),
                 hold_f=getattr(self, "_cal_hold_frames", 0),
                 drift=getattr(self, "_last_drift", 0.0),
-                kp_noise=float(
-                    var.l_keypoint_noise if self.eye_id == EyeId.LEFT else var.r_keypoint_noise
-                ),
+                kp_noise=float(var.l_keypoint_noise if self.eye_id == EyeId.LEFT else var.r_keypoint_noise),
                 velocity=float(my_velocity),
                 latch="" if _fe_latch is None else str(int(_fe_latch)),
             )

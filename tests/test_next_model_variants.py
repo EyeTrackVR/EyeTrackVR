@@ -42,7 +42,7 @@ def test_model_size_slider_runs_lightest_to_best():
     # The GUI slider maps index 0 (left) to the lightest and the last index
     # (right) to the best, most compute-hungry model.
     assert MODEL_SIZES == ("NANO", "MICRO", "MINI", "SMALL", "LITE", "NORMAL")
-    assert set(EXPERIMENTAL_MODEL_SIZES) == set(MODEL_SIZES[:MODEL_SIZES.index("LITE")])
+    assert set(EXPERIMENTAL_MODEL_SIZES) == set(MODEL_SIZES[: MODEL_SIZES.index("LITE")])
 
 
 def test_every_hybrid_size_resolves_to_a_shipped_file():
@@ -58,13 +58,16 @@ def test_every_hybrid_size_resolves_to_a_shipped_file():
     assert len(files) == 3 * len(MODEL_SIZES)
 
 
-@pytest.mark.parametrize("hmd,size,expected", [
-    ("ETVR", "NORMAL", "ETVR"),
-    ("BSB", "LITE", "BSB LITE"),
-    ("PSVR", "nano", "PSVR NANO"),
-    ("TOBII", "NANO", "PSVR NANO"),
-    ("bogus", "bogus", "ETVR"),
-])
+@pytest.mark.parametrize(
+    "hmd,size,expected",
+    [
+        ("ETVR", "NORMAL", "ETVR"),
+        ("BSB", "LITE", "BSB LITE"),
+        ("PSVR", "nano", "PSVR NANO"),
+        ("TOBII", "NANO", "PSVR NANO"),
+        ("bogus", "bogus", "ETVR"),
+    ],
+)
 def test_compose_variant(hmd, size, expected):
     assert compose_variant(hmd, size) == expected
     assert expected in MODEL_VARIANTS

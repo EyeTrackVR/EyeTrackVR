@@ -5,9 +5,7 @@ from utils import onnx_runtime as ort_utils
 
 class _FakeSession:
     def __init__(self, providers):
-        self._providers = [
-            item[0] if isinstance(item, tuple) else item for item in providers
-        ]
+        self._providers = [item[0] if isinstance(item, tuple) else item for item in providers]
 
     def get_providers(self):
         return self._providers

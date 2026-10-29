@@ -1,6 +1,7 @@
 """Tracking output visualizer: gaze dot with pupil-dilation ring, blink bar and
 eyebrow bar, drawn on a Tk canvas. Shared by the main tracking page and the
 algorithm settings previews; sizes scale from one width."""
+
 import tkinter as tk
 
 import numpy as np
@@ -36,8 +37,7 @@ class OutputVisualizer:
         # so the main page is unchanged and smaller copies shrink in proportion.
         self.u = width / (BASE_WIDTH * dpi_scale)
         self._item_ids = None
-        self.canvas = tk.Canvas(parent, width=self.width, height=self.height, bg="#1e1f23",
-                                highlightthickness=0)
+        self.canvas = tk.Canvas(parent, width=self.width, height=self.height, bg="#1e1f23", highlightthickness=0)
 
     def hide(self) -> None:
         """Hide all visualization items inside the canvas without unpacking the canvas."""
@@ -66,9 +66,7 @@ class OutputVisualizer:
         ring_col = "#b49cff"
         c.configure(bg=bg)
         self._item_ids = {
-            "fail_bg": c.create_rectangle(
-                0, 0, W, H, outline="", fill=fail_bg, tags="viz_fail"
-            ),
+            "fail_bg": c.create_rectangle(0, 0, W, H, outline="", fill=fail_bg, tags="viz_fail"),
             "fail_txt": c.create_text(
                 W // 2,
                 H // 2,
@@ -78,14 +76,10 @@ class OutputVisualizer:
                 tags="viz_fail",
             ),
             "bg": c.create_rectangle(0, 0, W, H, outline="", fill=bg, tags="viz_main"),
-            "panel": c.create_rectangle(
-                0, 0, 0, 0, outline=panel_border, width=1, fill=panel, tags="viz_main"
-            ),
+            "panel": c.create_rectangle(0, 0, 0, 0, outline=panel_border, width=1, fill=panel, tags="viz_main"),
             "cross_v": c.create_line(0, 0, 0, 0, fill=cross, width=1, tags="viz_main"),
             "cross_h": c.create_line(0, 0, 0, 0, fill=cross, width=1, tags="viz_main"),
-            "ring": c.create_oval(
-                0, 0, 0, 0, outline=ring_col, width=2, fill="", tags="viz_main"
-            ),
+            "ring": c.create_oval(0, 0, 0, 0, outline=ring_col, width=2, fill="", tags="viz_main"),
             "dot": c.create_oval(0, 0, 0, 0, fill=dot, outline=dot, tags="viz_main"),
             "blink_track": c.create_rectangle(
                 0,
@@ -112,9 +106,7 @@ class OutputVisualizer:
             "brow_track": c.create_rectangle(
                 0, 0, 0, 0, outline=track_border, width=1, fill=track_fill, tags="viz_main"
             ),
-            "brow_bar": c.create_rectangle(
-                0, 0, 0, 0, fill=brow_fill_col, outline="", tags="viz_main", state="hidden"
-            ),
+            "brow_bar": c.create_rectangle(0, 0, 0, 0, fill=brow_fill_col, outline="", tags="viz_main", state="hidden"),
             "tick_brow_t": c.create_line(0, 0, 0, 0, fill=tick, width=1, tags="viz_main"),
             "tick_brow_b": c.create_line(0, 0, 0, 0, fill=tick, width=1, tags="viz_main"),
         }

@@ -121,15 +121,11 @@ class PyVRCFTSender:
         if self.client is None:
             return
         eye_id, eye_info = osc_message.data
-        self.is_single_eye = VRChatOSCSender.get_is_single_eye(
-            main_config.eye_display_id
-        )
+        self.is_single_eye = VRChatOSCSender.get_is_single_eye(main_config.eye_display_id)
 
         # eye_info.blink is openness (1 = open, 0 = closed); mirror the eyelid
         # inversion setting the other modes apply via _eyelid_transformer.
-        openness = (
-            1.0 - eye_info.blink if config.osc_invert_eye_close else eye_info.blink
-        )
+        openness = 1.0 - eye_info.blink if config.osc_invert_eye_close else eye_info.blink
         squeeze = eye_info.squeeze
 
         if self.is_single_eye:

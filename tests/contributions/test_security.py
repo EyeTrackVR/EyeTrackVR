@@ -1,4 +1,5 @@
 """Adversarial receipt-storage and verification IPC checks; fake secrets only."""
+
 import json
 import os
 from pathlib import Path
@@ -14,10 +15,18 @@ from contributions.verification import verified_reply
 
 
 def test_verification_ignores_malformed_or_unauthenticated_local_replies():
-    for result in (None, [], "text", 42, {}, {"nonce": 7}, {"nonce": "é"},
-                   {"nonce": "wrong", "token": "fixture-token"},
-                   {"nonce": "expected", "token": []},
-                   {"nonce": "expected", "token": "x" * 2049}):
+    for result in (
+        None,
+        [],
+        "text",
+        42,
+        {},
+        {"nonce": 7},
+        {"nonce": "é"},
+        {"nonce": "wrong", "token": "fixture-token"},
+        {"nonce": "expected", "token": []},
+        {"nonce": "expected", "token": "x" * 2049},
+    ):
         assert verified_reply(result, "expected") is None
     assert verified_reply({"nonce": "expected", "token": "fixture-token"}, "expected") == "fixture-token"
 
@@ -44,8 +53,10 @@ def test_receipt_export_does_not_inherit_shared_folder_read_access(tmp_path):
 def test_receipt_permissions_failure_does_not_replace_or_leak_secret(tmp_path, monkeypatch):
     receipt = tmp_path / "backup.json"
     receipt.write_text("existing")
+
     def fail(*args, **kwargs):
         raise OSError("Synthetic permission failure")
+
     monkeypatch.setattr("contributions.client.restrict_access", fail)
     with pytest.raises(OSError):
         save(receipt, {"withdrawal_token": "fixture-secret-must-not-be-written"})

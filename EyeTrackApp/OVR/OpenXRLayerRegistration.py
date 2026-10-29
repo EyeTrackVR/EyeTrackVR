@@ -171,14 +171,15 @@ def sync_quietly(enabled: bool) -> str | None:
     """sync() for app code paths: never raises."""
     try:
         status = sync(enabled)
-    except Exception:  # noqa: an OpenXR config problem must never break the app
+    except Exception:  # an OpenXR config problem must never break the app
         logger.exception("OpenXR layer registration failed")
         return None
     if enabled and status == NO_LAYER:
         logger.warning(
             "OpenXR eye gaze layer not installed: no built layer found%s",
-            "" if getattr(sys, "frozen", False)
+            ""
+            if getattr(sys, "frozen", False)
             else " (running from source: build it with `cmake -S openxr_layer -B build/openxr_layer"
-                 " && cmake --build build/openxr_layer --config Release`)",
+            " && cmake --build build/openxr_layer --config Release`)",
         )
     return status

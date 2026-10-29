@@ -1,9 +1,14 @@
 import importlib.util
+import os
+import subprocess
 import sys
+import threading
 import types
 import unittest
 from pathlib import Path
 from unittest.mock import Mock, patch
+
+import pytest
 
 
 class FakeApplicationError(Exception):
@@ -17,16 +22,10 @@ def _load_openvr_service_module():
     fake_openvr.shutdown = Mock()
     fake_openvr.IVRApplications = Mock()
     fake_openvr.error_code = types.SimpleNamespace(
-        InitError_Init_NoServerForBackgroundApp=type(
-            "InitError_Init_NoServerForBackgroundApp", (Exception,), {}
-        ),
+        InitError_Init_NoServerForBackgroundApp=type("InitError_Init_NoServerForBackgroundApp", (Exception,), {}),
         InitError_Init_HmdNotFound=type("InitError_Init_HmdNotFound", (Exception,), {}),
-        InitError_Init_HmdNotFoundPresenceFailed=type(
-            "InitError_Init_HmdNotFoundPresenceFailed", (Exception,), {}
-        ),
-        InitError_Init_PathRegistryNotFound=type(
-            "InitError_Init_PathRegistryNotFound", (Exception,), {}
-        ),
+        InitError_Init_HmdNotFoundPresenceFailed=type("InitError_Init_HmdNotFoundPresenceFailed", (Exception,), {}),
+        InitError_Init_PathRegistryNotFound=type("InitError_Init_PathRegistryNotFound", (Exception,), {}),
     )
 
     fake_colorama = types.ModuleType("colorama")
@@ -91,12 +90,6 @@ if __name__ == "__main__":
 
 
 # --- SteamVR start/stop robustness -------------------------------------------------
-import os
-import subprocess
-import threading
-import time
-
-import pytest
 
 
 class _KeyTaken(Exception):
@@ -143,7 +136,8 @@ def test_registration_from_another_install_is_replaced(ovr, monkeypatch, tmp_pat
     monkeypatch.setattr(ovr, "_app_dir", lambda: str(new_dir))
     service.app.isApplicationInstalled.return_value = True
     service.app.getApplicationPropertyString.side_effect = lambda key, prop: (
-        str(old_dir / "EyeTrackApp.exe") if prop == "binary" else "")
+        str(old_dir / "EyeTrackApp.exe") if prop == "binary" else ""
+    )
     service._register_connected()
     service.app.removeApplicationManifest.assert_called_once_with(str(old_dir / "app.vrmanifest"))
     service.app.addApplicationManifest.assert_called_once()
@@ -170,8 +164,7 @@ def test_manifest_left_next_to_the_app_is_unregistered(ovr, monkeypatch, tmp_pat
     monkeypatch.setattr(ovr, "_USER_DATA_DIR", str(tmp_path / "config"))
     service = _connected(ovr)
     service.app.isApplicationInstalled.return_value = True
-    service.app.getApplicationPropertyString.side_effect = lambda key, prop: (
-        binary if prop == "binary" else "")
+    service.app.getApplicationPropertyString.side_effect = lambda key, prop: binary if prop == "binary" else ""
     service._register_connected()
     service.app.removeApplicationManifest.assert_called_once_with(str(install_dir / "app.vrmanifest"))
     service.app.addApplicationManifest.assert_called_once_with(str(tmp_path / "config" / "app.vrmanifest"))
@@ -191,7 +184,9 @@ def test_turning_off_auto_launch_also_removes_the_old_manifest(ovr, monkeypatch,
     service._unregister()
     service.app.setApplicationAutoLaunch.assert_called_once_with(service.appKey, False)
     assert [c.args[0] for c in service.app.removeApplicationManifest.call_args_list] == [
-        str(config_dir / "app.vrmanifest"), str(install_dir / "app.vrmanifest")]
+        str(config_dir / "app.vrmanifest"),
+        str(install_dir / "app.vrmanifest"),
+    ]
     assert not (install_dir / "app.vrmanifest").exists()
     assert not (config_dir / "app.vrmanifest").exists()
 
@@ -201,7 +196,8 @@ def test_same_install_is_not_removed(ovr, monkeypatch):
     monkeypatch.setattr(ovr, "_launch_target", lambda: (r"C:\app\EyeTrackApp.exe", ""))
     service.app.isApplicationInstalled.return_value = True
     service.app.getApplicationPropertyString.side_effect = lambda key, prop: (
-        r"C:\app\EyeTrackApp.exe" if prop == "binary" else "")
+        r"C:\app\EyeTrackApp.exe" if prop == "binary" else ""
+    )
     service._register_connected()
     service.app.removeApplicationManifest.assert_not_called()
 
@@ -221,9 +217,11 @@ def test_quit_event_is_acknowledged_before_exit(ovr):
     service._next_liveness = float("inf")
     system = Mock()
     events = iter([True, False])
+
     def poll(event):
         event.eventType = ovr.openvr.VREvent_Quit
         return next(events)
+
     system.pollNextEvent.side_effect = poll
     ovr.openvr.VRSystem = Mock(return_value=system)
     ovr.openvr.VREvent_t = lambda: type("Event", (), {})()
@@ -252,10 +250,12 @@ def test_steamvr_started_later_connects_in_background_and_registers(ovr, monkeyp
     service.write_manifest = Mock()
     started = []
     real_thread = threading.Thread
+
     def thread(*args, **kwargs):
         t = real_thread(*args, **kwargs)
         started.append(t)
         return t
+
     monkeypatch.setattr(ovr.threading, "Thread", thread)
     assert service.poll_quit_event() is False  # never blocks the Tk thread
     started[0].join(5)
@@ -281,21 +281,29 @@ def test_enabling_while_steamvr_closed_is_soft(ovr):
 def test_second_instance_is_refused(tmp_path):
     import sys as _sys
     from pathlib import Path as _Path
+
     app_dir = _Path(__file__).parents[1] / "EyeTrackApp"
     lock = tmp_path / "eyetrackapp.lock"
-    code = ("import sys; sys.path.insert(0, sys.argv[1]); from utils import single_instance; "
-            "print(single_instance.acquire(sys.argv[2]))")
-    holder = subprocess.Popen([_sys.executable, "-u", "-c", code + "; import time; time.sleep(3)", str(app_dir), str(lock)],
-                              stdout=subprocess.PIPE, text=True)
+    code = (
+        "import sys; sys.path.insert(0, sys.argv[1]); from utils import single_instance; "
+        "print(single_instance.acquire(sys.argv[2]))"
+    )
+    holder = subprocess.Popen(
+        [_sys.executable, "-u", "-c", code + "; import time; time.sleep(3)", str(app_dir), str(lock)],
+        stdout=subprocess.PIPE,
+        text=True,
+    )
     try:
         assert holder.stdout.readline().strip() == "True"
-        second = subprocess.run([_sys.executable, "-c", code, str(app_dir), str(lock)],
-                                capture_output=True, text=True, timeout=30)
+        second = subprocess.run(
+            [_sys.executable, "-c", code, str(app_dir), str(lock)], capture_output=True, text=True, timeout=30
+        )
         assert second.stdout.strip() == "False"
     finally:
         holder.kill()
         holder.wait()
     # The OS releases the lock with the process: the next start is never blocked.
-    third = subprocess.run([_sys.executable, "-c", code, str(app_dir), str(lock)],
-                           capture_output=True, text=True, timeout=30)
+    third = subprocess.run(
+        [_sys.executable, "-c", code, str(app_dir), str(lock)], capture_output=True, text=True, timeout=30
+    )
     assert third.stdout.strip() == "True"

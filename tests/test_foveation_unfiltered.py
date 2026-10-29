@@ -94,10 +94,17 @@ def _next_processor(**settings):
     processor = EyeProcessor.__new__(EyeProcessor)
     processor.eye_id = settings.pop("eye_id", EyeId.LEFT)
     defaults = dict(
-        gui_NEXT_calib_lids_brows=False, gui_flip_x_axis_left=False, gui_flip_x_axis_right=False,
-        gui_flip_y_axis=False, gui_recenter_eyes=False, gui_NEXT=True, gui_NEXT_BSB=False,
-        leap_lid_close_threshold_left=0.1, leap_lid_widen_threshold_left=0.9,
-        leap_lid_close_threshold_right=0.1, leap_lid_widen_threshold_right=0.9,
+        gui_NEXT_calib_lids_brows=False,
+        gui_flip_x_axis_left=False,
+        gui_flip_x_axis_right=False,
+        gui_flip_y_axis=False,
+        gui_recenter_eyes=False,
+        gui_NEXT=True,
+        gui_NEXT_BSB=False,
+        leap_lid_close_threshold_left=0.1,
+        leap_lid_widen_threshold_left=0.9,
+        leap_lid_close_threshold_right=0.1,
+        leap_lid_widen_threshold_right=0.9,
     )
     processor.settings = SimpleNamespace(**{**defaults, **settings})
     processor.config = SimpleNamespace(next_classic_calibration_active=False)
@@ -173,12 +180,21 @@ def test_classic_dfr_gaze_skips_the_one_euro_filter(monkeypatch, eyetrack_settin
     settings.gui_flip_x_axis_left = False
     settings.gui_flip_x_axis_right = False
     config = EyeTrackCameraConfig(
-        calib_evecs=[[1.0, 0.0], [0.0, 1.0]], calib_axes=[20.0, 15.0], calib_XOFF=100.0, calib_YOFF=100.0,
+        calib_evecs=[[1.0, 0.0], [0.0, 1.0]],
+        calib_axes=[20.0, 15.0],
+        calib_XOFF=100.0,
+        calib_YOFF=100.0,
     )
     processor = SimpleNamespace(
-        settings=settings, config=config, cal=CalibrationEllipse(), eye_id=EyeId.LEFT,
-        calibration_start_time=None, should_print_calibration_warning=False,
-        _recenter_armed_at=None, _recenter_delay_s=0.2, baseconfig=SimpleNamespace(save=lambda: None),
+        settings=settings,
+        config=config,
+        cal=CalibrationEllipse(),
+        eye_id=EyeId.LEFT,
+        calibration_start_time=None,
+        should_print_calibration_warning=False,
+        _recenter_armed_at=None,
+        _recenter_delay_s=0.2,
+        baseconfig=SimpleNamespace(save=lambda: None),
         one_euro_filter=_HalvingFilter(2),
     )
     monkeypatch.setattr(calibration.TrackingLogger, "get", lambda: None)
@@ -206,8 +222,9 @@ def sender(monkeypatch):
     s = FoveationGazeSender()
     client = SimpleNamespace(messages=[])
     client.send_message = lambda address, value: client.messages.append(value)
-    config = SimpleNamespace(gui_gaze_yaw_max_deg=40.0, gui_gaze_pitch_up_deg=15.0,
-                             gui_gaze_pitch_down_deg=40.0, osc_invert_eye_close=False)
+    config = SimpleNamespace(
+        gui_gaze_yaw_max_deg=40.0, gui_gaze_pitch_up_deg=15.0, gui_gaze_pitch_down_deg=40.0, osc_invert_eye_close=False
+    )
     s.start(config, client)
     yield s, client, config
     s.stop()

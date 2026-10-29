@@ -38,13 +38,12 @@ from queue import Empty, Full, Queue
 import threading
 from config import EyeTrackCameraConfig, EyeTrackConfig
 from one_euro_filter import OneEuroFilter
-
-logger = logging.getLogger(__name__)
-import psutil
 from utils.misc_utils import resource_path
 from pathlib import Path
 import sys
 from utils.onnx_runtime import DML_INFERENCE_LOCK
+
+logger = logging.getLogger(__name__)
 
 os.environ["OMP_NUM_THREADS"] = (
     "1"  # on slower systems this can cause issues due to slow single core perf. in such cases, it is better to use GPU compute
@@ -91,11 +90,7 @@ def run_model(input_queue, output_queue, session):
         else:
             img_np = np.asarray(frame, dtype=np.float32)
             img_np *= 1.0 / 255.0
-            gray_img = (
-                0.299 * img_np[:, :, 0]
-                + 0.587 * img_np[:, :, 1]
-                + 0.114 * img_np[:, :, 2]
-            )
+            gray_img = 0.299 * img_np[:, :, 0] + 0.587 * img_np[:, :, 1] + 0.114 * img_np[:, :, 2]
 
         gray_img = np.expand_dims(np.expand_dims(gray_img, axis=0), axis=0)
 
@@ -123,9 +118,7 @@ class LEAP_C:
         # increments (user pressed "Redo Eyelid Calib"), we reset the sampling
         # window on the next frame. Initialised from the stored value so a
         # restart doesn't trigger a spurious recalibration.
-        self._seen_calib_request_seq = int(
-            getattr(eye_config, "leap_calib_request_seq", 0)
-        )
+        self._seen_calib_request_seq = int(getattr(eye_config, "leap_calib_request_seq", 0))
         self.current_image_gray = None
         self.current_image_gray_clean = None
         onnxruntime.disable_telemetry_events()
@@ -135,9 +128,7 @@ class LEAP_C:
 
         self.print_fps = False
         self.frames = 0
-        self.queues = [
-            Queue(maxsize=self.queue_max_size) for _ in range(self.num_threads)
-        ]
+        self.queues = [Queue(maxsize=self.queue_max_size) for _ in range(self.num_threads)]
         self.threads = []
         self.model_output = np.zeros((12, 2))
         self.output_queue = Queue(maxsize=self.queue_max_size)
@@ -146,14 +137,10 @@ class LEAP_C:
         opts = onnxruntime.SessionOptions()
         opts.inter_op_num_threads = 1
         opts.intra_op_num_threads = 1
-        opts.graph_optimization_level = (
-            onnxruntime.GraphOptimizationLevel.ORT_ENABLE_ALL
-        )
+        opts.graph_optimization_level = onnxruntime.GraphOptimizationLevel.ORT_ENABLE_ALL
         opts.enable_mem_pattern = False
 
-        self.one_euro_filter_float = OneEuroFilter(
-            np.random.rand(1, 2), min_cutoff=0.0004, beta=0.9
-        )
+        self.one_euro_filter_float = OneEuroFilter(np.random.rand(1, 2), min_cutoff=0.0004, beta=0.9)
         self.dmax = 0
         self.dmin = 0
         # Lid-calibration sampling window. The timer below is what actually
@@ -161,11 +148,7 @@ class LEAP_C:
         # grow without bound (and drag per-frame percentile cost with it)
         # even if the completion check is somehow prevented from firing.
         # Sized for ~130 fps over the configured collection duration.
-        self.openlist = deque(
-            maxlen=max(
-                2000, int(float(config.settings.leap_calibration_duration) * 130)
-            )
-        )
+        self.openlist = deque(maxlen=max(2000, int(float(config.settings.leap_calibration_duration) * 130)))
         # perf_counter timestamp when the current lid-calibration collection
         # window opened; 0.0 means "start a new window on the next frame".
         # LEAP owns this timer: it used to be overwritten every frame with the
@@ -187,9 +170,7 @@ class LEAP_C:
 
         self.eye_config: EyeTrackCameraConfig = eye_config
         self.config: EyeTrackConfig = config
-        self.ort_session_cpu = onnxruntime.InferenceSession(
-            self.model_path, opts, providers=["CPUExecutionProvider"]
-        )
+        self.ort_session_cpu = onnxruntime.InferenceSession(self.model_path, opts, providers=["CPUExecutionProvider"])
 
         available_providers = onnxruntime.get_available_providers()
         preferred_order = [
@@ -301,9 +282,7 @@ class LEAP_C:
                 self.eye_config.leap_lid_metric_version = LEAP_LID_METRIC_VERSION
                 self.eye_config.leap_calibrated = False
 
-            current_seq = int(
-                getattr(self.eye_config, "leap_calib_request_seq", 0)
-            )
+            current_seq = int(getattr(self.eye_config, "leap_calib_request_seq", 0))
             if current_seq != self._seen_calib_request_seq:
                 # User requested a fresh calibration from the settings UI.
                 self._seen_calib_request_seq = current_seq
@@ -311,9 +290,7 @@ class LEAP_C:
                 self.eye_config.leap_calibrated = False
                 self.eye_config.leap_calibration_percentile_90 = 0
                 self.eye_config.leap_calibration_percentile_2 = 0
-                eye_name = (
-                    "Left" if self.eye_config is self.config.left_eye else "Right"
-                )
+                eye_name = "Left" if self.eye_config is self.config.left_eye else "Right"
                 logger.info("%s eye LEAP lid calibration restart requested", eye_name)
 
             d1 = math.dist(pre_landmark[1], pre_landmark[3])
@@ -329,39 +306,26 @@ class LEAP_C:
                     self._closed_percentile = 0.8
                 self.openlist.append(d)
                 now = time.time()
-                decision_due = (
-                    now - self._calib_start
-                    >= self.config.settings.leap_calibration_duration
-                )
+                decision_due = now - self._calib_start >= self.config.settings.leap_calibration_duration
                 # np.percentile over the whole window is O(n) per call, so
                 # refresh at most twice a second (and always right before the
                 # accept/reject decision) instead of every frame.
                 if decision_due or now - self._last_percentile_refresh >= 0.5:
                     self._last_percentile_refresh = now
                     if len(self.openlist) >= 10:
-                        self._open_percentile = float(
-                            np.percentile(self.openlist, 90)
-                        )
-                        self._closed_percentile = float(
-                            np.percentile(self.openlist, 2)
-                        )
+                        self._open_percentile = float(np.percentile(self.openlist, 90))
+                        self._closed_percentile = float(np.percentile(self.openlist, 2))
                     else:
                         self._open_percentile = 0.8
                         self._closed_percentile = 0.8
-                    self.eye_config.leap_calibration_percentile_90 = (
-                        self._open_percentile
-                    )
-                    self.eye_config.leap_calibration_percentile_2 = (
-                        self._closed_percentile - self._open_percentile
-                    )
+                    self.eye_config.leap_calibration_percentile_90 = self._open_percentile
+                    self.eye_config.leap_calibration_percentile_2 = self._closed_percentile - self._open_percentile
                 open_percentile = self._open_percentile
                 closed_percentile = self._closed_percentile
                 calibration_span = open_percentile - closed_percentile
                 if decision_due:
                     min_span = float(self.config.settings.leap_lid_min_calibration_span)
-                    eye_name = (
-                        "Left" if self.eye_config is self.config.left_eye else "Right"
-                    )
+                    eye_name = "Left" if self.eye_config is self.config.left_eye else "Right"
                     sample_count = len(self.openlist)
                     if calibration_span >= min_span:
                         self.eye_config.leap_calibrated = True

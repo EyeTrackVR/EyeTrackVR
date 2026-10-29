@@ -113,8 +113,13 @@ def test_manager_resolves_auto_and_keeps_typed_addresses(manager, monkeypatch):
 
 def test_watcher_restarts_the_sender_only_when_the_pc_changes(manager, monkeypatch):
     m, _settings, restarts, osc_mod = manager
-    answers = iter([("10.0.0.79", "Steam remote play"), ("10.0.0.79", "Steam remote play"),
-                    ("10.86.200.234", "Steam Link VR session")])
+    answers = iter(
+        [
+            ("10.0.0.79", "Steam remote play"),
+            ("10.0.0.79", "Steam remote play"),
+            ("10.86.200.234", "Steam Link VR session"),
+        ]
+    )
     m._auto_address = "10.0.0.79"
 
     def resolve(use_mdns=True):

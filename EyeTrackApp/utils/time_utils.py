@@ -54,9 +54,7 @@ class TimeitResult(object):
     @property
     def stdev(self):
         mean = self.average
-        return (
-            math.fsum([(x - mean) ** 2 for x in self.timings]) / len(self.timings)
-        ) ** 0.5
+        return (math.fsum([(x - mean) ** 2 for x in self.timings]) / len(self.timings)) ** 0.5
 
     def __str__(self):
         pm = "+-"
@@ -64,7 +62,7 @@ class TimeitResult(object):
             try:
                 "\xb1".encode(sys.stdout.encoding)
                 pm = "\xb1"
-            except:
+            except UnicodeError:
                 pass
         return "min:{best} max:{worst} mean:{mean} {pm} {std} per loop (mean {pm} std. dev. of {runs} run{run_plural}, {loops:,} loop{loop_plural} each)".format(
             pm=pm,
@@ -113,7 +111,7 @@ class FPSResult(object):
             try:
                 "\xb1".encode(sys.stdout.encoding)
                 pm = "\xb1"
-            except:
+            except UnicodeError:
                 pass
         return "min:{best} max:{worst} mean:{mean} {pm} {std} per loop (mean {pm} std. dev. of {runs} run{run_plural}, {loops:,} loop{loop_plural} each)".format(
             pm=pm,
@@ -163,7 +161,7 @@ def format_time(timespan, precision=3):
         try:
             "\xb5".encode(sys.stdout.encoding)
             units = ["s", "ms", "\xb5s", "ns"]
-        except:
+        except UnicodeError:
             pass
     scaling = [1, 1e3, 1e6, 1e9]
 

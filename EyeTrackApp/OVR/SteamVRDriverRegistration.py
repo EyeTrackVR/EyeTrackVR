@@ -143,15 +143,16 @@ def sync_quietly(enabled: bool) -> str | None:
     """sync() for app code paths: never raises."""
     try:
         status = sync(enabled)
-    except Exception:  # noqa: a SteamVR config problem must never break the app
+    except Exception:  # a SteamVR config problem must never break the app
         logger.exception("SteamVR driver registration failed")
         return None
     if enabled and status == NO_DRIVER:
         logger.warning(
             "SteamVR driver not registered: no built driver found%s",
-            "" if getattr(sys, "frozen", False)
+            ""
+            if getattr(sys, "frozen", False)
             else " (running from source: build it with `cmake -S steamvr_driver -B build/steamvr_driver"
-                 " && cmake --build build/steamvr_driver --config Release`)",
+            " && cmake --build build/steamvr_driver --config Release`)",
         )
     elif enabled and status == NO_STEAMVR:
         logger.info("SteamVR driver not registered: %s", status)

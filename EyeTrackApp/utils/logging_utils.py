@@ -54,9 +54,7 @@ def _prune_old_logs(log_dir: Path) -> None:
             try:
                 path.unlink()
             except OSError:
-                logging.getLogger(__name__).debug(
-                    "Could not remove old log file: %s", path, exc_info=True
-                )
+                logging.getLogger(__name__).debug("Could not remove old log file: %s", path, exc_info=True)
 
 
 def _install_exception_hooks(logger: logging.Logger) -> None:
@@ -64,13 +62,12 @@ def _install_exception_hooks(logger: logging.Logger) -> None:
         if issubclass(exc_type, KeyboardInterrupt):
             sys.__excepthook__(exc_type, exc_value, exc_traceback)
             return
-        logger.critical(
-            "Unhandled exception", exc_info=(exc_type, exc_value, exc_traceback)
-        )
+        logger.critical("Unhandled exception", exc_info=(exc_type, exc_value, exc_traceback))
 
     sys.excepthook = handle_exception
 
     if hasattr(threading, "excepthook"):
+
         def handle_thread_exception(args):
             logger.critical(
                 "Unhandled thread exception in %s",
@@ -121,11 +118,7 @@ def setup_logging(app_name: str = "EyeTrackApp") -> Path:
         encoding="utf-8",
     )
     file_handler.setLevel(logging.DEBUG)
-    file_handler.setFormatter(
-        logging.Formatter(
-            "%(asctime)s %(levelname)-8s [%(threadName)s] %(name)s: %(message)s"
-        )
-    )
+    file_handler.setFormatter(logging.Formatter("%(asctime)s %(levelname)-8s [%(threadName)s] %(name)s: %(message)s"))
 
     root_logger.addHandler(file_handler)
 
@@ -193,11 +186,19 @@ class TrackingLogger:
 
     SENTINEL = "enable_tracking_log"
     COLUMNS = [
-        "t", "eye", "cx", "cy",
-        "cal_x", "cal_y",
-        "out_x", "out_y",
-        "snap", "hold_f", "drift",
-        "kp_noise", "velocity",
+        "t",
+        "eye",
+        "cx",
+        "cy",
+        "cal_x",
+        "cal_y",
+        "out_x",
+        "out_y",
+        "snap",
+        "hold_f",
+        "drift",
+        "kp_noise",
+        "velocity",
         "latch",
     ]
 
@@ -220,9 +221,7 @@ class TrackingLogger:
                     ts = datetime.now().strftime("%Y%m%d-%H%M%S")
                     path = log_directory() / f"tracking-{ts}.csv"
                     cls._instance = cls(path)
-                    logging.getLogger(__name__).info(
-                        "Tracking CSV logger active: %s", path
-                    )
+                    logging.getLogger(__name__).info("Tracking CSV logger active: %s", path)
                 return cls._instance
             else:
                 if cls._instance is not None:
@@ -231,9 +230,7 @@ class TrackingLogger:
                         cls._instance._file.close()
                     except OSError:
                         pass
-                    logging.getLogger(__name__).info(
-                        "Tracking CSV logger stopped: %s", cls._instance._path
-                    )
+                    logging.getLogger(__name__).info("Tracking CSV logger stopped: %s", cls._instance._path)
                     cls._instance = None
                 return None
 
@@ -255,13 +252,19 @@ class TrackingLogger:
         latch: str,
     ) -> None:
         row = [
-            f"{t:.4f}", eye,
-            f"{cx:.2f}", f"{cy:.2f}",
-            f"{cal_x:.4f}", f"{cal_y:.4f}",
-            f"{out_x:.4f}", f"{out_y:.4f}",
-            "1" if snap else "0", hold_f,
+            f"{t:.4f}",
+            eye,
+            f"{cx:.2f}",
+            f"{cy:.2f}",
+            f"{cal_x:.4f}",
+            f"{cal_y:.4f}",
+            f"{out_x:.4f}",
+            f"{out_y:.4f}",
+            "1" if snap else "0",
+            hold_f,
             f"{drift:.3f}",
-            f"{kp_noise:.4f}", f"{velocity:.4f}",
+            f"{kp_noise:.4f}",
+            f"{velocity:.4f}",
             latch,
         ]
         with self._write_lock:
@@ -281,16 +284,12 @@ def open_logs() -> None:
     if sys.platform.startswith("win"):
         try:
             if current is not None and current.exists():
-                subprocess.Popen(
-                    ["explorer", "/select,", str(current)], close_fds=True
-                )
+                subprocess.Popen(["explorer", "/select,", str(current)], close_fds=True)
             else:
                 os.startfile(str(log_dir))  # type: ignore[attr-defined]
             return
         except OSError:
-            logging.getLogger(__name__).warning(
-                "Failed to open log folder with Explorer", exc_info=True
-            )
+            logging.getLogger(__name__).warning("Failed to open log folder with Explorer", exc_info=True)
 
     if sys.platform == "darwin":
         try:
@@ -300,13 +299,9 @@ def open_logs() -> None:
                 subprocess.Popen(["open", str(log_dir)], close_fds=True)
             return
         except OSError:
-            logging.getLogger(__name__).warning(
-                "Failed to open log folder with `open`", exc_info=True
-            )
+            logging.getLogger(__name__).warning("Failed to open log folder with `open`", exc_info=True)
 
     try:
         subprocess.Popen(["xdg-open", str(log_dir)], close_fds=True)
     except OSError:
-        logging.getLogger(__name__).warning(
-            "Failed to open log folder with xdg-open", exc_info=True
-        )
+        logging.getLogger(__name__).warning("Failed to open log folder with xdg-open", exc_info=True)

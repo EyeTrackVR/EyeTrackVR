@@ -28,17 +28,16 @@ import logging
 import tkinter as tk
 from tkinter import ttk
 from config import EyeTrackConfig
-from collections import deque
 from threading import Event, Lock, Thread
 import math
 import time
 from eye import EyeId, EyeInfo
-from eye_processor import EyeProcessor, EyeInfoOrigin
+from eye_processor import EyeProcessor
 from queue import Queue, Empty
 from camera import Camera, CameraState
 from frame_eye import frame_eye_service, is_frame_capture_source
 import cv2
-from osc.OSCMessage import OSCMessageType, OSCMessage
+from osc.OSCMessage import OSCMessage
 from utils.misc_utils import PlaySound, SND_FILENAME, SND_ASYNC, resource_path
 from utils.img_utils import tk_photo_from_rgb
 from localization import tr
@@ -84,9 +83,7 @@ class CameraWidget:
         elif self.eye_id == EyeId.LEFT:
             self.config = main_config.left_eye
         else:
-            raise RuntimeError(
-                "\033[91m[WARN] Cannot have a camera widget represent both eyes!\033[0m"
-            )
+            raise RuntimeError("\033[91m[WARN] Cannot have a camera widget represent both eyes!\033[0m")
 
         self.cancellation_event = Event()
         # Set the event until start is called, otherwise we can block if shutdown is called.
@@ -169,7 +166,7 @@ class CameraWidget:
         self._eye_preview_photo = None
         # 'new' while drawing a fresh box; a handle id ('tl','tr','bl','br','t','b','l','r') while resizing
         self._drag_handle = "new"
-        self._resize_anchor = None   # fixed corner (np.array) for corner drags
+        self._resize_anchor = None  # fixed corner (np.array) for corner drags
         self._resize_edge_state = None  # (x0,x1,y_fixed) or (y0,y1,x_fixed) for edge drags
         self.camera_thread: Thread | None = None
         self.tracking_thread: Thread | None = None
@@ -198,12 +195,8 @@ class CameraWidget:
             self.camera_addr_var = tk.StringVar(
                 value="" if initial_source is None or initial_source == "" else str(initial_source)
             )
-            ttk.Entry(top_row, textvariable=self.camera_addr_var, width=36).pack(
-                side="left", padx=8
-            )
-            ttk.Button(
-                top_row, text=tr("camera.save_restart"), command=self._save_tracking
-            ).pack(side="left", padx=8)
+            ttk.Entry(top_row, textvariable=self.camera_addr_var, width=36).pack(side="left", padx=8)
+            ttk.Button(top_row, text=tr("camera.save_restart"), command=self._save_tracking).pack(side="left", padx=8)
 
         # Tracking/Cropping mode buttons are now global (one pair in
         # eyetrackapp.py drives both eyes together) instead of per-eye.
@@ -229,12 +222,8 @@ class CameraWidget:
         #   fps     - "120 Fps"     (7 chars)
         #   latency - "999 ms lat"  (10 chars)
         ttk.Label(status_row, textvariable=self.mode_var, anchor="w").pack(side="left")
-        ttk.Label(status_row, textvariable=self.fps_var, width=8, anchor="w").pack(
-            side="left", padx=(4, 0)
-        )
-        ttk.Label(status_row, textvariable=self.latency_var, width=11, anchor="w").pack(
-            side="left", padx=(4, 0)
-        )
+        ttk.Label(status_row, textvariable=self.fps_var, width=8, anchor="w").pack(side="left", padx=(4, 0))
+        ttk.Label(status_row, textvariable=self.latency_var, width=11, anchor="w").pack(side="left", padx=(4, 0))
 
         # Source stack from processor is 300×150; compact display for dual-eye layout
         self._tracking_display_size = (round(380 * dpi_scale), round(190 * dpi_scale))
@@ -314,36 +303,26 @@ class CameraWidget:
             orient="horizontal",
             length=round(160 * dpi_scale),
         ).pack(side="left", padx=8)
-        self.rotation_readout_var = tk.StringVar(
-            value=str(int(self.rotation_var.get()))
-        )
+        self.rotation_readout_var = tk.StringVar(value=str(int(self.rotation_var.get())))
 
         def sync_rotation_readout(*_args):
-            self.rotation_readout_var.set(
-                str(int(round(float(self.rotation_var.get()))))
-            )
+            self.rotation_readout_var.set(str(int(round(float(self.rotation_var.get())))))
 
         def bump_rotation(delta):
             next_val = int(round(float(self.rotation_var.get()))) + delta
             next_val = max(0, min(360, next_val))
             self.rotation_var.set(next_val)
 
-        ttk.Button(
-            roi_controls, text="-", width=2, command=lambda: bump_rotation(-1)
-        ).pack(side="left", padx=(4, 2))
+        ttk.Button(roi_controls, text="-", width=2, command=lambda: bump_rotation(-1)).pack(side="left", padx=(4, 2))
         ttk.Label(
             roi_controls,
             textvariable=self.rotation_readout_var,
             width=6,
             anchor="center",
         ).pack(side="left", padx=2)
-        ttk.Button(
-            roi_controls, text="+", width=2, command=lambda: bump_rotation(1)
-        ).pack(side="left", padx=(2, 8))
+        ttk.Button(roi_controls, text="+", width=2, command=lambda: bump_rotation(1)).pack(side="left", padx=(2, 8))
         self.rotation_var.trace_add("write", sync_rotation_readout)
-        self.padding_var = tk.BooleanVar(
-            value=bool(self.config.gui_rotation_ui_padding)
-        )
+        self.padding_var = tk.BooleanVar(value=bool(self.config.gui_rotation_ui_padding))
         roi_padding_row = ttk.Frame(self.roi_frame)
         roi_padding_row.pack(fill="x", padx=8, pady=(0, 4))
         ttk.Checkbutton(
@@ -356,7 +335,11 @@ class CameraWidget:
         # the first frame arrives. Initial size is a small placeholder ~2x
         # tracking preview so the tab doesn't open with a huge empty box.
         self.roi_canvas = tk.Canvas(
-            self.roi_frame, width=self._ROI_CANVAS_MAX_DIM, height=self._ROI_CANVAS_MAX_DIM // 2, bg="#424042", highlightthickness=0
+            self.roi_frame,
+            width=self._ROI_CANVAS_MAX_DIM,
+            height=self._ROI_CANVAS_MAX_DIM // 2,
+            bg="#424042",
+            highlightthickness=0,
         )
         self.roi_canvas.pack(padx=8, pady=4, anchor="w")
         self.roi_canvas.bind("<ButtonPress-1>", self._on_roi_mouse_down)
@@ -455,9 +438,7 @@ class CameraWidget:
         # Render the current source identically to the initial-value population above so the
         # "no change" comparison handles UVC index 0 (which is falsy in Python) correctly.
         current_source = self.config.capture_source
-        current_str = (
-            "" if current_source is None or current_source == "" else str(current_source)
-        )
+        current_str = "" if current_source is None or current_source == "" else str(current_source)
         if value == current_str:
             return
         try:
@@ -486,15 +467,11 @@ class CameraWidget:
         # camera thread, which can block briefly on close/open. We don't want to freeze the GUI.
         def _apply():
             try:
-                self.main_config.update_eye_model_config(
-                    self.eye_id, {"capture_source": new_source}
-                )
+                self.main_config.update_eye_model_config(self.eye_id, {"capture_source": new_source})
             except Exception as exc:
                 logger.warning("Failed to apply new capture source: %s", exc)
 
-        Thread(
-            target=_apply, daemon=True, name=f"CameraSourceApply-{self.eye_id}"
-        ).start()
+        Thread(target=_apply, daemon=True, name=f"CameraSourceApply-{self.eye_id}").start()
 
     def _stop_calibration(self):
         self.ransac.calibration_start_time = None
@@ -574,16 +551,26 @@ class CameraWidget:
         s = self._roi_display_scale or 1.0
         tol = round(self._dpi_scale * 10)
         x0, y0, x1, y1 = (v * s for v in bbox)
+
         def near(ax, ay):
             return abs(cx - ax) <= tol and abs(cy - ay) <= tol
-        if near(x0, y0): return "tl"
-        if near(x1, y0): return "tr"
-        if near(x0, y1): return "bl"
-        if near(x1, y1): return "br"
-        if abs(cy - y0) <= tol and x0 - tol <= cx <= x1 + tol: return "t"
-        if abs(cy - y1) <= tol and x0 - tol <= cx <= x1 + tol: return "b"
-        if abs(cx - x0) <= tol and y0 - tol <= cy <= y1 + tol: return "l"
-        if abs(cx - x1) <= tol and y0 - tol <= cy <= y1 + tol: return "r"
+
+        if near(x0, y0):
+            return "tl"
+        if near(x1, y0):
+            return "tr"
+        if near(x0, y1):
+            return "bl"
+        if near(x1, y1):
+            return "br"
+        if abs(cy - y0) <= tol and x0 - tol <= cx <= x1 + tol:
+            return "t"
+        if abs(cy - y1) <= tol and x0 - tol <= cx <= x1 + tol:
+            return "b"
+        if abs(cx - x0) <= tol and y0 - tol <= cy <= y1 + tol:
+            return "l"
+        if abs(cx - x1) <= tol and y0 - tol <= cy <= y1 + tol:
+            return "r"
         return None
 
     def _on_roi_mouse_down(self, event):
@@ -676,10 +663,14 @@ class CameraWidget:
             self.hover_pos = None
         handle = self._get_handle_at(event.x, event.y)
         cursors = {
-            "tl": "top_left_corner", "tr": "top_right_corner",
-            "bl": "bottom_left_corner", "br": "bottom_right_corner",
-            "t": "sb_v_double_arrow", "b": "sb_v_double_arrow",
-            "l": "sb_h_double_arrow", "r": "sb_h_double_arrow",
+            "tl": "top_left_corner",
+            "tr": "top_right_corner",
+            "bl": "bottom_left_corner",
+            "br": "bottom_right_corner",
+            "t": "sb_v_double_arrow",
+            "b": "sb_v_double_arrow",
+            "l": "sb_h_double_arrow",
+            "r": "sb_h_double_arrow",
         }
         self.roi_canvas.configure(cursor=cursors.get(handle, "crosshair"))
 
@@ -716,18 +707,11 @@ class CameraWidget:
             return
         roi_center = (self.xy0 + self.xy1) / 2 - self.roi_image_center
         self.cr = np.linalg.norm(roi_center)
-        self.ca = math.atan2(roi_center[Y], roi_center[X]) + math.radians(
-            self.config.rotation_angle
-        )
+        self.ca = math.atan2(roi_center[Y], roi_center[X]) + math.radians(self.config.rotation_angle)
         self.roi_size = np.abs(self.xy1 - self.xy0)
 
     def _polar_to_cartesian_at_angle(self, rotation_angle_radians):
-        if (
-            self.cr is None
-            or self.ca is None
-            or self.roi_size is None
-            or self.roi_image_center is None
-        ):
+        if self.cr is None or self.ca is None or self.roi_size is None or self.roi_image_center is None:
             return (None, None)
         ca = self.ca - rotation_angle_radians
         cx = math.cos(ca) * self.cr + self.roi_image_center[X]
@@ -737,9 +721,7 @@ class CameraWidget:
 
     def _polar_to_cartesian(self):
         if not (self.cr is None or self.ca is None or self.roi_size is None):
-            (self.xy0), (self.xy1) = self._polar_to_cartesian_at_angle(
-                math.radians(self.config.rotation_angle)
-            )
+            (self.xy0), (self.xy1) = self._polar_to_cartesian_at_angle(math.radians(self.config.rotation_angle))
 
     def started(self):
         return not self.cancellation_event.is_set()
@@ -811,18 +793,14 @@ class CameraWidget:
         self.request_stop()
         deadline = time.monotonic() + max(0.0, join_timeout)
         if self.tracking_thread is not None:
-            self.tracking_thread.join(
-                timeout=max(0.0, deadline - time.monotonic())
-            )
+            self.tracking_thread.join(timeout=max(0.0, deadline - time.monotonic()))
             if self.tracking_thread.is_alive():
                 if warn_if_alive:
                     logger.warning("Tracking thread (%s) did not exit within timeout", self.eye_id)
                 self._remember_stale_thread(self.tracking_thread)
             self.tracking_thread = None
         if self.camera_thread is not None:
-            self.camera_thread.join(
-                timeout=max(0.0, deadline - time.monotonic())
-            )
+            self.camera_thread.join(timeout=max(0.0, deadline - time.monotonic()))
             if self.camera_thread.is_alive():
                 if warn_if_alive:
                     logger.warning("Camera thread (%s) did not exit within timeout", self.eye_id)
@@ -870,10 +848,7 @@ class CameraWidget:
         # config.capture_source in place. Persist it to disk here (on the GUI
         # thread, debounced, and only once frames are confirmed flowing) so the
         # rebind survives restarts without the user re-selecting anything.
-        if (
-            getattr(self.camera, "uvc_rebind_pending", False)
-            and self.camera.camera_status == CameraState.CONNECTED
-        ):
+        if getattr(self.camera, "uvc_rebind_pending", False) and self.camera.camera_status == CameraState.CONNECTED:
             self.camera.uvc_rebind_pending = False
             addr_var = getattr(self, "camera_addr_var", None)
             new_source = self.config.capture_source
@@ -889,7 +864,8 @@ class CameraWidget:
             self._schedule_main_config_save()
             logger.info(
                 "Persisted auto-rebound capture source for %s: %s",
-                self.eye_id, new_source,
+                self.eye_id,
+                new_source,
             )
 
         if self.config.rotation_angle != int(self.rotation_var.get()):
@@ -905,9 +881,7 @@ class CameraWidget:
         if changed:
             self._schedule_main_config_save()
 
-        needs_roi_set = (
-            self.config.roi_window_h <= 0 or self.config.roi_window_w <= 0
-        )
+        needs_roi_set = self.config.roi_window_h <= 0 or self.config.roi_window_w <= 0
 
         mode_readout = ""
         fps_readout = ""
@@ -934,7 +908,7 @@ class CameraWidget:
                 mode_readout = tr("camera.status_reconnecting")
         elif needs_roi_set:
             mode_readout = tr("camera.status_awaiting_crop")
-        elif self.ransac.calibration_start_time != None:
+        elif self.ransac.calibration_start_time is not None:
             mode_readout = tr("camera.status_calibration")
         else:
             mode_readout = tr("camera.status_tracking")
@@ -970,9 +944,7 @@ class CameraWidget:
                     img_h, img_w, _ = image.shape
 
                     hyp = math.ceil((img_w**2 + img_h**2) ** 0.5)
-                    rotation_matrix = cv2.getRotationMatrix2D(
-                        ((img_w / 2), (img_h / 2)), self.config.rotation_angle, 1
-                    )
+                    rotation_matrix = cv2.getRotationMatrix2D(((img_w / 2), (img_h / 2)), self.config.rotation_angle, 1)
 
                     x_coords, y_coords = np.matmul(
                         rotation_matrix,
@@ -998,13 +970,9 @@ class CameraWidget:
                     else:
                         self.padded_size = self.clip_size
 
-                    self.img_pos = ((self.padded_size - (img_w, img_h)) / 2).astype(
-                        np.int32
-                    )
+                    self.img_pos = ((self.padded_size - (img_w, img_h)) / 2).astype(np.int32)
 
-                    self.clip_pos = (
-                        (self.padded_size - self.clip_size) / 2
-                    ).astype(np.int32)
+                    self.clip_pos = ((self.padded_size - self.clip_size) / 2).astype(np.int32)
 
                     self.roi_image_center = self.padded_size / 2
 
@@ -1055,9 +1023,7 @@ class CameraWidget:
                         self.roi_canvas.delete("all")
                         self._roi_canvas_image_id = None
                         self._last_roi_padded_size = canvas_size
-                        self.roi_canvas.configure(
-                            width=canvas_size[0], height=canvas_size[1]
-                        )
+                        self.roi_canvas.configure(width=canvas_size[0], height=canvas_size[1])
                     else:
                         self.roi_canvas.delete(self._roi_overlay_tag)
 
@@ -1065,15 +1031,11 @@ class CameraWidget:
                     if photo is not None:
                         self._roi_photo = photo
                         if self._roi_canvas_image_id is None:
-                            self._roi_canvas_image_id = (
-                                self.roi_canvas.create_image(
-                                    0, 0, image=self._roi_photo, anchor="nw"
-                                )
+                            self._roi_canvas_image_id = self.roi_canvas.create_image(
+                                0, 0, image=self._roi_photo, anchor="nw"
                             )
                         else:
-                            self.roi_canvas.itemconfigure(
-                                self._roi_canvas_image_id, image=self._roi_photo
-                            )
+                            self.roi_canvas.itemconfigure(self._roi_canvas_image_id, image=self._roi_photo)
 
                     if self.xy0 is None or self.xy1 is None:
                         # roi_window rotates around roi center, we rotate around image center
@@ -1100,7 +1062,10 @@ class CameraWidget:
                         bx1 = int(max(self.xy0[X], self.xy1[X]) * s)
                         by1 = int(max(self.xy0[Y], self.xy1[Y]) * s)
                         self.roi_canvas.create_rectangle(
-                            bx0, by0, bx1, by1,
+                            bx0,
+                            by0,
+                            bx1,
+                            by1,
                             outline="#7f78ff",
                             tags=self._roi_overlay_tag,
                         )
@@ -1108,24 +1073,40 @@ class CameraWidget:
                         hr = max(3, round(4 * self._dpi_scale))
                         mx, my = (bx0 + bx1) // 2, (by0 + by1) // 2
                         for hx, hy in [
-                            (bx0, by0), (bx1, by0), (bx0, by1), (bx1, by1),
-                            (mx, by0), (mx, by1), (bx0, my), (bx1, my),
+                            (bx0, by0),
+                            (bx1, by0),
+                            (bx0, by1),
+                            (bx1, by1),
+                            (mx, by0),
+                            (mx, by1),
+                            (bx0, my),
+                            (bx1, my),
                         ]:
                             self.roi_canvas.create_rectangle(
-                                hx - hr, hy - hr, hx + hr, hy + hr,
-                                outline="#ffffff", fill="#7f78ff",
+                                hx - hr,
+                                hy - hr,
+                                hx + hr,
+                                hy + hr,
+                                outline="#ffffff",
+                                fill="#7f78ff",
                                 tags=self._roi_overlay_tag,
                             )
                     if self.is_mouse_up and self.hover_pos is not None:
                         hx = int(self.hover_pos[X] * s)
                         hy = int(self.hover_pos[Y] * s)
                         self.roi_canvas.create_line(
-                            hx, 0, hx, canvas_size[1],
+                            hx,
+                            0,
+                            hx,
+                            canvas_size[1],
                             fill="#ffffff",
                             tags=self._roi_overlay_tag,
                         )
                         self.roi_canvas.create_line(
-                            0, hy, canvas_size[0], hy,
+                            0,
+                            hy,
+                            canvas_size[0],
+                            hy,
                             fill="#ffffff",
                             tags=self._roi_overlay_tag,
                         )
@@ -1146,7 +1127,7 @@ class CameraWidget:
 
                 # Always update the small eye preview (left half = processed eye image).
                 _dim = self._preview_dim
-                _eye_img = maybe_image[:, :maybe_image.shape[1] // 2] if maybe_image.ndim == 2 else maybe_image
+                _eye_img = maybe_image[:, : maybe_image.shape[1] // 2] if maybe_image.ndim == 2 else maybe_image
                 _interp = cv2.INTER_AREA if _eye_img.shape[0] > _dim else cv2.INTER_LINEAR
                 _preview = cv2.resize(_eye_img, (_dim, _dim), interpolation=_interp)
                 _preview_photo = self._tk_photo_from_bgr(_preview, self._eye_preview_widget)
@@ -1159,9 +1140,7 @@ class CameraWidget:
                 if self._debug_image_visible != debug_on:
                     self._debug_image_visible = debug_on
                     if debug_on:
-                        self._tracking_image_holder.pack(
-                            padx=4, pady=2, anchor="w", before=self._graph_row
-                        )
+                        self._tracking_image_holder.pack(padx=4, pady=2, anchor="w", before=self._graph_row)
                     else:
                         self._tracking_image_holder.pack_forget()
 
@@ -1170,9 +1149,7 @@ class CameraWidget:
                     if maybe_image.shape[1] == tw and maybe_image.shape[0] == th:
                         disp = maybe_image
                     else:
-                        disp = cv2.resize(
-                            maybe_image, (tw, th), interpolation=cv2.INTER_LINEAR
-                        )
+                        disp = cv2.resize(maybe_image, (tw, th), interpolation=cv2.INTER_LINEAR)
                     photo = self._tk_photo_from_bgr(disp, self.tracking_image_widget)
                     if photo is not None:
                         self._tracking_photo = photo
@@ -1182,4 +1159,3 @@ class CameraWidget:
 
             except Empty:
                 pass
-

@@ -328,7 +328,7 @@ def test_dsp_client_against_a_fake_service():
     assert requests == [struct.pack("<I", 0)]
     # The control block is untouched: SteamVR's tracker owns the slots.
     ctrl_words = LAYOUT.locks_r + 4 * LAYOUT.slots
-    assert os.pread(mem, ctrl_words, LAYOUT.ctrl_base) == block[LAYOUT.ctrl_base:LAYOUT.ctrl_base + ctrl_words]
+    assert os.pread(mem, ctrl_words, LAYOUT.ctrl_base) == block[LAYOUT.ctrl_base : LAYOUT.ctrl_base + ctrl_words]
     t.join(timeout=2)
     server.close()
     os.close(mem)
@@ -338,7 +338,7 @@ def test_both_eyes_of_a_pair_share_a_capture_time():
     svc = fe.FrameEyeService(client_factory=FakeClient)
     left = svc._capture_ts("left")
     assert svc._capture_ts("right") == left  # the pair's other half
-    assert svc._capture_ts("left") > left    # the next pair starts
+    assert svc._capture_ts("left") > left  # the next pair starts
     time.sleep(0.02)
     first = svc._capture_ts("right")
     assert first > left and svc._capture_ts("left") == first

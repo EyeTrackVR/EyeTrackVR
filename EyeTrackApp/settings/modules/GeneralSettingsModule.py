@@ -1,4 +1,3 @@
-from config import EyeTrackSettingsConfig
 from settings.modules.BaseModule import BaseSettingsModule, BaseValidationModel
 import tkinter as tk
 from tkinter import messagebox, ttk
@@ -77,7 +76,6 @@ class GeneralSettingsModule(BaseSettingsModule):
         self._lang_display_to_code: dict[str, str] = {}
         self._lang_code_to_display: dict[str, str] = {}
 
-
     def build(self, parent):
         parent.columnconfigure(0, weight=1)
         parent.columnconfigure(1, weight=1)
@@ -123,9 +121,7 @@ class GeneralSettingsModule(BaseSettingsModule):
 
         falloff_var = tk.BooleanVar(value=self.config.gui_outer_side_falloff)
         self.tk_vars[self.gui_outer_side_falloff] = falloff_var
-        falloff_cb = ttk.Checkbutton(
-            parent, text=_label("gui_outer_side_falloff"), variable=falloff_var
-        )
+        falloff_cb = ttk.Checkbutton(parent, text=_label("gui_outer_side_falloff"), variable=falloff_var)
         falloff_cb.grid(row=row, column=0, sticky="w", padx=8, pady=2)
         attach_tooltip(falloff_cb, _tip("gui_outer_side_falloff"))
         row += 1

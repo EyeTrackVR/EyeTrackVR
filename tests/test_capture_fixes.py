@@ -78,9 +78,7 @@ def _make_window(eyes):
     w._video_writer_sizes = []
     w._latest_capture = None
     w.use_overlay_var = _Var(False)
-    w._contributions = types.SimpleNamespace(
-        busy=False, clear_capture=lambda: None, capture_started=lambda: None
-    )
+    w._contributions = types.SimpleNamespace(busy=False, clear_capture=lambda: None, capture_started=lambda: None)
     w._status_var = _Var("")
     w._start_btn = _Widget()
     w._stop_btn = _Widget()
@@ -90,6 +88,7 @@ def _make_window(eyes):
 @pytest.fixture
 def no_worker(monkeypatch):
     """Keep _start_collection from launching the capture worker."""
+
     class _NoThread:
         def __init__(self, *a, **kw):
             pass
@@ -147,7 +146,8 @@ def _run_session(monkeypatch, tmp_path, make_say):
     monkeypatch.setattr(data_collection, "tr", lambda key, **kw: key)
     monkeypatch.setattr(data_collection, "prompt_text", lambda key: key)
     monkeypatch.setattr(
-        data_collection, "get_best_codec",
+        data_collection,
+        "get_best_codec",
         lambda: (data_collection.cv2.VideoWriter_fourcc(*"MJPG"), "MJPG", "avi"),
     )
 
@@ -204,6 +204,7 @@ def test_cancelled_session_removes_only_its_output_dir(monkeypatch, tmp_path):
             ev = threading.Event()
             ev.set()
             return ev
+
         return say_and_cancel
 
     _run_session(monkeypatch, tmp_path, make_say)
@@ -213,6 +214,7 @@ def test_failed_session_removes_its_output_dir(monkeypatch, tmp_path):
     def make_say(_w):
         def say_boom(_key):
             raise RuntimeError("tts exploded")
+
         return say_boom
 
     _run_session(monkeypatch, tmp_path, make_say)
@@ -242,11 +244,13 @@ def _fake_linux_dev(monkeypatch, tmp_path, entries, sysfs):
     real_listdir = os.listdir
     real_isdir = os.path.isdir
     monkeypatch.setattr(
-        camera_enum.os, "listdir",
+        camera_enum.os,
+        "listdir",
         lambda p: list(entries) if p == "/dev" else real_listdir(p),
     )
     monkeypatch.setattr(
-        camera_enum.os.path, "isdir",
+        camera_enum.os.path,
+        "isdir",
         lambda p: False if p == "/dev/v4l/by-id" else real_isdir(p),
     )
 
@@ -361,7 +365,8 @@ def test_arm64_codec_probe_never_tries_h264(monkeypatch):
 
 def test_linux_listing_drops_uvc_metadata_nodes(monkeypatch, tmp_path):
     _fake_linux_dev(
-        monkeypatch, tmp_path,
+        monkeypatch,
+        tmp_path,
         ["null", "video0", "video1", "video2", "video3", "video4"],
         {
             "video0": {"index": "0\n", "name": "Cam\n"},
@@ -406,7 +411,8 @@ def test_serial_scan_skips_configured_ports(monkeypatch):
 
     monkeypatch.setattr(camera_enum, "_probe_serial_for_jpeg", fake_probe)
     found = camera_enum.discover_etvr_serial_cameras(
-        timeout_s=0.01, skip_devices=(live, 0, None, ""),
+        timeout_s=0.01,
+        skip_devices=(live, 0, None, ""),
     )
     assert probed == [spare]
     assert [dev for _, dev in found] == [spare]

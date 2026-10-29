@@ -30,6 +30,7 @@ import sys
 # camera/model initialization, including in the frozen desktop executable.
 if __name__ == "__main__" and sys.argv[1:2] == ["--contribution-verification"]:
     from contributions.verification import run_helper
+
     try:
         run_helper(*sys.argv[2:])
     except Exception:
@@ -39,6 +40,7 @@ if __name__ == "__main__" and sys.argv[1:2] == ["--contribution-verification"]:
 # Run by the uninstallers: remove EyeTrackVR's SteamVR driver registration and OpenXR layer.
 if __name__ == "__main__" and sys.argv[1:2] == ["--unregister-integrations"]:
     from OVR import OpenXRLayerRegistration, SteamVRDriverRegistration
+
     SteamVRDriverRegistration.sync_quietly(False)
     OpenXRLayerRegistration.sync_quietly(False)
     raise SystemExit(0)
@@ -54,7 +56,6 @@ import tkinter as tk
 from tkinter import ttk
 import sv_ttk
 import queue
-import cv2
 import threading
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from camera_widget import CameraWidget
@@ -79,7 +80,6 @@ from utils.logging_utils import setup_logging
 from utils.misc_utils import is_nt, is_macos, resource_path
 from utils.tooltips import attach_tooltip
 from utils.version_utils import compare_app_versions
-
 
 
 APP_VERSION = "EyeTrackApp 0.3.0 BETA 10"
@@ -193,10 +193,7 @@ def _check_for_updates_bg(config) -> None:
                 elif sys.platform.startswith("linux"):
                     notify_send = shutil.which("notify-send")
                     if notify_send is None:
-                        logger.info(
-                            "Desktop update notifications unavailable: "
-                            "notify-send is not installed."
-                        )
+                        logger.info("Desktop update notifications unavailable: notify-send is not installed.")
                         return
                     subprocess.Popen(
                         [
@@ -213,15 +210,13 @@ def _check_for_updates_bg(config) -> None:
                 logger.info("Desktop update notification failed: %s", exc)
         elif version_comparison is not None:
             logger.info(
-                "Installed app version %s is newer than published release %s; "
-                "no update notification shown.",
+                "Installed app version %s is newer than published release %s; no update notification shown.",
                 APP_VERSION,
                 latestversion,
             )
         else:
             logger.info(
-                "Could not compare installed version %r with release %r; "
-                "no update notification shown.",
+                "Could not compare installed version %r with release %r; no update notification shown.",
                 APP_VERSION,
                 latestversion,
             )
@@ -234,10 +229,12 @@ def main():
     # while one already runs) would fight the first over cameras and OSC ports.
     # Checked before the config is touched so the second copy writes nothing.
     from utils import single_instance
+
     if not single_instance.acquire():
         logger.warning("EyeTrackVR is already running; this copy is exiting")
         try:
             from tkinter import messagebox
+
             init_localization(getattr(EyeTrackConfig.load().settings, "gui_language", "en"))
             notice = tk.Tk()
             notice.withdraw()
@@ -262,18 +259,23 @@ def main():
         from next_model import variant_from_settings
 
         s = config.settings
-        trackers = [name for name in ("NEXT", "LEAP", "DADDY", "AHRAC", "RANSAC3D", "AHSF", "HSRAC", "HSF")
-                    if getattr(s, "gui_" + name, False)]
-        return "\n".join((
-            f"App: {APP_VERSION}",
-            f"OS: {platform.platform()} ({platform.machine()})",
-            f"Python: {platform.python_version()}{' frozen' if getattr(sys, 'frozen', False) else ''}",
-            f"Setup mode: {s.gui_setup_mode}",
-            f"Tracker: {', '.join(trackers) or 'none'}",
-            f"NEXT model: {variant_from_settings(s)}",
-            f"GPU: {s.gui_use_gpu}",
-            f"pyVRCFT: {s.gui_pyvrcft}",
-        ))
+        trackers = [
+            name
+            for name in ("NEXT", "LEAP", "DADDY", "AHRAC", "RANSAC3D", "AHSF", "HSRAC", "HSF")
+            if getattr(s, "gui_" + name, False)
+        ]
+        return "\n".join(
+            (
+                f"App: {APP_VERSION}",
+                f"OS: {platform.platform()} ({platform.machine()})",
+                f"Python: {platform.python_version()}{' frozen' if getattr(sys, 'frozen', False) else ''}",
+                f"Setup mode: {s.gui_setup_mode}",
+                f"Tracker: {', '.join(trackers) or 'none'}",
+                f"NEXT model: {variant_from_settings(s)}",
+                f"GPU: {s.gui_use_gpu}",
+                f"pyVRCFT: {s.gui_pyvrcft}",
+            )
+        )
 
     cancellation_event = threading.Event()
     # Ensure we always have a local reference, even if OpenVR autostart is disabled
@@ -347,6 +349,7 @@ def main():
             eyes[1].osc_recenter_eyes,
         ],
     )
+
     def _osc_recalibrate(osc_message: OSCMessage):
         """Route the in-VR recalibrate trigger the same way as the GUI's
         Start Calibration button: Smart Calib for NEXT, the overlay spiral for
@@ -362,10 +365,7 @@ def main():
                 overlay_ellipse_calibrate,
             )
 
-            eps = [
-                eye.ransac for eye in eyes
-                if eye.started() and getattr(eye, "ransac", None) is not None
-            ]
+            eps = [eye.ransac for eye in eyes if eye.started() and getattr(eye, "ransac", None) is not None]
             if not eps:
                 return
             if use_smartcal:
@@ -404,6 +404,7 @@ def main():
             if is_nt:
                 try:
                     import tkinter.font as tkfont
+
                     dpi = windll.user32.GetDpiForSystem()
                     self._dpi_scale = dpi / 96.0
                     self.root.tk.call("tk", "scaling", dpi / 72.0)
@@ -416,9 +417,7 @@ def main():
                 else:
                     # .ico iconbitmap raises TclError on Linux/macOS; use the
                     # PNG via iconphoto (default=True covers child Toplevels).
-                    self._icon_photo = tk.PhotoImage(
-                        file=resource_path("Images/logo.png")
-                    )
+                    self._icon_photo = tk.PhotoImage(file=resource_path("Images/logo.png"))
                     self.root.iconphoto(True, self._icon_photo)
             except Exception:
                 pass
@@ -426,6 +425,7 @@ def main():
             if is_nt and self._dpi_scale > 1.05:
                 try:
                     import tkinter.font as tkfont
+
                     for name in tkfont.names(root=self.root):
                         try:
                             f = tkfont.nametofont(name, root=self.root)
@@ -471,9 +471,7 @@ def main():
                 ("algo", tr("nav.algo")),
                 ("vrcft", tr("nav.vrcft")),
             ):
-                btn = ttk.Button(
-                    nav, text=label, command=lambda p=page_id: self.show_page(p)
-                )
+                btn = ttk.Button(nav, text=label, command=lambda p=page_id: self.show_page(p))
                 btn.pack(side="left", padx=4)
                 self._nav_buttons[page_id] = btn
 
@@ -573,16 +571,16 @@ def main():
                 self._on_issues_popup_close()
                 self._show_bug_report()
 
-            ttk.Button(
-                _issues_content, text=tr("issues.report_bug_btn"), command=_launch_bug_report
-            ).pack(anchor="w", pady=(0, 8))
+            ttk.Button(_issues_content, text=tr("issues.report_bug_btn"), command=_launch_bug_report).pack(
+                anchor="w", pady=(0, 8)
+            )
             self._bug_report = None
 
             _issues_close_row = ttk.Frame(self._issues_popup)
             _issues_close_row.pack(fill="x", padx=16, pady=(0, 16))
-            ttk.Button(
-                _issues_close_row, text=tr("issues.close_btn"), command=self._on_issues_popup_close
-            ).pack(side="right")
+            ttk.Button(_issues_close_row, text=tr("issues.close_btn"), command=self._on_issues_popup_close).pack(
+                side="right"
+            )
 
             tracking_outer = ttk.Frame(self.tracking_tab)
             tracking_outer.pack(fill="both", expand=True)
@@ -597,7 +595,9 @@ def main():
             _sidebar_hdr_font = ("Segoe UI", round(10 * self._dpi_scale), "bold")
             _setup_type_outer = ttk.Frame(sidebar_inner)
             _setup_type_outer.pack(fill="x", pady=(0, 24))
-            ttk.Label(_setup_type_outer, text=tr("tracking.setup_type"), font=_sidebar_hdr_font).pack(anchor="w", pady=(0, 4))
+            ttk.Label(_setup_type_outer, text=tr("tracking.setup_type"), font=_sidebar_hdr_font).pack(
+                anchor="w", pady=(0, 4)
+            )
             setup_type = ttk.Frame(_setup_type_outer)
             setup_type.pack(fill="x")
             etvr_radio = ttk.Radiobutton(
@@ -642,7 +642,9 @@ def main():
 
             _tracking_controls_outer = ttk.Frame(sidebar_inner)
             _tracking_controls_outer.pack(fill="x", pady=(0, 24))
-            ttk.Label(_tracking_controls_outer, text=tr("tracking.camera_settings"), font=_sidebar_hdr_font).pack(anchor="w", pady=(0, 4))
+            ttk.Label(_tracking_controls_outer, text=tr("tracking.camera_settings"), font=_sidebar_hdr_font).pack(
+                anchor="w", pady=(0, 4)
+            )
             tracking_controls = ttk.Frame(_tracking_controls_outer)
             tracking_controls.pack(fill="x")
             left_initial = config.left_eye.capture_source
@@ -653,9 +655,7 @@ def main():
             self.right_camera_var = tk.StringVar(
                 value="" if right_initial is None or right_initial == "" else str(right_initial)
             )
-            self.left_camera_label = ttk.Label(
-                tracking_controls, text=tr("tracking.left_source")
-            )
+            self.left_camera_label = ttk.Label(tracking_controls, text=tr("tracking.left_source"))
             self.left_camera_label.pack(anchor="w", pady=(0, 2))
             # Combobox (not Entry) so Scan can populate a dropdown of detected
             # UVC cameras while still letting the user type a COM port / URL /
@@ -670,9 +670,7 @@ def main():
                 self.left_camera_entry,
                 tr("tracking.left_source_tip"),
             )
-            self.right_camera_label = ttk.Label(
-                tracking_controls, text=tr("tracking.right_source")
-            )
+            self.right_camera_label = ttk.Label(tracking_controls, text=tr("tracking.right_source"))
             self.right_camera_entry = ttk.Combobox(
                 tracking_controls, textvariable=self.right_camera_var, values=(), foreground="#e0e0e0"
             )
@@ -687,17 +685,11 @@ def main():
             # NOT auto-connect; that's what the Connect button is for, and
             # firing on every keystroke would thrash the capture thread.
             # <<ComboboxSelected>> only fires on dropdown selection, not edits.
-            self.left_camera_entry.bind(
-                "<<ComboboxSelected>>", lambda _e: self.apply_camera_inputs()
-            )
-            self.right_camera_entry.bind(
-                "<<ComboboxSelected>>", lambda _e: self.apply_camera_inputs()
-            )
+            self.left_camera_entry.bind("<<ComboboxSelected>>", lambda _e: self.apply_camera_inputs())
+            self.right_camera_entry.bind("<<ComboboxSelected>>", lambda _e: self.apply_camera_inputs())
             camera_button_row = ttk.Frame(tracking_controls)
             camera_button_row.pack(fill="x")
-            scan_btn = ttk.Button(
-                camera_button_row, text=tr("tracking.scan_btn"), width=8, command=self.scan_sources
-            )
+            scan_btn = ttk.Button(camera_button_row, text=tr("tracking.scan_btn"), width=8, command=self.scan_sources)
             scan_btn.pack(side="left", padx=(0, 4))
             attach_tooltip(
                 scan_btn,
@@ -816,9 +808,7 @@ def main():
                 style="Accent.TButton",
             )
             self._global_calibration_btn.pack(side="left", padx=(0, 8))
-            attach_tooltip(
-                self._global_calibration_btn, tr("tracking.start_calibration_tip")
-            )
+            attach_tooltip(self._global_calibration_btn, tr("tracking.start_calibration_tip"))
             ttk.Button(
                 actions_inner,
                 text=tr("tracking.recenter_btn"),
@@ -841,9 +831,7 @@ def main():
             self._next_smartcal_reset_visible = False
             bottom = ttk.Frame(self.root)
             bottom.pack(fill="x", padx=8, pady=4)
-            ttk.Button(
-                bottom, text=tr("issues.title"), command=self._toggle_issues_popup
-            ).pack(side="left")
+            ttk.Button(bottom, text=tr("issues.title"), command=self._toggle_issues_popup).pack(side="left")
             ttk.Button(
                 bottom, text=tr("tracking.contribute_data_btn"), command=self._toggle_data_collection_popup
             ).pack(side="left", padx=(10, 0))
@@ -948,11 +936,7 @@ def main():
         def _sync_nav_buttons(self):
             """Highlight the current page with Sun Valley accent (blue) vs default TButton."""
             for page_id, btn in self._nav_buttons.items():
-                btn.configure(
-                    style="Accent.TButton"
-                    if page_id == self.current_page
-                    else "TButton"
-                )
+                btn.configure(style="Accent.TButton" if page_id == self.current_page else "TButton")
 
         def _apply_initial_window_geometry(self):
             # Leave enough room for the fixed sidebar and both eye panels at
@@ -1166,9 +1150,7 @@ def main():
                         if results["serial"] is not None:
                             ready_parts.append(f"Serial: {', '.join(serial_display_values) or tr('status.scan_none')}")
                         prefix = " | ".join(ready_parts) + (" | " if ready_parts else "")
-                        self.status_var.set(
-                            tr("status.scan_pending", prefix=prefix, pending=", ".join(pending))
-                        )
+                        self.status_var.set(tr("status.scan_pending", prefix=prefix, pending=", ".join(pending)))
                     else:
                         uvc_hint = ", ".join(uvc_display_values) or tr("status.scan_none")
                         mdns_hint = ", ".join(mdns_values) or tr("status.scan_none")
@@ -1229,9 +1211,7 @@ def main():
             left_source = self._normalize_camera_input(self.left_camera_var.get())
             if self.mode_var.get() == "bigscreen":
                 right_source = left_source
-                self.right_camera_var.set(
-                    "" if left_source is None else str(left_source)
-                )
+                self.right_camera_var.set("" if left_source is None else str(left_source))
             else:
                 right_source = self._normalize_camera_input(self.right_camera_var.get())
             config.left_eye.capture_source = left_source
@@ -1398,6 +1378,7 @@ def main():
             # Built on first use so startup never pays for it.
             if self._bug_report is None or not self._bug_report.window.winfo_exists():
                 from contributions.report_window import ReportWindow
+
                 self._bug_report = ReportWindow(self.root, details=_bug_report_details)
             self._bug_report.show()
 
@@ -1485,12 +1466,8 @@ def main():
 
         def _on_crop_eye_select(self, eye_name: str):
             self._crop_active_eye = eye_name
-            self._crop_left_btn.configure(
-                style="Accent.TButton" if eye_name == "left" else "TButton"
-            )
-            self._crop_right_btn.configure(
-                style="Accent.TButton" if eye_name == "right" else "TButton"
-            )
+            self._crop_left_btn.configure(style="Accent.TButton" if eye_name == "left" else "TButton")
+            self._crop_right_btn.configure(style="Accent.TButton" if eye_name == "right" else "TButton")
             if eye_name == "left":
                 eyes[0]._set_tracking_mode()
                 eyes[1]._set_roi_mode()
@@ -1518,9 +1495,7 @@ def main():
 
         def _sync_global_mode_buttons(self):
             in_roi = any(getattr(e, "in_roi_mode", False) for e in eyes)
-            next_tracker = bool(config.settings.gui_NEXT) or bool(
-                config.settings.gui_NEXT_BSB
-            )
+            next_tracker = bool(config.settings.gui_NEXT) or bool(config.settings.gui_NEXT_BSB)
 
             # NEXT consumes the uncropped camera frame, in both the regular
             # ETVR setup and Bigscreen Beyond setup.  Cropping is therefore not
@@ -1548,12 +1523,8 @@ def main():
                     self._crop_eye_row.pack(fill="x")
                 else:
                     self._crop_eye_row.pack_forget()
-            self._global_roi_btn.configure(
-                style="Accent.TButton" if in_roi else "TButton"
-            )
-            self._global_tracking_btn.configure(
-                style="TButton" if in_roi else "Accent.TButton"
-            )
+            self._global_roi_btn.configure(style="Accent.TButton" if in_roi else "TButton")
+            self._global_tracking_btn.configure(style="TButton" if in_roi else "Accent.TButton")
 
         def _on_global_recenter(self):
             for eye in eyes:
@@ -1562,10 +1533,8 @@ def main():
 
         def _on_ellipse_calibration(self):
             from osc_calibrate_filter import overlay_ellipse_calibrate
-            eps = [
-                eye.ransac for eye in eyes
-                if eye.started() and getattr(eye, "ransac", None) is not None
-            ]
+
+            eps = [eye.ransac for eye in eyes if eye.started() and getattr(eye, "ransac", None) is not None]
             if not eps:
                 return
             config.settings.calib_mode = "classic"
@@ -1574,20 +1543,16 @@ def main():
 
         def _on_next_smartcal(self):
             from osc_calibrate_filter import next_smartcal_overlay
-            eps = [
-                eye.ransac for eye in eyes
-                if eye.started() and getattr(eye, "ransac", None) is not None
-            ]
+
+            eps = [eye.ransac for eye in eyes if eye.started() and getattr(eye, "ransac", None) is not None]
             if not eps:
                 return
             next_smartcal_overlay(eps, config.settings, config)
 
         def _on_next_smartcal_reset(self):
             from osc_calibrate_filter import reset_next_smartcal
-            eps = [
-                eye.ransac for eye in eyes
-                if eye.started() and getattr(eye, "ransac", None) is not None
-            ]
+
+            eps = [eye.ransac for eye in eyes if eye.started() and getattr(eye, "ransac", None) is not None]
             if not eps:
                 return
             reset_next_smartcal(eps, config)
@@ -1621,11 +1586,7 @@ def main():
                 self._next_smartcal_reset_btn.pack_forget()
 
         def _sync_global_calibration_button(self):
-            text = (
-                tr("tracking.stop_calibration")
-                if self._any_eye_calibrating()
-                else tr("tracking.start_calibration")
-            )
+            text = tr("tracking.stop_calibration") if self._any_eye_calibrating() else tr("tracking.start_calibration")
             if self._calibration_btn_text.get() != text:
                 self._calibration_btn_text.set(text)
 
@@ -1735,9 +1696,7 @@ def main():
     app = AppUI()
     if (not is_macos) and (openvr_service is not None):
         openvr_service.window = app
-    threading.Thread(
-        target=_check_for_updates_bg, args=(config,), daemon=True, name="UpdateCheck"
-    ).start()
+    threading.Thread(target=_check_for_updates_bg, args=(config,), daemon=True, name="UpdateCheck").start()
     # Populate the UVC dropdowns at launch so the user sees the current
     # cameras without having to click "Scan". after(0) defers it until the
     # event loop is running; scan_sources itself does the enumeration on a

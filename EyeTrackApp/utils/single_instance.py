@@ -3,6 +3,7 @@ OSC ports (e.g. opened by hand, then auto-launched again by SteamVR).
 
 The lock is an OS file lock, so it is released automatically when the process
 exits or crashes; a stale lock file never blocks the next start."""
+
 import os
 from pathlib import Path
 import sys
@@ -16,8 +17,9 @@ def _lock_path() -> Path:
     elif sys.platform == "darwin":
         base = Path.home() / "Library/Application Support"
     else:
-        base = Path(os.environ.get("XDG_RUNTIME_DIR") or os.environ.get("XDG_STATE_HOME")
-                    or Path.home() / ".local/state")
+        base = Path(
+            os.environ.get("XDG_RUNTIME_DIR") or os.environ.get("XDG_STATE_HOME") or Path.home() / ".local/state"
+        )
     return base / "EyeTrackVR" / "eyetrackapp.lock"
 
 
@@ -36,6 +38,7 @@ def acquire(path=None) -> bool:
         handle.seek(0)
         if os.name == "nt":
             import msvcrt
+
             if handle.seek(0, 2) == 0:
                 handle.write(b"0")
                 handle.flush()
@@ -43,6 +46,7 @@ def acquire(path=None) -> bool:
             msvcrt.locking(handle.fileno(), msvcrt.LK_NBLCK, 1)
         else:
             import fcntl
+
             fcntl.flock(handle, fcntl.LOCK_EX | fcntl.LOCK_NB)
     except OSError:
         handle.close()

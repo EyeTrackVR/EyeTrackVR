@@ -1,4 +1,5 @@
 """Shared icon and native window chrome for contribution windows."""
+
 from pathlib import Path
 import sys
 
@@ -12,6 +13,7 @@ def dark_titlebar(hwnd):
         return
     import ctypes
     from ctypes import wintypes
+
     dwm = ctypes.windll.dwmapi.DwmSetWindowAttribute
     dwm.argtypes = [wintypes.HWND, wintypes.DWORD, ctypes.c_void_p, wintypes.DWORD]
     for attribute, value in ((20, 1), (35, 0x202020), (36, 0xEEEEEE)):
@@ -25,6 +27,7 @@ def decorate(window):
             window.iconbitmap(str(asset("logo.ico")))
             import ctypes
             from ctypes import wintypes
+
             ancestor = ctypes.windll.user32.GetAncestor
             ancestor.argtypes = [wintypes.HWND, wintypes.UINT]
             ancestor.restype = wintypes.HWND
@@ -32,6 +35,7 @@ def decorate(window):
             dark_titlebar(ancestor(window.winfo_id(), 2))
         else:
             import tkinter as tk
+
             window._brand_icon = tk.PhotoImage(file=str(asset("logo.png")))
             window.iconphoto(False, window._brand_icon)
     except (OSError, RuntimeError, __import__("tkinter").TclError):
