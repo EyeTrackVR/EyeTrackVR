@@ -1,5 +1,5 @@
 from queue import Queue
-from time import sleep
+from time import monotonic, sleep
 from unittest import mock
 
 import pytest
@@ -7,6 +7,18 @@ import pytest
 from osc.osc import OSCManager, OSCMessage
 from osc.OSCMessage import OSCMessageType
 from tests import EyeInfoMock, SimpleUDPClientMock
+
+
+def _wait_until_sent(msg_queue, timeout=5.0):
+    """Block until the sender thread has fully handled every queued message.
+
+    Shutting down right after put() races the sender thread (it checks the
+    cancellation event between messages), which made these tests flaky under
+    load in a full-suite run.
+    """
+    deadline = monotonic() + timeout
+    while msg_queue.unfinished_tasks and monotonic() < deadline:
+        sleep(0.005)
 
 
 @pytest.mark.parametrize(
@@ -32,6 +44,7 @@ from tests import EyeInfoMock, SimpleUDPClientMock
                 ("/avatar/parameters/LeftEyeX", 0),
                 ("/avatar/parameters/RightEyeX", 0),
                 ("/avatar/parameters/EyesY", 0),
+                ("/avatar/parameters/EyesDilation", 0),
                 ("/avatar/parameters/LeftEyeLidExpandedSqueeze", 1.0),
                 ("/avatar/parameters/RightEyeLidExpandedSqueeze", 1.0),
             ],
@@ -56,6 +69,7 @@ from tests import EyeInfoMock, SimpleUDPClientMock
                 ("/avatar/parameters/LeftEyeX", 0),
                 ("/avatar/parameters/RightEyeX", 0),
                 ("/avatar/parameters/EyesY", 0),
+                ("/avatar/parameters/EyesDilation", 0),
                 ("/avatar/parameters/LeftEyeLidExpandedSqueeze", 1.0),
                 ("/avatar/parameters/RightEyeLidExpandedSqueeze", 1.0),
             ],
@@ -63,7 +77,7 @@ from tests import EyeInfoMock, SimpleUDPClientMock
     ],
 )
 def test_send_command_v1_params_single_eye(main_config_v1_params, messages, expected_outcome):
-    with mock.patch("EyeTrackApp.osc.osc.udp_client.SimpleUDPClient", SimpleUDPClientMock):
+    with mock.patch("osc.osc.udp_client.SimpleUDPClient", SimpleUDPClientMock):
         msg_queue = Queue()
         client = OSCManager(
             config=main_config_v1_params,
@@ -75,10 +89,11 @@ def test_send_command_v1_params_single_eye(main_config_v1_params, messages, expe
         for message in messages:
             sleep(0.01)
             msg_queue.put(message)
+        _wait_until_sent(msg_queue)
         client.shutdown()
 
         assert msg_queue.empty()
-        assert client.osc_sender.client.messages == expected_outcome
+        assert client.osc_sender.vrc_client.messages == expected_outcome
 
 
 @pytest.mark.parametrize(
@@ -118,9 +133,10 @@ def test_send_command_v1_params_single_eye(main_config_v1_params, messages, expe
                 ("/avatar/parameters/RightEyeX", 0),
                 ("/avatar/parameters/RightEyeLidExpandedSqueeze", 1.0),
                 ("/avatar/parameters/LeftEyeLidExpandedSqueeze", 0.5),
-                ("/avatar/parameters/LeftEyeX", 0),
+                ("/avatar/parameters/LeftEyeX", 10),
                 ("/avatar/parameters/LeftEyeLidExpandedSqueeze", 0.5),
                 ("/avatar/parameters/EyesY", 2.5),
+                ("/avatar/parameters/EyesDilation", 1.0),
             ],
         ),
         # binary blink
@@ -168,9 +184,10 @@ def test_send_command_v1_params_single_eye(main_config_v1_params, messages, expe
                 ("/avatar/parameters/LeftEyeLidExpandedSqueeze", 0.0),
                 ("/avatar/parameters/LeftEyeLidExpandedSqueeze", 0.0),
                 ("/avatar/parameters/LeftEyeLidExpandedSqueeze", 0.0),
-                ("/avatar/parameters/LeftEyeX", 0),
+                ("/avatar/parameters/LeftEyeX", 10),
                 ("/avatar/parameters/LeftEyeLidExpandedSqueeze", 0.0),
                 ("/avatar/parameters/EyesY", 2.5),
+                ("/avatar/parameters/EyesDilation", 1.0),
             ],
         ),
     ],
@@ -178,7 +195,7 @@ def test_send_command_v1_params_single_eye(main_config_v1_params, messages, expe
 def test_send_command_v1_params_dual_eye(main_config_v1_params, eye_data, expected_outcome):
     main_config_v1_params.eye_display_id = 2
 
-    with mock.patch("EyeTrackApp.osc.osc.udp_client.SimpleUDPClient", SimpleUDPClientMock):
+    with mock.patch("osc.osc.udp_client.SimpleUDPClient", SimpleUDPClientMock):
         msg_queue = Queue()
         client = OSCManager(
             config=main_config_v1_params,
@@ -190,10 +207,11 @@ def test_send_command_v1_params_dual_eye(main_config_v1_params, eye_data, expect
         for message in eye_data:
             sleep(0.01)
             msg_queue.put(message)
+        _wait_until_sent(msg_queue)
         client.shutdown()
 
         assert msg_queue.empty()
-        assert client.osc_sender.client.messages == expected_outcome
+        assert client.osc_sender.vrc_client.messages == expected_outcome
 
 
 @pytest.mark.parametrize(
@@ -245,9 +263,10 @@ def test_send_command_v1_params_dual_eye(main_config_v1_params, eye_data, expect
                 ("/avatar/parameters/LeftEyeLidExpandedSqueeze", 0.0),
                 ("/avatar/parameters/RightEyeLidExpandedSqueeze", 0.0),
                 ("/avatar/parameters/LeftEyeLidExpandedSqueeze", 0.0),
-                ("/avatar/parameters/LeftEyeX", 0),
+                ("/avatar/parameters/LeftEyeX", 10),
                 ("/avatar/parameters/LeftEyeLidExpandedSqueeze", 0.0),
                 ("/avatar/parameters/EyesY", 2.5),
+                ("/avatar/parameters/EyesDilation", 1.0),
             ],
         ),
     ],
@@ -256,7 +275,7 @@ def test_send_command_v1_params_eye_outer_side_falloff(main_config_v1_params, ey
     main_config_v1_params.eye_display_id = 2
     main_config_v1_params.settings.gui_outer_side_falloff = True
 
-    with mock.patch("EyeTrackApp.osc.osc.udp_client.SimpleUDPClient", SimpleUDPClientMock):
+    with mock.patch("osc.osc.udp_client.SimpleUDPClient", SimpleUDPClientMock):
         msg_queue = Queue()
         client = OSCManager(
             config=main_config_v1_params,
@@ -268,7 +287,8 @@ def test_send_command_v1_params_eye_outer_side_falloff(main_config_v1_params, ey
         for message in eye_data:
             msg_queue.put(message)
             sleep(1)
+        _wait_until_sent(msg_queue)
         client.shutdown()
 
         assert msg_queue.empty()
-        assert client.osc_sender.client.messages == expected_outcome
+        assert client.osc_sender.vrc_client.messages == expected_outcome

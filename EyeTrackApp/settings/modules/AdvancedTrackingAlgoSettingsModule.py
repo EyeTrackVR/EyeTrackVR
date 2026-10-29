@@ -2,9 +2,10 @@ from settings.modules.BaseModule import BaseSettingsModule, BaseValidationModel
 import tkinter as tk
 from tkinter import ttk
 
+from localization import tr
+
 
 class AdvancedTrackingAlgoSettingsValidationModel(BaseValidationModel):
-    gui_BLINK: bool
     gui_RANSACBLINK: bool
     gui_circular_crop_left: bool
     gui_circular_crop_right: bool
@@ -20,7 +21,6 @@ class AdvancedTrackingAlgoSettingsModule(BaseSettingsModule):
         super().__init__(config=config, widget_id=widget_id, **kwargs)
         self.validation_model = AdvancedTrackingAlgoSettingsValidationModel
 
-        self.gui_BLINK = f"-BLINK{widget_id}-"
         self.gui_RANSACBLINK = f"-RANSACBLINK{widget_id}-"
         self.gui_circular_crop_left = f"-CIRCLECROPLEFT{widget_id}-"
         self.gui_circular_crop_right = f"-CIRCLECROPRIGHT{widget_id}-"
@@ -42,9 +42,7 @@ class AdvancedTrackingAlgoSettingsModule(BaseSettingsModule):
             next_val = max(min_v, min(max_v, next_val))
             var.set(next_val)
 
-        ttk.Label(parent, text=label).grid(
-            row=row, column=0, sticky="w", padx=8, pady=2
-        )
+        ttk.Label(parent, text=label).grid(row=row, column=0, sticky="w", padx=8, pady=2)
         ttk.Scale(
             parent,
             from_=min_v,
@@ -66,31 +64,30 @@ class AdvancedTrackingAlgoSettingsModule(BaseSettingsModule):
 
     def build(self, parent):
         checkbox_fields = [
-            (self.gui_BLINK, self.config.gui_BLINK, "Binary Blink Algo"),
             (
                 self.gui_RANSACBLINK,
                 self.config.gui_RANSACBLINK,
-                "RANSAC Quick Blink Algo",
+                tr("algo_advanced.ransac_quick_blink"),
             ),
             (
                 self.gui_circular_crop_left,
                 self.config.gui_circular_crop_left,
-                "Left Eye Circle Crop",
+                tr("algo_advanced.left_eye_circle_crop"),
             ),
             (
                 self.gui_circular_crop_right,
                 self.config.gui_circular_crop_right,
-                "Right Eye Circle Crop",
+                tr("algo_advanced.right_eye_circle_crop"),
             ),
             (
                 self.gui_skip_autoradius,
                 self.config.gui_skip_autoradius,
-                "HSF: Skip Auto Radius",
+                tr("algo_advanced.hsf_skip_auto_radius"),
             ),
             (
                 self.gui_pupil_dilation,
                 self.config.gui_pupil_dilation,
-                "Ellipse Based Pupil Dilation",
+                tr("algo_advanced.ellipse_pupil_dilation"),
             ),
         ]
         ncol = 2
@@ -100,9 +97,7 @@ class AdvancedTrackingAlgoSettingsModule(BaseSettingsModule):
             col = idx // rows_per_column
             var = tk.BooleanVar(value=default)
             self.tk_vars[key] = var
-            ttk.Checkbutton(parent, text=label, variable=var).grid(
-                row=row, column=col, sticky="w", padx=8, pady=2
-            )
+            ttk.Checkbutton(parent, text=label, variable=var).grid(row=row, column=col, sticky="w", padx=8, pady=2)
         row = rows_per_column
 
         ttk.Separator(parent, orient="horizontal").grid(
@@ -112,21 +107,21 @@ class AdvancedTrackingAlgoSettingsModule(BaseSettingsModule):
 
         slider_specs = [
             (
-                "Left HSF Radius",
+                tr("algo_advanced.left_hsf_radius"),
                 self.gui_HSF_radius_left,
                 self.config.gui_HSF_radius_left,
                 1,
                 50,
             ),
             (
-                "Right HSF Radius",
+                tr("algo_advanced.right_hsf_radius"),
                 self.gui_HSF_radius_right,
                 self.config.gui_HSF_radius_right,
                 1,
                 50,
             ),
             (
-                "RANSAC Thresh Add",
+                tr("algo_advanced.ransac_thresh_add"),
                 self.gui_thresh_add,
                 self.config.gui_thresh_add,
                 1,

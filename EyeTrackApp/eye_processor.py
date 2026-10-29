@@ -33,15 +33,26 @@ import sys
 import os
 import time
 from collections import deque
-from config import EyeTrackCameraConfig
-from config import EyeTrackConfig
-from config import EyeTrackSettingsConfig
+from config import (
+    DEFAULT_LID_CLOSE_THRESHOLD,
+    DEFAULT_LID_WIDEN_THRESHOLD,
+    EyeTrackCameraConfig,
+    EyeTrackConfig,
+    EyeTrackSettingsConfig,
+)
 from pye3d.camera import CameraModel
 from pye3d.detector_3d import Detector3D, DetectorMode
 import queue
+
+import cv2
+import numpy as np
+
 from osc_calibrate_filter import *
 from daddy import External_Run_DADDY
 from leap import External_Run_LEAP
+from next_model import External_Run_NEXT, variant_from_settings
+from next_stereo_model import get_stereo_coordinator
+from frame_eye import models_paused_for_recording
 from haar_surround_feature import External_Run_HSF
 from ransac import *
 from blink import *
@@ -49,8 +60,8 @@ from utils.img_utils import circle_crop
 from eye import EyeId, EyeInfo, EyeInfoOrigin
 from intensity_based_openness import *
 from ellipse_based_pupil_dilation import *
-from AHSF import *
 from osc.OSCMessage import OSCMessageType, OSCMessage
+from eyebrow import EyeBrow
 from utils.calibration_elipse import *
 from utils.runtime_state import set_value as _set_runtime_value
 from utils.robust_calibration import RobustCalibrationSession, CalibrationPhase
@@ -97,9 +108,7 @@ def remap_leap_lid_openness(raw: float, close_t: float, wide_t: float) -> float:
     return float(t * 0.75)
 
 
-def leap_lid_thresholds_for_eye(
-    settings: "EyeTrackSettingsConfig", eye_id: EyeId
-) -> tuple[float, float]:
+def leap_lid_thresholds_for_eye(settings: "EyeTrackSettingsConfig", eye_id: EyeId) -> tuple[float, float]:
     if eye_id == EyeId.LEFT:
         return (
             float(settings.leap_lid_close_threshold_left),
@@ -109,6 +118,12 @@ def leap_lid_thresholds_for_eye(
         float(settings.leap_lid_close_threshold_right),
         float(settings.leap_lid_widen_threshold_right),
     )
+
+
+def next_eyelid_tuning_active(settings: "EyeTrackSettingsConfig", eye_id: EyeId) -> bool:
+    """True only after the user moves this eye away from NEXT's raw defaults."""
+    close_t, widen_t = leap_lid_thresholds_for_eye(settings, eye_id)
+    return abs(close_t - DEFAULT_LID_CLOSE_THRESHOLD) > 1e-9 or abs(widen_t - DEFAULT_LID_WIDEN_THRESHOLD) > 1e-9
 
 
 class EyeProcessor:
@@ -132,7 +147,7 @@ class EyeProcessor:
         self.image_queue_outgoing = image_queue_outgoing
         self.cancellation_event = cancellation_event
         self.capture_event = capture_event
-        # When True, camera feeds roi_queue only; GUI paces capture_event — do not signal from this thread.
+        # When True, camera feeds roi_queue only; GUI paces capture_event, do not signal from this thread.
         self.suppress_auto_capture_signal = False
         self.eye_id = eye_id
         self.baseconfig = baseconfig
@@ -152,7 +167,7 @@ class EyeProcessor:
         self.current_fps = None
         self.current_capture_ts: float | None = None
         # Tracking-output metrics. Both are time-windowed (last N seconds) so
-        # the readout is stable and matches what the eye can perceive — not a
+        # the readout is stable and matches what the eye can perceive, not a
         # noisy single-frame number. output_fps = iterations / window; latency
         # = mean of per-frame (tracking_done_ts - capture_push_ts).
         self._metrics_window_s: float = 3.0
@@ -181,12 +196,71 @@ class EyeProcessor:
         self._circle_crop_ready_at = time.perf_counter() + self._circle_crop_warmup_s
         self._recenter_delay_s = 0.2  # was recenter_delay_frames = 10 @ 50 fps
         self._recenter_armed_at = None  # perf_counter when recenter was requested
+        # NEXT-model recenter: a fixed, in-memory gaze offset applied to the raw
+        # NEXT output so the recenter button can zero it without calibration and
+        # without persisting anything to disk.
+        self._next_recenter_offset_x = 0.0
+        self._next_recenter_offset_y = 0.0
+        self._next_recenter_armed_at = None  # perf_counter when NEXT recenter was requested
+        # NEXT Smart Calibration state.
+        #   _next_smartcal_active_dot: index (0..10) of the overlay dot currently
+        #     being held/sampled, or None when not calibrating.
+        #   _next_smartcal_samples: {dot -> [(raw_gaze_x, raw_gaze_y, raw_lid,
+        #     raw_brow), ...]} accumulated while that dot is held; medianed at
+        #     fit time. Gaze is medianed per dot; lid/brow are pooled across all
+        #     dots (the face is neutral for the whole sequence).
+        #   _next_smartcal_lid_neutral / _brow_neutral: the captured resting
+        #     readings those two channels are re-anchored against, or None.
+        #   _next_smartcal_w / _b: the fitted affine transform (loaded from
+        #     config) applied to the raw model gaze each frame, or None.
+        #   _next_smartcal_warp: the space the affine was fit in ("atanh" =
+        #     un-saturate the model's tanh output first; None = legacy raw-space
+        #     affine from older builds).
+        self._next_smartcal_active_dot = None
+        self._next_smartcal_dot_started = 0.0
+        self._next_smartcal_samples = {}
+        self._next_smartcal_w = (
+            list(self.config.next_smartcal_w) if getattr(self.config, "next_smartcal_w", None) is not None else None
+        )
+        self._next_smartcal_b = (
+            list(self.config.next_smartcal_b) if getattr(self.config, "next_smartcal_b", None) is not None else None
+        )
+        self._next_smartcal_warp = getattr(self.config, "next_smartcal_warp", None)
+        self._next_smartcal_lid_neutral = getattr(self.config, "next_smartcal_lid_neutral", None)
+        self._next_smartcal_brow_neutral = getattr(self.config, "next_smartcal_brow_neutral", None)
+        # Validate transforms persisted by older builds (which saved fits with
+        # no sanity checks): a degenerate transform pins the clipped gaze output
+        # to the corners, which reads as "tracking completely broken". Ignore
+        # and clear such transforms instead of applying them.
+        if self._next_smartcal_w is not None and not next_smartcal_transform_is_sane(
+            self._next_smartcal_w, self._next_smartcal_b, self._next_smartcal_warp
+        ):
+            logger.warning(
+                "NEXT smart cal (eye %s): stored transform W=%s B=%s warp=%s is "
+                "degenerate - ignoring it. Re-run NEXT Smart Calib to fit a new one.",
+                self.eye_id,
+                self._next_smartcal_w,
+                self._next_smartcal_b,
+                self._next_smartcal_warp,
+            )
+            self._next_smartcal_w = None
+            self._next_smartcal_b = None
+            self._next_smartcal_warp = None
+            self.config.next_smartcal_w = None
+            self.config.next_smartcal_b = None
+            self.config.next_smartcal_warp = None
         self.previous_rotation = self.config.rotation_angle
         self.camera_model = None
         self.detector_3d = None
         self.hsf_runner = None
         self.daddy_runner = None
         self.leap_runner = None
+        self.next_runner = None
+        # None until the first NEXT frame picks mono or stereo; only used to
+        # log the transitions.
+        self._next_stereo_engaged: bool | None = None
+        self.current_raw_frame: np.ndarray | None = None
+        self.next_eyebrow: float = float("nan")
         self.ibo = IntensityBasedOpeness(self.eye_id)
         self.ebpd = EllipseBasedPupilDilation(self.eye_id)
         self.roi_include_set = {"rotation_angle", "roi_window_x", "roi_window_y"}
@@ -195,6 +269,10 @@ class EyeProcessor:
         self._last_tracking_pull_mono: float = 0.0
         self.out_y = 0.0
         self.out_x = 0.0
+        # Calibrated but unfiltered gaze for foveated rendering (EyeInfo.dfr_x);
+        # None until a tracker has produced one.
+        self.dfr_x: float | None = None
+        self.dfr_y: float | None = None
         self.rawx = 0.0
         self.rawy = 0.0
         self.eyeopen = 0.9
@@ -203,7 +281,7 @@ class EyeProcessor:
         # Sentinel for "no minimum seen yet"; previously a magic 4e12 literal.
         self.min_int = float("inf")
         self.frames = 0
-        # Preview output is for the GUI only — throttle to 60 Hz so trackers
+        # Preview output is for the GUI only; throttle to 60 Hz so trackers
         # running >60 fps don't waste cycles on cv2.resize / concatenate /
         # queue churn that the user can never see.
         self._preview_min_interval_s = 1.0 / 60.0
@@ -226,8 +304,11 @@ class EyeProcessor:
         self.avg_velocity = 0.0
         self.angle = 621
         self.ahsf_runner = None
+        self.eyebrow_runner: EyeBrow | None = None
         self.cal = CalibrationEllipse()
-        self.ahsf_detector = PupilDetectorHaar()
+        self.squeeze = 0.0
+        # Built on first use: AHSF pulls in numba (~0.5 s, ~36 MB) at import.
+        self.ahsf_detector = None
 
         # Robust calibration pipeline
         self.robust_cal = RobustCalibrationSession()
@@ -246,9 +327,7 @@ class EyeProcessor:
             min_cutoff = 0.0004
             beta = 0.9
         noisy_point = np.array([1, 1])
-        self.one_euro_filter = OneEuroFilter(
-            noisy_point, min_cutoff=min_cutoff, beta=beta
-        )
+        self.one_euro_filter = OneEuroFilter(noisy_point, min_cutoff=min_cutoff, beta=beta)
         self._crop_geom_cache_key = None
         self._crop_matrix = None
         self._crop_fits_in_bounds = None
@@ -297,19 +376,16 @@ class EyeProcessor:
         if self.current_capture_ts is not None:
             latency_ms = (now - self.current_capture_ts) * 1000.0
             # Guard against absurd values from clock anomalies / first frame
-            # after a long stall — keep them out of the moving average so the
+            # after a long stall; keep them out of the moving average so the
             # readout isn't anchored to an outlier for the rest of the window.
             if 0.0 <= latency_ms < 10_000.0:
                 self._tracking_latency_samples.append((now, latency_ms))
-            while (
-                self._tracking_latency_samples
-                and self._tracking_latency_samples[0][0] < cutoff
-            ):
+            while self._tracking_latency_samples and self._tracking_latency_samples[0][0] < cutoff:
                 self._tracking_latency_samples.popleft()
             if self._tracking_latency_samples:
-                self.output_latency_ms = sum(
-                    s[1] for s in self._tracking_latency_samples
-                ) / len(self._tracking_latency_samples)
+                self.output_latency_ms = sum(s[1] for s in self._tracking_latency_samples) / len(
+                    self._tracking_latency_samples
+                )
 
     def output_images_and_update(self, threshold_image, output_information: EyeInfo):
         if self.image_queue_outgoing.qsize() > 0:
@@ -325,24 +401,62 @@ class EyeProcessor:
             return
         self._preview_last_emit_ts = now
 
-        self.current_image_gray = cv2.resize(
-            self.current_image_gray, (150, 150), interpolation=cv2.INTER_AREA
-        )
-        threshold_image = cv2.resize(
-            threshold_image, (150, 150), interpolation=cv2.INTER_AREA
-        )
-        image_stack = np.concatenate((self.current_image_gray, threshold_image), axis=1)
+        preview_image = self.current_image_gray
+        if self._next_active and self.current_raw_frame is not None:
+            # NEXT inference deliberately bypasses the legacy ROI and rotation.
+            # Make its visualizer show that same input instead of the cropped
+            # working image used by the classical algorithms.  Do not rewrite
+            # the saved ROI/rotation: selecting a non-NEXT tracker again should
+            # immediately restore that tracker's previous view.
+            preview_frame = self.current_raw_frame
+            if self.settings.gui_setup_mode == "bigscreen":
+                mid = preview_frame.shape[1] // 2
+                preview_frame = preview_frame[:, :mid] if self.eye_id == EyeId.LEFT else preview_frame[:, mid:]
+            preview_image = cv2.cvtColor(preview_frame, cv2.COLOR_BGR2GRAY)
+            # NEXT has no threshold image. Its old threshold panel was merely a
+            # copy of the cropped working image, so keep both panels consistent
+            # with the raw model input while NEXT is active.
+            threshold_image = preview_image
 
-        self.image_queue_outgoing.put((image_stack, output_information))
-        if self.image_queue_outgoing.qsize() > 1:
-            self.image_queue_outgoing.get()
+        preview_image = cv2.resize(preview_image, (150, 150), interpolation=cv2.INTER_AREA)
+        threshold_image = cv2.resize(threshold_image, (150, 150), interpolation=cv2.INTER_AREA)
+        image_stack = np.concatenate((preview_image, threshold_image), axis=1)
+
+        try:
+            self.image_queue_outgoing.put_nowait((image_stack, output_information))
+        except queue.Full:
+            pass
 
         self.previous_image = self.current_image
         self.previous_rotation = self.config.rotation_angle
 
-    def capture_crop_rotate_image(self):
-        # Get our current frame
+    def _maybe_apply_bigscreen_default_crop(self) -> None:
+        """On the very first frame in bigscreen mode, default the ROI to this eye's half of the frame."""
+        # NEXT splits the raw Bigscreen frame itself and must not overwrite the
+        # crop saved for whichever classical tracker the user returns to.
+        if self._next_active or self.settings.gui_setup_mode != "bigscreen":
+            return
+        if self.config.bigscreen_auto_crop_frame is not None:
+            return
+        h, w = self.current_image.shape[:2]
+        half_w = w // 2
+        if self.eye_id == EyeId.LEFT:
+            self.config.roi_window_x = 0
+            self.config.roi_window_y = 0
+            self.config.roi_window_w = half_w
+            self.config.roi_window_h = h
+        else:
+            self.config.roi_window_x = half_w
+            self.config.roi_window_y = 0
+            self.config.roi_window_w = w - half_w
+            self.config.roi_window_h = h
+        self.config.bigscreen_auto_crop_frame = [w, h]
+        try:
+            self.baseconfig.save()
+        except Exception:
+            pass
 
+    def capture_crop_rotate_image(self):
         self.ibo.change_roi(
             {
                 "rotation_angle": self.config.rotation_angle,
@@ -362,12 +476,8 @@ class EyeProcessor:
             # fill with avg color + 10.
             # fill with white (self.current_image_white) and average in-bounds color (self.current_image).
             normalized_rotation = float(self.config.rotation_angle) % 360.0
-            no_rotation = (
-                normalized_rotation < 1e-6 or 360.0 - normalized_rotation < 1e-6
-            )
-            integer_roi = all(
-                float(v).is_integer() for v in (roi_x, roi_y, roi_w, roi_h)
-            )
+            no_rotation = normalized_rotation < 1e-6 or 360.0 - normalized_rotation < 1e-6
+            integer_roi = all(float(v).is_integer() for v in (roi_x, roi_y, roi_w, roi_h))
             if no_rotation and integer_roi:
                 x0 = int(roi_x)
                 y0 = int(roi_y)
@@ -391,18 +501,14 @@ class EyeProcessor:
             if self._crop_geom_cache_key != geom_key:
                 crop_matrix = np.float32([[1, 0, -roi_x], [0, 1, -roi_y], [0, 0, 1]])
                 img_center = (roi_w / 2, roi_h / 2)
-                rotation_matrix = cv2.getRotationMatrix2D(
-                    img_center, self.config.rotation_angle, 1
-                )
+                rotation_matrix = cv2.getRotationMatrix2D(img_center, self.config.rotation_angle, 1)
                 matrix = np.matmul(rotation_matrix, crop_matrix)
                 inv_matrix = np.linalg.inv(np.vstack((matrix, [0, 0, 1])))[:-1]
                 corners = np.matmul(
                     [[0, 0, 1], [roi_w, 0, 1], [0, roi_h, 1], [roi_w, roi_h, 1]],
                     np.transpose(inv_matrix),
                 )
-                fits_in_bounds = all(
-                    0 <= x <= img_w and 0 <= y <= img_h for (x, y) in corners
-                )
+                fits_in_bounds = all(0 <= x <= img_w and 0 <= y <= img_h for (x, y) in corners)
                 self._crop_geom_cache_key = geom_key
                 self._crop_matrix = matrix
                 self._crop_fits_in_bounds = fits_in_bounds
@@ -440,10 +546,13 @@ class EyeProcessor:
 
             avg_color_per_row = np.average(self.current_image, axis=0)
             avg_color = np.average(avg_color_per_row, axis=0)
-            avg_color_norm = avg_color[0:3] / avg_color[3]
-            ar, ag, ab = np.clip(avg_color_norm, 0, 1)
+            alpha_avg = float(avg_color[3])
+            if alpha_avg < 1e-6:
+                ar, ag, ab = 0.0, 0.0, 0.0
+            else:
+                avg_color_norm = avg_color[0:3] / alpha_avg
+                ar, ag, ab = np.clip(avg_color_norm, 0.0, 1.0)
 
-            # add border color to image masked by alpha and discard alpha channel
             rgb_ch = self.current_image[:, :, :3]
             inv_alpha_ch = 255 - self.current_image[:, :, 3]
             self.current_image = rgb_ch + np.stack(
@@ -457,7 +566,15 @@ class EyeProcessor:
 
     def _ensure_pupil_axes_for_dilation(self) -> None:
         """EBPD expects ellipse axes in pixels; RANSAC3D sets pupil_width/height, other trackers only set radius."""
-        if self.pupil_width > 1e-3 and self.pupil_height > 1e-3:
+        # Only trust stored axes when this frame's tracker measured them
+        # (RANSAC3D / HSRAC / AHRAC). Otherwise they are left over from an
+        # earlier frame or tracker and would freeze the dilation input, so
+        # re-derive them from the current radius every frame.
+        if (
+            self.current_algorithm in (EyeInfoOrigin.RANSAC, EyeInfoOrigin.HSRAC)
+            and self.pupil_width > 1e-3
+            and self.pupil_height > 1e-3
+        ):
             return
         try:
             r = float(abs(self.radius))
@@ -487,9 +604,8 @@ class EyeProcessor:
             pass
 
     def _apply_circular_crop_if_enabled(self) -> None:
-        circular_crop_enabled = (
-            (self.eye_id == EyeId.LEFT and self.settings.gui_circular_crop_left)
-            or (self.eye_id == EyeId.RIGHT and self.settings.gui_circular_crop_right)
+        circular_crop_enabled = (self.eye_id == EyeId.LEFT and self.settings.gui_circular_crop_left) or (
+            self.eye_id == EyeId.RIGHT and self.settings.gui_circular_crop_right
         )
         if not circular_crop_enabled:
             return
@@ -516,15 +632,28 @@ class EyeProcessor:
         seconds = max(1.0, float(self.settings.calibration_duration))
         return max(30, int(round(seconds * float(fps))))
 
+    @property
+    def _next_active(self) -> bool:
+        """True when NEXT is the tracker (mono or stereo: NEXTM picks per frame).
+        It produces its own gaze/eyelid/squeeze/eyebrow end-to-end, so the
+        classical BLINK/IBO/LEAP-lid estimators and the eyebrow fallback must be
+        bypassed. gui_NEXT_BSB is the retired stereo tracker flag, kept here so
+        an unmigrated config still reads as NEXT."""
+        return bool(self.settings.gui_NEXT or self.settings.gui_NEXT_BSB)
+
     def UPDATE(self):
         self.current_algo = self.current_algorithm
 
-        if self.settings.gui_BLINK:
+        # NEXT produces its own eyelid openness (already remapped against the
+        # close/widen thresholds in NEXTM). The image-intensity BLINK/IBO
+        # estimators run on the eye-crop grayscale, which for NEXT is the full
+        # uncropped frame; feeding that here would overwrite the model's
+        # calibrated eyelid with garbage. Skip them for NEXT, mirroring the
+        # existing `not gui_NEXT` guard on the LEAP-lid block below.
+        if self.settings.gui_BLINK and not self._next_active:
             self.eyeopen = BLINK(self)
 
-        if (
-            self.settings.gui_IBO and self.eyeopen != 0.0
-        ):
+        if self.settings.gui_IBO and self.eyeopen != 0.0 and not self._next_active:
             # TODO: Separate RANSAC blink state from the shared eye openness guard.
             self.eyeopen = self.ibo.intense(
                 self.rawx,
@@ -533,37 +662,33 @@ class EyeProcessor:
                 self._ibo_filter_samples(),
                 self.settings.ibo_average_output_samples,
             )
-            # Share the per-eye Lid Close Threshold with LEAP Lid — formerly a
+            # Share the per-eye Lid Close Threshold with LEAP Lid, formerly a
             # separate ibo_fully_close_eye_threshold field, now consolidated.
             ibo_close_t, _ = leap_lid_thresholds_for_eye(self.settings, self.eye_id)
             if self.eyeopen < ibo_close_t:
                 self.eyeopen = 0.0
 
-            if self.bd_blink == True:
+            if self.bd_blink:
                 logger.debug("Blink detected")
 
-        if (
-            self.settings.gui_LEAP_lid
-            and self.eyeopen != 0.0
-            and not self.settings.gui_LEAP
-        ):
+        if self.settings.gui_LEAP_lid and self.eyeopen != 0.0 and not self.settings.gui_LEAP and not self._next_active:
             (
                 self.current_image_gray,
-                self.rawx,
-                self.rawy,
-                self.eyeopen,
+                leap_x,
+                leap_y,
+                leap_lid,
             ) = self.leap_runner.run(
                 self.current_image_gray,
                 self.current_image_gray_clean,
-                self.calibration_start_time,
                 self.settings.gui_use_gpu,
             )
-            close_t, wide_t = leap_lid_thresholds_for_eye(self.settings, self.eye_id)
-            self.eyeopen = remap_leap_lid_openness(self.eyeopen, close_t, wide_t)
+            # None = LEAP has produced no result yet: keep the current values.
+            if leap_lid is not None:
+                self.rawx, self.rawy = leap_x, leap_y
+                close_t, wide_t = leap_lid_thresholds_for_eye(self.settings, self.eye_id)
+                self.eyeopen = remap_leap_lid_openness(leap_lid, close_t, wide_t)
 
-        if (
-            len(self.prev_y_list) >= 100
-        ):
+        if len(self.prev_y_list) >= 100:
             self.prev_y_list.pop(0)
             self.prev_y_list.append(self.out_y)
         else:
@@ -593,6 +718,7 @@ class EyeProcessor:
         self.prev_x = self.out_x
         self.prev_y = self.out_y
 
+        _brow = self._current_eyebrow()
         self.output_images_and_update(
             self.thresh,
             EyeInfo(
@@ -602,6 +728,8 @@ class EyeProcessor:
                 self.pupil_dilation,
                 self.eyeopen,
                 self.avg_velocity,
+                _brow,
+                self.squeeze,
             ),
         )
 
@@ -616,6 +744,11 @@ class EyeProcessor:
                     self.pupil_dilation,
                     self.eyeopen,
                     self.avg_velocity,
+                    _brow,
+                    self.squeeze,
+                    self.current_capture_ts,
+                    dfr_x=self.dfr_x,
+                    dfr_y=self.dfr_y,
                 ),
             ),
         )
@@ -630,15 +763,22 @@ class EyeProcessor:
         self.thresh = self.current_image_gray.copy()
         (
             self.current_image_gray,
-            self.rawx,
-            self.rawy,
+            leap_x,
+            leap_y,
             eyeopen,
         ) = self.leap_runner.run(
             self.current_image_gray,
             self.current_image_gray_clean,
-            self.calibration_start_time,
             self.settings.gui_use_gpu,
         )
+        self.current_algorithm = EyeInfoOrigin.LEAP
+        if eyeopen is None:
+            # No LEAP result yet (only before the very first inference): keep
+            # the previous gaze and the neutral default lid instead of
+            # reporting a fake blink and a corner gaze through cal_osc(0, 0).
+            self.thresh = self.current_image_gray.copy()
+            return
+        self.rawx, self.rawy = leap_x, leap_y
         # Publish raw lid (pre-remap) so the settings UI visualizer can show
         # where the user's eye currently sits relative to the close/widen markers.
         _set_runtime_value(f"raw_lid_{int(self.eye_id)}", float(eyeopen))
@@ -646,20 +786,248 @@ class EyeProcessor:
             close_t, wide_t = leap_lid_thresholds_for_eye(self.settings, self.eye_id)
             self.eyeopen = remap_leap_lid_openness(eyeopen, close_t, wide_t)
         self.thresh = self.current_image_gray.copy()
-        self.out_x, self.out_y, self.avg_velocity = cal.cal_osc(
-            self, self.rawx, self.rawy, self.angle
-        )
-        self.current_algorithm = EyeInfoOrigin.LEAP
+        self.out_x, self.out_y, self.avg_velocity = cal.cal_osc(self, self.rawx, self.rawy, self.angle)
 
     def DADDYM(self):
         self.thresh = self.current_image_gray.copy()
-        self.rawx, self.rawy, self.radius = self.daddy_runner.run(
-            self.current_image_gray
-        )
-        self.out_x, self.out_y, self.avg_velocity = cal.cal_osc(
-            self, self.rawx, self.rawy, self.angle
-        )
+        self.rawx, self.rawy, self.radius = self.daddy_runner.run(self.current_image_gray)
+        self.out_x, self.out_y, self.avg_velocity = cal.cal_osc(self, self.rawx, self.rawy, self.angle)
         self.current_algorithm = EyeInfoOrigin.DADDY
+
+    def NEXTM(self):
+        """NEXT tracking with native single/dual-eye Hybrid inference.
+
+        Hybrid keeps the shared session active even with one camera; missing
+        or stale eyes use the trained black sentinel. Legacy variants switch
+        between their separate mono and stereo builds. Inference never waits
+        for the other camera (see next_stereo_model).
+
+        All downstream handling (flips, smart-cal, recenter, lid remap, OSC) is
+        shared by both paths via _next_apply()."""
+        if self.current_raw_frame is None:
+            return
+        self.thresh = self.current_image_gray.copy()
+
+        base_cutoff = float(self.settings.gui_min_cutoff)
+        base_beta = float(self.settings.gui_speed_coefficient)
+
+        # NEXT runs on the RAW camera frame (no ROI window, no rotation) to match
+        # how the model was trained/exported (see infer.py's --roi handling). In
+        # bigscreen mode one camera carries both eyes side-by-side, so feed this
+        # eye's half; the LEFT/RIGHT split mirrors data_collection's bigscreen crop.
+        next_frame = self.current_raw_frame
+        if self.settings.gui_setup_mode == "bigscreen":
+            mid = next_frame.shape[1] // 2
+            next_frame = next_frame[:, :mid] if self.eye_id == EyeId.LEFT else next_frame[:, mid:]
+
+        variant = variant_from_settings(self.settings)
+        coord = get_stereo_coordinator(variant, self.settings.gui_use_gpu)
+        if coord is not None:
+            # The Frame's two cameras deliver each pair together.
+            coord.paired = self.settings.gui_setup_mode == "frame"
+            # Publish independently; Hybrid can infer immediately from this
+            # eye alone, while legacy stereo still needs an active peer.
+            coord.submit(self.eye_id, next_frame, self.current_capture_ts)
+            if coord.supports_single_eye or coord.peer_active(self.eye_id):
+                self._next_mode_changed(True)
+                gaze_x, gaze_y, eyebrow, eyelid, squeeze = coord.run(self.eye_id, base_cutoff, base_beta)
+                self._next_apply(gaze_x, gaze_y, eyebrow, eyelid, squeeze, raw_gaze=coord.raw_gaze())
+                return
+
+        self._next_mode_changed(False)
+        if self.next_runner is None:
+            self.next_runner = External_Run_NEXT(variant, self.settings.gui_use_gpu, self.eye_id)
+        gaze_x, gaze_y, eyebrow, eyelid, squeeze = self.next_runner.run(next_frame, base_cutoff, base_beta)
+        self._next_apply(gaze_x, gaze_y, eyebrow, eyelid, squeeze, raw_gaze=self.next_runner.raw_gaze)
+
+    def _next_mode_changed(self, stereo: bool) -> None:
+        """Handle a mono/stereo handover: reset the incoming model's temporal
+        history so it can't splice pre-handover frames into its motion stack,
+        and log the switch once (not per frame)."""
+        if self._next_stereo_engaged is stereo:
+            return
+        self._next_stereo_engaged = stereo
+        if not stereo and self.next_runner is not None:
+            self.next_runner.reset_history()
+        logger.info(
+            "NEXT %s: %s model",
+            "LEFT" if self.eye_id == EyeId.LEFT else "RIGHT",
+            "shared Hybrid/stereo" if stereo else "per-eye",
+        )
+
+    def _next_dfr_gaze(self, raw_x: float, raw_y: float) -> tuple[float, float]:
+        """Foveated-rendering gaze: the model's unfiltered gaze through the same
+        Smart Calib transform, flips and recenter offset as the OSC gaze, with no
+        median / One-Euro smoothing. Call after the recenter offset is updated."""
+        x, y = raw_x, raw_y
+        if self._next_smartcal_w is not None and self._next_smartcal_b is not None:
+            x, y = next_smartcal_apply(
+                self._next_smartcal_w,
+                self._next_smartcal_b,
+                self._next_smartcal_warp,
+                raw_x,
+                raw_y,
+            )
+            # Same native-range bound as the OSC gaze: a strong transform must
+            # not throw the foveal region off the display.
+            x = float(np.clip(x, -1.0, 1.0))
+            y = float(np.clip(y, -1.0, 1.0))
+        if self.eye_id == EyeId.RIGHT:
+            if self.settings.gui_flip_x_axis_right:
+                x = -x
+        elif self.settings.gui_flip_x_axis_left:
+            x = -x
+        if self.settings.gui_flip_y_axis:
+            y = -y
+        return x - self._next_recenter_offset_x, y - self._next_recenter_offset_y
+
+    def _next_apply(self, gaze_x, gaze_y, eyebrow, eyelid, squeeze, raw_gaze=None):
+        """Shared NEXT post-processing for the mono and stereo model paths:
+        user-configured flips, smart-calibration, recenter, eyelid remap, and
+        the OSC enqueue. Inputs preserve the model's native axis orientation.
+        ``raw_gaze`` is the same gaze before the runner's filtering; it becomes
+        the foveated-rendering gaze (self.dfr_x / dfr_y)."""
+        # Raw model gaze, before user-configured flips, in [-1, 1].
+        model_gaze_x, model_gaze_y = gaze_x, gaze_y
+
+        # Openness as the model reports it: lid aperture scaled down by squeeze,
+        # so a forceful squint reads as more closed. This is the channel the
+        # lid calibration and every downstream consumer work on.
+        eyeopen_raw = eyelid * max(0.0, 1.0 - squeeze)
+
+        # ── NEXT Smart Calibration ────────────────────────────────────────────
+        # Capture and apply calibration in the model's native coordinate space;
+        # NEXT does not impose an algorithm-specific Y-axis inversion.
+        sc_gaze_x, sc_gaze_y = model_gaze_x, model_gaze_y
+
+        # While a dot is being held by the overlay, accumulate the native gaze
+        # so the regression can be fit against the dot's known position.
+        # Only within the capture window: the overlay holds each dot 0.5 s
+        # after its signal, then the next dot appears and the user follows it;
+        # sampling past the hold poisons this dot with the next dot's fixation.
+        _sc_dot = self._next_smartcal_active_dot
+        if _sc_dot is not None and (
+            time.monotonic() - self._next_smartcal_dot_started <= NEXT_SMARTCAL_CAPTURE_WINDOW_S
+        ):
+            # Lid and brow ride along in the same sample: the user holds a
+            # neutral face for the whole sequence, so these are captures of
+            # "eyes normally open, brow at rest" (pooled across dots at fit
+            # time). Costs nothing extra and needs no second calibration pass.
+            self._next_smartcal_samples.setdefault(_sc_dot, []).append((sc_gaze_x, sc_gaze_y, eyeopen_raw, eyebrow))
+
+        # Apply the fitted (warp + affine) transform (smart calib) to map raw
+        # model gaze -> calibrated gaze. The arctanh warp un-saturates the
+        # model's tanh output so the correction stays gentle instead of slamming
+        # to the extremes. Smart Calib is NEXT's only calibration, so a fitted
+        # transform always applies.
+        if self._next_smartcal_w is not None and self._next_smartcal_b is not None:
+            _cal_x, _cal_y = next_smartcal_apply(
+                self._next_smartcal_w,
+                self._next_smartcal_b,
+                self._next_smartcal_warp,
+                sc_gaze_x,
+                sc_gaze_y,
+            )
+            # Keep the result in the model's native output range so a strong
+            # transform can't push extreme values downstream to OSC.
+            gaze_x = float(np.clip(_cal_x, -1.0, 1.0))
+            gaze_y = float(np.clip(_cal_y, -1.0, 1.0))
+
+        if self.eye_id == EyeId.RIGHT:
+            if self.settings.gui_flip_x_axis_right:
+                gaze_x = -gaze_x
+        else:
+            if self.settings.gui_flip_x_axis_left:
+                gaze_x = -gaze_x
+        if self.settings.gui_flip_y_axis:
+            gaze_y = -gaze_y
+
+        self.rawx = gaze_x
+        self.rawy = gaze_y
+
+        # Lid/brow smart calibration: re-anchor this user's neutral face onto
+        # the target output values (normal-open lid, neutral brow), leaving
+        # fully closed and fully open/raised where they are. Captured by the
+        # same dot sequence as the gaze fit; a no-op until that has run.
+        if self.settings.gui_NEXT_calib_lids_brows:
+            eyeopen_raw = next_smartcal_neutral_apply(
+                eyeopen_raw,
+                self._next_smartcal_lid_neutral,
+                NEXT_SMARTCAL_LID_TARGET,
+            )
+            eyebrow = next_smartcal_neutral_apply(
+                eyebrow,
+                self._next_smartcal_brow_neutral,
+                NEXT_SMARTCAL_BROW_TARGET,
+            )
+
+        # Eyelid openness before the close/widen remap. Publish on the same
+        # runtime channel LEAP uses so the settings-menu lid visualizer shows a
+        # live indicator for NEXT too; this is what makes the close/widen
+        # markers tunable against live tracking when NEXT calibration is
+        # enabled. Post lid-calibration, so the markers and the remap below all
+        # read the same scale.
+        _set_runtime_value(f"raw_lid_{int(self.eye_id)}", float(eyeopen_raw))
+
+        # No classic ellipse path here: NEXT calibrates with Smart Calib only
+        # (see eyetrackapp's _next_smartcal_selected), so cal_osc is never fed
+        # by this tracker and the recenter path below always runs.
+
+        # Recenter (NEXT, no-save): when the recenter button is pressed,
+        # capture the current raw gaze as a fixed offset and subtract it so
+        # the output zeroes on the user's current gaze. Unlike calibration
+        # recenter, this offset lives only in memory and is never saved.
+        # gui_recenter_eyes is shared across both eye processors, so hold it
+        # briefly (same 0.2s gate as the calibration path) to let both eyes
+        # capture their offset before clearing the flag.
+        if self.settings.gui_recenter_eyes:
+            self._next_recenter_offset_x = gaze_x
+            self._next_recenter_offset_y = gaze_y
+            now = time.perf_counter()
+            if self._next_recenter_armed_at is None:
+                self._next_recenter_armed_at = now
+            elif now - self._next_recenter_armed_at >= self._recenter_delay_s:
+                self.settings.gui_recenter_eyes = False
+                self._next_recenter_armed_at = None
+        else:
+            self._next_recenter_armed_at = None
+
+        gaze_x -= self._next_recenter_offset_x
+        gaze_y -= self._next_recenter_offset_y
+
+        if raw_gaze is not None:
+            self.dfr_x, self.dfr_y = self._next_dfr_gaze(*raw_gaze)
+        else:  # runner without a raw tap: fall back to the OSC gaze
+            self.dfr_x, self.dfr_y = gaze_x, gaze_y
+
+        dx = gaze_x - self.out_x
+        dy = gaze_y - self.out_y
+        self.avg_velocity = float(np.sqrt(dx * dx + dy * dy))
+        self.out_x = gaze_x
+        self.out_y = gaze_y
+
+        if next_eyelid_tuning_active(self.settings, self.eye_id):
+            close_t, wide_t = leap_lid_thresholds_for_eye(self.settings, self.eye_id)
+            self.eyeopen = remap_leap_lid_openness(eyeopen_raw, close_t, wide_t)
+        else:
+            # Fresh installs preserve the model's eyelid output (Smart Calib's
+            # neutral anchor aside) until the user changes Manual Eyelid Tuning.
+            self.eyeopen = eyeopen_raw
+
+        # Snap to fully-closed: NEXT openness near zero is treated as a blink so
+        # the eye reports a clean 0.0 instead of jittering just above closed.
+        if self.eyeopen < 0.08:
+            self.eyeopen = 0.0
+
+        self.squeeze = squeeze
+        self.next_eyebrow = eyebrow
+        self._enqueue_osc_message(
+            OSCMessage(
+                type=OSCMessageType.EYEBROW_INFO,
+                data=(self.eye_id, eyebrow),
+            )
+        )
+        self.current_algorithm = EyeInfoOrigin.NEXT
 
     def AHRACM(self):
         self._apply_circular_crop_if_enabled()
@@ -687,18 +1055,14 @@ class EyeProcessor:
         if self.settings.gui_RANSACBLINK:  # might be redundant
             self.eyeopen = ranblink
 
-        self.out_x, self.out_y, self.avg_velocity = cal.cal_osc(
-            self, self.rawx, self.rawy, self.angle
-        )
+        self.out_x, self.out_y, self.avg_velocity = cal.cal_osc(self, self.rawx, self.rawy, self.angle)
         self.current_algorithm = EyeInfoOrigin.HSRAC
 
     def HSRACM(self):
         self._apply_circular_crop_if_enabled()
 
         self.hsrac_enabled = True
-        self.rawx, self.rawy, self.thresh, self.radius = self.hsf_runner.run(
-            self.current_image_gray
-        )
+        self.rawx, self.rawy, self.thresh, self.radius = self.hsf_runner.run(self.current_image_gray)
         (
             self.rawx,
             self.rawy,
@@ -711,20 +1075,14 @@ class EyeProcessor:
         if self.settings.gui_RANSACBLINK:  # might be redundant
             self.eyeopen = ranblink
 
-        self.out_x, self.out_y, self.avg_velocity = cal.cal_osc(
-            self, self.rawx, self.rawy, self.angle
-        )
+        self.out_x, self.out_y, self.avg_velocity = cal.cal_osc(self, self.rawx, self.rawy, self.angle)
         self.current_algorithm = EyeInfoOrigin.HSRAC
 
     def HSFM(self):
         self._apply_circular_crop_if_enabled()
         # TODO: Reinitialize the HSF runner when the ROI resolution changes.
-        self.rawx, self.rawy, self.thresh, self.radius = self.hsf_runner.run(
-            self.current_image_gray
-        )
-        self.out_x, self.out_y, self.avg_velocity = cal.cal_osc(
-            self, self.rawx, self.rawy, self.angle
-        )
+        self.rawx, self.rawy, self.thresh, self.radius = self.hsf_runner.run(self.current_image_gray)
+        self.out_x, self.out_y, self.avg_velocity = cal.cal_osc(self, self.rawx, self.rawy, self.angle)
         self.current_algorithm = EyeInfoOrigin.HSF
 
     def RANSAC3DM(self):
@@ -741,9 +1099,7 @@ class EyeProcessor:
         ) = RANSAC3D(self, True)
         if self.settings.gui_RANSACBLINK:
             self.eyeopen = ranblink
-        self.out_x, self.out_y, self.avg_velocity = cal.cal_osc(
-            self, self.rawx, self.rawy, self.angle
-        )
+        self.out_x, self.out_y, self.avg_velocity = cal.cal_osc(self, self.rawx, self.rawy, self.angle)
         self.current_algorithm = EyeInfoOrigin.RANSAC
 
     def AHSFM(self):
@@ -756,9 +1112,7 @@ class EyeProcessor:
             self.radius,
         ) = self.ahsf_runner.detect_etvr(self.current_image_gray)
         self.thresh = self.current_image_gray
-        self.out_x, self.out_y, self.avg_velocity = cal.cal_osc(
-            self, self.rawx, self.rawy, self.angle
-        )
+        self.out_x, self.out_y, self.avg_velocity = cal.cal_osc(self, self.rawx, self.rawy, self.angle)
         self.current_algorithm = EyeInfoOrigin.HSF
 
     def ALGOSELECT(self):
@@ -783,8 +1137,15 @@ class EyeProcessor:
                 # Algorithm did not advance: treat as success and stop.
                 return
             # Algorithm advanced self.failed (failure): loop and try next slot.
-        # Walked past the end without success — reset for next frame.
+        # Walked past the end without success: reset for next frame.
         self.failed = 0
+
+    def _ahsf(self):
+        if getattr(self, "ahsf_detector", None) is None:
+            from AHSF import PupilDetectorHaar
+
+            self.ahsf_detector = PupilDetectorHaar()
+        return self.ahsf_detector
 
     def _rebuild_algorithm_slots(self) -> None:
         """Rebuild _algorithm_slots from current settings. Called each frame so
@@ -795,12 +1156,12 @@ class EyeProcessor:
 
         if self.settings.gui_AHRAC:
             if self.ahsf_runner is None:
-                self.ahsf_runner = self.ahsf_detector
+                self.ahsf_runner = self._ahsf()
             enabled_algorithms.append(self.AHRACM)
 
         if self.settings.gui_AHSF:
             if self.ahsf_runner is None:
-                self.ahsf_runner = self.ahsf_detector
+                self.ahsf_runner = self._ahsf()
             enabled_algorithms.append(self.AHSFM)
 
         if self.settings.gui_HSF:
@@ -845,6 +1206,32 @@ class EyeProcessor:
             if self.daddy_runner is not None:
                 self.daddy_runner = None
 
+        # NEXT uses native single/dual-eye Hybrid for ETVR, BSB and PSVR, and
+        # separate mono/stereo builds for legacy variants. gui_NEXT_BSB is the
+        # retired "NEXT BSB (stereo)" tracker; configs that still carry it are
+        # migrated on load, and it's honored here so a stale flag can never
+        # leave the user with no tracker at all.
+        if self.settings.gui_NEXT or self.settings.gui_NEXT_BSB:
+            variant = variant_from_settings(self.settings)
+            use_gpu = bool(self.settings.gui_use_gpu)
+            coord = get_stereo_coordinator(variant, use_gpu)
+            if coord is not None and coord.supports_single_eye:
+                # Both eye threads share this session, including in mono mode.
+                # Avoid also allocating two unused per-eye model sessions.
+                self.next_runner = None
+            else:
+                if self.next_runner is not None and (
+                    getattr(self.next_runner, "variant", None) != variant
+                    or getattr(self.next_runner, "use_gpu", None) != use_gpu
+                ):
+                    self.next_runner = None
+                if self.next_runner is None:
+                    self.next_runner = External_Run_NEXT(variant, use_gpu, self.eye_id)
+            enabled_algorithms.append(self.NEXTM)
+        else:
+            if self.next_runner is not None:
+                self.next_runner = None
+
         if self.settings.gui_LEAP or self.settings.gui_LEAP_lid:
             if self.leap_runner is None:
                 self.leap_runner = External_Run_LEAP(self.config, self.baseconfig)
@@ -852,6 +1239,7 @@ class EyeProcessor:
                 enabled_algorithms.append(self.LEAPM)
         else:
             if self.leap_runner is not None:
+                self.leap_runner.shutdown()
                 self.leap_runner = None
 
         if self.settings.gui_RANSAC3D:
@@ -861,25 +1249,68 @@ class EyeProcessor:
             algorithm_slots[idx] = algo
         self._algorithm_slots = algorithm_slots
 
+    def _current_eyebrow(self) -> float:
+        """Eyebrow value for EyeInfo. NEXT's own eyebrow wins whenever NEXT is
+        the tracker (it is also the only EYEBROW_INFO sent then)."""
+        if self._next_active:
+            return self.next_eyebrow
+        if self.eyebrow_runner is not None:
+            return self.eyebrow_runner.get_result()
+        return float("nan")
+
+    def _service_eyebrow_runner(self, raw_frame: np.ndarray) -> None:
+        """Run the standalone eyebrow model when the EyeBrow toggle is on.
+        NEXT already outputs eyebrows, so while it is the active tracker the
+        runner is stopped: two models each sending EYEBROW_INFO every frame
+        made the OSC brow param flicker between them."""
+        if self.settings.gui_eyebrow and not self._next_active:
+            self._run_eyebrow(raw_frame)
+        elif self.eyebrow_runner is not None:
+            self.eyebrow_runner.stop()
+            self.eyebrow_runner = None
+
+    def _run_eyebrow(self, raw_frame: np.ndarray) -> None:
+        variant = getattr(self.settings, "gui_model_variant", "ETVR")
+        # Reload if the selected model variant changed at runtime.
+        if self.eyebrow_runner is not None and getattr(self.eyebrow_runner, "variant", None) != variant:
+            self.eyebrow_runner.stop()
+            self.eyebrow_runner = None
+        if self.eyebrow_runner is None:
+            try:
+                self.eyebrow_runner = EyeBrow(variant)
+            except Exception as e:
+                logger.warning("EyeBrow init failed: %s", e)
+                self.eyebrow_runner = None
+                return
+        if self.settings.gui_setup_mode == "bigscreen":
+            mid = raw_frame.shape[1] // 2
+            frame = raw_frame[:, :mid] if self.eye_id == EyeId.LEFT else raw_frame[:, mid:]
+        else:
+            frame = raw_frame
+        self.eyebrow_runner.submit(frame)
+        self._enqueue_osc_message(
+            OSCMessage(
+                type=OSCMessageType.EYEBROW_INFO,
+                data=(self.eye_id, self.eyebrow_runner.get_result()),
+            )
+        )
+
     def run(self):
         # Reset HSF runner on each thread start so a fresh runner is built from
         # current settings rather than inheriting stale state from a prior run.
         self.hsf_runner = None
 
         while True:
-            # Check to make sure we haven't been requested to close
             if self.cancellation_event.is_set():
                 logger.info("Exiting tracking thread")
                 return
 
-            if self.config.roi_window_w <= 0 or self.config.roi_window_h <= 0:
+            if not self._next_active and (self.config.roi_window_w <= 0 or self.config.roi_window_h <= 0):
                 # At this point, we're waiting for the user to set up the ROI window in the GUI.
-                # Sleep a bit while we wait.
                 if self.cancellation_event.wait(0.1):
                     return
                 continue
-            # If our ROI configuration has changed, reset our model and detector
-            if (
+            if not self._next_active and (
                 self.camera_model is None
                 or self.detector_3d is None
                 or self.camera_model.resolution
@@ -892,12 +1323,9 @@ class EyeProcessor:
                     focal_length=self.config.focal_length,
                     resolution=(self.config.roi_window_w, self.config.roi_window_h),
                 )
-                self.detector_3d = Detector3D(
-                    camera=self.camera_model, long_term_mode=DetectorMode.blocking
-                )
+                self.detector_3d = Detector3D(camera=self.camera_model, long_term_mode=DetectorMode.blocking)
 
             try:
-                # Wait a bit for images here. If we don't get one, just try again.
                 (
                     self.current_image,
                     self.current_frame_number,
@@ -905,8 +1333,7 @@ class EyeProcessor:
                     self.current_capture_ts,
                 ) = self.capture_queue_incoming.get(block=True, timeout=0.1)
 
-                # [Limiter lag fix] The camera thread now handles the tracking Hz limit.
-                # We simply drain the queue to ensure we're processing the latest frame.
+                # [Limiter lag fix] We simply drain the queue to ensure we're processing the latest frame.
                 try:
                     while True:
                         (
@@ -920,12 +1347,46 @@ class EyeProcessor:
             except queue.Empty:
                 continue
 
-            if not self.capture_crop_rotate_image():
+            if models_paused_for_recording.is_set():
+                continue  # data collection is recording on a Steam Frame
+
+            # Enforce tracking Hz limit
+            max_hz = getattr(self.settings, "gui_max_tracking_speed", 0)
+            if max_hz > 0:
+                min_interval = 1.0 / max_hz
+                now = time.perf_counter()
+                elapsed = now - self._last_tracking_pull_mono
+                if elapsed < min_interval:
+                    time.sleep(min_interval - elapsed)
+                    # We slept, which means a fresher frame might have arrived. Drain the queue again.
+                    try:
+                        while True:
+                            (
+                                self.current_image,
+                                self.current_frame_number,
+                                self.current_fps,
+                                self.current_capture_ts,
+                            ) = self.capture_queue_incoming.get_nowait()
+                    except queue.Empty:
+                        pass
+            self._last_tracking_pull_mono = time.perf_counter()
+
+            raw_frame = self.current_image
+            self.current_raw_frame = raw_frame
+
+            self._maybe_apply_bigscreen_default_crop()
+
+            if self._next_active:
+                # NEXT is trained on the unmodified camera frame. Keep the
+                # classical ROI/rotation in config, but do not apply either to
+                # NEXT's working or visualizer images.
+                self.current_image_white = self.current_image
+            elif not self.capture_crop_rotate_image():
                 continue
 
-            self.current_image_gray = cv2.cvtColor(
-                self.current_image, cv2.COLOR_BGR2GRAY
-            )
+            self._service_eyebrow_runner(raw_frame)
+
+            self.current_image_gray = cv2.cvtColor(self.current_image, cv2.COLOR_BGR2GRAY)
             if self._needs_gray_clean_copy():
                 self.current_image_gray_clean = self.current_image_gray.copy()
             else:

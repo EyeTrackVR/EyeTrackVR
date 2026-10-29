@@ -6,42 +6,35 @@ from tkinter import ttk
 
 from utils.tooltips import attach_tooltip
 
-
-_TIP_VRC_NATIVE = (
-    "Send eye data over VRChat's built-in OSC parameters. Use for avatars "
-    "wired to the native eye-look params (no extra mod required)."
-)
-_TIP_VRCFT_V2 = (
-    "Send via VRCFaceTracking v2 params (current). Required for VRCFT-based "
-    "avatars and facial-tracking add-ons."
-)
-_TIP_VRCFT_V1 = (
-    "Send via VRCFaceTracking v1 params (legacy). Only use if your avatar "
-    "was built against the older VRCFT module."
-)
-_TIP_RECEIVE = (
-    "Listen for incoming OSC messages from VRChat (e.g. calibration toggles "
-    "from in-game)."
-)
+from localization import tr
 
 
 class OSCValidationModel(BaseValidationModel):
     gui_ROSC: bool
+    gui_osc_oscquery: bool
     gui_vrc_native: bool
     gui_osc_vrcft_v1: bool
     gui_osc_vrcft_v2: bool
+    gui_pyvrcft: bool
     gui_use_module: bool
+    gui_foveation_gaze: bool
 
     @model_validator(mode="after")
     def check_osc_vrcft_versions(self):
         if self.gui_osc_vrcft_v1 and self.gui_osc_vrcft_v2:
-            raise ValueError("Only one version of VRCFT params can be turned on")
+            raise ValueError(tr("osc.err_one_vrcft_version"))
         return self
 
     @model_validator(mode="after")
     def check_osc_output_mode(self):
-        if self.gui_vrc_native and any([self.gui_osc_vrcft_v1, self.gui_osc_vrcft_v2]):
-            raise ValueError("Either VRCNative or VRCFT output can be active at a time")
+        exclusive = [
+            self.gui_vrc_native,
+            self.gui_osc_vrcft_v1,
+            self.gui_osc_vrcft_v2,
+            self.gui_pyvrcft,
+        ]
+        if sum(bool(x) for x in exclusive) > 1:
+            raise ValueError(tr("osc.err_output_mode_conflict"))
         return self
 
 
@@ -50,11 +43,14 @@ class OSCSettingsModule(BaseSettingsModule):
         super().__init__(config=config, widget_id=widget_id, **kwargs)
         self.validation_model = OSCValidationModel
         self.gui_ROSC = f"-ROSC{widget_id}-"
+        self.gui_osc_oscquery = f"-OSCQUERY{widget_id}-"
         self.gui_vrc_native = f"-VRCNATIVE{widget_id}-"
         self.gui_osc_output_mode = f"-OSCOUTMODE{widget_id}-"
         self.gui_osc_vrcft_v1 = f"-OSCVRCFTV1{widget_id}-"
         self.gui_osc_vrcft_v2 = f"-OSCVRCFTV2{widget_id}-"
+        self.gui_pyvrcft = f"-OSCPYVRCFT{widget_id}-"
         self.gui_use_module = f"-OSCUSEMODULE{widget_id}-"
+        self.gui_foveation_gaze = f"-OSCFOVEATION{widget_id}-"
 
     def get_values_map(self) -> dict:
         values = {}
@@ -67,38 +63,65 @@ class OSCSettingsModule(BaseSettingsModule):
         values[self.gui_use_module] = mode in ("vrcft_v1", "vrcft_v2")
         values[self.gui_osc_vrcft_v1] = mode == "vrcft_v1"
         values[self.gui_osc_vrcft_v2] = mode == "vrcft_v2"
+        values[self.gui_pyvrcft] = mode == "pyvrcft"
         return values
 
+    @staticmethod
+    def _output_mode_from(settings) -> str:
+        if settings.gui_pyvrcft:
+            return "pyvrcft"
+        if settings.gui_vrc_native:
+            return "native"
+        if settings.gui_osc_vrcft_v1:
+            return "vrcft_v1"
+        return "vrcft_v2"
+
+    def reset_to_defaults(self, defaults):
+        mode_var = self.tk_vars.get(self.gui_osc_output_mode)
+        if mode_var is not None:
+            mode_var.set(self._output_mode_from(defaults))
+
     def build(self, parent):
-        if self.config.gui_vrc_native:
-            osc_out_initial = "native"
-        elif self.config.gui_osc_vrcft_v1:
-            osc_out_initial = "vrcft_v1"
-        else:
-            osc_out_initial = "vrcft_v2"
+        osc_out_initial = self._output_mode_from(self.config)
 
         osc_bar = ttk.Frame(parent)
         osc_bar.grid(row=0, column=0, sticky="w", pady=2)
         mode_var = tk.StringVar(value=osc_out_initial)
         self.tk_vars[self.gui_osc_output_mode] = mode_var
-        native_rb = ttk.Radiobutton(
-            osc_bar, text="VRC Native", variable=mode_var, value="native"
-        )
+        native_rb = ttk.Radiobutton(osc_bar, text=tr("osc.mode_native"), variable=mode_var, value="native")
         native_rb.pack(side="left", padx=(8, 4))
-        attach_tooltip(native_rb, _TIP_VRC_NATIVE)
-        v2_rb = ttk.Radiobutton(
-            osc_bar, text="VRCFT (v2)", variable=mode_var, value="vrcft_v2"
-        )
+        attach_tooltip(native_rb, tr("osc.mode_native_tip"))
+        v2_rb = ttk.Radiobutton(osc_bar, text=tr("osc.mode_vrcft_v2"), variable=mode_var, value="vrcft_v2")
         v2_rb.pack(side="left", padx=4)
-        attach_tooltip(v2_rb, _TIP_VRCFT_V2)
-        v1_rb = ttk.Radiobutton(
-            osc_bar, text="VRCFT (v1)", variable=mode_var, value="vrcft_v1"
-        )
-        v1_rb.pack(side="left", padx=4)
-        attach_tooltip(v1_rb, _TIP_VRCFT_V1)
+        attach_tooltip(v2_rb, tr("osc.mode_vrcft_v2_tip"))
+        # VRCFT v1 (legacy) is hidden from the GUI but kept in the backend:
+        # get_values_map still maps a saved "vrcft_v1" mode, and
+        # output_v1_params still runs, so existing v1 configs keep working.
+        pyvrcft_rb = ttk.Radiobutton(osc_bar, text=tr("osc.mode_pyvrcft"), variable=mode_var, value="pyvrcft")
+        pyvrcft_rb.pack(side="left", padx=4)
+        attach_tooltip(pyvrcft_rb, tr("osc.mode_pyvrcft_tip"))
 
         ros_var = tk.BooleanVar(value=bool(self.config.gui_ROSC))
         self.tk_vars[self.gui_ROSC] = ros_var
-        receive_cb = ttk.Checkbutton(osc_bar, text="Receive", variable=ros_var)
+        receive_cb = ttk.Checkbutton(osc_bar, text=tr("osc.receive"), variable=ros_var)
         receive_cb.pack(side="left", padx=(24, 8))
-        attach_tooltip(receive_cb, _TIP_RECEIVE)
+        attach_tooltip(receive_cb, tr("osc.receive_tip"))
+
+        oscquery_var = tk.BooleanVar(value=bool(self.config.gui_osc_oscquery))
+        self.tk_vars[self.gui_osc_oscquery] = oscquery_var
+        oscquery_cb = ttk.Checkbutton(osc_bar, text=tr("osc.oscquery"), variable=oscquery_var)
+        oscquery_cb.pack(side="left", padx=(0, 8))
+        attach_tooltip(oscquery_cb, tr("osc.oscquery_tip"))
+
+        # Auto port only matters while receiving.
+        def sync_oscquery_state(*_):
+            oscquery_cb.configure(state="normal" if ros_var.get() else "disabled")
+
+        ros_var.trace_add("write", sync_oscquery_state)
+        sync_oscquery_state()
+
+        foveation_var = tk.BooleanVar(value=bool(self.config.gui_foveation_gaze))
+        self.tk_vars[self.gui_foveation_gaze] = foveation_var
+        foveation_cb = ttk.Checkbutton(osc_bar, text=tr("osc.foveation_gaze"), variable=foveation_var)
+        foveation_cb.pack(side="left", padx=(0, 8))
+        attach_tooltip(foveation_cb, tr("osc.foveation_gaze_tip"))

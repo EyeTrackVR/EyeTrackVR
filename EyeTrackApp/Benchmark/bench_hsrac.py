@@ -35,21 +35,9 @@ save_img = False
 save_video = False
 loop_num = 1 if imshow_enable or save_img or save_video else 100
 input_video_path = "Pro_demo2.mp4"
-output_img_path = (
-    f"./{this_file_name}_{alg_ver}_new.png"
-    if not old_mode
-    else f"./{this_file_name}_{alg_ver}_old.png"
-)
-output_video_path = (
-    f"./{this_file_name}_{alg_ver}_new.mp4"
-    if not old_mode
-    else f"./{this_file_name}_{alg_ver}_old.mp4"
-)
-logfilename = (
-    f"./{this_file_name}_{alg_ver}_new.log"
-    if not old_mode
-    else f"./{this_file_name}_{alg_ver}_old.log"
-)
+output_img_path = f"./{this_file_name}_{alg_ver}_new.png" if not old_mode else f"./{this_file_name}_{alg_ver}_old.png"
+output_video_path = f"./{this_file_name}_{alg_ver}_new.mp4" if not old_mode else f"./{this_file_name}_{alg_ver}_old.mp4"
+logfilename = f"./{this_file_name}_{alg_ver}_new.log" if not old_mode else f"./{this_file_name}_{alg_ver}_old.log"
 print_enable = False  # I don't recommend changing to True.
 
 # RANSAC
@@ -95,13 +83,7 @@ else:
     save_logfile = False
 
 all_point_img = None
-video_wr = (
-    cv2.VideoWriter(
-        output_video_path, cv2.VideoWriter_fourcc(*"x264"), 60.0, (200, 150)
-    )
-    if save_video
-    else None
-)
+video_wr = cv2.VideoWriter(output_video_path, cv2.VideoWriter_fourcc(*"x264"), 60.0, (200, 150)) if save_video else None
 
 
 ##############################
@@ -175,10 +157,7 @@ class HaarSurroundFeature:
     def get_kernel(self):
         # Defined here, but not yet used?
         # Create a kernel filled with the value of self.val_out
-        kernel = (
-            np.ones(shape=(2 * self.r_out - 1, 2 * self.r_out - 1), dtype=np.float64)
-            * self.val_out
-        )
+        kernel = np.ones(shape=(2 * self.r_out - 1, 2 * self.r_out - 1), dtype=np.float64) * self.val_out
 
         # Set the values of the inner area of the kernel using array slicing
         start = self.r_out - self.r_in
@@ -198,9 +177,7 @@ def to_gray(frame):
 def get_frameint_empty_array(frame_shape, pad, x_step, y_step, r_in, r_out):
     frame_int_dtype = np.intc
 
-    frame_pad = np.empty(
-        (frame_shape[0] + (pad * 2), frame_shape[1] + (pad * 2)), dtype=np.uint8
-    )
+    frame_pad = np.empty((frame_shape[0] + (pad * 2), frame_shape[1] + (pad * 2)), dtype=np.uint8)
 
     row, col = frame_pad.shape
 
@@ -237,9 +214,7 @@ def get_frameint_empty_array(frame_shape, pad, x_step, y_step, r_in, r_out):
     out_p01 = np.empty(len_syx, dtype=frame_int_dtype)
     out_p10 = np.empty(len_syx, dtype=frame_int_dtype)
     response_list = np.empty(len_syx, dtype=np.float64)  # or np.int32
-    frame_conv = np.zeros(
-        shape=(row - 2 * pad, col - 2 * pad), dtype=np.uint8
-    )  # or np.float64
+    frame_conv = np.zeros(shape=(row - 2 * pad, col - 2 * pad), dtype=np.uint8)  # or np.float64
     frame_conv_stride = frame_conv[::y_step, ::x_step]
 
     return (
@@ -334,9 +309,7 @@ def conv_int(
 
 @lru_cache(maxsize=lru_maxsize_s)
 def get_hsf_center(padding, x_step, y_step, min_loc):  # min_x,min_y):
-    return padding + (x_step * min_loc[0]) - padding, padding + (
-        y_step * min_loc[1]
-    ) - padding
+    return padding + (x_step * min_loc[0]) - padding, padding + (y_step * min_loc[1]) - padding
 
 
 class AutoRadiusCalc(object):
@@ -385,21 +358,14 @@ class AutoRadiusCalc(object):
             self.adj_comp_flag = False
             return self.radius_cand_list[self.radius_middle_index]
         else:
-            if (
-                self.left_index <= self.right_index
-                and self.left_index != self.radius_middle_index
-            ):
-                if (self.left_item[1] + self.response_list[-1][1]) < (
-                    self.right_item[1] + self.response_list[-1][1]
-                ):
+            if self.left_index <= self.right_index and self.left_index != self.radius_middle_index:
+                if (self.left_item[1] + self.response_list[-1][1]) < (self.right_item[1] + self.response_list[-1][1]):
                     self.right_item = self.response_list[-1]
                     self.right_index = self.radius_middle_index - 1
                     self.radius_middle_index = (self.left_index + self.right_index) // 2
                     self.adj_comp_flag = False
                     return self.radius_cand_list[self.radius_middle_index]
-                if (self.left_item[1] + self.response_list[-1][1]) > (
-                    self.right_item[1] + self.response_list[-1][1]
-                ):
+                if (self.left_item[1] + self.response_list[-1][1]) > (self.right_item[1] + self.response_list[-1][1]):
                     self.left_item = self.response_list[-1]
                     self.left_index = self.radius_middle_index + 1
                     self.radius_middle_index = (self.left_index + self.right_index) // 2
@@ -433,21 +399,11 @@ class AutoRadiusCalc(object):
                 self.adj_comp_flag = True
                 return default_radius
             elif sort_res[0] == auto_radius_range[0]:
-                self.radius_cand_list = [
-                    i
-                    for i in range(
-                        auto_radius_range[0], default_radius, auto_radius_step
-                    )
-                ][1:]
+                self.radius_cand_list = [i for i in range(auto_radius_range[0], default_radius, auto_radius_step)][1:]
                 self.adj_comp_flag = False
                 return self.radius_cand_list.pop()
             else:
-                self.radius_cand_list = [
-                    i
-                    for i in range(
-                        default_radius, auto_radius_range[1], auto_radius_step
-                    )
-                ][1:]
+                self.radius_cand_list = [i for i in range(default_radius, auto_radius_range[1], auto_radius_step)][1:]
                 self.adj_comp_flag = False
                 return self.radius_cand_list.pop()
         else:
@@ -528,9 +484,7 @@ def get_ransac_empty_array_old(iter_num, sample_num, len_data):
     dm_rng_p_10 = dm_rng_p[:, 1::-1]
     el_y_arr_2 = ellipse_y_arr[:, :2]
     el_y_arr_3 = ellipse_y_arr[:, 3:]
-    datamod = np.empty(
-        (len_data, 7), dtype=use_dtype
-    )  # np.empty((len(data), 7), dtype=ret_dtype)
+    datamod = np.empty((len_data, 7), dtype=use_dtype)  # np.empty((len(data), 7), dtype=ret_dtype)
     datamod[:, 5] = 1
     datamod_b = datamod[:, :5]  # .T
     rdm_index_init_arr = np.empty((iter_num, len_data), dtype=np.uint16)
@@ -543,9 +497,7 @@ def get_ransac_empty_array_old(iter_num, sample_num, len_data):
     dm_p2 = datamod[:, 2:4]  # = data * data
     dm_mul = datamod[:, 4]  # = data[:, 0] * data[:, 1]
     dm_neg = datamod[:, 6]  # = -datamod[:, 2]
-    inv_ext = np.linalg.linalg.get_linalg_error_extobj(
-        np.linalg.linalg._raise_linalgerror_singular
-    )
+    inv_ext = np.linalg.linalg.get_linalg_error_extobj(np.linalg.linalg._raise_linalgerror_singular)
     return (
         dm_rng,
         dm_rng_swap,
@@ -578,9 +530,7 @@ def get_ransac_empty_array_old(iter_num, sample_num, len_data):
 
 
 # @profile
-def fit_rotated_ellipse_ransac_old(
-    data: np.ndarray, sfc: np.random.Generator, iter_num=100, sample_num=10, offset=80
-):
+def fit_rotated_ellipse_ransac_old(data: np.ndarray, sfc: np.random.Generator, iter_num=100, sample_num=10, offset=80):
     # before changing these values, please read up on the ransac algorithm
     # However if you want to change any value just know that higher iterations will make processing frames slower
 
@@ -693,7 +643,6 @@ def fit_rotated_ellipse_old(data, P):
         h = math.sqrt(cu / (a * ts2 - b_tcs + c * tc2))
     except ValueError:
         return None
-    error_sum = data  # sum(data)
     # print("fitting error = %.3f" % (error_sum))
 
     return cx, cy, w, h, theta
@@ -720,9 +669,7 @@ def get_ransac_empty_array_new(iter_num, sample_num, len_data):
     dm_rng_p_10 = dm_rng_p[:, 1::-1]
     el_y_arr_2 = ellipse_y_arr[:, :2]
     el_y_arr_3 = ellipse_y_arr[:, 3:]
-    datamod = np.empty(
-        (len_data, 7), dtype=use_dtype
-    )  # np.empty((len(data), 7), dtype=ret_dtype)
+    datamod = np.empty((len_data, 7), dtype=use_dtype)  # np.empty((len(data), 7), dtype=ret_dtype)
     datamod[:, 5] = 1
     datamod_b = datamod[:, :5]  # .T
     rdm_index_init_arr = np.empty((iter_num, len_data), dtype=np.uint16)
@@ -735,9 +682,7 @@ def get_ransac_empty_array_new(iter_num, sample_num, len_data):
     dm_p2 = datamod[:, 2:4]  # = data * data
     dm_mul = datamod[:, 4]  # = data[:, 0] * data[:, 1]
     dm_neg = datamod[:, 6]  # = -datamod[:, 2]
-    inv_ext = np.linalg.linalg.get_linalg_error_extobj(
-        np.linalg.linalg._raise_linalgerror_singular
-    )
+    inv_ext = np.linalg.linalg.get_linalg_error_extobj(np.linalg.linalg._raise_linalgerror_singular)
     return (
         dm_rng,
         dm_rng_swap,
@@ -770,9 +715,7 @@ def get_ransac_empty_array_new(iter_num, sample_num, len_data):
 
 
 # @profile
-def fit_rotated_ellipse_ransac_new(
-    data: np.ndarray, sfc: np.random.Generator, iter_num=100, sample_num=10, offset=80
-):
+def fit_rotated_ellipse_ransac_new(data: np.ndarray, sfc: np.random.Generator, iter_num=100, sample_num=10, offset=80):
     # before changing these values, please read up on the ransac algorithm
     # However if you want to change any value just know that higher iterations will make processing frames slower
 
@@ -886,7 +829,6 @@ def fit_rotated_ellipse_new(data, P):
         h = math.sqrt(cu / (a * ts2 - b_tcs + c * tc2))
     except ValueError:
         return None
-    error_sum = data  # sum(data)
     # print("fitting error = %.3f" % (error_sum))
 
     return cx, cy, w, h, theta
@@ -894,9 +836,7 @@ def fit_rotated_ellipse_new(data, P):
 
 @lru_cache(lru_maxsize_vvs)
 def get_ransac_frame(frame_shape):
-    return np.empty(frame_shape, dtype=np.uint8), np.empty(
-        frame_shape, dtype=np.uint8
-    )  # np.float64)
+    return np.empty(frame_shape, dtype=np.uint8), np.empty(frame_shape, dtype=np.uint8)  # np.float64)
 
 
 @lru_cache(lru_maxsize_s)
@@ -1016,9 +956,7 @@ class HSRAC_cls(object):
 
             self.cvparam.radius = self.auto_radius_calc.get_radius()
             if self.auto_radius_calc.adj_comp_flag:
-                self.now_modeo = (
-                    self.cv_modeo[2] if not skip_blink_detect else self.cv_modeo[3]
-                )
+                self.now_modeo = self.cv_modeo[2] if not skip_blink_detect else self.cv_modeo[3]
 
         radius, pad, step, hsf = self.cvparam.get_rpsh()
 
@@ -1051,12 +989,8 @@ class HSRAC_cls(object):
             response_list,
             frame_conv,
             frame_conv_stride,
-        ) = get_frameint_empty_array(
-            gray_frame.shape, pad, step[0], step[1], hsf.r_in, hsf.r_out
-        )
-        cv2.copyMakeBorder(
-            gray_frame, pad, pad, pad, pad, cv2.BORDER_CONSTANT, dst=frame_pad
-        )
+        ) = get_frameint_empty_array(gray_frame.shape, pad, step[0], step[1], hsf.r_in, hsf.r_out)
+        cv2.copyMakeBorder(gray_frame, pad, pad, pad, pad, cv2.BORDER_CONSTANT, dst=frame_pad)
         cv2.integral(frame_pad, sum=frame_int, sdepth=cv2.CV_32S)
 
         self.timedict["int_img"].append(timeit.default_timer() - int_start_time)
@@ -1122,9 +1056,7 @@ class HSRAC_cls(object):
             # Statistics for blink detection
             if self.blink_detector.response_len() < blink_init_frames:
                 self.blink_detector.add_response(
-                    cv2.mean(
-                        safe_crop(gray_frame, lower_x, lower_y, upper_x, upper_y, 1)
-                    )[0]
+                    cv2.mean(safe_crop(gray_frame, lower_x, lower_y, upper_x, upper_y, 1))[0]
                 )
                 self.center_q1.add_response(
                     cv2.mean(
@@ -1145,9 +1077,7 @@ class HSRAC_cls(object):
                 self.now_modeo = self.cv_modeo[3]
         else:
             if self.blink_detector.enable_detect_flg and self.blink_detector.detect(
-                cv2.mean(safe_crop(gray_frame, lower_x, lower_y, upper_x, upper_y, 1))[
-                    0
-                ]
+                cv2.mean(safe_crop(gray_frame, lower_x, lower_y, upper_x, upper_y, 1))[0]
             ):
                 # If the average value of cropped_image is greater than response_max
                 # (i.e., if the cropimage is whitish blink
@@ -1239,9 +1169,7 @@ class HSRAC_cls(object):
             # cv2.bitwise_not(fic_frame, fic_frame)
             # https://stackoverflow.com/questions/23062572/why-multiple-openings-closing-with-a-same-kernel-does-not-have-effect
             # try (cv2.absdiff(cv2.morphologyEx(th_frame, cv2.MORPH_OPEN, self.kernel),cv2.morphologyEx( cv2.morphologyEx(th_frame, cv2.MORPH_OPEN, self.kernel), cv2.MORPH_CLOSE, self.kernel))>1).sum()
-            cv2.morphologyEx(
-                th_frame, cv2.MORPH_OPEN, self.kernel, dst=fic_frame
-            )  # or cv2.MORPH_CLOSE
+            cv2.morphologyEx(th_frame, cv2.MORPH_OPEN, self.kernel, dst=fic_frame)  # or cv2.MORPH_CLOSE
         else:
             if not blink_bd and self.blink_detector.enable_detect_flg:
                 cv2.threshold(
@@ -1265,15 +1193,11 @@ class HSRAC_cls(object):
                     dst=th_frame,
                 )
                 # print(thresh.shape, frame_gray.shape)
-                cv2.morphologyEx(
-                    th_frame, cv2.MORPH_OPEN, self.kernel, dst=fic_frame
-                )  # or cv2.MORPH_CLOSE
+                cv2.morphologyEx(th_frame, cv2.MORPH_OPEN, self.kernel, dst=fic_frame)  # or cv2.MORPH_CLOSE
                 cv2.morphologyEx(fic_frame, cv2.MORPH_CLOSE, self.kernel, dst=fic_frame)
                 cv2.bitwise_not(fic_frame, fic_frame)
 
-        contours = cv2.findContours(fic_frame, cv2.RETR_LIST, cv2.CHAIN_APPROX_SIMPLE)[
-            0
-        ]
+        contours = cv2.findContours(fic_frame, cv2.RETR_LIST, cv2.CHAIN_APPROX_SIMPLE)[0]
         # or
         # contours = cv2.findContours(fic_frame, cv2.RETR_LIST, cv2.CHAIN_APPROX_NONE)[0]
         # if not blink_bd and self.blink_detector.enable_detect_flg:
@@ -1306,13 +1230,9 @@ class HSRAC_cls(object):
                 cnt_ind = i
         hull = cv2.convexHull(contours[cnt_ind], False)
         if old_mode:
-            ransac_data = fit_rotated_ellipse_ransac_old(
-                hull.reshape(-1, 2).astype(np.float64), self.sfc
-            )
+            ransac_data = fit_rotated_ellipse_ransac_old(hull.reshape(-1, 2).astype(np.float64), self.sfc)
         else:
-            ransac_data = fit_rotated_ellipse_ransac_new(
-                hull.reshape(-1, 2).astype(np.float64), self.sfc
-            )
+            ransac_data = fit_rotated_ellipse_ransac_new(hull.reshape(-1, 2).astype(np.float64), self.sfc)
         if ransac_data is None:
             # ransac_data is None==maxcnt.shape[0]<sample_num
             # go to next loop
@@ -1369,7 +1289,7 @@ class HSRAC_cls(object):
 
         try:
             return int(cx), int(cy), th_frame, frame, gray_frame
-        except:
+        except Exception:
             return int(center_x), int(center_y), th_frame, frame, gray_frame
 
 

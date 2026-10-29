@@ -27,9 +27,7 @@ LICENSE: Babble Software Distribution License 1.0
 ------------------------------------------------------------------------------------------------------
 """
 
-import sys
 from typing import Tuple
-import math
 import platform
 import numpy as np
 import cv2
@@ -92,12 +90,7 @@ def taylor(hm, coord):
         dx = 0.5 * (hm[py][px + 1] - hm[py][px - 1])
         dy = 0.5 * (hm[py + 1][px] - hm[py - 1][px])
         dxx = 0.25 * (hm[py][px + 2] - 2 * hm[py][px] + hm[py][px - 2])
-        dxy = 0.25 * (
-            hm[py + 1][px + 1]
-            - hm[py - 1][px + 1]
-            - hm[py + 1][px - 1]
-            + hm[py - 1][px - 1]
-        )
+        dxy = 0.25 * (hm[py + 1][px + 1] - hm[py - 1][px + 1] - hm[py + 1][px - 1] + hm[py - 1][px - 1])
         dyy = 0.25 * (hm[py + 2 * 1][px] - 2 * hm[py][px] + hm[py - 2 * 1][px])
         derivative = np.matrix([[dx], [dy]])
         hessian = np.matrix([[dxx, dxy], [dxy, dyy]])
@@ -174,9 +167,7 @@ def resize_with_pad(
     delta_h = new_shape[1] - new_size[1]
     top, bottom = delta_h // 2, delta_h - (delta_h // 2)
     left, right = delta_w // 2, delta_w - (delta_w // 2)
-    image = cv2.copyMakeBorder(
-        image, top, bottom, left, right, cv2.BORDER_CONSTANT, value=padding_color
-    )
+    image = cv2.copyMakeBorder(image, top, bottom, left, right, cv2.BORDER_CONSTANT, value=padding_color)
     return image
 
 
@@ -229,9 +220,7 @@ class DADDY_cls(object):
         options.inter_op_num_threads = 1  # This number should be changed accordingly
         options.intra_op_num_threads = 1  # This number should be changed accordingly
         options.execution_mode = onnxruntime.ExecutionMode.ORT_SEQUENTIAL
-        options.graph_optimization_level = (
-            onnxruntime.GraphOptimizationLevel.ORT_ENABLE_ALL
-        )
+        options.graph_optimization_level = onnxruntime.GraphOptimizationLevel.ORT_ENABLE_ALL
 
         ort_session = onnxruntime.InferenceSession(
             resource_path(model_file),
@@ -247,9 +236,7 @@ class DADDY_cls(object):
         min_cutoff = 0.0004
         beta = 0.9
         input_point = np.zeros((11, 2))  # np.array([1, 1])
-        self.one_euro_filter = OneEuroFilter(
-            input_point, min_cutoff=min_cutoff, beta=beta
-        )
+        self.one_euro_filter = OneEuroFilter(input_point, min_cutoff=min_cutoff, beta=beta)
         # self.ear_oef = OneEuroFilter(
         #     np.zeros(1),
         #     min_cutoff=min_cutoff,
@@ -293,13 +280,9 @@ class DADDY_cls(object):
         # frame_resize=resize_with_pad(gray_frame,(input_size,input_size))
         # or
         frame_resize = cv2.resize(gray_frame, (input_size, input_size))
-        imgs = np.divide(
-            frame_resize[np.newaxis, np.newaxis], 255, dtype=np.float32
-        )  # input/255.0
+        imgs = np.divide(frame_resize[np.newaxis, np.newaxis], 255, dtype=np.float32)  # input/255.0
 
-        pred_heatmap = self.ort_session.run(None, {self.input_name: imgs})[
-            0
-        ]  # .reshape((-1, 2))
+        pred_heatmap = self.ort_session.run(None, {self.input_name: imgs})[0]  # .reshape((-1, 2))
         # if imshow_enable:
         #     heatmap = pred_heatmap.reshape((-1, heatmap_size, heatmap_size))
         #     for i in range(heatmap.shape[0]):

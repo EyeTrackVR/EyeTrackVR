@@ -33,16 +33,17 @@ import numpy as np
 import cv2
 import time
 import math
-from queue import Queue
+from collections import deque
+from queue import Empty, Full, Queue
 import threading
 from config import EyeTrackCameraConfig, EyeTrackConfig
 from one_euro_filter import OneEuroFilter
-
-logger = logging.getLogger(__name__)
-import psutil
 from utils.misc_utils import resource_path
 from pathlib import Path
 import sys
+from utils.onnx_runtime import DML_INFERENCE_LOCK
+
+logger = logging.getLogger(__name__)
 
 os.environ["OMP_NUM_THREADS"] = (
     "1"  # on slower systems this can cause issues due to slow single core perf. in such cases, it is better to use GPU compute
@@ -51,15 +52,18 @@ os.environ["OMP_NUM_THREADS"] = (
 frames = 0
 models = Path("Models")
 LEAP_LID_METRIC_VERSION = 1
-# Global lock to prevent DML race conditions between eye threads
-dml_lock = threading.Lock()
+# Backward-compatible local name; shared with NEXT mono/stereo sessions.
+dml_lock = DML_INFERENCE_LOCK
 
 if sys.platform.startswith("linux"):
-    # Detect if we are already in the right path to avoid infinite loops
+    # Make CUDA's libs findable for onnxruntime-gpu. Only relevant when a CUDA
+    # toolkit is actually installed: CPU-only machines (the packaged release
+    # ships CPU onnxruntime) must NOT pay a whole-process re-exec at import
+    # time, which is what the LD_LIBRARY_PATH edit requires to take effect.
     cuda_path = "/usr/local/cuda/lib64"
     current_ld = os.environ.get("LD_LIBRARY_PATH", "")
 
-    if cuda_path not in current_ld:
+    if os.path.isdir(cuda_path) and cuda_path not in current_ld:
         os.environ["LD_LIBRARY_PATH"] = f"/usr/lib:{cuda_path}:{current_ld}"
 
         # IMPORTANT: Linux caches LD_LIBRARY_PATH when the process starts.
@@ -67,7 +71,11 @@ if sys.platform.startswith("linux"):
         # re-execute the script once if the path was missing.
         if "RESTART_FOR_CUDA" not in os.environ:
             os.environ["RESTART_FOR_CUDA"] = "1"
-            os.execv(sys.executable, [sys.executable] + sys.argv)
+            if getattr(sys, "frozen", False):
+                # Frozen app: sys.executable IS the program; argv[0] repeats it.
+                os.execv(sys.executable, [sys.executable] + sys.argv[1:])
+            else:
+                os.execv(sys.executable, [sys.executable] + sys.argv)
 
 
 def run_model(input_queue, output_queue, session):
@@ -82,11 +90,7 @@ def run_model(input_queue, output_queue, session):
         else:
             img_np = np.asarray(frame, dtype=np.float32)
             img_np *= 1.0 / 255.0
-            gray_img = (
-                0.299 * img_np[:, :, 0]
-                + 0.587 * img_np[:, :, 1]
-                + 0.114 * img_np[:, :, 2]
-            )
+            gray_img = 0.299 * img_np[:, :, 0] + 0.587 * img_np[:, :, 1] + 0.114 * img_np[:, :, 2]
 
         gray_img = np.expand_dims(np.expand_dims(gray_img, axis=0), axis=0)
 
@@ -107,13 +111,14 @@ def run_onnx_model(queues, session, frame):
 class LEAP_C:
     def __init__(self, eye_config: EyeTrackCameraConfig, config: EyeTrackConfig):
         self.last_lid = None
+        # (x, y, filtered lid) of the most recent worker result, repeated on
+        # frames where the worker has nothing new; None until the first one.
+        self._last_result = None
         # Mirrors eye_config.leap_calib_request_seq; when the config value
         # increments (user pressed "Redo Eyelid Calib"), we reset the sampling
         # window on the next frame. Initialised from the stored value so a
         # restart doesn't trigger a spurious recalibration.
-        self._seen_calib_request_seq = int(
-            getattr(eye_config, "leap_calib_request_seq", 0)
-        )
+        self._seen_calib_request_seq = int(getattr(eye_config, "leap_calib_request_seq", 0))
         self.current_image_gray = None
         self.current_image_gray_clean = None
         onnxruntime.disable_telemetry_events()
@@ -123,9 +128,7 @@ class LEAP_C:
 
         self.print_fps = False
         self.frames = 0
-        self.queues = [
-            Queue(maxsize=self.queue_max_size) for _ in range(self.num_threads)
-        ]
+        self.queues = [Queue(maxsize=self.queue_max_size) for _ in range(self.num_threads)]
         self.threads = []
         self.model_output = np.zeros((12, 2))
         self.output_queue = Queue(maxsize=self.queue_max_size)
@@ -134,17 +137,28 @@ class LEAP_C:
         opts = onnxruntime.SessionOptions()
         opts.inter_op_num_threads = 1
         opts.intra_op_num_threads = 1
-        opts.graph_optimization_level = (
-            onnxruntime.GraphOptimizationLevel.ORT_ENABLE_ALL
-        )
+        opts.graph_optimization_level = onnxruntime.GraphOptimizationLevel.ORT_ENABLE_ALL
         opts.enable_mem_pattern = False
 
-        self.one_euro_filter_float = OneEuroFilter(
-            np.random.rand(1, 2), min_cutoff=0.0004, beta=0.9
-        )
+        self.one_euro_filter_float = OneEuroFilter(np.random.rand(1, 2), min_cutoff=0.0004, beta=0.9)
         self.dmax = 0
         self.dmin = 0
-        self.openlist = []
+        # Lid-calibration sampling window. The timer below is what actually
+        # ends collection; the maxlen is a backstop so the window can never
+        # grow without bound (and drag per-frame percentile cost with it)
+        # even if the completion check is somehow prevented from firing.
+        # Sized for ~130 fps over the configured collection duration.
+        self.openlist = deque(maxlen=max(2000, int(float(config.settings.leap_calibration_duration) * 130)))
+        # perf_counter timestamp when the current lid-calibration collection
+        # window opened; 0.0 means "start a new window on the next frame".
+        # LEAP owns this timer: it used to be overwritten every frame with the
+        # gaze-calibration start time (None outside gaze calibration), which
+        # meant collection could never finish and openlist grew forever.
+        self._calib_start = 0.0
+        # Throttle for the percentile refresh over openlist (see leap_run).
+        self._last_percentile_refresh = 0.0
+        self._open_percentile = 0.8
+        self._closed_percentile = 0.8
         self.maxlist = []
         self.previous_time = None
         self.old_matrix = None
@@ -156,9 +170,7 @@ class LEAP_C:
 
         self.eye_config: EyeTrackCameraConfig = eye_config
         self.config: EyeTrackConfig = config
-        self.ort_session_cpu = onnxruntime.InferenceSession(
-            self.model_path, opts, providers=["CPUExecutionProvider"]
-        )
+        self.ort_session_cpu = onnxruntime.InferenceSession(self.model_path, opts, providers=["CPUExecutionProvider"])
 
         available_providers = onnxruntime.get_available_providers()
         preferred_order = [
@@ -179,9 +191,32 @@ class LEAP_C:
 
         logger.info("Active ONNX GPU providers for this session: %s", providers)
 
-        self.ort_session_gpu = onnxruntime.InferenceSession(
-            self.model_path, opts, providers=providers
-        )
+        # Building the GPU session must never take the app down:
+        #   - providers=[] (CPU-only machine) makes InferenceSession raise
+        #   - CUDAExecutionProvider is listed as "available" whenever
+        #     onnxruntime-gpu is installed, but session creation still fails
+        #     if the CUDA/cuDNN system libraries are missing (common on Linux)
+        # In both cases fall back to the CPU session; runtime provider choice
+        # (gui_use_gpu) then simply resolves to CPU.
+        self.ort_session_gpu = None
+        if providers:
+            try:
+                # Trailing CPU provider lets ORT place unsupported ops on CPU
+                # instead of failing session creation outright.
+                self.ort_session_gpu = onnxruntime.InferenceSession(
+                    self.model_path,
+                    opts,
+                    providers=providers + ["CPUExecutionProvider"],
+                )
+            except Exception as e:
+                logger.warning(
+                    "GPU ONNX session unavailable (%s); LEAP will run on CPU. "
+                    "On Linux this usually means onnxruntime-gpu is installed "
+                    "without the CUDA/cuDNN system libraries.",
+                    e,
+                )
+        if self.ort_session_gpu is None:
+            self.ort_session_gpu = self.ort_session_cpu
         for i in range(self.num_threads):
             if self.config.settings.gui_use_gpu:
                 thread = threading.Thread(
@@ -197,6 +232,31 @@ class LEAP_C:
                 )
             self.threads.append(thread)
             thread.start()
+
+    def shutdown(self):
+        """Stop the inference worker threads so swapping algorithms doesn't
+        leak a blocked thread (plus its ONNX session references) per swap."""
+        for q in self.queues:
+            try:
+                # Workers drain their queue continuously, so a short blocking
+                # put is enough to get the sentinel in behind any queued frame.
+                q.put(None, timeout=1)
+            except Full:
+                logger.warning("LEAP worker queue full during shutdown; thread may leak")
+        deadline = time.time() + 2.0
+        for thread in self.threads:
+            # A worker can be blocked publishing a result nobody will read
+            # anymore (output_queue.put is blocking and maxsize=1), so keep
+            # draining outputs while we wait or it never reaches the sentinel.
+            while thread.is_alive() and time.time() < deadline:
+                try:
+                    self.output_queue.get_nowait()
+                except Empty:
+                    pass
+                thread.join(timeout=0.05)
+            if thread.is_alive():
+                logger.warning("LEAP worker %s did not exit cleanly", thread.name)
+        self.threads = []
 
     def leap_run(self):
         img_height, img_width = self.current_image_gray_clean.shape[:2]
@@ -218,57 +278,54 @@ class LEAP_C:
                 cv2.circle(imgvis, (x, y), 1, (0, 0, 255), -1)
 
             if self.eye_config.leap_lid_metric_version != LEAP_LID_METRIC_VERSION:
-                self.calib = 0
+                self._calib_start = 0.0
                 self.eye_config.leap_lid_metric_version = LEAP_LID_METRIC_VERSION
                 self.eye_config.leap_calibrated = False
 
-            current_seq = int(
-                getattr(self.eye_config, "leap_calib_request_seq", 0)
-            )
+            current_seq = int(getattr(self.eye_config, "leap_calib_request_seq", 0))
             if current_seq != self._seen_calib_request_seq:
                 # User requested a fresh calibration from the settings UI.
                 self._seen_calib_request_seq = current_seq
-                self.calib = 0
-                self.openlist = []
+                self._calib_start = 0.0
                 self.eye_config.leap_calibrated = False
                 self.eye_config.leap_calibration_percentile_90 = 0
                 self.eye_config.leap_calibration_percentile_2 = 0
-                eye_name = (
-                    "Left" if self.eye_config is self.config.left_eye else "Right"
-                )
+                eye_name = "Left" if self.eye_config is self.config.left_eye else "Right"
                 logger.info("%s eye LEAP lid calibration restart requested", eye_name)
-
-            if self.calib == 0:
-                self.calib = time.time()
-                self.openlist = []
-                self.eye_config.leap_calibrated = False
 
             d1 = math.dist(pre_landmark[1], pre_landmark[3])
             d2 = math.dist(pre_landmark[2], pre_landmark[4])
             d = (d1 + d2) / 2
 
             if not self.eye_config.leap_calibrated:
+                if self._calib_start == 0.0:
+                    self._calib_start = time.time()
+                    self.openlist.clear()
+                    self._last_percentile_refresh = 0.0
+                    self._open_percentile = 0.8
+                    self._closed_percentile = 0.8
                 self.openlist.append(d)
-                if len(self.openlist) >= 10:
-                    open_percentile = float(np.percentile(self.openlist, 90))
-                    closed_percentile = float(np.percentile(self.openlist, 2))
-                else:
-                    open_percentile = 0.8
-                    closed_percentile = 0.8
+                now = time.time()
+                decision_due = now - self._calib_start >= self.config.settings.leap_calibration_duration
+                # np.percentile over the whole window is O(n) per call, so
+                # refresh at most twice a second (and always right before the
+                # accept/reject decision) instead of every frame.
+                if decision_due or now - self._last_percentile_refresh >= 0.5:
+                    self._last_percentile_refresh = now
+                    if len(self.openlist) >= 10:
+                        self._open_percentile = float(np.percentile(self.openlist, 90))
+                        self._closed_percentile = float(np.percentile(self.openlist, 2))
+                    else:
+                        self._open_percentile = 0.8
+                        self._closed_percentile = 0.8
+                    self.eye_config.leap_calibration_percentile_90 = self._open_percentile
+                    self.eye_config.leap_calibration_percentile_2 = self._closed_percentile - self._open_percentile
+                open_percentile = self._open_percentile
+                closed_percentile = self._closed_percentile
                 calibration_span = open_percentile - closed_percentile
-                self.eye_config.leap_calibration_percentile_90 = open_percentile
-                self.eye_config.leap_calibration_percentile_2 = (
-                    closed_percentile - open_percentile
-                )
-                if (
-                    isinstance(self.calib, float)
-                    and time.time() - self.calib
-                    >= self.config.settings.leap_calibration_duration
-                ):
+                if decision_due:
                     min_span = float(self.config.settings.leap_lid_min_calibration_span)
-                    eye_name = (
-                        "Left" if self.eye_config is self.config.left_eye else "Right"
-                    )
+                    eye_name = "Left" if self.eye_config is self.config.left_eye else "Right"
                     sample_count = len(self.openlist)
                     if calibration_span >= min_span:
                         self.eye_config.leap_calibrated = True
@@ -284,8 +341,7 @@ class LEAP_C:
                             min_span,
                         )
                     else:
-                        self.calib = 0
-                        self.openlist = []
+                        self._calib_start = 0.0
                         self.eye_config.leap_calibration_percentile_90 = 0
                         self.eye_config.leap_calibration_percentile_2 = 0
                         logger.warning(
@@ -319,19 +375,33 @@ class LEAP_C:
             calib_array = np.array([per, per]).reshape(1, 2)
             per = self.one_euro_filter_float(calib_array)[0][0]
 
-            return imgvis, float(x * img_width), float(y * img_height), per
+            self._last_result = (
+                float(x * img_width),
+                float(y * img_height),
+                per,
+            )
+            return (imgvis,) + self._last_result
 
-        return self.current_image_gray, 0, 0, 0
+        # The async worker hasn't finished a frame yet (routine at high camera
+        # rates). Repeat the last valid result: returning 0s here read as a
+        # full blink (lid 0) and a corner gaze (x=y=0) on ~1 in 10 frames.
+        # Before the very first result there is nothing to repeat, so return
+        # None placeholders, which EyeProcessor treats as "no update".
+        if self._last_result is not None:
+            return (self.current_image_gray,) + self._last_result
+        return self.current_image_gray, None, None, None
 
 
 class External_Run_LEAP:
     def __init__(self, eye_config: EyeTrackCameraConfig, config: EyeTrackConfig):
         self.algo = LEAP_C(eye_config, config)
 
-    def run(self, current_image_gray, current_image_gray_clean, calib, use_gpu):
+    def run(self, current_image_gray, current_image_gray_clean, use_gpu):
         self.algo.current_image_gray = current_image_gray
         self.algo.current_image_gray_clean = current_image_gray_clean
-        self.algo.calib = calib
         self.use_gpu = use_gpu
         img, x, y, per = self.algo.leap_run()
         return img, x, y, per
+
+    def shutdown(self):
+        self.algo.shutdown()

@@ -8,6 +8,10 @@ class EyeInfoMock:
     blink: float
     pupil_dilation: float
     avg_velocity: float
+    squeeze: float = 0.0
+    eyebrow: float = 0.0
+    dfr_x: float | None = None
+    dfr_y: float | None = None
 
 
 class SimpleUDPClientMock:

@@ -25,9 +25,11 @@ LICENSE: Babble Software Distribution License 1.0
 """
 
 import logging
-from time import sleep
-from typing import Dict, Optional, Iterable, Callable
+import math
+import time
+from typing import Any, Dict, Optional, Iterable, Callable
 
+import numpy as np
 from pythonosc import udp_client
 from pythonosc import osc_server
 from pythonosc import dispatcher
@@ -36,10 +38,136 @@ from config import EyeTrackConfig
 from osc.OSCMessage import OSCMessage, OSCMessageType
 from osc.VRCFTModuleMessenger import VRCFTModuleSender
 from osc.VRChatOSCSender import VRChatOSCSender
+from osc.PyVRCFTSender import PyVRCFTSender
+from osc.FoveationGazeSender import FOVEATION_HOST, FOVEATION_PORT, FoveationGazeSender
+from osc.oscquery import LOOPBACK, OSCQueryAdvertiser
+from osc import streaming_target
 import queue
 import threading
 
 logger = logging.getLogger(__name__)
+
+# How often a repeating OSC failure (bad value, sendto error, ...) may be logged.
+# The sender runs at tracking rate, so an unthrottled log would flood the file.
+_LOG_INTERVAL_S = 5.0
+
+# Sentinel: the message carries a NaN/inf and must not reach the wire.
+_DROP = object()
+
+AVATAR_CHANGE_ADDRESS = "/avatar/change"
+
+
+class _ThrottledLog:
+    """Log a repeating failure at most once per interval per key, and report
+    how many identical events were suppressed in between."""
+
+    def __init__(self, interval: float = _LOG_INTERVAL_S):
+        self.interval = interval
+        self._state: dict[str, tuple[float, int]] = {}
+
+    def log(self, level: int, key: str, msg: str, *args, exc_info=False) -> None:
+        now = time.monotonic()
+        last, suppressed = self._state.get(key, (None, 0))
+        if last is not None and now - last < self.interval:
+            self._state[key] = (last, suppressed + 1)
+            return
+        if suppressed:
+            msg += " (%d similar suppressed)"
+            args = (*args, suppressed)
+        logger.log(level, msg, *args, exc_info=exc_info)
+        self._state[key] = (now, 0)
+
+
+def _to_osc_arg(value: Any):
+    """One OSC argument as a plain Python type python-osc can encode.
+
+    numpy scalars (np.float32, np.int64, np.bool_) are rejected by python-osc's
+    type inference with a ValueError, so unwrap them. Non-finite floats yield
+    _DROP: a NaN/inf param can wedge avatar animators, and holding the last good
+    value on the avatar is less disruptive than snapping to a neutral pose.
+    """
+    if isinstance(value, np.generic) or (isinstance(value, np.ndarray) and value.ndim == 0):
+        value = value.item()
+    if isinstance(value, float) and not math.isfinite(value):
+        return _DROP
+    return value
+
+
+def sanitize_osc_value(value: Any):
+    """Sanitize a send_message() value (scalar or sequence); _DROP if unsendable."""
+    if isinstance(value, np.ndarray) and value.ndim > 0:
+        value = value.tolist()
+    if isinstance(value, (list, tuple)):
+        out = [_to_osc_arg(v) for v in value]
+        if any(v is _DROP for v in out):
+            return _DROP
+        return out if isinstance(value, list) else tuple(out)
+    return _to_osc_arg(value)
+
+
+def validate_osc_endpoint(label: str, address: Any, port: Any) -> tuple[str, int] | None:
+    """Return (host, port) if usable, else log why and return None."""
+    host = str(address).strip() if address is not None else ""
+    if not host:
+        logger.error("%s OSC output disabled: address is empty", label)
+        return None
+    try:
+        port_int = int(port)
+    except (TypeError, ValueError, OverflowError):
+        port_int = None
+    if port_int is None or not 1 <= port_int <= 65535:
+        logger.error("%s OSC output disabled: port %r is not in the range 1-65535", label, port)
+        return None
+    return host, port_int
+
+
+def _sig_port(value):
+    """Port for change-detection signatures; never raises on bad input
+    (an invalid port must still restart the sender so it can log it)."""
+    try:
+        return int(value)
+    except (TypeError, ValueError, OverflowError):
+        return str(value)
+
+
+class SafeOSCClient:
+    """Send boundary around a SimpleUDPClient: sanitizes arguments and turns
+    per-message failures into throttled log lines instead of exceptions, so
+    one bad value or a transient sendto error never stops the OSC sender.
+
+    ``client`` may be None (invalid endpoint); sends are then no-ops.
+    """
+
+    def __init__(self, client, label: str, log: _ThrottledLog):
+        self.client = client
+        self.label = label
+        self._log = log
+
+    def send_message(self, address: str, value) -> None:
+        if self.client is None:
+            return
+        clean = sanitize_osc_value(value)
+        if clean is _DROP:
+            self._log.log(
+                logging.WARNING,
+                f"nonfinite:{self.label}",
+                "Dropped %s OSC message %s with non-finite value %r",
+                self.label,
+                address,
+                value,
+            )
+            return
+        try:
+            self.client.send_message(address, clean)
+        except Exception as exc:  # one failed send must not kill the thread
+            self._log.log(
+                logging.WARNING,
+                f"send:{self.label}",
+                "%s OSC send of %s failed: %s",
+                self.label,
+                address,
+                exc,
+            )
 
 
 class OSCManager:
@@ -58,35 +186,97 @@ class OSCManager:
         self.osc_receiver = None
         self.osc_sender_thread: Optional[threading.Thread] = None
         self.osc_receiver_thread: Optional[threading.Thread] = None
+        # "auto" OSC address: the streaming PC, re-resolved in the background.
+        self._auto_address: Optional[str] = None
+        self._auto_stop = threading.Event()
+        self._auto_thread: Optional[threading.Thread] = None
+        self._restart_lock = threading.Lock()
         self._last_sender_sig: tuple | None = None
         self._last_receiver_sig: tuple | None = None
+        # pyVRCFT never gets /avatar/change while this receiver owns the input
+        # (its own receive port is released), so hand avatar switches over.
+        self.listeners[AVATAR_CHANGE_ADDRESS] = [self._forward_avatar_change]
+
+    def _forward_avatar_change(self, message: OSCMessage) -> None:
+        sender = self.osc_sender.pyvrcft_sender if self.osc_sender is not None else None
+        client = sender.client if sender is not None else None
+        if client is not None and isinstance(message.data, str):
+            client.notify_avatar_change(message.data)
 
     def start(self):
         self.setup_sender()
         self.setup_receiver()
+        self._sync_integrations()
+        self._auto_thread = threading.Thread(target=self._watch_auto_target, name="osc-auto-target", daemon=True)
+        self._auto_thread.start()
+
+    AUTO_CHECK_INTERVAL = 5.0
+
+    def osc_target_address(self) -> str:
+        """Where VRChat OSC goes: the address field, or the streaming PC for "auto"."""
+        if not streaming_target.is_auto(self.settings.gui_osc_address):
+            return str(self.settings.gui_osc_address).strip()
+        if self._auto_address is None:
+            # Startup: the Steam logs only. mDNS waits for the background check.
+            self._set_auto_address(*streaming_target.resolve(use_mdns=False))
+        return self._auto_address
+
+    def _set_auto_address(self, address: str, source: str) -> bool:
+        if address == self._auto_address:
+            return False
+        self._auto_address = address
+        logger.info("OSC address auto: sending to %s (%s)", address, source)
+        return True
+
+    def _watch_auto_target(self):
+        """Follow the streaming PC: a new Steam Link session, a switch between
+        USB and Wi-Fi, or the stream ending moves the "auto" target."""
+        while not self._auto_stop.wait(self.AUTO_CHECK_INTERVAL):
+            if not streaming_target.is_auto(self.settings.gui_osc_address):
+                continue
+            try:
+                changed = self._set_auto_address(*streaming_target.resolve())
+            except Exception:  # a bad log line must not end the watcher
+                logger.exception("OSC address auto: could not resolve the streaming PC")
+                continue
+            if changed:
+                with self._restart_lock:
+                    self.stop_sender()
+                    self.setup_sender()
 
     def _sender_signature(self) -> tuple:
         s = self.settings
         return (
-            int(s.gui_osc_port),
+            _sig_port(s.gui_osc_port),
             str(s.gui_VRCFTModuleIPAddress).strip(),
-            int(s.gui_VRCFTModulePort),
+            _sig_port(s.gui_VRCFTModulePort),
             bool(s.gui_use_module),
+            bool(s.gui_pyvrcft),
+            str(s.gui_osc_address).strip(),
+            _sig_port(s.gui_osc_receiver_port),
+            # pyVRCFT binds the receiver port only while ROSC is off, so toggling
+            # ROSC must restart the sender to release / reclaim that port.
+            bool(s.gui_ROSC),
+            bool(s.gui_foveation_gaze),
         )
 
     def _receiver_signature(self) -> tuple:
         s = self.settings
         return (
             bool(s.gui_ROSC),
-            int(s.gui_osc_receiver_port),
+            _sig_port(s.gui_osc_receiver_port),
             str(s.gui_osc_address).strip(),
+            bool(s.gui_osc_oscquery),
         )
 
     def setup_sender(self):
         logger.info("Setting up OSC sender")
         self.sender_cancellation_event.clear()
         self.osc_sender = OSCSender(
-            self.sender_cancellation_event, self.osc_message_in_queue, self.config
+            self.sender_cancellation_event,
+            self.osc_message_in_queue,
+            self.config,
+            osc_address=self.osc_target_address(),
         )
         self.osc_sender_thread = threading.Thread(target=self.osc_sender.run)
         self.osc_sender_thread.start()
@@ -96,9 +286,7 @@ class OSCManager:
         if self.settings.gui_ROSC:
             self.receiver_cancellation_event.clear()
             logger.info("Setting up OSC receiver")
-            self.osc_receiver = OSCReceiver(
-                self.receiver_cancellation_event, self.config, self.listeners
-            )
+            self.osc_receiver = OSCReceiver(self.receiver_cancellation_event, self.config, self.listeners)
             self.osc_receiver_thread = threading.Thread(target=self.osc_receiver.run)
             self.osc_receiver_thread.start()
         else:
@@ -112,43 +300,81 @@ class OSCManager:
 
         self.listeners[osc_address].extend(callbacks)
 
-    def update(self, data: dict):
-        keys = set(data.keys())
-        sender_trigger_keys = {
+    SENDER_TRIGGER_KEYS = frozenset(
+        {
             "gui_osc_port",
             "gui_VRCFTModulePort",
             "gui_VRCFTModuleIPAddress",
             "gui_use_module",
+            "gui_pyvrcft",
+            "gui_osc_address",
+            "gui_osc_receiver_port",
+            "gui_ROSC",
+            "gui_foveation_gaze",
         }
-        if sender_trigger_keys.intersection(keys):
-            new_sig = self._sender_signature()
-            if new_sig != self._last_sender_sig:
-                self.stop_sender()
-                self.setup_sender()
-
-        receiver_trigger_keys = {
+    )
+    RECEIVER_TRIGGER_KEYS = frozenset(
+        {
             "gui_ROSC",
             "gui_osc_receiver_port",
             "gui_osc_address",
+            "gui_osc_oscquery",
         }
-        if receiver_trigger_keys.intersection(keys):
-            new_r = self._receiver_signature()
-            if new_r != self._last_receiver_sig:
+    )
+
+    def _sync_integrations(self) -> threading.Thread:
+        """While foveation gaze is on, register EyeTrackVR's SteamVR driver and install its OpenXR
+        layer; remove both otherwise. Off the caller's thread: it touches SteamVR's config file
+        and the OpenXR layer registry / folder."""
+        from OVR import OpenXRLayerRegistration, SteamVRDriverRegistration
+
+        enabled = bool(self.settings.gui_foveation_gaze)
+
+        def sync():
+            SteamVRDriverRegistration.sync_quietly(enabled)
+            OpenXRLayerRegistration.sync_quietly(enabled)
+
+        thread = threading.Thread(target=sync, name="vr-integrations-sync", daemon=True)
+        thread.start()
+        return thread
+
+    def update(self, data: dict):
+        keys = set(data.keys())
+        if "gui_foveation_gaze" in keys:
+            self._sync_integrations()
+        restart_sender = bool(
+            self.SENDER_TRIGGER_KEYS.intersection(keys) and self._sender_signature() != self._last_sender_sig
+        )
+        restart_receiver = bool(
+            self.RECEIVER_TRIGGER_KEYS.intersection(keys) and self._receiver_signature() != self._last_receiver_sig
+        )
+        # Release ports before anything rebinds them: the old receiver must let
+        # go of the receiver port before a pyVRCFT sender (ROSC off) claims it,
+        # and the old sender before a new receiver (ROSC on) binds it.
+        with self._restart_lock:
+            if restart_receiver:
                 self.stop_receiver()
+            if restart_sender:
+                self.stop_sender()
+                self.setup_sender()
+            if restart_receiver:
                 self.setup_receiver()
 
     def shutdown(self):
-        self.stop_sender()
-        self.stop_receiver()
+        # App exit: bounded waits, the process ends regardless.
+        self._auto_stop.set()
+        self.stop_sender(timeout=2.0)
+        self.stop_receiver(timeout=2.0)
 
-    def stop_sender(self):
+    def stop_sender(self, timeout=None):
         self.sender_cancellation_event.set()
-        self.osc_sender_thread.join()
+        if self.osc_sender_thread is not None:
+            self.osc_sender_thread.join(timeout)
 
-    def stop_receiver(self):
+    def stop_receiver(self, timeout=None):
         if self.osc_receiver_thread:
             self.receiver_cancellation_event.set()
-            self.osc_receiver_thread.join()
+            self.osc_receiver_thread.join(timeout)
 
 
 class OSCSender:
@@ -157,53 +383,173 @@ class OSCSender:
         cancellation_event: threading.Event,
         msg_queue: queue.Queue[OSCMessage],
         main_config: EyeTrackConfig,
+        osc_address: Optional[str] = None,
     ):
         self.cancellation_event = cancellation_event
         self.msg_queue = msg_queue
         self.main_config = main_config
         self.config = main_config.settings
+        # VRChat's address, already resolved when the setting is "auto".
+        self.osc_address = osc_address if osc_address is not None else self.config.gui_osc_address
         self.vrc_sender = VRChatOSCSender()
         self.module_sender = VRCFTModuleSender()
+        self.pyvrcft_sender = PyVRCFTSender()
+        self.foveation_sender = FoveationGazeSender()
 
         self.vrc_client = None
         self.vrcft_client = None
+        self.foveation_client = None
+        self._log = _ThrottledLog()
+
+    @staticmethod
+    def _make_client(label: str, address, port):
+        """Create a SimpleUDPClient, or log clearly and return None.
+
+        SimpleUDPClient resolves the host up front, so an unresolvable name
+        (socket.gaierror) or bad port (OverflowError) surfaces here.
+        """
+        endpoint = validate_osc_endpoint(label, address, port)
+        if endpoint is None:
+            return None
+        try:
+            return udp_client.SimpleUDPClient(*endpoint)
+        except Exception as exc:  # noqa
+            logger.error(
+                "%s OSC output disabled: cannot send to %s:%s (%s)",
+                label,
+                endpoint[0],
+                endpoint[1],
+                exc,
+            )
+            return None
 
     def run(self):
-        self.vrc_client = udp_client.SimpleUDPClient(
-            self.config.gui_osc_address, int(self.config.gui_osc_port)
-        )
-        self.vrcft_client = udp_client.SimpleUDPClient(
+        self.vrc_client = self._make_client("VRChat", self.osc_address, self.config.gui_osc_port)
+        self.vrcft_client = self._make_client(
+            "VRCFT module",
             self.config.gui_VRCFTModuleIPAddress,
-            int(self.config.gui_VRCFTModulePort),
+            self.config.gui_VRCFTModulePort,
         )
+        # Senders only ever see the sanitizing wrappers; the raw clients stay
+        # on self for inspection.
+        safe_vrc = SafeOSCClient(self.vrc_client, "VRChat", self._log)
+        safe_vrcft = SafeOSCClient(self.vrcft_client, "VRCFT module", self._log)
 
-        vrc_osc_output_client = self.vrc_client
+        vrc_osc_output_client = safe_vrc
         if self.config.gui_use_module:
-            vrc_osc_output_client = self.vrcft_client
+            vrc_osc_output_client = safe_vrcft
 
-        while not self.cancellation_event.is_set():
+        # Beta: route through the embedded PY-VRCFT port instead of the
+        # SimpleUDPClient param paths. It owns its own transport, so the vrc/
+        # vrcft clients above are simply left idle when this is active.
+        use_pyvrcft = bool(self.config.gui_pyvrcft)
+        if use_pyvrcft and self.vrc_client is None:
+            # Same host/port as the VRChat client, which already logged why.
+            logger.error("pyVRCFT sender not started: VRChat OSC endpoint is invalid")
+            use_pyvrcft = False
+        elif use_pyvrcft:
             try:
-                osc_message: OSCMessage = self.msg_queue.get(block=True, timeout=0.1)
-                match osc_message.type:
-                    case OSCMessageType.EYE_INFO:
-                        self.vrc_sender.output_osc_info(
-                            osc_message=osc_message,
-                            client=vrc_osc_output_client,
-                            main_config=self.main_config,
-                            config=self.config,
-                        )
-                    case OSCMessageType.VRCFT_MODULE_INFO:
-                        self.module_sender.send(
-                            osc_message=osc_message, client=self.vrcft_client
-                        )
-                    case _:
-                        raise Exception(
-                            "Encountered message without a handler %s", osc_message.type
-                        )
-            except TypeError:
-                continue
-            except queue.Empty:
-                continue
+                self.pyvrcft_sender.start(self.config, send_host=self.osc_address)
+            except Exception:  # noqa
+                logger.exception("Failed to start pyVRCFT sender; no eye OSC output this run")
+                use_pyvrcft = False
+
+        # Foveated rendering tools (PimaxMagic4All) read gaze on this PC,
+        # independent of the VRChat output mode above.
+        use_foveation = bool(self.config.gui_foveation_gaze)
+        if use_foveation:
+            self.foveation_client = self._make_client("Foveation gaze", FOVEATION_HOST, FOVEATION_PORT)
+            if self.foveation_client is None:
+                use_foveation = False
+            else:
+                self.foveation_sender.start(
+                    self.config,
+                    SafeOSCClient(self.foveation_client, "Foveation gaze", self._log),
+                )
+
+        try:
+            while not self.cancellation_event.is_set():
+                try:
+                    osc_message: OSCMessage = self.msg_queue.get(block=True, timeout=0.1)
+                except queue.Empty:
+                    continue
+                try:
+                    match osc_message.type:
+                        case OSCMessageType.EYE_INFO:
+                            if use_foveation:
+                                self._send_foveation(osc_message)
+                            if use_pyvrcft:
+                                self.pyvrcft_sender.output_osc_info(
+                                    osc_message=osc_message,
+                                    main_config=self.main_config,
+                                    config=self.config,
+                                )
+                            else:
+                                self.vrc_sender.output_osc_info(
+                                    osc_message=osc_message,
+                                    client=vrc_osc_output_client,
+                                    main_config=self.main_config,
+                                    config=self.config,
+                                )
+                        case OSCMessageType.VRCFT_MODULE_INFO:
+                            self.module_sender.send(osc_message=osc_message, client=safe_vrcft)
+                        case OSCMessageType.EYEBROW_INFO:
+                            eye_id, brow_val = osc_message.data
+                            if use_pyvrcft:
+                                self.pyvrcft_sender.output_eyebrow_info(
+                                    eye_id=eye_id,
+                                    brow_val=brow_val,
+                                    main_config=self.main_config,
+                                )
+                            else:
+                                self.vrc_sender.output_eyebrow_info(
+                                    eye_id=eye_id,
+                                    brow_val=brow_val,
+                                    client=vrc_osc_output_client,
+                                    main_config=self.main_config,
+                                )
+                        case _:
+                            logger.warning("Encountered OSC message without a handler: %s", osc_message.type)
+                except TypeError:
+                    # Historically swallowed silently (e.g. data not yet populated).
+                    self._log.log(
+                        logging.DEBUG,
+                        "typeerror",
+                        "Skipped malformed OSC message",
+                        exc_info=True,
+                    )
+                except Exception:  # one bad message must never stop OSC output
+                    self._log.log(
+                        logging.ERROR,
+                        f"handler:{getattr(osc_message, 'type', None)}",
+                        "Failed to send OSC message %s",
+                        getattr(osc_message, "type", None),
+                        exc_info=True,
+                    )
+                finally:
+                    # Lets callers (tests) wait on msg_queue.join() for delivery.
+                    self.msg_queue.task_done()
+        finally:
+            if use_pyvrcft:
+                self.pyvrcft_sender.stop()
+            if use_foveation:
+                self.foveation_sender.stop()
+
+    def _send_foveation(self, osc_message: OSCMessage) -> None:
+        # Its own guard: a foveation failure must not cost the VRChat send.
+        try:
+            self.foveation_sender.output_osc_info(
+                osc_message=osc_message,
+                main_config=self.main_config,
+                config=self.config,
+            )
+        except Exception:  # noqa
+            self._log.log(
+                logging.ERROR,
+                "handler:foveation",
+                "Failed to send foveation gaze",
+                exc_info=True,
+            )
 
 
 class OSCReceiver:
@@ -218,29 +564,77 @@ class OSCReceiver:
         self.dispatcher = dispatcher.Dispatcher()
         self.listeners = listeners
         self.server_thread = None
+        self.advertiser: Optional[OSCQueryAdvertiser] = None
+        # OSCUDPServer needs a dedicated serve_forever thread so shutdown can be
+        # requested from the manager thread.
         self.server = None
+        if getattr(self.config, "gui_osc_oscquery", False):
+            self.server = self._bind_oscquery()
+        if self.server is None:
+            self.server = self._bind_fixed()
+
+    def endpoints(self) -> dict[str, tuple[str, int, str]]:
+        """OSCQuery nodes for the addresses this receiver handles (write-only)."""
+        nodes = {AVATAR_CHANGE_ADDRESS: ("s", 2, "Avatar change")}
+        for address in self.listeners:
+            nodes.setdefault(address, ("T", 2, "EyeTrackVR control"))
+        return nodes
+
+    def _bind_oscquery(self):
+        """Any free loopback port, advertised to VRChat; None to fall back to the fixed port."""
+        server = None
         try:
-            # OSCUDPServer needs a dedicated serve_forever thread so shutdown can be
-            # requested from the manager thread.
-            self.server = osc_server.OSCUDPServer(
-                (self.config.gui_osc_address, int(self.config.gui_osc_receiver_port)),
+            server = osc_server.OSCUDPServer((LOOPBACK, 0), self.dispatcher)
+            self.advertiser = OSCQueryAdvertiser()
+            self.advertiser.start(server.server_address[1], self.endpoints())
+            return server
+        except Exception as exc:  # mDNS port, firewall or socket trouble
+            logger.warning(
+                "OSCQuery unavailable (%s); falling back to fixed receiver port %s",
+                exc,
+                self.config.gui_osc_receiver_port,
+            )
+            self.advertiser = None
+            if server is not None:
+                server.server_close()
+            return None
+
+    def _bind_address(self) -> str:
+        # "auto" means VRChat is on another machine, which can only reach a
+        # receiver listening on every interface.
+        if streaming_target.is_auto(self.config.gui_osc_address):
+            return "0.0.0.0"
+        return self.config.gui_osc_address
+
+    def _bind_fixed(self):
+        try:
+            return osc_server.OSCUDPServer(
+                (self._bind_address(), int(self.config.gui_osc_receiver_port)),
                 self.dispatcher,
             )
         except Exception as exc:  # noqa
             logger.error(
                 "Failed to start OSC receiver on %s:%s: %s",
-                self.config.gui_osc_address,
+                self._bind_address(),
                 self.config.gui_osc_receiver_port,
                 exc,
             )
+            return None
 
     def shutdown(self):
         logger.info("Exiting OSC receiver")
         try:
+            # Say goodbye over mDNS before the port closes so VRChat stops sending.
+            if self.advertiser is not None:
+                self.advertiser.stop()
+                self.advertiser = None
             if self.server is not None:
                 self.server.shutdown()
+                # shutdown() only stops serve_forever; close the socket so the
+                # port is free for a restarted pyVRCFT sender right away.
+                self.server.server_close()
             if self.server_thread is not None:
-                self.server_thread.join()
+                self.server_thread.join(2.0)
         except Exception:  # noqa
             pass
 
@@ -259,8 +653,8 @@ class OSCReceiver:
             self.server_thread.start()
 
             while not self.cancellation_event.is_set():
-                sleep(10)
+                self.cancellation_event.wait(10)
 
             self.shutdown()
-        except Exception as exc:  # noqa:
+        except Exception as exc:
             logger.error("OSC receiver stopped unexpectedly: %s", exc)

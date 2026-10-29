@@ -1,0 +1,7 @@
+{
+	"alwaysActivate": true,
+	"name": "eyetrackvr",
+	"directory": "",
+	"resourceOnly": false,
+	"hmd_presence": []
+}

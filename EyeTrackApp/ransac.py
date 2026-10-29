@@ -73,7 +73,6 @@ def fit_rotated_ellipse_ransac(
     offset=80,  # 80.0, 10, 80
 ):  # before changing these values, please read up on the ransac algorithm
     # However if you want to change any value just know that higher iterations will make processing frames slower
-    effective_sample = None
 
     # The array contents do not change during the loop, so only one call is needed.
     # They say len is faster than shape.
@@ -116,13 +115,9 @@ def fit_rotated_ellipse_ransac(
 
     # These two lines are one of the bottlenecks
     datamod_rng_5x5 = np.matmul(datamod_rng_swap_trans, datamod_rng_swap)
-    datamod_rng_p5smp = np.matmul(
-        np.linalg.inv(datamod_rng_5x5), datamod_rng_swap_trans
-    )
+    datamod_rng_p5smp = np.matmul(np.linalg.inv(datamod_rng_5x5), datamod_rng_swap_trans)
 
-    datamod_rng_p = np.matmul(
-        datamod_rng_p5smp, datamod_rng6[:, :, np.newaxis]
-    ).reshape((-1, 5))
+    datamod_rng_p = np.matmul(datamod_rng_p5smp, datamod_rng6[:, :, np.newaxis]).reshape((-1, 5))
 
     # I don't think it looks beautiful.
     ellipse_y_arr = np.asarray(
@@ -136,9 +131,7 @@ def fit_rotated_ellipse_ransac(
         dtype=ret_dtype,
     )
 
-    ellipse_data_arr = ellipse_model(
-        datamod_slim, ellipse_y_arr, np.asarray(datamod_rng_p[:, 4])
-    ).transpose((1, 0))
+    ellipse_data_arr = ellipse_model(datamod_slim, ellipse_y_arr, np.asarray(datamod_rng_p[:, 4])).transpose((1, 0))
     ellipse_data_abs = np.abs(ellipse_data_arr)
     ellipse_data_index = np.argmax(np.sum(ellipse_data_abs < offset, axis=1), axis=0)
     effective_data_arr = ellipse_data_arr[ellipse_data_index]
@@ -207,8 +200,16 @@ def get_center_noclamp(center_xy, radius):
     )
 
 
+def ransac_blink_file_path(eye_id) -> str:
+    """Per-eye RANSAC blink statistics file. Read and write must use the same
+    name: the reader used to say "blink" while the writer said "BLINK", so on
+    case-sensitive filesystems the saved statistics were never loaded."""
+    if eye_id == EyeId.LEFT:
+        return "RANSAC_BLINK_LEFT.cfg"
+    return "RANSAC_BLINK_RIGHT.cfg"
+
+
 def RANSAC3D(self, hsrac_en):
-    f = False
     ranf = False
     blink = 0.8
     angle = 0
@@ -308,9 +309,7 @@ def RANSAC3D(self, hsrac_en):
         ranf = True
 
     self.current_image_gray = frame
-    cv2.circle(
-        self.current_image_gray, min_loc, 2, (0, 0, 255), -1
-    )  # the point of the darkest area in the image
+    cv2.circle(self.current_image_gray, min_loc, 2, (0, 0, 255), -1)  # the point of the darkest area in the image
 
     # However eyes are annoyingly three dimensional, so we need to take this ellipse and turn it
     # into a curve patch on the surface of a sphere (the eye itself). If it's not a sphere, see your
@@ -333,9 +332,7 @@ def RANSAC3D(self, hsrac_en):
         # Black magic happens here, but after this we have our reprojected pupil/eye, and all we had
         # to do was sell our soul to satan and/or C++.
 
-        result_3d = self.detector_3d.update_and_detect(
-            result_2d_final, self.current_image_gray
-        )
+        result_3d = self.detector_3d.update_and_detect(result_2d_final, self.current_image_gray)
 
         # Now we have our pupil
         ellipse_3d = result_3d["ellipse"]
@@ -343,16 +340,15 @@ def RANSAC3D(self, hsrac_en):
         self.last_projected_sphere = result_3d["projected_sphere"]
 
         # Record our pupil center
-        exm = ellipse_3d["center"][0]
-        eym = ellipse_3d["center"][1]
-        d = result_3d["diameter_3d"]
+        _exm = ellipse_3d["center"][0]
+        _eym = ellipse_3d["center"][1]
+        _d = result_3d["diameter_3d"]
         self.circle_crop_radius = int(float(self.last_projected_sphere["axes"][0]))
         self.circle_crop_center_x = int(float(self.last_projected_sphere["center"][0]))
         self.circle_crop_center_y = int(float(self.last_projected_sphere["center"][1]))
 
     except (KeyError, ValueError, TypeError, ZeroDivisionError, cv2.error) as e:
         logger.debug("3D pupil detection failed: %s", e)
-        f = True
 
     csy = newFrame2.shape[0]
     csx = newFrame2.shape[1]
@@ -364,52 +360,47 @@ def RANSAC3D(self, hsrac_en):
             cx = int(clamp(cx + ransac_lower_x, 0, csx))
             cy = int(clamp(cy + ransac_lower_y, 0, csy))
 
-    for cnt in contours:
-        (x, y, w, h) = cv2.boundingRect(cnt)
-        perscalarw = w / csx
-        perscalarh = h / csy
-        if self.settings.gui_RANSACBLINK:
-            if self.ran_blink_check_for_file:
-                if self.eye_id in [EyeId.LEFT]:
-                    file_path = "RANSAC_blink_LEFT.cfg"
-                if self.eye_id in [EyeId.RIGHT]:
-                    file_path = "RANSAC_blink_RIGHT.cfg"
-                else:
-                    file_path = "RANSAC_blink_RIGHT.cfg"
+    if self.settings.gui_RANSACBLINK and contours:
+        if self.ran_blink_check_for_file:
+            file_path = ransac_blink_file_path(self.eye_id)
+            if os.path.exists(file_path):
+                with open(file_path, "r") as file:
+                    self.blink_list = [float(line.strip()) for line in file]
+                self._ransac_blink_p92 = None
+            else:
+                logger.info(
+                    "RANSAC blink config '%s' not found. Waiting for calibration.",
+                    file_path,
+                )
+            self.ran_blink_check_for_file = False
 
-                if os.path.exists(file_path):
-                    with open(file_path, "r") as file:
-                        self.blink_list = [float(line.strip()) for line in file]
-                else:
-                    logger.info(
-                        "RANSAC blink config '%s' not found. Waiting for calibration.",
-                        file_path,
-                    )
-                self.ran_blink_check_for_file = False
+        # Bounding-box aspect delta per contour. Loop vars must not reuse w/h:
+        # those are the ellipse-fit axes returned as pupil_width/height.
+        blink_deltas = []
+        for cnt in contours:
+            (_bx, _by, box_w, box_h) = cv2.boundingRect(cnt)
+            blink_deltas.append(abs(box_w / csx - box_h / csy))
 
+        for delta in blink_deltas:
             if len(self.blink_list) == 10000:
-                if self.eye_id in [EyeId.LEFT]:
-                    with open("RANSAC_BLINK_LEFT.cfg", "w") as file:
-                        for item in self.blink_list:
-                            file.write(str(item) + "\n")
-
-                if self.eye_id in [EyeId.RIGHT]:
-                    with open("RANSAC_BLINK_RIGHT.cfg", "w") as file:
-                        for item in self.blink_list:
-                            file.write(str(item) + "\n")
-
-                self.blink_list.append(abs(perscalarw - perscalarh))
-
+                with open(ransac_blink_file_path(self.eye_id), "w") as file:
+                    for item in self.blink_list:
+                        file.write(str(item) + "\n")
+                self.blink_list.append(delta)
             elif len(self.blink_list) < 10000:
-                self.blink_list.append(abs(perscalarw - perscalarh))
+                self.blink_list.append(delta)
 
-            if abs(perscalarw - perscalarh) >= np.percentile(self.blink_list, 92):
-                blink = 0.0
+        # The 92nd percentile is O(n) over up to 10k samples: compute it once
+        # per frame (not per contour), and not at all once the list is frozen.
+        cached = getattr(self, "_ransac_blink_p92", None)
+        if cached is None or cached[0] != len(self.blink_list):
+            cached = (len(self.blink_list), float(np.percentile(self.blink_list, 92)))
+            self._ransac_blink_p92 = cached
+        if max(blink_deltas) >= cached[1]:
+            blink = 0.0
 
     try:
-        cv2.drawContours(
-            self.current_image_gray, contours, -1, (255, 0, 0), 1
-        )  # TODO: fix visualizations with HSRAC
+        cv2.drawContours(self.current_image_gray, contours, -1, (255, 0, 0), 1)  # TODO: fix visualizations with HSRAC
         cv2.circle(self.current_image_gray, (int(cx), int(cy)), 2, (0, 0, 255), -1)
     except (cv2.error, ValueError, TypeError) as e:
         logger.debug("Pupil overlay draw failed: %s", e)

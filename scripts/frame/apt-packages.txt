@@ -1,0 +1,37 @@
+# Ubuntu 24.04 arm64 packages for the Steam Frame build (scripts/build_frame.sh).
+# Shared by scripts/frame/Dockerfile and the build-frame CI job.
+#
+# Ubuntu 24.04 (glibc 2.39) is the target on purpose: it matches the Frame's
+# host glibc, is older than Steam Linux Runtime 4.0 (which FrameDrop launches
+# titles in), and is new enough for the manylinux_2_39 PySide6 aarch64 wheels.
+ca-certificates
+curl
+git
+zip
+rsync
+# unpacks the pinned standalone CPython (scripts/frame/install_python.sh)
+python3
+# required by PyInstaller (objdump/objcopy) and to classify binaries
+binutils
+file
+# required to import cv2 during PyInstaller analysis
+libgl1
+libglib2.0-0t64
+# pye3d has no aarch64 wheel and compiles its Eigen3 C++ extension from source
+build-essential
+cmake
+ninja-build
+libeigen3-dev
+# runtime deps of cv2's Qt plugin, numba's tbb pool and the Qt webview; present
+# at build time -> PyInstaller bundles them
+libsm6
+libice6
+libtbb12
+libxkbcommon0
+libxkbcommon-x11-0
+libxcb-cursor0
+libfontconfig1
+libdbus-1-3
+libnss3
+# voice prompts for data collection: bundled into Tools/tts/ (the Frame has no TTS)
+espeak-ng

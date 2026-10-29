@@ -25,9 +25,9 @@ from typing import Optional
 import numpy as np
 
 _INTENSITY_TRIGGER: int = 60
-_PATCH_HALF: int = 2            # → 5×5 patch
+_PATCH_HALF: int = 2  # → 5×5 patch
 _MAX_VELOCITY_FRAC: float = 0.40
-_MAX_DT_S: float = 0.10         # ignore velocity check after a long frame gap
+_MAX_DT_S: float = 0.10  # ignore velocity check after a long frame gap
 
 
 class BSDetector:
@@ -57,7 +57,7 @@ class BSDetector:
         ----------
         frame_gray:
             Grayscale eye-crop in which ``raw_x``/``raw_y`` are defined.
-            May be None — checks that require it are skipped gracefully.
+            May be None; checks that require it are skipped gracefully.
         raw_x, raw_y:
             Raw pixel coordinates reported by the primary pupil tracker,
             within the coordinate space of ``frame_gray``.

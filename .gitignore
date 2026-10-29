@@ -11,6 +11,12 @@ EyeTrackApp/build
 EyeTrackApp/dist
 build
 dist
+.env
+.env.*
+*.agekey
+*.payload.age
+*.receipt.json
+*.local.json
 EyeTrackApp/IBO_LEFT.png
 EyeTrackApp/IBO_RIGHT.png
 
@@ -23,3 +29,15 @@ EyeTrackApp/IBO_RIGHT.png
 /IBO_LEFT.png
 /eyetrack_settings.backup
 /eyetrack_settings.json
+
+release/
+INNO/Output/
+eyetrackapp/INNO/Output/
+# SteamVR auto-launch manifest, written at runtime
+app.vrmanifest
+
+# Local captures and recording exports
+*.[pP][nN][gG]
+*.[aA][vV][iI]
+v6_*_ETVR_*/
+v6_*_ETVR_*.[zZ][iI][pP]

@@ -2,9 +2,9 @@
 Robust eye-tracking calibration pipeline.
 
 Three sequential phases:
-  1. EXPRESS  — 9-point calibration; center-anchored asymmetric min-max normalization
-  2. BLINK    — closed-eye sclera-ratio threshold (used to scrub pursuit frames)
-  3. PURSUIT  — smooth figure-eight data collection → degree-2 polynomial regression
+  1. EXPRESS: 9-point calibration; center-anchored asymmetric min-max normalization
+  2. BLINK: closed-eye sclera-ratio threshold (used to scrub pursuit frames)
+  3. PURSUIT: smooth figure-eight data collection → degree-2 polynomial regression
 
 Runtime routing (when phase == DONE):
   - If poly trained (pursuit done): polynomial maps keypoints → gaze (best quality)
@@ -83,15 +83,15 @@ _CARD_RANSAC_THRESH: float = 0.25
 # the polynomial is pinned at the known calibration extremes (preventing divergence
 # at angles where the tracker is unreliable).
 _EXPRESS_GAZE_TARGETS: list[tuple[float, float]] = [
-    ( 0.0,  0.0),   # 0 center
-    ( 0.0,  1.0),   # 1 up    (gaze-space: positive Y = up, matching CalibrationEllipse)
-    ( 1.0,  0.0),   # 2 right
-    ( 0.0, -1.0),   # 3 down
-    (-1.0,  0.0),   # 4 left
-    ( 1.0,  1.0),   # 5 upper-right
-    (-1.0,  1.0),   # 6 upper-left
-    ( 1.0, -1.0),   # 7 lower-right
-    (-1.0, -1.0),   # 8 lower-left
+    (0.0, 0.0),  # 0 center
+    (0.0, 1.0),  # 1 up    (gaze-space: positive Y = up, matching CalibrationEllipse)
+    (1.0, 0.0),  # 2 right
+    (0.0, -1.0),  # 3 down
+    (-1.0, 0.0),  # 4 left
+    (1.0, 1.0),  # 5 upper-right
+    (-1.0, 1.0),  # 6 upper-left
+    (1.0, -1.0),  # 7 lower-right
+    (-1.0, -1.0),  # 8 lower-left
 ]
 
 
@@ -106,6 +106,7 @@ class CalibrationPhase(IntEnum):
 
 
 # ── Feature helpers ───────────────────────────────────────────────────────────
+
 
 def calculate_sclera_ratio(eye_crop: np.ndarray) -> float:
     """Fraction of IR-bright pixels in the crop (closed-eye indicator)."""
@@ -123,12 +124,13 @@ def _figure_eight_target(elapsed: float) -> Tuple[float, float]:
     Must stay in sync with the overlay's normalised send_pursuit_frame values.
     """
     t = (elapsed / PURSUIT_DURATION_S) * 2.0 * math.pi * 2.0
-    x = math.sin(t)           # [-1, 1]
-    y = math.sin(2.0 * t)     # [-1, 1], phase-shifted → figure-eight
+    x = math.sin(t)  # [-1, 1]
+    y = math.sin(2.0 * t)  # [-1, 1], phase-shifted → figure-eight
     return float(x), float(y)
 
 
 # ── Main session class ────────────────────────────────────────────────────────
+
 
 class RobustCalibrationSession:
     """
@@ -165,7 +167,7 @@ class RobustCalibrationSession:
         self.blink_threshold: float = 0.05
         self.blink_calibrated: bool = False
 
-        # Pursuit state — stores lightweight tuples, not full images.
+        # Pursuit state: stores lightweight tuples, not full images.
         # Each entry: (sclera_ratio, raw_x, raw_y, target_x, target_y)
         self._pursuit_start: float = 0.0
         # None = no overlay frame received yet → fall back to internal figure-eight.
@@ -198,12 +200,25 @@ class RobustCalibrationSession:
 
     # ── Triggers ─────────────────────────────────────────────────────────────
 
+    def _reset_polynomial(self) -> None:
+        self.poly_coeffs_x = None
+        self.poly_coeffs_y = None
+        self.poly_trained = False
+        if hasattr(self, "_poly_source"):
+            del self._poly_source
+
     def start_express(self, overlay_driven: bool = False) -> None:
         self.phase = CalibrationPhase.EXPRESS
         self.express_target_idx = 0
         self._express_frame_counts = [0] * NUM_EXPRESS_TARGETS
         self._express_raw = [[] for _ in range(NUM_EXPRESS_TARGETS)]
         self.express_calibrated = False
+        # A new express run moves the centre/bounds and replaces the card
+        # anchors, so any previous polynomial no longer matches them. Drop it
+        # now; otherwise, when the card fit is skipped, the stale polynomial
+        # would keep driving output against the new calibration.
+        self._express_target_medians = []
+        self._reset_polynomial()
         self._overlay_driven: bool = overlay_driven
         self._status = EXPRESS_TARGET_HINTS[0]
         logger.info("Robust cal [Express]: started (overlay_driven=%s)", overlay_driven)
@@ -219,7 +234,7 @@ class RobustCalibrationSession:
         self.phase = CalibrationPhase.PURSUIT
         self._pursuit_start = time.time()
         self._pursuit_data = []
-        self.current_pursuit_target = None   # set to a tuple by the overlay on each frame
+        self.current_pursuit_target = None  # set to a tuple by the overlay on each frame
         self._prev_pursuit_raw = None
         self._status = "Follow the moving dot"
         logger.info("Robust cal [Pursuit]: started")
@@ -293,7 +308,7 @@ class RobustCalibrationSession:
             return False
         if time.time() >= self._blink_end_at:
             self.phase = CalibrationPhase.DONE
-            self._status = f"Blink threshold: {self.blink_threshold:.3f} — open your eyes"
+            self._status = f"Blink threshold: {self.blink_threshold:.3f} - open your eyes"
             logger.info("Robust cal [Blink]: end delay done, phase → DONE")
             return True
         return False
@@ -325,7 +340,7 @@ class RobustCalibrationSession:
             tx, ty = _figure_eight_target(elapsed)
 
         # Saccade rejection: discard frames where the tracker jumped more than
-        # PURSUIT_SACCADE_FRAC of the express range in a single frame — likely a
+        # PURSUIT_SACCADE_FRAC of the express range in a single frame, likely a
         # detection glitch rather than real gaze motion.
         if self._prev_pursuit_raw is not None and self.express_calibrated:
             x_range = max(self.express_x_max - self.express_x_min, 1e-6)
@@ -354,9 +369,7 @@ class RobustCalibrationSession:
 
     # ── Card calibration helpers ──────────────────────────────────────────────
 
-    def _clean_card_samples(
-        self, frames: list[Tuple[float, float]]
-    ) -> list[Tuple[float, float]]:
+    def _clean_card_samples(self, frames: list[Tuple[float, float]]) -> list[Tuple[float, float]]:
         """
         IQR-based per-card outlier rejection.
 
@@ -388,7 +401,7 @@ class RobustCalibrationSession:
         Fit a degree-2 polynomial from the 9 card median raw positions.
 
         Unlike the smooth-pursuit fit which trains on many noisy frames, this
-        uses a handful of clean, precisely-known gaze positions — like flash
+        uses a handful of clean, precisely-known gaze positions, like flash
         cards for the polynomial.  Two robustness measures borrowed from the
         CalibrationEllipse approach:
 
@@ -403,11 +416,17 @@ class RobustCalibrationSession:
         Sets poly_coeffs_x/y and poly_trained=True on success.
         Returns True if fitting succeeded.
         """
-        meds = self._express_target_medians
-        targets = _EXPRESS_GAZE_TARGETS
-        if not meds or len(meds) < 6 or len(meds) != len(targets):
-            logger.warning("Card poly: not enough medians (%d) — skipping", len(meds) if meds else 0)
+        # Medians are stored by target index (None = no frames for that card),
+        # so each one is paired with its own gaze target even when an earlier
+        # card is missing.
+        pairs = [
+            (med, target) for med, target in zip(self._express_target_medians, _EXPRESS_GAZE_TARGETS) if med is not None
+        ]
+        if len(pairs) < 6:
+            logger.warning("Card poly: not enough medians (%d), skipping", len(pairs))
             return False
+        meds = [m for m, _ in pairs]
+        targets = [t for _, t in pairs]
 
         n = len(meds)
         X = np.array([self._poly_features(rx, ry) for rx, ry in meds], dtype=np.float64)
@@ -419,16 +438,17 @@ class RobustCalibrationSession:
             A = Xf.T @ Xf + lam * np.eye(6)
             return np.linalg.solve(A, Xf.T @ yxf), np.linalg.solve(A, Xf.T @ yyf)
 
-        # Pass 1 — fit all cards
+        # Pass 1: fit all cards
         cx, cy = _ridge(X, yx, yy)
         errs = np.sqrt((X @ cx - yx) ** 2 + (X @ cy - yy) ** 2)
-        rms1 = float(np.sqrt(np.mean(errs ** 2)))
+        rms1 = float(np.sqrt(np.mean(errs**2)))
         logger.info(
             "Card poly [pass 1]: RMS=%.4f  per-card=[%s]",
-            rms1, ", ".join(f"{e:.3f}" for e in errs),
+            rms1,
+            ", ".join(f"{e:.3f}" for e in errs),
         )
 
-        # RANSAC — drop cards whose error is suspiciously large
+        # RANSAC: drop cards whose error is suspiciously large
         thresh = max(_CARD_RANSAC_THRESH, rms1 * 2.5)
         good: np.ndarray = errs < thresh
         n_good = int(good.sum())
@@ -439,20 +459,20 @@ class RobustCalibrationSession:
                 "Card poly: RANSAC dropping cards %s (err=[%s]), refitting on %d/%d",
                 bad_idxs,
                 ", ".join(f"{errs[i]:.3f}" for i in bad_idxs),
-                n_good, n,
+                n_good,
+                n,
             )
             cx, cy = _ridge(X[good], yx[good], yy[good])
             errs2 = np.sqrt((X @ cx - yx) ** 2 + (X @ cy - yy) ** 2)
             rms_final = float(np.sqrt(np.mean(errs2[good] ** 2)))
             logger.info(
                 "Card poly [pass 2]: RMS=%.4f  per-card=[%s]",
-                rms_final, ", ".join(f"{e:.3f}" for e in errs2),
+                rms_final,
+                ", ".join(f"{e:.3f}" for e in errs2),
             )
         else:
             if n_good < 6:
-                logger.warning(
-                    "Card poly: RANSAC would remove too many cards (%d good) — keeping all", n_good
-                )
+                logger.warning("Card poly: RANSAC would remove too many cards (%d good), keeping all", n_good)
             n_good = n
             rms_final = rms1
 
@@ -460,12 +480,12 @@ class RobustCalibrationSession:
         self.poly_coeffs_y = cy
         self.poly_trained = True
         self._poly_source = "card"
-        self._status = (
-            f"Card poly — {n_good}/{n} cards, RMS {rms_final:.4f}"
-        )
+        self._status = f"Card poly - {n_good}/{n} cards, RMS {rms_final:.4f}"
         logger.info(
             "Card poly: fitted on %d/%d cards, RMS=%.4f",
-            n_good, n, rms_final,
+            n_good,
+            n,
+            rms_final,
         )
         return True
 
@@ -473,7 +493,7 @@ class RobustCalibrationSession:
 
     def _finalize_express(self) -> None:
         if not any(self._express_raw):
-            logger.warning("Robust cal [Express]: no samples — aborting")
+            logger.warning("Robust cal [Express]: no samples, aborting")
             self.phase = CalibrationPhase.DONE
             self._status = "Express failed: no samples collected"
             return
@@ -482,8 +502,11 @@ class RobustCalibrationSession:
         # IQR removes frames where the ML tracker snapped to the image centre
         # (pupil occluded at extreme gaze angle) before computing the
         # representative raw position for each card.
-        target_meds: list[Tuple[float, float]] = []
-        for frames in self._express_raw:
+        # Indexed by target: target_meds[i] belongs to _EXPRESS_GAZE_TARGETS[i],
+        # None when that target got no frames. Compacting the list instead
+        # shifted every later anchor onto the wrong gaze target.
+        target_meds: list[Optional[Tuple[float, float]]] = []
+        for idx, frames in enumerate(self._express_raw):
             if frames:
                 clean = self._clean_card_samples(frames)
                 mx = float(np.median([x for x, y in clean]))
@@ -492,17 +515,26 @@ class RobustCalibrationSession:
                 if len(clean) < len(frames):
                     logger.debug(
                         "Card IQR: kept %d/%d frames for target %d",
-                        len(clean), len(frames), len(target_meds) - 1,
+                        len(clean),
+                        len(frames),
+                        idx,
                     )
+            else:
+                target_meds.append(None)
+        valid_meds = [m for m in target_meds if m is not None]
 
-        if not target_meds:
-            logger.warning("Robust cal [Express]: all targets empty — aborting")
+        if not valid_meds:
+            logger.warning("Robust cal [Express]: all targets empty, aborting")
             self.phase = CalibrationPhase.DONE
             self._status = "Express failed: no valid targets"
             return
 
         # Store for polynomial anchor injection during pursuit fitting
         self._express_target_medians = target_meds
+
+        # Bounds from per-target medians (min/max across the 9 representative points)
+        all_med_x = [m[0] for m in valid_meds]
+        all_med_y = [m[1] for m in valid_meds]
 
         # Target 0 is the center gaze point (user looking straight ahead).
         # Use its median as the normalization origin so forward → (0, 0).
@@ -511,12 +543,10 @@ class RobustCalibrationSession:
             self.express_center_x = float(np.median([x for x, y in center_frames]))
             self.express_center_y = float(np.median([y for x, y in center_frames]))
         else:
-            self.express_center_x = target_meds[0][0]
-            self.express_center_y = target_meds[0][1]
-
-        # Bounds from per-target medians (min/max across the 9 representative points)
-        all_med_x = [m[0] for m in target_meds]
-        all_med_y = [m[1] for m in target_meds]
+            # No centre card: midpoint of the other cards' extent (the same
+            # fallback from_dict uses for saves without a stored centre).
+            self.express_center_x = (min(all_med_x) + max(all_med_x)) / 2.0
+            self.express_center_y = (min(all_med_y) + max(all_med_y)) / 2.0
         self.express_x_min = float(min(all_med_x))
         self.express_x_max = float(max(all_med_x))
         self.express_y_min = float(min(all_med_y))
@@ -529,9 +559,12 @@ class RobustCalibrationSession:
         self.phase = CalibrationPhase.DONE
         logger.info(
             "Robust cal [Express]: center (%.2f, %.2f)  X [%.2f, %.2f]  Y [%.2f, %.2f]",
-            self.express_center_x, self.express_center_y,
-            self.express_x_min, self.express_x_max,
-            self.express_y_min, self.express_y_max,
+            self.express_center_x,
+            self.express_center_y,
+            self.express_x_min,
+            self.express_x_max,
+            self.express_y_min,
+            self.express_y_max,
         )
 
         # Fit polynomial from card data immediately.
@@ -540,9 +573,7 @@ class RobustCalibrationSession:
         # later refine this polynomial with more data.
         card_ok = self._fit_poly_from_cards()
         if not card_ok:
-            self._status = (
-                f"Express done — center ({self.express_center_x:.1f}, {self.express_center_y:.1f})"
-            )
+            self._status = f"Express done - center ({self.express_center_x:.1f}, {self.express_center_y:.1f})"
 
     def _finalize_blink(self) -> None:
         if self._blink_sclera_samples:
@@ -552,7 +583,7 @@ class RobustCalibrationSession:
         self.blink_calibrated = True
         self._blink_end_at = time.time() + BLINK_END_DELAY_S
         self.phase = CalibrationPhase.BLINK_END
-        self._status = "Eyes open — blink calibrated"
+        self._status = "Eyes open - blink calibrated"
         logger.info("Robust cal [Blink]: threshold = %.4f", self.blink_threshold)
 
     def _poly_features(self, x: float, y: float) -> np.ndarray:
@@ -581,28 +612,33 @@ class RobustCalibrationSession:
 
         if self.blink_calibrated:
             threshold = self.blink_threshold + _BLINK_SCRUB_MARGIN
-            clean = [
-                (rx, ry, tx, ty)
-                for sr, rx, ry, tx, ty in self._pursuit_data
-                if sr > threshold
-            ]
+            clean = [(rx, ry, tx, ty) for sr, rx, ry, tx, ty in self._pursuit_data if sr > threshold]
             if len(clean) < max(_MIN_POLY_FRAMES, total * 0.2):
                 logger.warning(
-                    "Robust cal: blink scrub too aggressive (kept %d/%d) — using all frames",
-                    len(clean), total,
+                    "Robust cal: blink scrub too aggressive (kept %d/%d), using all frames",
+                    len(clean),
+                    total,
                 )
                 clean = [(rx, ry, tx, ty) for _, rx, ry, tx, ty in self._pursuit_data]
             else:
                 logger.info("Robust cal: %d/%d frames survived blink scrub", len(clean), total)
         else:
             clean = [(rx, ry, tx, ty) for _, rx, ry, tx, ty in self._pursuit_data]
-            logger.info("Robust cal: blink not calibrated — using all %d frames", total)
+            logger.info("Robust cal: blink not calibrated, using all %d frames", total)
 
         if len(clean) < _MIN_POLY_FRAMES:
-            logger.warning("Robust cal: only %d clean frames — polynomial not fitted", len(clean))
-            self.poly_trained = False
+            # Keep whatever polynomial was already in place (card fit or an
+            # earlier pursuit): DONE triggers a save, and clearing it here
+            # used to permanently delete a good calibration over one bad run.
+            logger.warning(
+                "Robust cal: only %d clean frames, polynomial not fitted (keeping previous fit: %s)",
+                len(clean),
+                self.poly_trained,
+            )
             self.phase = CalibrationPhase.DONE
-            self._status = f"Polynomial fit failed — {len(clean)} frames (need {_MIN_POLY_FRAMES})"
+            self._status = f"Polynomial fit failed - {len(clean)} frames (need {_MIN_POLY_FRAMES})"
+            if self.poly_trained:
+                self._status += "; previous calibration kept"
             return
 
         # ── Velocity-based per-sample weights ────────────────────────────────
@@ -629,7 +665,7 @@ class RobustCalibrationSession:
         #   fall back to reconstructed anchors with lower weight.
         anchor_meds = self._express_target_medians
         _has_card_poly = getattr(self, "_poly_source", None) == "card"
-        if not anchor_meds and self.express_calibrated:
+        if not any(m is not None for m in anchor_meds) and self.express_calibrated:
             _cx = self.express_center_x
             _cy = self.express_center_y
             _xn, _xx = self.express_x_min, self.express_x_max
@@ -656,14 +692,18 @@ class RobustCalibrationSession:
         else:
             _anchor_w = max(5.0, n_clean * 0.02)
         anchors: list[tuple[float, float, float, float]] = []
-        for i, (raw_x, raw_y) in enumerate(anchor_meds):
-            if i >= len(_EXPRESS_GAZE_TARGETS):
-                break
-            gx, gy = _EXPRESS_GAZE_TARGETS[i]
-            anchors.append((raw_x, raw_y, gx, gy))
+        # anchor_meds is indexed by target; skip missing cards rather than
+        # letting them shift later medians onto the wrong gaze target.
+        for med, (gx, gy) in zip(anchor_meds, _EXPRESS_GAZE_TARGETS):
+            if med is None:
+                continue
+            anchors.append((med[0], med[1], gx, gy))
         logger.info(
             "Robust cal [Poly]: %d pursuit frames + %d card anchors (w=%.1f, card_prior=%s)",
-            n_clean, len(anchors), _anchor_w, _has_card_poly,
+            n_clean,
+            len(anchors),
+            _anchor_w,
+            _has_card_poly,
         )
 
         # ── Weighted least-squares ────────────────────────────────────────────
@@ -703,17 +743,18 @@ class RobustCalibrationSession:
         pred_y = X_pursuit @ coeffs_y
         rms = float(np.sqrt(np.mean((pred_x - yx_vec[:n_clean]) ** 2 + (pred_y - yy_vec[:n_clean]) ** 2)))
         src = "card+pursuit" if _has_card_poly else "pursuit"
-        self._status = f"Poly [{src}] — {n_clean} frames + {len(anchors)} anchors, RMS {rms:.3f}"
+        self._status = f"Poly [{src}] - {n_clean} frames + {len(anchors)} anchors, RMS {rms:.3f}"
         logger.info(
             "Robust cal [Poly (%s)]: fitted on %d frames + %d anchors, RMS=%.4f",
-            src, n_clean, len(anchors), rms,
+            src,
+            n_clean,
+            len(anchors),
+            rms,
         )
 
     # ── Runtime inference ─────────────────────────────────────────────────────
 
-    def normalize_express(
-        self, raw_x: float, raw_y: float, clamp: bool = True
-    ) -> Tuple[float, float]:
+    def normalize_express(self, raw_x: float, raw_y: float, clamp: bool = True) -> Tuple[float, float]:
         """
         Center-anchored asymmetric min-max normalization.
         Target 0 (center gaze) → (0, 0).  Each half-axis is scaled independently
@@ -738,9 +779,7 @@ class RobustCalibrationSession:
             ny = float(np.clip(ny, -1.0, 1.0))
         return float(nx), float(ny)
 
-    def predict_poly(
-        self, raw_x: float, raw_y: float, clamp: bool = True
-    ) -> Optional[Tuple[float, float]]:
+    def predict_poly(self, raw_x: float, raw_y: float, clamp: bool = True) -> Optional[Tuple[float, float]]:
         """
         Evaluate the polynomial calibration model.
         clamp=True for VRChat (±1), clamp=False for DFR (unclamped).
@@ -755,7 +794,7 @@ class RobustCalibrationSession:
         return float(gx), float(gy)
 
     def predict_svr(self, eye_crop) -> Optional[Tuple[float, float]]:
-        """Legacy stub — SVR replaced by predict_poly. Always returns None."""
+        """Legacy stub: SVR replaced by predict_poly. Always returns None."""
         return None
 
     # ── Persistence ───────────────────────────────────────────────────────────
@@ -792,18 +831,19 @@ class RobustCalibrationSession:
         sess.express_y_min = float(d.get("express_y_min", 0.0))
         sess.express_y_max = float(d.get("express_y_max", 1.0))
         # Center: loaded explicitly when stored; falls back to range midpoint for old saves.
-        sess.express_center_x = float(d.get("express_center_x",
-            (sess.express_x_min + sess.express_x_max) / 2.0))
-        sess.express_center_y = float(d.get("express_center_y",
-            (sess.express_y_min + sess.express_y_max) / 2.0))
+        sess.express_center_x = float(d.get("express_center_x", (sess.express_x_min + sess.express_x_max) / 2.0))
+        sess.express_center_y = float(d.get("express_center_y", (sess.express_y_min + sess.express_y_max) / 2.0))
         sess.blink_threshold = float(d.get("blink_threshold", 0.05))
         sess.blink_calibrated = bool(d.get("blink_calibrated", False))
         sess.poly_trained = bool(d.get("poly_trained", d.get("svr_trained", False)))
         if "express_target_medians" in d:
             try:
-                sess._express_target_medians = [
-                    (float(x), float(y)) for x, y in d["express_target_medians"]
-                ]
+                meds = [None if m is None else (float(m[0]), float(m[1])) for m in d["express_target_medians"]]
+                # Older saves compacted out missing targets, so a short list
+                # can't be matched back to its gaze targets; drop it and let
+                # pursuit reconstruct anchors from the express bounds instead.
+                if len(meds) == NUM_EXPRESS_TARGETS:
+                    sess._express_target_medians = meds
             except Exception:
                 pass
         if sess.poly_trained and "poly_coeffs_x" in d:
