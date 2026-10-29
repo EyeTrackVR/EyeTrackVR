@@ -35,3 +35,9 @@ INNO/Output/
 eyetrackapp/INNO/Output/
 # SteamVR auto-launch manifest, written at runtime
 app.vrmanifest
+
+# Local captures and recording exports
+*.[pP][nN][gG]
+*.[aA][vV][iI]
+v6_*_ETVR_*/
+v6_*_ETVR_*.[zZ][iI][pP]
