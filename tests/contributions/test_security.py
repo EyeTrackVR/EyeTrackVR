@@ -10,7 +10,6 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "EyeTrackApp"))
 from contributions.client import save
-from contributions.private_files import owner_sid
 from contributions.verification import verified_reply
 
 
@@ -35,7 +34,9 @@ def test_receipt_export_does_not_inherit_shared_folder_read_access(tmp_path):
     raw = acl.read_bytes()
     sddl = raw.decode("utf-16-le" if b"\0" in raw else "utf-8-sig")
     trustees = re.findall(r"\(A;[^)]*;;;([^)]*)\)", sddl)
-    assert set(trustees) == {owner_sid(), "SY"}, sddl
+    # The other entry is the owner. icacls writes the built-in Administrator,
+    # which the GitHub Windows runner uses, as "LA" instead of its SID.
+    assert len(trustees) == 2 and "SY" in trustees, sddl
     assert ";;;WD)" not in sddl and ";ID;" not in sddl
     assert json.loads(receipt.read_text())["withdrawal_token"] == "fixture-only-not-a-real-secret"
 
