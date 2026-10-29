@@ -20,7 +20,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, windows-latest]
+        os: [ubuntu-24.04, windows-2022]
     runs-on: ${{ matrix.os }}
     timeout-minutes: 30
     defaults:
@@ -52,9 +52,21 @@ jobs:
           path: .venv
           key: tests-venv-${{ runner.os }}-${{ steps.setup-python.outputs.python-version }}-${{ hashFiles('**/poetry.lock') }}
 
+      # pye3d has no Python 3.14 wheels, so it is built from source and needs Eigen 3.
       - name: Install Linux dependencies
         if: runner.os == 'Linux'
-        run: sudo apt-get update && sudo apt-get install -y xvfb libgl1 libglib2.0-0
+        run: sudo apt-get update && sudo apt-get install -y xvfb libgl1 libglib2.0-0 libeigen3-dev
+
+      - name: Install Eigen on Windows
+        if: runner.os == 'Windows' && steps.cached-poetry-dependencies.outputs.cache-hit != 'true'
+        working-directory: ${{ runner.temp }}
+        run: |
+          curl -fsSL -o eigen.tar.gz https://gitlab.com/libeigen/eigen/-/archive/3.4.0/eigen-3.4.0.tar.gz
+          echo "8586084f71f9bde545ee7fa6d00288b264a2b7ac3607b974e54d13e7162c1c72  eigen.tar.gz" | sha256sum -c -
+          tar -xzf eigen.tar.gz
+          cmake -S eigen-3.4.0 -B eigen-build -DCMAKE_INSTALL_PREFIX=eigen -DBUILD_TESTING=OFF
+          cmake --install eigen-build
+          echo "CMAKE_PREFIX_PATH=$(cygpath -w "$PWD/eigen")" >> "$GITHUB_ENV"
 
       - name: Install python dependencies
         if: steps.cached-poetry-dependencies.outputs.cache-hit != 'true'
