@@ -6,6 +6,34 @@ from config import (
 )
 
 
+class _FakeRegistry:
+    """Dict-backed stand-in for OpenXRLayerRegistration.WindowsRegistry."""
+
+    def __init__(self):
+        self.data = {}
+
+    def values(self):
+        return dict(self.data)
+
+    def set(self, name, value):
+        self.data[name] = value
+
+    def delete(self, name):
+        del self.data[name]
+
+
+@pytest.fixture(autouse=True)
+def no_real_vr_config(monkeypatch, tmp_path_factory):
+    """Starting OSCManager syncs the SteamVR driver registration and the OpenXR layer; never
+    let a test touch this machine's openvrpaths.vrpath, OpenXR registry keys or layer folder."""
+    from OVR import OpenXRLayerRegistration, SteamVRDriverRegistration
+
+    monkeypatch.setattr(SteamVRDriverRegistration, "openvrpaths_file", lambda: None)
+    monkeypatch.setattr(OpenXRLayerRegistration, "WindowsRegistry", _FakeRegistry)
+    implicit = tmp_path_factory.mktemp("implicit.d")
+    monkeypatch.setattr(OpenXRLayerRegistration, "implicit_layer_dir", lambda: implicit)
+
+
 @pytest.fixture()
 def eyetrack_settings_config():
     return EyeTrackSettingsConfig(
@@ -14,10 +42,9 @@ def eyetrack_settings_config():
         gui_flip_y_axis=False,
         gui_RANSAC3D=False,
         gui_HSF=False,
-        gui_BLOB=False,
         gui_BLINK=False,
         gui_HSRAC=False,
-        gui_AHSFRAC=False,
+        gui_AHRAC=False,
         gui_AHSF=False,
         gui_DADDY=False,
         gui_LEAP=True,
@@ -31,18 +58,14 @@ def eyetrack_settings_config():
         gui_osc_receiver_port=9001,
         gui_osc_recenter_address="/avatar/parameters/etvr_recenter",
         gui_osc_recalibrate_address="/avatar/parameters/etvr_recalibrate",
-        gui_blob_maxsize=25.0,
-        gui_blob_minsize=10.0,
         gui_recenter_eyes=False,
         tracker_single_eye=2,
-        gui_threshold=65,
-        gui_AHSFRACP=1,
+        gui_AHRACP=1,
         gui_AHSFP=2,
         gui_HSRACP=3,
         gui_HSFP=4,
         gui_DADDYP=5,
         gui_RANSAC3DP=6,
-        gui_BLOBP=7,
         gui_LEAPP=8,
         gui_IBO=True,
         gui_skip_autoradius=False,
@@ -67,13 +90,13 @@ def eyetrack_settings_config():
         gui_left_eye_dominant=False,
         gui_outer_side_falloff=False,
         gui_eye_dominant_diff_thresh=0.3,
-        gui_legacy_ransac=False,
-        gui_legacy_ransac_thresh_right=80,
-        gui_legacy_ransac_thresh_left=80,
         gui_LEAP_lid=False,
         gui_osc_vrcft_v1=False,
         gui_osc_vrcft_v2=False,
         gui_vrc_native=False,
+        # Legacy OSC protocol tests assert SimpleUDPClient output. Keep the
+        # embedded pyVRCFT transport disabled in these fixtures.
+        gui_pyvrcft=False,
         gui_pupil_dilation=True,
     )
 

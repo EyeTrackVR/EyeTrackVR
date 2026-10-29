@@ -1,5 +1,6 @@
 import numpy as np
-import matplotlib.pyplot as plt
+
+from localization import tr
 
 
 class CalibrationEllipse:
@@ -80,8 +81,10 @@ class CalibrationEllipse:
         radius_y = std_y * self.n_std_devs
 
         # Safety clamp
-        if radius_x < 1e-12: radius_x = 1e-12
-        if radius_y < 1e-12: radius_y = 1e-12
+        if radius_x < 1e-12:
+            radius_x = 1e-12
+        if radius_y < 1e-12:
+            radius_y = 1e-12
 
         self.axes = np.array([radius_x, radius_y])
 
@@ -92,7 +95,14 @@ class CalibrationEllipse:
         return self.evecs, self.axes
 
     def normalize(self, pupil_pos, target_pos=None, clip=True):
-        if not self.fitted:
+        if (
+            not self.fitted
+            or self.axes is None
+            or np.asarray(self.axes).shape != (2,)
+            or not np.all(np.isfinite(self.axes))
+            or np.any(np.asarray(self.axes) <= 0)
+            or (target_pos is None and self.center is None)
+        ):
             return 0.0, 0.0
 
         x, y = float(pupil_pos[0]), float(pupil_pos[1])
@@ -148,10 +158,13 @@ class CalibrationEllipse:
         return float(cx + dx), float(cy + dy)
 
     def fit_and_visualize(self):
+        # Imported on use: matplotlib costs ~0.5 s and ~30 MB at app startup.
+        import matplotlib.pyplot as plt
+
         plt.figure(figsize=(10, 8))
 
-        plt.plot(self.xs, self.ys, 'k.', label='Samples', alpha=0.5)
-        plt.axis('equal')
+        plt.plot(self.xs, self.ys, "k.", label=tr("calibration.plot_samples"), alpha=0.5)
+        plt.axis("equal")
         plt.grid(True, alpha=0.3)
 
         # Invert plot Y axis to match screen coordinates
@@ -167,22 +180,30 @@ class CalibrationEllipse:
             el_x = self.center[0] + scaled_axes[0] * np.cos(t)
             el_y = self.center[1] + scaled_axes[1] * np.sin(t)
 
-            plt.plot(el_x, el_y, 'b-', linewidth=2, label='Axis-Aligned Fit')
-            plt.plot(self.center[0], self.center[1], 'r+', markersize=15, label='Center')
+            plt.plot(el_x, el_y, "b-", linewidth=2, label=tr("calibration.plot_fit"))
+            plt.plot(self.center[0], self.center[1], "r+", markersize=15, label=tr("calibration.plot_center"))
 
-            plt.hlines(self.center[1],
-                       self.center[0] - scaled_axes[0],
-                       self.center[0] + scaled_axes[0],
-                       colors='g', linestyles='-', label='Width (X)')
+            plt.hlines(
+                self.center[1],
+                self.center[0] - scaled_axes[0],
+                self.center[0] + scaled_axes[0],
+                colors="g",
+                linestyles="-",
+                label=tr("calibration.plot_width_x"),
+            )
 
-            plt.vlines(self.center[0],
-                       self.center[1] - scaled_axes[1],
-                       self.center[1] + scaled_axes[1],
-                       colors='m', linestyles='-', label='Height (Y)')
+            plt.vlines(
+                self.center[0],
+                self.center[1] - scaled_axes[1],
+                self.center[1] + scaled_axes[1],
+                colors="m",
+                linestyles="-",
+                label=tr("calibration.plot_height_y"),
+            )
 
-            plt.title(f'Axis-Aligned Calibration (FlipX={self.flip_x})')
+            plt.title(tr("calibration.plot_title", flip_x=self.flip_x))
         else:
-            plt.title("Fit FAILED")
+            plt.title(tr("calibration.plot_fit_failed"))
 
         plt.legend()
         plt.tight_layout()

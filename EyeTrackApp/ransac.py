@@ -1,23 +1,23 @@
 """
-------------------------------------------------------------------------------------------------------                                                                                                    
-                                                                                                    
-                                               ,@@@@@@                                              
-                                            @@@@@@@@@@@            @@@                              
-                                          @@@@@@@@@@@@      @@@@@@@@@@@                             
-                                        @@@@@@@@@@@@@   @@@@@@@@@@@@@@                              
-                                      @@@@@@@/         ,@@@@@@@@@@@@@                               
-                                         /@@@@@@@@@@@@@@@  @@@@@@@@                                 
-                                    @@@@@@@@@@@@@@@@@@@@@@@@ @@@@@                                  
-                                @@@@@@@@                @@@@@                                       
-                              ,@@@                        @@@@&                                     
-                                             @@@@@@.       @@@@                                     
-                                   @@@     @@@@@@@@@/      @@@@@                                    
-                                   ,@@@.     @@@@@@((@     @@@@(                                    
-                                   //@@@        ,,  @@@@  @@@@@                                     
-                                   @@@(                @@@@@@@                                      
-                                   @@@  @          @@@@@@@@#                                        
-                                       @@@@@@@@@@@@@@@@@                                            
-                                      @@@@@@@@@@@@@(     
+------------------------------------------------------------------------------------------------------
+
+                                               ,@@@@@@
+                                            @@@@@@@@@@@            @@@
+                                          @@@@@@@@@@@@      @@@@@@@@@@@
+                                        @@@@@@@@@@@@@   @@@@@@@@@@@@@@
+                                      @@@@@@@/         ,@@@@@@@@@@@@@
+                                         /@@@@@@@@@@@@@@@  @@@@@@@@
+                                    @@@@@@@@@@@@@@@@@@@@@@@@ @@@@@
+                                @@@@@@@@                @@@@@
+                              ,@@@                        @@@@&
+                                             @@@@@@.       @@@@
+                                   @@@     @@@@@@@@@/      @@@@@
+                                   ,@@@.     @@@@@@((@     @@@@(
+                                   //@@@        ,,  @@@@  @@@@@
+                                   @@@(                @@@@@@@
+                                   @@@  @          @@@@@@@@#
+                                       @@@@@@@@@@@@@@@@@
+                                      @@@@@@@@@@@@@(
 
 RANSAC 3D By: Summer#2406 (Main Algorithm Engineer), Pupil Labs (pye3d), PallasNeko (Optimization)
 Algorithm App Implementations By: Prohurtz, qdot (Initial App Creator)
@@ -26,6 +26,9 @@ Copyright (c) 2026 EyeTrackVR <3
 LICENSE: Summer Software Distribution License 1.0
 ------------------------------------------------------------------------------------------------------
 """
+
+import logging
+
 import cv2
 import numpy as np
 from eye import EyeId
@@ -34,6 +37,8 @@ from utils.misc_utils import clamp
 import os
 import psutil
 import sys
+
+logger = logging.getLogger(__name__)
 
 process = psutil.Process(os.getpid())  # set process priority to low
 try:  # medium chance this does absolutely nothing but eh
@@ -68,7 +73,6 @@ def fit_rotated_ellipse_ransac(
     offset=80,  # 80.0, 10, 80
 ):  # before changing these values, please read up on the ransac algorithm
     # However if you want to change any value just know that higher iterations will make processing frames slower
-    effective_sample = None
 
     # The array contents do not change during the loop, so only one call is needed.
     # They say len is faster than shape.
@@ -157,18 +161,14 @@ def fit_rotated_ellipse(data, P):
     cx = (2 * c * d - b * e) / cxy
     cy = (2 * a * e - b * d) / cxy
 
-    # I just want to clear things up around here.
     cu = a * cx**2 + b * cx * cy + c * cy**2 - f
     cu_r = np.array([(a * tc2 + b_tcs + c * ts2), (a * ts2 - b_tcs + c * tc2)])
     if cu > 1:  # negatives can get thrown which cause errors, just ignore them
         wh = np.sqrt(cu / cu_r)
     else:
-        pass
+        return None
 
     w, h = wh[0], wh[1]
-
-    error_sum = np.sum(data)
-   # print("fitting error = %.3f" % (error_sum))
 
     return (cx, cy, w, h, theta)
 
@@ -200,14 +200,24 @@ def get_center_noclamp(center_xy, radius):
     )
 
 
-cct = 300
+def ransac_blink_file_path(eye_id) -> str:
+    """Per-eye RANSAC blink statistics file. Read and write must use the same
+    name: the reader used to say "blink" while the writer said "BLINK", so on
+    case-sensitive filesystems the saved statistics were never loaded."""
+    if eye_id == EyeId.LEFT:
+        return "RANSAC_BLINK_LEFT.cfg"
+    return "RANSAC_BLINK_RIGHT.cfg"
 
 
 def RANSAC3D(self, hsrac_en):
-    f = False
     ranf = False
     blink = 0.8
     angle = 0
+    # Initialize fit outputs so a failed ellipse fit below can't raise NameError
+    # later when the contour-draw / return path references them.
+    cx = cy = 0
+    w = h = 0
+    theta = 0.0
 
     if hsrac_en:
         (
@@ -235,9 +245,15 @@ def RANSAC3D(self, hsrac_en):
 
     else:
         frame = self.current_image_gray_clean
-    kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (3, 3))
+    kernel = getattr(self, "_ransac_morph_kernel", None)
+    if kernel is None:
+        kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (3, 3))
+        self._ransac_morph_kernel = kernel
 
-    rng = np.random.default_rng()
+    rng = getattr(self, "_ransac_rng", None)
+    if rng is None:
+        rng = np.random.default_rng()
+        self._ransac_rng = rng
     newFrame2 = self.current_image_gray.copy()
     # Convert the image to grayscale, and set up thresholding. Thresholds here are basically a
     # low-pass filter that will set any pixel < the threshold value to 0. Thresholding is user
@@ -251,76 +267,46 @@ def RANSAC3D(self, hsrac_en):
     # Crop first to reduce the amount of data to process.
 
     # frame = self.current_image_gray
-    # For measuring processing time of image processing
-    # Crop first to reduce the amount of data to process.
-    # frame = frame[0:len(frame) - 5, :]
-    # To reduce the processing data, blur.
     if frame is None:
-        print("[WARN] Frame is empty")
+        logger.warning("RANSAC frame is empty")
         self.failed = self.failed + 1  # we have failed, move onto next algo
         return 0, 0, 0, frame, blink, 0, 0
     else:
         frame_gray = cv2.GaussianBlur(frame, (9, 9), 10)
 
-    # this will need to be adjusted everytime hardware is changed (brightness of IR, Camera postion, etc)m
+    # This threshold depends on hardware, IR brightness, camera position, and lensing.
     min_val, max_val, min_loc, max_loc = cv2.minMaxLoc(frame_gray)
 
-    maxloc0_hf, maxloc1_hf = int(0.5 * max_loc[0]), int(0.5 * max_loc[1])
-
-    # crop 15% sqare around min_loc
-    # frame_gray = frame_gray[max_loc[1] - maxloc1_hf:max_loc[1] + maxloc1_hf,
-    #               max_loc[0] - maxloc0_hf:max_loc[0] + maxloc0_hf]
-    if self.settings.gui_legacy_ransac:
-        if self.eye_id in [EyeId.LEFT]:
-            threshold_value = self.settings.gui_legacy_ransac_thresh_left
-        else:
-            threshold_value = self.settings.gui_legacy_ransac_thresh_right
-    else:
-        threshold_value = min_val + self.settings.gui_thresh_add
+    threshold_value = min_val + self.settings.gui_thresh_add
 
     _, thresh = cv2.threshold(frame_gray, threshold_value, 255, cv2.THRESH_BINARY)
     try:
         opening = cv2.morphologyEx(thresh, cv2.MORPH_OPEN, kernel)
         closing = cv2.morphologyEx(opening, cv2.MORPH_CLOSE, kernel)
         th_frame = 255 - closing
-    except:
-        # I want to eliminate try here because try tends to be slow in execution.
+    except cv2.error as e:
+        logger.debug("Morphology failed, falling back to raw threshold: %s", e)
         th_frame = 255 - frame_gray
 
     contours, _ = cv2.findContours(th_frame, cv2.RETR_TREE, cv2.CHAIN_APPROX_NONE)
-    hull = []
-    # print(contours)
-    # This way is faster than contours[i]
-    # But maybe this one is faster. hull = [cv2.convexHull(cnt, False) for cnt in contours]
+    maxcnt = None
+    max_area = -1.0
     for cnt in contours:
-        hull.append(cv2.convexHull(cnt, False))
-    if not hull:
-        # If empty, go to next loop
-        pass
+        hull = cv2.convexHull(cnt, False)
+        area = cv2.contourArea(hull)
+        if area > max_area:
+            max_area = area
+            maxcnt = hull
     try:
-
-        cnt = sorted(hull, key=cv2.contourArea)
-        maxcnt = cnt[-1]
-        # ellipse = cv2.fitEllipse(maxcnt)
+        if maxcnt is None:
+            raise ValueError("No contours found")
         ransac_data = fit_rotated_ellipse_ransac(maxcnt.reshape(-1, 2), rng)
         if ransac_data is None:
-            # ransac_data is None==maxcnt.shape[0]<sample_num
-            # go to next loop
-            pass
-
+            raise ValueError("RANSAC fit returned no data")
         cx, cy, w, h, theta = ransac_data
-        # print(cx, cy)
-        # cxi, cyi, wi, hi = int(cx), int(cy), int(w), int(h)
-
-        # cv2.drawContours(self.current_image_gray, contours, -1, (255, 0, 0), 1)
-    # cv2.circle(self.current_image_gray, (cx, cy), 2, (0, 0, 255), -1)
-    # cx1, cy1, w1, h1, theta1 = fit_rotated_ellipse(maxcnt.reshape(-1, 2))
-    # cv2.ellipse(self.current_image_gray, (cx, cy), (w, h), theta * 180.0 / np.pi, 0.0, 360.0, (50, 250, 200), 1, )
-
-    # img = newImage2[y1:y2, x1:x2]
-    except:
+    except (ValueError, TypeError, cv2.error) as e:
+        logger.debug("RANSAC ellipse fit failed: %s", e)
         ranf = True
-        pass
 
     self.current_image_gray = frame
     cv2.circle(self.current_image_gray, min_loc, 2, (0, 0, 255), -1)  # the point of the darkest area in the image
@@ -329,7 +315,6 @@ def RANSAC3D(self, hsrac_en):
     # into a curve patch on the surface of a sphere (the eye itself). If it's not a sphere, see your
     # ophthalmologist about possible issues with astigmatism.
     try:
-
         # Get axis and angle of the ellipse, using pupil labs 2d algos. The next bit of code ranges
         # from somewhat to completely magic, as most of it happens in native libraries (hence passing
         # via dicts).
@@ -352,110 +337,80 @@ def RANSAC3D(self, hsrac_en):
         # Now we have our pupil
         ellipse_3d = result_3d["ellipse"]
         # And our eyeball that the pupil is on the surface of
-        self.lkg_projected_sphere = result_3d["projected_sphere"]
+        self.last_projected_sphere = result_3d["projected_sphere"]
 
         # Record our pupil center
-        exm = ellipse_3d["center"][0]
-        eym = ellipse_3d["center"][1]
-        #  print(result_2d["angle"])
-        d = result_3d["diameter_3d"]
-        self.cc_radius = int(float(self.lkg_projected_sphere["axes"][0]))
-        self.xc = int(float(self.lkg_projected_sphere["center"][0]))
-        self.yc = int(float(self.lkg_projected_sphere["center"][1]))
+        _exm = ellipse_3d["center"][0]
+        _eym = ellipse_3d["center"][1]
+        _d = result_3d["diameter_3d"]
+        self.circle_crop_radius = int(float(self.last_projected_sphere["axes"][0]))
+        self.circle_crop_center_x = int(float(self.last_projected_sphere["center"][0]))
+        self.circle_crop_center_y = int(float(self.last_projected_sphere["center"][1]))
 
-    except:
-        f = True
+    except (KeyError, ValueError, TypeError, ZeroDivisionError, cv2.error) as e:
+        logger.debug("3D pupil detection failed: %s", e)
 
     csy = newFrame2.shape[0]
     csx = newFrame2.shape[1]
     if hsrac_en:
-
         if ranf:
             cx = self.rawx
             cy = self.rawy
         else:
-            #  print(int(cx), int(clamp(cx + ransac_lower_x, 0, csx)), ransac_lower_x, csx, "y", int(cy), int(clamp(cy + ransac_lower_y, 0, csy)), ransac_lower_y, csy)
-            cx = int(clamp(cx + ransac_lower_x, 0, csx))  # dunno why this is being weird
+            cx = int(clamp(cx + ransac_lower_x, 0, csx))
             cy = int(clamp(cy + ransac_lower_y, 0, csy))
 
-    # print(contours)
-    for cnt in contours:
-        (x, y, w, h) = cv2.boundingRect(cnt)
-        perscalarw = w / csx
-        perscalarh = h / csy
-        #  print(abs(perscalarw-perscalarh))
-        # if abs(perscalarw-perscalarh) >= 0.2: # TODO setting
-        #    blink = 0.0
+    if self.settings.gui_RANSACBLINK and contours:
+        if self.ran_blink_check_for_file:
+            file_path = ransac_blink_file_path(self.eye_id)
+            if os.path.exists(file_path):
+                with open(file_path, "r") as file:
+                    self.blink_list = [float(line.strip()) for line in file]
+                self._ransac_blink_p92 = None
+            else:
+                logger.info(
+                    "RANSAC blink config '%s' not found. Waiting for calibration.",
+                    file_path,
+                )
+            self.ran_blink_check_for_file = False
 
-        if self.settings.gui_RANSACBLINK:
+        # Bounding-box aspect delta per contour. Loop vars must not reuse w/h:
+        # those are the ellipse-fit axes returned as pupil_width/height.
+        blink_deltas = []
+        for cnt in contours:
+            (_bx, _by, box_w, box_h) = cv2.boundingRect(cnt)
+            blink_deltas.append(abs(box_w / csx - box_h / csy))
 
-            if self.ran_blink_check_for_file:
-                if self.eye_id in [EyeId.LEFT]:
-                    file_path = "RANSAC_blink_LEFT.cfg"
-                if self.eye_id in [EyeId.RIGHT]:
-                    file_path = "RANSAC_blink_RIGHT.cfg"
-                else:
-                    file_path = "RANSAC_blink_RIGHT.cfg"
-
-                if os.path.exists(file_path):
-                    with open(file_path, "r") as file:
-                        self.blink_list = [float(line.strip()) for line in file]
-                else:
-                    print(
-                        f"\033[93m[INFO] RANSAC Blink Config '{file_path}' not found. Waiting for calibration.\033[0m"
-                    )
-                self.ran_blink_check_for_file = False
-
-            if len(self.blink_list) == 10000:  # self calibrate ransac blink IN TESTING
-                if self.eye_id in [EyeId.LEFT]:
-                    with open("RANSAC_BLINK_LEFT.cfg", "w") as file:
-                        for item in self.blink_list:
-                            file.write(str(item) + "\n")
-
-                if self.eye_id in [EyeId.RIGHT]:
-                    with open("RANSAC_BLINK_RIGHT.cfg", "w") as file:
-                        for item in self.blink_list:
-                            file.write(str(item) + "\n")
-
-                # print("SAVE")
-
-                # self.blink_list.pop(0)
-                self.blink_list.append(abs(perscalarw - perscalarh))
-
+        for delta in blink_deltas:
+            if len(self.blink_list) == 10000:
+                with open(ransac_blink_file_path(self.eye_id), "w") as file:
+                    for item in self.blink_list:
+                        file.write(str(item) + "\n")
+                self.blink_list.append(delta)
             elif len(self.blink_list) < 10000:
-                self.blink_list.append(abs(perscalarw - perscalarh))
+                self.blink_list.append(delta)
 
-            if abs(perscalarw - perscalarh) >= np.percentile(self.blink_list, 92):
-                blink = 0.0
+        # The 92nd percentile is O(n) over up to 10k samples: compute it once
+        # per frame (not per contour), and not at all once the list is frozen.
+        cached = getattr(self, "_ransac_blink_p92", None)
+        if cached is None or cached[0] != len(self.blink_list):
+            cached = (len(self.blink_list), float(np.percentile(self.blink_list, 92)))
+            self._ransac_blink_p92 = cached
+        if max(blink_deltas) >= cached[1]:
+            blink = 0.0
 
     try:
         cv2.drawContours(self.current_image_gray, contours, -1, (255, 0, 0), 1)  # TODO: fix visualizations with HSRAC
         cv2.circle(self.current_image_gray, (int(cx), int(cy)), 2, (0, 0, 255), -1)
-    except:
-        pass
-
-    # try:  #for some reason the pye3d visualizations are wack, im going to just not visualize it for now..
-    #   cv2.ellipse(
-    #       self.current_image_gray,
-    #     tuple(int(v) for v in ellipse_3d["center"]),
-    #      tuple(int(v) for v in ellipse_3d["axes"]),
-    #     ellipse_3d["angle"],
-    #      0,
-    #      360,  # start/end angle for drawing
-    #      (0, 255, 0),  # color (BGR): red
-    #  )
-    # except Exception:
-    # Sometimes we get bogus axes and trying to draw this throws. Ideally we should check for
-    # validity beforehand, but for now just pass. It usually fixes itself on the next frame.
-    #    pass
+    except (cv2.error, ValueError, TypeError) as e:
+        logger.debug("Pupil overlay draw failed: %s", e)
 
     try:
-        # print(self.lkg_projected_sphere["angle"], self.lkg_projected_sphere["axes"], self.lkg_projected_sphere["center"])
         cv2.ellipse(
             newFrame2,
-            tuple(int(v) for v in self.lkg_projected_sphere["center"]),
-            tuple(int(v) for v in self.lkg_projected_sphere["axes"]),
-            self.lkg_projected_sphere["angle"],
+            tuple(int(v) for v in self.last_projected_sphere["center"]),
+            tuple(int(v) for v in self.last_projected_sphere["axes"]),
+            self.last_projected_sphere["angle"],
             0,
             360,  # start/end angle for drawing
             (0, 255, 0),  # color (BGR): red
@@ -464,20 +419,16 @@ def RANSAC3D(self, hsrac_en):
         # draw line from center of eyeball to center of pupil
         cv2.line(
             self.current_image_gray,
-            tuple(int(v) for v in self.lkg_projected_sphere["center"]),
+            tuple(int(v) for v in self.last_projected_sphere["center"]),
             tuple(int(v) for v in ellipse_3d["center"]),
             (0, 255, 0),  # color (BGR): red
         )
 
-    except:
-        pass
+    except (KeyError, TypeError, ValueError, NameError, cv2.error) as e:
+        logger.debug("Sphere/ellipse overlay draw failed: %s", e)
 
     self.current_image_gray = newFrame2
     y, x = self.current_image_gray.shape
     thresh = cv2.resize(thresh, (x, y))
-    try:
-        self.failed = 0  # we have succeded, continue with this
-        return cx, cy, angle, thresh, blink, w, h
-    except:
-        self.failed = self.failed + 1  # we have failed, move onto next algo
-        return 0, 0, 0, thresh, blink, 0, 0
+    self.failed = 0  # we have succeded, continue with this
+    return cx, cy, angle, thresh, blink, w, h

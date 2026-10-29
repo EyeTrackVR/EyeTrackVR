@@ -47,7 +47,7 @@ __all__ = (
 )
 
 if TYPE_CHECKING:
-    from typing_extensions import Self
+    pass
 
 
 def _create_value_cls(name: str, comparable: bool):
@@ -65,9 +65,7 @@ def _create_value_cls(name: str, comparable: bool):
 
 
 def _is_descriptor(obj):
-    return (
-        hasattr(obj, "__get__") or hasattr(obj, "__set__") or hasattr(obj, "__delete__")
-    )
+    return hasattr(obj, "__get__") or hasattr(obj, "__set__") or hasattr(obj, "__delete__")
 
 
 class EnumMeta(type):
@@ -126,9 +124,7 @@ class EnumMeta(type):
         return (cls._enum_member_map_[name] for name in cls._enum_member_names_)
 
     def __reversed__(cls) -> Iterator[Any]:
-        return (
-            cls._enum_member_map_[name] for name in reversed(cls._enum_member_names_)
-        )
+        return (cls._enum_member_map_[name] for name in reversed(cls._enum_member_names_))
 
     def __len__(cls) -> int:
         return len(cls._enum_member_names_)
@@ -165,7 +161,7 @@ class EnumMeta(type):
 
 
 if TYPE_CHECKING:
-    from enum import Enum, IntEnum
+    from enum import Enum
 else:
 
     class Enum(metaclass=EnumMeta):

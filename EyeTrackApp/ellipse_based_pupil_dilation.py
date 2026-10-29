@@ -26,6 +26,10 @@ Copyright (c) 2026 EyeTrackVR <3
 LICENSE: Babble Software Distribution License 1.0
 ------------------------------------------------------------------------------------------------------
 """
+
+import logging
+from collections import deque
+
 import numpy
 import numpy as np
 import time
@@ -34,6 +38,8 @@ import cv2
 
 from eye import EyeId
 from one_euro_filter import OneEuroFilter
+
+logger = logging.getLogger(__name__)
 
 os.environ["OMP_NUM_THREADS"] = "1"
 
@@ -91,14 +97,14 @@ def u16_3ch_to_u32_1ch(img):
 
 
 def newdata(frameshape):
-    print("\033[94m[INFO] Initialise data for dilation.\033[0m")
+    logger.info("Initialise data for dilation (shape=%s).", frameshape)
     return np.zeros(frameshape, dtype=np.uint32)
 
 
 # EBPD
 class EllipseBasedPupilDilation:
     def __init__(self, eye_id):
-        # todo: It is necessary to consider whether the filename can be changed in the configuration file, etc.
+        # TODO: Move calibration image paths into configurable storage.
         if eye_id in [EyeId.LEFT]:
             self.imgfile = "EBPD_LEFT.png"
         else:
@@ -120,7 +126,7 @@ class EllipseBasedPupilDilation:
         self.color = []
         self.x = []
         self.fc = 0
-        self.filterlist = []
+        self.filterlist = deque()
         self.averageList = []
         self.openlist = []
         self.eye_id = eye_id
@@ -144,13 +150,16 @@ class EllipseBasedPupilDilation:
         # Not very clever, but increase the width by 1px to save the maximum value.
         frameshape = (frameshape[0], frameshape[1] + 1)
         if self.data is None:
-            print(f"\033[92m[INFO] Loaded data for pupil dilation: {self.imgfile}\033[0m")
+            logger.info("Loading data for pupil dilation: %s", self.imgfile)
             if os.path.isfile(self.imgfile):
                 try:
                     img = cv2.imread(self.imgfile, flags=cv2.IMREAD_UNCHANGED)
                     # check code: cv2.absdiff(img,u32_1ch_to_u16_3ch(u16_3ch_to_u32_1ch(img)))
-                    if img.shape[:2] != frameshape:
-                        print("[WARN] Size does not match the input frame.")
+                    if img is None or img.shape[:2] != frameshape:
+                        logger.warning(
+                            "Dilation calibration size mismatch or unreadable image (%s).",
+                            self.imgfile,
+                        )
                         req_newdata = True
                     else:
                         self.data = u16_3ch_to_u32_1ch(img)
@@ -160,17 +169,21 @@ class EllipseBasedPupilDilation:
                             req_newdata = True
                         else:
                             self.maxval = self.data[0, -1]
-                except:
-                    print("[ERROR] File read error: {}".format(self.imgfile))
+                except (cv2.error, OSError, ValueError, AttributeError) as e:
+                    logger.error(
+                        "File read error for dilation calibration %s: %s",
+                        self.imgfile,
+                        e,
+                    )
                     req_newdata = True
             else:
-                print("\033[94m[INFO] File does not exist.\033[0m")
+                logger.info("Dilation calibration file does not exist: %s", self.imgfile)
                 req_newdata = True
         else:
             if self.data.shape != frameshape or not np.array_equal(self.img_roi, self.now_roi):
                 # If the ROI recorded in the image file differs from the current ROI
-                # todo: Using the previous and current frame sizes and centre positions from the original, etc., the data can be ported to some extent, but there may be many areas where code changes are required.
-                print("[INFO] \033[94mFrame size changed.\033[0m")
+                # TODO: Migrate compatible calibration data instead of resetting on ROI/frame size changes.
+                logger.info("Dilation calibration frame size changed; resetting data.")
                 req_newdata = True
         if req_newdata:
             self.data = newdata(frameshape)
@@ -183,7 +196,6 @@ class EllipseBasedPupilDilation:
         self.data[0, -1] = self.maxval
         self.data[1:4, -1] = self.now_roi
         cv2.imwrite(self.imgfile, u32_1ch_to_u16_3ch(self.data))
-        # print("SAVED: {}".format(self.imgfile))
 
     def change_roi(self, roiinfo: dict):
         self.now_roi[:] = [v for v in roiinfo.values()]
@@ -201,29 +213,21 @@ class EllipseBasedPupilDilation:
         int_x, int_y = int(x), int(y)
         if int_x < 0 or int_y < 0:
             return self.prev_val
-        upper_x = min(
-            int_x + 25, frame.shape[1] - 1
-        )  # TODO make this a setting NEEDS TO BE BASED ON HSF RADIUS if possible
-        lower_x = max(int_x - 25, 0)
-        upper_y = min(int_y + 25, frame.shape[0] - 1)
-        lower_y = max(int_y - 25, 0)
+        # TODO: Base this sample radius on the active tracking radius.
 
         # The same can be done with cv2.integral, but since there is only one area of the rectangle for which we want to know the total value, there is no advantage in terms of computational complexity.
         pupil_area = numpy.pi * (w / 2) * (h / 2)
 
-        if len(self.filterlist) < filterSamples:
-            self.filterlist.append(pupil_area)
-        else:
-            self.filterlist.pop(0)
-            self.filterlist.append(pupil_area)
+        self.filterlist.append(pupil_area)
+        while len(self.filterlist) > filterSamples:
+            self.filterlist.popleft()
 
         try:
             if pupil_area >= np.percentile(self.filterlist, 99):  # filter abnormally high values
-                # print('filter, assume blink')
                 pupil_area = self.maxval
 
-        except:
-            pass
+        except (ValueError, IndexError) as e:
+            logger.debug("Pupil area percentile filter skipped: %s", e)
 
         newval_flg = False
         oob = False
@@ -244,7 +248,7 @@ class EllipseBasedPupilDilation:
             int_y = 1
             oob = True
 
-        if oob != True and self.data.any():
+        if not oob and self.data.any():
             data_val = self.data[int_y, int_x]
         else:
             data_val = 0
@@ -291,7 +295,8 @@ class EllipseBasedPupilDilation:
                 else:
                     eyedilation = (pupil_area - maxp) / (minp - maxp)
 
-            except:
+            except (ZeroDivisionError, ValueError, TypeError) as e:
+                logger.debug("Eyedilation ratio fallback to 0.5: %s", e)
                 eyedilation = 0.5
             eyedilation = 1 - eyedilation
 
@@ -321,7 +326,7 @@ class EllipseBasedPupilDilation:
             eyedilationy = point_hat[1]
             eyedilation = (eyedilationx + eyedilationy) / 2
 
-        except:
-            pass
+        except (TypeError, ValueError, AttributeError) as e:
+            logger.debug("Eyedilation one-euro filter skipped: %s", e)
 
         return eyedilation

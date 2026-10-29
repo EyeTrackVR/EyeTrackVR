@@ -1,32 +1,40 @@
 from pydantic import model_validator
 
 from settings.modules.BaseModule import BaseSettingsModule, BaseValidationModel
-from settings.constants import BACKGROUND_COLOR
-import PySimpleGUI as sg
+import tkinter as tk
+from tkinter import ttk
+
+from utils.tooltips import attach_tooltip
+
+from localization import tr
 
 
 class OSCValidationModel(BaseValidationModel):
-    gui_osc_port: int
-    gui_osc_address: str
     gui_ROSC: bool
-    gui_osc_receiver_port: int
-    gui_osc_recenter_address: str
-    gui_osc_recalibrate_address: str
+    gui_osc_oscquery: bool
     gui_vrc_native: bool
     gui_osc_vrcft_v1: bool
     gui_osc_vrcft_v2: bool
+    gui_pyvrcft: bool
     gui_use_module: bool
+    gui_foveation_gaze: bool
 
     @model_validator(mode="after")
     def check_osc_vrcft_versions(self):
         if self.gui_osc_vrcft_v1 and self.gui_osc_vrcft_v2:
-            raise ValueError("Only one version of VRCFT params can be turned on")
+            raise ValueError(tr("osc.err_one_vrcft_version"))
         return self
 
     @model_validator(mode="after")
     def check_osc_output_mode(self):
-        if self.gui_vrc_native and any([self.gui_osc_vrcft_v1, self.gui_osc_vrcft_v2]):
-            raise ValueError("Either VRCNative or VRCFT output can be active at a time")
+        exclusive = [
+            self.gui_vrc_native,
+            self.gui_osc_vrcft_v1,
+            self.gui_osc_vrcft_v2,
+            self.gui_pyvrcft,
+        ]
+        if sum(bool(x) for x in exclusive) > 1:
+            raise ValueError(tr("osc.err_output_mode_conflict"))
         return self
 
 
@@ -34,104 +42,86 @@ class OSCSettingsModule(BaseSettingsModule):
     def __init__(self, config, widget_id, **kwargs):
         super().__init__(config=config, widget_id=widget_id, **kwargs)
         self.validation_model = OSCValidationModel
-        self.gui_osc_address = f"-OSCADDRESS{widget_id}-"
-        self.gui_osc_port = f"-OSCPORT{widget_id}-"
         self.gui_ROSC = f"-ROSC{widget_id}-"
-        self.gui_osc_receiver_port = f"OSCRECEIVERPORT{widget_id}-"
-        self.gui_osc_recenter_address = f"OSCRECENTERADDRESS{widget_id}-"
-        self.gui_osc_recalibrate_address = f"OSCRECALIBRATEADDRESS{widget_id}-"
+        self.gui_osc_oscquery = f"-OSCQUERY{widget_id}-"
         self.gui_vrc_native = f"-VRCNATIVE{widget_id}-"
+        self.gui_osc_output_mode = f"-OSCOUTMODE{widget_id}-"
         self.gui_osc_vrcft_v1 = f"-OSCVRCFTV1{widget_id}-"
         self.gui_osc_vrcft_v2 = f"-OSCVRCFTV2{widget_id}-"
+        self.gui_pyvrcft = f"-OSCPYVRCFT{widget_id}-"
         self.gui_use_module = f"-OSCUSEMODULE{widget_id}-"
+        self.gui_foveation_gaze = f"-OSCFOVEATION{widget_id}-"
 
-    def get_layout(self):
-        return [
-            [
-                sg.Text("OSC Settings:", background_color="#242224"),
-            ],
-            [
-                sg.Checkbox(
-                    "Use ETVR VRCFT Module",
-                    default=self.config.gui_use_module,
-                    key=self.gui_use_module,
-                    background_color="#424042",
-                    tooltip="Toggle output to VRCFT Module or just regular OSC port",
-                ),
-            ],
-            [
-                sg.Checkbox(
-                    "VRC Native Eyetracking",
-                    default=self.config.gui_vrc_native,
-                    key=self.gui_vrc_native,
-                    background_color="#424042",
-                    tooltip="Toggle VRCFT output or VRC native",
-                ),
-                sg.Checkbox(
-                    "VRCFT v1",
-                    default=self.config.gui_osc_vrcft_v1,
-                    key=self.gui_osc_vrcft_v1,
-                    background_color="#424042",
-                    tooltip="Toggle VRCFT's v1 Eyetracking format.",
-                ),
-                sg.Checkbox(
-                    "VRCFT v2 (UE)",
-                    default=self.config.gui_osc_vrcft_v2,
-                    key=self.gui_osc_vrcft_v2,
-                    background_color="#424042",
-                    tooltip="Toggle VRCFT's v2 (UE) Eyetracking format.",
-                ),
-            ],
-            [
-                sg.Text("Address:", background_color=BACKGROUND_COLOR),
-                sg.InputText(
-                    self.config.gui_osc_address,
-                    key=self.gui_osc_address,
-                    size=(0, 20),
-                    tooltip="IP address we send OSC data to.",
-                ),
-                sg.Text("Port:", background_color=BACKGROUND_COLOR),
-                sg.InputText(
-                    self.config.gui_osc_port,
-                    key=self.gui_osc_port,
-                    size=(0, 10),
-                    tooltip="OSC port we send data to.",
-                ),
-            ],
-            [
-                sg.Text("Receive functions", background_color=BACKGROUND_COLOR),
-                sg.Checkbox(
-                    "",
-                    default=self.config.gui_ROSC,
-                    key=self.gui_ROSC,
-                    background_color=BACKGROUND_COLOR,
-                    size=(0, 10),
-                    tooltip="Toggle OSC receive functions.",
-                ),
-            ],
-            [
-                sg.Text("Receiver Port:", background_color=BACKGROUND_COLOR),
-                sg.InputText(
-                    self.config.gui_osc_receiver_port,
-                    key=self.gui_osc_receiver_port,
-                    size=(0, 10),
-                    tooltip="Port we receive OSC data from (used to recalibrate or recenter app from within VRChat.",
-                ),
-                sg.Text("Recenter Address:", background_color=BACKGROUND_COLOR),
-                sg.InputText(
-                    self.config.gui_osc_recenter_address,
-                    key=self.gui_osc_recenter_address,
-                    size=(0, 10),
-                    tooltip="OSC Address used for recentering your eye.",
-                ),
-            ],
-            [
-                sg.Text("Recalibrate Address:", background_color=BACKGROUND_COLOR),
-                sg.InputText(
-                    self.config.gui_osc_recalibrate_address,
-                    key=self.gui_osc_recalibrate_address,
-                    size=(0, 10),
-                    tooltip="OSC address we use for recalibrating your eye",
-                ),
-            ],
-        ]
+    def get_values_map(self) -> dict:
+        values = {}
+        for key, var in self.tk_vars.items():
+            if key == self.gui_osc_output_mode:
+                continue
+            values[key] = var.get()
+        mode = self.tk_vars[self.gui_osc_output_mode].get()
+        values[self.gui_vrc_native] = mode == "native"
+        values[self.gui_use_module] = mode in ("vrcft_v1", "vrcft_v2")
+        values[self.gui_osc_vrcft_v1] = mode == "vrcft_v1"
+        values[self.gui_osc_vrcft_v2] = mode == "vrcft_v2"
+        values[self.gui_pyvrcft] = mode == "pyvrcft"
+        return values
+
+    @staticmethod
+    def _output_mode_from(settings) -> str:
+        if settings.gui_pyvrcft:
+            return "pyvrcft"
+        if settings.gui_vrc_native:
+            return "native"
+        if settings.gui_osc_vrcft_v1:
+            return "vrcft_v1"
+        return "vrcft_v2"
+
+    def reset_to_defaults(self, defaults):
+        mode_var = self.tk_vars.get(self.gui_osc_output_mode)
+        if mode_var is not None:
+            mode_var.set(self._output_mode_from(defaults))
+
+    def build(self, parent):
+        osc_out_initial = self._output_mode_from(self.config)
+
+        osc_bar = ttk.Frame(parent)
+        osc_bar.grid(row=0, column=0, sticky="w", pady=2)
+        mode_var = tk.StringVar(value=osc_out_initial)
+        self.tk_vars[self.gui_osc_output_mode] = mode_var
+        native_rb = ttk.Radiobutton(osc_bar, text=tr("osc.mode_native"), variable=mode_var, value="native")
+        native_rb.pack(side="left", padx=(8, 4))
+        attach_tooltip(native_rb, tr("osc.mode_native_tip"))
+        v2_rb = ttk.Radiobutton(osc_bar, text=tr("osc.mode_vrcft_v2"), variable=mode_var, value="vrcft_v2")
+        v2_rb.pack(side="left", padx=4)
+        attach_tooltip(v2_rb, tr("osc.mode_vrcft_v2_tip"))
+        # VRCFT v1 (legacy) is hidden from the GUI but kept in the backend:
+        # get_values_map still maps a saved "vrcft_v1" mode, and
+        # output_v1_params still runs, so existing v1 configs keep working.
+        pyvrcft_rb = ttk.Radiobutton(osc_bar, text=tr("osc.mode_pyvrcft"), variable=mode_var, value="pyvrcft")
+        pyvrcft_rb.pack(side="left", padx=4)
+        attach_tooltip(pyvrcft_rb, tr("osc.mode_pyvrcft_tip"))
+
+        ros_var = tk.BooleanVar(value=bool(self.config.gui_ROSC))
+        self.tk_vars[self.gui_ROSC] = ros_var
+        receive_cb = ttk.Checkbutton(osc_bar, text=tr("osc.receive"), variable=ros_var)
+        receive_cb.pack(side="left", padx=(24, 8))
+        attach_tooltip(receive_cb, tr("osc.receive_tip"))
+
+        oscquery_var = tk.BooleanVar(value=bool(self.config.gui_osc_oscquery))
+        self.tk_vars[self.gui_osc_oscquery] = oscquery_var
+        oscquery_cb = ttk.Checkbutton(osc_bar, text=tr("osc.oscquery"), variable=oscquery_var)
+        oscquery_cb.pack(side="left", padx=(0, 8))
+        attach_tooltip(oscquery_cb, tr("osc.oscquery_tip"))
+
+        # Auto port only matters while receiving.
+        def sync_oscquery_state(*_):
+            oscquery_cb.configure(state="normal" if ros_var.get() else "disabled")
+
+        ros_var.trace_add("write", sync_oscquery_state)
+        sync_oscquery_state()
+
+        foveation_var = tk.BooleanVar(value=bool(self.config.gui_foveation_gaze))
+        self.tk_vars[self.gui_foveation_gaze] = foveation_var
+        foveation_cb = ttk.Checkbutton(osc_bar, text=tr("osc.foveation_gaze"), variable=foveation_var)
+        foveation_cb.pack(side="left", padx=(0, 8))
+        attach_tooltip(foveation_cb, tr("osc.foveation_gaze_tip"))

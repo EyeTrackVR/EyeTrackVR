@@ -36,6 +36,8 @@ Current work has been with our official firmware by `lorow`, found [here](https:
 
 Any headset that can fit the camera and LEDs can likely be supported, however, mounts may not have been made for it. Please reference to our [parts list](https://docs.eyetrackvr.dev/how_to_build/part_list) for details.
 
+The app also runs standalone on the Steam Frame: each release includes a Linux ARM64 build that installs with [FrameDrop](https://framedropvr.com/). See [docs/steam-frame.md](docs/steam-frame.md).
+
 
 ## About IR Emitter Safety
 

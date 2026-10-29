@@ -62,7 +62,10 @@ auto_radius_range = (default_radius - 10, default_radius + 10)  # (10,30)
 auto_radius_step = 1
 blink_init_frames = 60 * 3  # 60fps*3sec,Number of blink statistical frames
 # step==(x,y)
-default_step = (5, 5)  # bigger the steps,lower the processing time! ofc acc also takes an impact
+default_step = (
+    5,
+    5,
+)  # bigger the steps,lower the processing time! ofc acc also takes an impact
 
 logger = getLogger(__name__)
 logger.setLevel(INFO)
@@ -342,7 +345,12 @@ class AutoRadiusCalc(object):
                 self.left_item = self.response_list[0]
                 self.right_item = self.response_list[2]
             self.radius_cand_list = [
-                i for i in range(self.left_item[0], self.right_item[0] + auto_radius_step, auto_radius_step)
+                i
+                for i in range(
+                    self.left_item[0],
+                    self.right_item[0] + auto_radius_step,
+                    auto_radius_step,
+                )
             ]
             self.left_index = 0
             self.right_index = len(self.radius_cand_list) - 1
@@ -591,7 +599,15 @@ def fit_rotated_ellipse_ransac_old(data: np.ndarray, sfc: np.random.Generator, i
     el_y_arr_2[:, :] = dm_rng_p_24
     el_y_arr_3[:, :] = dm_rng_p_10
 
-    cv2.gemm(ellipse_y_arr, datamod_b, 1.0, dm_brod, 1.0, dst=ellipse_data_arr, flags=cv2.GEMM_2_T)
+    cv2.gemm(
+        ellipse_y_arr,
+        datamod_b,
+        1.0,
+        dm_brod,
+        1.0,
+        dst=ellipse_data_arr,
+        flags=cv2.GEMM_2_T,
+    )
 
     np.abs(ellipse_data_arr, out=th_abs)
     cv2.threshold(th_abs, offset, 1.0, cv2.THRESH_BINARY_INV, dst=th_abs)
@@ -627,7 +643,6 @@ def fit_rotated_ellipse_old(data, P):
         h = math.sqrt(cu / (a * ts2 - b_tcs + c * tc2))
     except ValueError:
         return None
-    error_sum = data  # sum(data)
     # print("fitting error = %.3f" % (error_sum))
 
     return cx, cy, w, h, theta
@@ -769,7 +784,15 @@ def fit_rotated_ellipse_ransac_new(data: np.ndarray, sfc: np.random.Generator, i
     el_y_arr_2[:, :] = dm_rng_p_24
     el_y_arr_3[:, :] = dm_rng_p_10
 
-    cv2.gemm(ellipse_y_arr, datamod_b, 1.0, dm_brod, 1.0, dst=ellipse_data_arr, flags=cv2.GEMM_2_T)
+    cv2.gemm(
+        ellipse_y_arr,
+        datamod_b,
+        1.0,
+        dm_brod,
+        1.0,
+        dst=ellipse_data_arr,
+        flags=cv2.GEMM_2_T,
+    )
 
     np.abs(ellipse_data_arr, out=th_abs)
     cv2.threshold(th_abs, offset, 1.0, cv2.THRESH_BINARY_INV, dst=th_abs)
@@ -806,7 +829,6 @@ def fit_rotated_ellipse_new(data, P):
         h = math.sqrt(cu / (a * ts2 - b_tcs + c * tc2))
     except ValueError:
         return None
-    error_sum = data  # sum(data)
     # print("fitting error = %.3f" % (error_sum))
 
     return cx, cy, w, h, theta
@@ -870,7 +892,14 @@ class HSRAC_cls(object):
 
         self.cap = None
 
-        self.timedict = {"to_gray": [], "int_img": [], "hsf": [], "crop": [], "ransac": [], "total_cv": []}
+        self.timedict = {
+            "to_gray": [],
+            "int_img": [],
+            "hsf": [],
+            "crop": [],
+            "ransac": [],
+            "total_cv": [],
+        }
 
         # ransac
         # self.rng = np.random.default_rng()
@@ -1043,7 +1072,6 @@ class HSRAC_cls(object):
                 )
 
             else:
-
                 self.blink_detector.calc_thresh()
                 self.center_q1.calc_thresh()
                 self.now_modeo = self.cv_modeo[3]
@@ -1110,7 +1138,14 @@ class HSRAC_cls(object):
 
         # Crop the image using the calculated bounds
         # todo:safecrop tune
-        frame_gray_crop = safe_crop(frame_gray, ransac_lower_x, ransac_lower_y, ransac_upper_x, ransac_upper_y, 1)
+        frame_gray_crop = safe_crop(
+            frame_gray,
+            ransac_lower_x,
+            ransac_lower_y,
+            ransac_upper_x,
+            ransac_upper_y,
+            1,
+        )
         th_frame, fic_frame = get_ransac_frame(frame_gray_crop.shape)
         frame = frame_gray_crop  # todo: It can cause bugs.
 
@@ -1120,7 +1155,13 @@ class HSRAC_cls(object):
         # threshold_value = min_val + thresh_add
 
         if old_mode:
-            cv2.threshold(frame_gray_crop, min_val + thresh_add, 255, cv2.THRESH_BINARY_INV, dst=th_frame)
+            cv2.threshold(
+                frame_gray_crop,
+                min_val + thresh_add,
+                255,
+                cv2.THRESH_BINARY_INV,
+                dst=th_frame,
+            )
             # print(thresh.shape, frame_gray.shape)
 
             # cv2.morphologyEx(th_frame, cv2.MORPH_OPEN, self.kernel, dst=fic_frame)
@@ -1144,7 +1185,13 @@ class HSRAC_cls(object):
                 # cv2.bitwise_not(fic_frame, fic_frame)
             # cv2.morphologyEx(th_frame, cv2.MORPH_OPEN, self.kernel, dst=fic_frame)  # or cv2.MORPH_CLOSE
             else:
-                cv2.threshold(frame_gray_crop, min_val + thresh_add, 255, cv2.THRESH_BINARY, dst=th_frame)
+                cv2.threshold(
+                    frame_gray_crop,
+                    min_val + thresh_add,
+                    255,
+                    cv2.THRESH_BINARY,
+                    dst=th_frame,
+                )
                 # print(thresh.shape, frame_gray.shape)
                 cv2.morphologyEx(th_frame, cv2.MORPH_OPEN, self.kernel, dst=fic_frame)  # or cv2.MORPH_CLOSE
                 cv2.morphologyEx(fic_frame, cv2.MORPH_CLOSE, self.kernel, dst=fic_frame)
@@ -1214,7 +1261,6 @@ class HSRAC_cls(object):
 
         # cv_end_time = timeit.default_timer()
         if imsave_flg:
-
             cv2.circle(ori_frame, (int(center_x), int(center_y)), 3, (128, 0, 0), -1)
             cv2.drawContours(ori_frame, contours, -1, (255, 0, 0), 1)
             cv2.circle(ori_frame, (int(cx), int(cy)), 2, (255, 0, 0), -1)
@@ -1243,7 +1289,7 @@ class HSRAC_cls(object):
 
         try:
             return int(cx), int(cy), th_frame, frame, gray_frame
-        except:
+        except Exception:
             return int(center_x), int(center_y), th_frame, frame, gray_frame
 
 
@@ -1270,7 +1316,12 @@ if __name__ == "__main__":
     )
     if save_img:
         all_point_img = np.zeros(
-            (int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT)), int(cap.get(cv2.CAP_PROP_FRAME_WIDTH)), 3), dtype=np.uint8
+            (
+                int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT)),
+                int(cap.get(cv2.CAP_PROP_FRAME_WIDTH)),
+                3,
+            ),
+            dtype=np.uint8,
         )
     cap.release()
 
@@ -1315,8 +1366,8 @@ if __name__ == "__main__":
                     cv2.imshow("hsf_hsrac", base_img)
                     if cv2.waitKey(1) & 0xFF == ord("q"):
                         pass
-              #  if save_video:
-                #    video_wr.write(cv2.resize(base_img, (200, 150)))
+            #  if save_video:
+            #    video_wr.write(cv2.resize(base_img, (200, 150)))
             else:
                 _ = hsrac.single_run()
 
@@ -1328,7 +1379,7 @@ if __name__ == "__main__":
     main_end_time = timeit.default_timer()
     main_total_time = main_end_time - main_start_time
     if save_img:
-     #   cv2.imwrite(output_img_path, all_point_img)
+        #   cv2.imwrite(output_img_path, all_point_img)
         logger.info("image output: {}".format(output_img_path))
         if imshow_enable:
             cv2.imshow("allpoint", all_point_img)
@@ -1350,4 +1401,3 @@ if __name__ == "__main__":
         # print("")
     logger.info("")
     logger.info(f"{this_file_basename}: ALL Finish {format_time(main_total_time)}")
-

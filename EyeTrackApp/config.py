@@ -25,30 +25,193 @@ LICENSE: Babble Software Distribution License 1.0
 """
 
 import json
+import logging
 import os.path
-import shutil
+import sys
+import tempfile
+import threading
+import time
 import numpy as np
-from colorama import Fore
-from pydantic import BaseModel, field_validator
+from pydantic import (
+    BaseModel,
+    PrivateAttr,
+    field_serializer,
+    field_validator,
+    model_validator,
+)
 from typing import Any, Union, List
 import os
 from eye import EyeId
 
-CONFIG_FILE_NAME: str = "eyetrack_settings.json"
-BACKUP_CONFIG_FILE_NAME: str = "eyetrack_settings.backup"
+logger = logging.getLogger(__name__)
+
+# Eye threads, LEAP, calibration workers and the Tk thread all call save().
+_SAVE_LOCK = threading.Lock()
 
 
-from pydantic import BaseModel, field_validator, field_serializer
-from typing import Any, Union, List
-import numpy as np
+def _user_data_dir() -> str:
+    """Directory holding the settings file.
+
+    Windows keeps the historical behavior: bare filenames relative to the CWD,
+    which is the install dir when launched from the Start-menu shortcut (the
+    installer marks it user-writable). On Linux/macOS a system install usually
+    is NOT writable and the launch CWD is arbitrary (e.g. $HOME from a .desktop
+    entry), so the config belongs in the XDG config dir. A config file already
+    present in the CWD wins on every platform: source checkouts and portable
+    unpacked installs keep working exactly as before.
+    """
+    if os.name == "nt" or os.path.exists("eyetrack_settings.json"):
+        return ""
+    if sys.platform == "darwin":
+        base = os.path.expanduser("~/Library/Application Support")
+    else:
+        base = os.environ.get("XDG_CONFIG_HOME") or os.path.expanduser("~/.config")
+    path = os.path.join(base, "EyeTrackVR")
+    try:
+        os.makedirs(path, exist_ok=True)
+    except OSError:
+        return ""
+    return path
+
+
+_USER_DATA_DIR = _user_data_dir()
+CONFIG_FILE_NAME: str = os.path.join(_USER_DATA_DIR, "eyetrack_settings.json")
+BACKUP_CONFIG_FILE_NAME: str = os.path.join(_USER_DATA_DIR, "eyetrack_settings.backup")
+DEFAULT_LID_CLOSE_THRESHOLD = 0.1
+DEFAULT_LID_WIDEN_THRESHOLD = 0.9
+
+# Bump this whenever a release changes the *semantics* of an existing field
+# (renames, metric reworks, etc.) so that configs from older versions can be
+# migrated rather than silently misinterpreted. New fields with safe defaults
+# do NOT need a bump; pydantic fills those in automatically.
+#
+# Migration history:
+#   1 -> 2: leap lid metric was reworked alongside per-eye lid thresholds. Old
+#           configs may carry stale leap_calibration_percentile_* values whose
+#           semantics no longer match leap.py's expectations, but the new
+#           leap_lid_metric_version field defaults to the current version on
+#           load, so the in-code "metric changed, recalibrate" guard misses
+#           them. Wipe the stored calibration on this hop to force a fresh one.
+#   2 -> 3: NEXT classic calibration became available by default but only
+#           applies after NEXT itself has been calibrated. Preserve an existing
+#           opted-in NEXT calibration without treating classical-tracker fits
+#           as NEXT fits.
+#   3 -> 4: "NEXT BSB (stereo)" stopped being its own tracker; NEXT picks the
+#           mono or stereo model itself.
+#   4 -> 5: gui_NEXT_calibration (the legacy ellipse path for NEXT) is
+#           removed. Smart Calib is now tied to the tracker: forced on for
+#           NEXT, off for everything else. The stored value was never a user
+#           choice (no GUI control ever existed) and defaulted True, which
+#           both routed Start Calibration to the ellipse spiral and blocked
+#           the Smart Calib transform from being applied.
+#   5 -> 6: the NEXT model selector split into a headset (gui_model_variant)
+#           and a model size (gui_model_size). "<HMD> LITE" variants become
+#           headset <HMD> at size LITE, and TOBII folds into PSVR (one shared
+#           model family).
+CURRENT_CONFIG_VERSION: int = 6
+
+
+def _migrate_config_dict(data: dict) -> dict:
+    """Apply forward migrations to a raw config dict so it conforms to the
+    current schema's semantic expectations. Mutates and returns ``data``.
+
+    Migrations are idempotent and stack: a config at v1 will run every
+    migration step in order up to ``CURRENT_CONFIG_VERSION``."""
+    if not isinstance(data, dict):
+        return data
+    stored = data.get("version", 1)
+    try:
+        stored = int(stored)
+    except (TypeError, ValueError):
+        stored = 1
+
+    if stored < 2:
+        # Reset leap lid calibration on every eye-config-shaped subtree.
+        # We don't enumerate them by name because bsb2e exists and future
+        # eyes may be added; we just clear any dict that looks like an eye
+        # camera config.
+        for key in ("left_eye", "right_eye", "bsb2e"):
+            eye = data.get(key)
+            if isinstance(eye, dict):
+                eye["leap_calibrated"] = False
+                eye["leap_calibration_percentile_90"] = 0
+                eye["leap_calibration_percentile_2"] = 0
+                # Force the in-code metric-version guard to recognise this as
+                # pre-versioning data; leap.py will bump it on the next frame.
+                eye["leap_lid_metric_version"] = 0
+        logger.info("Migrated config from v1: reset leap lid calibration")
+
+    if stored < 3:
+        settings = data.get("settings")
+        legacy_next_cal = isinstance(settings, dict) and bool(settings.get("gui_NEXT_calibration", False))
+        for key in ("left_eye", "right_eye", "bsb2e"):
+            eye = data.get(key)
+            if not isinstance(eye, dict):
+                continue
+            has_fit = (
+                eye.get("calib_axes") is not None
+                and eye.get("calib_evecs") is not None
+                and eye.get("calib_XOFF") is not None
+            )
+            eye["next_classic_calibration_active"] = bool(legacy_next_cal and has_fit)
+        logger.info("Migrated config from v2: recorded NEXT calibration ownership")
+
+    if stored < 4:
+        # "NEXT BSB (stereo)" is no longer a separate tracker: NEXT itself runs
+        # the stereo model whenever both eyes are streaming and the mono model
+        # otherwise. Anyone who had the stereo tracker selected just becomes a
+        # NEXT user, which keeps stereo behavior on a two-eye setup.
+        settings = data.get("settings")
+        if isinstance(settings, dict) and settings.get("gui_NEXT_BSB"):
+            settings["gui_NEXT_BSB"] = False
+            settings["gui_NEXT"] = True
+            logger.info("Migrated config from v3: NEXT BSB folded into NEXT")
+
+    if stored < 5:
+        # NEXT calibration moved to Smart Calib for good: gui_NEXT_calibration
+        # (the legacy ellipse path, never exposed in the GUI) is dropped rather
+        # than carried forward, so a stored True can no longer route Start
+        # Calibration to the spiral or suppress the Smart Calib fit.
+        settings = data.get("settings")
+        if isinstance(settings, dict) and settings.pop("gui_NEXT_calibration", None) is not None:
+            logger.info("Migrated config from v4: NEXT now always calibrates via Smart Calib")
+
+    if stored < 6:
+        settings = data.get("settings")
+        if isinstance(settings, dict):
+            parts = str(settings.get("gui_model_variant") or "ETVR").upper().split()
+            if parts and parts[0] == "TOBII":
+                parts[0] = "PSVR"
+                settings["gui_model_variant"] = "PSVR"
+                logger.info("Migrated config from v5: TOBII model folded into PSVR")
+            if len(parts) > 1:
+                settings["gui_model_variant"] = parts[0]
+                settings["gui_model_size"] = parts[1]
+                logger.info(
+                    "Migrated config from v5: model %s split into headset + size",
+                    " ".join(parts),
+                )
+
+    data["version"] = CURRENT_CONFIG_VERSION
+    return data
+
 
 class EyeTrackCameraConfig(BaseModel):
-    gui_rotation_ui_padding: bool = True
+    gui_rotation_ui_padding: bool = False
     rotation_angle: int = 0
     roi_window_x: int = 0
     roi_window_y: int = 0
     roi_window_w: int = 240
     roi_window_h: int = 240
+    # Stamp set by the Bigscreen auto-crop so we know which (frame_w, frame_h)
+    # the current ROI was derived from. None means "user-set or not yet auto-
+    # cropped": auto-crop refuses to touch an ROI unless the stamp matches a
+    # previous auto-apply we made, or the ROI looks untouched-default.
+    bigscreen_auto_crop_frame: Union[List[int], None] = None
+    # focal_length is in PIXELS (pye3d's CameraModel expects pixel focal length,
+    # not millimeters). Default 30 px works for the typical low-res IR tracker
+    # cams shipped with ETVR. Field name preserved for backward compatibility
+    # with existing eyetrack_settings.json files.
     focal_length: int = 30
     capture_source: Union[int, str, None] = None
     calib_axes: Union[List[float], None] = None
@@ -58,11 +221,41 @@ class EyeTrackCameraConfig(BaseModel):
     calib_YOFF: Union[float, None] = None
     calibration_points: List[List[Union[float, None]]] = []
     calibration_points_3d: List[List[Union[float, None]]] = []
+    # Prevent a calibration fitted for LEAP/another pixel tracker from being
+    # applied to NEXT merely because classic NEXT calibration is available.
+    next_classic_calibration_active: bool = False
     leap_calibration_percentile_90: float = 0
     leap_calibration_percentile_2: float = 0
     leap_calibrated: bool = False
+    leap_lid_metric_version: int = 1
+    # Bumped by the "Redo Eyelid Calib" button. LEAP_C tracks the last value
+    # it saw and resets its sampling window when the two diverge, forcing a
+    # fresh calibration without restarting the app or fiddling with the
+    # metric-version migration mechanism.
+    leap_calib_request_seq: int = 0
+    # Robust calibration session state (serialized RobustCalibrationSession.to_dict())
+    robust_calib_data: Union[dict, None] = None
+    # NEXT Smart Calibration: a (warp + affine) transform mapping the raw NEXT
+    # model gaze (right/up positive, [-1, 1]) to calibrated gaze that lands on
+    # the known overlay dot positions. next_smartcal_w is the 2x2 weight matrix
+    # in row-major order [w11, w12, w21, w22]; next_smartcal_b is the [b1, b2]
+    # bias. next_smartcal_warp selects the space the affine was fit in:
+    # "atanh" un-saturates the model's tanh output before the affine (current
+    # fits), None = legacy raw-space affine saved by older builds. See
+    # osc_calibrate_filter.next_smartcal_apply. All None until "NEXT Smart Calib".
+    next_smartcal_w: Union[List[float], None] = None
+    next_smartcal_b: Union[List[float], None] = None
+    next_smartcal_warp: Union[str, None] = None
+    # NEXT Smart Calibration, lid/brow half: the user's neutral raw readings,
+    # captured across the same dot sequence (the face is at rest the whole time,
+    # so every dot is a neutral sample). Each is the anchor of a piecewise-linear
+    # remap that maps neutral onto NEXT_SMARTCAL_LID_TARGET / _BROW_TARGET while
+    # pinning 0 -> 0 and 1 -> 1. None until "NEXT Smart Calib" runs with
+    # gui_NEXT_calib_lids_brows enabled. See osc_calibrate_filter.
+    next_smartcal_lid_neutral: Union[float, None] = None
+    next_smartcal_brow_neutral: Union[float, None] = None
 
-    @field_validator('calib_axes', 'calib_evecs', 'calib_center', mode='before')
+    @field_validator("calib_axes", "calib_evecs", "calib_center", mode="before")
     @classmethod
     def convert_numpy_to_list(cls, v):
         """Convert NumPy arrays to lists for JSON serialization and handle invalid values"""
@@ -74,18 +267,18 @@ class EyeTrackCameraConfig(BaseModel):
             return None
         if isinstance(v, np.ndarray):
             return v.tolist()
-        if hasattr(v, 'tolist') and callable(v.tolist):
+        if hasattr(v, "tolist") and callable(v.tolist):
             return v.tolist()
         return v
 
-    @field_serializer('calib_axes', 'calib_evecs', 'calib_center')
+    @field_serializer("calib_axes", "calib_evecs", "calib_center")
     def serialize_arrays(self, value):
         """Serialize arrays to lists when saving"""
         if value is None:
             return None
         if isinstance(value, np.ndarray):
             return value.tolist()
-        if hasattr(value, 'tolist') and callable(value.tolist):
+        if hasattr(value, "tolist") and callable(value.tolist):
             return value.tolist()
         return value
 
@@ -115,24 +308,34 @@ class EyeTrackCameraConfig(BaseModel):
 
     def has_calibration_data(self) -> bool:
         """Check if calibration data is present"""
-        return (self.calib_axes is not None and
-                self.calib_evecs is not None and
-                self.calib_center is not None)
+        return self.calib_axes is not None and self.calib_evecs is not None and self.calib_center is not None
 
     def update_capture_source(self, new_camera_address: str):
         if not new_camera_address:
             self.capture_source = None
             return
 
+        if isinstance(new_camera_address, int):
+            self.capture_source = new_camera_address
+            return
+
+        new_camera_address = str(new_camera_address).strip()
+
         if new_camera_address.isnumeric():
             self.capture_source = int(new_camera_address)
             return
 
-        # we were passed an IP, probably, lets add HTTP:// to it
-        if len(new_camera_address) > 5 and not (
-            not new_camera_address.startswith(("http", "/dev")) or not new_camera_address.endswith(".mp4")
-        ):
-            self.capture_source = f"http://{new_camera_address}"
+        if new_camera_address.startswith(("COM", "/dev")) or "://" in new_camera_address:
+            self.capture_source = new_camera_address
+            return
+
+        if new_camera_address.endswith(".mp4"):
+            self.capture_source = new_camera_address
+            return
+
+        # We were passed a host/IP camera address; normalize it to a URL once.
+        if len(new_camera_address) > 5:
+            self.capture_source = f"http://{new_camera_address}/"
             return
 
         self.capture_source = new_camera_address
@@ -141,22 +344,26 @@ class EyeTrackCameraConfig(BaseModel):
         """
         Updates the model one field at a time based on the provided data dict.
         """
+        changed = False
         for key, value in data.items():
-            old_value = getattr(self, key, None)
-            # no reason to update if it's the same value
-            if old_value == value:
-                return False
+            update_attr = getattr(self, f"update_{key}", None)
+            if not callable(update_attr) and key not in type(self).model_fields:
+                logger.warning("Field %s does not exist on %s.", key, self)
+                continue
 
-            if hasattr(self, f"update_{key}"):
-                update_attr = getattr(self, f"update_{key}")
-                if callable(update_attr):
-                    update_attr(value)
-                else:
-                    setattr(self, key, value)
-                return True
+            old_value = getattr(self, key, None)
+            if old_value == value:
+                continue
+
+            if callable(update_attr):
+                update_attr(value)
             else:
-                print(f"\033[93m[WARN] Field {key} does not exist on {self}.\033[0m")
-                return False
+                setattr(self, key, value)
+
+            changed = changed or old_value != getattr(self, key, None)
+
+        return changed
+
 
 class EyeTrackSettingsConfig(BaseModel):
     gui_flip_x_axis_left: bool = False
@@ -164,48 +371,86 @@ class EyeTrackSettingsConfig(BaseModel):
     gui_flip_y_axis: bool = False
     gui_RANSAC3D: bool = False
     gui_HSF: bool = False
-    gui_BLOB: bool = False
     gui_BLINK: bool = False
     gui_HSRAC: bool = False
-    gui_AHSFRAC: bool = False
+    gui_AHRAC: bool = False
     gui_AHSF: bool = False
     gui_DADDY: bool = False
-    gui_LEAP: bool = True
+    gui_LEAP: bool = False
+    # NEXT end-to-end model. Runs the stereo model (both eyes in one pass) while
+    # two eyes are streaming and the mono model (one eye per pass) otherwise.
+    gui_NEXT: bool = True
+    # Retired: the separate "NEXT BSB (stereo)" tracker, folded into gui_NEXT by
+    # the v4 config migration. Kept so old configs still load.
+    gui_NEXT_BSB: bool = False
+    # gui_NEXT_calibration (the legacy ellipse path for NEXT) is gone: Smart
+    # Calib is now tied to the tracker, forced on for NEXT and off for every
+    # other tracker. Old configs may still carry the key; pydantic ignores it.
+    # Also calibrate eyelid and eyebrow during NEXT Smart Calib: the face is
+    # neutral throughout the dot sequence, so those captures anchor "normal
+    # open" / "neutral brow" to their target output values.
+    gui_NEXT_calib_lids_brows: bool = True
+    # Headset (HMD) the models were trained for: ETVR / BSB / PSVR (shown as
+    # PSVR/TOBII). PSVR is a manual NEXT-only choice; setup-mode auto-selection remains
+    # limited to ETVR and BSB. Selects the NEXT Hybrid family and
+    # Models/Eyebrow_<VARIANT>.onnx.
+    gui_model_variant: str = "ETVR"
+    # NEXT model size within that headset's family, lightest to best:
+    # NANO / MICRO / MINI / SMALL / LITE / NORMAL (see next_model.MODEL_SIZES).
+    gui_model_size: str = "NORMAL"
+    # True once the user has manually picked a model variant. While False, the
+    # variant tracks the main-tracking setup mode (bigscreen -> BSB, etvr -> ETVR).
+    gui_model_variant_user_set: bool = False
+    gui_max_tracking_speed: int = 60
     gui_HSF_radius: int = 15
     gui_HSF_radius_left: int = 10
     gui_HSF_radius_right: int = 10
-    gui_min_cutoff: str = "0.0004"
-    gui_speed_coefficient: str = "0.9"
+    # Raw OneEuroFilter parameters. Surface in the GUI is a single
+    # "Smoothing Intensity" slider (0..100) that derives these via the curve in
+    # OneEuroSettingsModule. Kept as fields here because eye_processor / leap /
+    # ibo all read them directly on startup.
+    gui_min_cutoff: str = "0.003162"
+    gui_speed_coefficient: str = "1.5250"
+    gui_smoothing_intensity: int = 50
+    # "auto" (the Steam Frame default) sends to the PC Steam streams from; see
+    # osc/streaming_target.py.
     gui_osc_address: str = "127.0.0.1"
+    gui_osc_auto_on_frame: bool = False  # the one-time switch to "auto" on a Frame is done
     gui_osc_port: int = 9000
     gui_osc_receiver_port: int = 9001
     gui_osc_recenter_address: str = "/avatar/parameters/etvr_recenter"
     gui_osc_recalibrate_address: str = "/avatar/parameters/etvr_recalibrate"
-    gui_blob_maxsize: float = 25
-    gui_blob_minsize: float = 10
     gui_recenter_eyes: bool = False
     gui_3d_calibration: bool = False
     grab_3d_point: bool = False
     tracker_single_eye: int = 0
-    gui_threshold: int = 65
-    gui_AHSFRACP: int = 1
+    gui_AHRACP: int = 1
     gui_AHSFP: int = 2
     gui_HSRACP: int = 3
     gui_HSFP: int = 4
     gui_DADDYP: int = 5
     gui_RANSAC3DP: int = 6
-    gui_BLOBP: int = 7
     gui_LEAPP: int = 8
     gui_IBO: bool = False
     gui_skip_autoradius: bool = False
     gui_thresh_add: int = 11
     gui_update_check: bool = True
     gui_ROSC: bool = False
+    # Receive on any free port and let VRChat find it via OSCQuery (mDNS)
+    # instead of gui_osc_receiver_port; falls back to that port on failure.
+    gui_osc_oscquery: bool = False
     gui_circular_crop_right: bool = False
     gui_circular_crop_left: bool = False
     ibo_filter_samples: int = 400
     ibo_average_output_samples: int = 0
     ibo_fully_close_eye_threshold: float = 0.3
+    leap_lid_close_threshold: float = DEFAULT_LID_CLOSE_THRESHOLD
+    leap_lid_widen_threshold: float = DEFAULT_LID_WIDEN_THRESHOLD
+    leap_lid_close_threshold_left: float = DEFAULT_LID_CLOSE_THRESHOLD
+    leap_lid_close_threshold_right: float = DEFAULT_LID_CLOSE_THRESHOLD
+    leap_lid_widen_threshold_left: float = DEFAULT_LID_WIDEN_THRESHOLD
+    leap_lid_widen_threshold_right: float = DEFAULT_LID_WIDEN_THRESHOLD
+    leap_lid_min_calibration_span: float = 0.02
     leap_calibration_duration: int = 15
     calibration_duration: int = 15
     osc_right_eye_close_address: str = "/avatar/parameters/RightEyeLidExpandedSqueeze"
@@ -216,25 +461,53 @@ class EyeTrackSettingsConfig(BaseModel):
     osc_eyes_pupil_dilation_address: str = "/avatar/parameters/EyesDilation"
     osc_invert_eye_close: bool = False
     gui_RANSACBLINK: bool = False
-
-    gui_disable_gui: bool = False
+    # gui_disable_gui (the GUI OFF button) is gone; old configs may still carry
+    # the key and pydantic ignores it.
 
     gui_right_eye_dominant: bool = False
     gui_left_eye_dominant: bool = False
+    # Off by default: velocity-based falloff mirrors the cleaner eye when the
+    # two tracked positions diverge, which hides one eye's real motion. Opt in
+    # from General Settings when a mismatched pair of cameras needs it.
     gui_outer_side_falloff: bool = False
     gui_eye_dominant_diff_thresh: float = 0.3
 
-    gui_legacy_ransac: bool = False
-    gui_legacy_ransac_thresh_right: int = 80
-    gui_legacy_ransac_thresh_left: int = 80
-    gui_LEAP_lid: bool = True
+    gui_LEAP_lid: bool = False
     gui_osc_vrcft_v1: bool = False
     gui_osc_vrcft_v2: bool = False
-    gui_vrc_native: bool = True
+    gui_vrc_native: bool = False
+    # Default output mode: send Unified Expressions straight to VRChat via the
+    # embedded PY-VRCFT port (osc/PyVRCFTSender.py), replacing VRCFT. Auto-adapts
+    # to v2 / legacy v1 / native-eye avatars from one tracking frame.
+    gui_pyvrcft: bool = True
+    # Also share gaze with foveated rendering tools on this PC (PimaxMagic4All
+    # on UDP 9020 and the gaze shared memory, osc/FoveationGazeSender.py),
+    # alongside any output mode above.
+    gui_foveation_gaze: bool = False
     gui_pupil_dilation: bool = False
 
     gui_VRCFTModulePort: int = 8889
     gui_VRCFTModuleIPAddress: str = "127.0.0.1"
+    # Output full-scale FOV edge (degrees): the angle calibrated gaze ±1 maps to.
+    # Two roles, kept consistent:
+    #   1. pyVRCFT native /tracking/eye/LeftRightPitchYaw maps ±1 to degrees via
+    #      atan(gaze * tan(max)), so full gaze reflects a real angle instead of
+    #      VRCFT's default 45°. (Normalized v1/v2 eye params carry ±1 directly;
+    #      the avatar rig owns what ±1 rotates to there.)
+    #   2. next_smartcal_targets() derives each calibration dot's fit target as
+    #      its fraction of THIS full-scale, so the inset overlay dots are NOT
+    #      treated as nearly maximum output while leaving room for the eye to drive output
+    #      out to ±1 at the FOV edge instead of clipping at the overlay's
+    #      oculomotor dot caps. Headroom is PER-AXIS by how far the eye can
+    #      actually rotate: yaw/down are set wider than the overlay caps
+    #      (30/35) so lateral/downward gaze reaches ±1 near the FOV edge, but
+    #      UP is kept at its cap (15) because upward eye rotation maxes out near 15°, so
+    #      any up headroom just makes full-up unreachable ("doesn't go high
+    #      enough"). Changing these needs a re-cal (Reset Smart Calib) so the
+    #      saved affine matches.
+    gui_gaze_yaw_max_deg: float = 40.0
+    gui_gaze_pitch_up_deg: float = 15.0
+    gui_gaze_pitch_down_deg: float = 40.0
     gui_ShouldEmulateEyeWiden: bool = False
     gui_ShouldEmulateEyeSquint: bool = False
     gui_ShouldEmulateEyebrows: bool = False
@@ -250,55 +523,131 @@ class EyeTrackSettingsConfig(BaseModel):
     gui_EyebrowThresholdLowering: float = 0.15
     gui_OutputMultiplier: float = 1
     gui_use_module: bool = False
-    gui_use_gpu: bool = True # simple checkbox vs drop down with cuda, openvino etc.
+    gui_use_gpu: bool = True  # simple checkbox vs drop down with cuda, openvino etc.
+    gui_eyebrow: bool = False
 
     gui_openvr_autostart: bool = False
+    gui_show_et_debug: bool = False
+
+    # Calibration mode. "classic" preserves existing ellipse behaviour.
+    # "express" uses 5-point min-max normalization from RobustCalibrationSession.
+    # "robust"  uses BS detector routing: express primary, SVR fallback.
+    calib_mode: str = "classic"
+    # DFR (Dynamic Foveated Rendering) unclamped gaze vector output via UDP.
+    gui_dfr_enabled: bool = False
+    gui_dfr_port: int = 9002
+    gui_dfr_address: str = "127.0.0.1"
+    # Hold last valid calibrated position when the tracker snaps from an extreme
+    # gaze angle back to near-center in a single frame (characteristic failure mode
+    # at extreme angles). Requires robust or express calibration to be active.
+    gui_snap_hold_enabled: bool = True
+    gui_use_overlay_cal: bool = True
+
+    # Setup mode picked on the Tracking tab. Persisted so a user who picked
+    # Bigscreen Beyond doesn't relaunch into normal ETVR mode (which would
+    # then load whatever was saved as the right eye's source, in BSB that's
+    # the same camera as the left, producing the "both eyes on one webcam"
+    # state). "etvr", "bigscreen" or "frame" (Steam Frame built-in eye cameras,
+    # only valid on the headset; see frame_eye.py).
+    gui_setup_mode: str = "etvr"
+
+    # UI language, as a locale code matching a file in the lang/ folder
+    # (e.g. "en", "es"). Default English. Applied at startup by
+    # localization.init_localization(); changing it in the GUI prompts a
+    # restart. See localization.py.
+    gui_language: str = "en"
+
+    @model_validator(mode="before")
+    @classmethod
+    def copy_legacy_leap_lid_thresholds(cls, data):
+        if not isinstance(data, dict):
+            return data
+
+        if "leap_lid_close_threshold" in data:
+            data.setdefault("leap_lid_close_threshold_left", data["leap_lid_close_threshold"])
+            data.setdefault("leap_lid_close_threshold_right", data["leap_lid_close_threshold"])
+        if "leap_lid_widen_threshold" in data:
+            data.setdefault("leap_lid_widen_threshold_left", data["leap_lid_widen_threshold"])
+            data.setdefault("leap_lid_widen_threshold_right", data["leap_lid_widen_threshold"])
+        return data
+
+
+def _atomic_write(path: str, text: str) -> None:
+    directory = os.path.dirname(os.path.abspath(path))
+    fd, tmp_path = tempfile.mkstemp(prefix=os.path.basename(path) + ".", suffix=".tmp", dir=directory)
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as tmp_file:
+            tmp_file.write(text)
+            tmp_file.flush()
+            os.fsync(tmp_file.fileno())
+        # Windows refuses the replace while a reader (or AV scanner) holds the
+        # target open; that clears within milliseconds.
+        for attempt in range(10):
+            try:
+                os.replace(tmp_path, path)
+                return
+            except PermissionError:
+                if attempt == 9:
+                    raise
+                time.sleep(0.02)
+    except BaseException:
+        try:
+            os.remove(tmp_path)
+        except OSError:
+            pass
+        raise
 
 
 class EyeTrackConfig(BaseModel):
-    version: int = 1
+    version: int = CURRENT_CONFIG_VERSION
     right_eye: EyeTrackCameraConfig = EyeTrackCameraConfig()
     left_eye: EyeTrackCameraConfig = EyeTrackCameraConfig()
-    bsb2e: EyeTrackCameraConfig = EyeTrackCameraConfig() # should we do independent per bsb eye?
+    bsb2e: EyeTrackCameraConfig = EyeTrackCameraConfig()  # should we do independent per bsb eye?
     settings: EyeTrackSettingsConfig = EyeTrackSettingsConfig()
     eye_display_id: EyeId = EyeId.RIGHT
-    __listeners = []
+    _listeners: list = PrivateAttr(default_factory=list)
+
+    @staticmethod
+    def _load_file(path: str) -> "EyeTrackConfig":
+        with open(path, "r", encoding="utf-8") as settings_file:
+            raw = json.load(settings_file)
+        if not isinstance(raw, dict):
+            raise TypeError(f"root is {type(raw).__name__}, expected object")
+        return EyeTrackConfig(**_migrate_config_dict(raw))
 
     @staticmethod
     def load():
         if not os.path.exists(CONFIG_FILE_NAME):
-            print("No settings file, using base settings")
+            logger.info("No settings file, using base settings")
             return EyeTrackConfig()
         try:
-            with open(CONFIG_FILE_NAME, "r") as settings_file:
-                return EyeTrackConfig(**json.load(settings_file))
-        except json.JSONDecodeError:
-            print("[INFO] Failed to load settings file")
-            load_config = None
-            if os.path.exists(BACKUP_CONFIG_FILE_NAME):
-                try:
-                    with open(BACKUP_CONFIG_FILE_NAME, "r") as settings_file:
-                        load_config = EyeTrackConfig(**json.load(settings_file))
-                    print("[INFO] Using backup settings")
-                except json.JSONDecodeError:
-                    pass
-            if load_config is None:
-                print("[INFO] using base settings")
-                load_config = EyeTrackConfig()
-            return load_config
+            return EyeTrackConfig._load_file(CONFIG_FILE_NAME)
+        except Exception as e:
+            logger.warning("Failed to load settings file: %r", e)
+        if os.path.exists(BACKUP_CONFIG_FILE_NAME):
+            try:
+                load_config = EyeTrackConfig._load_file(BACKUP_CONFIG_FILE_NAME)
+                logger.info("Using backup settings")
+                return load_config
+            except Exception as e:
+                logger.warning("Failed to load backup settings file: %r", e)
+        logger.info("Using base settings")
+        return EyeTrackConfig()
 
     def validate_camera_address_conflict(self, eye_id, capture_source):
         match eye_id:
             case EyeId.RIGHT:
                 if self.left_eye.capture_source == capture_source:
-                    print(
-                        f"{Fore.YELLOW}[WARN] Capture source {capture_source} already in use by the left camera.{Fore.RESET}"
+                    logger.warning(
+                        "Capture source %s already in use by the left camera.",
+                        capture_source,
                     )
                     return False
             case EyeId.LEFT:
                 if self.right_eye.capture_source == capture_source:
-                    print(
-                        f"{Fore.YELLOW}[WARN] Capture source {capture_source} already in use by the right camera.{Fore.RESET}"
+                    logger.warning(
+                        "Capture source %s already in use by the right camera.",
+                        capture_source,
                     )
                     return False
             case _:
@@ -308,10 +657,8 @@ class EyeTrackConfig(BaseModel):
     def update_eye_model_config(self, eye_id: EyeId, data: dict, should_save=True, should_notify=True) -> bool:
         """
         A more granular method for updating a particular model so that everything that relies on it
-        will get notified about any changes. Note, it acts a bit like pub-sub,
-        we don't care what changes got passed, we will notify the listeners with them.
-
-        It's the listeners job to check if they want that update.
+        will get notified about any changes. This acts like a small pub-sub layer:
+        listeners receive the changed keys and decide whether they are relevant.
         """
 
         # The app really doesn't like address clashes, so we have to validate it as soon as possible
@@ -348,26 +695,23 @@ class EyeTrackConfig(BaseModel):
 
     def save(self):
         # make sure this is only called if there is a change
-        if os.path.exists(CONFIG_FILE_NAME):
+        with _SAVE_LOCK:
+            data = json.dumps(self.model_dump(warnings=False))
+            # A corrupt main file must never overwrite a good backup.
             try:
-                # Verify existing configuration files.
-                with open(CONFIG_FILE_NAME, "r") as settings_file:
-                    EyeTrackConfig(**json.load(settings_file))
-                shutil.copy(CONFIG_FILE_NAME, BACKUP_CONFIG_FILE_NAME)
-                # print("Backed up settings files.") # Comment out because it's too loud.
-            except shutil.SameFileError:
+                with open(CONFIG_FILE_NAME, "r", encoding="utf-8") as current:
+                    previous = current.read()
+                if isinstance(json.loads(previous), dict):
+                    _atomic_write(BACKUP_CONFIG_FILE_NAME, previous)
+            except (OSError, ValueError):
                 pass
-            except json.JSONDecodeError:
-                # No backup because the saved settings file is broken.
-                pass
-        with open(CONFIG_FILE_NAME, "w") as settings_file:
-            json.dump(obj=self.model_dump(warnings=False), fp=settings_file)
-        print(f"\033[92m[INFO] Config Saved Successfully\033[0m")
+            _atomic_write(CONFIG_FILE_NAME, data)
+        logger.info("Config saved successfully")
 
     def register_listener_callback(self, callback):
-        print(f"[DEBUG] Registering listener {callback}")
-        self.__listeners.append(callback)
+        logger.debug("Registering listener %s", callback)
+        self._listeners.append(callback)
 
     def __notify_listeners(self, data: dict):
-        for listener in self.__listeners:
+        for listener in self._listeners:
             listener(data)

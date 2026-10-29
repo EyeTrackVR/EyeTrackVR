@@ -5,7 +5,7 @@ import openvr
 
 block_cipher = None
 
-resources=[("Audio/*", "Audio"), ("Images/*", "Images/"), ("pye3d/refraction_models/*", "pye3d/refraction_models/"), ("Models/*", "Models/"),("Tools/*", "Tools/")]
+resources=[("Audio/*", "Audio"), ("Images/*", "Images/"), ("pye3d/refraction_models/*", "pye3d/refraction_models/"), ("Models/*", "Models/"),("Tools/*", "Tools/"), ("lang/*", "lang/"), ("contributions/notice.json", "contributions")]
 
 a = Analysis(
 ['eyetrackapp.py'],
@@ -15,7 +15,12 @@ binaries=[
     (os.path.abspath(openvr.__file__ + "\\..\\libopenvr_api_64.dll"), "openvr"),
 ],
 datas=resources,
-hiddenimports=['cv2', 'numpy', 'PySimpleGui', 'pkg_resources.extern'],
+hiddenimports=['cv2', 'numpy', 'sv_ttk', 'tkinter', 'tkinter.ttk', 'pywinstyles',
+               # Pillow's Tk bridge, imported lazily by name inside ImageTk, so
+               # PyInstaller misses it; without it previews never draw.
+               'PIL.Image', 'PIL.ImageTk', 'PIL._tkinter_finder',
+               'pyrage', 'webview', 'webview.platforms.winforms',
+               'webview.platforms.edgechromium'],
 hookspath=[],
 hooksconfig={},
 runtime_hooks=[],
@@ -41,7 +46,7 @@ exe = EXE(
     upx=True,
     upx_exclude=[],
     runtime_tmpdir=None,
-    console=True,
+    console=False,
     disable_windowed_traceback=False,
     argv_emulation=False,
     target_arch=None,

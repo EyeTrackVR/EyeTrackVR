@@ -2,7 +2,7 @@
 ; SEE THE DOCUMENTATION FOR DETAILS ON CREATING INNO SETUP SCRIPT FILES!
 
 #define MyAppName "EyeTrackVR"
-#define MyAppVersion "0.2.5.6"
+#define MyAppVersion "0.3.0 BETA 10"
 #define MyAppPublisher "EyeTrackVR"
 #define MyAppURL "https://github.com/EyeTrackVR/EyeTrackVR/"
 #define MyAppExeName "eyetrackapp.exe"
@@ -22,8 +22,8 @@ DefaultDirName={autopf}\{#MyAppName}
 DisableProgramGroupPage=yes
 ; Uncomment the following line to run in non administrative install mode (install for current user only.)
 ;PrivilegesRequired=lowest
-OutputBaseFilename=EyeTrackVR-Setup
-SetupIconFile=C:\Users\beaul\PycharmProjects\EyeTrackVR\EyeTrackApp\Images\logo.ico
+OutputBaseFilename=EyeTrackVR-Setup-0.3.0-BETA-10
+SetupIconFile=..\Images\logo.ico
 Compression=lzma/ultra64
 SolidCompression=yes
 WizardStyle=modern
@@ -35,12 +35,21 @@ Name: "english"; MessagesFile: "compiler:Default.isl"
 Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{cm:AdditionalIcons}";
 
 [Files]
-Source: "C:\Users\beaul\PycharmProjects\EyeTrackVR\EyeTrackApp\dist\{#MyAppExeName}"; DestDir: "{app}"; Flags: ignoreversion
-Source: "C:\Users\beaul\PycharmProjects\EyeTrackVR\EyeTrackApp\dist\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
+Source: "..\dist\{#MyAppExeName}"; DestDir: "{app}"; Flags: ignoreversion
+; Excludes: never ship local user settings that ended up in dist\ from test runs
+Source: "..\dist\*"; DestDir: "{app}"; Excludes: "eyetrack_settings.json,eyetrack_settings.backup,logs\*,app.vrmanifest"; Flags: ignoreversion recursesubdirs createallsubdirs
 ; NOTE: Don't use "Flags: ignoreversion" on any shared system files
 
 [Dirs]
 Name: {app}; Permissions: users-full
+
+[UninstallDelete]
+; Written at runtime for SteamVR auto-launch; without it SteamVR stops launching the removed app.
+Type: files; Name: "{app}\app.vrmanifest"
+
+[UninstallRun]
+; Remove the SteamVR gaze driver registration and the OpenXR eye gaze layer (set up while foveation gaze is on).
+Filename: "{app}\{#MyAppExeName}"; Parameters: "--unregister-integrations"; RunOnceId: "UnregisterIntegrations"; Flags: runhidden waituntilterminated
 
 [Icons]
 Name: "{autoprograms}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"

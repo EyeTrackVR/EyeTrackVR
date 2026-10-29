@@ -1,25 +1,37 @@
 [tool.poetry]
 name = "EyeTrackVR"
-version = "0.2"
+version = "0.3"
 description = "Opensource, affordable VR eye tracker for VRChat"
 authors = ["RedHawk989"]
 license = "LICENSE: Babble Software Distribution License 1.0"
 repository = "https://github.com/EyeTrackVR/EyeTrackVR"
 
 [tool.poetry.dependencies]
-python = "~3.13.0"
+python = "~3.14.0"
 python-osc = "^1.8.0"
 requests = "^2.28.1"
+urllib3 = ">=2.8.0,<3"
+certifi = ">=2026.10.19"
+pyrage = "^1.4.0"
+pywebview = "^6.2.1"
+QtPy = { version = "^2.4", platform = "linux" }
+PySide6 = { version = "^6.10", platform = "linux" }
 opencv-python = "^4.6.0.66"
 numpy = "~2.3.5"
 pye3d = "^0.3.2"
-pysimplegui-4-foss = "^4.6.4.1"
+sv-ttk = "^2.6.1"
 pydantic = "^2.4.2"
 scikit-image = "*"
+scikit-learn = ">=1.3"
 pyserial = "^3.5"
 winotify = [
     { version = "^1.1.0", platform = 'win32' }
 ]
+pywinstyles = {version = "^1.8.0", platform = "win32"}
+# DirectShow camera enumeration on Windows. cv2's DSHOW backend opens cameras
+# in DirectShow moniker order; pygrabber walks the same enumerator, so its
+# name order matches cv2 index order exactly, which Win32_PnPEntity does NOT.
+pygrabber = {version = "^0.2", platform = "win32"}
 colorama = "^0.4.6"
 taskipy = "^1.10.4"
 pytest = "^8.0.0"
@@ -27,19 +39,28 @@ pytest-cov = "^4.1.0"
 matplotlib = "^3.10.7"
 numba = "~0.63.1"
 
-# LINUX: Uses CUDA/ROCm (NVIDIA/AMD)
-onnxruntime-gpu = { version = "^1.20.0", source = "ort-cuda-13",  platform = 'linux' }
 # WINDOWS: Uses DirectML (NVIDIA/AMD/Intel)
 onnxruntime-directml = { version = "^1.20.0", platform = 'win32' }
 # MACOS: Uses CoreML/MPS (Neural Engine & Metal)
-onnxruntime = { version = "^1.20.0", platform = 'darwin' }
+# LINUX: CPU by default so a plain `poetry install` works on every machine.
+#   NVIDIA users who want CUDA acceleration can swap it manually inside the
+#   poetry venv (do NOT keep both packages installed at once):
+#     poetry run pip uninstall -y onnxruntime
+#     poetry run pip install onnxruntime-gpu
+#   LEAP/NEXT detect available providers at runtime and fall back to CPU when
+#   the CUDA/cuDNN system libraries are missing, so this is always safe.
+onnxruntime = [
+    { version = "^1.20.0", platform = 'darwin' },
+    { version = "^1.20.0", platform = 'linux' },
+]
 
 [tool.poetry.group.dev.dependencies]
 black = "^22.10.0"
 pyinstaller = "^6.17.0"
 flake8 = "^5.0.4"
 openvr = [
-    { version = "^2.5.101", platform = 'win32' }
+    { version = "^2.5.101", platform = 'win32' },
+    { version = "^2.5.101", platform = 'linux' }
 ]
 
 [tool.taskipy.tasks]
@@ -48,17 +69,21 @@ dev = "python eyetrackapp.py"
 [tool.black]
 line-length = 120
 
+[tool.ruff]
+line-length = 120
+
 [build-system]
 requires = ["poetry-core>=1.0.0"]
 build-backend = "poetry.core.masonry.api"
 
 [tool.pytest.ini_options]
 addopts = "-ra -q"
-pythonpath = "."
+pythonpath = [".", "EyeTrackApp"]
 python_files = [
     "test_*.py"
 ]
-[[tool.poetry.source]]
-name = "ort-cuda-13"
-url = "https://aiinfra.pkgs.visualstudio.com/PublicPackages/_packaging/onnxruntime-cuda-12/pypi/simple/"
-priority = "explicit"
+
+[tool.ruff.lint.per-file-ignores]
+# Legacy star imports between the tracking modules.
+"EyeTrackApp/eye_processor.py" = ["F403", "F405"]
+"EyeTrackApp/osc_calibrate_filter.py" = ["F403", "F405"]
