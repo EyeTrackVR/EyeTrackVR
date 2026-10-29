@@ -11,6 +11,7 @@ import tkinter as tk
 from tkinter import messagebox
 from colorama import Fore
 
+from config import _USER_DATA_DIR
 from localization import tr
 
 
@@ -164,7 +165,16 @@ class OpenVRService:
 
     @property
     def manifestPath(self) -> str:
-        return os.path.join(_app_dir(), "app.vrmanifest")
+        # Keep the manifest with the settings file. On Windows and in source
+        # checkouts that is the app folder, elsewhere the user config folder.
+        return os.path.join(_USER_DATA_DIR or _app_dir(), "app.vrmanifest")
+
+    def _old_manifest_path(self):
+        """The manifest older versions wrote next to the app, if it is still there."""
+        old = os.path.join(_app_dir(), "app.vrmanifest")
+        if os.path.isfile(old) and not _same_path(old, self.manifestPath):
+            return old
+        return None
 
     def _build_manifest(self) -> dict:
         binary, arguments = _launch_target()
@@ -273,14 +283,17 @@ class OpenVRService:
         except Exception:
             return
         binary, arguments = _launch_target()
-        if old_binary and _same_path(old_binary, binary) and _unquote(old_arguments or "") == _unquote(arguments):
-            return
+        same_install = (old_binary and _same_path(old_binary, binary)
+                        and _unquote(old_arguments or "") == _unquote(arguments))
         candidates = []
-        if old_binary:
+        if old_binary and not same_install:
             candidates.append(os.path.join(os.path.dirname(old_binary), "app.vrmanifest"))
         script = _unquote(old_arguments or "")
-        if script:
+        if script and not same_install:
             candidates.append(os.path.join(os.path.dirname(script), "app.vrmanifest"))
+        old_manifest = self._old_manifest_path()
+        if old_manifest:
+            candidates.append(old_manifest)
         for path in candidates:
             if _same_path(path, self.manifestPath):
                 continue
@@ -288,6 +301,11 @@ class OpenVRService:
                 self.app.removeApplicationManifest(path)
                 self.logger.log(INFO, f"[INFO] Removed stale SteamVR registration {path}")
             except Exception:
+                pass
+        if old_manifest:
+            try:
+                os.remove(old_manifest)
+            except OSError:
                 pass
 
     def _register_connected(self) -> None:
@@ -334,6 +352,10 @@ class OpenVRService:
     def _unregister(self) -> None:
         """Best-effort removal of the auto-launch registration and manifest."""
         with self._lock:
+            paths = [self.manifestPath]
+            old_manifest = self._old_manifest_path()
+            if old_manifest:
+                paths.append(old_manifest)
             try:
                 self.initialize()
                 if self.app is not None:
@@ -341,20 +363,22 @@ class OpenVRService:
                         self.app.setApplicationAutoLaunch(self.appKey, False)
                     except Exception:
                         pass
-                    try:
-                        self.app.removeApplicationManifest(self.manifestPath)
-                    except Exception:
-                        pass
+                    for path in paths:
+                        try:
+                            self.app.removeApplicationManifest(path)
+                        except Exception:
+                            pass
             except OpenVRException:
                 # SteamVR isn't running; deleting the manifest file is enough,
                 # since SteamVR won't auto-launch an app whose manifest no longer exists.
                 pass
             self._registered = False
-            try:
-                if os.path.exists(self.manifestPath):
-                    os.remove(self.manifestPath)
-            except OSError:
-                pass
+            for path in paths:
+                try:
+                    if os.path.exists(path):
+                        os.remove(path)
+                except OSError:
+                    pass
 
     def ensure_registered(self) -> None:
         """Re-assert auto-launch registration at startup.
