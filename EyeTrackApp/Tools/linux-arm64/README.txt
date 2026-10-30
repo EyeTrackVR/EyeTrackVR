@@ -1,7 +1,7 @@
 Linux aarch64 (Steam Frame) calibration overlay runtime (glibc 2.38 or newer).
 
-Built in the sibling EyeTrackVR-OpenVR-Calibration-Overlay repository using
-`bash build-linux.sh` on an Ubuntu 24.04 arm64 machine or container. To update, copy its build-linux/package/ contents here.
+Built from the overlay/ submodule by scripts/build_overlay.bat arm64 (an
+Ubuntu 24.04 arm64 Docker container), which also writes OVERLAY_COMMIT.
 Keep the executable, .so libraries, assets/ and licenses/ together.
 
 The app and Linux PyInstaller bundle use this folder directly. A running
