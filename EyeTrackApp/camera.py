@@ -43,6 +43,7 @@ from camera_enum import (
     invalidate_uvc_camera_cache,
     claim_uvc_address,
     release_uvc_claim,
+    serial_port_key,
 )
 from frame_eye import frame_eye_service, frame_source_eye, is_frame_capture_source
 
@@ -66,11 +67,15 @@ class CameraState(Enum):
 
 def is_serial_capture_source(addr: str) -> bool:
     """
-    Returns True if the capture source address is a serial port.
+    Returns True if the capture source address is a serial port. udev's
+    /dev/serial/by-id/... links count even while unplugged (the link is gone
+    then), and other /dev paths count when they resolve to one, e.g. a custom
+    /dev/eyeleft rule.
     """
-    return (
-        addr.startswith("COM") or addr.startswith("/dev/cu") or addr.startswith("/dev/tty")  # Windows  # macOS  # Linux
-    )
+    prefixes = ("COM", "/dev/cu", "/dev/tty", "/dev/serial/")  # Windows, macOS, Linux
+    if addr.startswith(prefixes):
+        return True
+    return addr.startswith("/dev/") and serial_port_key(addr).startswith(prefixes)
 
 
 def is_http_capture_source(addr: str) -> bool:
@@ -763,9 +768,10 @@ class Camera:
         # Always discard the buffer when opening a fresh connection so stale bytes
         # from a previous session can't produce false JPEG boundaries.
         self.buffer = b""
-        com_ports = [tuple(p) for p in list(serial.tools.list_ports.comports())]
         # Do not try connecting if no such port i.e. device was unplugged.
-        if not any(p for p in com_ports if port in p):
+        # comports() lists real devices only, so compare symlink-resolved paths.
+        key = serial_port_key(port)
+        if not any(serial_port_key(p.device) == key for p in serial.tools.list_ports.comports()):
             self.camera_status = CameraState.DISCONNECTED
             return
         try:

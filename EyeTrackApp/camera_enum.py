@@ -542,7 +542,7 @@ def _probe_serial_for_jpeg(device: str, baud: int, timeout_s: float) -> bool:
             pass
 
 
-def _serial_port_key(device) -> str:
+def serial_port_key(device) -> str:
     """Comparable identity for a serial port path: case-insensitive on Windows
     (``com5`` == ``COM5``), symlink-resolved on POSIX so a configured
     ``/dev/serial/by-id/...`` matches the ``/dev/ttyUSB0`` comports() lists."""
@@ -581,9 +581,9 @@ def discover_etvr_serial_cameras(
         return []
 
     baud = _SERIAL_BAUD_DARWIN if sys.platform == "darwin" else _SERIAL_BAUD_DEFAULT
-    skip = {_serial_port_key(d) for d in skip_devices if isinstance(d, str) and d.strip()}
+    skip = {serial_port_key(d) for d in skip_devices if isinstance(d, str) and d.strip()}
     candidates = [
-        p for p in list_ports.comports() if _looks_like_usable_serial(p) and _serial_port_key(p.device) not in skip
+        p for p in list_ports.comports() if _looks_like_usable_serial(p) and serial_port_key(p.device) not in skip
     ]
     if not candidates:
         return []
