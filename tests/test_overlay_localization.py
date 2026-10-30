@@ -74,10 +74,11 @@ def test_overlay_is_launched_in_the_app_language(monkeypatch):
 
 
 def _runnable_overlay():
+    dist = APP.parent / "overlay" / "dist"
     if sys.platform == "win32":
-        return APP / "Tools" / "EyeTrackVR-Overlay.exe"
+        return dist / "windows" / "EyeTrackVR-Overlay.exe"
     if sys.platform == "linux" and os.uname().machine in ("x86_64", "AMD64"):
-        return APP / "Tools" / "linux" / "EyeTrackVR-Overlay"
+        return dist / "linux" / "EyeTrackVR-Overlay"
     return None
 
 

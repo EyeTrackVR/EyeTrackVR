@@ -9,8 +9,8 @@
 # aarch64 (Steam Frame, scripts/build_frame.sh) differences:
 #   - the pyopenvr wheel only ships x86 libs, so the arm64 libopenvr_api.so is
 #     supplied via ETVR_OPENVR_LIB and bundled under the name pyopenvr loads
-#   - the overlay runtime comes from Tools/linux-arm64/ and is optional; without
-#     it the app runs and overlay calibration reports the binary as missing
+#   - the overlay runtime comes from overlay/dist/linux-arm64/ and is optional;
+#     without it the app runs and overlay calibration reports the binary as missing
 
 import os
 import platform
@@ -44,8 +44,9 @@ else:
     _openvr_dir = Path(openvr.__file__).parent
     openvr_libs = [(str(p), "openvr") for p in _openvr_dir.glob("libopenvr_api*.so")]
 
-# The app always looks for the overlay in Tools/linux/, whatever the source folder.
-overlay_dir = Path("Tools/linux-arm64" if IS_ARM64 else "Tools/linux")
+# Prebuilt runtimes from the overlay/ submodule. The app always looks for the
+# overlay in Tools/linux/, whatever the source folder.
+overlay_dir = Path("../overlay/dist/linux-arm64" if IS_ARM64 else "../overlay/dist/linux")
 overlay = overlay_dir / "EyeTrackVR-Overlay"
 overlay_libs = []
 if overlay.is_file():
@@ -60,7 +61,7 @@ if overlay.is_file():
 elif IS_ARM64:
     print(f"WARNING: {overlay} not found; building without the in-VR calibration overlay")
 else:
-    raise FileNotFoundError("Missing Tools/linux/EyeTrackVR-Overlay; copy the Linux runtime folder from the overlay repository")
+    raise FileNotFoundError(f"Missing {overlay}; run: git submodule update --init overlay")
 
 a = Analysis(
     ["eyetrackapp.py"],

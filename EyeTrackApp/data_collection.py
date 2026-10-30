@@ -752,7 +752,7 @@ class DataCollectionWindow:
         send_cmd = None
 
         if use_overlay:
-            # Tools/ on Windows, Tools/linux/ on Linux (the native runtime folder).
+            # From the overlay/ submodule's dist/ (see utils.overlay_launch).
             try:
                 overlay_exe = overlay_executable()
             except FileNotFoundError:

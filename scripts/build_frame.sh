@@ -59,6 +59,9 @@ rsync -a --delete \
     --exclude "*.pyc" --exclude "v5_*_ETVR_Output" \
     "$REPO_ROOT/$APP_SUBDIR/" "$SRC_DIR/$APP_SUBDIR/"
 rsync -a --delete "$REPO_ROOT/scripts/" "$SRC_DIR/scripts/"
+# The spec bundles the overlay runtime from the overlay/ submodule.
+mkdir -p "$SRC_DIR/overlay"
+rsync -a --delete "$REPO_ROOT/overlay/dist/" "$SRC_DIR/overlay/dist/"
 find "$SRC_DIR/scripts" -name "*.sh" -exec sed -i 's/\r$//' {} +
 
 echo "[frame-build] fetching aarch64 libopenvr_api ($OPENVR_TAG)..."

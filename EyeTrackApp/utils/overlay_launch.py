@@ -10,27 +10,40 @@ the app itself sends during data collection still comes from ``lang/``.
 from __future__ import annotations
 
 import os
+import platform
 import sys
+from pathlib import Path
 
 from utils.misc_utils import resource_path
+
+# The overlay/ submodule ships prebuilt runtimes in dist/<platform>/.
+OVERLAY_DIST = Path(__file__).resolve().parents[2] / "overlay" / "dist"
+
+
+def overlay_dist_folder() -> str:
+    """The overlay/dist/ folder holding this platform's runtime."""
+    if sys.platform == "win32":
+        return "windows"
+    return "linux-arm64" if platform.machine().lower() in ("aarch64", "arm64") else "linux"
 
 
 def overlay_executable() -> str:
     """Resolve the overlay binary for this platform.
 
-    Windows builds ship ``Tools/EyeTrackVR-Overlay.exe``; Linux ships the native
-    ``Tools/linux/EyeTrackVR-Overlay`` alongside its loaders. Raises
+    Bundled builds carry it as ``Tools/EyeTrackVR-Overlay.exe`` (Windows) or
+    ``Tools/linux/EyeTrackVR-Overlay`` with its loaders (Linux); source runs
+    use ``overlay/dist/<platform>/`` from the submodule. Raises
     FileNotFoundError when unavailable so callers can fall back gracefully.
     """
     name = "EyeTrackVR-Overlay.exe" if sys.platform == "win32" else "EyeTrackVR-Overlay"
-    folder = "Tools/linux" if sys.platform == "linux" else "Tools"
-    path = resource_path(f"{folder}/{name}")
+    if getattr(sys, "frozen", False):
+        path = resource_path(f"{'Tools/linux' if sys.platform == 'linux' else 'Tools'}/{name}")
+        hint = "the app bundle is missing it"
+    else:
+        path = str(OVERLAY_DIST / overlay_dist_folder() / name)
+        hint = "run: git submodule update --init overlay"
     if not os.path.isfile(path):
-        raise FileNotFoundError(
-            f"in-VR overlay binary not found at {path}; overlay calibration "
-            "requires the platform's native executable and runtime files in "
-            f"{folder}/"
-        )
+        raise FileNotFoundError(f"in-VR overlay binary not found at {path}; {hint}")
     return path
 
 

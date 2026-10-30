@@ -1,4 +1,3 @@
 *.sh text eol=lf
-EyeTrackApp/Tools/linux/EyeTrackVR-Overlay binary
 *.so binary
 *.so.* binary

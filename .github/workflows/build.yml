@@ -32,6 +32,8 @@ jobs:
         uses: actions/checkout@v4
         with:
           token: ${{ env.GITHUB_TOKEN }}
+          # The overlay/ submodule carries the prebuilt calibration overlay.
+          submodules: true
       - name: Set up Python
         uses: actions/setup-python@v5
         id: setup-python
@@ -107,6 +109,9 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          # The overlay/ submodule carries the prebuilt calibration overlay.
+          submodules: true
       - name: Install build dependencies
         run: |
           sudo apt-get update -qq

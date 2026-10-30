@@ -83,15 +83,13 @@ and Runtime to *Steam Linux Runtime 4.0 ARM64*.
 
 ## Current limitations
 
-* **In-VR calibration overlay.** `EyeTrackApp/Tools/linux-arm64/` holds an aarch64 build of the
-  overlay runtime, which the spec bundles as `Tools/linux/` (the folder the app looks in). It was
-  built with the overlay repository's `build-linux.sh` in the `etvr-frame-builder` image. That
-  build needs the overlay CMake's `linuxarm64` OpenVR support and these extra packages:
-  `libvulkan-dev libopenxr-dev libopenxr-loader1 libstb-dev patchelf`. Its `libopenvr_api.so` is
-  replaced with the OpenVR v2.12.14 aarch64 library the app uses. The SDK copy in the overlay
-  repository looks for its path registry in `/data/work`, so it fails on the Frame with
-  `VRInitError_Init_PathRegistryNotFound`. On the headset the overlay attaches to SteamVR as an
-  OpenVR overlay over the running app.
+* **In-VR calibration overlay.** The `overlay/` submodule ships an aarch64 build of the overlay
+  runtime in `dist/linux-arm64/`, which the spec bundles as `Tools/linux/` (the folder the app
+  looks in). The overlay repository's `build-dist.bat arm64` builds it in an Ubuntu 24.04 arm64
+  container and replaces its `libopenvr_api.so` with the OpenVR v2.12.14 aarch64 library the app
+  uses. The overlay repository's own SDK copy looks for its path registry in `/data/work`, so it
+  fails on the Frame with `VRInitError_Init_PathRegistryNotFound`. On the headset the overlay
+  attaches to SteamVR as an OpenVR overlay over the running app.
 * **Camera sources.** The usual network (ESP32/OpenIris) camera sources work too, in ETVR mode.
 
 ## Built-in eye cameras ("Steam Frame" setup mode)
