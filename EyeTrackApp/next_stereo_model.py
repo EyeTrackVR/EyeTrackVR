@@ -64,6 +64,7 @@ import logging
 import threading
 import time
 from collections import deque
+from typing import NamedTuple
 
 import numpy as np
 import cv2
@@ -78,6 +79,7 @@ from next_model import (
     model_file_for_variant,
     split_variant,
 )
+from next_eye_coupling import NextExpressionCoupler
 from one_euro_filter import OneEuroFilter
 from utils.misc_utils import resource_path
 from utils.onnx_runtime import DML_INFERENCE_LOCK, create_inference_session
@@ -297,6 +299,15 @@ class NEXT_Stereo_cls:
         return self.one_euro_filter(raw).astype(np.float32)
 
 
+class SharedPass(NamedTuple):
+    """One shared pass as an eye was served it (see next_eye_coupling)."""
+
+    pass_id: int  # increasing per coordinator
+    result: np.ndarray  # filtered 8-vector
+    both_eyes: bool  # neither eye was the black-frame sentinel
+    ts: float  # perf_counter when the pass was filtered
+
+
 def slice_stereo_result(result: np.ndarray, eye_id) -> tuple:
     """Extract one eye's (gaze_x, gaze_y, eyebrow, eyelid, squeeze) from the
     8-output stereo result. Gaze is shared; expressions are per eye."""
@@ -337,6 +348,9 @@ class StereoNextCoordinator:
         # Capture timestamp each eye actually contributed to _result, None when
         # that eye was blacked out. Used to skip a redundant second pass.
         self._result_ts = {EyeId.LEFT: None, EyeId.RIGHT: None}
+        self._pass = None  # SharedPass of _result
+        self._served = {EyeId.LEFT: None, EyeId.RIGHT: None}
+        self.expression_coupler = NextExpressionCoupler()
         self.last_mode = "none"
         self.last_skew_ms = 0.0
 
@@ -380,6 +394,7 @@ class StereoNextCoordinator:
             with self._state_lock:
                 version = (self._ver[EyeId.LEFT], self._ver[EyeId.RIGHT])
                 if self._result is not None and self._covered_locked(eye_id, version):
+                    self._served[eye_id] = self._pass
                     return slice_stereo_result(self._result, eye_id)
                 snapshot = {
                     EyeId.LEFT: list(self._hist[EyeId.LEFT]),
@@ -399,9 +414,22 @@ class StereoNextCoordinator:
                 self._result_ver = version
                 for eye in (EyeId.LEFT, EyeId.RIGHT):
                     self._result_ts[eye] = snapshot[eye][-1].ts if valid[eye] and snapshot[eye] else None
+                previous = self._pass.pass_id if self._pass is not None else -1
+                self._pass = SharedPass(
+                    previous + 1,
+                    out,
+                    bool(valid[EyeId.LEFT] and valid[EyeId.RIGHT]),
+                    time.perf_counter(),
+                )
+                self._served[eye_id] = self._pass
                 self.last_mode = mode
                 self.last_skew_ms = skew * 1000.0
         return slice_stereo_result(out, eye_id)
+
+    def served_pass(self, eye_id):
+        """The SharedPass this eye's latest run() answered from, or None."""
+        with self._state_lock:
+            return self._served[eye_id]
 
     def raw_gaze(self):
         """Shared (gaze_x, gaze_y) of the latest pass before median and One-Euro

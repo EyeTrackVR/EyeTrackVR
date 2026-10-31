@@ -42,6 +42,7 @@ from pydantic import (
 from typing import Any, Union, List
 import os
 from eye import EyeId
+from next_eye_coupling import DEFAULT_BROW_THRESHOLD, DEFAULT_LID_THRESHOLD
 
 logger = logging.getLogger(__name__)
 
@@ -390,6 +391,14 @@ class EyeTrackSettingsConfig(BaseModel):
     # neutral throughout the dot sequence, so those captures anchor "normal
     # open" / "neutral brow" to their target output values.
     gui_NEXT_calib_lids_brows: bool = True
+    # Couple left and right eyelid / eyebrow on the shared NEXT model: below
+    # the threshold gap both eyes read their mean, from 2.5x it each eye passes
+    # through (winks, one-sided raises), smoothstep in between. Thresholds are
+    # in sent values (lid 0.75 = normal open, brow 0.5 = neutral); 0 turns that
+    # channel off. See next_eye_coupling for the default values.
+    gui_NEXT_couple_eyes: bool = False
+    gui_NEXT_couple_lid_threshold: float = DEFAULT_LID_THRESHOLD
+    gui_NEXT_couple_brow_threshold: float = DEFAULT_BROW_THRESHOLD
     # Headset (HMD) the models were trained for: ETVR / BSB / PSVR (shown as
     # PSVR/TOBII). PSVR is a manual NEXT-only choice; setup-mode auto-selection remains
     # limited to ETVR and BSB. Selects the NEXT Hybrid family and

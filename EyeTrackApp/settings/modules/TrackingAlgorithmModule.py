@@ -2,8 +2,12 @@ from settings.modules.BaseModule import BaseSettingsModule, BaseValidationModel
 import tkinter as tk
 from tkinter import ttk
 
+from pydantic import Field
+from typing_extensions import Annotated
+
 from utils.tooltips import attach_tooltip
 from localization import tr
+from next_eye_coupling import DEFAULT_BROW_THRESHOLD, DEFAULT_LID_THRESHOLD
 from next_model import (
     DEFAULT_MODEL_SIZE,
     EXPERIMENTAL_MODEL_SIZES,
@@ -20,6 +24,10 @@ _MODEL_VARIANTS = HMD_TYPES
 # Dropdown text per stored headset. PSVR and Tobii share one model family.
 _HEADSET_LABELS = {"ETVR": "ETVR", "BSB": "BSB", "PSVR": "PSVR/TOBII"}
 
+# Eye coupling thresholds; the blend runs to 2.5x the threshold, so 0.4
+# already releases only at a full 0..1 gap.
+CouplingThreshold = Annotated[float, Field(ge=0.0, le=0.4)]
+
 
 class TrackingAlgorithmValidationModel(BaseValidationModel):
     gui_DADDY: bool
@@ -31,6 +39,9 @@ class TrackingAlgorithmValidationModel(BaseValidationModel):
     gui_AHRAC: bool
     gui_NEXT: bool
     gui_NEXT_calib_lids_brows: bool
+    gui_NEXT_couple_eyes: bool
+    gui_NEXT_couple_lid_threshold: CouplingThreshold
+    gui_NEXT_couple_brow_threshold: CouplingThreshold
     gui_model_variant: str
     gui_model_size: str
     gui_max_tracking_speed: int
@@ -56,6 +67,9 @@ class TrackingAlgorithmModule(BaseSettingsModule):
         self.gui_RANSAC3D = f"-RANSAC3D{widget_id}-"
         self.gui_NEXT = f"-NEXT{widget_id}-"
         self.gui_NEXT_calib_lids_brows = f"-NEXTCALIBLIDSBROWS{widget_id}-"
+        self.gui_NEXT_couple_eyes = f"-NEXTCOUPLEEYES{widget_id}-"
+        self.gui_NEXT_couple_lid_threshold = f"-NEXTCOUPLELID{widget_id}-"
+        self.gui_NEXT_couple_brow_threshold = f"-NEXTCOUPLEBROW{widget_id}-"
         self.gui_model_variant = f"-MODELVARIANT{widget_id}-"
         self.gui_model_size = f"-MODELSIZE{widget_id}-"
         self.gui_max_tracking_speed = f"-MAXTRACKSPEED{widget_id}-"
@@ -121,9 +135,12 @@ class TrackingAlgorithmModule(BaseSettingsModule):
         lids_brows_cb.grid(row=2, column=0, columnspan=3, sticky="w", padx=8, pady=(2, 4))
         attach_tooltip(lids_brows_cb, tr("algo_tracking.next_calib_lids_brows_tip"))
 
+        # Left/right eyelid and eyebrow coupling, with its two thresholds.
+        self._build_eye_coupling(parent, row=3)
+
         # NEXT model: headset family plus a size slider (lightest -> best).
         model_frame = ttk.Frame(parent)
-        model_frame.grid(row=3, column=0, columnspan=6, sticky="w", padx=8, pady=(2, 4))
+        model_frame.grid(row=4, column=0, columnspan=6, sticky="w", padx=8, pady=(2, 4))
         self._build_model_selector(model_frame)
 
         # Keep the combobox in sync when the setup-mode auto-shift changes the
@@ -131,6 +148,28 @@ class TrackingAlgorithmModule(BaseSettingsModule):
         # would be saved back and revert the auto-shift on the next render tick).
         if self._main_config is not None:
             self._main_config.register_listener_callback(self._on_model_variant_synced)
+
+    def _build_eye_coupling(self, parent, row):
+        frame = ttk.Frame(parent)
+        frame.grid(row=row, column=0, columnspan=6, sticky="w", padx=8, pady=(2, 4))
+        couple_var = tk.BooleanVar(value=bool(getattr(self.config, "gui_NEXT_couple_eyes", False)))
+        self.tk_vars[self.gui_NEXT_couple_eyes] = couple_var
+        couple_cb = ttk.Checkbutton(frame, text=tr("algo_tracking.next_couple_eyes"), variable=couple_var)
+        couple_cb.pack(side="left")
+        attach_tooltip(couple_cb, tr("algo_tracking.next_couple_eyes_tip"))
+        for field, label, default in (
+            ("gui_NEXT_couple_lid_threshold", "next_couple_lid", DEFAULT_LID_THRESHOLD),
+            ("gui_NEXT_couple_brow_threshold", "next_couple_brow", DEFAULT_BROW_THRESHOLD),
+        ):
+            key = getattr(self, field)
+            lbl = ttk.Label(frame, text=tr(f"algo_tracking.{label}"))
+            lbl.pack(side="left", padx=(16, 4))
+            attach_tooltip(lbl, tr(f"algo_tracking.{label}_tip"))
+            var = tk.StringVar(value=str(getattr(self.config, field, default)))
+            self.tk_vars[key] = var
+            entry = ttk.Entry(frame, textvariable=var, width=6)
+            entry.pack(side="left")
+            attach_tooltip(entry, tr(f"algo_tracking.{label}_tip"))
 
     def _build_model_selector(self, parent):
         hmd, legacy_size = split_variant(getattr(self.config, "gui_model_variant", "ETVR"))

@@ -242,6 +242,8 @@ def test_processor_uses_hybrid_without_an_active_peer(monkeypatch, eye, hybrid_a
         run=Mock(),
         peer_active=Mock(),
         raw_gaze=Mock(return_value=(0.15, 0.25)),
+        expression_coupler=Mock(),
+        served_pass=Mock(return_value="pass"),
     )
     coord.run.return_value = (0.1, 0.2, 0.3, 0.4, 0.5)
     coord.peer_active.return_value = False
@@ -260,7 +262,10 @@ def test_processor_uses_hybrid_without_an_active_peer(monkeypatch, eye, hybrid_a
         coord.peer_active.assert_not_called()
         coord.run.assert_called_once_with(eye, 0.0004, 0.9)
         processor.next_runner.run.assert_not_called()
-        processor._next_apply.assert_called_once_with(*coord.run.return_value, raw_gaze=(0.15, 0.25))
+        processor._next_apply.assert_called_once_with(
+            *coord.run.return_value, raw_gaze=(0.15, 0.25), shared=(coord.expression_coupler, "pass")
+        )
+        coord.served_pass.assert_called_once_with(eye)
     else:
         coord.run.assert_not_called()
         processor.next_runner.run.assert_called_once()

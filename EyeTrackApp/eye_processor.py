@@ -33,6 +33,7 @@ import sys
 import os
 import time
 from collections import deque
+from dataclasses import dataclass
 from config import (
     DEFAULT_LID_CLOSE_THRESHOLD,
     DEFAULT_LID_WIDEN_THRESHOLD,
@@ -124,6 +125,31 @@ def next_eyelid_tuning_active(settings: "EyeTrackSettingsConfig", eye_id: EyeId)
     """True only after the user moves this eye away from NEXT's raw defaults."""
     close_t, widen_t = leap_lid_thresholds_for_eye(settings, eye_id)
     return abs(close_t - DEFAULT_LID_CLOSE_THRESHOLD) > 1e-9 or abs(widen_t - DEFAULT_LID_WIDEN_THRESHOLD) > 1e-9
+
+
+@dataclass(frozen=True)
+class NextExpressionTransform:
+    """One eye's mapping from NEXT lid/brow output to the values it sends:
+    Smart Calib's neutral anchors (None = not calibrated or turned off) and,
+    once Manual Eyelid Tuning is moved off its defaults, the close/widen
+    remap. Published to the eye coupler so the peer eye can map this eye too."""
+
+    lid_neutral: float | None = None
+    brow_neutral: float | None = None
+    lid_thresholds: tuple[float, float] | None = None
+
+    def openness(self, eyelid: float, squeeze: float) -> tuple[float, float]:
+        """(calibrated, output) openness. Openness is the lid aperture scaled
+        down by squeeze, so a forceful squint reads as more closed."""
+        calibrated = next_smartcal_neutral_apply(
+            eyelid * max(0.0, 1.0 - squeeze), self.lid_neutral, NEXT_SMARTCAL_LID_TARGET
+        )
+        if self.lid_thresholds is None:
+            return calibrated, calibrated
+        return calibrated, remap_leap_lid_openness(calibrated, *self.lid_thresholds)
+
+    def brow(self, eyebrow: float) -> float:
+        return next_smartcal_neutral_apply(eyebrow, self.brow_neutral, NEXT_SMARTCAL_BROW_TARGET)
 
 
 class EyeProcessor:
@@ -836,7 +862,15 @@ class EyeProcessor:
             if coord.supports_single_eye or coord.peer_active(self.eye_id):
                 self._next_mode_changed(True)
                 gaze_x, gaze_y, eyebrow, eyelid, squeeze = coord.run(self.eye_id, base_cutoff, base_beta)
-                self._next_apply(gaze_x, gaze_y, eyebrow, eyelid, squeeze, raw_gaze=coord.raw_gaze())
+                self._next_apply(
+                    gaze_x,
+                    gaze_y,
+                    eyebrow,
+                    eyelid,
+                    squeeze,
+                    raw_gaze=coord.raw_gaze(),
+                    shared=(coord.expression_coupler, coord.served_pass(self.eye_id)),
+                )
                 return
 
         self._next_mode_changed(False)
@@ -886,12 +920,45 @@ class EyeProcessor:
             y = -y
         return x - self._next_recenter_offset_x, y - self._next_recenter_offset_y
 
-    def _next_apply(self, gaze_x, gaze_y, eyebrow, eyelid, squeeze, raw_gaze=None):
+    def _next_expression_transform(self) -> NextExpressionTransform:
+        calibrate = self.settings.gui_NEXT_calib_lids_brows
+        return NextExpressionTransform(
+            lid_neutral=self._next_smartcal_lid_neutral if calibrate else None,
+            brow_neutral=self._next_smartcal_brow_neutral if calibrate else None,
+            lid_thresholds=(
+                leap_lid_thresholds_for_eye(self.settings, self.eye_id)
+                if next_eyelid_tuning_active(self.settings, self.eye_id)
+                else None
+            ),
+        )
+
+    def _next_couple_eyes(self, shared, transform, eyeopen, eyebrow):
+        """Left/right eyelid and eyebrow coupling (gui_NEXT_couple_eyes, see
+        next_eye_coupling). Compared in output space, after each eye's Smart
+        Calib anchor and lid remap: the anchors exist to take out per-eye
+        neutral bias, so before them a static offset would eat the threshold
+        and the mean would be re-split by the two anchors. Before the closed
+        snap, so a coupled blink snaps on both eyes or neither."""
+        coupler, served = shared
+        coupler.publish(self.eye_id, transform)
+        if served is None or not getattr(self.settings, "gui_NEXT_couple_eyes", False):
+            return eyeopen, eyebrow
+        coupled = coupler.couple(
+            self.eye_id,
+            served,
+            float(self.settings.gui_NEXT_couple_lid_threshold),
+            float(self.settings.gui_NEXT_couple_brow_threshold),
+        )
+        return (eyeopen, eyebrow) if coupled is None else coupled
+
+    def _next_apply(self, gaze_x, gaze_y, eyebrow, eyelid, squeeze, raw_gaze=None, shared=None):
         """Shared NEXT post-processing for the mono and stereo model paths:
         user-configured flips, smart-calibration, recenter, eyelid remap, and
         the OSC enqueue. Inputs preserve the model's native axis orientation.
         ``raw_gaze`` is the same gaze before the runner's filtering; it becomes
-        the foveated-rendering gaze (self.dfr_x / dfr_y)."""
+        the foveated-rendering gaze (self.dfr_x / dfr_y). ``shared`` is the
+        stereo path's (expression coupler, served pass), None on the per-eye
+        fallback, which has no paired reading to couple against."""
         # Raw model gaze, before user-configured flips, in [-1, 1].
         model_gaze_x, model_gaze_y = gaze_x, gaze_y
 
@@ -953,18 +1020,11 @@ class EyeProcessor:
         # Lid/brow smart calibration: re-anchor this user's neutral face onto
         # the target output values (normal-open lid, neutral brow), leaving
         # fully closed and fully open/raised where they are. Captured by the
-        # same dot sequence as the gaze fit; a no-op until that has run.
-        if self.settings.gui_NEXT_calib_lids_brows:
-            eyeopen_raw = next_smartcal_neutral_apply(
-                eyeopen_raw,
-                self._next_smartcal_lid_neutral,
-                NEXT_SMARTCAL_LID_TARGET,
-            )
-            eyebrow = next_smartcal_neutral_apply(
-                eyebrow,
-                self._next_smartcal_brow_neutral,
-                NEXT_SMARTCAL_BROW_TARGET,
-            )
+        # same dot sequence as the gaze fit; a no-op until that has run. The
+        # same transform then applies the Manual Eyelid Tuning remap, if any.
+        transform = self._next_expression_transform()
+        eyeopen_raw, eyeopen = transform.openness(eyelid, squeeze)
+        eyebrow = transform.brow(eyebrow)
 
         # Eyelid openness before the close/widen remap. Publish on the same
         # runtime channel LEAP uses so the settings-menu lid visualizer shows a
@@ -1011,13 +1071,11 @@ class EyeProcessor:
         self.out_x = gaze_x
         self.out_y = gaze_y
 
-        if next_eyelid_tuning_active(self.settings, self.eye_id):
-            close_t, wide_t = leap_lid_thresholds_for_eye(self.settings, self.eye_id)
-            self.eyeopen = remap_leap_lid_openness(eyeopen_raw, close_t, wide_t)
-        else:
-            # Fresh installs preserve the model's eyelid output (Smart Calib's
-            # neutral anchor aside) until the user changes Manual Eyelid Tuning.
-            self.eyeopen = eyeopen_raw
+        # Fresh installs preserve the model's eyelid output (Smart Calib's
+        # neutral anchor aside) until the user changes Manual Eyelid Tuning.
+        self.eyeopen = eyeopen
+        if shared is not None:
+            self.eyeopen, eyebrow = self._next_couple_eyes(shared, transform, self.eyeopen, eyebrow)
 
         # Snap to fully-closed: NEXT openness near zero is treated as a blink so
         # the eye reports a clean 0.0 instead of jittering just above closed.
