@@ -972,11 +972,12 @@ class EyeProcessor:
         coupler.publish(self.eye_id, transform)
         if served is None or not getattr(self.settings, "gui_NEXT_couple_eyes", False):
             return eyeopen, eyebrow
+        s = self.settings
         coupled = coupler.couple(
             self.eye_id,
             served,
-            float(self.settings.gui_NEXT_couple_lid_threshold),
-            float(self.settings.gui_NEXT_couple_brow_threshold),
+            (float(s.gui_NEXT_couple_lid_sync_below), float(s.gui_NEXT_couple_lid_separate_above)),
+            (float(s.gui_NEXT_couple_brow_sync_below), float(s.gui_NEXT_couple_brow_separate_above)),
         )
         return (eyeopen, eyebrow) if coupled is None else coupled
 

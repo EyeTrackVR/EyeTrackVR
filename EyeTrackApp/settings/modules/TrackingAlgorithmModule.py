@@ -2,12 +2,17 @@ from settings.modules.BaseModule import BaseSettingsModule, BaseValidationModel
 import tkinter as tk
 from tkinter import ttk
 
-from pydantic import Field
+from pydantic import Field, model_validator
 from typing_extensions import Annotated, Literal
 
 from utils.tooltips import attach_tooltip
 from localization import tr
-from next_eye_coupling import DEFAULT_BROW_THRESHOLD, DEFAULT_LID_THRESHOLD
+from next_eye_coupling import (
+    DEFAULT_BROW_SEPARATE_ABOVE,
+    DEFAULT_BROW_SYNC_BELOW,
+    DEFAULT_LID_SEPARATE_ABOVE,
+    DEFAULT_LID_SYNC_BELOW,
+)
 from next_eye_gaze import DOMINANT_EYES, GAZE_MODES
 from next_model import (
     DEFAULT_MODEL_SIZE,
@@ -25,9 +30,22 @@ _MODEL_VARIANTS = HMD_TYPES
 # Dropdown text per stored headset. PSVR and Tobii share one model family.
 _HEADSET_LABELS = {"ETVR": "ETVR", "BSB": "BSB", "PSVR": "PSVR/TOBII"}
 
-# Eye coupling thresholds; the blend runs to 2.5x the threshold, so 0.4
-# already releases only at a full 0..1 gap.
-CouplingThreshold = Annotated[float, Field(ge=0.0, le=0.4)]
+# Eye coupling: how far apart (0..1) the left and right readings are.
+CouplingGap = Annotated[float, Field(ge=0.0, le=1.0)]
+
+# (label key, (sync_below field, default), (separate_above field, default))
+_COUPLING_ROWS = (
+    (
+        "next_couple_lid",
+        ("gui_NEXT_couple_lid_sync_below", DEFAULT_LID_SYNC_BELOW),
+        ("gui_NEXT_couple_lid_separate_above", DEFAULT_LID_SEPARATE_ABOVE),
+    ),
+    (
+        "next_couple_brow",
+        ("gui_NEXT_couple_brow_sync_below", DEFAULT_BROW_SYNC_BELOW),
+        ("gui_NEXT_couple_brow_separate_above", DEFAULT_BROW_SEPARATE_ABOVE),
+    ),
+)
 
 
 class TrackingAlgorithmValidationModel(BaseValidationModel):
@@ -41,13 +59,23 @@ class TrackingAlgorithmValidationModel(BaseValidationModel):
     gui_NEXT: bool
     gui_NEXT_calib_lids_brows: bool
     gui_NEXT_couple_eyes: bool
-    gui_NEXT_couple_lid_threshold: CouplingThreshold
-    gui_NEXT_couple_brow_threshold: CouplingThreshold
+    gui_NEXT_couple_lid_sync_below: CouplingGap
+    gui_NEXT_couple_lid_separate_above: CouplingGap
+    gui_NEXT_couple_brow_sync_below: CouplingGap
+    gui_NEXT_couple_brow_separate_above: CouplingGap
     gui_NEXT_gaze_mode: Literal[GAZE_MODES]
     gui_NEXT_dominant_eye: Literal[DOMINANT_EYES]
     gui_model_variant: str
     gui_model_size: str
     gui_max_tracking_speed: int
+
+    @model_validator(mode="after")
+    def _coupling_ranges_ordered(self):
+        for _label, (sync_field, _), (separate_field, _) in _COUPLING_ROWS:
+            sync_below, separate_above = getattr(self, sync_field), getattr(self, separate_field)
+            if 0.0 < separate_above < sync_below:
+                raise ValueError(f"{separate_field} must not be below {sync_field}")
+        return self
 
 
 class TrackingAlgorithmModule(BaseSettingsModule):
@@ -71,8 +99,10 @@ class TrackingAlgorithmModule(BaseSettingsModule):
         self.gui_NEXT = f"-NEXT{widget_id}-"
         self.gui_NEXT_calib_lids_brows = f"-NEXTCALIBLIDSBROWS{widget_id}-"
         self.gui_NEXT_couple_eyes = f"-NEXTCOUPLEEYES{widget_id}-"
-        self.gui_NEXT_couple_lid_threshold = f"-NEXTCOUPLELID{widget_id}-"
-        self.gui_NEXT_couple_brow_threshold = f"-NEXTCOUPLEBROW{widget_id}-"
+        self.gui_NEXT_couple_lid_sync_below = f"-NEXTCOUPLELIDSYNC{widget_id}-"
+        self.gui_NEXT_couple_lid_separate_above = f"-NEXTCOUPLELIDSEP{widget_id}-"
+        self.gui_NEXT_couple_brow_sync_below = f"-NEXTCOUPLEBROWSYNC{widget_id}-"
+        self.gui_NEXT_couple_brow_separate_above = f"-NEXTCOUPLEBROWSEP{widget_id}-"
         self.gui_NEXT_gaze_mode = f"-NEXTGAZEMODE{widget_id}-"
         self.gui_NEXT_dominant_eye = f"-NEXTDOMINANTEYE{widget_id}-"
         self.gui_model_variant = f"-MODELVARIANT{widget_id}-"
@@ -158,26 +188,37 @@ class TrackingAlgorithmModule(BaseSettingsModule):
             self._main_config.register_listener_callback(self._on_model_variant_synced)
 
     def _build_eye_coupling(self, parent, row):
+        """Toggle plus a small table: per channel, the L/R gap up to which both
+        eyes read the same and the gap from which they are fully separate."""
         frame = ttk.Frame(parent)
         frame.grid(row=row, column=0, columnspan=6, sticky="w", padx=8, pady=(2, 4))
         couple_var = tk.BooleanVar(value=bool(getattr(self.config, "gui_NEXT_couple_eyes", False)))
         self.tk_vars[self.gui_NEXT_couple_eyes] = couple_var
         couple_cb = ttk.Checkbutton(frame, text=tr("algo_tracking.next_couple_eyes"), variable=couple_var)
-        couple_cb.pack(side="left")
+        couple_cb.grid(row=0, column=0, columnspan=4, sticky="w")
         attach_tooltip(couple_cb, tr("algo_tracking.next_couple_eyes_tip"))
-        for field, label, default in (
-            ("gui_NEXT_couple_lid_threshold", "next_couple_lid", DEFAULT_LID_THRESHOLD),
-            ("gui_NEXT_couple_brow_threshold", "next_couple_brow", DEFAULT_BROW_THRESHOLD),
-        ):
-            key = getattr(self, field)
+
+        hint = "#888888"
+        for col, key in ((1, "next_couple_sync_below"), (2, "next_couple_separate_above")):
+            head = ttk.Label(frame, text=tr(f"algo_tracking.{key}"), foreground=hint)
+            head.grid(row=1, column=col, sticky="w", padx=(12, 0))
+            attach_tooltip(head, tr(f"algo_tracking.{key}_tip"))
+        for r, (label, *ends) in enumerate(_COUPLING_ROWS, start=2):
             lbl = ttk.Label(frame, text=tr(f"algo_tracking.{label}"))
-            lbl.pack(side="left", padx=(16, 4))
+            lbl.grid(row=r, column=0, sticky="w", padx=(20, 0))
             attach_tooltip(lbl, tr(f"algo_tracking.{label}_tip"))
-            var = tk.StringVar(value=str(getattr(self.config, field, default)))
-            self.tk_vars[key] = var
-            entry = ttk.Entry(frame, textvariable=var, width=6)
-            entry.pack(side="left")
-            attach_tooltip(entry, tr(f"algo_tracking.{label}_tip"))
+            for col, (field, default) in enumerate(ends, start=1):
+                var = tk.StringVar(value=f"{float(getattr(self.config, field, default)):.2f}")
+                self.tk_vars[getattr(self, field)] = var
+                entry = ttk.Entry(frame, textvariable=var, width=6)
+                entry.grid(row=r, column=col, sticky="w", padx=(12, 0), pady=1)
+                attach_tooltip(entry, tr(f"algo_tracking.{label}_tip"))
+            ttk.Label(frame, text=tr(f"algo_tracking.{label}_scale"), foreground=hint).grid(
+                row=r, column=3, sticky="w", padx=(12, 0)
+            )
+        ttk.Label(frame, text=tr("algo_tracking.next_couple_note"), foreground=hint, wraplength=600).grid(
+            row=4, column=0, columnspan=4, sticky="w", padx=(20, 0), pady=(2, 0)
+        )
 
     def _build_gaze_mode(self, parent, row):
         frame = ttk.Frame(parent)

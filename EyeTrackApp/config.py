@@ -42,7 +42,12 @@ from pydantic import (
 from typing import Any, Union, List
 import os
 from eye import EyeId
-from next_eye_coupling import DEFAULT_BROW_THRESHOLD, DEFAULT_LID_THRESHOLD
+from next_eye_coupling import (
+    DEFAULT_BROW_SEPARATE_ABOVE,
+    DEFAULT_BROW_SYNC_BELOW,
+    DEFAULT_LID_SEPARATE_ABOVE,
+    DEFAULT_LID_SYNC_BELOW,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -391,14 +396,17 @@ class EyeTrackSettingsConfig(BaseModel):
     # neutral throughout the dot sequence, so those captures anchor "normal
     # open" / "neutral brow" to their target output values.
     gui_NEXT_calib_lids_brows: bool = True
-    # Couple left and right eyelid / eyebrow on the shared NEXT model: below
-    # the threshold gap both eyes read their mean, from 2.5x it each eye passes
-    # through (winks, one-sided raises), smoothstep in between. Thresholds are
-    # in sent values (lid 0.75 = normal open, brow 0.5 = neutral); 0 turns that
-    # channel off. See next_eye_coupling for the default values.
+    # Couple left and right eyelid / eyebrow on the shared NEXT model, by how
+    # far apart the two eyes read (the L/R gap, in sent values: lid 0.75 =
+    # normal open, brow 0.5 = neutral): at or below *_sync_below both eyes read
+    # their mean, at or above *_separate_above each eye passes through (winks,
+    # one-sided raises), smoothstep in between. separate_above 0 turns that
+    # channel off. See next_eye_coupling.
     gui_NEXT_couple_eyes: bool = False
-    gui_NEXT_couple_lid_threshold: float = DEFAULT_LID_THRESHOLD
-    gui_NEXT_couple_brow_threshold: float = DEFAULT_BROW_THRESHOLD
+    gui_NEXT_couple_lid_sync_below: float = DEFAULT_LID_SYNC_BELOW
+    gui_NEXT_couple_lid_separate_above: float = DEFAULT_LID_SEPARATE_ABOVE
+    gui_NEXT_couple_brow_sync_below: float = DEFAULT_BROW_SYNC_BELOW
+    gui_NEXT_couple_brow_separate_above: float = DEFAULT_BROW_SEPARATE_ABOVE
     # What the avatar's eyes get from the shared Hybrid model (next_eye_gaze):
     # "fused" = one shared gaze for both (default), "independent" = each eye
     # its own monocular gaze (strabismus: show the real deviation), "dominant"

@@ -7,16 +7,19 @@ import pytest
 from eye import EyeId
 from eye_processor import EyeProcessor, NextExpressionTransform
 from next_eye_coupling import (
-    DEFAULT_BROW_THRESHOLD,
-    DEFAULT_LID_THRESHOLD,
-    RELEASE_RATIO,
+    DEFAULT_BROW_SEPARATE_ABOVE,
+    DEFAULT_BROW_SYNC_BELOW,
+    DEFAULT_LID_SEPARATE_ABOVE,
+    DEFAULT_LID_SYNC_BELOW,
     NextExpressionCoupler,
     coupling_weight,
 )
 from next_stereo_model import SharedPass, StereoNextCoordinator, stereo_model_file
 
 STEP_S = 1.0 / 60.0
-LID, BROW = DEFAULT_LID_THRESHOLD, DEFAULT_BROW_THRESHOLD
+# (sync_below, separate_above) gap ranges
+LID = (DEFAULT_LID_SYNC_BELOW, DEFAULT_LID_SEPARATE_ABOVE)
+BROW = (DEFAULT_BROW_SYNC_BELOW, DEFAULT_BROW_SEPARATE_ABOVE)
 
 
 def _result(lid_l, lid_r, brow_l=0.5, brow_r=0.5, sq_l=0.0, sq_r=0.0):
@@ -115,13 +118,13 @@ def test_blend_is_continuous_in_the_gap():
         # A long step lets the weight settle on its target every pass.
         left, right = passes(_result(0.75, 0.75 - gap), dt=10.0)
         lefts.append(left[0])
-        assert left[0] - right[0] == pytest.approx(gap * (1.0 - coupling_weight(gap, LID)), abs=1e-6)
+        assert left[0] - right[0] == pytest.approx(gap * (1.0 - coupling_weight(gap, *LID)), abs=1e-6)
     steps = np.abs(np.diff(lefts))
     assert steps.max() < 3 * (gaps[1] - gaps[0])
     assert lefts[0] == pytest.approx(0.75)
     assert lefts[-1] == pytest.approx(0.75)  # past release: own value
-    assert coupling_weight(LID, LID) == 1.0
-    assert coupling_weight(LID * RELEASE_RATIO, LID) == 0.0
+    assert coupling_weight(LID[0], *LID) == 1.0
+    assert coupling_weight(LID[1], *LID) == 0.0
 
 
 def test_wink_onset_never_snaps():
@@ -129,8 +132,8 @@ def test_wink_onset_never_snaps():
     for _ in range(60):
         passes(_result(0.75, 0.75))
     # The largest shift coupling ever applies: weight x half the gap.
-    gaps = np.linspace(0.0, LID * RELEASE_RATIO, 1001)
-    max_shift = max(coupling_weight(g, LID) * g / 2 for g in gaps)
+    gaps = np.linspace(0.0, LID[1], 1001)
+    max_shift = max(coupling_weight(g, *LID) * g / 2 for g in gaps)
     assert max_shift < 0.075
     previous = (0.75, 0.75)
     step = 0.75 / 8
@@ -164,9 +167,34 @@ def test_waits_for_both_transforms():
     assert coupler.couple(EyeId.LEFT, SharedPass(0, _result(0.7, 0.75), True, 1.0), LID, BROW) is None
 
 
-def test_zero_threshold_turns_a_channel_off():
-    assert coupling_weight(0.0, 0.0) == 0.0
-    assert coupling_weight(0.01, -1.0) == 0.0
+def test_zero_separate_turns_a_channel_off():
+    assert coupling_weight(0.0, 0.0, 0.0) == 0.0
+    assert coupling_weight(0.01, 0.1, 0.0) == 0.0
+
+
+def test_equal_ends_switch_hard_at_that_gap():
+    assert coupling_weight(0.19, 0.2, 0.2) == 1.0
+    assert coupling_weight(0.2, 0.2, 0.2) == 0.0
+
+
+@pytest.mark.parametrize(
+    "sync_below,separate_above,ok",
+    [(0.12, 0.30, True), (0.2, 0.2, True), (0.1, 0.0, True), (0.3, 0.2, False), (0.1, 1.5, False)],
+)
+def test_settings_reject_an_inverted_or_out_of_range_gap_range(sync_below, separate_above, ok):
+    import pydantic
+
+    from config import EyeTrackSettingsConfig
+    from settings.modules.TrackingAlgorithmModule import TrackingAlgorithmValidationModel
+
+    defaults = EyeTrackSettingsConfig()
+    values = {f: getattr(defaults, f) for f in TrackingAlgorithmValidationModel.model_fields}
+    values.update(gui_NEXT_couple_lid_sync_below=sync_below, gui_NEXT_couple_lid_separate_above=separate_above)
+    if ok:
+        TrackingAlgorithmValidationModel(**values)
+    else:
+        with pytest.raises(pydantic.ValidationError):
+            TrackingAlgorithmValidationModel(**values)
 
 
 def test_coupling_compares_calibrated_values():
@@ -189,8 +217,10 @@ def _processor(eye_id, couple=True):
     processor.settings = SimpleNamespace(
         gui_NEXT_calib_lids_brows=True,
         gui_NEXT_couple_eyes=couple,
-        gui_NEXT_couple_lid_threshold=LID,
-        gui_NEXT_couple_brow_threshold=BROW,
+        gui_NEXT_couple_lid_sync_below=LID[0],
+        gui_NEXT_couple_lid_separate_above=LID[1],
+        gui_NEXT_couple_brow_sync_below=BROW[0],
+        gui_NEXT_couple_brow_separate_above=BROW[1],
         gui_flip_x_axis_left=False,
         gui_flip_x_axis_right=False,
         gui_flip_y_axis=False,
