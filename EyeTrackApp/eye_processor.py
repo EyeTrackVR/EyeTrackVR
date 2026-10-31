@@ -53,6 +53,13 @@ from daddy import External_Run_DADDY
 from leap import External_Run_LEAP
 from next_model import External_Run_NEXT, variant_from_settings
 from next_stereo_model import get_stereo_coordinator
+from next_eye_gaze import (
+    GAZE_MODE_DOMINANT,
+    GAZE_MODE_FUSED,
+    dominant_eye_from_settings,
+    gaze_mode_from_settings,
+    select_eye_gaze,
+)
 from frame_eye import models_paused_for_recording
 from haar_surround_feature import External_Run_HSF
 from ransac import *
@@ -862,14 +869,30 @@ class EyeProcessor:
             if coord.supports_single_eye or coord.peer_active(self.eye_id):
                 self._next_mode_changed(True)
                 gaze_x, gaze_y, eyebrow, eyelid, squeeze = coord.run(self.eye_id, base_cutoff, base_beta)
+                served = coord.served_pass(self.eye_id)
+                raw_gaze = coord.raw_gaze()
+                extra = {}
+                # Per-eye gaze modes (strabismus / amblyopia, see next_eye_gaze):
+                # swap in the Hybrid's monocular gaze of the same pass. Recenter
+                # then references the dominant eye, so it can't zero a real
+                # deviation the way a per-eye recenter would.
+                mode = gaze_mode_from_settings(self.settings)
+                eye_gaze = getattr(served, "eye_gaze", None)
+                if mode != GAZE_MODE_FUSED and eye_gaze is not None:
+                    dominant = dominant_eye_from_settings(self.settings)
+                    gaze_x, gaze_y = select_eye_gaze(eye_gaze, self.eye_id, mode, dominant)
+                    if served.raw_eye_gaze is not None:
+                        raw_gaze = select_eye_gaze(served.raw_eye_gaze, self.eye_id, mode, dominant)
+                    extra["recenter_gaze"] = select_eye_gaze(eye_gaze, dominant, GAZE_MODE_DOMINANT, dominant)
                 self._next_apply(
                     gaze_x,
                     gaze_y,
                     eyebrow,
                     eyelid,
                     squeeze,
-                    raw_gaze=coord.raw_gaze(),
-                    shared=(coord.expression_coupler, coord.served_pass(self.eye_id)),
+                    raw_gaze=raw_gaze,
+                    shared=(coord.expression_coupler, served),
+                    **extra,
                 )
                 return
 
@@ -898,6 +921,12 @@ class EyeProcessor:
         """Foveated-rendering gaze: the model's unfiltered gaze through the same
         Smart Calib transform, flips and recenter offset as the OSC gaze, with no
         median / One-Euro smoothing. Call after the recenter offset is updated."""
+        x, y = self._next_calibrate_flip(raw_x, raw_y)
+        return x - self._next_recenter_offset_x, y - self._next_recenter_offset_y
+
+    def _next_calibrate_flip(self, raw_x: float, raw_y: float) -> tuple[float, float]:
+        """A model-space gaze through this eye's Smart Calib transform and
+        user flips, exactly as the OSC gaze gets them (before recenter)."""
         x, y = raw_x, raw_y
         if self._next_smartcal_w is not None and self._next_smartcal_b is not None:
             x, y = next_smartcal_apply(
@@ -918,7 +947,7 @@ class EyeProcessor:
             x = -x
         if self.settings.gui_flip_y_axis:
             y = -y
-        return x - self._next_recenter_offset_x, y - self._next_recenter_offset_y
+        return x, y
 
     def _next_expression_transform(self) -> NextExpressionTransform:
         calibrate = self.settings.gui_NEXT_calib_lids_brows
@@ -951,14 +980,17 @@ class EyeProcessor:
         )
         return (eyeopen, eyebrow) if coupled is None else coupled
 
-    def _next_apply(self, gaze_x, gaze_y, eyebrow, eyelid, squeeze, raw_gaze=None, shared=None):
+    def _next_apply(self, gaze_x, gaze_y, eyebrow, eyelid, squeeze, raw_gaze=None, shared=None, recenter_gaze=None):
         """Shared NEXT post-processing for the mono and stereo model paths:
         user-configured flips, smart-calibration, recenter, eyelid remap, and
         the OSC enqueue. Inputs preserve the model's native axis orientation.
         ``raw_gaze`` is the same gaze before the runner's filtering; it becomes
         the foveated-rendering gaze (self.dfr_x / dfr_y). ``shared`` is the
         stereo path's (expression coupler, served pass), None on the per-eye
-        fallback, which has no paired reading to couple against."""
+        fallback, which has no paired reading to couple against.
+        ``recenter_gaze`` (per-eye gaze modes only) is the model-space gaze the
+        recenter offset is taken from instead of this eye's own: the dominant
+        eye's, so recentering keeps a real deviation between the eyes."""
         # Raw model gaze, before user-configured flips, in [-1, 1].
         model_gaze_x, model_gaze_y = gaze_x, gaze_y
 
@@ -1046,8 +1078,11 @@ class EyeProcessor:
         # briefly (same 0.2s gate as the calibration path) to let both eyes
         # capture their offset before clearing the flag.
         if self.settings.gui_recenter_eyes:
-            self._next_recenter_offset_x = gaze_x
-            self._next_recenter_offset_y = gaze_y
+            if recenter_gaze is None:
+                self._next_recenter_offset_x = gaze_x
+                self._next_recenter_offset_y = gaze_y
+            else:
+                self._next_recenter_offset_x, self._next_recenter_offset_y = self._next_calibrate_flip(*recenter_gaze)
             now = time.perf_counter()
             if self._next_recenter_armed_at is None:
                 self._next_recenter_armed_at = now

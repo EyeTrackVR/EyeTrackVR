@@ -31,13 +31,17 @@ def _settle_times(monkeypatch, passes_per_s, valid, step_s):
     model._gaze_x_window = TimedMedian(3)
     model._gaze_y_window = TimedMedian(3)
     model._last_expr = {EyeId.LEFT: None, EyeId.RIGHT: None}
+    model.init_eye_gaze_state()
     hits = {}
     for i in range(int(3.0 * passes_per_s)):
         t = i / passes_per_s
         clock[0] = t
         raw = np.zeros(12, dtype=np.float32)
-        raw[6] = 0.5 if t >= 1.0 else 0.0
+        raw[6] = raw[8] = raw[10] = 0.5 if t >= 1.0 else 0.0
         out = model.postprocess(raw, valid, BASE_CUTOFF, BASE_BETA)
+        # Per-eye gaze modes get the shared gaze's exact (fixed-step) smoothing.
+        if step_s is not None:
+            np.testing.assert_allclose(model.last_eye_gaze[[0, 2]], out[6], atol=1e-6)
         for frac in (0.5, 0.9):
             if t >= 1.0 and frac not in hits and out[6] >= 0.5 * frac:
                 hits[frac] = (t - 1.0) * 1000.0

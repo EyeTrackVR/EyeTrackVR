@@ -30,7 +30,8 @@ E2E_ETVR_Stereo/src/export_onnx_stereo.py):
   metadata        : missing_eye='black-frame', camera_timing='independent-latest',
                     gaze_y_axis='down'|'up', temporal_frames, frame_stride.
   Hybrid appends four monocular gaze values at [8:12]. The default tracker
-  consumes [0:8], preserving shared gaze and per-eye expressions.
+  consumes [0:8], preserving shared gaze and per-eye expressions; [8:12] is
+  smoothed separately for the opt-in per-eye gaze modes (next_eye_gaze).
 
 CAMERA TIMING (the part the host app owns). The ETVR stereo model is trained to
 be desync aware, but the timing decision itself is made out here, because frame
@@ -80,6 +81,7 @@ from next_model import (
     split_variant,
 )
 from next_eye_coupling import NextExpressionCoupler
+from next_eye_gaze import PerEyeGaze
 from one_euro_filter import OneEuroFilter
 from utils.misc_utils import resource_path
 from utils.onnx_runtime import DML_INFERENCE_LOCK, create_inference_session
@@ -99,6 +101,9 @@ _GAZE_MEDIAN_WINDOW = 3
 # least, duplicated across the left/right expression triples.
 #          ebL  elidL  sqL   ebR  elidR  sqR   gx   gy
 _FILTER_MUL = np.array([1.0, 10.0, 5.0, 1.0, 10.0, 5.0, 0.1, 0.1], dtype=np.float32)
+# Hybrid per-eye gaze [8:12] (see next_eye_gaze) gets exactly the shared gaze's
+# median and One-Euro settings, on a separate filter so [0:8] is untouched.
+_EYE_GAZE_FILTER_MUL = np.full(4, _FILTER_MUL[6], dtype=np.float32)
 
 # ImageNet normalization constants (CHW), only used for the (not expected)
 # legacy case where an export didn't bake normalization into the graph.
@@ -230,6 +235,21 @@ class NEXT_Stereo_cls:
         # Last raw expression triple each eye produced while it was actually
         # fed to the model (see postprocess).
         self._last_expr = {EyeId.LEFT: None, EyeId.RIGHT: None}
+        self.init_eye_gaze_state()
+
+    def init_eye_gaze_state(self) -> None:
+        """Smoothing state of the Hybrid per-eye gaze [x_l, y_l, x_r, y_r];
+        last_eye_gaze / last_raw_eye_gaze stay None for an 8-output export."""
+        self.eye_gaze_filter = OneEuroFilter(
+            np.zeros(4, dtype=np.float32),
+            min_cutoff=1.0,
+            beta=0.0,
+            step_s=NEXT_FILTER_STEP_S,
+        )
+        self._eye_gaze_windows = [TimedMedian(_GAZE_MEDIAN_WINDOW) for _ in range(4)]
+        self._per_eye_gaze = PerEyeGaze()
+        self.last_eye_gaze = None
+        self.last_raw_eye_gaze = None
 
     def chw(self, frame: _Frame) -> np.ndarray:
         """One BGR eye frame -> [3, H, W] float32 (raw 0..255 RGB, or normalized
@@ -268,7 +288,9 @@ class NEXT_Stereo_cls:
         """Axis normalization, missing-eye expression hold, median spike reject
         and One-Euro smoothing. Returns the filtered 8-vector in model order."""
         # Hybrid extends the legacy stereo contract in place. Its auxiliary
-        # monocular gaze heads are not expression/filter channels.
+        # monocular gaze heads are not expression/filter channels; they are
+        # smoothed on their own below (per-eye gaze modes).
+        eye_raw = raw[8:12].astype(np.float32) if raw.shape[0] >= 12 else None
         raw = raw[:8].copy()
         self.one_euro_filter.min_cutoff[:] = base_cutoff * _FILTER_MUL
         self.one_euro_filter.beta[:] = base_beta * _FILTER_MUL
@@ -296,7 +318,27 @@ class NEXT_Stereo_cls:
         raw[6] = self._gaze_x_window(float(raw[6]), now)
         raw[7] = self._gaze_y_window(float(raw[7]), now)
 
-        return self.one_euro_filter(raw).astype(np.float32)
+        out = self.one_euro_filter(raw).astype(np.float32)
+        if eye_raw is not None:
+            self._filter_eye_gaze(eye_raw, valid, float(raw[1]), float(raw[4]), now, base_cutoff, base_beta)
+        return out
+
+    def _filter_eye_gaze(self, eye_raw, valid, lid_l, lid_r, now, base_cutoff, base_beta) -> None:
+        """Per-eye gaze for the independent / dominant gaze modes: the export
+        negates channels 9 and 11 together with 7, so the same Y sign applies.
+        Unusable eyes (black sentinel, wink) are rebuilt before any filtering,
+        so the sentinel's zeros never reach the median or One-Euro state."""
+        eye_raw[1] *= self.gaze_y_sign
+        eye_raw[3] *= self.gaze_y_sign
+        eye = self._per_eye_gaze.update(
+            eye_raw, valid.get(EyeId.LEFT, True), valid.get(EyeId.RIGHT, True), lid_l, lid_r, now
+        )
+        self.last_raw_eye_gaze = eye.copy()
+        for i, window in enumerate(self._eye_gaze_windows):
+            eye[i] = window(float(eye[i]), now)
+        self.eye_gaze_filter.min_cutoff[:] = base_cutoff * _EYE_GAZE_FILTER_MUL
+        self.eye_gaze_filter.beta[:] = base_beta * _EYE_GAZE_FILTER_MUL
+        self.last_eye_gaze = self.eye_gaze_filter(eye).astype(np.float32)
 
 
 class SharedPass(NamedTuple):
@@ -306,6 +348,10 @@ class SharedPass(NamedTuple):
     result: np.ndarray  # filtered 8-vector
     both_eyes: bool  # neither eye was the black-frame sentinel
     ts: float  # perf_counter when the pass was filtered
+    # Hybrid per-eye gaze [x_l, y_l, x_r, y_r] of the same pass (filtered /
+    # unfiltered), None for 8-output exports. See next_eye_gaze.
+    eye_gaze: np.ndarray | None = None
+    raw_eye_gaze: np.ndarray | None = None
 
 
 def slice_stereo_result(result: np.ndarray, eye_id) -> tuple:
@@ -420,6 +466,8 @@ class StereoNextCoordinator:
                     out,
                     bool(valid[EyeId.LEFT] and valid[EyeId.RIGHT]),
                     time.perf_counter(),
+                    getattr(self.runner, "last_eye_gaze", None),
+                    getattr(self.runner, "last_raw_eye_gaze", None),
                 )
                 self._served[eye_id] = self._pass
                 self.last_mode = mode

@@ -42,6 +42,7 @@ from utils.robust_calibration import RobustCalibrationSession, CalibrationPhase
 from utils.bs_detector import BSDetector
 from pathlib import Path
 from utils.overlay_launch import overlay_executable, overlay_language_arg
+from next_eye_gaze import GAZE_MODE_FUSED, dominant_eye_from_settings, gaze_mode_from_settings
 
 logger = logging.getLogger(__name__)
 
@@ -824,10 +825,24 @@ def _fit_next_smartcal(eye_processors: list, baseconfig, settings) -> bool:
     fraction of the output full-scale FOV, not its overlay radius, so the outer
     ring keeps headroom to the edge (see that function).
 
+    In the per-eye gaze modes (gui_NEXT_gaze_mode, see next_eye_gaze) the gaze
+    transform is fit ONCE, on the dominant eye, and applied to both eyes. Each
+    eye's own fit would pull it onto the dots and erase exactly the deviation
+    independent mode exists to show; the dominant eye is the one that actually
+    fixates them. Both eyes share one monocular head, so one user-level
+    correction fits both. (Lid/brow anchors stay per eye.)
+
     Returns True if at least one eye produced a usable transform (and was saved)."""
     targets = next_smartcal_targets(settings)
     saved_any = False
-    for ep in eye_processors:
+    sources = eye_processors
+    shared_fit = False
+    if gaze_mode_from_settings(settings) != GAZE_MODE_FUSED:
+        dominant = dominant_eye_from_settings(settings)
+        source = [ep for ep in eye_processors if getattr(ep, "eye_id", None) == dominant]
+        if source:
+            sources, shared_fit = source, True
+    for ep in sources:
         eye = getattr(ep, "eye_id", "?")
         samples = getattr(ep, "_next_smartcal_samples", {}) or {}
         raws, tgts, fit_weights = [], [], []
@@ -945,16 +960,18 @@ def _fit_next_smartcal(eye_processors: list, baseconfig, settings) -> bool:
             )
             continue
 
-        ep.config.next_smartcal_w = w
-        ep.config.next_smartcal_b = b
-        ep.config.next_smartcal_warp = warp
-        ep._next_smartcal_w = w
-        ep._next_smartcal_b = b
-        ep._next_smartcal_warp = warp
+        for dst in eye_processors if shared_fit else (ep,):
+            dst.config.next_smartcal_w = list(w)
+            dst.config.next_smartcal_b = list(b)
+            dst.config.next_smartcal_warp = warp
+            dst._next_smartcal_w = list(w)
+            dst._next_smartcal_b = list(b)
+            dst._next_smartcal_warp = warp
         saved_any = True
         logger.info(
-            "NEXT smart cal (eye %s): fit from %d dots (warp=%s): W=%s B=%s (residual %.3f)",
+            "NEXT smart cal (eye %s%s): fit from %d dots (warp=%s): W=%s B=%s (residual %.3f)",
             eye,
+            ", dominant: applied to both eyes" if shared_fit else "",
             len(raws),
             warp,
             [round(v, 4) for v in w],

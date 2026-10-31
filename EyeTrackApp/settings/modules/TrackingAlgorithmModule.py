@@ -3,11 +3,12 @@ import tkinter as tk
 from tkinter import ttk
 
 from pydantic import Field
-from typing_extensions import Annotated
+from typing_extensions import Annotated, Literal
 
 from utils.tooltips import attach_tooltip
 from localization import tr
 from next_eye_coupling import DEFAULT_BROW_THRESHOLD, DEFAULT_LID_THRESHOLD
+from next_eye_gaze import DOMINANT_EYES, GAZE_MODES
 from next_model import (
     DEFAULT_MODEL_SIZE,
     EXPERIMENTAL_MODEL_SIZES,
@@ -42,6 +43,8 @@ class TrackingAlgorithmValidationModel(BaseValidationModel):
     gui_NEXT_couple_eyes: bool
     gui_NEXT_couple_lid_threshold: CouplingThreshold
     gui_NEXT_couple_brow_threshold: CouplingThreshold
+    gui_NEXT_gaze_mode: Literal[GAZE_MODES]
+    gui_NEXT_dominant_eye: Literal[DOMINANT_EYES]
     gui_model_variant: str
     gui_model_size: str
     gui_max_tracking_speed: int
@@ -70,6 +73,8 @@ class TrackingAlgorithmModule(BaseSettingsModule):
         self.gui_NEXT_couple_eyes = f"-NEXTCOUPLEEYES{widget_id}-"
         self.gui_NEXT_couple_lid_threshold = f"-NEXTCOUPLELID{widget_id}-"
         self.gui_NEXT_couple_brow_threshold = f"-NEXTCOUPLEBROW{widget_id}-"
+        self.gui_NEXT_gaze_mode = f"-NEXTGAZEMODE{widget_id}-"
+        self.gui_NEXT_dominant_eye = f"-NEXTDOMINANTEYE{widget_id}-"
         self.gui_model_variant = f"-MODELVARIANT{widget_id}-"
         self.gui_model_size = f"-MODELSIZE{widget_id}-"
         self.gui_max_tracking_speed = f"-MAXTRACKSPEED{widget_id}-"
@@ -138,9 +143,12 @@ class TrackingAlgorithmModule(BaseSettingsModule):
         # Left/right eyelid and eyebrow coupling, with its two thresholds.
         self._build_eye_coupling(parent, row=3)
 
+        # Per-eye gaze for strabismus / amblyopia (fused by default).
+        self._build_gaze_mode(parent, row=4)
+
         # NEXT model: headset family plus a size slider (lightest -> best).
         model_frame = ttk.Frame(parent)
-        model_frame.grid(row=4, column=0, columnspan=6, sticky="w", padx=8, pady=(2, 4))
+        model_frame.grid(row=5, column=0, columnspan=6, sticky="w", padx=8, pady=(2, 4))
         self._build_model_selector(model_frame)
 
         # Keep the combobox in sync when the setup-mode auto-shift changes the
@@ -170,6 +178,32 @@ class TrackingAlgorithmModule(BaseSettingsModule):
             entry = ttk.Entry(frame, textvariable=var, width=6)
             entry.pack(side="left")
             attach_tooltip(entry, tr(f"algo_tracking.{label}_tip"))
+
+    def _build_gaze_mode(self, parent, row):
+        frame = ttk.Frame(parent)
+        frame.grid(row=row, column=0, columnspan=6, sticky="w", padx=8, pady=(2, 4))
+        for field, label, keys, default, width in (
+            ("gui_NEXT_gaze_mode", "next_gaze_mode", GAZE_MODES, "fused", 12),
+            ("gui_NEXT_dominant_eye", "next_dominant_eye", DOMINANT_EYES, "left", 7),
+        ):
+            stored = str(getattr(self.config, field, default) or default).lower()
+            var = tk.StringVar(value=stored if stored in keys else default)
+            self.tk_vars[getattr(self, field)] = var
+            lbl = ttk.Label(frame, text=tr(f"algo_tracking.{label}"))
+            lbl.pack(side="left", padx=(0 if field == "gui_NEXT_gaze_mode" else 16, 4))
+            attach_tooltip(lbl, tr(f"algo_tracking.{label}_tip"))
+            # The combobox shows labels; var keeps the stored key.
+            labels = {key: tr(f"algo_tracking.{label}_{key}") for key in keys}
+            label_var = tk.StringVar(value=labels[var.get()])
+            combo = ttk.Combobox(
+                frame, textvariable=label_var, values=list(labels.values()), state="readonly", width=width
+            )
+            combo.pack(side="left")
+            attach_tooltip(combo, tr(f"algo_tracking.{label}_tip"))
+            by_label = {text: key for key, text in labels.items()}
+            combo.bind("<<ComboboxSelected>>", lambda _e, v=var, lv=label_var, m=by_label: v.set(m[lv.get()]))
+            # Reset to defaults writes the key; keep the shown label in step.
+            var.trace_add("write", lambda *_a, v=var, lv=label_var, t=labels, d=default: lv.set(t.get(v.get(), t[d])))
 
     def _build_model_selector(self, parent):
         hmd, legacy_size = split_variant(getattr(self.config, "gui_model_variant", "ETVR"))

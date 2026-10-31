@@ -399,6 +399,13 @@ class EyeTrackSettingsConfig(BaseModel):
     gui_NEXT_couple_eyes: bool = False
     gui_NEXT_couple_lid_threshold: float = DEFAULT_LID_THRESHOLD
     gui_NEXT_couple_brow_threshold: float = DEFAULT_BROW_THRESHOLD
+    # What the avatar's eyes get from the shared Hybrid model (next_eye_gaze):
+    # "fused" = one shared gaze for both (default), "independent" = each eye
+    # its own monocular gaze (strabismus: show the real deviation), "dominant"
+    # = both eyes follow gui_NEXT_dominant_eye ("left"/"right"), which is also
+    # the eye Smart Calib and recenter use in the two per-eye modes.
+    gui_NEXT_gaze_mode: str = "fused"
+    gui_NEXT_dominant_eye: str = "left"
     # Headset (HMD) the models were trained for: ETVR / BSB / PSVR (shown as
     # PSVR/TOBII). PSVR is a manual NEXT-only choice; setup-mode auto-selection remains
     # limited to ETVR and BSB. Selects the NEXT Hybrid family and
