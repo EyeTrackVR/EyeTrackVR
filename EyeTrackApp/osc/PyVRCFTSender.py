@@ -20,7 +20,7 @@ import math
 
 from eye import EyeId
 from osc.OSCMessage import OSCMessage
-from osc.VRChatOSCSender import VRChatOSCSender
+from osc.VRChatOSCSender import VRChatOSCSender, brow_expression
 
 from pyvrcft import UnifiedTrackingData, VRCFTClient
 
@@ -154,11 +154,16 @@ class PyVRCFTSender:
         is_single = VRChatOSCSender.get_is_single_eye(main_config.eye_display_id)
         # The other modes drive v2/BrowExpression directly. Here we set the
         # underlying brow shapes so the pipeline derives the same value:
-        # BrowExpression = min(1, innerUp*0.5 + outerUp*0.5) - browDown.
-        if is_single or eye_id == EyeId.LEFT:
-            self._set_shape("BrowInnerUpLeft", brow_val)
-            self._set_shape("BrowOuterUpLeft", brow_val)
-        if is_single or eye_id == EyeId.RIGHT:
-            self._set_shape("BrowInnerUpRight", brow_val)
-            self._set_shape("BrowOuterUpRight", brow_val)
+        # BrowExpression = min(1, innerUp*0.5 + outerUp*0.5) - browDown, with
+        # browDown = lowerer*0.75 + pinch*0.25. A raise drives the up shapes and
+        # a lower drives lowerer + pinch, so both ends reach +-1.
+        expr = brow_expression(brow_val)
+        up, down = max(expr, 0.0), max(-expr, 0.0)
+        sides = [s for s, on in (("Left", is_single or eye_id == EyeId.LEFT),
+                                 ("Right", is_single or eye_id == EyeId.RIGHT)) if on]
+        for side in sides:
+            self._set_shape(f"BrowInnerUp{side}", up)
+            self._set_shape(f"BrowOuterUp{side}", up)
+            self._set_shape(f"BrowLowerer{side}", down)
+            self._set_shape(f"BrowPinch{side}", down)
         self.client.update_tracking(self.data)

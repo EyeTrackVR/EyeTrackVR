@@ -15,6 +15,16 @@ def _eyelid_transformer(config, eye_blink):
         return float(eye_blink)
 
 
+def brow_expression(brow_val) -> float:
+    """Tracker brow (0..1, 0.5 = neutral) -> VRCFT BrowExpression (-1..+1, 0 = neutral).
+
+    Every brow source (NEXT, the standalone eyebrow model) is 0 = fully
+    lowered, 0.5 = rest, 1 = fully raised. Sent raw, a resting face read as a
+    half raise and a full lower only reached the avatar's neutral.
+    """
+    return max(-1.0, min(1.0, 2.0 * float(brow_val) - 1.0))
+
+
 class OutputType(IntEnum):
     V1_PARAMS = 1
     V2_PARAMS = 2
@@ -412,6 +422,7 @@ class VRChatOSCSender:
             self.l_brow = brow_val
         elif eye_id == EyeId.RIGHT:
             self.r_brow = brow_val
+        brow_val = brow_expression(brow_val)
 
         if self.is_single_eye:
             client.send_message("/avatar/parameters/v2/BrowExpression", brow_val)

@@ -599,7 +599,12 @@ _SMARTCAL_CENTER_WEIGHT = 6.0
 # saturating model needs a small gain (arctanh expands the input), so the lower
 # bound is looser than a raw-space affine would need. Smart calibration is only
 # a per-user polish, so large gains or offsets are rejected rather than saved.
-_SMARTCAL_MAX_GAIN = 1.75
+# MAX was 1.75, which rejected exactly the users who need calibration most: on
+# people the shared hybrid did not train on, held-out BSB gaze_y comes out at
+# ~0.39x the true movement (per-user 0.31-0.46x, consistent rather than noisy),
+# so a correct fit needs ~2.2-3.2x and was thrown away for the raw, compressed
+# gaze. Degenerate fits seen in the wild were 10-200x, still far above this.
+_SMARTCAL_MAX_GAIN = 3.2
 _SMARTCAL_MIN_GAIN = 0.08
 _SMARTCAL_MAX_BIAS = 0.30
 # Mean L2 distance between the fitted mapping of the captured points and their
@@ -616,8 +621,11 @@ _SMARTCAL_MIN_RAW_SPREAD = 0.10
 # corner; this catches it directly. (A warp+affine with det(W) > 0 is injective,
 # so no fold back or monotonicity walk is needed because that was only for the old
 # cubic.) The limit leaves headroom for a real per-user gain without allowing
-# half gaze to clip at the output edge.
-_SMARTCAL_SANITY_EARLY_R = 0.50
+# a small raw gaze to clip at the output edge. The ring radius scales with
+# MAX_GAIN: at 0.50 it capped the effective gain near 1.7 on its own, and an
+# under-driving model never reaches raw 0.5 for a user who needs a 2.5x fit
+# (that would be 1.25 of real gaze). 0.25 keeps the same guard at that gain.
+_SMARTCAL_SANITY_EARLY_R = 0.25
 _SMARTCAL_SANITY_EARLY_MAX = 0.85
 
 # ── Lid / brow half of the smart calibration ──────────────────────────────────

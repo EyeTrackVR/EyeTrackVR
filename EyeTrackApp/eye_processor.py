@@ -696,7 +696,12 @@ class EyeProcessor:
 
         blink_vec = min(abs(self.eyeopen - self.past_blink), 1)  # clamp to 1
 
-        if blink_vec >= 0.18:
+        # Hold Y through a blink for the pupil trackers, whose Y jumps when the
+        # lid covers the pupil. NEXT is trained to keep gaze through blinks
+        # (blinkdot frames supervise it), and its lid output is the fastest
+        # filtered channel, so a brow raise or squint (lid moves >= 0.18 in a
+        # frame) froze vertical gaze to a 100-frame average instead.
+        if blink_vec >= 0.18 and not self._next_active:
             # self.out_x = sum(self.prev_x_list) / len(self.prev_x_list)
             self.out_y = sum(self.prev_y_list) / len(self.prev_y_list)
 
