@@ -1,4 +1,4 @@
-"""FrameDrop manifest for the Steam Frame release (scripts/frame/write_framedrop_manifest.py)."""
+"""FrameDrop manifest for the Steam Frame release (packaging/steamframe/write_framedrop_manifest.py)."""
 
 import hashlib
 import importlib.util
@@ -8,7 +8,7 @@ from urllib.parse import parse_qs, urlparse
 
 import pytest
 
-SCRIPT = Path(__file__).resolve().parents[1] / "scripts" / "frame" / "write_framedrop_manifest.py"
+SCRIPT = Path(__file__).resolve().parents[1] / "packaging" / "steamframe" / "write_framedrop_manifest.py"
 spec = importlib.util.spec_from_file_location("write_framedrop_manifest", SCRIPT)
 manifest_writer = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(manifest_writer)

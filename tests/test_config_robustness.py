@@ -144,9 +144,9 @@ class _Var:
 
 
 def test_reset_hooks_restore_osc_mode_and_algorithm():
-    from settings.BaseSettings import BaseSettingsWidget
-    from settings.modules.OSCSettingsModule import OSCSettingsModule
-    from settings.modules.TrackingAlgorithmModule import TrackingAlgorithmModule
+    from settings.base_settings import BaseSettingsWidget
+    from settings.modules.osc_settings_module import OSCSettingsModule
+    from settings.modules.tracking_algorithm_module import TrackingAlgorithmModule
 
     user = EyeTrackSettingsConfig(gui_vrc_native=True, gui_pyvrcft=False, gui_LEAP=True, gui_NEXT=False)
     defaults = EyeTrackSettingsConfig()

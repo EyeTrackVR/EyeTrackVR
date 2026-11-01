@@ -9,9 +9,9 @@ from unittest import mock
 
 import pytest
 
-from OVR import OpenXRLayerRegistration as reg
+from ovr import openxr_layer_registration as reg
 from osc.osc import OSCManager
-from conftest import _FakeRegistry
+from tests.conftest import _FakeRegistry
 
 
 def _layer(root):
@@ -179,8 +179,8 @@ def test_osc_manager_syncs_driver_and_layer_with_the_toggle(main_config_v2_param
 
     s = main_config_v2_params.settings
     with (
-        mock.patch("OVR.SteamVRDriverRegistration.sync_quietly", side_effect=lambda e: calls.append(("driver", e))),
-        mock.patch("OVR.OpenXRLayerRegistration.sync_quietly", side_effect=lambda e: calls.append(("layer", e))),
+        mock.patch("ovr.steamvr_driver_registration.sync_quietly", side_effect=lambda e: calls.append(("driver", e))),
+        mock.patch("ovr.openxr_layer_registration.sync_quietly", side_effect=lambda e: calls.append(("layer", e))),
         mock.patch("osc.osc.udp_client.SimpleUDPClient"),
     ):
         manager = OSCManager(config=main_config_v2_params, osc_message_in_queue=Queue())

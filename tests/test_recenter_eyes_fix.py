@@ -7,8 +7,8 @@ Verifies that Recenter Eyes saves offset without overwriting ellipse calibration
 import sys
 import os
 
-# Add EyeTrackApp to path
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "EyeTrackApp")))
+# Add eyetrackapp to path
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "eyetrackapp")))
 
 from utils.calibration_elipse import CalibrationEllipse
 from config import EyeTrackCameraConfig

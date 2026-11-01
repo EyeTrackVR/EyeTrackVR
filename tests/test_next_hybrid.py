@@ -47,17 +47,17 @@ def _image(seed=1):
 )
 def test_hardware_selects_one_hybrid_artifact_for_both_camera_modes(base, stem):
     for variant, suffix in ((base, ".onnx"), (base + " LITE", ".fp16.onnx")):
-        expected = f"Models/{stem}{suffix}"
+        expected = f"assets/models/{stem}{suffix}"
         assert model_file_for_variant(variant) == expected
         assert stereo_model_file(variant) == expected
     # Tobii shares the PSVR family (trained on the Tobii dataset).
-    assert model_file_for_variant("TOBII") == "Models/NEXT_ETVR_HYBRID_PSVR.onnx"
+    assert model_file_for_variant("TOBII") == "assets/models/NEXT_ETVR_HYBRID_PSVR.onnx"
 
 
 @pytest.mark.parametrize("base,suffix", [("ETVR", ""), ("BSB", "_BSB"), ("PSVR", "_PSVR")])
 @pytest.mark.parametrize("size", ["SMALL", "MINI", "MICRO", "NANO"])
 def test_hardware_selects_its_tiny_export_for_each_size(base, suffix, size):
-    expected = f"Models/NEXT_ETVR_HYBRID_TINY_{size}{suffix}.onnx"
+    expected = f"assets/models/NEXT_ETVR_HYBRID_TINY_{size}{suffix}.onnx"
     assert model_file_for_variant(f"{base} {size}") == expected
     assert stereo_model_file(f"{base} {size}") == expected
 

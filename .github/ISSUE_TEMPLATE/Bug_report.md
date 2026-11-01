@@ -26,7 +26,7 @@ _A clear and concise description of what the problem is._
 ### REQUESTED INFORMATION
 _Make sure your have performed every step and checked the applicable boxes before submitting your issue. Thank you!_
 
-- [ ] Read the [Contributing Guide and Policy](https://github.com/RedHawk989/EyeTrackVR/repo-tools/CONTRIBUTING.md) and [the Code of Conduct](https://github.com/RedHawk989/EyeTrackVR/CODE_OF_CONDUCT.md)
+- [ ] Read the [Contributing Guide and Policy](https://github.com/EyeTrackVR/EyeTrackVR/blob/main/.github/CONTRIBUTING.md) and [the Code of Conduct](https://github.com/EyeTrackVR/EyeTrackVR/blob/main/.github/CODE_OF_CONDUCT.md)
 - [ ] Searched the problem in [issues](https://github.com/RedHawk989/EyeTrackVR/issues)
 - [ ] Searched the problem in [discussions](https://github.com/RedHawk989/EyeTrackVR/discussions)
 - [ ] Searched the problem in the [docs](https://redhawk989.github.io/EyeTrackVR/FAQ)

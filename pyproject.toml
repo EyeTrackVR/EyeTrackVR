@@ -33,9 +33,7 @@ pywinstyles = {version = "^1.8.0", platform = "win32"}
 # name order matches cv2 index order exactly, which Win32_PnPEntity does NOT.
 pygrabber = {version = "^0.2", platform = "win32"}
 colorama = "^0.4.6"
-taskipy = "^1.10.4"
-pytest = "^8.0.0"
-pytest-cov = "^4.1.0"
+psutil = "^6.1.1"
 matplotlib = "^3.10.7"
 numba = "~0.63.1"
 
@@ -55,19 +53,13 @@ onnxruntime = [
 ]
 
 [tool.poetry.group.dev.dependencies]
-black = "^22.10.0"
 pyinstaller = "^6.17.0"
-flake8 = "^5.0.4"
+pytest = "^8.0.0"
+pytest-cov = "^4.1.0"
 openvr = [
     { version = "^2.5.101", platform = 'win32' },
     { version = "^2.5.101", platform = 'linux' }
 ]
-
-[tool.taskipy.tasks]
-dev = "python eyetrackapp.py"
-
-[tool.black]
-line-length = 120
 
 [tool.ruff]
 line-length = 120
@@ -80,12 +72,16 @@ build-backend = "poetry.core.masonry.api"
 
 [tool.pytest.ini_options]
 addopts = "-ra -q --ignore=overlay"
-pythonpath = [".", "EyeTrackApp"]
+pythonpath = [".", "eyetrackapp"]
 python_files = [
     "test_*.py"
 ]
 
+[tool.coverage.run]
+source = ["eyetrackapp"]
+omit = ["tests/*"]
+
 [tool.ruff.lint.per-file-ignores]
 # Legacy star imports between the tracking modules.
-"EyeTrackApp/eye_processor.py" = ["F403", "F405"]
-"EyeTrackApp/osc_calibrate_filter.py" = ["F403", "F405"]
+"eyetrackapp/eye_processor.py" = ["F403", "F405"]
+"eyetrackapp/osc_calibrate_filter.py" = ["F403", "F405"]

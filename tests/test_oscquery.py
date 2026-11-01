@@ -15,7 +15,7 @@ from pythonosc.udp_client import SimpleUDPClient
 
 from osc import oscquery
 from osc.osc import AVATAR_CHANGE_ADDRESS, OSCManager, OSCReceiver
-from osc.OSCMessage import OSCMessage, OSCMessageType
+from osc.osc_message import OSCMessage, OSCMessageType
 from osc.oscquery import (
     MDNSResponder,
     OSCQueryAdvertiser,

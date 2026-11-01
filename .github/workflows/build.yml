@@ -34,6 +34,8 @@ jobs:
           token: ${{ env.GITHUB_TOKEN }}
           # The overlay/ submodule carries the prebuilt calibration overlay.
           submodules: true
+          # Models live in Git LFS.
+          lfs: true
       - name: Set up Python
         uses: actions/setup-python@v5
         id: setup-python
@@ -81,13 +83,11 @@ jobs:
 
       - name: Build Windows App
         if: ${{ matrix.os == 'windows-latest' }}
-        working-directory: EyeTrackApp
-        run: poetry run pyinstaller --noconfirm --distpath ../dist eyetrackapp.spec
+        run: poetry run pyinstaller --noconfirm --distpath dist --workpath build/windows/work packaging/windows/eyetrackapp.spec
 
       - name: Build Linux App
         if: ${{ matrix.os == 'ubuntu-latest' }}
-        working-directory: EyeTrackApp
-        run: poetry run pyinstaller --noconfirm --distpath ../build/linux-release eyetrackapp_linux.spec
+        run: poetry run pyinstaller --noconfirm --distpath build/linux-release --workpath build/linux/work packaging/linux/eyetrackapp.spec
 
       - name: Package Linux runtime and resources
         if: ${{ matrix.os == 'ubuntu-latest' }}
@@ -112,15 +112,17 @@ jobs:
         with:
           # The overlay/ submodule carries the prebuilt calibration overlay.
           submodules: true
+          # Models live in Git LFS.
+          lfs: true
       - name: Install build dependencies
         run: |
           sudo apt-get update -qq
-          grep -vE '^\s*(#|$)' scripts/frame/apt-packages.txt | xargs sudo apt-get install -y -qq --no-install-recommends
+          grep -vE '^\s*(#|$)' packaging/steamframe/apt-packages.txt | xargs sudo apt-get install -y -qq --no-install-recommends
       - name: Build Steam Frame zip and FrameDrop manifest
         run: |
           VERSION="$(tr -d '\r\n' < version.txt)"
           SAFE_VERSION="$(printf '%s' "$VERSION" | sed -E 's/[^A-Za-z0-9.+_-]+/-/g')"
-          bash scripts/build_frame.sh "$VERSION" "$SAFE_VERSION" "$GITHUB_WORKSPACE" "$GITHUB_WORKSPACE/dist"
+          bash packaging/steamframe/build.sh "$VERSION" "$SAFE_VERSION" "$GITHUB_WORKSPACE" "$GITHUB_WORKSPACE/dist"
       - uses: actions/upload-artifact@v4
         with:
           name: production-files-steamframe

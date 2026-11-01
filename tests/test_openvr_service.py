@@ -34,7 +34,7 @@ def _load_openvr_service_module():
     fake_localization = types.ModuleType("localization")
     fake_localization.tr = lambda key, **kwargs: key.format(**kwargs)
 
-    module_path = Path(__file__).parents[1] / "EyeTrackApp" / "OVR" / "OpenVRService.py"
+    module_path = Path(__file__).parents[1] / "eyetrackapp" / "ovr" / "openvr_service.py"
     spec = importlib.util.spec_from_file_location("openvr_service_under_test", module_path)
     module = importlib.util.module_from_spec(spec)
     with patch.dict(
@@ -282,7 +282,7 @@ def test_second_instance_is_refused(tmp_path):
     import sys as _sys
     from pathlib import Path as _Path
 
-    app_dir = _Path(__file__).parents[1] / "EyeTrackApp"
+    app_dir = _Path(__file__).parents[1] / "eyetrackapp"
     lock = tmp_path / "eyetrackapp.lock"
     code = (
         "import sys; sys.path.insert(0, sys.argv[1]); from utils import single_instance; "

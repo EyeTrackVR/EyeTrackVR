@@ -314,7 +314,7 @@ def test_prompt_without_a_tts_engine_waits_its_reading_time(monkeypatch):
 def test_bundled_espeak_speaks_first_with_its_own_libraries(monkeypatch, tmp_path):
     import utils.misc_utils
 
-    tts = tmp_path / "Tools" / "tts"
+    tts = tmp_path / "tools" / "tts"
     tts.mkdir(parents=True)
     exe = tts / "espeak-ng"
     exe.write_text("")

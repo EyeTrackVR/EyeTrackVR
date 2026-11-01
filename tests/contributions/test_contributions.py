@@ -15,7 +15,7 @@ import pytest
 import requests
 import pyrage
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "EyeTrackApp"))
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "eyetrackapp"))
 from contributions.client import ContributionClient, Paused, ServiceError, digest, save
 from contributions import verification
 

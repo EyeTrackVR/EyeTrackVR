@@ -19,7 +19,7 @@ import numpy as np
 import pydantic
 import pytest
 
-from osc import PyVRCFTSender as pyvrcft_sender_module
+from osc import pyvrcft_sender as pyvrcft_sender_module
 from osc.osc import (
     OSCManager,
     SafeOSCClient,
@@ -28,12 +28,12 @@ from osc.osc import (
     sanitize_osc_value,
     validate_osc_endpoint,
 )
-from osc.OSCMessage import OSCMessage, OSCMessageType
+from osc.osc_message import OSCMessage, OSCMessageType
 from pyvrcft import VRCFTClient
 from pyvrcft import osc as pyosc
 from pyvrcft.avatar import AvatarInfo, AvatarParameter
 from pyvrcft.params import BinaryBitSlot, FloatSlot
-from settings.modules.AdvancedOSCSettingsModule import AdvancedOSCValidationModel
+from settings.modules.advanced_osc_settings_module import AdvancedOSCValidationModel
 from tests import EyeInfoMock, SimpleUDPClientMock
 
 LOCALHOST = "127.0.0.1"

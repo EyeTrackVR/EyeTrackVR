@@ -1,4 +1,4 @@
-from EyeTrackApp.utils.version_utils import compare_app_versions, parse_app_version
+from utils.version_utils import compare_app_versions, parse_app_version
 
 
 def test_beta_build_is_newer_than_older_four_part_release():

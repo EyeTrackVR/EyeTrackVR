@@ -1,4 +1,4 @@
-"""Steam Frame built-in eye cameras (EyeTrackApp/frame_eye.py)."""
+"""Steam Frame built-in eye cameras (eyetrackapp/frame_eye.py)."""
 
 import logging
 import os

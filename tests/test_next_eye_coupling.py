@@ -199,7 +199,7 @@ def test_settings_default_on_and_reject_out_of_range():
     import pydantic
 
     from config import EyeTrackSettingsConfig
-    from settings.modules.TrackingAlgorithmModule import TrackingAlgorithmValidationModel
+    from settings.modules.tracking_algorithm_module import TrackingAlgorithmValidationModel
 
     defaults = EyeTrackSettingsConfig()
     assert defaults.gui_NEXT_lid_sync == defaults.gui_NEXT_brow_sync == DEFAULT_SYNC > 0

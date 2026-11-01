@@ -18,7 +18,7 @@ import ransac
 from eye import EyeId, EyeInfoOrigin
 from eye_processor import EyeProcessor
 from leap import LEAP_C, LEAP_LID_METRIC_VERSION
-from osc.OSCMessage import OSCMessageType
+from osc.osc_message import OSCMessageType
 from utils.robust_calibration import (
     NUM_EXPRESS_TARGETS,
     CalibrationPhase,

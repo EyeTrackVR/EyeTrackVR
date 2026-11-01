@@ -12,7 +12,7 @@ import zipfile
 import pyrage
 import pytest
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "EyeTrackApp"))
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "eyetrackapp"))
 from contributions.client import ContributionClient, ISSUE_QUOTA_MESSAGES, ServiceError, issue_home, receipt_home
 from contributions.report_window import ReportWindow, previous_log, write_tail
 

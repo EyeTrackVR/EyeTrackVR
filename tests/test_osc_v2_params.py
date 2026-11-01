@@ -5,7 +5,7 @@ from unittest import mock
 import pytest
 
 from osc.osc import OSCManager, OSCMessage
-from osc.OSCMessage import OSCMessageType
+from osc.osc_message import OSCMessageType
 from tests import EyeInfoMock, SimpleUDPClientMock
 
 

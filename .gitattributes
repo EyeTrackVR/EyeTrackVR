@@ -1,3 +1,4 @@
 *.sh text eol=lf
 *.so binary
 *.so.* binary
+*.onnx filter=lfs diff=lfs merge=lfs -text

@@ -7,7 +7,7 @@ import tkinter as tk
 
 import pytest
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "EyeTrackApp"))
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "eyetrackapp"))
 from contributions.client import ContributionClient, save
 from contributions.window import DATASET_CONSENTS, ContributionWindow
 

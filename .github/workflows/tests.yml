@@ -33,6 +33,8 @@ jobs:
           persist-credentials: false
           # The overlay/ submodule carries the prebuilt calibration overlay.
           submodules: true
+          # Models live in Git LFS.
+          lfs: true
 
       - name: Set up Python
         uses: actions/setup-python@v5

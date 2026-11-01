@@ -4,11 +4,11 @@
 **/*.pyc
 *.cfg
 *.log
-EyeTrackApp/venv
-EyeTrackApp/eyetrack_settings.json
-EyeTrackApp/eyetrack_settings.backup
-EyeTrackApp/build
-EyeTrackApp/dist
+eyetrackapp/venv
+eyetrackapp/eyetrack_settings.json
+eyetrackapp/eyetrack_settings.backup
+eyetrackapp/build
+eyetrackapp/dist
 build
 dist
 .env
@@ -17,13 +17,13 @@ dist
 *.payload.age
 *.receipt.json
 *.local.json
-EyeTrackApp/IBO_LEFT.png
-EyeTrackApp/IBO_RIGHT.png
+eyetrackapp/IBO_LEFT.png
+eyetrackapp/IBO_RIGHT.png
 
-EyeTrackApp/IBO_LEFT.png
-EyeTrackApp/IBO_RIGHT.png
+eyetrackapp/IBO_LEFT.png
+eyetrackapp/IBO_RIGHT.png
 /EBPD_LEFT.png
-/EyeTrackApp/EBPD_RIGHT.png
+/eyetrackapp/EBPD_RIGHT.png
 /EBPD_RIGHT.png
 /IBO_RIGHT.png
 /IBO_LEFT.png
@@ -31,8 +31,6 @@ EyeTrackApp/IBO_RIGHT.png
 /eyetrack_settings.json
 
 release/
-INNO/Output/
-eyetrackapp/INNO/Output/
 # SteamVR auto-launch manifest, written at runtime
 app.vrmanifest
 

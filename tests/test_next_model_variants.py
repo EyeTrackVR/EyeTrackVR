@@ -14,24 +14,24 @@ from next_model import (
     split_variant,
     variant_from_settings,
 )
-from settings.modules.TrackingAlgorithmModule import _MODEL_VARIANTS
+from settings.modules.tracking_algorithm_module import _MODEL_VARIANTS
 
 
 @pytest.mark.parametrize("variant,suffix", [("PSVR", ".onnx"), ("PSVR LITE", ".fp16.onnx")])
 def test_psvr_is_a_selectable_next_model(variant, suffix):
     assert variant in MODEL_VARIANTS
     assert split_variant(variant)[0] in _MODEL_VARIANTS
-    assert model_file_for_variant(variant) == f"Models/NEXT_ETVR_HYBRID_PSVR{suffix}"
+    assert model_file_for_variant(variant) == f"assets/models/NEXT_ETVR_HYBRID_PSVR{suffix}"
 
 
 @pytest.mark.parametrize("variant", ["PSVR", "PSVR LITE", "PSVR NANO"])
 def test_psvr_does_not_require_a_separate_eyebrow_model(variant):
-    assert eyebrow_model_file(variant) == "Models/Eyebrow_ETVR.onnx"
+    assert eyebrow_model_file(variant) == "assets/models/Eyebrow_ETVR.onnx"
 
 
 @pytest.mark.parametrize("variant", ["BSB", "BSB LITE", "BSB MICRO"])
 def test_eyebrow_model_ignores_next_model_size(variant):
-    assert eyebrow_model_file(variant) == "Models/Eyebrow_BSB.onnx"
+    assert eyebrow_model_file(variant) == "assets/models/Eyebrow_BSB.onnx"
 
 
 def test_gui_and_inference_offer_the_same_headsets():
@@ -99,6 +99,6 @@ def test_lite_variants_migrate_to_headset_and_size():
 
 def test_setup_auto_variants_exclude_psvr():
     # These are intentionally the only values assigned by setup-mode switching.
-    source = open("EyeTrackApp/eyetrackapp.py", encoding="utf-8").read()
+    source = open("eyetrackapp/eyetrackapp.py", encoding="utf-8").read()
     assert 'default_variant = "BSB" if is_bigscreen else "ETVR"' in source
     assert 'default_variant = "PSVR"' not in source

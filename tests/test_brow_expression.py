@@ -4,8 +4,8 @@ from unittest import mock
 import pytest
 
 from eye import EyeId
-from osc.PyVRCFTSender import PyVRCFTSender
-from osc.VRChatOSCSender import VRChatOSCSender, brow_expression
+from osc.pyvrcft_sender import PyVRCFTSender
+from osc.vrchat_osc_sender import VRChatOSCSender, brow_expression
 from osc_calibrate_filter import next_smartcal_transform_is_sane
 from pyvrcft import UnifiedTrackingData
 from pyvrcft.expressions import compute_outputs

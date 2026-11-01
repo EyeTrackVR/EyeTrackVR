@@ -1,4 +1,4 @@
-"""Gaze shared memory (sdk/eyetrackvr_gaze.h): layout, seqlock/CRC reader
+"""Gaze shared memory (native/sdk/eyetrackvr_gaze.h): layout, seqlock/CRC reader
 rules, and the foveation sender publishing into it."""
 
 import math
@@ -16,8 +16,8 @@ from unittest import mock
 import pytest
 
 from eye import EyeId
-from osc import GazeSharedMemory as shm_module
-from osc.GazeSharedMemory import (
+from osc import gaze_shared_memory as shm_module
+from osc.gaze_shared_memory import (
     CLOCK_MONOTONIC_NS,
     CLOCK_QPC_NS,
     EYE_COMBINED,
@@ -31,10 +31,10 @@ from osc.GazeSharedMemory import (
     read,
 )
 from osc.osc import OSCManager
-from osc.OSCMessage import OSCMessage, OSCMessageType
+from osc.osc_message import OSCMessage, OSCMessageType
 from tests import EyeInfoMock, SimpleUDPClientMock
 
-HEADER_PATH = os.path.join(os.path.dirname(__file__), "..", "sdk", "eyetrackvr_gaze.h")
+HEADER_PATH = os.path.join(os.path.dirname(__file__), "..", "native", "sdk", "eyetrackvr_gaze.h")
 
 
 @pytest.fixture(autouse=True)

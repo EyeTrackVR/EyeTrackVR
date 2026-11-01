@@ -7,8 +7,8 @@ This tests the scenario reported where calib_axes and calib_evecs are set to 0 (
 import sys
 import os
 
-# Add EyeTrackApp to path
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "EyeTrackApp")))
+# Add eyetrackapp to path
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "eyetrackapp")))
 
 from config import EyeTrackCameraConfig
 from utils.calibration_elipse import CalibrationEllipse

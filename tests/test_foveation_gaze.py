@@ -12,9 +12,9 @@ from unittest import mock
 import pytest
 
 from eye import EyeId
-from osc import FoveationGazeSender as foveation_module
+from osc import foveation_gaze_sender as foveation_module
 from osc.osc import OSCManager
-from osc.OSCMessage import OSCMessage, OSCMessageType
+from osc.osc_message import OSCMessage, OSCMessageType
 from pyvrcft import osc as pyosc
 from tests import EyeInfoMock, SimpleUDPClientMock
 
@@ -24,7 +24,7 @@ ADDRESS = foveation_module.FOVEATION_ADDRESS
 @pytest.fixture(autouse=True)
 def private_shm_names(monkeypatch):
     """Never touch the gaze block a running EyeTrackVR publishes."""
-    from osc import GazeSharedMemory as shm_module
+    from osc import gaze_shared_memory as shm_module
 
     tag = uuid.uuid4().hex
     monkeypatch.setattr(shm_module, "WIN32_NAME", f"Local\\EyeTrackVR.Gaze.test.{tag}")

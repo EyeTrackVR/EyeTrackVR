@@ -13,7 +13,7 @@ import zlib
 import pyrage
 import requests
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "EyeTrackApp"))
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "eyetrackapp"))
 from contributions.client import ContributionClient, digest
 
 base, identity_file, directory = sys.argv[1:]

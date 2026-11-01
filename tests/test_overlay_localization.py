@@ -10,7 +10,7 @@ from pathlib import Path
 
 import pytest
 
-APP = Path(__file__).resolve().parents[1] / "EyeTrackApp"
+APP = Path(__file__).resolve().parents[1] / "eyetrackapp"
 LANG = APP / "lang"
 TABLE = "data_collection_prompts"
 
@@ -26,10 +26,10 @@ def _codes():
 
 def test_every_language_translates_every_prompt():
     en = _catalog("en")[TABLE]
-    for code in _codes() + ["_TEMPLATE"]:
+    for code in _codes() + ["_template"]:
         table = _catalog(code).get(TABLE, {})
         assert set(table) == set(en), code
-        if code == "_TEMPLATE":
+        if code == "_template":
             continue
         for key, value in table.items():
             assert value.strip(), f"{code}: empty {key}"
