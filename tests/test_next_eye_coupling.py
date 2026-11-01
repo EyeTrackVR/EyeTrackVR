@@ -7,19 +7,19 @@ import pytest
 from eye import EyeId
 from eye_processor import EyeProcessor, NextExpressionTransform
 from next_eye_coupling import (
-    DEFAULT_BROW_SEPARATE_ABOVE,
-    DEFAULT_BROW_SYNC_BELOW,
-    DEFAULT_LID_SEPARATE_ABOVE,
-    DEFAULT_LID_SYNC_BELOW,
+    DEFAULT_SYNC,
+    SYNC_MAX,
     NextExpressionCoupler,
+    brow_sync_range,
     coupling_weight,
+    lid_sync_range,
 )
 from next_stereo_model import SharedPass, StereoNextCoordinator, stereo_model_file
 
 STEP_S = 1.0 / 60.0
-# (sync_below, separate_above) gap ranges
-LID = (DEFAULT_LID_SYNC_BELOW, DEFAULT_LID_SEPARATE_ABOVE)
-BROW = (DEFAULT_BROW_SYNC_BELOW, DEFAULT_BROW_SEPARATE_ABOVE)
+# (sync_below, separate_above) gap ranges at the default slider position
+LID = lid_sync_range(DEFAULT_SYNC)
+BROW = brow_sync_range(DEFAULT_SYNC)
 
 
 def _result(lid_l, lid_r, brow_l=0.5, brow_r=0.5, sq_l=0.0, sq_r=0.0):
@@ -177,24 +177,37 @@ def test_equal_ends_switch_hard_at_that_gap():
     assert coupling_weight(0.2, 0.2, 0.2) == 0.0
 
 
-@pytest.mark.parametrize(
-    "sync_below,separate_above,ok",
-    [(0.12, 0.30, True), (0.2, 0.2, True), (0.1, 0.0, True), (0.3, 0.2, False), (0.1, 1.5, False)],
-)
-def test_settings_reject_an_inverted_or_out_of_range_gap_range(sync_below, separate_above, ok):
+def test_default_slider_gives_the_chosen_ranges():
+    assert LID == pytest.approx((0.12, 0.30))
+    assert BROW == pytest.approx((0.10, 0.25))
+
+
+def test_slider_zero_is_off_and_higher_syncs_more():
+    for sync_range in (lid_sync_range, brow_sync_range):
+        assert coupling_weight(0.05, *sync_range(0)) == 0.0
+        weights = [coupling_weight(0.15, *sync_range(s)) for s in range(0, SYNC_MAX + 1, 10)]
+        assert weights == sorted(weights)
+        assert weights[-1] == 1.0
+
+
+def test_strongest_sync_still_lets_a_wink_and_a_one_sided_raise_through():
+    assert coupling_weight(0.70, *lid_sync_range(SYNC_MAX)) == 0.0
+    assert coupling_weight(0.50, *brow_sync_range(SYNC_MAX)) == 0.0
+
+
+def test_settings_default_on_and_reject_out_of_range():
     import pydantic
 
     from config import EyeTrackSettingsConfig
     from settings.modules.TrackingAlgorithmModule import TrackingAlgorithmValidationModel
 
     defaults = EyeTrackSettingsConfig()
+    assert defaults.gui_NEXT_lid_sync == defaults.gui_NEXT_brow_sync == DEFAULT_SYNC > 0
     values = {f: getattr(defaults, f) for f in TrackingAlgorithmValidationModel.model_fields}
-    values.update(gui_NEXT_couple_lid_sync_below=sync_below, gui_NEXT_couple_lid_separate_above=separate_above)
-    if ok:
-        TrackingAlgorithmValidationModel(**values)
-    else:
+    TrackingAlgorithmValidationModel(**values)
+    for bad in (-1, SYNC_MAX + 1):
         with pytest.raises(pydantic.ValidationError):
-            TrackingAlgorithmValidationModel(**values)
+            TrackingAlgorithmValidationModel(**{**values, "gui_NEXT_lid_sync": bad})
 
 
 def test_coupling_compares_calibrated_values():
@@ -211,16 +224,13 @@ def test_coupling_compares_calibrated_values():
     assert right == pytest.approx((0.75, 0.5))
 
 
-def _processor(eye_id, couple=True):
+def _processor(eye_id, sync=DEFAULT_SYNC):
     processor = EyeProcessor.__new__(EyeProcessor)
     processor.eye_id = eye_id
     processor.settings = SimpleNamespace(
         gui_NEXT_calib_lids_brows=True,
-        gui_NEXT_couple_eyes=couple,
-        gui_NEXT_couple_lid_sync_below=LID[0],
-        gui_NEXT_couple_lid_separate_above=LID[1],
-        gui_NEXT_couple_brow_sync_below=BROW[0],
-        gui_NEXT_couple_brow_separate_above=BROW[1],
+        gui_NEXT_lid_sync=sync,
+        gui_NEXT_brow_sync=sync,
         gui_flip_x_axis_left=False,
         gui_flip_x_axis_right=False,
         gui_flip_y_axis=False,
@@ -253,14 +263,14 @@ def _apply_pair(processors, coupler, shared):
     return {eye: (p.eyeopen, p.next_eyebrow) for eye, p in processors.items()}
 
 
-@pytest.mark.parametrize("couple", [True, False])
-def test_processors_couple_only_behind_the_toggle(couple):
+@pytest.mark.parametrize("sync", [DEFAULT_SYNC, 0])
+def test_processors_sync_unless_the_slider_is_off(sync):
     coupler = NextExpressionCoupler()
-    processors = {eye: _processor(eye, couple) for eye in (EyeId.LEFT, EyeId.RIGHT)}
+    processors = {eye: _processor(eye, sync) for eye in (EyeId.LEFT, EyeId.RIGHT)}
     out = None
     for k in range(60):
         out = _apply_pair(processors, coupler, SharedPass(k, _result(0.76, 0.70, 0.52, 0.48), True, k * STEP_S))
-    if couple:
+    if sync:
         assert out[EyeId.LEFT] == pytest.approx((0.73, 0.5), abs=1e-3)
         assert out[EyeId.RIGHT] == pytest.approx((0.73, 0.5), abs=1e-3)
     else:

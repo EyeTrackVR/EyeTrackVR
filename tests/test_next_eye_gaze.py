@@ -314,7 +314,8 @@ def _apply_processor(eye):
     processor.eye_id = eye
     processor.settings = SimpleNamespace(
         gui_NEXT_calib_lids_brows=False,
-        gui_NEXT_couple_eyes=False,
+        gui_NEXT_lid_sync=0,
+        gui_NEXT_brow_sync=0,
         gui_flip_x_axis_left=False,
         gui_flip_x_axis_right=False,
         gui_flip_y_axis=False,

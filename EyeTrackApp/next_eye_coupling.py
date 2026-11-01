@@ -3,11 +3,11 @@ NEXT left/right expression coupling.
 
 A neutral face has nearly equal left and right eyelids and eyebrows, but the
 model reads each eye separately, so one lid can wander on its own while the
-user looks around (worst on people the model never trained on). With
-gui_NEXT_couple_eyes on, the two eyes are pulled to their mean while they
-disagree a little, and released to their own values once they disagree
-clearly, so winks and one-sided brow raises still come through. Each channel
-has a (sync_below, separate_above) range on the L/R gap:
+user looks around (worst on people the model never trained on). The two
+eyes are pulled to their mean while they disagree a little, and released to
+their own values once they disagree clearly, so winks and one-sided brow
+raises still come through. Each channel has a (sync_below, separate_above)
+range on the L/R gap, set by one GUI "sync" slider (see sync_range):
 
     gap <= sync_below                    -> both read the mean
     sync_below < gap < separate_above    -> smoothstep blend (no snap)
@@ -31,12 +31,18 @@ import threading
 
 from eye import EyeId
 
-# Default gap ranges, in the values sent downstream (eyelid 0 closed .. 0.75
-# normal open; eyebrow 0..1 with 0.5 neutral). See config.py.
-DEFAULT_LID_SYNC_BELOW = 0.12
-DEFAULT_LID_SEPARATE_ABOVE = 0.30
-DEFAULT_BROW_SYNC_BELOW = 0.10
-DEFAULT_BROW_SEPARATE_ABOVE = 0.25
+# GUI sync sliders (gui_NEXT_lid_sync / gui_NEXT_brow_sync), 0..100:
+# 0 = off, DEFAULT_SYNC = the chosen ranges (lid 0.12 / 0.30, brow
+# 0.10 / 0.25), 100 = twice as wide. Gaps are in the values sent downstream
+# (eyelid 0 closed .. 0.75 normal open; eyebrow 0..1 with 0.5 neutral).
+SYNC_MAX = 100
+DEFAULT_SYNC = 50
+# sync_below at SYNC_MAX. Even there a full wink (gap ~0.75) and a full
+# one-sided brow raise (gap 0.5) still come through.
+LID_MAX_SYNC_BELOW = 0.24
+BROW_MAX_SYNC_BELOW = 0.20
+# separate_above / sync_below: the width of the smooth blend.
+SEPARATE_RATIO = 2.5
 # Time constant of the weight climbing back after the eyes reconverge.
 ENGAGE_TAU_S = 0.25
 # A pass with a missing (black-frame) eye has nothing to compare: the last
@@ -51,6 +57,21 @@ def smoothstep(edge0: float, edge1: float, x: float) -> float:
         return 0.0 if x < edge0 else 1.0
     t = min(1.0, max(0.0, (x - edge0) / (edge1 - edge0)))
     return t * t * (3.0 - 2.0 * t)
+
+
+def sync_range(sync: float, max_sync_below: float) -> tuple[float, float]:
+    """(sync_below, separate_above) for one 0..SYNC_MAX slider value; 0 = off."""
+    strength = min(1.0, max(0.0, float(sync) / SYNC_MAX))
+    sync_below = strength * max_sync_below
+    return sync_below, sync_below * SEPARATE_RATIO
+
+
+def lid_sync_range(sync: float) -> tuple[float, float]:
+    return sync_range(sync, LID_MAX_SYNC_BELOW)
+
+
+def brow_sync_range(sync: float) -> tuple[float, float]:
+    return sync_range(sync, BROW_MAX_SYNC_BELOW)
 
 
 def coupling_weight(gap: float, sync_below: float, separate_above: float) -> float:

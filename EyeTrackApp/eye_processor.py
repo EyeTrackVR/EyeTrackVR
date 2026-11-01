@@ -52,6 +52,7 @@ from osc_calibrate_filter import *
 from daddy import External_Run_DADDY
 from leap import External_Run_LEAP
 from next_model import External_Run_NEXT, variant_from_settings
+from next_eye_coupling import brow_sync_range, lid_sync_range
 from next_stereo_model import get_stereo_coordinator
 from next_eye_gaze import (
     GAZE_MODE_DOMINANT,
@@ -962,23 +963,19 @@ class EyeProcessor:
         )
 
     def _next_couple_eyes(self, shared, transform, eyeopen, eyebrow):
-        """Left/right eyelid and eyebrow coupling (gui_NEXT_couple_eyes, see
-        next_eye_coupling). Compared in output space, after each eye's Smart
+        """Left/right eyelid and eyebrow sync (gui_NEXT_lid_sync / _brow_sync,
+        see next_eye_coupling). Compared in output space, after each eye's Smart
         Calib anchor and lid remap: the anchors exist to take out per-eye
         neutral bias, so before them a static offset would eat the threshold
         and the mean would be re-split by the two anchors. Before the closed
         snap, so a coupled blink snaps on both eyes or neither."""
         coupler, served = shared
         coupler.publish(self.eye_id, transform)
-        if served is None or not getattr(self.settings, "gui_NEXT_couple_eyes", False):
+        lid_range = lid_sync_range(getattr(self.settings, "gui_NEXT_lid_sync", 0))
+        brow_range = brow_sync_range(getattr(self.settings, "gui_NEXT_brow_sync", 0))
+        if served is None or (lid_range[1] <= 0.0 and brow_range[1] <= 0.0):
             return eyeopen, eyebrow
-        s = self.settings
-        coupled = coupler.couple(
-            self.eye_id,
-            served,
-            (float(s.gui_NEXT_couple_lid_sync_below), float(s.gui_NEXT_couple_lid_separate_above)),
-            (float(s.gui_NEXT_couple_brow_sync_below), float(s.gui_NEXT_couple_brow_separate_above)),
-        )
+        coupled = coupler.couple(self.eye_id, served, lid_range, brow_range)
         return (eyeopen, eyebrow) if coupled is None else coupled
 
     def _next_apply(self, gaze_x, gaze_y, eyebrow, eyelid, squeeze, raw_gaze=None, shared=None, recenter_gaze=None):
