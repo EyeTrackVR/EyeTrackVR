@@ -45,6 +45,9 @@ echo.
 echo [2b/6] Building SteamVR gaze driver ...
 REM Shipped beside the exe (not inside it: the onefile exe unpacks to a temp folder,
 REM and SteamVR needs a stable path). The app registers it when foveation gaze is on.
+REM Both native builds start clean, like packaging/linux/build.sh, so a stale CMake cache
+REM (e.g. one generated before the sources moved to native/) cannot break the release.
+if exist "build\steamvr_driver" rmdir /s /q "build\steamvr_driver"
 cmake -S native\steamvr_driver -B build\steamvr_driver -A x64 >nul
 if errorlevel 1 goto :fail
 cmake --build build\steamvr_driver --config Release
@@ -60,6 +63,7 @@ if not exist "build\windows\dist\steamvr_driver\eyetrackvr\bin\win64\driver_eyet
 echo.
 echo [2c/6] Building OpenXR eye gaze layer ...
 REM Also beside the exe; the app installs it as an implicit OpenXR layer when foveation gaze is on.
+if exist "build\openxr_layer" rmdir /s /q "build\openxr_layer"
 cmake -S native\openxr_layer -B build\openxr_layer -A x64 >nul
 if errorlevel 1 goto :fail
 cmake --build build\openxr_layer --config Release
