@@ -82,7 +82,7 @@ from utils.tooltips import attach_tooltip
 from utils.version_utils import compare_app_versions
 
 
-APP_VERSION = "EyeTrackApp 0.3.0 BETA 10"
+APP_VERSION = "EyeTrackApp 0.3.0 BETA 11"
 setup_logging(APP_VERSION)
 logger = logging.getLogger(__name__)
 winmm = None
@@ -413,7 +413,8 @@ def main():
                     logger.warning(f"DPI scaling failed: {e}")
             try:
                 if is_nt:
-                    self.root.iconbitmap(resource_path("Images/logo.ico"))
+                    # default= also covers child Toplevels (else they get the Tk feather).
+                    self.root.iconbitmap(default=resource_path("Images/logo.ico"))
                 else:
                     # .ico iconbitmap raises TclError on Linux/macOS; use the
                     # PNG via iconphoto (default=True covers child Toplevels).
@@ -496,7 +497,7 @@ def main():
             self._issues_popup.withdraw()
             self._issues_popup.resizable(False, False)
             self._issues_popup.protocol("WM_DELETE_WINDOW", self._on_issues_popup_close)
-            # Themed on first show: pywinstyles forces a full layout pass (~0.3 s).
+            # Themed on first show: a withdrawn Toplevel has no native frame yet.
             self._issues_popup_themed = False
 
             self._data_collection_popup = DataCollectionWindow(self.root, eyes)
@@ -1384,9 +1385,6 @@ def main():
 
         def _show_issues_popup(self):
             popup = self._issues_popup
-            if not self._issues_popup_themed:
-                self._issues_popup_themed = True
-                apply_theme_to_titlebar(popup)
             popup.transient(self.root)
             popup.update_idletasks()
             mw = self.root.winfo_width()
@@ -1399,6 +1397,11 @@ def main():
             y = my + max(0, (mh - ph) // 2)
             popup.geometry(f"+{x}+{y}")
             popup.deiconify()
+            if not self._issues_popup_themed:
+                self._issues_popup_themed = True
+                from contributions.native import decorate
+
+                decorate(popup)
             popup.lift()
             popup.focus_set()
             self._issues_popup_visible = True

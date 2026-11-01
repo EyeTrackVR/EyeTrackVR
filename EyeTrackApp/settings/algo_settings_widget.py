@@ -157,6 +157,12 @@ class AlgoSettingsWidget(BaseSettingsWidget):
         y = my + max(0, (mh - ph) // 2)
         popup.geometry(f"+{x}+{y}")
         popup.deiconify()
+        # Native frame only exists once mapped, so theme on first show.
+        if not getattr(popup, "_etvr_decorated", False):
+            popup._etvr_decorated = True
+            from contributions.native import decorate
+
+            decorate(popup)
         popup.lift()
         popup.focus_set()
 
