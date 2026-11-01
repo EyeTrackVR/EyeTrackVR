@@ -2,7 +2,7 @@
 
 `XR_APILAYER_EYETRACKVR_eye_gaze` is an implicit OpenXR API layer that gives runtimes without eye
 tracking `XR_EXT_eye_gaze_interaction`, fed by EyeTrackVR's gaze shared memory
-([docs/gaze-shared-memory.md](../docs/gaze-shared-memory.md)). It targets Monado, WiVRn, Envision
+([native/sdk/eyetrackvr_gaze.h](../sdk/eyetrackvr_gaze.h)). It targets Monado, WiVRn, Envision
 setups, Virtual Desktop's VDXR, WMR and other non-SteamVR runtimes, on Linux and Windows. It needs
 no graphics API and no hooking library.
 

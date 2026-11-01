@@ -1,8 +1,8 @@
 """
 Writer for the EyeTrackVR gaze shared memory block (version 1).
 
-The layout, names and reader rules are defined by native/sdk/eyetrackvr_gaze.h and
-docs/gaze-shared-memory.md; this module must stay byte-compatible with them.
+The layout, names and reader rules are defined by native/sdk/eyetrackvr_gaze.h; this
+module must stay byte-compatible with it.
 Readers are foveated rendering / streaming integrations (OpenXR API layer,
 SteamVR driver, encoders) that want gaze without parsing OSC.
 """

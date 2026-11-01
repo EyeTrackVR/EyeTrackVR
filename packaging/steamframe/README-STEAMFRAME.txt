@@ -13,4 +13,3 @@ Manual install with the SteamOS Devkit Client (Title Upload):
 
 On the headset, settings live in ~/.config/EyeTrackVR and logs in the
 logs/ folder next to the eyetrackvr binary.
-See docs/steam-frame.md in the source repository for details and limitations.

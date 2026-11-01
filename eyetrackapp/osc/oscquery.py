@@ -8,7 +8,6 @@ coexists with VRCFaceTracking and other OSC apps.
 
 Like VRCFaceTracking we answer mDNS ourselves rather than depend on an LGPL
 zeroconf library. We only ever advertise 127.0.0.1: VRChat on the same PC.
-See docs/oscquery-receive-investigation.md.
 """
 
 from __future__ import annotations

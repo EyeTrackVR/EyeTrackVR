@@ -11,7 +11,7 @@
  *
  * The block exists only while EyeTrackVR's "Foveated rendering gaze" output is
  * on. A reader that cannot open it, or reads a stale or invalid sample, should
- * fall back to fixed foveation. See docs/gaze-shared-memory.md.
+ * fall back to fixed foveation.
  *
  * Header-only, C99 / C++11. Copy this file into consumers as is.
  */
