@@ -494,10 +494,19 @@ class EyeTrackSettingsConfig(BaseModel):
     # embedded PY-VRCFT port (osc/pyvrcft_sender.py), replacing VRCFT. Auto-adapts
     # to v2 / legacy v1 / native-eye avatars from one tracking frame.
     gui_pyvrcft: bool = True
+    # In pyVRCFT mode, also send VRChat's native face tracking payload
+    # (/tracking/face/v1) to avatars built with the SDK's face tracking. Turn
+    # off if another app sends it (it carries every key, so they would fight).
+    gui_pyvrcft_native_face: bool = True
     # Also share gaze with foveated rendering tools on this PC (PimaxMagic4All
     # on UDP 9020 and the gaze shared memory, osc/foveation_gaze_sender.py),
     # alongside any output mode above.
     gui_foveation_gaze: bool = False
+    # Per-game DFR for SteamVR games (Windows, ovr/dfr.py): the PimaxMagic4All folder,
+    # and each game's choice by SteamVR app key: {"enabled": bool, "mode": str, "name": str}.
+    # Games are off until turned on.
+    gui_dfr_tool_dir: str = ""
+    gui_dfr_games: dict = {}
     gui_pupil_dilation: bool = False
 
     gui_VRCFTModulePort: int = 8889

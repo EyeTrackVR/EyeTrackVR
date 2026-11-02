@@ -29,6 +29,9 @@ class AvatarInfo:
     id: str = ""
     name: str = ""
     parameters: list = field(default_factory=list)
+    # VRChat's /avatar/avatarfullfacetracking: the avatar accepts native
+    # /tracking/face/v1 input. None = not reported (disk config, older VRChat).
+    full_face_tracking: bool | None = None
 
 
 _JSON_TYPE_MAP = {"Float": float, "Int": int, "Bool": bool, "String": str}
@@ -106,6 +109,10 @@ def fetch_avatar_oscquery(host: str, port: int, timeout: float = 3.0) -> AvatarI
     if isinstance(values, list) and values and isinstance(values[0], str):
         info.id = values[0]
         info.name = load_avatar_name(info.id)
+
+    full_face = tree.get("CONTENTS", {}).get("avatarfullfacetracking", {}).get("VALUE")
+    if isinstance(full_face, list) and full_face and isinstance(full_face[0], bool):
+        info.full_face_tracking = full_face[0]
 
     params_node = tree.get("CONTENTS", {}).get("parameters")
     if params_node:

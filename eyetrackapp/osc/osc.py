@@ -55,6 +55,7 @@ _LOG_INTERVAL_S = 5.0
 _DROP = object()
 
 AVATAR_CHANGE_ADDRESS = "/avatar/change"
+FULL_FACE_ADDRESS = "/avatar/avatarfullfacetracking"
 
 
 class _ThrottledLog:
@@ -196,12 +197,21 @@ class OSCManager:
         # pyVRCFT never gets /avatar/change while this receiver owns the input
         # (its own receive port is released), so hand avatar switches over.
         self.listeners[AVATAR_CHANGE_ADDRESS] = [self._forward_avatar_change]
+        self.listeners[FULL_FACE_ADDRESS] = [self._forward_full_face]
+
+    def _pyvrcft_client(self):
+        sender = self.osc_sender.pyvrcft_sender if self.osc_sender is not None else None
+        return sender.client if sender is not None else None
 
     def _forward_avatar_change(self, message: OSCMessage) -> None:
-        sender = self.osc_sender.pyvrcft_sender if self.osc_sender is not None else None
-        client = sender.client if sender is not None else None
+        client = self._pyvrcft_client()
         if client is not None and isinstance(message.data, str):
             client.notify_avatar_change(message.data)
+
+    def _forward_full_face(self, message: OSCMessage) -> None:
+        client = self._pyvrcft_client()
+        if client is not None and isinstance(message.data, bool):
+            client.notify_full_face_tracking(message.data)
 
     def start(self):
         self.setup_sender()
@@ -252,6 +262,7 @@ class OSCManager:
             _sig_port(s.gui_VRCFTModulePort),
             bool(s.gui_use_module),
             bool(s.gui_pyvrcft),
+            bool(s.gui_pyvrcft_native_face),
             str(s.gui_osc_address).strip(),
             _sig_port(s.gui_osc_receiver_port),
             # pyVRCFT binds the receiver port only while ROSC is off, so toggling
@@ -307,6 +318,7 @@ class OSCManager:
             "gui_VRCFTModuleIPAddress",
             "gui_use_module",
             "gui_pyvrcft",
+            "gui_pyvrcft_native_face",
             "gui_osc_address",
             "gui_osc_receiver_port",
             "gui_ROSC",

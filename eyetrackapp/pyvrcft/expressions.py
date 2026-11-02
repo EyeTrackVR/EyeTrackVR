@@ -127,6 +127,29 @@ UNIFIED_EXPRESSIONS = (
 
 _UNIFIED_EXPRESSION_SET = frozenset(UNIFIED_EXPRESSIONS)
 
+# VRChat's native face tracking keys, in /tracking/face/v1 payload order (one
+# byte each). The 14 eye keys VRChat derives from gaze/openness/pupil come
+# first; the rest is exactly the UnifiedExpressions enum order above.
+FACE_V1_EYE_KEYS = (
+    "EyeLookOutRight",
+    "EyeLookInRight",
+    "EyeLookUpRight",
+    "EyeLookDownRight",
+    "EyeLookOutLeft",
+    "EyeLookInLeft",
+    "EyeLookUpLeft",
+    "EyeLookDownLeft",
+    "EyeClosedRight",
+    "EyeClosedLeft",
+    "EyeDilationRight",
+    "EyeDilationLeft",
+    "EyeConstrictRight",
+    "EyeConstrictLeft",
+)
+FACE_V1_KEYS = FACE_V1_EYE_KEYS + UNIFIED_EXPRESSIONS
+FACE_V1_SIZE = 102
+assert len(FACE_V1_KEYS) == FACE_V1_SIZE
+
 SIMPLE_EXPRESSIONS = (
     "BrowUpRight",
     "BrowUpLeft",
@@ -289,7 +312,10 @@ def compute_outputs(data: UnifiedTrackingData):
                actually declares and how to encode them)
       native contains {"/tracking/eye/...": tuple} for VRChat-native eye endpoints
                (send these only when the avatar has no FT eye params;
-               VRCFTClient.update_tracking handles that condition)
+               VRCFTClient.update_tracking handles that condition), plus
+               {"/tracking/face/v1": (bytes,)}, VRChat's native face tracking
+               payload (send only to avatars that report
+               /avatar/avatarfullfacetracking)
     """
     w = data.shapes
     simple = compute_simple(w)
@@ -459,8 +485,51 @@ def compute_outputs(data: UnifiedTrackingData):
     native = {
         "/tracking/eye/LeftRightPitchYaw": (lp, ly, rp, ry),
         "/tracking/eye/EyesClosedAmount": (1 - combined.openness,),
+        "/tracking/face/v1": (compute_face_v1(data, combined),),
     }
     return out, native
+
+
+def _face_byte(value: float) -> int:
+    """0..1 strength -> payload byte (VRChat decodes byte / 255)."""
+    if not math.isfinite(value):
+        return 0
+    return int(round(min(max(value, 0.0), 1.0) * 255.0))
+
+
+def compute_face_v1(data: UnifiedTrackingData, combined: SingleEyeData | None = None) -> bytes:
+    """VRChat native face tracking payload for /tracking/face/v1: one byte per
+    FACE_V1_KEYS entry, all 102 every frame (VRChat ignores partial payloads).
+
+    Gaze (x right, y up, [-1, 1]) splits into the EyeLook halves: "Out" is
+    toward the eye's own side (right for the right eye). Openness becomes
+    EyeClosed. VRCFT's normalized pupil (0.5 = midpoint of the running range)
+    drives EyeDilation above the midpoint and EyeConstrict below it, both eyes
+    alike. Everything else is the UE shape weight as-is; untracked shapes are 0.
+    """
+    if combined is None:
+        combined = data.eye.combined()
+    left, right = data.eye.left, data.eye.right
+    pupil = combined.pupil_diameter_mm
+    dilation = (pupil - 0.5) * 2.0
+    eye = {
+        "EyeLookOutRight": right.gaze_x,
+        "EyeLookInRight": -right.gaze_x,
+        "EyeLookUpRight": right.gaze_y,
+        "EyeLookDownRight": -right.gaze_y,
+        "EyeLookOutLeft": -left.gaze_x,
+        "EyeLookInLeft": left.gaze_x,
+        "EyeLookUpLeft": left.gaze_y,
+        "EyeLookDownLeft": -left.gaze_y,
+        "EyeClosedRight": 1.0 - right.openness,
+        "EyeClosedLeft": 1.0 - left.openness,
+        "EyeDilationRight": dilation,
+        "EyeDilationLeft": dilation,
+        "EyeConstrictRight": -dilation,
+        "EyeConstrictLeft": -dilation,
+    }
+    w = data.shapes
+    return bytes(_face_byte(eye[k]) for k in FACE_V1_EYE_KEYS) + bytes(_face_byte(w[k]) for k in UNIFIED_EXPRESSIONS)
 
 
 def native_pitch_yaw(eye: SingleEyeData, data: "UnifiedTrackingData"):

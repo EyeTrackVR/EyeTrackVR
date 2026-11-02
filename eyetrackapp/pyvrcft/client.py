@@ -14,6 +14,8 @@ Behavior mirrors VRCFT:
   * avatar params come from VRChat's OSCQuery endpoint (mDNS-discovered)
     or, failing that, VRChat's avatar config JSON on disk
   * honors /vrcft/settings/forceRelevant
+  * also sends VRChat's native /tracking/face/v1 payload to avatars that
+    report /avatar/avatarfullfacetracking (SDK face tracking, no FT params)
 """
 
 from __future__ import annotations
@@ -45,6 +47,8 @@ from .params import (
 logger = logging.getLogger("pyvrcft")
 
 V2_PREFIX = "v2/"
+FACE_V1_ADDRESS = "/tracking/face/v1"
+FULL_FACE_ADDRESS = "/avatar/avatarfullfacetracking"
 
 # Minimum seconds between repeats of the same background-thread error. The send
 # loop ticks at ~100 Hz, so a persistent sendto failure would otherwise log
@@ -84,6 +88,7 @@ class VRCFTClient:
         use_oscquery: bool = True,
         force_relevant: bool = False,
         bool_threshold: float = 0.5,
+        native_face: bool = True,
     ):
         self.send_host = send_host
         self.send_port = send_port
@@ -92,6 +97,10 @@ class VRCFTClient:
         self.use_oscquery = use_oscquery
         self.force_relevant = force_relevant
         self.bool_threshold = bool_threshold
+        # Send /tracking/face/v1 to avatars that accept it. Every payload
+        # carries all keys, so turn this off when another app (e.g. a lip
+        # tracker) already sends it, or the two overwrite each other.
+        self.native_face = native_face
 
         # Callbacks (assign your own)
         self.on_avatar_change = None  # fn(AvatarInfo)
@@ -109,6 +118,11 @@ class VRCFTClient:
         # avatar config says the avatar has its own FT eye params.
         self._native_gaze_ok = True
         self._native_lids_ok = True
+        # /tracking/face/v1 stays off until VRChat says the avatar takes it.
+        # _full_face_osc is the OSC-reported value for the current avatar,
+        # which wins over the (possibly stale) OSCQuery snapshot.
+        self._native_face_ok = False
+        self._full_face_osc: bool | None = None
         self._lock = threading.Lock()
 
         self._oscquery_endpoint = None  # (host, port) of VRChat's HTTP server
@@ -158,8 +172,9 @@ class VRCFTClient:
         expression pipeline: computes every v2 base/simple/combined/head
         parameter, the legacy v1 (SRanipal-era) eye parameters for older
         avatars, the native /tracking/eye/* endpoints (only when the avatar
-        has no FT eye params, like VRCFT), and the *TrackingActive status
-        bools.
+        has no FT eye params, like VRCFT), VRChat's native /tracking/face/v1
+        payload (only when the avatar reports full face tracking), and the
+        *TrackingActive status bools.
 
         The v2, v1, and native outputs are all emitted every frame; the client
         resolves each against the current avatar and only what the avatar
@@ -174,6 +189,8 @@ class VRCFTClient:
             self.send_direct("/tracking/eye/LeftRightPitchYaw", *native["/tracking/eye/LeftRightPitchYaw"])
         if self._native_lids_ok:
             self.send_direct("/tracking/eye/EyesClosedAmount", *native["/tracking/eye/EyesClosedAmount"])
+        if self.native_face and self._native_face_ok:
+            self.send_direct(FACE_V1_ADDRESS, *native[FACE_V1_ADDRESS])
         if data.eye_tracking_active is not None:
             self.set_bool("EyeTrackingActive", data.eye_tracking_active)
         if data.expression_tracking_active is not None:
@@ -264,6 +281,8 @@ class VRCFTClient:
                 self._resolve_one_bool(name)
             self._native_gaze_ok = native_gaze_relevant(info.parameters)
             self._native_lids_ok = native_eyelids_relevant(info.parameters)
+            if self._full_face_osc is None and info.full_face_tracking is not None:
+                self._set_full_face(info.full_face_tracking)
             resolved = sum(1 for s in self._slots.values() if s)
 
         logger.info(
@@ -399,16 +418,45 @@ class VRCFTClient:
     def notify_avatar_change(self, avatar_id: str) -> None:
         """/avatar/change caught by EyeTrackVR's own OSC receiver. Resolving
         fetches the avatar over HTTP, so keep it off the caller's thread."""
+        # Forget the old avatar's face flag now, not in the thread: VRChat sends
+        # avatarfullfacetracking right after /avatar/change, and it may be
+        # notified before the thread gets to run.
+        self._reset_full_face()
         threading.Thread(
             target=self._dispatch,
             args=("/avatar/change", [avatar_id]),
+            kwargs={"reset_face": False},
             daemon=True,
             name="pyvrcft-avatar",
         ).start()
 
-    def _dispatch(self, address: str, args: list) -> None:
+    def notify_full_face_tracking(self, value: bool) -> None:
+        """/avatar/avatarfullfacetracking caught by EyeTrackVR's own receiver."""
+        self._dispatch(FULL_FACE_ADDRESS, [value])
+
+    def _set_full_face(self, value: bool) -> None:
+        """Gate /tracking/face/v1 (caller holds the lock)."""
+        if value != self._native_face_ok:
+            # Drop the slot either way: closing stops the stale payload, and
+            # reopening resends the next frame even if it is unchanged.
+            self._direct.pop(FACE_V1_ADDRESS, None)
+        self._native_face_ok = value
+
+    def _reset_full_face(self) -> None:
+        with self._lock:
+            self._full_face_osc = None
+            self._set_full_face(False)
+
+    def _dispatch(self, address: str, args: list, reset_face: bool = True) -> None:
         if address == "/avatar/change" and args and isinstance(args[0], str):
+            if reset_face:
+                self._reset_full_face()
             self._resolve_avatar(args[0])
+        elif address == FULL_FACE_ADDRESS and args and isinstance(args[0], bool):
+            with self._lock:
+                self._full_face_osc = args[0]
+                self._set_full_face(args[0])
+            logger.info("Avatar native face tracking: %s", args[0])
         elif address == "/vrcft/settings/forceRelevant" and args and isinstance(args[0], bool):
             self.force_relevant = args[0]
         if self.on_message:

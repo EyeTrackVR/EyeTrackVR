@@ -81,6 +81,7 @@ class PyVRCFTSender:
             send_host=send_host,
             send_port=int(config.gui_osc_port),
             recv_port=recv_port,
+            native_face=bool(config.gui_pyvrcft_native_face),
         )
         # Map normalized calibrated gaze (±1) to true FOV angles on the native
         # /tracking/eye/LeftRightPitchYaw endpoint, so full gaze reflects the
