@@ -604,6 +604,15 @@ _SMARTCAL_CENTER_WEIGHT = 6.0
 _SMARTCAL_MAX_GAIN = 3.2
 _SMARTCAL_MIN_GAIN = 0.08
 _SMARTCAL_MAX_BIAS = 0.30
+# A consistent fit (residual guard passed) that only overshoots those bounds
+# moderately is CLAMPED onto them instead of thrown away: the weak tiny models
+# under-read so much (held-out ETVR micro gaze_y gain ~0.31) that ~1/3 of users
+# needed > 3.2x and ran fully uncalibrated. Simulated on held-out people,
+# clamping kept the per-frame error and lifted vertical gain 0.31 -> 0.71
+# (ETVR micro) / 0.62 -> 0.73 (BSB micro); the full model was unaffected.
+# Beyond this factor over the bound the fit is still treated as degenerate
+# (the bad captures seen in the wild were 10-200x).
+_SMARTCAL_CLAMP_FACTOR = 2.0
 # Mean L2 distance between the fitted mapping of the captured points and their
 # targets. A transform that can't get within this of its OWN fitting points is
 # fitting noise.
@@ -790,6 +799,33 @@ def next_smartcal_transform_is_sane(w, b, warp=None) -> bool:
     return True
 
 
+def clamp_next_smartcal_transform(w, b):
+    """Pull a moderately over-bound fit onto the sanity bounds.
+
+    Singular values of W above _SMARTCAL_MAX_GAIN are capped at it (direction
+    and roll kept) and the bias is clipped to +-_SMARTCAL_MAX_BIAS, provided
+    neither exceeds its bound by more than _SMARTCAL_CLAMP_FACTOR. Anything
+    else (mirrored W, a wildly over-gained or offset fit) is returned
+    unchanged so next_smartcal_transform_is_sane still rejects it.
+    Returns (w, b, clamped)."""
+    W = np.array([[w[0], w[1]], [w[2], w[3]]], dtype=np.float64)
+    B = np.asarray(b, dtype=np.float64).reshape(2)
+    if not (np.all(np.isfinite(W)) and np.all(np.isfinite(B))) or np.linalg.det(W) <= 0.0:
+        return w, b, False
+    U, s, Vt = np.linalg.svd(W)
+    over_gain = s[0] > _SMARTCAL_MAX_GAIN
+    over_bias = float(np.max(np.abs(B))) > _SMARTCAL_MAX_BIAS
+    if not (over_gain or over_bias):
+        return w, b, False
+    if s[0] > _SMARTCAL_MAX_GAIN * _SMARTCAL_CLAMP_FACTOR:
+        return w, b, False
+    if float(np.max(np.abs(B))) > _SMARTCAL_MAX_BIAS * _SMARTCAL_CLAMP_FACTOR:
+        return w, b, False
+    Wc = U @ np.diag(np.minimum(s, _SMARTCAL_MAX_GAIN)) @ Vt
+    Bc = np.clip(B, -_SMARTCAL_MAX_BIAS, _SMARTCAL_MAX_BIAS)
+    return [float(Wc[0, 0]), float(Wc[0, 1]), float(Wc[1, 0]), float(Wc[1, 1])], [float(Bc[0]), float(Bc[1])], True
+
+
 def reset_next_smartcal(eye_processors: list, baseconfig) -> None:
     """Clear the fitted smart-cal transform (memory + config) for all eyes,
     lid/brow anchors included."""
@@ -945,6 +981,20 @@ def _fit_next_smartcal(eye_processors: list, baseconfig, settings) -> bool:
                 [round(v, 4) for v in b],
             )
             continue
+        w_fit, b_fit = w, b
+        w, b, clamped = clamp_next_smartcal_transform(w, b)
+        if clamped:
+            logger.info(
+                "NEXT smart cal (eye %s): fit W=%s B=%s exceeds gain %.1f / bias %.2f; "
+                "clamped to W=%s B=%s (model under-reads this user).",
+                eye,
+                [round(v, 4) for v in w_fit],
+                [round(v, 4) for v in b_fit],
+                _SMARTCAL_MAX_GAIN,
+                _SMARTCAL_MAX_BIAS,
+                [round(v, 4) for v in w],
+                [round(v, 4) for v in b],
+            )
         if not next_smartcal_transform_is_sane(w, b, warp):
             logger.warning(
                 "NEXT smart cal (eye %s): rejected degenerate transform W=%s B=%s "

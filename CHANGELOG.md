@@ -3,6 +3,10 @@
 [![semantic versioning](https://img.shields.io/badge/semantic%20versioning-2.0.0-green.svg)](https://semver.org)
 > All notable changes to this project will be documented in this file
 
+## 2026-11-01
+
+- NEXT Smart Calib clamps a consistent fit that needs a little more than the 3.2x gain (or 0.30 offset) bound onto that bound instead of discarding it, so users whose model under-reads strongly are still calibrated. Simulated on held-out people, about a third of the tiny models' fits were being discarded; clamping kept the per-frame error and lifted vertical gain from 0.31 to 0.71 (ETVR Micro) and 0.62 to 0.73 (BSB Micro), with the full models unaffected. Fits more than twice over the bound, mirrored fits and inconsistent captures are still rejected.
+
 ## 2026-10-24
 
 - Collection notices v2 (dataset and bug report): explicit consent for eye images that may be biometric or health-related data, a separate required consent checkbox for that and the US transfer, a written retention and destruction schedule, disclosure of AI-assisted screening and of the US transfer with its safeguards, a limited licence that ends on withdrawal, and rights, appeal and complaint routes for the EU/UK, US states, Japan, Korea and other regions.

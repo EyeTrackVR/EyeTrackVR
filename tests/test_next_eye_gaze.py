@@ -25,7 +25,9 @@ from next_eye_gaze import (
 from next_stereo_model import NEXT_Stereo_cls, SharedPass, stereo_model_file
 from osc_calibrate_filter import (
     NEXT_SMARTCAL_DOTS,
+    _SMARTCAL_MAX_GAIN,
     _fit_next_smartcal,
+    clamp_next_smartcal_transform,
     next_smartcal_apply,
     next_smartcal_targets,
 )
@@ -413,3 +415,29 @@ def test_per_eye_smart_calib_follows_the_chosen_dominant_eye():
     left, right = _fit(GAZE_MODE_INDEPENDENT, dominant="right")
     np.testing.assert_allclose(_calibrated(right, 0.6 * DEVIATION), [0.0, 0.0], atol=1e-6)
     np.testing.assert_allclose(_calibrated(left, (0.0, 0.0)), -DEVIATION, atol=1e-6)
+
+
+def _max_gain(ep):
+    w = ep._next_smartcal_w
+    return float(np.linalg.svd(np.array([[w[0], w[1]], [w[2], w[3]]]), compute_uv=False)[0])
+
+
+def test_smart_calib_clamps_a_moderately_under_reading_model():
+    # A tiny model reading 0.25x needs 4x: clamped to the gain bound, not dropped.
+    ep = _calib_processor(EyeId.LEFT, (0.0, 0.0), gain=0.25)
+    assert _fit_next_smartcal([ep], Mock(), _settings(gui_NEXT_calib_lids_brows=False))
+    assert _max_gain(ep) == pytest.approx(_SMARTCAL_MAX_GAIN)
+
+
+def test_smart_calib_still_rejects_a_wildly_over_gained_fit():
+    # 0.12x needs ~8x, past the clamp factor: treated as degenerate.
+    ep = _calib_processor(EyeId.LEFT, (0.0, 0.0), gain=0.12)
+    assert not _fit_next_smartcal([ep], Mock(), _settings(gui_NEXT_calib_lids_brows=False))
+    assert ep._next_smartcal_w is None
+
+
+def test_clamp_keeps_in_bound_and_mirrored_fits_unchanged():
+    assert clamp_next_smartcal_transform([1.5, 0.0, 0.0, 2.0], [0.1, 0.0])[2] is False
+    assert clamp_next_smartcal_transform([4.0, 0.0, 0.0, -4.0], [0.0, 0.0])[2] is False
+    w, b, clamped = clamp_next_smartcal_transform([1.2, 0.0, 0.0, 4.0], [0.0, 0.4])
+    assert clamped and w == pytest.approx([1.2, 0.0, 0.0, _SMARTCAL_MAX_GAIN]) and b == pytest.approx([0.0, 0.3])
