@@ -34,13 +34,11 @@ from utils.logging_utils import TrackingLogger
 import socket
 import struct
 import threading
-import os
-import subprocess
 import math
 from utils.calibration_elipse import *
 from utils.robust_calibration import RobustCalibrationSession, CalibrationPhase
 from utils.bs_detector import BSDetector
-from utils.overlay_launch import overlay_executable, overlay_language_arg
+from utils.overlay_launch import OverlayExited, OverlaySession, overlay_executable
 from next_eye_gaze import GAZE_MODE_FUSED, dominant_eye_from_settings, gaze_mode_from_settings
 
 logger = logging.getLogger(__name__)
@@ -210,36 +208,17 @@ def _update_keypoint_noise(eye_id, cx, cy, roi_diag):
 def center_overlay_calibrate(self):
     if var.overlay_active:
         return
-    sock = None
+    var.overlay_active = True
     try:
-        overlay_path = _overlay_executable()
-        # Run from the tools folder so the overlay finds its assets/ (font)
-        tools_dir = os.path.dirname(overlay_path)
-        # Bind before launching the overlay so no UDP packets are dropped due to
-        # the socket not being ready when the overlay sends its first signal.
-        sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        sock.bind(("127.0.0.1", 2112))
-        subprocess.Popen(
-            [overlay_path, "center", overlay_language_arg()],
-            cwd=tools_dir,
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
-            creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
-        )
-        var.overlay_active = True
-        data, _ = sock.recvfrom(4096)
-        struct.unpack("!l", data)[0]  # value currently unused; kept for protocol parity
-    except (OSError, FileNotFoundError, struct.error) as e:
+        with OverlaySession("center") as overlay:
+            overlay.recv()  # the overlay's only signal: the centre dot was shown
+            overlay.finish()
+    except (OSError, struct.error) as e:
         logger.warning(
             "Center-overlay calibration failed (%s). Make sure SteamVR is running.",
             e,
         )
     finally:
-        if sock is not None:
-            try:
-                sock.close()
-            except OSError:
-                pass
         self.settings.gui_recenter_eyes = False
         self.calibration_start_time = None
         var.overlay_active = False
@@ -249,44 +228,23 @@ def center_overlay_calibrate(self):
 def overlay_calibrate_3d(self):
     if var.overlay_active:
         return
-    sock = None
+    var.overlay_active = True
     try:
-        overlay_path = _overlay_executable()
-        # Run from the tools folder so the overlay finds its assets/ (font)
-        tools_dir = os.path.dirname(overlay_path)
-        # Bind before launching the overlay so no UDP packets are dropped due to
-        # the socket not being ready when the overlay sends its first signal.
-        # Bind once and reuse across messages; rebinding the same port every
-        # iteration would race the OS releasing it on close.
-        sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        sock.bind(("127.0.0.1", 2112))
-        subprocess.Popen(
-            [overlay_path, overlay_language_arg()],
-            cwd=tools_dir,
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
-            creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
-        )
-        var.overlay_active = True
-        while var.overlay_active:
-            data, _ = sock.recvfrom(4096)
-            message = struct.unpack("!l", data)[0]
-            self.settings.gui_recenter_eyes = False
-            self.settings.grab_3d_point = True
-            logger.debug("3D overlay calibration message: %s", message)
-            if message == 9:
-                var.overlay_active = False
-    except (OSError, FileNotFoundError, struct.error) as e:
+        with OverlaySession() as overlay:
+            while var.overlay_active:
+                message = struct.unpack("!l", overlay.recv())[0]
+                self.settings.gui_recenter_eyes = False
+                self.settings.grab_3d_point = True
+                logger.debug("3D overlay calibration message: %s", message)
+                if message == 9:
+                    var.overlay_active = False
+                    overlay.finish()
+    except (OSError, struct.error) as e:
         logger.warning(
             "3D calibration overlay error (%s). Make sure SteamVR is running.",
             e,
         )
     finally:
-        if sock is not None:
-            try:
-                sock.close()
-            except OSError:
-                pass
         self.settings.gui_recenter_eyes = False
         var.overlay_active = False
 
@@ -355,44 +313,60 @@ def overlay_ellipse_calibrate(eye_processors: list, settings, baseconfig) -> Non
     """
     if var.overlay_active:
         return
-    sock = None
+    var.overlay_active = True
     try:
-        overlay_path = _overlay_executable()
-        tools_dir = os.path.dirname(overlay_path)
-        # Bind before launching the overlay so no UDP packets are dropped while
-        # the socket is not yet ready. The overlay may send signal 0 almost
-        # immediately after startup; if Python hasn't bound by then, that packet
-        # is silently discarded and the calibration never starts collecting.
-        sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        sock.settimeout(120.0)
-        sock.bind(("127.0.0.1", 2112))
-        subprocess.Popen(
-            [overlay_path, "ellipse", overlay_language_arg()],
-            cwd=tools_dir,
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
-            creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
-        )
-        var.overlay_active = True
+        with OverlaySession("ellipse") as overlay:
+            # Reset calibration samples so this run starts fresh
+            for ep in eye_processors:
+                ep.cal.xs = []
+                ep.cal.ys = []
+                ep.cal.fitted = False
 
-        # Reset calibration samples so this run starts fresh
-        for ep in eye_processors:
-            ep.cal.xs = []
-            ep.cal.ys = []
-            ep.cal.fitted = False
+            while var.overlay_active:
+                try:
+                    data = overlay.recv()
+                except (socket.timeout, OverlayExited) as e:
+                    logger.warning("Overlay ellipse calibration ended early: %s", e)
+                    # Save a partial fit if samples were collected before the
+                    # overlay stopped. This handles the case where signal 0 was
+                    # received and the spiral ran but signal 9 never arrived.
+                    _saved_partial = False
+                    for ep in eye_processors:
+                        ep._ellipse_collect_active = False
+                        if len(ep.cal.xs) >= 2:
+                            evecs, axes = ep.cal.fit_ellipse()
+                            if not (isinstance(evecs, int) and isinstance(axes, int) and evecs == 0 and axes == 0):
+                                ep.config.calib_evecs = list(evecs.tolist() if hasattr(evecs, "tolist") else evecs)
+                                ep.config.calib_axes = list(axes.tolist() if hasattr(axes, "tolist") else axes)
+                                if ep.cal.center is not None:
+                                    ep.config.calib_XOFF = float(ep.cal.center[0])
+                                    ep.config.calib_YOFF = float(ep.cal.center[1])
+                                _mark_next_classic_calibration_active(ep)
+                                ep.baseconfig.save()
+                                logger.info(
+                                    "Ellipse cal: partial fit saved from %d samples (overlay stopped)",
+                                    len(ep.cal.xs),
+                                )
+                                _saved_partial = True
+                    if _saved_partial:
+                        settings.calib_mode = "classic"
+                        PlaySound(resource_path("assets/audio/completed.wav"), SND_FILENAME | SND_ASYNC)
+                    break
+                if not data or len(data) < 4:
+                    continue
 
-        while var.overlay_active:
-            try:
-                data, _ = sock.recvfrom(4096)
-            except socket.timeout:
-                logger.warning("Overlay ellipse calibration timed out")
-                # Save a partial fit if samples were collected before the timeout.
-                # This handles the case where signal 0 was received and the spiral
-                # ran but signal 9 never arrived before the deadline.
-                _saved_partial = False
-                for ep in eye_processors:
-                    ep._ellipse_collect_active = False
-                    if len(ep.cal.xs) >= 2:
+                signal = struct.unpack("!l", data)[0]
+
+                if signal == 0:
+                    # Start continuous per-frame sampling
+                    logger.debug("Overlay ellipse calibration: sampling started")
+                    for ep in eye_processors:
+                        ep._ellipse_collect_active = True
+
+                elif signal == 9:
+                    # Stop sampling, fit, and save
+                    for ep in eye_processors:
+                        ep._ellipse_collect_active = False
                         evecs, axes = ep.cal.fit_ellipse()
                         if not (isinstance(evecs, int) and isinstance(axes, int) and evecs == 0 and axes == 0):
                             ep.config.calib_evecs = list(evecs.tolist() if hasattr(evecs, "tolist") else evecs)
@@ -402,56 +376,19 @@ def overlay_ellipse_calibrate(eye_processors: list, settings, baseconfig) -> Non
                                 ep.config.calib_YOFF = float(ep.cal.center[1])
                             _mark_next_classic_calibration_active(ep)
                             ep.baseconfig.save()
-                            logger.info(
-                                "Ellipse cal: partial fit saved from %d samples (timeout)",
-                                len(ep.cal.xs),
-                            )
-                            _saved_partial = True
-                if _saved_partial:
+                            logger.info("Ellipse cal: fitted from %d samples", len(ep.cal.xs))
                     settings.calib_mode = "classic"
                     PlaySound(resource_path("assets/audio/completed.wav"), SND_FILENAME | SND_ASYNC)
-                break
-            if not data or len(data) < 4:
-                continue
+                    var.overlay_active = False
+                    overlay.finish()
+                    break
 
-            signal = struct.unpack("!l", data)[0]
-
-            if signal == 0:
-                # Start continuous per-frame sampling
-                logger.debug("Overlay ellipse calibration: sampling started")
-                for ep in eye_processors:
-                    ep._ellipse_collect_active = True
-
-            elif signal == 9:
-                # Stop sampling, fit, and save
-                for ep in eye_processors:
-                    ep._ellipse_collect_active = False
-                    evecs, axes = ep.cal.fit_ellipse()
-                    if not (isinstance(evecs, int) and isinstance(axes, int) and evecs == 0 and axes == 0):
-                        ep.config.calib_evecs = list(evecs.tolist() if hasattr(evecs, "tolist") else evecs)
-                        ep.config.calib_axes = list(axes.tolist() if hasattr(axes, "tolist") else axes)
-                        if ep.cal.center is not None:
-                            ep.config.calib_XOFF = float(ep.cal.center[0])
-                            ep.config.calib_YOFF = float(ep.cal.center[1])
-                        _mark_next_classic_calibration_active(ep)
-                        ep.baseconfig.save()
-                        logger.info("Ellipse cal: fitted from %d samples", len(ep.cal.xs))
-                settings.calib_mode = "classic"
-                PlaySound(resource_path("assets/audio/completed.wav"), SND_FILENAME | SND_ASYNC)
-                var.overlay_active = False
-                break
-
-    except (OSError, FileNotFoundError, struct.error) as e:
+    except (OSError, struct.error) as e:
         logger.warning("Ellipse overlay calibration error: %s", e)
     finally:
         # Always clear collect flag so cal_osc doesn't keep sampling
         for ep in eye_processors:
             ep._ellipse_collect_active = False
-        if sock is not None:
-            try:
-                sock.close()
-            except OSError:
-                pass
         var.overlay_active = False
 
 
@@ -1045,59 +982,45 @@ def next_smartcal_overlay(eye_processors: list, settings, baseconfig) -> None:
     """
     if var.overlay_active:
         return
-    sock = None
+    var.overlay_active = True
     try:
-        overlay_path = _overlay_executable()
-        tools_dir = os.path.dirname(overlay_path)
-        # Bind before launching so the overlay's first signal isn't dropped.
-        sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        sock.settimeout(120.0)
-        sock.bind(("127.0.0.1", 2112))
-        subprocess.Popen(
-            [overlay_path, "finetune", overlay_language_arg()],
-            cwd=tools_dir,
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
-            creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
-        )
-        var.overlay_active = True
+        with OverlaySession("finetune") as overlay:
+            # Fresh sample state for this run.
+            for ep in eye_processors:
+                ep._next_smartcal_active_dot = None
+                ep._next_smartcal_samples = {}
 
-        # Fresh sample state for this run.
-        for ep in eye_processors:
-            ep._next_smartcal_active_dot = None
-            ep._next_smartcal_samples = {}
+            while var.overlay_active:
+                try:
+                    data = overlay.recv(16)
+                except socket.timeout:
+                    logger.warning("NEXT smart calibration timed out before completion.")
+                    break
+                if not data or len(data) < 4:
+                    continue
 
-        while var.overlay_active:
-            try:
-                data, _ = sock.recvfrom(16)
-            except socket.timeout:
-                logger.warning("NEXT smart calibration timed out before completion.")
-                break
-            if not data or len(data) < 4:
-                continue
+                signal = struct.unpack(">i", data[:4])[0]
 
-            signal = struct.unpack(">i", data[:4])[0]
-
-            if 0 <= signal < len(NEXT_SMARTCAL_DOTS):
-                # Dot is held and capture-ready: start sampling it. The sampler
-                # (NEXTM) only accepts frames within NEXT_SMARTCAL_CAPTURE_WINDOW_S
-                # of this timestamp; the overlay's hold is 0.5 s, after which the
-                # user is already saccading to / following the next dot.
-                logger.debug("NEXT smart cal: capturing dot %d", signal)
-                _t0 = time.monotonic()
-                for ep in eye_processors:
-                    ep._next_smartcal_dot_started = _t0
-                    ep._next_smartcal_active_dot = signal
-            elif signal == NEXT_SMARTCAL_DONE_SIGNAL:
-                # All dots done: stop sampling and fit.
-                for ep in eye_processors:
-                    ep._next_smartcal_active_dot = None
-                if _fit_next_smartcal(eye_processors, baseconfig, settings):
-                    PlaySound(resource_path("assets/audio/completed.wav"), SND_FILENAME | SND_ASYNC)
-                var.overlay_active = False
-                break
-    except (OSError, FileNotFoundError, struct.error) as e:
+                if 0 <= signal < len(NEXT_SMARTCAL_DOTS):
+                    # Dot is held and capture-ready: start sampling it. The sampler
+                    # (NEXTM) only accepts frames within NEXT_SMARTCAL_CAPTURE_WINDOW_S
+                    # of this timestamp; the overlay's hold is 0.5 s, after which the
+                    # user is already saccading to / following the next dot.
+                    logger.debug("NEXT smart cal: capturing dot %d", signal)
+                    _t0 = time.monotonic()
+                    for ep in eye_processors:
+                        ep._next_smartcal_dot_started = _t0
+                        ep._next_smartcal_active_dot = signal
+                elif signal == NEXT_SMARTCAL_DONE_SIGNAL:
+                    # All dots done: stop sampling and fit.
+                    for ep in eye_processors:
+                        ep._next_smartcal_active_dot = None
+                    if _fit_next_smartcal(eye_processors, baseconfig, settings):
+                        PlaySound(resource_path("assets/audio/completed.wav"), SND_FILENAME | SND_ASYNC)
+                    var.overlay_active = False
+                    overlay.finish()
+                    break
+    except (OSError, struct.error) as e:
         logger.warning(
             "NEXT smart calibration overlay error (%s). Make sure SteamVR is running.",
             e,
@@ -1105,11 +1028,6 @@ def next_smartcal_overlay(eye_processors: list, settings, baseconfig) -> None:
     finally:
         for ep in eye_processors:
             ep._next_smartcal_active_dot = None
-        if sock is not None:
-            try:
-                sock.close()
-            except OSError:
-                pass
         var.overlay_active = False
 
 
