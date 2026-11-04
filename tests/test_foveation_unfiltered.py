@@ -1,6 +1,7 @@
 """Foveated rendering gets calibrated but unfiltered gaze (EyeInfo.dfr_x / dfr_y);
 VRChat keeps the smoothed gaze (EyeInfo.x / y). Covers both NEXT runners, NEXT's
-calibration step, the classic cal_osc path, and the foveation sender."""
+calibration step, Smart Calib capture, the classic cal_osc path, and the
+foveation sender."""
 
 import time
 from queue import Queue
@@ -136,6 +137,31 @@ def test_next_dfr_gaze_is_the_raw_gaze_through_the_same_calibration():
     assert (p.out_x, p.out_y) == pytest.approx((-0.35, 0.15))
     # DFR: raw 0.3 / 0.4 -> cal (0.7, 0.2) -> flips (-0.7, -0.2) -> recenter (-0.75, -0.15)
     assert (p.dfr_x, p.dfr_y) == pytest.approx((-0.75, -0.15))
+
+
+def test_smart_calib_captures_the_unfiltered_gaze():
+    # The filtered gaze still lags behind on the previous dot; calibration
+    # must sample what the model sees now, not the smoothed output.
+    p = _next_processor()
+    p._next_smartcal_active_dot = 3
+    p._next_smartcal_dot_started = time.monotonic()
+    p._next_smartcal_samples = {}
+
+    p._next_apply(0.1, 0.1, 0.5, 0.9, 0.0, raw_gaze=(0.6, -0.4))
+
+    assert p._next_smartcal_samples[3] == [pytest.approx((0.6, -0.4, 0.9, 0.5))]
+    assert (p.out_x, p.out_y) == pytest.approx((0.1, 0.1))
+
+
+def test_smart_calib_without_a_raw_tap_captures_the_model_gaze():
+    p = _next_processor()
+    p._next_smartcal_active_dot = 0
+    p._next_smartcal_dot_started = time.monotonic()
+    p._next_smartcal_samples = {}
+
+    p._next_apply(0.2, -0.3, 0.5, 0.9, 0.0)
+
+    assert p._next_smartcal_samples[0] == [pytest.approx((0.2, -0.3, 0.9, 0.5))]
 
 
 def test_next_dfr_gaze_is_bounded_like_the_osc_gaze():
