@@ -88,6 +88,11 @@ recenter_btn = "Recenter Eyes"
 # Button: clear the saved NEXT smart-calib transform (shown only when one exists)
 next_smartcal_reset_btn = "Reset Smart Calib"
 next_smartcal_reset_btn_tip = "Clear the saved Smart Calib fit and go back to the model's uncalibrated gaze output."
+preview_btn = "Preview in Headset"
+stop_preview = "Stop Preview"
+preview_btn_tip = "Show your tracked gaze as a ring in the headset, over a dot that moves between the center and four directions, to check tracking and calibration."
+# In-headset card during the preview; "\n" separates its title from its subtitle.
+preview_panel = "Follow the dot with your eyes\nThe ring shows where EyeTrackVR sees you looking"
 # Bottom-bar button: open the data collection window
 contribute_data_btn = "Contribute Data"
 # Overlay shown in the bottom bar when the window loses focus

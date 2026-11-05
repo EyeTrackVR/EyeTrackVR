@@ -82,6 +82,7 @@ from settings.general_settings_widget import SettingsWidget
 from settings.algo_settings_widget import AlgoSettingsWidget
 from osc.osc import OSCManager
 from osc.osc_message import OSCMessage
+from utils import gaze_preview
 from utils.logging_utils import setup_logging
 from utils.misc_utils import is_nt, is_macos, resource_path
 from utils.tooltips import attach_tooltip
@@ -825,6 +826,16 @@ def main():
                 text=tr("tracking.recenter_btn"),
                 command=self._on_global_recenter,
             ).pack(side="left", padx=8)
+            # Shows the output gaze live in the headset, over a reference dot,
+            # so tracking and calibration can be checked without VRChat.
+            self._preview_btn_text = tk.StringVar(value=tr("tracking.preview_btn"))
+            self._preview_btn = ttk.Button(
+                actions_inner,
+                textvariable=self._preview_btn_text,
+                command=self._on_gaze_preview_toggle,
+            )
+            self._preview_btn.pack(side="left", padx=8)
+            attach_tooltip(self._preview_btn, tr("tracking.preview_btn_tip"))
             # Escape hatch for a bad NEXT Smart Calib fit: clears the saved
             # transform so the raw model gaze flows again. Only shown while the
             # NEXT tracker is active AND a fitted transform exists (see
@@ -1544,6 +1555,19 @@ def main():
                 if eye.started():
                     eye.recenter_eyes()
 
+        def _on_gaze_preview_toggle(self):
+            from overlay_calibration import gaze_preview_overlay, stop_gaze_preview
+
+            if gaze_preview.is_running():
+                stop_gaze_preview()
+            else:
+                gaze_preview_overlay(config.settings)
+
+        def _sync_gaze_preview_button(self):
+            text = tr("tracking.stop_preview") if gaze_preview.is_running() else tr("tracking.preview_btn")
+            if self._preview_btn_text.get() != text:
+                self._preview_btn_text.set(text)
+
         def _on_ellipse_calibration(self):
             from overlay_calibration import overlay_ellipse_calibrate
 
@@ -1643,6 +1667,7 @@ def main():
                             eye.render_tick()
                     self._sync_global_calibration_button()
                     self._sync_next_smartcal_reset_button()
+                    self._sync_gaze_preview_button()
             else:
                 if not self.focus_paused:
                     self.focus_paused = True
