@@ -30,9 +30,9 @@ rsync -a --delete \
     --exclude "*.pyc" --exclude "v[0-9]*_*_ETVR_*" \
     "$REPO_ROOT/$APP_SUBDIR/" "$SRC_DIR/$APP_SUBDIR/"
 rsync -a --delete "$REPO_ROOT/packaging/" "$SRC_DIR/packaging/"
-# The spec bundles the overlay runtime from the overlay/ submodule.
-mkdir -p "$SRC_DIR/overlay"
-rsync -a --delete "$REPO_ROOT/overlay/dist/" "$SRC_DIR/overlay/dist/"
+# The spec downloads the pinned overlay unless overlay/ holds a local build.
+rm -rf "$SRC_DIR/overlay"
+if [ -d "$REPO_ROOT/overlay" ]; then cp -a "$REPO_ROOT/overlay" "$SRC_DIR/"; fi
 # Strip CRLF from anything bash/python parses out of the repo checkout.
 find "$SRC_DIR/packaging" -name "*.sh" -exec sed -i 's/\r$//' {} +
 
