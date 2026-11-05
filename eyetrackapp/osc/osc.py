@@ -42,6 +42,7 @@ from osc.pyvrcft_sender import PyVRCFTSender
 from osc.foveation_gaze_sender import FOVEATION_HOST, FOVEATION_PORT, FoveationGazeSender
 from osc.oscquery import LOOPBACK, OSCQueryAdvertiser
 from osc import streaming_target
+from utils import gaze_preview
 import queue
 import threading
 
@@ -488,6 +489,10 @@ class OSCSender:
                 try:
                     match osc_message.type:
                         case OSCMessageType.EYE_INFO:
+                            gaze_preview.feed(
+                                *osc_message.data,
+                                single_eye=VRChatOSCSender.get_is_single_eye(self.main_config.eye_display_id),
+                            )
                             if use_foveation:
                                 self._send_foveation(osc_message)
                             if use_pyvrcft:
