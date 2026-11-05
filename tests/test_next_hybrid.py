@@ -247,7 +247,7 @@ def test_processor_uses_hybrid_without_an_active_peer(monkeypatch, eye, hybrid_a
     )
     coord.run.return_value = (0.1, 0.2, 0.3, 0.4, 0.5)
     coord.peer_active.return_value = False
-    monkeypatch.setattr("eye_processor.get_stereo_coordinator", lambda *args: coord)
+    monkeypatch.setattr("next_processing.get_stereo_coordinator", lambda *args: coord)
     processor.NEXTM()
     coord.submit.assert_called_once()
     submitted_eye, submitted_frame, submitted_ts = coord.submit.call_args.args

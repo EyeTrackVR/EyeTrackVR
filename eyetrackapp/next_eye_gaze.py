@@ -51,6 +51,13 @@ LID_OPEN = 0.40
 # average out per-frame monocular noise, short enough to follow a deviation
 # that changes with gaze direction.
 OFFSET_TAU_S = 0.3
+# Output openness over which vertical gaze stops being trusted (SquintYHold):
+# below HOLD_BELOW it is held, above TRUST_ABOVE it passes through untouched.
+SQUINT_HOLD_BELOW = 0.20
+SQUINT_TRUST_ABOVE = 0.50
+# How fast the held value follows the gaze anyway: a blink barely moves it, a
+# long squint or naturally narrow eyes can't freeze the avatar's eyes for good.
+SQUINT_RELEASE_TAU_S = 1.5
 
 
 def gaze_mode_from_settings(settings) -> str:
@@ -74,6 +81,29 @@ def select_eye_gaze(eye_gaze, eye_id, mode: str, dominant):
 def _smoothstep(edge0: float, edge1: float, x: float) -> float:
     t = min(1.0, max(0.0, (x - edge0) / (edge1 - edge0)))
     return t * t * (3.0 - 2.0 * t)
+
+
+class SquintYHold:
+    """Holds vertical gaze while the lids cover the pupil. The upper lid hides
+    what vertical gaze is read from first, so the output can follow the lid
+    instead of the eye. Gaze fades towards its last trusted value as the eye
+    closes rather than towards a limit: looking up while squinting is real, and
+    a lid dragging gaze down isn't stopped by a ceiling. Horizontal gaze stays
+    readable from the visible iris and is left alone."""
+
+    def __init__(self):
+        self._held = None
+        self._last_t = None
+
+    def apply(self, y: float, openness: float, now: float) -> float:
+        trust = _smoothstep(SQUINT_HOLD_BELOW, SQUINT_TRUST_ABOVE, openness)
+        dt = 0.0 if self._last_t is None else max(0.0, now - self._last_t)
+        self._last_t = now
+        if self._held is None or trust >= 1.0:
+            self._held = y
+            return y
+        self._held += (y - self._held) * (1.0 - math.exp(-dt / SQUINT_RELEASE_TAU_S))
+        return self._held + trust * (y - self._held)
 
 
 class PerEyeGaze:

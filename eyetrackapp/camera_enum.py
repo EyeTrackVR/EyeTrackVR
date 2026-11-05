@@ -180,7 +180,7 @@ def _windows_camera_metadata() -> list[tuple[str, str]]:
             try:
                 comtypes.CoUninitialize()
             except Exception:
-                pass
+                logger.debug("CoUninitialize failed", exc_info=True)
 
     consumed: dict[str, int] = {}
     result: list[tuple[str, str]] = []

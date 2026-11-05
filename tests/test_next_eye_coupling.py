@@ -5,7 +5,8 @@ import numpy as np
 import pytest
 
 from eye import EyeId
-from eye_processor import EyeProcessor, NextExpressionTransform
+from eye_processor import EyeProcessor
+from next_processing import NextExpressionTransform
 from next_eye_coupling import (
     DEFAULT_SYNC,
     SYNC_MAX,
@@ -314,3 +315,17 @@ def test_coordinator_marks_missing_eye_passes():
     # The left eye reusing that pass is served the same one.
     coord.run(EyeId.LEFT, 0.0, 0.0)
     assert coord.served_pass(EyeId.LEFT) is both
+
+
+def test_peer_openness_reads_the_other_eye_of_the_pass():
+    coupler = NextExpressionCoupler()
+    shared = SimpleNamespace(result=[0.5, 0.2, 0.0, 0.5, 0.9, 0.0])
+    assert coupler.peer_openness(EyeId.LEFT, shared) is None
+
+    transform = SimpleNamespace(openness=lambda lid, squeeze: (lid, lid * (1.0 - squeeze)))
+    coupler.publish(EyeId.LEFT, transform)
+    coupler.publish(EyeId.RIGHT, transform)
+
+    assert coupler.peer_openness(EyeId.LEFT, shared) == pytest.approx(0.9)
+    assert coupler.peer_openness(EyeId.RIGHT, shared) == pytest.approx(0.2)
+    assert coupler.peer_openness(EyeId.LEFT, None) is None

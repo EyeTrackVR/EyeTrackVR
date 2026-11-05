@@ -10,7 +10,8 @@ from config import (
     _migrate_config_dict,
 )
 from eye import EyeId
-from eye_processor import EyeProcessor, next_eyelid_tuning_active
+from eye_processor import EyeProcessor
+from next_processing import next_eyelid_tuning_active
 
 
 def _processor(*, next_active: bool, setup_mode: str = "etvr", eye_id=EyeId.LEFT):

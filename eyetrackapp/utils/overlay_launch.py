@@ -99,17 +99,25 @@ class OverlaySession:
         self.args = args
         self.timeout = timeout
         self.process: subprocess.Popen | None = None
-        self._sock: socket.socket | None = None
+        self.sock: socket.socket | None = None
         self._log = None
         self._finished = False
         self._deadline = 0.0
 
     def __enter__(self) -> Self:
+        return self.start()
+
+    def __exit__(self, *_exc) -> None:
+        self.close()
+
+    def start(self) -> Self:
+        """Bind the signal socket and launch the overlay. ``with`` calls this and
+        ``close``; call them directly when a run doesn't fit one block."""
         try:
             command = overlay_command(*self.args)
-            self._sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-            self._sock.settimeout(self.POLL_S)
-            self._sock.bind(("127.0.0.1", OVERLAY_SIGNAL_PORT))
+            self.sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+            self.sock.settimeout(self.POLL_S)
+            self.sock.bind(("127.0.0.1", OVERLAY_SIGNAL_PORT))
             self._log = _open_overlay_log()
             self.process = subprocess.Popen(
                 command,
@@ -121,14 +129,14 @@ class OverlaySession:
             self._deadline = time.monotonic() + self.timeout
             return self
         except BaseException:
-            self.__exit__(None, None, None)
+            self.close()
             raise
 
     def recv(self, bufsize: int = 4096) -> bytes:
         """The next datagram from the overlay."""
         while time.monotonic() < self._deadline:
             try:
-                data, _ = self._sock.recvfrom(bufsize)
+                data, _ = self.sock.recvfrom(bufsize)
                 self._deadline = time.monotonic() + self.timeout
                 return data
             except TimeoutError:
@@ -141,7 +149,7 @@ class OverlaySession:
         """The calibration completed; let the overlay close on its own."""
         self._finished = True
 
-    def __exit__(self, *_exc) -> None:
+    def close(self) -> None:
         try:
             if self.process is not None and self.process.poll() is None:
                 if self._finished:
@@ -151,7 +159,7 @@ class OverlaySession:
                         pass
                 _stop(self.process, self.TERMINATE_GRACE_S)
         finally:
-            for resource in (self._sock, self._log):
+            for resource in (self.sock, self._log):
                 if resource is not None:
                     try:
                         resource.close()

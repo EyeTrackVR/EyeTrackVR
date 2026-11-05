@@ -1,3 +1,4 @@
+import logging
 import openvr
 import os
 import shlex
@@ -13,6 +14,8 @@ from colorama import Fore
 
 from config import _USER_DATA_DIR
 from localization import tr
+
+logger = logging.getLogger(__name__)
 
 
 class OpenVRException(Exception):
@@ -108,7 +111,7 @@ def _vrserver_running() -> bool:
         if sys.platform == "win32":
             return _windows_process_running("vrserver.exe")
     except Exception:
-        pass
+        logger.debug("Could not check whether SteamVR is running", exc_info=True)
     return True
 
 
@@ -236,7 +239,7 @@ class OpenVRService:
         try:
             self.app.identifyApplication(os.getpid(), self.appKey)
         except Exception:
-            pass
+            logger.debug("identifyApplication failed", exc_info=True)
 
     def initialize(self) -> bool:
         with self._lock:
@@ -253,7 +256,7 @@ class OpenVRService:
                 try:
                     openvr.shutdown()
                 except Exception:
-                    pass
+                    logger.debug("openvr.shutdown failed", exc_info=True)
             self.is_initialized = False
             self._registered = False
             self.app = None
@@ -309,7 +312,7 @@ class OpenVRService:
                 self.app.removeApplicationManifest(path)
                 self.logger.log(INFO, f"[INFO] Removed stale SteamVR registration {path}")
             except Exception:
-                pass
+                logger.warning("Could not remove stale SteamVR registration %s", path, exc_info=True)
         if old_manifest:
             try:
                 os.remove(old_manifest)
@@ -370,12 +373,12 @@ class OpenVRService:
                     try:
                         self.app.setApplicationAutoLaunch(self.appKey, False)
                     except Exception:
-                        pass
+                        logger.warning("Could not turn off SteamVR auto-launch", exc_info=True)
                     for path in paths:
                         try:
                             self.app.removeApplicationManifest(path)
                         except Exception:
-                            pass
+                            logger.warning("Could not remove SteamVR registration %s", path, exc_info=True)
             except OpenVRException:
                 # SteamVR isn't running; deleting the manifest file is enough,
                 # since SteamVR won't auto-launch an app whose manifest no longer exists.
@@ -482,7 +485,7 @@ class OpenVRService:
                     try:
                         system.acknowledgeQuit_Exiting()
                     except Exception:
-                        pass
+                        logger.debug("acknowledgeQuit_Exiting failed", exc_info=True)
                     self._shutdown()
                     return True
         except Exception:

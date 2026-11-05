@@ -556,6 +556,10 @@ ahsf_tip = ""
 hsrac_tip = ""
 # EN: "HSF: Haar surround feature. Classical, very fast, less robust."
 hsf_tip = ""
+# EN: "Hold vertical gaze when squinting"
+next_squint_y_hold = ""
+# EN: "Turn this on if your eyes move up or down on their own when you squint. As your eyes close, vertical gaze fades to its last steady position instead of following your eyelid. A long squint still follows slowly. Horizontal gaze isn't affected. Off by default."
+next_squint_y_hold_tip = ""
 
 [algo_blink]
 # EN: "raw: {value}"  (keep {value})

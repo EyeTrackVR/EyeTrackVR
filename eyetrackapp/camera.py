@@ -229,7 +229,7 @@ class Camera:
             try:
                 cam.release()
             except Exception:
-                pass
+                logger.debug("Releasing the camera failed", exc_info=True)
             self.cv2_camera = None
         if self._claimed_uvc_address is not None:
             release_uvc_claim(id(self))
@@ -243,7 +243,7 @@ class Camera:
             if conn.is_open:
                 conn.close()
         except Exception:
-            pass
+            logger.debug("Closing the serial connection failed", exc_info=True)
         self.serial_connection = None
         self.buffer = b""
 
@@ -763,7 +763,7 @@ class Camera:
             try:
                 self.serial_connection.close()
             except Exception:
-                pass
+                logger.debug("Closing the serial connection failed", exc_info=True)
             self.serial_connection = None
         # Always discard the buffer when opening a fresh connection so stale bytes
         # from a previous session can't produce false JPEG boundaries.

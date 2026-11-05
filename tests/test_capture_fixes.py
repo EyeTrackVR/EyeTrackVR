@@ -14,6 +14,7 @@ import pytest
 
 import camera_enum
 import data_collection
+import data_collection_tts
 from camera_widget import CameraWidget
 
 
@@ -303,11 +304,11 @@ def test_recorder_snapshot_is_the_next_frame_not_a_queued_one():
 
 
 def test_prompt_without_a_tts_engine_waits_its_reading_time(monkeypatch):
-    monkeypatch.setattr(data_collection.platform, "system", lambda: "Linux")
-    monkeypatch.setattr(data_collection, "_run_tts_command", lambda *a, **k: False)
-    monkeypatch.setattr(data_collection, "_reading_seconds", lambda text: 0.2)
+    monkeypatch.setattr(data_collection_tts.platform, "system", lambda: "Linux")
+    monkeypatch.setattr(data_collection_tts, "_run_tts_command", lambda *a, **k: False)
+    monkeypatch.setattr(data_collection_tts, "_reading_seconds", lambda text: 0.2)
     start = time.monotonic()
-    data_collection.speak("Look left and squint").wait(2.0)
+    data_collection_tts.speak("Look left and squint").wait(2.0)
     assert time.monotonic() - start >= 0.19
 
 
@@ -326,8 +327,8 @@ def test_bundled_espeak_speaks_first_with_its_own_libraries(monkeypatch, tmp_pat
         calls.append((command, env))
         return command[2] == "en"  # German isn't installed here: English fallback
 
-    monkeypatch.setattr(data_collection, "_run_tts_command", run)
-    assert data_collection._speak_linux("Schau nach links", "de", "Look left")
+    monkeypatch.setattr(data_collection_tts, "_run_tts_command", run)
+    assert data_collection_tts._speak_linux("Schau nach links", "de", "Look left")
     assert [c[0] for c in calls] == [
         [str(exe), "-v", "de", "Schau nach links"],
         [str(exe), "-v", "en", "Look left"],
@@ -337,7 +338,7 @@ def test_bundled_espeak_speaks_first_with_its_own_libraries(monkeypatch, tmp_pat
 
 
 def test_reading_time_scales_with_the_prompt():
-    reading = data_collection._reading_seconds
+    reading = data_collection_tts._reading_seconds
     assert reading("Captured") < reading("Look up and to the left and squint") <= 8.0
     assert reading("向左看并眯眼睛") > reading("看")
 

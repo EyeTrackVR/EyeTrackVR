@@ -1,3 +1,4 @@
+import logging
 from pydantic import field_validator
 
 from config import DEFAULT_LID_CLOSE_THRESHOLD, DEFAULT_LID_WIDEN_THRESHOLD
@@ -8,8 +9,10 @@ from tkinter import ttk
 from settings.modules.common_field_validators import check_is_float_convertible
 from utils.runtime_state import get_value as _get_runtime_value
 from utils.tooltips import attach_tooltip
-from eye_processor import remap_leap_lid_openness
+from next_processing import remap_leap_lid_openness
 from localization import tr
+
+logger = logging.getLogger(__name__)
 
 
 class BlinkAlgoSettingsValidationModel(BaseValidationModel):
@@ -489,7 +492,7 @@ class BlinkAlgoSettingsModule(BaseSettingsModule):
             try:
                 cfg.save()
             except Exception:
-                pass
+                logger.warning("Could not save the eyelid calibration reset", exc_info=True)
             self._flash_redo_button()
 
     def _flash_redo_button(self):

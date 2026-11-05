@@ -16,6 +16,21 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  lint:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Ruff check
+        run: pipx run ruff==0.15.10 check
+
+      - name: Ruff format
+        run: pipx run ruff==0.15.10 format --check
+
   test:
     strategy:
       fail-fast: false

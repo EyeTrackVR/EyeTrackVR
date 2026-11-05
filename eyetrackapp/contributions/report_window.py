@@ -4,6 +4,7 @@ Reports use the service's separate "issue" kind: their own consent notice,
 90-day retention, quotas and receipt folder (issue_home), apart from dataset
 contributions. Worker threads communicate only through a queue."""
 
+import logging
 from pathlib import Path
 import queue
 import tempfile
@@ -16,6 +17,8 @@ import requests
 
 from .client import ContributionClient, Paused, issue_home
 from .window import ACCENT, FONT_HEADING, FONT_TITLE, MUTED, NOTICE_STYLE, render_notice, setup_styles, style_notice
+
+logger = logging.getLogger(__name__)
 
 MAX_DESCRIPTION = 20000
 # Only the newest part of each log is attached; issue_bundle caps the report at 8 MiB.
@@ -389,7 +392,7 @@ class ReportWindow:
             try:
                 description += "\n\n--- App details ---\n" + self.details()
             except Exception:
-                pass
+                logger.warning("Could not add app details to the bug report", exc_info=True)
         description = description[:MAX_DESCRIPTION]
         logs = []
         from utils.logging_utils import current_log_path

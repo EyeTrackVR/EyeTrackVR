@@ -845,7 +845,7 @@ class RobustCalibrationSession:
                 if len(meds) == NUM_EXPRESS_TARGETS:
                     sess._express_target_medians = meds
             except Exception:
-                pass
+                logger.warning("Ignoring unreadable saved express target medians", exc_info=True)
         if sess.poly_trained and "poly_coeffs_x" in d:
             try:
                 sess.poly_coeffs_x = np.array(d["poly_coeffs_x"], dtype=np.float64)

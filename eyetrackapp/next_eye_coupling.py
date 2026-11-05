@@ -142,6 +142,17 @@ class NextExpressionCoupler:
                     return None
             return pair[eye_id]
 
+    def peer_openness(self, eye_id, shared):
+        """The other eye's lid output for one shared pass, before lid sync, or
+        None until it has published a transform."""
+        peer = EyeId.RIGHT if eye_id == EyeId.LEFT else EyeId.LEFT
+        with self._lock:
+            transform = self._transforms[peer]
+        if transform is None or shared is None:
+            return None
+        base = 0 if peer == EyeId.LEFT else 3
+        return transform.openness(float(shared.result[base + 1]), float(shared.result[base + 2]))[1]
+
     def _compute(self, shared, lid_range, brow_range):
         left_t, right_t = self._transforms[EyeId.LEFT], self._transforms[EyeId.RIGHT]
         if left_t is None or right_t is None:

@@ -97,7 +97,7 @@ if is_nt:
         try:
             windll.user32.SetProcessDPIAware()
         except Exception:
-            pass
+            logger.debug("Could not set DPI awareness", exc_info=True)
 
     try:
         winmm = windll.winmm
@@ -242,7 +242,7 @@ def main():
             messagebox.showinfo("EyeTrackVR", tr("openvr.already_running"), parent=notice)
             notice.destroy()
         except Exception:
-            pass
+            logger.debug("Could not show the already-running notice", exc_info=True)
         return
 
     config: EyeTrackConfig = EyeTrackConfig.load()
@@ -360,10 +360,8 @@ def main():
             return
         use_smartcal = _next_smartcal_selected()
         if config.settings.gui_use_overlay_cal:
-            from osc_calibrate_filter import (
-                next_smartcal_overlay,
-                overlay_ellipse_calibrate,
-            )
+            from next_smartcal import next_smartcal_overlay
+            from overlay_calibration import overlay_ellipse_calibrate
 
             eps = [eye.ransac for eye in eyes if eye.started() and getattr(eye, "ransac", None) is not None]
             if not eps:
@@ -421,7 +419,7 @@ def main():
                     self._icon_photo = tk.PhotoImage(file=resource_path("assets/images/logo.png"))
                     self.root.iconphoto(True, self._icon_photo)
             except Exception:
-                pass
+                logger.debug("Could not set the window icon", exc_info=True)
             sv_ttk.set_theme("dark")
             if is_nt and self._dpi_scale > 1.05:
                 try:
@@ -434,7 +432,7 @@ def main():
                             if size != 0:
                                 f.configure(size=round(size * self._dpi_scale))
                         except Exception:
-                            pass
+                            logger.debug("Could not scale font %s", name, exc_info=True)
                 except Exception as e:
                     logger.warning(f"Font scaling failed: {e}")
             apply_theme_to_titlebar(self.root)
@@ -1535,7 +1533,7 @@ def main():
                     eye.recenter_eyes()
 
         def _on_ellipse_calibration(self):
-            from osc_calibrate_filter import overlay_ellipse_calibrate
+            from overlay_calibration import overlay_ellipse_calibrate
 
             eps = [eye.ransac for eye in eyes if eye.started() and getattr(eye, "ransac", None) is not None]
             if not eps:
@@ -1545,7 +1543,7 @@ def main():
             overlay_ellipse_calibrate(eps, config.settings, config)
 
         def _on_next_smartcal(self):
-            from osc_calibrate_filter import next_smartcal_overlay
+            from next_smartcal import next_smartcal_overlay
 
             eps = [eye.ransac for eye in eyes if eye.started() and getattr(eye, "ransac", None) is not None]
             if not eps:
@@ -1553,7 +1551,7 @@ def main():
             next_smartcal_overlay(eps, config.settings, config)
 
         def _on_next_smartcal_reset(self):
-            from osc_calibrate_filter import reset_next_smartcal
+            from next_smartcal import reset_next_smartcal
 
             eps = [eye.ransac for eye in eyes if eye.started() and getattr(eye, "ransac", None) is not None]
             if not eps:
@@ -1688,11 +1686,11 @@ def main():
                     if openvr_service is not None:
                         openvr_service._shutdown()
                 except Exception:
-                    pass
+                    logger.warning("OpenVR shutdown failed", exc_info=True)
                 try:
                     self.root.destroy()
                 except Exception:
-                    pass
+                    logger.debug("Destroying the root window failed", exc_info=True)
                 logging.shutdown()
                 os._exit(0)
 

@@ -24,6 +24,7 @@ LICENSE: Babble Software Distribution License 1.0
 ------------------------------------------------------------------------------------------------------
 """
 
+import logging
 import tkinter as tk
 from tkinter import ttk
 from queue import Empty
@@ -43,6 +44,8 @@ from settings.modules.advanced_tracking_algo_settings_module import (
 )
 from settings.modules.blink_algo_module import BlinkAlgoSettingsModule
 from settings.modules.tracking_algorithm_module import TrackingAlgorithmModule
+
+logger = logging.getLogger(__name__)
 
 
 class AlgoSettingsWidget(BaseSettingsWidget):
@@ -263,7 +266,7 @@ class AlgoSettingsWidget(BaseSettingsWidget):
                 try:
                     self._preview_viz[i].draw(eye_info)
                 except Exception:
-                    pass
+                    logger.debug("Preview overlay draw failed", exc_info=True)
             try:
                 if frame.ndim == 2:
                     half_w = frame.shape[1] // 2
@@ -285,4 +288,4 @@ class AlgoSettingsWidget(BaseSettingsWidget):
                 self._preview_photos[i] = photo
                 lbl.configure(image=photo)
             except Exception:
-                pass
+                logger.debug("Preview update failed", exc_info=True)

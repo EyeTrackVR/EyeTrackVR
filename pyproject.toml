@@ -81,7 +81,3 @@ python_files = [
 source = ["eyetrackapp"]
 omit = ["tests/*"]
 
-[tool.ruff.lint.per-file-ignores]
-# Legacy star imports between the tracking modules.
-"eyetrackapp/eye_processor.py" = ["F403", "F405"]
-"eyetrackapp/osc_calibrate_filter.py" = ["F403", "F405"]

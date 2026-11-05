@@ -243,7 +243,7 @@ class EyeTrackCameraConfig(BaseModel):
     # bias. next_smartcal_warp selects the space the affine was fit in:
     # "atanh" un-saturates the model's tanh output before the affine (current
     # fits), None = legacy raw-space affine saved by older builds. See
-    # osc_calibrate_filter.next_smartcal_apply. All None until "NEXT Smart Calib".
+    # next_smartcal.next_smartcal_apply. All None until "NEXT Smart Calib".
     next_smartcal_w: Union[List[float], None] = None
     next_smartcal_b: Union[List[float], None] = None
     next_smartcal_warp: Union[str, None] = None
@@ -252,7 +252,7 @@ class EyeTrackCameraConfig(BaseModel):
     # so every dot is a neutral sample). Each is the anchor of a piecewise-linear
     # remap that maps neutral onto NEXT_SMARTCAL_LID_TARGET / _BROW_TARGET while
     # pinning 0 -> 0 and 1 -> 1. None until "NEXT Smart Calib" runs with
-    # gui_NEXT_calib_lids_brows enabled. See osc_calibrate_filter.
+    # gui_NEXT_calib_lids_brows enabled. See next_smartcal.
     next_smartcal_lid_neutral: Union[float, None] = None
     next_smartcal_brow_neutral: Union[float, None] = None
 
@@ -404,6 +404,9 @@ class EyeTrackSettingsConfig(BaseModel):
     # the eye Smart Calib and recenter use in the two per-eye modes.
     gui_NEXT_gaze_mode: str = "fused"
     gui_NEXT_dominant_eye: str = "left"
+    # Hold vertical gaze while the lids hide the pupil, for users whose gaze
+    # goes wrong when they squint (next_eye_gaze.SquintYHold).
+    gui_NEXT_squint_y_hold: bool = False
     # Headset (HMD) the models were trained for: ETVR / BSB / PSVR (shown as
     # PSVR/TOBII). PSVR is a manual NEXT-only choice; setup-mode auto-selection remains
     # limited to ETVR and BSB. Selects the NEXT Hybrid family and

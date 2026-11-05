@@ -11,7 +11,7 @@ from types import SimpleNamespace
 
 import pytest
 
-import osc_calibrate_filter as calibration
+import overlay_calibration as calibration
 from utils import logging_utils, overlay_launch
 from utils.calibration_elipse import CalibrationEllipse
 from utils.overlay_launch import OVERLAY_SIGNAL_PORT, OverlayExited, OverlaySession
@@ -182,3 +182,14 @@ def test_calibration_stays_active_until_the_overlay_is_gone(fake_overlay):
     assert calibration.var.overlay_active
     run.wait(timeout=10)
     assert not calibration.var.overlay_active
+
+
+def test_start_and_close_work_without_a_with_block(fake_overlay):
+    fake_overlay(signals=[0], linger=60)
+
+    overlay = OverlaySession("interactive").start()
+    assert struct.unpack(">i", overlay.sock.recvfrom(16)[0])[0] == 0
+    overlay.close()
+
+    assert overlay.process.returncode is not None
+    _port_is_free()

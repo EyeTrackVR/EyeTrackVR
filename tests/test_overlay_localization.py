@@ -40,9 +40,10 @@ def test_every_language_translates_every_prompt():
 
 def test_session_prompt_keys_exist():
     data_collection = pytest.importorskip("data_collection")
+    data_collection_passes = pytest.importorskip("data_collection_passes")
     en = _catalog("en")[TABLE]
     keys = {key for _code, _label, key in data_collection.PROMPT_DATA}
-    for _cmd, _prefix, key, _n in data_collection.OVERLAY_PASSES:
+    for _cmd, _prefix, key, _n in data_collection_passes.OVERLAY_PASSES:
         keys |= {f"pass_{key}", f"panel_{key}"}
     keys |= {
         "now",

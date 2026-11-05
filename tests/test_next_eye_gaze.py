@@ -18,12 +18,15 @@ from next_eye_gaze import (
     GAZE_MODE_INDEPENDENT,
     LID_CLOSED,
     PerEyeGaze,
+    SQUINT_HOLD_BELOW,
+    SQUINT_TRUST_ABOVE,
+    SquintYHold,
     dominant_eye_from_settings,
     gaze_mode_from_settings,
     select_eye_gaze,
 )
 from next_stereo_model import NEXT_Stereo_cls, SharedPass, stereo_model_file
-from osc_calibrate_filter import (
+from next_smartcal import (
     NEXT_SMARTCAL_DOTS,
     _SMARTCAL_MAX_GAIN,
     _fit_next_smartcal,
@@ -265,7 +268,7 @@ def test_fused_mode_routes_the_shared_gaze_unchanged(monkeypatch, eye):
     processor = _routing_processor(eye, GAZE_MODE_FUSED)
     served = _served()
     coord = _coord(served)
-    monkeypatch.setattr("eye_processor.get_stereo_coordinator", lambda *args: coord)
+    monkeypatch.setattr("next_processing.get_stereo_coordinator", lambda *args: coord)
     processor.NEXTM()
     processor._next_apply.assert_called_once_with(
         0.05, 0.06, 0.3, 0.4, 0.5, raw_gaze=(0.07, 0.08), shared=(coord.expression_coupler, served)
@@ -285,7 +288,7 @@ def test_per_eye_modes_route_the_monocular_gaze(monkeypatch, mode, dominant, eye
     processor = _routing_processor(eye, mode, dominant)
     served = _served()
     coord = _coord(served)
-    monkeypatch.setattr("eye_processor.get_stereo_coordinator", lambda *args: coord)
+    monkeypatch.setattr("next_processing.get_stereo_coordinator", lambda *args: coord)
     processor.NEXTM()
     args, kwargs = processor._next_apply.call_args
     assert args[:2] == pytest.approx(gaze)
@@ -301,7 +304,7 @@ def test_per_eye_mode_without_per_eye_channels_stays_fused(monkeypatch):
     processor = _routing_processor(EyeId.RIGHT, GAZE_MODE_INDEPENDENT)
     served = SharedPass(1, np.zeros(8, dtype=np.float32), True, 1.0)
     coord = _coord(served)
-    monkeypatch.setattr("eye_processor.get_stereo_coordinator", lambda *args: coord)
+    monkeypatch.setattr("next_processing.get_stereo_coordinator", lambda *args: coord)
     processor.NEXTM()
     processor._next_apply.assert_called_once_with(
         0.05, 0.06, 0.3, 0.4, 0.5, raw_gaze=(0.07, 0.08), shared=(coord.expression_coupler, served)
@@ -441,3 +444,87 @@ def test_clamp_keeps_in_bound_and_mirrored_fits_unchanged():
     assert clamp_next_smartcal_transform([4.0, 0.0, 0.0, -4.0], [0.0, 0.0])[2] is False
     w, b, clamped = clamp_next_smartcal_transform([1.2, 0.0, 0.0, 4.0], [0.0, 0.4])
     assert clamped and w == pytest.approx([1.2, 0.0, 0.0, _SMARTCAL_MAX_GAIN]) and b == pytest.approx([0.0, 0.3])
+
+
+# ── Squint Y hold ─────────────────────────────────────────────────────────────
+
+
+def test_squint_hold_passes_gaze_through_while_the_eye_is_open():
+    hold = SquintYHold()
+    assert hold.apply(0.4, 0.75, 0.0) == 0.4
+    assert hold.apply(-0.2, SQUINT_TRUST_ABOVE, 0.01) == -0.2
+
+
+def test_squint_hold_keeps_the_last_trusted_gaze_while_closed():
+    hold = SquintYHold()
+    hold.apply(0.3, 0.75, 0.0)
+    # A blink is far shorter than the release: the lid's pull never shows.
+    assert hold.apply(-0.9, 0.0, 0.05) == pytest.approx(0.3, abs=0.05)
+
+
+def test_squint_hold_fades_between_trusted_and_held():
+    hold = SquintYHold()
+    hold.apply(0.0, 0.75, 0.0)
+    middle = 0.5 * (SQUINT_HOLD_BELOW + SQUINT_TRUST_ABOVE)
+    assert 0.3 < hold.apply(1.0, middle, 0.0) < 0.7
+
+
+def test_long_squint_still_follows_slowly():
+    hold = SquintYHold()
+    hold.apply(0.0, 0.75, 0.0)
+    y = 0.0
+    for step in range(1, 1001):
+        y = hold.apply(1.0, 0.0, step * 0.01)
+    assert y == pytest.approx(1.0, abs=0.01)
+
+
+def test_squint_hold_does_not_prefer_a_direction():
+    up, down = SquintYHold(), SquintYHold()
+    up.apply(0.5, 0.75, 0.0)
+    down.apply(-0.5, 0.75, 0.0)
+    assert up.apply(0.0, 0.0, 0.01) == pytest.approx(0.5, abs=0.01)
+    assert down.apply(0.0, 0.0, 0.01) == pytest.approx(-0.5, abs=0.01)
+
+
+class _Peer:
+    def __init__(self, peer_openness):
+        self.value = peer_openness
+
+    def peer_openness(self, _eye_id, _served):
+        return self.value
+
+
+def _squint_processor(mode=GAZE_MODE_FUSED, enabled=True, openness=0.0):
+    processor = EyeProcessor.__new__(EyeProcessor)
+    processor.eye_id = EyeId.LEFT
+    processor.eyeopen = openness
+    processor.settings = SimpleNamespace(gui_NEXT_squint_y_hold=enabled, gui_NEXT_gaze_mode=mode)
+    return processor
+
+
+def _held_y(processor, shared=None):
+    processor.eyeopen, closed = 1.0, processor.eyeopen
+    processor._next_squint_y(0.5, shared)
+    processor.eyeopen = closed
+    return processor._next_squint_y(-0.5, shared)
+
+
+def test_squint_hold_is_off_by_default():
+    processor = _squint_processor()
+    processor.settings = SimpleNamespace()
+    assert processor._next_squint_y(-0.5, None) == -0.5
+
+
+def test_processor_holds_gaze_once_enabled():
+    assert _held_y(_squint_processor()) == pytest.approx(0.5, abs=0.05)
+
+
+def test_a_wink_does_not_freeze_the_shared_gaze():
+    shared = (_Peer(0.9), object())
+    assert _held_y(_squint_processor(), shared) == -0.5
+
+
+def test_independent_eyes_only_trust_their_own_lid():
+    shared = (_Peer(0.9), object())
+    held = _held_y(_squint_processor(GAZE_MODE_INDEPENDENT), shared)
+    assert held == pytest.approx(0.5, abs=0.05)

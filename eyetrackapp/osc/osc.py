@@ -647,8 +647,8 @@ class OSCReceiver:
                 self.server.server_close()
             if self.server_thread is not None:
                 self.server_thread.join(2.0)
-        except Exception:  # noqa
-            pass
+        except Exception:
+            logger.debug("Stopping the OSC server failed", exc_info=True)
 
     def handle_osc_message(self, address, value):
         for listener in self.listeners.get(address, []):

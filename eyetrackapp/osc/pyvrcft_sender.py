@@ -160,8 +160,11 @@ class PyVRCFTSender:
         # a lower drives lowerer + pinch, so both ends reach +-1.
         expr = brow_expression(brow_val)
         up, down = max(expr, 0.0), max(-expr, 0.0)
-        sides = [s for s, on in (("Left", is_single or eye_id == EyeId.LEFT),
-                                 ("Right", is_single or eye_id == EyeId.RIGHT)) if on]
+        sides = [
+            s
+            for s, on in (("Left", is_single or eye_id == EyeId.LEFT), ("Right", is_single or eye_id == EyeId.RIGHT))
+            if on
+        ]
         for side in sides:
             self._set_shape(f"BrowInnerUp{side}", up)
             self._set_shape(f"BrowOuterUp{side}", up)

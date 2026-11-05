@@ -1,3 +1,4 @@
+import logging
 from settings.modules.base_module import BaseSettingsModule, BaseValidationModel
 import tkinter as tk
 from tkinter import ttk
@@ -16,6 +17,8 @@ from next_model import (
     MODEL_SIZES,
     split_variant,
 )
+
+logger = logging.getLogger(__name__)
 
 
 # Selectable headsets, shared by the NEXT and eyebrow models. NEXT uses the
@@ -43,6 +46,7 @@ class TrackingAlgorithmValidationModel(BaseValidationModel):
     gui_NEXT_brow_sync: SyncStrength
     gui_NEXT_gaze_mode: Literal[GAZE_MODES]
     gui_NEXT_dominant_eye: Literal[DOMINANT_EYES]
+    gui_NEXT_squint_y_hold: bool
     gui_model_variant: str
     gui_model_size: str
     gui_max_tracking_speed: int
@@ -72,6 +76,7 @@ class TrackingAlgorithmModule(BaseSettingsModule):
         self.gui_NEXT_brow_sync = f"-NEXTBROWSYNC{widget_id}-"
         self.gui_NEXT_gaze_mode = f"-NEXTGAZEMODE{widget_id}-"
         self.gui_NEXT_dominant_eye = f"-NEXTDOMINANTEYE{widget_id}-"
+        self.gui_NEXT_squint_y_hold = f"-NEXTSQUINTYHOLD{widget_id}-"
         self.gui_model_variant = f"-MODELVARIANT{widget_id}-"
         self.gui_model_size = f"-MODELSIZE{widget_id}-"
         self.gui_max_tracking_speed = f"-MAXTRACKSPEED{widget_id}-"
@@ -160,9 +165,16 @@ class TrackingAlgorithmModule(BaseSettingsModule):
         # Per-eye gaze for strabismus / amblyopia (fused by default).
         self._build_gaze_mode(parent, row=5)
 
+        # Off by default: only for users whose vertical gaze breaks when squinting.
+        squint_var = tk.BooleanVar(value=bool(getattr(self.config, "gui_NEXT_squint_y_hold", False)))
+        self.tk_vars[self.gui_NEXT_squint_y_hold] = squint_var
+        squint_cb = ttk.Checkbutton(parent, text=tr("algo_tracking.next_squint_y_hold"), variable=squint_var)
+        squint_cb.grid(row=6, column=0, columnspan=6, sticky="w", padx=8, pady=(2, 4))
+        attach_tooltip(squint_cb, tr("algo_tracking.next_squint_y_hold_tip"))
+
         # NEXT model: headset family plus a size slider (lightest -> best).
         model_frame = ttk.Frame(parent)
-        model_frame.grid(row=6, column=0, columnspan=6, sticky="w", padx=8, pady=(2, 4))
+        model_frame.grid(row=7, column=0, columnspan=6, sticky="w", padx=8, pady=(2, 4))
         self._build_model_selector(model_frame)
 
         # Keep the combobox in sync when the setup-mode auto-shift changes the
@@ -298,7 +310,7 @@ class TrackingAlgorithmModule(BaseSettingsModule):
             try:
                 self._main_config.save()
             except Exception:
-                pass
+                logger.warning("Could not save the headset choice", exc_info=True)
 
     def _on_model_variant_synced(self, data: dict):
         """Reflect an externally-applied variant change (setup-mode auto-shift)

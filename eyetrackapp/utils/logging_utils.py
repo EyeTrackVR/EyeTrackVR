@@ -94,7 +94,7 @@ def setup_logging(app_name: str = "EyeTrackApp") -> Path:
 
         just_fix_windows_console()
     except Exception:
-        pass
+        pass  # colors are optional and logging isn't set up yet
 
     log_dir = log_directory()
     log_path = log_dir / f"{LOG_NAME_PREFIX}-{datetime.now():%Y%m%d-%H%M%S}.log"
