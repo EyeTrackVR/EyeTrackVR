@@ -38,19 +38,10 @@ import math
 from utils.calibration_elipse import *
 from utils.robust_calibration import RobustCalibrationSession, CalibrationPhase
 from utils.bs_detector import BSDetector
-from utils.overlay_launch import OverlayExited, OverlaySession, overlay_executable
+from utils.overlay_launch import OverlayExited, OverlaySession
 from next_eye_gaze import GAZE_MODE_FUSED, dominant_eye_from_settings, gaze_mode_from_settings
 
 logger = logging.getLogger(__name__)
-
-
-def _overlay_executable() -> str:
-    """Resolve the in-VR calibration overlay binary for this platform (see
-    utils.overlay_launch). Raises FileNotFoundError when unavailable; callers'
-    existing except/finally blocks log it and reset calibration state, so
-    on-screen calibration remains usable.
-    """
-    return overlay_executable()
 
 
 class TimeoutError(RuntimeError):
@@ -237,8 +228,8 @@ def overlay_calibrate_3d(self):
                 self.settings.grab_3d_point = True
                 logger.debug("3D overlay calibration message: %s", message)
                 if message == 9:
-                    var.overlay_active = False
                     overlay.finish()
+                    break
     except (OSError, struct.error) as e:
         logger.warning(
             "3D calibration overlay error (%s). Make sure SteamVR is running.",
@@ -304,6 +295,10 @@ def _mark_next_classic_calibration_active(eye_processor) -> None:
 # uniformly distributed samples, so continuous collection is better than
 # per-point IQR grabs.
 
+# The overlay's opening orbit: anything shorter hasn't seen the full gaze range,
+# so a fit from it is worse than the calibration it would replace.
+ELLIPSE_PARTIAL_MIN_S = 9.0
+
 
 @Async
 def overlay_ellipse_calibrate(eye_processors: list, settings, baseconfig) -> None:
@@ -322,18 +317,22 @@ def overlay_ellipse_calibrate(eye_processors: list, settings, baseconfig) -> Non
                 ep.cal.ys = []
                 ep.cal.fitted = False
 
+            sampling_started = None
             while var.overlay_active:
                 try:
                     data = overlay.recv()
                 except (socket.timeout, OverlayExited) as e:
                     logger.warning("Overlay ellipse calibration ended early: %s", e)
-                    # Save a partial fit if samples were collected before the
-                    # overlay stopped. This handles the case where signal 0 was
-                    # received and the spiral ran but signal 9 never arrived.
+                    # Save a partial fit if enough of the path was sampled before
+                    # the overlay stopped. This handles the case where signal 0
+                    # was received and the spiral ran but signal 9 never arrived.
+                    _enough_sampled = (
+                        sampling_started is not None and time.monotonic() - sampling_started >= ELLIPSE_PARTIAL_MIN_S
+                    )
                     _saved_partial = False
                     for ep in eye_processors:
                         ep._ellipse_collect_active = False
-                        if len(ep.cal.xs) >= 2:
+                        if _enough_sampled and len(ep.cal.xs) >= 2:
                             evecs, axes = ep.cal.fit_ellipse()
                             if not (isinstance(evecs, int) and isinstance(axes, int) and evecs == 0 and axes == 0):
                                 ep.config.calib_evecs = list(evecs.tolist() if hasattr(evecs, "tolist") else evecs)
@@ -360,6 +359,7 @@ def overlay_ellipse_calibrate(eye_processors: list, settings, baseconfig) -> Non
                 if signal == 0:
                     # Start continuous per-frame sampling
                     logger.debug("Overlay ellipse calibration: sampling started")
+                    sampling_started = time.monotonic()
                     for ep in eye_processors:
                         ep._ellipse_collect_active = True
 
@@ -379,7 +379,6 @@ def overlay_ellipse_calibrate(eye_processors: list, settings, baseconfig) -> Non
                             logger.info("Ellipse cal: fitted from %d samples", len(ep.cal.xs))
                     settings.calib_mode = "classic"
                     PlaySound(resource_path("assets/audio/completed.wav"), SND_FILENAME | SND_ASYNC)
-                    var.overlay_active = False
                     overlay.finish()
                     break
 
@@ -1017,7 +1016,6 @@ def next_smartcal_overlay(eye_processors: list, settings, baseconfig) -> None:
                         ep._next_smartcal_active_dot = None
                     if _fit_next_smartcal(eye_processors, baseconfig, settings):
                         PlaySound(resource_path("assets/audio/completed.wav"), SND_FILENAME | SND_ASYNC)
-                    var.overlay_active = False
                     overlay.finish()
                     break
     except (OSError, struct.error) as e:

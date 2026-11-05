@@ -13,6 +13,7 @@ import pytest
 
 import osc_calibrate_filter as calibration
 from utils import logging_utils, overlay_launch
+from utils.calibration_elipse import CalibrationEllipse
 from utils.overlay_launch import OVERLAY_SIGNAL_PORT, OverlayExited, OverlaySession
 
 FAKE_OVERLAY = """
@@ -122,3 +123,62 @@ def test_center_calibration_returns_when_the_overlay_quits(fake_overlay):
     assert not calibration.var.overlay_active
     assert not processor.settings.gui_recenter_eyes
     assert processor.calibration_start_time is None
+
+
+def _ellipse_processor():
+    return SimpleNamespace(
+        cal=CalibrationEllipse(),
+        config=SimpleNamespace(calib_evecs=[], calib_axes=[1.0, 2.0], calib_XOFF=5.0, calib_YOFF=6.0),
+        baseconfig=SimpleNamespace(save=lambda: None),
+        _ellipse_collect_active=False,
+    )
+
+
+def _run_ellipse_until_the_overlay_quits(processor, settings):
+    run = calibration.overlay_ellipse_calibrate([processor], settings, None)
+    deadline = time.monotonic() + 10
+    while not processor._ellipse_collect_active and time.monotonic() < deadline:
+        time.sleep(0.01)
+    assert processor._ellipse_collect_active
+    processor.cal.xs = [0.0, 1.0, 2.0]
+    processor.cal.ys = [0.0, 1.0, 2.0]
+    run.wait(timeout=10)
+
+
+def test_overlay_quitting_early_keeps_the_saved_ellipse(fake_overlay):
+    fake_overlay(signals=[0], linger=0.3)
+    processor = _ellipse_processor()
+    settings = SimpleNamespace(calib_mode="next")
+
+    _run_ellipse_until_the_overlay_quits(processor, settings)
+
+    assert processor.config.calib_axes == [1.0, 2.0]
+    assert settings.calib_mode == "next"
+
+
+def test_overlay_quitting_after_the_orbit_saves_a_partial_ellipse(fake_overlay, monkeypatch):
+    monkeypatch.setattr(calibration, "ELLIPSE_PARTIAL_MIN_S", 0.0)
+    fake_overlay(signals=[0], linger=0.3)
+    processor = _ellipse_processor()
+    settings = SimpleNamespace(calib_mode="next")
+
+    _run_ellipse_until_the_overlay_quits(processor, settings)
+
+    assert processor.config.calib_axes != [1.0, 2.0]
+    assert settings.calib_mode == "classic"
+
+
+def test_calibration_stays_active_until_the_overlay_is_gone(fake_overlay):
+    # A second calibration can't bind the signal port before this one closes it.
+    fake_overlay(signals=[0, 9], linger=0.5)
+    settings = SimpleNamespace(calib_mode="next")
+
+    run = calibration.overlay_ellipse_calibrate([], settings, None)
+    deadline = time.monotonic() + 10
+    while settings.calib_mode != "classic" and time.monotonic() < deadline:
+        time.sleep(0.01)
+
+    assert settings.calib_mode == "classic"
+    assert calibration.var.overlay_active
+    run.wait(timeout=10)
+    assert not calibration.var.overlay_active
