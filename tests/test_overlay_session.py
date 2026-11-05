@@ -1,0 +1,124 @@
+"""OverlaySession runs one calibration overlay from launch until it has stopped.
+
+A small Python script stands in for the overlay: it sends the given signals to
+the app's signal port, prints a line, then stays alive for a while."""
+
+import socket
+import struct
+import sys
+import time
+from types import SimpleNamespace
+
+import pytest
+
+import osc_calibrate_filter as calibration
+from utils import logging_utils, overlay_launch
+from utils.overlay_launch import OVERLAY_SIGNAL_PORT, OverlayExited, OverlaySession
+
+FAKE_OVERLAY = """
+import socket, struct, sys, time
+print("fake overlay started", flush=True)
+sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+for value in filter(None, sys.argv[1].split(",")):
+    sock.sendto(struct.pack(">i", int(value)), ("127.0.0.1", {port}))
+    time.sleep(0.05)
+time.sleep(float(sys.argv[2]))
+"""
+
+
+@pytest.fixture
+def fake_overlay(monkeypatch, tmp_path):
+    """Launch the stand-in instead of the overlay binary; returns a setter
+    for the signals it sends and how long it then stays alive."""
+    script = tmp_path / "fake_overlay.py"
+    script.write_text(FAKE_OVERLAY.format(port=OVERLAY_SIGNAL_PORT))
+    monkeypatch.setattr(logging_utils, "log_directory", lambda: tmp_path)
+    behaviour = {"signals": [], "linger": 0.0}
+
+    def command(*_args):
+        signals = ",".join(str(value) for value in behaviour["signals"])
+        return [sys.executable, str(script), signals, str(behaviour["linger"])]
+
+    monkeypatch.setattr(overlay_launch, "overlay_command", command)
+
+    def configure(signals=(), linger=0.0):
+        behaviour.update(signals=list(signals), linger=linger)
+        return tmp_path
+
+    return configure
+
+
+def _port_is_free():
+    with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as sock:
+        sock.bind(("127.0.0.1", OVERLAY_SIGNAL_PORT))
+
+
+def test_finished_overlay_receives_signals_and_closes_by_itself(fake_overlay):
+    log_dir = fake_overlay(signals=[0, 9], linger=0.5)
+
+    with OverlaySession("ellipse") as overlay:
+        received = [struct.unpack(">i", overlay.recv())[0] for _ in range(2)]
+        overlay.finish()
+
+    assert received == [0, 9]
+    # It had time for its completion card and exited on its own.
+    assert overlay.process.returncode == 0
+    assert "fake overlay started" in (log_dir / "calibration-overlay.log").read_text()
+    _port_is_free()
+
+
+def test_overlay_that_quits_early_is_reported_without_waiting_for_the_timeout(fake_overlay):
+    fake_overlay(signals=[], linger=0.0)
+
+    started = time.monotonic()
+    with pytest.raises(OverlayExited), OverlaySession("center", timeout=60) as overlay:
+        overlay.recv()
+
+    assert time.monotonic() - started < 10
+    _port_is_free()
+
+
+def test_silent_overlay_times_out_and_is_stopped(fake_overlay):
+    fake_overlay(signals=[], linger=60)
+
+    with pytest.raises(TimeoutError), OverlaySession("finetune", timeout=0.5) as overlay:
+        overlay.recv()
+
+    assert overlay.process.returncode is not None
+    _port_is_free()
+
+
+def test_timeout_counts_from_the_last_signal(fake_overlay):
+    fake_overlay(signals=[1, 2, 3, 4, 5, 6, 7, 8], linger=60)
+
+    with OverlaySession("finetune", timeout=0.3) as overlay:
+        # Eight signals 50 ms apart outlast one timeout but never leave a gap.
+        values = [struct.unpack(">i", overlay.recv())[0] for _ in range(8)]
+
+    assert values == [1, 2, 3, 4, 5, 6, 7, 8]
+
+
+def test_unfinished_overlay_is_stopped_on_exit(fake_overlay):
+    fake_overlay(signals=[0], linger=60)
+
+    with OverlaySession("ellipse") as overlay:
+        overlay.recv()
+
+    assert overlay.process.returncode is not None
+    _port_is_free()
+
+
+def test_center_calibration_returns_when_the_overlay_quits(fake_overlay):
+    # The centre recenter used to block on the overlay's signal forever, which
+    # left overlay_active set and silently disabled every later calibration.
+    fake_overlay(signals=[], linger=0.0)
+    processor = SimpleNamespace(
+        settings=SimpleNamespace(gui_recenter_eyes=True),
+        calibration_start_time=1.0,
+    )
+
+    calibration.center_overlay_calibrate(processor).wait(timeout=10)
+
+    assert not calibration.var.overlay_active
+    assert not processor.settings.gui_recenter_eyes
+    assert processor.calibration_start_time is None
