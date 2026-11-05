@@ -68,45 +68,54 @@ The process is straight-forward.
 ## Contributor License Agreement (CLA)
 
 ```txt
-By making a contribution to this project, I certify that:
+By submitting a contribution to this project, I agree that:
 
-(a) The contribution was created in whole or in part by me and I
-    have the right to submit it under the GPL-3.0 license; or
+1. Origin. I certify that:
 
-(b) The contribution is based upon previous work that, to the best
-    of my knowledge, is covered under an appropriate open source
-    license and I have the right under that license to submit that
-    work with modifications, whether created in whole or in part
-    by me, under the GPL-3.0 license; or
+   (a) I created the contribution in whole or in part and have the
+       right to submit it; or
 
-(c) The contribution was provided directly to me by some other
-    person who certified (a), (b) or (c) and I have not modified
-    it.
+   (b) the contribution is based on previous work that, to the best
+       of my knowledge, is covered by an appropriate open source
+       license, and that license lets me submit the work with my
+       changes; or
 
-(d) I understand and agree that this project and the contribution
-    are public and that a record of the contribution (including all
-    personal information I submit with it) is maintained indefinitely
-    and may be redistributed consistent with this project or the open
-    source license(s) involved.
+   (c) the contribution was provided directly to me by someone who
+       certified (a), (b) or (c), and I have not modified it.
+
+2. Third-party work. If any part of the contribution was not created
+   by me, I have identified that part and its license in my pull
+   request.
+
+3. License to the Project Owner. "Project Owner" means Prohurtz, the
+   owner of the EyeTrackVR project, and any successor or assignee of
+   the project. I keep the copyright in my contribution, and I grant
+   the Project Owner a perpetual, worldwide, non-exclusive,
+   royalty-free, irrevocable, sublicensable and transferable license
+   to use, copy, modify, distribute and relicense my contribution, on
+   its own or as part of any work, under any license or terms the
+   Project Owner chooses, including proprietary or commercial terms.
+   For third-party work identified under section 2, this license
+   covers only the rights I am able to grant.
+
+4. No further action needed. The Project Owner may use these rights
+   at any time without notifying me, consulting me, getting further
+   permission from me, or paying me.
+
+5. Public record. This project and my contribution are public. A
+   record of the contribution, including any personal information I
+   submit with it, is kept indefinitely and may be redistributed.
 ```
 
-This Contributor License Agreement (CLA) was adopted on April 1st, 2019.
+To accept the CLA, tick `I accept the CLA` in the PR template. The box is opt-in, so you have to tick it yourself.
 
-The text of this license is available under the [Creative Commons Attribution-ShareAlike 3.0 Unported License](http://creativecommons.org/licenses/by-sa/3.0/).  It is based on the Linux [Developer Certificate Of Origin](http://elinux.org/Developer_Certificate_Of_Origin), but is modified to explicitly use the GPL-3.0 license and not mention sign-off (due to GitHub.com keeps an historical, with your user name, of PRs' commits and all editions on PR's comments).
+Contributions submitted before this version of the CLA remain under the version in effect when they were submitted.
 
-To accept the CLA it is required to put a x between [ ] on `[ ] I accept the CLA` in the PR template when submitting it. The [ ] is an opt-in box, so you have to manually accept it.
+Sections 1 and 5 are based on the Linux [Developer Certificate of Origin](http://elinux.org/Developer_Certificate_Of_Origin), and this text is available under the [Creative Commons Attribution-ShareAlike 3.0 Unported License](http://creativecommons.org/licenses/by-sa/3.0/). It does not use sign-offs, because GitHub keeps a history of each PR's commits and comments under your username.
 
-**Why a CLA ?**
+**Why a CLA?**
 
-_"A Contributor Licence Agreement (CLA) is strongly recommended when accepting third party contributions to an open development project, such as an open source software project. In order to redistribute contributions, it is necessary to ensure that the project has the necessary rights to do so. A Contributor Licence Agreement is a lightweight agreement, signed by the copyright holder, that grants the necessary rights for the contribution to be redistributed as part of the project."_ [OSS Watch](http://oss-watch.ac.uk/resources/cla)
-
-A CLA is a legal document in which you state _you are entitled to contribute the code/documentation/translation to the project_ you’re contributing to and that _you are willing to have it used in distributions and derivative works_. This means that should there be any kind of legal issue in the future as to the origins and ownership of any particular piece of code, then that project has the necessary forms on file from the contributor(s) saying they were permitted to make this contribution.
-
-CLA is a safety because it also ensures that once you have provided a contribution, you cannot try to withdraw permission for its use at a later date. People can therefore use that software, confident that they will not be asked to stop using pieces of the code at a later date.
-
-A **license** grants "outbound" rights to the user of project.
-
-A **CLA** enables a contributor to grant "inbound" rights to a project.
+A **license** grants "outbound" rights to the people who use the project. A **CLA** grants "inbound" rights from contributors to the project. This one confirms that you are entitled to submit your work, and it lets the Project Owner keep distributing, changing and relicensing the project without having to find every past contributor.
 
 ## Code owners
 

@@ -1,14 +1,13 @@
-# Description
+## What changed
 
-**Related issue (if applicable):** fixes #<EyeTrackVR issue number goes here>
+<!-- What does this PR do, and why? -->
+
+Fixes #
+
+## Testing
+
+<!-- How did you test it? Mention the headset or hardware if it matters. -->
 
 ## Checklist
 
-<!-- - [ ] The pull request is done against the latest development branch
-- [ ] Only relevant files were touched
-- [ ] Code change compiles without warnings
-- [ ] The code change is tested and works with EyeTrackVR core ESP32 newest release -->
-
 - [ ] I accept the [CLA](https://github.com/EyeTrackVR/EyeTrackVR/blob/main/.github/CONTRIBUTING.md#contributor-license-agreement-cla).
-
-<!-- _NOTE: The code change must pass CI tests. **Your PR cannot be merged unless tests pass**_ -->
