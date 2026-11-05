@@ -32,8 +32,6 @@ jobs:
         uses: actions/checkout@v4
         with:
           token: ${{ env.GITHUB_TOKEN }}
-          # The overlay/ submodule carries the prebuilt calibration overlay.
-          submodules: true
           # Models live in Git LFS.
           lfs: true
       - name: Set up Python
@@ -122,8 +120,6 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
-          # The overlay/ submodule carries the prebuilt calibration overlay.
-          submodules: true
           # Models live in Git LFS.
           lfs: true
       - name: Install build dependencies

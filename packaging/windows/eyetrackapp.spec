@@ -18,9 +18,13 @@ for _model in glob.glob(os.path.join(APP, "assets", "models", "*.onnx")):
         if _f.read(8) == b"version ":
             sys.exit(f"{_model} is a Git LFS pointer; run `git lfs pull` first.")
 
+sys.path.insert(0, os.path.join(ROOT, "packaging"))
+from fetch_overlay import fetch
+
+overlay_dir = fetch("windows")
 block_cipher = None
 
-resources=[(f"{APP}/assets/audio/*", "assets/audio"), (f"{APP}/assets/images/*", "assets/images"), (f"{PYE3D}/refraction_models/*", "pye3d/refraction_models/"), (f"{APP}/assets/models/*", "assets/models"),(f"{ROOT}/overlay/dist/windows/*", "tools/"), (f"{APP}/lang/*", "lang/"), (f"{APP}/contributions/notice.json", "contributions")]
+resources=[(f"{APP}/assets/audio/*", "assets/audio"), (f"{APP}/assets/images/*", "assets/images"), (f"{PYE3D}/refraction_models/*", "pye3d/refraction_models/"), (f"{APP}/assets/models/*", "assets/models"),(f"{overlay_dir}/*", "tools/"), (f"{APP}/lang/*", "lang/"), (f"{APP}/contributions/notice.json", "contributions")]
 
 a = Analysis(
 [os.path.join(APP, 'eyetrackapp.py')],

@@ -39,3 +39,6 @@ app.vrmanifest
 *.[aA][vV][iI]
 v6_*_ETVR_*/
 v6_*_ETVR_*.[zZ][iI][pP]
+
+# Calibration overlay runtimes (packaging/fetch_overlay.py)
+/overlay/
