@@ -1015,7 +1015,11 @@ class EyeProcessor:
             # neutral face for the whole sequence, so these are captures of
             # "eyes normally open, brow at rest" (pooled across dots at fit
             # time). Costs nothing extra and needs no second calibration pass.
-            self._next_smartcal_samples.setdefault(_sc_dot, []).append((sc_gaze_x, sc_gaze_y, eyeopen_raw, eyebrow))
+            # Gaze is captured before the median and One-Euro filters. Their lag
+            # would otherwise carry the previous dot's fixation into this short
+            # window; the fit's per-dot median already rejects frame noise.
+            cap_x, cap_y = raw_gaze if raw_gaze is not None else (sc_gaze_x, sc_gaze_y)
+            self._next_smartcal_samples.setdefault(_sc_dot, []).append((cap_x, cap_y, eyeopen_raw, eyebrow))
 
         # Apply the fitted (warp + affine) transform (smart calib) to map raw
         # model gaze -> calibrated gaze. The arctanh warp un-saturates the
