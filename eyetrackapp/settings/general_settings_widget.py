@@ -24,6 +24,8 @@ LICENSE: Babble Software Distribution License 1.0
 ------------------------------------------------------------------------------------------------------
 """
 
+import sys
+
 from config import EyeTrackConfig
 from eye import EyeId
 
@@ -46,3 +48,17 @@ class SettingsWidget(BaseSettingsWidget):
 
     def advanced_module_types(self) -> tuple:
         return (AdvancedOSCSettingsModule,)
+
+    def build(self, parent):
+        frame = super().build(parent)
+        if sys.platform == "win32":
+            # Live per-game DFR section, just above the Advanced toggle.
+            from ovr.dfr import dfr_controller
+            from settings.dfr_panel import DfrPanel
+
+            panel = DfrPanel(dfr_controller, self.main_config).build(self.frame)
+            if self._advanced_toggle_row is not None:
+                panel.pack(fill="x", padx=8, pady=6, anchor="n", before=self._advanced_toggle_row)
+            else:
+                panel.pack(fill="x", padx=8, pady=6, anchor="n")
+        return frame

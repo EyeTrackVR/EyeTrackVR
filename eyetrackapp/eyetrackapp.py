@@ -37,6 +37,12 @@ if __name__ == "__main__" and sys.argv[1:2] == ["--contribution-verification"]:
         raise SystemExit(1) from None
     raise SystemExit(0)
 
+# Per-game DFR's SteamVR game monitor (ovr/dfr.py starts it; its own OpenVR session).
+if __name__ == "__main__" and sys.argv[1:2] == ["--dfr-monitor"] and len(sys.argv) > 2:
+    from ovr import dfr_monitor
+
+    raise SystemExit(dfr_monitor.run(int(sys.argv[2])))
+
 # Run by the uninstallers: remove EyeTrackVR's SteamVR driver registration and OpenXR layer.
 if __name__ == "__main__" and sys.argv[1:2] == ["--unregister-integrations"]:
     from ovr import openxr_layer_registration, steamvr_driver_registration
@@ -391,6 +397,12 @@ def main():
     )
 
     osc_manager.start()
+
+    # Per-game DFR for SteamVR games (Windows only; start() is a no-op elsewhere).
+    from ovr.dfr import dfr_controller
+
+    dfr_controller.config = config
+    dfr_controller.start()
 
     from data_collection import DataCollectionWindow
 
@@ -1676,6 +1688,7 @@ def main():
                         warn_if_alive=False,
                     )
                 cancellation_event.set()
+                dfr_controller.stop()  # turns DFR off in a running game
                 osc_manager.shutdown()
                 if getattr(self, "_timer_high_res", False):
                     set_timer_resolution(False)
