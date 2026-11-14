@@ -1,5 +1,5 @@
 """Classic calibrations driven by the in-headset overlay: centre recenter,
-3D points and the ellipse spiral.
+3D points and the ellipse spiral, plus the live gaze preview.
 
 Copyright (c) 2026 EyeTrackVR <3
 LICENSE: Babble Software Distribution License 1.0
@@ -8,9 +8,11 @@ LICENSE: Babble Software Distribution License 1.0
 import logging
 import socket
 import struct
+import threading
 import time
 
 from calibration_state import var
+from utils import gaze_preview
 from utils.async_call import Async
 from utils.misc_utils import PlaySound, SND_ASYNC, SND_FILENAME, resource_path
 from utils.overlay_launch import OverlayExited, OverlaySession
@@ -60,6 +62,49 @@ def overlay_calibrate_3d(self):
         )
     finally:
         self.settings.gui_recenter_eyes = False
+        var.overlay_active = False
+
+
+_gaze_preview_stop = threading.Event()
+
+
+def stop_gaze_preview() -> None:
+    _gaze_preview_stop.set()
+
+
+@Async
+def gaze_preview_overlay(settings) -> None:
+    """Show the output gaze live in the headset until stopped or the overlay
+    is closed. The overlay signals 255 once it is up; samples go to it only
+    from then on."""
+    if var.overlay_active:
+        return
+    var.overlay_active = True
+    _gaze_preview_stop.clear()
+    gaze_preview.set_running(True)
+    stream = gaze_preview.GazePreviewStream(settings)
+    try:
+        with OverlaySession("preview", timeout=30.0) as overlay:
+            while struct.unpack(">i", overlay.recv(16)[:4])[0] != gaze_preview.SIG_READY:
+                pass
+            from localization import tr
+
+            stream.send_text(tr("tracking.preview_panel"))
+            gaze_preview.set_active(stream)
+            # The overlay sends nothing more; it runs until stopped or closed.
+            while not _gaze_preview_stop.wait(0.25):
+                code = overlay.process.poll()
+                if code is not None:
+                    raise OverlayExited(f"calibration overlay exited with code {code}")
+            gaze_preview.set_active(None)
+            stream.quit()
+            overlay.finish()
+    except (OSError, struct.error) as e:
+        logger.warning("Gaze preview overlay stopped (%s). Make sure SteamVR is running.", e)
+    finally:
+        gaze_preview.set_active(None)
+        gaze_preview.set_running(False)
+        stream.close()
         var.overlay_active = False
 
 
