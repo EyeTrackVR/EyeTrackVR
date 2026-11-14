@@ -1,4 +1,4 @@
-"""Source checkouts use the prebuilt overlay runtimes from the overlay/ submodule."""
+"""Source checkouts use the overlay runtimes packaging/fetch_overlay.py downloads."""
 
 from pathlib import Path
 import platform
@@ -9,12 +9,12 @@ import pytest
 
 from utils.overlay_launch import overlay_executable
 
-DIST = Path(__file__).resolve().parents[1] / "overlay" / "dist"
+DIST = Path(__file__).resolve().parents[1] / "overlay"
 ELF_MACHINE = {"linux": 62, "linux-arm64": 183}  # x86-64, AArch64
 
 
 @pytest.mark.parametrize("machine, folder", [("x86_64", "linux"), ("aarch64", "linux-arm64")])
-def test_source_checkout_uses_submodule_linux_overlay(monkeypatch, machine, folder):
+def test_source_checkout_uses_fetched_linux_overlay(monkeypatch, machine, folder):
     monkeypatch.setattr(sys, "platform", "linux")
     monkeypatch.setattr(platform, "machine", lambda: machine)
     path = Path(overlay_executable()).resolve()

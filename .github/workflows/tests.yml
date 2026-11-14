@@ -46,8 +46,6 @@ jobs:
         uses: actions/checkout@v4
         with:
           persist-credentials: false
-          # The overlay/ submodule carries the prebuilt calibration overlay.
-          submodules: true
           # Models live in Git LFS.
           lfs: true
 
@@ -90,6 +88,9 @@ jobs:
       - name: Install python dependencies
         if: steps.cached-poetry-dependencies.outputs.cache-hit != 'true'
         run: poetry install --no-interaction --no-root
+
+      - name: Download the calibration overlay
+        run: python packaging/fetch_overlay.py windows linux linux-arm64
 
       # Tk-based tests need a display on Linux.
       - name: App tests

@@ -9,8 +9,6 @@
 # aarch64 (Steam Frame, packaging/steamframe/build.sh) differences:
 #   - the pyopenvr wheel only ships x86 libs, so the arm64 libopenvr_api.so is
 #     supplied via ETVR_OPENVR_LIB and bundled under the name pyopenvr loads
-#   - the overlay runtime comes from overlay/dist/linux-arm64/ and is optional;
-#     without it the app runs and overlay calibration reports the binary as missing
 
 import glob
 import importlib.util
@@ -57,24 +55,14 @@ else:
     _openvr_dir = Path(openvr.__file__).parent
     openvr_libs = [(str(p), "openvr") for p in _openvr_dir.glob("libopenvr_api*.so")]
 
-# Prebuilt runtimes from the overlay/ submodule. The app always looks for the
-# overlay in tools/linux/, whatever the source folder.
-overlay_dir = ROOT / ("overlay/dist/linux-arm64" if IS_ARM64 else "overlay/dist/linux")
-overlay = overlay_dir / "EyeTrackVR-Overlay"
-overlay_libs = []
-if overlay.is_file():
-    overlay_libs.append((str(overlay), "tools/linux"))
-    for name in ("libopenvr_api.so", "libopenxr_loader.so.1", "libjsoncpp.so.25", "libvulkan.so.1"):
-        path = overlay_dir / name
-        if not path.is_file():
-            raise FileNotFoundError(f"Missing overlay runtime: {path}")
-    overlay_libs += [(str(p), "tools/linux") for p in overlay_dir.glob("*.so*")]
-    resources.append((f"{overlay_dir.as_posix()}/assets/*", "tools/linux/assets/"))
-    resources.append((f"{overlay_dir.as_posix()}/licenses/*", "tools/linux/licenses"))
-elif IS_ARM64:
-    print(f"WARNING: {overlay} not found; building without the in-VR calibration overlay")
-else:
-    raise FileNotFoundError(f"Missing {overlay}; run: git submodule update --init overlay")
+# The overlay runtime. The app always looks for it in tools/linux/.
+sys.path.insert(0, str(ROOT / "packaging"))
+from fetch_overlay import fetch
+
+overlay_dir = fetch("linux-arm64" if IS_ARM64 else "linux")
+overlay_libs = [(str(p), "tools/linux") for p in [overlay_dir / "EyeTrackVR-Overlay", *overlay_dir.glob("*.so*")]]
+resources.append((f"{overlay_dir.as_posix()}/assets/*", "tools/linux/assets/"))
+resources.append((f"{overlay_dir.as_posix()}/licenses/*", "tools/linux/licenses"))
 
 a = Analysis(
     [str(APP / "eyetrackapp.py")],

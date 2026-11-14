@@ -23,12 +23,12 @@ from utils.misc_utils import resource_path
 
 logger = logging.getLogger(__name__)
 
-# The overlay/ submodule ships prebuilt runtimes in dist/<platform>/.
-OVERLAY_DIST = Path(__file__).resolve().parents[2] / "overlay" / "dist"
+# packaging/fetch_overlay.py downloads the runtimes into overlay/<platform>/.
+OVERLAY_DIST = Path(__file__).resolve().parents[2] / "overlay"
 
 
 def overlay_dist_folder() -> str:
-    """The overlay/dist/ folder holding this platform's runtime."""
+    """The overlay/ folder holding this platform's runtime."""
     if sys.platform == "win32":
         return "windows"
     return "linux-arm64" if platform.machine().lower() in ("aarch64", "arm64") else "linux"
@@ -39,7 +39,7 @@ def overlay_executable() -> str:
 
     Bundled builds carry it as ``tools/EyeTrackVR-Overlay.exe`` (Windows) or
     ``tools/linux/EyeTrackVR-Overlay`` with its loaders (Linux); source runs
-    use ``overlay/dist/<platform>/`` from the submodule. Raises
+    use ``overlay/<platform>/`` from packaging/fetch_overlay.py. Raises
     FileNotFoundError when unavailable so callers can fall back gracefully.
     """
     name = "EyeTrackVR-Overlay.exe" if sys.platform == "win32" else "EyeTrackVR-Overlay"
@@ -48,7 +48,7 @@ def overlay_executable() -> str:
         hint = "the app bundle is missing it"
     else:
         path = str(OVERLAY_DIST / overlay_dist_folder() / name)
-        hint = "run: git submodule update --init overlay"
+        hint = f"run: python packaging/fetch_overlay.py {overlay_dist_folder()}"
     if not os.path.isfile(path):
         raise FileNotFoundError(f"in-VR overlay binary not found at {path}; {hint}")
     return path
