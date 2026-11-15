@@ -188,7 +188,8 @@ def test_start_and_close_work_without_a_with_block(fake_overlay):
     fake_overlay(signals=[0], linger=60)
 
     overlay = OverlaySession("interactive").start()
-    assert struct.unpack(">i", overlay.sock.recvfrom(16)[0])[0] == 0
+    # recv waits out the stand-in's startup; the raw socket gives up after POLL_S.
+    assert struct.unpack(">i", overlay.recv(16))[0] == 0
     overlay.close()
 
     assert overlay.process.returncode is not None

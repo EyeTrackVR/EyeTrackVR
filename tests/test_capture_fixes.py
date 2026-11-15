@@ -256,16 +256,21 @@ def _fake_linux_dev(monkeypatch, tmp_path, entries, sysfs):
     )
 
 
-def _feed(q, count, fps, start=0):
+def _feed(q, count, fps, start=0, drop=True):
     """A camera pushing ``count`` frames at ``fps`` into a 10-frame capture
-    queue the way Camera.push_image_to_queue does (oldest dropped when full)."""
+    queue the way Camera.push_image_to_queue does (oldest dropped when full).
+    With ``drop=False`` it waits for room instead, so a scheduler stall of the
+    recorder thread on a busy machine can't lose frames."""
     for i in range(start, start + count):
         item = (np.full((4, 4, 3), i % 256, np.uint8), i, fps, time.perf_counter())
-        try:
-            q.put_nowait(item)
-        except queue.Full:
-            q.get_nowait()
-            q.put_nowait(item)
+        if not drop:
+            q.put(item, timeout=5.0)
+        else:
+            try:
+                q.put_nowait(item)
+            except queue.Full:
+                q.get_nowait()
+                q.put_nowait(item)
         time.sleep(1.0 / fps)
 
 
@@ -275,7 +280,9 @@ def test_recorder_keeps_every_frame_while_the_capture_loop_blocks():
     rec = data_collection._SessionRecorder([q], lambda j, f: f, lambda j, f: written.append(int(f[0, 0, 0])))
     rec.start()
     # The capture loop is meanwhile blocked on the overlay socket for ~0.5 s.
-    _feed(q, 45, fps=90)
+    # 45 frames overflow the 10-frame queue unless the recorder drains it
+    # concurrently; without it the feeder's put times out and the test fails.
+    _feed(q, 45, fps=90, drop=False)
     rec.stop()
     assert written == [i % 256 for i in range(45)]
 
