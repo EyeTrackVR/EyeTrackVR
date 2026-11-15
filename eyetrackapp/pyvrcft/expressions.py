@@ -565,10 +565,9 @@ def native_pitch_yaw(eye: SingleEyeData, data: "UnifiedTrackingData"):
 # against the avatar and sends only the ones it actually declares, so emitting
 # the full set alongside the v2 set (and the native endpoints) is safe.
 #
-# Openness is 1 = open, 0 = closed. The packed "*LidExpandedSqueeze" params are
-# driven here with plain openness rather than the SRanipal widen/squeeze packing
-# This matches how EyeTrackVR's own v1 output has always driven them, so v1
-# avatars tuned against EyeTrackVR behave identically under this port.
+# Openness is 1 = open, 0 = closed. The packed "*LidExpanded" / "*LidExpandedSqueeze"
+# params use VRCFT's SRanipal packing (EyeWide*0.2 + Openness*0.8, minus the
+# squint-driven squeeze), so normal open sits at 0.8 and full widen reaches 1.
 
 
 def compute_legacy_outputs(data: UnifiedTrackingData) -> dict:
@@ -589,6 +588,13 @@ def compute_legacy_outputs(data: UnifiedTrackingData) -> dict:
     squint_left = w["EyeSquintLeft"]
     squint_right = w["EyeSquintRight"]
 
+    # VRCFT EyeTrackingParams: lid = wide*0.2 + openness*0.8, and Squeeze() =
+    # (1 - openness^0.15) * squint, which only bites as the eye closes.
+    expanded_left = widen_left * 0.2 + left.openness * 0.8
+    expanded_right = widen_right * 0.2 + right.openness * 0.8
+    squeeze_left = (1.0 - max(left.openness, 0.0) ** 0.15) * squint_left
+    squeeze_right = (1.0 - max(right.openness, 0.0) ** 0.15) * squint_right
+
     return {
         # --- Gaze (x right, y up, [-1, 1])
         "EyesX": combined.gaze_x,
@@ -603,12 +609,12 @@ def compute_legacy_outputs(data: UnifiedTrackingData) -> dict:
         "LeftEyeLid": left.openness,
         "RightEyeLid": right.openness,
         "CombinedEyeLid": avg_open,
-        "LeftEyeLidExpanded": left.openness,
-        "RightEyeLidExpanded": right.openness,
-        "CombinedEyeLidExpanded": avg_open,
-        "LeftEyeLidExpandedSqueeze": left.openness,
-        "RightEyeLidExpandedSqueeze": right.openness,
-        "CombinedEyeLidExpandedSqueeze": avg_open,
+        "LeftEyeLidExpanded": expanded_left,
+        "RightEyeLidExpanded": expanded_right,
+        "CombinedEyeLidExpanded": (expanded_left + expanded_right) / 2.0,
+        "LeftEyeLidExpandedSqueeze": expanded_left - squeeze_left,
+        "RightEyeLidExpandedSqueeze": expanded_right - squeeze_right,
+        "CombinedEyeLidExpandedSqueeze": (expanded_left - squeeze_left + expanded_right - squeeze_right) / 2.0,
         # --- Widen / squeeze
         "LeftEyeWiden": widen_left,
         "RightEyeWiden": widen_right,

@@ -40,6 +40,25 @@ def _finite(value, fallback: float) -> float:
     return value if math.isfinite(value) else fallback
 
 
+# EyeTrackVR's eyelid output is on the v2/EyeLid scale: 0 closed, 0.75 normally
+# open, up to ~0.95 wide (remap_leap_lid_openness). Unified Expressions splits
+# that into Openness (1 = normally open) plus the EyeWide shape, and VRCFT
+# recombines them as v2/EyeLid = Openness*0.75 + EyeWide*0.25. Passing the lid
+# value straight through as Openness left every eye ~25% too closed and EyeWide
+# stuck at 0.
+LID_NORMAL_OPEN = 0.75
+# Lid value treated as fully wide. EyeTrackVR caps at 0.95, so map that to a
+# full EyeWide rather than stopping at 0.8.
+LID_FULL_WIDE = 0.95
+
+
+def lid_to_unified(lid: float) -> tuple[float, float]:
+    """(openness, eye_wide) in Unified Expressions terms for an EyeTrackVR lid value."""
+    openness = min(max(lid / LID_NORMAL_OPEN, 0.0), 1.0)
+    wide = min(max((lid - LID_NORMAL_OPEN) / (LID_FULL_WIDE - LID_NORMAL_OPEN), 0.0), 1.0)
+    return openness, wide
+
+
 class PyVRCFTSender:
     def __init__(self):
         self.client: VRCFTClient | None = None
@@ -124,26 +143,29 @@ class PyVRCFTSender:
         eye_id, eye_info = osc_message.data
         self.is_single_eye = VRChatOSCSender.get_is_single_eye(main_config.eye_display_id)
 
-        # eye_info.blink is openness (1 = open, 0 = closed); mirror the eyelid
-        # inversion setting the other modes apply via _eyelid_transformer.
-        openness = 1.0 - eye_info.blink if config.osc_invert_eye_close else eye_info.blink
+        # eye_info.blink is the lid value (0 closed, 0.75 open, >0.75 wide);
+        # mirror the eyelid inversion setting the other modes apply via
+        # _eyelid_transformer, then split it into openness + EyeWide.
+        lid = 1.0 - eye_info.blink if config.osc_invert_eye_close else eye_info.blink
+        lid = _finite(lid, float("nan"))
+        if math.isnan(lid):
+            openness = wide = float("nan")  # _finite below holds the last values
+        else:
+            openness, wide = lid_to_unified(lid)
         squeeze = eye_info.squeeze
 
+        sides = []
         if self.is_single_eye:
-            self._apply_eye(self.data.eye.left, eye_info, openness)
-            self._apply_eye(self.data.eye.right, eye_info, openness)
-            self._set_shape("EyeSquintLeft", squeeze)
-            self._set_shape("EyeSquintRight", squeeze)
-            self._set_shape("CheekSquintLeft", squeeze)
-            self._set_shape("CheekSquintRight", squeeze)
+            sides = [(self.data.eye.left, "Left"), (self.data.eye.right, "Right")]
         elif eye_id == EyeId.LEFT:
-            self._apply_eye(self.data.eye.left, eye_info, openness)
-            self._set_shape("EyeSquintLeft", squeeze)
-            self._set_shape("CheekSquintLeft", squeeze)
+            sides = [(self.data.eye.left, "Left")]
         elif eye_id == EyeId.RIGHT:
-            self._apply_eye(self.data.eye.right, eye_info, openness)
-            self._set_shape("EyeSquintRight", squeeze)
-            self._set_shape("CheekSquintRight", squeeze)
+            sides = [(self.data.eye.right, "Right")]
+        for eye, side in sides:
+            self._apply_eye(eye, eye_info, openness)
+            self._set_shape(f"EyeWide{side}", wide)
+            self._set_shape(f"EyeSquint{side}", squeeze)
+            self._set_shape(f"CheekSquint{side}", squeeze)
 
         # Recomputes the full v2 parameter set from the shared frame and queues
         # only changed values; the port's send thread puts them on the wire.

@@ -28,11 +28,12 @@ from next_eye_gaze import (
 from next_stereo_model import NEXT_Stereo_cls, SharedPass, stereo_model_file
 from next_smartcal import (
     NEXT_SMARTCAL_DOTS,
+    _SMARTCAL_ANGLE_REF,
     _SMARTCAL_MAX_GAIN,
     _fit_next_smartcal,
     clamp_next_smartcal_transform,
     next_smartcal_apply,
-    next_smartcal_targets,
+    next_smartcal_dot_tangents,
 )
 from utils.misc_utils import resource_path
 
@@ -152,7 +153,14 @@ needs_hybrid = pytest.mark.skipif(
 
 @pytest.fixture
 def hybrid():
-    return NEXT_Stereo_cls(HYBRID_PATH)
+    return _legacy_chain(NEXT_Stereo_cls(HYBRID_PATH))
+
+
+def _legacy_chain(runner):
+    # These tests pin the median + One-Euro gaze chain (gui_NEXT_smooth_gaze off);
+    # the smoother has its own in test_next_smooth_gaze.py.
+    runner.smooth_gaze = False
+    return runner
 
 
 def _raw12(rng):
@@ -165,8 +173,8 @@ def _raw12(rng):
 def test_fused_outputs_ignore_the_per_eye_channels(hybrid):
     # Same [0:8] stream through two fresh runners, one with wildly different
     # per-eye channels and one with none at all: the fused result is identical.
-    other = NEXT_Stereo_cls(HYBRID_PATH)
-    legacy = NEXT_Stereo_cls(HYBRID_PATH)
+    other = _legacy_chain(NEXT_Stereo_cls(HYBRID_PATH))
+    legacy = _legacy_chain(NEXT_Stereo_cls(HYBRID_PATH))
     # The One-Euro step depends on wall-clock spacing between calls; identity
     # filters keep the comparison exact (medians and the hold still run).
     for runner in (hybrid, other, legacy):
@@ -367,7 +375,7 @@ def test_recenter_without_reference_zeroes_each_eye():
 def _calib_processor(eye, deviation, gain=0.6):
     """Samples of an eye that under-reads by ``gain`` and points ``deviation``
     away from every dot (a real strabismus, not a tracking error)."""
-    targets = next_smartcal_targets(SimpleNamespace())
+    targets = next_smartcal_dot_tangents()
     samples = {}
     for dot in range(len(NEXT_SMARTCAL_DOTS)):
         tx, ty = targets[dot]
@@ -421,20 +429,21 @@ def test_per_eye_smart_calib_follows_the_chosen_dominant_eye():
 
 
 def _max_gain(ep):
-    w = ep._next_smartcal_w
-    return float(np.linalg.svd(np.array([[w[0], w[1]], [w[2], w[3]]]), compute_uv=False)[0])
+    # In output-normalised units, which is what the gain bound is in.
+    w = np.array(ep._next_smartcal_w[:4]) / _SMARTCAL_ANGLE_REF
+    return float(np.linalg.svd(w.reshape(2, 2), compute_uv=False)[0])
 
 
 def test_smart_calib_clamps_a_moderately_under_reading_model():
     # A tiny model reading 0.25x needs 4x: clamped to the gain bound, not dropped.
-    ep = _calib_processor(EyeId.LEFT, (0.0, 0.0), gain=0.25)
+    ep = _calib_processor(EyeId.LEFT, (0.0, 0.0), gain=0.25 * _SMARTCAL_ANGLE_REF)
     assert _fit_next_smartcal([ep], Mock(), _settings(gui_NEXT_calib_lids_brows=False))
     assert _max_gain(ep) == pytest.approx(_SMARTCAL_MAX_GAIN)
 
 
 def test_smart_calib_still_rejects_a_wildly_over_gained_fit():
     # 0.12x needs ~8x, past the clamp factor: treated as degenerate.
-    ep = _calib_processor(EyeId.LEFT, (0.0, 0.0), gain=0.12)
+    ep = _calib_processor(EyeId.LEFT, (0.0, 0.0), gain=0.12 * _SMARTCAL_ANGLE_REF)
     assert not _fit_next_smartcal([ep], Mock(), _settings(gui_NEXT_calib_lids_brows=False))
     assert ep._next_smartcal_w is None
 

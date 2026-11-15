@@ -20,6 +20,7 @@
                                       @@@@@@@@@@@@@(
 
 NEXT End-to-End Model: raw RGB inference (gaze, eyebrow, eyelid, squint).
+Models: NEXT (LEAPv2_Training/NEXT), one export family per headset.
 Algorithm App Implementation By: Prohurtz
 
 Copyright (c) 2026 EyeTrackVR <3
@@ -89,29 +90,33 @@ class TimedMedian:
 
 
 # A NEXT model is picked by two settings: the headset (HMD) it was trained for
-# and its size. The headset selects the matching Hybrid export family.
+# and its size. The headset selects the matching NEXT export family.
 HMD_TYPES = ("ETVR", "BSB", "PSVR")
-# PSVR and Tobii share one model family (the PSVR Hybrid is trained on the
+# PSVR and Tobii share one model family (the PSVR model is trained on the
 # Tobii dataset), so older TOBII selections resolve to PSVR.
 HMD_ALIASES = {"TOBII": "PSVR", "PSVR/TOBII": "PSVR"}
-HYBRID_MODEL_STEMS = {
-    "ETVR": "NEXT_ETVR_HYBRID",
-    "BSB": "NEXT_ETVR_HYBRID_BSB",
-    "PSVR": "NEXT_ETVR_HYBRID_PSVR",
-}
 DEFAULT_MODEL_VARIANT = "ETVR"
 # Model sizes, lightest first (the GUI slider runs left -> right in this order).
-# NORMAL is the full MobileNetV3 Hybrid and LITE its fp16 export; SMALL..NANO
-# are the embedded-class tiny towers (NEXT_ETVR_HYBRID_TINY_<SIZE>[_BSB|_PSVR]).
-MODEL_SIZES = ("NANO", "MICRO", "MINI", "SMALL", "LITE", "NORMAL")
+# All are NEXT exports with the 12-output per-eye-gaze contract:
+#   LITE   NEXT_<HMD>.fp16.onnx    NORMAL at half precision
+#   NORMAL NEXT_<HMD>.onnx         MobileNetV3-Small, 1.46M (default)
+#   LARGE  NEXT_LARGE_<HMD>.onnx   MobileNetV3-Large, 3.85M
+#   XL     NEXT_XL_<HMD>.onnx      EfficientNet-B0, 5.17M (ETVR, BSB)
+MODEL_SIZES = ("LITE", "NORMAL", "LARGE", "XL")
 DEFAULT_MODEL_SIZE = "NORMAL"
-# Sizes below Lite are still work in progress; the GUI flags them as such.
-EXPERIMENTAL_MODEL_SIZES = ("NANO", "MICRO", "MINI", "SMALL")
+# Files tried per size, in order; the first one on disk wins. PSVR has no XL,
+# so XL falls back to its Large model.
+_SIZE_FILES = {
+    "LITE": ("NEXT_{hmd}.fp16.onnx",),
+    "NORMAL": (),
+    "LARGE": ("NEXT_LARGE_{hmd}.onnx",),
+    "XL": ("NEXT_XL_{hmd}.onnx", "NEXT_LARGE_{hmd}.onnx"),
+}
 # Every selectable "<HMD>[ <SIZE>]" variant string (NORMAL carries no suffix).
 MODEL_VARIANTS = tuple(HMD_TYPES) + tuple(
     f"{hmd} {size}" for size in reversed(MODEL_SIZES) if size != DEFAULT_MODEL_SIZE for hmd in HMD_TYPES
 )
-# Preserve the app's deployed stereo gaze-Y convention in both Hybrid paths.
+# The exports emit gaze Y positive down; the app's convention is the opposite.
 SHARED_GAZE_Y_SIGN = -1.0
 
 
@@ -142,22 +147,15 @@ def variant_from_settings(settings) -> str:
 def model_file_for_variant(variant: str) -> str:
     """Map a variant name to its ONNX file path.
 
-    ETVR, BSB and PSVR use their matching Hybrid exports for one or two
-    cameras: NORMAL the full model, LITE its fp16 export and SMALL..NANO the
-    tiny exports.
-
-    If a requested size isn't present on disk, fall back to the full-precision
-    base model so the selection still tracks."""
+    Every headset and size is a NEXT export for one or two cameras.
+    If a requested size isn't present on disk, fall back to the headset's
+    NORMAL model so the selection still tracks."""
     hmd, size = split_variant(variant)
-    stem = HYBRID_MODEL_STEMS[hmd]
-    candidate = None
-    if size == "LITE":
-        candidate = f"assets/models/{stem}.fp16.onnx"
-    elif size in EXPERIMENTAL_MODEL_SIZES:
-        candidate = f"assets/models/NEXT_ETVR_HYBRID_TINY_{size}{stem[len('NEXT_ETVR_HYBRID') :]}.onnx"
-    if candidate and os.path.exists(resource_path(candidate)):
-        return candidate
-    return f"assets/models/{stem}.onnx"
+    for name in _SIZE_FILES[size]:
+        candidate = f"assets/models/{name.format(hmd=hmd)}"
+        if os.path.exists(resource_path(candidate)):
+            return candidate
+    return f"assets/models/NEXT_{hmd}.onnx"
 
 
 # ImageNet normalization constants (CHW channel order after BGR->RGB)
@@ -203,7 +201,7 @@ class NEXT_cls:
         self.input_dtype = np.float16 if "float16" in model_input.type else np.float32
 
         # Input resolution comes from the graph, not a hardcoded constant: newer
-        # Hybrid exports run at 160px; legacy models can use other sizes.
+        # NEXT exports run at 192px; legacy models can use other sizes.
         self.input_size = int(model_input.shape[-1])
 
         # Preprocessing contract comes from the metadata stamped at export. Newer
@@ -282,7 +280,7 @@ class NEXT_cls:
         self.one_euro_filter.beta[:] = _beta
 
         """Return (gaze_x, gaze_y, eyebrow, eyelid, squeeze) for *bgr_frame*."""
-        img = cv2.resize(bgr_frame, (self.input_size, self.input_size))
+        img = cv2.resize(bgr_frame, (self.input_size, self.input_size), interpolation=cv2.INTER_AREA)
         # Raw 0..255 RGB, HWC -> CHW.
         img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB).astype(np.float32)
         img = img.transpose(2, 0, 1)

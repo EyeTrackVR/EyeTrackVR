@@ -103,6 +103,7 @@ class OverlaySession:
         self._log = None
         self._finished = False
         self._deadline = 0.0
+        self._started_wall = 0.0
 
     def __enter__(self) -> Self:
         return self.start()
@@ -119,6 +120,7 @@ class OverlaySession:
             self.sock.settimeout(self.POLL_S)
             self.sock.bind(("127.0.0.1", OVERLAY_SIGNAL_PORT))
             self._log = _open_overlay_log()
+            self._started_wall = time.time()
             self.process = subprocess.Popen(
                 command,
                 cwd=os.path.dirname(command[0]),
@@ -144,6 +146,28 @@ class OverlaySession:
                 if code is not None:
                     raise OverlayExited(f"calibration overlay exited with code {code}; see calibration-overlay.log")
         raise TimeoutError(f"calibration overlay sent nothing for {self.timeout:.0f} s")
+
+    def log_text(self) -> str:
+        """What the overlay has logged in this run so far (its resolved gaze
+        range among it). Its output file can lag while it runs, so this also
+        reads the overlay's own per-line-flushed log, which is beside the
+        binary or in the temp folder when that is read-only."""
+        import tempfile
+
+        paths = []
+        if self._log is not None:
+            paths.append(Path(self._log.name))
+        if self.process is not None:
+            name = "eyetrackvr_overlay.log"
+            paths += [Path(self.process.args[0]).parent / name, Path(tempfile.gettempdir()) / name]
+        text = []
+        for path in paths:
+            try:
+                if path.stat().st_mtime >= self._started_wall - 1.0:
+                    text.append(path.read_text(encoding="utf-8", errors="replace"))
+            except OSError:
+                pass
+        return "\n".join(text)
 
     def finish(self) -> None:
         """The calibration completed; let the overlay close on its own."""

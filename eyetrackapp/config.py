@@ -234,14 +234,13 @@ class EyeTrackCameraConfig(BaseModel):
     # fresh calibration without restarting the app or fiddling with the
     # metric-version migration mechanism.
     leap_calib_request_seq: int = 0
-    # NEXT Smart Calibration: a (warp + affine) transform mapping the raw NEXT
-    # model gaze (right/up positive, [-1, 1]) to calibrated gaze that lands on
-    # the known overlay dot positions. next_smartcal_w is the 2x2 weight matrix
-    # in row-major order [w11, w12, w21, w22]; next_smartcal_b is the [b1, b2]
-    # bias. next_smartcal_warp selects the space the affine was fit in:
-    # "atanh" un-saturates the model's tanh output before the affine (current
-    # fits), None = legacy raw-space affine saved by older builds. See
-    # next_smartcal.next_smartcal_apply. All None until "NEXT Smart Calib".
+    # NEXT Smart Calibration: the fitted transform from the raw NEXT model gaze
+    # (right/up positive, [-1, 1]) to gaze. next_smartcal_warp names the space
+    # the fit lives in: "angle" (current fits) maps to true gaze angle, with
+    # next_smartcal_w = [w11, w12, w21, w22, y0, w22_up] and next_smartcal_b =
+    # [b1, b2]; None / "atanh" are legacy affines straight onto output gaze
+    # with a 4-value w, saved by older builds. See the next_smartcal module
+    # header. All None until "NEXT Smart Calib".
     next_smartcal_w: Union[List[float], None] = None
     next_smartcal_b: Union[List[float], None] = None
     next_smartcal_warp: Union[str, None] = None
@@ -405,13 +404,17 @@ class EyeTrackSettingsConfig(BaseModel):
     # Hold vertical gaze while the lids hide the pupil, for users whose gaze
     # goes wrong when they squint (next_eye_gaze.SquintYHold).
     gui_NEXT_squint_y_hold: bool = False
+    # Gaze of the shared NEXT model through next_smooth.Smoother instead of the
+    # median + One-Euro chain: steady on a still eye, immediate on a real move,
+    # held through blinks. Off = the old chain and its two sliders.
+    gui_NEXT_smooth_gaze: bool = True
     # Headset (HMD) the models were trained for: ETVR / BSB / PSVR (shown as
     # PSVR/TOBII). PSVR is a manual NEXT-only choice; setup-mode auto-selection remains
     # limited to ETVR and BSB. Selects the NEXT Hybrid family and
     # assets/models/Eyebrow_<VARIANT>.onnx.
     gui_model_variant: str = "ETVR"
     # NEXT model size within that headset's family, lightest to best:
-    # NANO / MICRO / MINI / SMALL / LITE / NORMAL (see next_model.MODEL_SIZES).
+    # LITE / NORMAL / LARGE / XL (see next_model.MODEL_SIZES).
     gui_model_size: str = "NORMAL"
     # True once the user has manually picked a model variant. While False, the
     # variant tracks the main-tracking setup mode (bigscreen -> BSB, etvr -> ETVR).
@@ -519,23 +522,15 @@ class EyeTrackSettingsConfig(BaseModel):
 
     gui_VRCFTModulePort: int = 8889
     gui_VRCFTModuleIPAddress: str = "127.0.0.1"
-    # Output full-scale FOV edge (degrees): the angle calibrated gaze ±1 maps to.
-    # Two roles, kept consistent:
-    #   1. pyVRCFT native /tracking/eye/LeftRightPitchYaw maps ±1 to degrees via
-    #      atan(gaze * tan(max)), so full gaze reflects a real angle instead of
-    #      VRCFT's default 45°. (Normalized v1/v2 eye params carry ±1 directly;
-    #      the avatar rig owns what ±1 rotates to there.)
-    #   2. next_smartcal_targets() derives each calibration dot's fit target as
-    #      its fraction of THIS full-scale, so the inset overlay dots are NOT
-    #      treated as nearly maximum output while leaving room for the eye to drive output
-    #      out to ±1 at the FOV edge instead of clipping at the overlay's
-    #      oculomotor dot caps. Headroom is PER-AXIS by how far the eye can
-    #      actually rotate: yaw/down are set wider than the overlay caps
-    #      (30/35) so lateral/downward gaze reaches ±1 near the FOV edge, but
-    #      UP is kept at its cap (15) because upward eye rotation maxes out near 15°, so
-    #      any up headroom just makes full-up unreachable ("doesn't go high
-    #      enough"). Changing these needs a re-cal (Reset Smart Calib) so the
-    #      saved affine matches.
+    # Gaze limits (degrees): the eye rotation that output gaze +-1 stands for.
+    # Smart Calib measures the true gaze angle and outputs it as a fraction of
+    # these (next_smartcal.smartcal_tangents_to_gaze); the pyVRCFT native
+    # /tracking/eye/LeftRightPitchYaw endpoint, the foveation outputs and the
+    # gaze preview turn gaze back into the angle with atan(gaze * tan(limit)),
+    # so those always get the measured angle whatever the limits are. The
+    # limits decide where the normalized eye parameters reach +-1 (the avatar
+    # rig owns what +-1 rotates to there). Up is far smaller than the rest
+    # because upward eye rotation is. Changing them needs no recalibration.
     gui_gaze_yaw_max_deg: float = 40.0
     gui_gaze_pitch_up_deg: float = 15.0
     gui_gaze_pitch_down_deg: float = 40.0

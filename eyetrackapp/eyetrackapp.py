@@ -124,6 +124,11 @@ if is_nt:
 # Random environment variable to speed up webcam opening on the MSMF backend.
 # https://github.com/opencv/opencv/issues/17687
 os.environ["OPENCV_VIDEOIO_MSMF_ENABLE_HW_TRANSFORMS"] = "0"
+# FFmpeg prints "[mjpeg @ ...] error dc" for every truncated frame of a wireless
+# stream, e.g. one cut off at exit; the capture code already handles bad frames.
+# Quiet (AV_LOG_QUIET): OpenCV's log callback still prints some decoder errors at
+# AV_LOG_FATAL. Set the variable yourself (e.g. 16) to see them again.
+os.environ.setdefault("OPENCV_FFMPEG_LOGLEVEL", "-8")
 WINDOW_NAME = "EyeTrackApp"
 
 _pywinstyles_mod = None
@@ -241,8 +246,9 @@ def main():
             openvr_service = _openvr_service
             openvr_service.autostart_enabled = bool(config.settings.gui_openvr_autostart)
             config.register_listener_callback(openvr_service.on_config_update)
-            # Re-assert auto-launch registration at startup; self-heals the case
-            # where it was enabled while SteamVR was closed.
+            # Re-assert the SteamVR registration at startup; self-heals the case
+            # where it was enabled while SteamVR was closed. Leaves SteamVR's
+            # auto-launch flag alone if the user turned it off there.
             if config.settings.gui_openvr_autostart:
                 openvr_service.ensure_registered()
 
@@ -1682,6 +1688,12 @@ def main():
             # left running after SteamVR quits would hold cameras and ports.
             # A watchdog ends a shutdown that hangs in native code.
             threading.Timer(8.0, lambda: os._exit(0)).start()
+            # The window goes away at once; the rest happens behind it.
+            try:
+                self.root.withdraw()
+                self.root.update_idletasks()
+            except Exception:
+                logger.debug("Hiding the window failed", exc_info=True)
             try:
                 # Keep settings edited within the debounce window.
                 for setting in settings:
@@ -1697,14 +1709,15 @@ def main():
                 for eye in eyes:
                     eye.request_stop()
                 shutdown_deadline = time.monotonic() + 0.5
+                cancellation_event.set()
+                # While the eye threads wind down, not after them.
+                dfr_controller.stop()  # turns DFR off in a running game
+                osc_manager.shutdown()
                 for eye in eyes:
                     eye.stop(
                         join_timeout=max(0.0, shutdown_deadline - time.monotonic()),
                         warn_if_alive=False,
                     )
-                cancellation_event.set()
-                dfr_controller.stop()  # turns DFR off in a running game
-                osc_manager.shutdown()
                 if getattr(self, "_timer_high_res", False):
                     set_timer_resolution(False)
             except Exception:

@@ -163,6 +163,9 @@ class OpenVRService:
         self.autostart_enabled: bool = False
         # Registration succeeded against the SteamVR we are connected to.
         self._registered: bool = False
+        # The user turned the option on while SteamVR was closed: switch SteamVR's
+        # auto-launch on once it is reachable. Never set by startup re-registration.
+        self._auto_launch_pending: bool = False
         # openvr.init can take ~100 ms while SteamVR is closed, so reconnects
         # run on a worker thread; the lock serializes every OpenVR session change.
         self._lock = threading.RLock()
@@ -331,8 +334,24 @@ class OpenVRService:
             except OSError:
                 pass
 
-    def _register_connected(self) -> None:
-        """Write the manifest and register it for auto-launch (session must be open)."""
+    def _is_installed(self) -> bool:
+        try:
+            return bool(self.app.isApplicationInstalled(self.appKey))
+        except Exception:
+            return False
+
+    def _register_connected(self, enable_auto_launch: bool = False) -> None:
+        """Write and register the manifest (session must be open).
+
+        SteamVR's own auto-launch flag is only switched on when the user just
+        turned the option on in this app (``enable_auto_launch``), or when
+        SteamVR has never seen this app before. Re-registering at startup or on
+        reconnect must not undo the user turning auto-launch off in SteamVR's
+        settings: "Start and Stop With SteamVR" still stops the app when
+        SteamVR quits either way.
+        """
+        if not enable_auto_launch and not self._is_installed():
+            enable_auto_launch = True  # first registration: opting in means auto-launch
         self.write_manifest()
         self._remove_stale_registration()
         try:
@@ -353,24 +372,32 @@ class OpenVRService:
                 "Register manifest",
                 lambda: self.app.addApplicationManifest(self.manifestPath),
             )
-        self._call_app_api(
-            "Enable auto-launch",
-            lambda: self.app.setApplicationAutoLaunch(self.appKey, True),
-        )
+        if enable_auto_launch:
+            self._call_app_api(
+                "Enable auto-launch",
+                lambda: self.app.setApplicationAutoLaunch(self.appKey, True),
+            )
         self._registered = True
-        self.logger.log(
-            INFO,
-            f"{Fore.GREEN}[INFO] Registered EyeTrackVR for SteamVR auto-launch",
-        )
+        self._auto_launch_pending = False
+        if enable_auto_launch:
+            self.logger.log(
+                INFO,
+                f"{Fore.GREEN}[INFO] Registered EyeTrackVR for SteamVR auto-launch",
+            )
+        else:
+            self.logger.log(
+                INFO,
+                f"{Fore.GREEN}[INFO] Registered EyeTrackVR with SteamVR (auto-launch left as set in SteamVR)",
+            )
 
-    def _register(self) -> None:
-        """(Re)write the manifest and register it for auto-launch.
+    def _register(self, enable_auto_launch: bool = False) -> None:
+        """(Re)write the manifest and register it with SteamVR.
 
         Requires a running SteamVR: raises SteamVRNotRunning otherwise.
         """
         with self._lock:
             self.initialize()
-            self._register_connected()
+            self._register_connected(enable_auto_launch)
 
     def _unregister(self) -> None:
         """Best-effort removal of the auto-launch registration and manifest."""
@@ -396,6 +423,7 @@ class OpenVRService:
                 # since SteamVR won't auto-launch an app whose manifest no longer exists.
                 pass
             self._registered = False
+            self._auto_launch_pending = False
             for path in paths:
                 try:
                     if os.path.exists(path):
@@ -404,11 +432,12 @@ class OpenVRService:
                     pass
 
     def ensure_registered(self) -> None:
-        """Re-assert auto-launch registration at startup.
+        """Re-assert the SteamVR registration at startup.
 
         Self-heals the common case where the user enabled the option while
         SteamVR was closed: the manifest couldn't be registered then, but the
-        next time the app starts with SteamVR open we register it here.
+        next time the app starts with SteamVR open we register it here. An
+        auto-launch flag the user turned off in SteamVR is left alone.
         """
         if not self.autostart_enabled:
             return
@@ -438,7 +467,7 @@ class OpenVRService:
                 # closed: otherwise SteamVR would only learn of us on the next run.
                 if not self._registered:
                     try:
-                        self._register_connected()
+                        self._register_connected(self._auto_launch_pending)
                     except (OpenVRException, OSError) as e:
                         self.logger.log(WARN, f"[WARN] SteamVR auto-launch registration failed ({e})")
                 self.is_initialized = True
@@ -515,8 +544,10 @@ class OpenVRService:
         self.autostart_enabled = enabled
         if enabled:
             try:
-                self._register()
+                # The user just turned the option on: that is an explicit opt-in to auto-launch.
+                self._register(enable_auto_launch=True)
             except SteamVRNotRunning:
+                self._auto_launch_pending = True
                 # SteamVR not running yet: keep the user's choice. The background
                 # reconnect registers as soon as SteamVR starts. Any other error
                 # propagates so the UI can surface it and revert the checkbox.
@@ -542,6 +573,7 @@ class OpenVRService:
                 self.set_autostart(data["gui_openvr_autostart"])
             except (OpenVRException, OSError) as e:
                 self.autostart_enabled = False
+                self._auto_launch_pending = False
                 self._shutdown()  # polling is off now: a session left open would never ack SteamVR's quit
                 if self.window is not None and hasattr(self.window, "set_openvr_autostart"):
                     self.window.set_openvr_autostart(False)

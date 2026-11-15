@@ -80,6 +80,7 @@ def test_mono_runner_exposes_gaze_before_median_and_one_euro():
 def test_stereo_coordinator_exposes_shared_gaze_before_filtering():
     coord = StereoNextCoordinator(stereo_model_file("ETVR"))
     coord.runner.one_euro_filter = _HalvingFilter(8)
+    coord.runner.smooth_gaze = False  # the median + One-Euro chain is what halves here
     assert coord.raw_gaze() is None
     rng = np.random.default_rng(3)
     image = rng.integers(0, 255, (120, 160, 3), dtype=np.uint8)

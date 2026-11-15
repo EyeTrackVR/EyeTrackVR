@@ -171,11 +171,11 @@ class EyeProcessor(NextProcessingMixin):
         #     dots (the face is neutral for the whole sequence).
         #   _next_smartcal_lid_neutral / _brow_neutral: the captured resting
         #     readings those two channels are re-anchored against, or None.
-        #   _next_smartcal_w / _b: the fitted affine transform (loaded from
+        #   _next_smartcal_w / _b: the fitted gaze transform (loaded from
         #     config) applied to the raw model gaze each frame, or None.
-        #   _next_smartcal_warp: the space the affine was fit in ("atanh" =
-        #     un-saturate the model's tanh output first; None = legacy raw-space
-        #     affine from older builds).
+        #   _next_smartcal_warp: the space that fit lives in ("angle" = true
+        #     gaze angle, what Smart Calib fits now; None / "atanh" = legacy
+        #     affines onto output gaze from older builds). See next_smartcal.
         self._next_smartcal_active_dot = None
         self._next_smartcal_dot_started = 0.0
         self._next_smartcal_samples = {}

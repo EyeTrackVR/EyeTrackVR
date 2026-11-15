@@ -610,7 +610,9 @@ class DfrController:
         """App exit: turn DFR off in a running game (the user's switch lives in this app)."""
         self._stop.set()
         with self._lock:
-            self._stop_monitor()
+            # Closing the socket is enough: the monitor shuts its own OpenVR session
+            # down and exits. Waiting on that stalled app exit, then killed it anyway.
+            self._stop_monitor(wait=False)
             if self._written.get("mode", MODE_OFF) != MODE_OFF:
                 self._write("mode", MODE_OFF)
 
@@ -665,7 +667,7 @@ class DfrController:
         elif not wanted and (alive or self._monitor is not None):
             self._stop_monitor()
 
-    def _stop_monitor(self) -> None:
+    def _stop_monitor(self, wait: bool = True) -> None:
         monitor, self._monitor = self._monitor, None
         connection, self._monitor_socket = self._monitor_socket, None
         self._sent_state = None
@@ -675,7 +677,7 @@ class DfrController:
                 connection.close()  # the monitor exits when the socket closes
             except OSError:
                 pass
-        if monitor is None:
+        if monitor is None or not wait:
             return
         try:
             monitor.wait(timeout=2)

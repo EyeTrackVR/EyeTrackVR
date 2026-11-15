@@ -138,10 +138,79 @@ def test_registration_from_another_install_is_replaced(ovr, monkeypatch, tmp_pat
     service.app.getApplicationPropertyString.side_effect = lambda key, prop: (
         str(old_dir / "EyeTrackApp.exe") if prop == "binary" else ""
     )
-    service._register_connected()
+    service._register_connected(enable_auto_launch=True)
     service.app.removeApplicationManifest.assert_called_once_with(str(old_dir / "app.vrmanifest"))
     service.app.addApplicationManifest.assert_called_once()
     service.app.setApplicationAutoLaunch.assert_called_once_with(service.appKey, True)
+
+
+def test_startup_does_not_reenable_auto_launch_turned_off_in_steamvr(ovr, monkeypatch):
+    # The user keeps "Start and Stop With SteamVR" on (auto-stop) but switched
+    # EyeTrackVR's auto-launch off in SteamVR: restarting the app must not undo that.
+    service = _connected(ovr)
+    service.autostart_enabled = True
+    service.app.isApplicationInstalled.return_value = True
+    service.app.getApplicationPropertyString.return_value = ""
+    service.ensure_registered()
+    service.app.addApplicationManifest.assert_called_once_with(service.manifestPath)
+    service.app.setApplicationAutoLaunch.assert_not_called()
+    assert service._registered
+
+
+def test_startup_enables_auto_launch_on_first_registration(ovr):
+    # Enabled while SteamVR was closed and never registered: the opt-in still applies.
+    service = _connected(ovr)
+    service.autostart_enabled = True
+    service.ensure_registered()
+    service.app.setApplicationAutoLaunch.assert_called_once_with(service.appKey, True)
+
+
+def test_turning_the_option_on_always_enables_auto_launch(ovr):
+    service = _connected(ovr)
+    service.app.isApplicationInstalled.return_value = True
+    service.app.getApplicationPropertyString.return_value = ""
+    service.set_autostart(True)
+    service.app.setApplicationAutoLaunch.assert_called_once_with(service.appKey, True)
+
+
+def _connect_later(ovr, monkeypatch, service, installed):
+    app = Mock()
+    app.isApplicationInstalled.return_value = installed
+    app.getApplicationPropertyString.return_value = ""
+    ovr.openvr.IVRApplications = Mock(return_value=app)
+    ovr.openvr.init = Mock()
+    service._next_reconnect = 0.0
+    started = []
+    real_thread = threading.Thread
+
+    def thread(*args, **kwargs):
+        t = real_thread(*args, **kwargs)
+        started.append(t)
+        return t
+
+    monkeypatch.setattr(ovr.threading, "Thread", thread)
+    service.poll_quit_event()
+    started[0].join(5)
+    return app
+
+
+def test_reconnect_leaves_auto_launch_turned_off_in_steamvr(ovr, monkeypatch):
+    service = ovr.OpenVRService()
+    service.autostart_enabled = True  # loaded from config at startup
+    service.write_manifest = Mock()
+    app = _connect_later(ovr, monkeypatch, service, installed=True)
+    assert service._registered
+    app.setApplicationAutoLaunch.assert_not_called()
+
+
+def test_enabled_while_steamvr_closed_turns_auto_launch_on_when_it_starts(ovr, monkeypatch):
+    service = ovr.OpenVRService()
+    service.write_manifest = Mock()
+    ovr.openvr.init = Mock(side_effect=ovr.openvr.error_code.InitError_Init_NoServerForBackgroundApp())
+    service.set_autostart(True)
+    app = _connect_later(ovr, monkeypatch, service, installed=True)
+    app.setApplicationAutoLaunch.assert_called_once_with(service.appKey, True)
+    assert not service._auto_launch_pending
 
 
 def test_manifest_is_written_next_to_the_settings(ovr, monkeypatch, tmp_path):

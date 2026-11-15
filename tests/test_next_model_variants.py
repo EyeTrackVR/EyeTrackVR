@@ -5,7 +5,6 @@ from config import _migrate_config_dict
 from eyebrow import MODEL_VARIANTS as EYEBROW_MODEL_VARIANTS
 from eyebrow import model_file_for_variant as eyebrow_model_file
 from next_model import (
-    EXPERIMENTAL_MODEL_SIZES,
     HMD_TYPES,
     MODEL_SIZES,
     MODEL_VARIANTS,
@@ -21,15 +20,15 @@ from settings.modules.tracking_algorithm_module import _MODEL_VARIANTS
 def test_psvr_is_a_selectable_next_model(variant, suffix):
     assert variant in MODEL_VARIANTS
     assert split_variant(variant)[0] in _MODEL_VARIANTS
-    assert model_file_for_variant(variant) == f"assets/models/NEXT_ETVR_HYBRID_PSVR{suffix}"
+    assert model_file_for_variant(variant) == f"assets/models/NEXT_PSVR{suffix}"
 
 
-@pytest.mark.parametrize("variant", ["PSVR", "PSVR LITE", "PSVR NANO"])
+@pytest.mark.parametrize("variant", ["PSVR", "PSVR LITE", "PSVR XL"])
 def test_psvr_does_not_require_a_separate_eyebrow_model(variant):
     assert eyebrow_model_file(variant) == "assets/models/Eyebrow_ETVR.onnx"
 
 
-@pytest.mark.parametrize("variant", ["BSB", "BSB LITE", "BSB MICRO"])
+@pytest.mark.parametrize("variant", ["BSB", "BSB LITE", "BSB LARGE"])
 def test_eyebrow_model_ignores_next_model_size(variant):
     assert eyebrow_model_file(variant) == "assets/models/Eyebrow_BSB.onnx"
 
@@ -41,11 +40,10 @@ def test_gui_and_inference_offer_the_same_headsets():
 def test_model_size_slider_runs_lightest_to_best():
     # The GUI slider maps index 0 (left) to the lightest and the last index
     # (right) to the best, most compute-hungry model.
-    assert MODEL_SIZES == ("NANO", "MICRO", "MINI", "SMALL", "LITE", "NORMAL")
-    assert set(EXPERIMENTAL_MODEL_SIZES) == set(MODEL_SIZES[: MODEL_SIZES.index("LITE")])
+    assert MODEL_SIZES == ("LITE", "NORMAL", "LARGE", "XL")
 
 
-def test_every_hybrid_size_resolves_to_a_shipped_file():
+def test_every_size_resolves_to_a_shipped_file():
     import os
     from utils.misc_utils import resource_path
 
@@ -55,7 +53,9 @@ def test_every_hybrid_size_resolves_to_a_shipped_file():
             path = model_file_for_variant(compose_variant(hmd, size))
             assert os.path.exists(resource_path(path)), path
             files.add(path)
-    assert len(files) == 3 * len(MODEL_SIZES)
+    # PSVR has no XL export: its XL is the Large model.
+    assert len(files) == 3 * len(MODEL_SIZES) - 1
+    assert model_file_for_variant("PSVR XL") == model_file_for_variant("PSVR LARGE")
 
 
 @pytest.mark.parametrize(
@@ -63,8 +63,9 @@ def test_every_hybrid_size_resolves_to_a_shipped_file():
     [
         ("ETVR", "NORMAL", "ETVR"),
         ("BSB", "LITE", "BSB LITE"),
-        ("PSVR", "nano", "PSVR NANO"),
-        ("TOBII", "NANO", "PSVR NANO"),
+        ("PSVR", "large", "PSVR LARGE"),
+        ("TOBII", "XL", "PSVR XL"),
+        ("ETVR", "NANO", "ETVR"),
         ("bogus", "bogus", "ETVR"),
     ],
 )
@@ -74,7 +75,7 @@ def test_compose_variant(hmd, size, expected):
 
 
 def test_variant_from_settings_combines_headset_and_size():
-    assert variant_from_settings(SimpleNamespace(gui_model_variant="BSB", gui_model_size="MINI")) == "BSB MINI"
+    assert variant_from_settings(SimpleNamespace(gui_model_variant="BSB", gui_model_size="XL")) == "BSB XL"
     # Settings saved before the size field existed keep their Lite choice.
     assert variant_from_settings(SimpleNamespace(gui_model_variant="PSVR LITE")) == "PSVR LITE"
 

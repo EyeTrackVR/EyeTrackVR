@@ -28,7 +28,7 @@ from next_smartcal import (
     NEXT_SMARTCAL_BROW_TARGET,
     NEXT_SMARTCAL_CAPTURE_WINDOW_S,
     NEXT_SMARTCAL_LID_TARGET,
-    next_smartcal_apply,
+    next_smartcal_gaze,
     next_smartcal_neutral_apply,
 )
 from next_stereo_model import get_stereo_coordinator
@@ -151,6 +151,9 @@ class NextProcessingMixin:
             coord.submit(self.eye_id, next_frame, self.current_capture_ts)
             if coord.supports_single_eye or coord.peer_active(self.eye_id):
                 self._next_mode_changed(True)
+                runner = getattr(coord, "runner", None)
+                if runner is not None:
+                    runner.smooth_gaze = bool(getattr(self.settings, "gui_NEXT_smooth_gaze", True))
                 gaze_x, gaze_y, eyebrow, eyelid, squeeze = coord.run(self.eye_id, base_cutoff, base_beta)
                 served = coord.served_pass(self.eye_id)
                 raw_gaze = coord.raw_gaze()
@@ -214,12 +217,13 @@ class NextProcessingMixin:
         ``limit`` bounds the result: 1.0 is the avatar's full eye range."""
         x, y = raw_x, raw_y
         if self._next_smartcal_w is not None and self._next_smartcal_b is not None:
-            x, y = next_smartcal_apply(
+            x, y = next_smartcal_gaze(
                 self._next_smartcal_w,
                 self._next_smartcal_b,
                 self._next_smartcal_warp,
                 raw_x,
                 raw_y,
+                self.settings,
             )
             # Bounded, so a strong transform can't throw the gaze anywhere.
             x = float(np.clip(x, -limit, limit))
@@ -321,18 +325,18 @@ class NextProcessingMixin:
             cap_x, cap_y = raw_gaze if raw_gaze is not None else (sc_gaze_x, sc_gaze_y)
             self._next_smartcal_samples.setdefault(_sc_dot, []).append((cap_x, cap_y, eyeopen_raw, eyebrow))
 
-        # Apply the fitted (warp + affine) transform (smart calib) to map raw
-        # model gaze -> calibrated gaze. The arctanh warp un-saturates the
-        # model's tanh output so the correction stays gentle instead of slamming
-        # to the extremes. Smart Calib is NEXT's only calibration, so a fitted
-        # transform always applies.
+        # Apply the fitted transform (smart calib): raw model gaze -> true gaze
+        # angle -> output gaze as a fraction of the configured gaze limits.
+        # Smart Calib is NEXT's only calibration, so a fitted transform always
+        # applies.
         if self._next_smartcal_w is not None and self._next_smartcal_b is not None:
-            _cal_x, _cal_y = next_smartcal_apply(
+            _cal_x, _cal_y = next_smartcal_gaze(
                 self._next_smartcal_w,
                 self._next_smartcal_b,
                 self._next_smartcal_warp,
                 sc_gaze_x,
                 sc_gaze_y,
+                self.settings,
             )
             # Keep the result in the model's native output range so a strong
             # transform can't push extreme values downstream to OSC.

@@ -1,4 +1,5 @@
-"""Regression checks against the shipped hardware-specific Hybrid exports."""
+"""Regression checks against the shipped hardware-specific NEXT exports
+(12-output per-eye-gaze contract, shared with the earlier Hybrid models)."""
 
 from types import SimpleNamespace
 from unittest.mock import Mock
@@ -37,35 +38,33 @@ def _image(seed=1):
     return np.random.default_rng(seed).integers(0, 256, (64, 80, 3), dtype=np.uint8)
 
 
-@pytest.mark.parametrize(
-    "base,stem",
-    [
-        ("ETVR", "NEXT_ETVR_HYBRID"),
-        ("BSB", "NEXT_ETVR_HYBRID_BSB"),
-        ("PSVR", "NEXT_ETVR_HYBRID_PSVR"),
-    ],
-)
-def test_hardware_selects_one_hybrid_artifact_for_both_camera_modes(base, stem):
-    for variant, suffix in ((base, ".onnx"), (base + " LITE", ".fp16.onnx")):
-        expected = f"assets/models/{stem}{suffix}"
+@pytest.mark.parametrize("base", ["ETVR", "BSB", "PSVR"])
+def test_hardware_selects_one_artifact_for_both_camera_modes(base):
+    for variant, name in (
+        (base, f"NEXT_{base}.onnx"),
+        (base + " LITE", f"NEXT_{base}.fp16.onnx"),
+        (base + " LARGE", f"NEXT_LARGE_{base}.onnx"),
+    ):
+        expected = f"assets/models/{name}"
         assert model_file_for_variant(variant) == expected
         assert stereo_model_file(variant) == expected
     # Tobii shares the PSVR family (trained on the Tobii dataset).
-    assert model_file_for_variant("TOBII") == "assets/models/NEXT_ETVR_HYBRID_PSVR.onnx"
+    assert model_file_for_variant("TOBII") == "assets/models/NEXT_PSVR.onnx"
 
 
-@pytest.mark.parametrize("base,suffix", [("ETVR", ""), ("BSB", "_BSB"), ("PSVR", "_PSVR")])
-@pytest.mark.parametrize("size", ["SMALL", "MINI", "MICRO", "NANO"])
-def test_hardware_selects_its_tiny_export_for_each_size(base, suffix, size):
-    expected = f"assets/models/NEXT_ETVR_HYBRID_TINY_{size}{suffix}.onnx"
-    assert model_file_for_variant(f"{base} {size}") == expected
-    assert stereo_model_file(f"{base} {size}") == expected
+@pytest.mark.parametrize("base", ["ETVR", "BSB"])
+def test_xl_uses_the_xl_export(base):
+    assert model_file_for_variant(f"{base} XL") == f"assets/models/NEXT_XL_{base}.onnx"
+
+
+def test_psvr_xl_falls_back_to_large():
+    assert model_file_for_variant("PSVR XL") == "assets/models/NEXT_LARGE_PSVR.onnx"
 
 
 @pytest.mark.parametrize("base", ["ETVR", "BSB", "PSVR"])
-@pytest.mark.parametrize("size", ["SMALL", "NANO"])
-def test_missing_tiny_export_falls_back_to_full_model(monkeypatch, base, size):
-    monkeypatch.setattr(next_model.os.path, "exists", lambda path: "_TINY_" not in path)
+@pytest.mark.parametrize("size", ["LARGE", "XL"])
+def test_missing_large_export_falls_back_to_normal(monkeypatch, base, size):
+    monkeypatch.setattr(next_model.os.path, "exists", lambda path: "_LARGE_" not in path and "_XL_" not in path)
     assert model_file_for_variant(f"{base} {size}") == model_file_for_variant(base)
 
 
@@ -91,12 +90,16 @@ def test_hybrid_single_eye_uses_correct_slot_and_monocular_gaze(hybrid, eye):
     raw = model.forward(np.concatenate(pair, axis=0)[None])
     assert raw.shape == (12,)
     assert np.isfinite(raw).all()
-    missing = slice(3, 6) if eye == EyeId.LEFT else slice(0, 3)
+    # The present eye's slots answer to its own image: a different image moves
+    # them. The absent eye's slots carry no meaning (the app holds that eye's
+    # last real expressions and rebuilds its gaze, see postprocess / next_eye_gaze).
+    other = model.chw(_Frame(1.0, _image(7)))
+    pair2 = (other, model.black) if eye == EyeId.LEFT else (model.black, other)
+    raw2 = model.forward(np.concatenate(pair2, axis=0)[None])
+    own = slice(0, 3) if eye == EyeId.LEFT else slice(3, 6)
     own_gaze = slice(8, 10) if eye == EyeId.LEFT else slice(10, 12)
-    missing_gaze = slice(10, 12) if eye == EyeId.LEFT else slice(8, 10)
-    np.testing.assert_array_equal(raw[missing], 0.0)
-    np.testing.assert_array_equal(raw[missing_gaze], 0.0)
-    np.testing.assert_allclose(raw[6:8], raw[own_gaze], atol=1e-6)
+    assert np.abs(raw2[own] - raw[own]).max() > 1e-4
+    assert np.abs(raw2[own_gaze] - raw[own_gaze]).max() > 1e-4
 
 
 def test_hybrid_filters_only_the_primary_eight_outputs(hybrid):

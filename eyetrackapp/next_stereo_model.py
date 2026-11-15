@@ -82,6 +82,7 @@ from next_model import (
 )
 from next_eye_coupling import NextExpressionCoupler
 from next_eye_gaze import PerEyeGaze
+from next_smooth import GAZE_BAND, GAZE_LEAD, Smoother, Snap
 from one_euro_filter import OneEuroFilter
 from utils.misc_utils import resource_path
 from utils.onnx_runtime import DML_INFERENCE_LOCK, create_inference_session
@@ -160,6 +161,10 @@ class _Frame:
 
 class NEXT_Stereo_cls:
     """Wraps Hybrid/stereo ONNX and smooths its primary eight outputs."""
+
+    # Set per pass from gui_NEXT_smooth_gaze; a runner built without
+    # init_eye_gaze_state() keeps the median + One-Euro gaze chain.
+    smooth_gaze = False
 
     def __init__(self, model_path: str, use_gpu: bool = False):
         self.model_path = model_path
@@ -247,6 +252,12 @@ class NEXT_Stereo_cls:
             step_s=NEXT_FILTER_STEP_S,
         )
         self._eye_gaze_windows = [TimedMedian(_GAZE_MEDIAN_WINDOW) for _ in range(4)]
+        # gui_NEXT_smooth_gaze: the gaze channels go through next_smooth
+        # instead of the median + One-Euro chain (steady on a still eye,
+        # immediate on a move, held through blinks, one-eye passes bridged).
+        self.smooth_gaze = True
+        self._gaze_smoother = Smoother()
+        self._eye_gaze_snaps = [Snap(*GAZE_BAND, lead=GAZE_LEAD) for _ in range(2)]
         self._per_eye_gaze = PerEyeGaze()
         self.last_eye_gaze = None
         self.last_raw_eye_gaze = None
@@ -258,7 +269,8 @@ class NEXT_Stereo_cls:
             img = cv2.resize(
                 frame.bgr,
                 (self.input_size, self.input_size),
-                interpolation=cv2.INTER_LINEAR,
+                # Area averaging matches the antialiased downscale the models were trained on.
+                interpolation=cv2.INTER_AREA,
             )
             img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB).astype(np.float32)
             img = img.transpose(2, 0, 1)
@@ -313,27 +325,46 @@ class NEXT_Stereo_cls:
 
         # Running-median spike reject on the two eyebrows and the shared gaze.
         now = time.perf_counter()
+        model_gaze = raw[6:8].copy()
         raw[0] = self._brow_l_window(float(raw[0]), now)
         raw[3] = self._brow_r_window(float(raw[3]), now)
         raw[6] = self._gaze_x_window(float(raw[6]), now)
         raw[7] = self._gaze_y_window(float(raw[7]), now)
 
         out = self.one_euro_filter(raw).astype(np.float32)
+        valid_l, valid_r = valid.get(EyeId.LEFT, True), valid.get(EyeId.RIGHT, True)
+        if eye_raw is not None:
+            # The export negates channels 9 and 11 together with 7.
+            eye_raw[1] *= self.gaze_y_sign
+            eye_raw[3] *= self.gaze_y_sign
+        if self.smooth_gaze:
+            # Raw lids drive the blink hold; the model's own per-eye gaze (the
+            # fused gaze itself on an 8-output export) bridges one-eye passes.
+            vec = np.zeros(12, dtype=np.float64)
+            vec[:6] = raw[:6]
+            vec[6:8] = model_gaze
+            vec[8:12] = eye_raw if eye_raw is not None else np.tile(model_gaze, 2)
+            out[6:8] = self._gaze_smoother(now, vec, valid_l, valid_r)[6:8]
         if eye_raw is not None:
             self._filter_eye_gaze(eye_raw, valid, float(raw[1]), float(raw[4]), now, base_cutoff, base_beta)
         return out
 
     def _filter_eye_gaze(self, eye_raw, valid, lid_l, lid_r, now, base_cutoff, base_beta) -> None:
-        """Per-eye gaze for the independent / dominant gaze modes: the export
-        negates channels 9 and 11 together with 7, so the same Y sign applies.
-        Unusable eyes (black sentinel, wink) are rebuilt before any filtering,
-        so the sentinel's zeros never reach the median or One-Euro state."""
-        eye_raw[1] *= self.gaze_y_sign
-        eye_raw[3] *= self.gaze_y_sign
-        eye = self._per_eye_gaze.update(
-            eye_raw, valid.get(EyeId.LEFT, True), valid.get(EyeId.RIGHT, True), lid_l, lid_r, now
-        )
+        """Per-eye gaze for the independent / dominant gaze modes. Unusable
+        eyes (black sentinel, wink) are rebuilt before any filtering, so the
+        sentinel's zeros never reach the filter state."""
+        valid_l, valid_r = valid.get(EyeId.LEFT, True), valid.get(EyeId.RIGHT, True)
+        eye = self._per_eye_gaze.update(eye_raw, valid_l, valid_r, lid_l, lid_r, now)
         self.last_raw_eye_gaze = eye.copy()
+        if self.smooth_gaze:
+            # An eye rebuilt from its peer is as trustworthy as the peer.
+            trust_l, trust_r = self._gaze_smoother.trust
+            trust = (trust_l if valid_l else trust_r, trust_r if valid_r else trust_l)
+            dt = self._gaze_smoother.dt
+            self.last_eye_gaze = np.concatenate(
+                [self._eye_gaze_snaps[i](now, eye[2 * i : 2 * i + 2], dt, trust[i]) for i in range(2)]
+            ).astype(np.float32)
+            return
         for i, window in enumerate(self._eye_gaze_windows):
             eye[i] = window(float(eye[i]), now)
         self.eye_gaze_filter.min_cutoff[:] = base_cutoff * _EYE_GAZE_FILTER_MUL

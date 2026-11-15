@@ -32,6 +32,7 @@ def _settle_times(monkeypatch, passes_per_s, valid, step_s):
     model._gaze_y_window = TimedMedian(3)
     model._last_expr = {EyeId.LEFT: None, EyeId.RIGHT: None}
     model.init_eye_gaze_state()
+    model.smooth_gaze = False  # this file covers the median + One-Euro chain
     hits = {}
     for i in range(int(3.0 * passes_per_s)):
         t = i / passes_per_s

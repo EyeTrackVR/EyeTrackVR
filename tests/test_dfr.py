@@ -431,6 +431,18 @@ def test_stop_turns_dfr_off_only_if_it_was_on(tool):
     assert c.registry.writes[-1] == dfr.MODE_OFF
 
 
+def test_stop_does_not_wait_for_the_monitor_to_exit(tool):
+    # The monitor exits by itself once its socket closes; app exit must not block on it.
+    c, _ = make(tool)
+    waited, closed = [], []
+    c._monitor = SimpleNamespace(poll=lambda: None, wait=lambda timeout=None: waited.append(timeout), kill=lambda: None)
+    c._monitor_socket = SimpleNamespace(close=lambda: closed.append(True))
+    c.stop()
+    assert closed == [True]
+    assert waited == []
+    assert c._monitor is None
+
+
 def test_settings_model_keeps_per_game_choices():
     s = EyeTrackSettingsConfig(
         gui_dfr_tool_dir="C:\\tools\\pm4a", gui_dfr_games={"steam.app.1": {"enabled": True, "mode": "debug"}}
