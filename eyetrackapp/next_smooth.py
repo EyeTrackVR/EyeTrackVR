@@ -187,10 +187,10 @@ class Smoother:
             if valid[e] and self.blink_hold:
                 tr[e] = self.gate[e](t, raw[lid_i], dt)
         self.trust = tuple(tr)
-        for e, (b, l, s) in enumerate(((BROW_L, LID_L, SQ_L), (BROW_R, LID_R, SQ_R))):
+        for e, (b, ld, s) in enumerate(((BROW_L, LID_L, SQ_L), (BROW_R, LID_R, SQ_R))):
             if not valid[e]:
                 continue  # an absent eye keeps its last expression
-            out[l] = self.f[l](t, raw[l : l + 1], dt)[0]
+            out[ld] = self.f[ld](t, raw[ld : ld + 1], dt)[0]
             out[s] = self.f[s](t, raw[s : s + 1], dt)[0]
             out[b] = self.f[b](t, raw[b : b + 1], dt, tr[e])[0]  # mid-blink frames read as brows-down
         # Fused gaze reads both eyes while both are open, and holds through a
