@@ -234,8 +234,6 @@ class EyeTrackCameraConfig(BaseModel):
     # fresh calibration without restarting the app or fiddling with the
     # metric-version migration mechanism.
     leap_calib_request_seq: int = 0
-    # Robust calibration session state (serialized RobustCalibrationSession.to_dict())
-    robust_calib_data: Union[dict, None] = None
     # NEXT Smart Calibration: a (warp + affine) transform mapping the raw NEXT
     # model gaze (right/up positive, [-1, 1]) to calibrated gaze that lands on
     # the known overlay dot positions. next_smartcal_w is the 2x2 weight matrix
@@ -452,6 +450,10 @@ class EyeTrackSettingsConfig(BaseModel):
     gui_skip_autoradius: bool = False
     gui_thresh_add: int = 11
     gui_update_check: bool = True
+    # Also offer pre-release (beta) versions. Someone already on a pre-release gets them
+    # either way (utils/updater.py). "Skip this version" in the update window is remembered.
+    gui_update_beta: bool = False
+    gui_update_skip_version: str = ""
     gui_ROSC: bool = False
     # Receive on any free port and let VRChat find it via OSCQuery (mDNS)
     # instead of gui_osc_receiver_port; falls back to that port on failure.
@@ -504,12 +506,15 @@ class EyeTrackSettingsConfig(BaseModel):
     # Also share gaze with foveated rendering tools on this PC (PimaxMagic4All
     # on UDP 9020 and the gaze shared memory, osc/foveation_gaze_sender.py),
     # alongside any output mode above.
-    gui_foveation_gaze: bool = False
+    gui_foveation_gaze: bool = True
     # Per-game DFR for SteamVR games (Windows, ovr/dfr.py): the PimaxMagic4All folder,
     # and each game's choice by SteamVR app key: {"enabled": bool, "mode": str, "name": str}.
     # Games are off until turned on.
     gui_dfr_tool_dir: str = ""
     gui_dfr_games: dict = {}
+    # EyeTrackVR's panel in the SteamVR dashboard (ovr/vr_dashboard.py): recenter,
+    # calibrate and the per-game DFR switch from inside the headset.
+    gui_vr_dashboard: bool = True
     gui_pupil_dilation: bool = False
 
     gui_VRCFTModulePort: int = 8889
@@ -555,18 +560,10 @@ class EyeTrackSettingsConfig(BaseModel):
     gui_openvr_autostart: bool = False
     gui_show_et_debug: bool = False
 
-    # Calibration mode. "classic" preserves existing ellipse behaviour.
-    # "express" uses 5-point min-max normalization from RobustCalibrationSession.
-    # "robust"  uses BS detector routing: express primary, SVR fallback.
+    # Always "classic" (ellipse calibration); nothing reads it. Kept because the
+    # calibration entry points still assign it, and assigning a field the model
+    # doesn't declare raises. Stale "express"/"robust" values in old files are inert.
     calib_mode: str = "classic"
-    # DFR (Dynamic Foveated Rendering) unclamped gaze vector output via UDP.
-    gui_dfr_enabled: bool = False
-    gui_dfr_port: int = 9002
-    gui_dfr_address: str = "127.0.0.1"
-    # Hold last valid calibrated position when the tracker snaps from an extreme
-    # gaze angle back to near-center in a single frame (characteristic failure mode
-    # at extreme angles). Requires robust or express calibration to be active.
-    gui_snap_hold_enabled: bool = True
     gui_use_overlay_cal: bool = True
 
     # Setup mode picked on the Tracking tab. Persisted so a user who picked
@@ -576,6 +573,9 @@ class EyeTrackSettingsConfig(BaseModel):
     # state). "etvr", "bigscreen" or "frame" (Steam Frame built-in eye cameras,
     # only valid on the headset; see frame_eye.py).
     gui_setup_mode: str = "etvr"
+    # The first-run setup wizard (setup_wizard.py) was finished or skipped. Configs
+    # that already have a camera source get it set at startup and never auto-open it.
+    gui_setup_wizard_done: bool = False
 
     # UI language, as a locale code matching a file in the lang/ folder
     # (e.g. "en", "es"). Default English. Applied at startup by

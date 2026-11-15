@@ -226,6 +226,8 @@ class BlinkAlgoSettingsModule(BaseSettingsModule):
             return
 
         for canvas, eye_id, close_var, widen_var, raw_readout, adj_readout in self._viz:
+            if not canvas.winfo_viewable():
+                continue  # another tab, or the panel is collapsed
             close_t = self._safe_float(close_var, 0.1)
             widen_t = self._safe_float(widen_var, 0.9)
             raw = _get_runtime_value(f"raw_lid_{eye_id}", None)
@@ -336,9 +338,11 @@ class BlinkAlgoSettingsModule(BaseSettingsModule):
         def _live_float(cfg, field, var):
             def _cb(*_):
                 try:
-                    setattr(cfg, field, float(var.get()))
+                    value = float(var.get())
                 except (ValueError, TypeError):
-                    pass
+                    return
+                setattr(cfg, field, value)
+                self.live_changes[field] = value  # or nothing would ever save it
 
             return _cb
 

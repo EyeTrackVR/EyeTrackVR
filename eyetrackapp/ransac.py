@@ -35,20 +35,8 @@ from eye import EyeId
 from utils.img_utils import safe_crop
 from utils.misc_utils import clamp
 import os
-import psutil
-import sys
 
 logger = logging.getLogger(__name__)
-
-process = psutil.Process(os.getpid())  # set process priority to low
-try:  # medium chance this does absolutely nothing but eh
-    sys.getwindowsversion()
-except AttributeError:
-    process.nice(0)  # UNIX: 0 low 10 high
-    process.nice()
-else:
-    process.nice(psutil.BELOW_NORMAL_PRIORITY_CLASS)  # Windows
-    process.nice()
 
 
 def ellipse_model(data, y, f):
@@ -309,7 +297,6 @@ def RANSAC3D(self, hsrac_en):
         ranf = True
 
     self.current_image_gray = frame
-    cv2.circle(self.current_image_gray, min_loc, 2, (0, 0, 255), -1)  # the point of the darkest area in the image
 
     # However eyes are annoyingly three dimensional, so we need to take this ellipse and turn it
     # into a curve patch on the surface of a sphere (the eye itself). If it's not a sphere, see your
@@ -399,12 +386,9 @@ def RANSAC3D(self, hsrac_en):
         if max(blink_deltas) >= cached[1]:
             blink = 0.0
 
-    try:
-        cv2.drawContours(self.current_image_gray, contours, -1, (255, 0, 0), 1)  # TODO: fix visualizations with HSRAC
-        cv2.circle(self.current_image_gray, (int(cx), int(cy)), 2, (0, 0, 255), -1)
-    except (cv2.error, ValueError, TypeError) as e:
-        logger.debug("Pupil overlay draw failed: %s", e)
-
+    # Only newFrame2 is shown. Contours / pupil dot / sphere line used to be drawn
+    # onto `frame` here, which is discarded below (and in whole-frame mode is
+    # current_image_gray_clean itself, so the drawing also dirtied that image).
     try:
         cv2.ellipse(
             newFrame2,
@@ -415,15 +399,6 @@ def RANSAC3D(self, hsrac_en):
             360,  # start/end angle for drawing
             (0, 255, 0),  # color (BGR): red
         )
-
-        # draw line from center of eyeball to center of pupil
-        cv2.line(
-            self.current_image_gray,
-            tuple(int(v) for v in self.last_projected_sphere["center"]),
-            tuple(int(v) for v in ellipse_3d["center"]),
-            (0, 255, 0),  # color (BGR): red
-        )
-
     except (KeyError, TypeError, ValueError, NameError, cv2.error) as e:
         logger.debug("Sphere/ellipse overlay draw failed: %s", e)
 

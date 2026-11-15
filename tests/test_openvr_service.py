@@ -307,3 +307,35 @@ def test_second_instance_is_refused(tmp_path):
         [_sys.executable, "-c", code, str(app_dir), str(lock)], capture_output=True, text=True, timeout=30
     )
     assert third.stdout.strip() == "True"
+
+
+def test_quit_poll_reuses_system_and_event_until_shutdown(ovr):
+    service = _connected(ovr)
+    service.autostart_enabled = True
+    service._next_liveness = float("inf")
+    system = Mock()
+    system.pollNextEvent.return_value = False
+    ovr.openvr.VRSystem = Mock(return_value=system)
+    ovr.openvr.VREvent_t = Mock(side_effect=lambda: object())
+    for _ in range(3):
+        assert service.poll_quit_event() is False
+    assert ovr.openvr.VRSystem.call_count == 1 and ovr.openvr.VREvent_t.call_count == 1
+    event = system.pollNextEvent.call_args.args[0]
+    assert all(call.args[0] is event for call in system.pollNextEvent.call_args_list)
+
+    # A new session must not poll through the old session's interface.
+    service._shutdown()
+    service.is_initialized = True
+    service.poll_quit_event()
+    assert ovr.openvr.VRSystem.call_count == 2
+
+
+def test_failed_interface_after_init_closes_the_session(ovr):
+    ovr.openvr.init = Mock()
+    ovr.openvr.shutdown = Mock()
+    ovr.openvr.IVRApplications = Mock(side_effect=RuntimeError("interface not found"))
+    service = ovr.OpenVRService()
+    with pytest.raises(ovr.OpenVRException):
+        service.initialize()
+    ovr.openvr.shutdown.assert_called_once()
+    assert not service.is_initialized

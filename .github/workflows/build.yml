@@ -7,7 +7,6 @@ on:
     branches:
       - main
       - master
-      - HSF-and-new-algos-feature-branch
 
 env:
   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -22,7 +21,7 @@ jobs:
   build:
     strategy:
       matrix:
-        os: [ubuntu-latest, windows-latest]
+        os: [ubuntu-latest, windows-2022]
     defaults:
       run:
         shell: bash
@@ -69,7 +68,7 @@ jobs:
         run: sudo apt-get update && sudo apt-get install -y build-essential curl wget libssl-dev xvfb libgl1 libglib2.0-0 libeigen3-dev
 
       - name: Install Eigen on Windows
-        if: matrix.os == 'windows-latest' && steps.cached-poetry-dependencies.outputs.cache-hit != 'true'
+        if: matrix.os == 'windows-2022' && steps.cached-poetry-dependencies.outputs.cache-hit != 'true'
         working-directory: ${{ runner.temp }}
         run: |
           curl -fsSL -o eigen.tar.gz https://gitlab.com/libeigen/eigen/-/archive/3.4.0/eigen-3.4.0.tar.gz
@@ -92,8 +91,12 @@ jobs:
           fi
 
       - name: Build Windows App
-        if: ${{ matrix.os == 'windows-latest' }}
-        run: poetry run pyinstaller --noconfirm --distpath dist --workpath build/windows/work packaging/windows/eyetrackapp.spec
+        if: ${{ matrix.os == 'windows-2022' }}
+        # A folder build: the spec collects into build/windows/dist (exe + _internal).
+        run: |
+          poetry run pyinstaller --noconfirm --distpath build/windows --workpath build/windows/work packaging/windows/eyetrackapp.spec
+          mkdir -p dist
+          (cd build/windows/dist && 7z a -tzip "$GITHUB_WORKSPACE/dist/EyeTrackVR-windows.zip" .)
 
       - name: Build Linux App
         if: ${{ matrix.os == 'ubuntu-latest' }}
@@ -136,39 +139,3 @@ jobs:
           name: production-files-steamframe
           path: dist
           if-no-files-found: error
-  deploy:
-    permissions:
-      contents: write
-    runs-on: ubuntu-latest
-    name: Deploy
-    needs: [build, build-frame]
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-      - name: Create Directory
-        run: mkdir -p dist
-      - name: Download artifact
-        uses: actions/download-artifact@v4
-        with:
-          pattern: production-files-*
-          merge-multiple: true
-          path: ./dist
-      - name: Setup node
-        uses: actions/setup-node@v3
-        with:
-          node-version: 18
-      - run: npm install -g conventional-changelog-conventionalcommits@6
-      - run: npm install -g semantic-release@v19.0.5
-      - run: npm install -g @semantic-release/exec
-      - run: npm install -g @semantic-release/git
-      - run: npm install -g @semantic-release/release-notes-generator
-      - run: npm install -g @semantic-release/changelog
-      - run: npm install -g @semantic-release/github
-      - name: Release
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          chmod +x ./.github/scripts/prepareCMD.sh
-          semantic-release

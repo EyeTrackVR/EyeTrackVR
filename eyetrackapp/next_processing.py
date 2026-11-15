@@ -105,6 +105,12 @@ class NextExpressionTransform:
         return next_smartcal_neutral_apply(eyebrow, self.brow_neutral, NEXT_SMARTCAL_BROW_TARGET)
 
 
+# Foveated rendering follows the eyes past the avatar's eye range (1.0), which stops at
+# 15 degrees up by default: an eye really looking 25 degrees up must move the sharp
+# region there. 2.5 is about 34 degrees up and past the display edge sideways and down.
+NEXT_DFR_GAZE_LIMIT = 2.5
+
+
 class NextProcessingMixin:
     _next_squint_hold: SquintYHold | None = None  # state of gui_NEXT_squint_y_hold
 
@@ -137,8 +143,9 @@ class NextProcessingMixin:
         variant = variant_from_settings(self.settings)
         coord = get_stereo_coordinator(variant, self.settings.gui_use_gpu)
         if coord is not None:
-            # The Frame's two cameras deliver each pair together.
-            coord.paired = self.settings.gui_setup_mode == "frame"
+            # The Frame's two cameras deliver each pair together, and a Bigscreen's
+            # two eyes are halves of one frame: wait for the pair, one pass covers both.
+            coord.paired = self.settings.gui_setup_mode in ("frame", "bigscreen")
             # Publish independently; Hybrid can infer immediately from this
             # eye alone, while legacy stereo still needs an active peer.
             coord.submit(self.eye_id, next_frame, self.current_capture_ts)
@@ -198,12 +205,13 @@ class NextProcessingMixin:
         """Foveated-rendering gaze: the model's unfiltered gaze through the same
         Smart Calib transform, flips and recenter offset as the OSC gaze, with no
         median / One-Euro smoothing. Call after the recenter offset is updated."""
-        x, y = self._next_calibrate_flip(raw_x, raw_y)
+        x, y = self._next_calibrate_flip(raw_x, raw_y, limit=NEXT_DFR_GAZE_LIMIT)
         return x - self._next_recenter_offset_x, y - self._next_recenter_offset_y
 
-    def _next_calibrate_flip(self, raw_x: float, raw_y: float) -> tuple[float, float]:
+    def _next_calibrate_flip(self, raw_x: float, raw_y: float, limit: float = 1.0) -> tuple[float, float]:
         """A model-space gaze through this eye's Smart Calib transform and
-        user flips, exactly as the OSC gaze gets them (before recenter)."""
+        user flips, exactly as the OSC gaze gets them (before recenter).
+        ``limit`` bounds the result: 1.0 is the avatar's full eye range."""
         x, y = raw_x, raw_y
         if self._next_smartcal_w is not None and self._next_smartcal_b is not None:
             x, y = next_smartcal_apply(
@@ -213,10 +221,9 @@ class NextProcessingMixin:
                 raw_x,
                 raw_y,
             )
-            # Same native-range bound as the OSC gaze: a strong transform must
-            # not throw the foveal region off the display.
-            x = float(np.clip(x, -1.0, 1.0))
-            y = float(np.clip(y, -1.0, 1.0))
+            # Bounded, so a strong transform can't throw the gaze anywhere.
+            x = float(np.clip(x, -limit, limit))
+            y = float(np.clip(y, -limit, limit))
         if self.eye_id == EyeId.RIGHT:
             if self.settings.gui_flip_x_axis_right:
                 x = -x

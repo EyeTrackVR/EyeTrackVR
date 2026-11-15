@@ -171,6 +171,9 @@ class OpenVRService:
         self._next_liveness = 0.0
         self._liveness_running = False
         self._server_gone = False
+        # IVRSystem and the event buffer poll_quit_event reuses each tick; per session.
+        self._system = None
+        self._event = None
         self.logger = getLogger(__name__)
 
     @property
@@ -222,7 +225,15 @@ class OpenVRService:
     def _connect(self) -> None:
         try:
             openvr.init(openvr.VRApplication_Background)
-            self.app = openvr.IVRApplications()
+            try:
+                self.app = openvr.IVRApplications()
+            except Exception:
+                # The session is open but unusable: close it, or every retry leaks one.
+                try:
+                    openvr.shutdown()
+                except Exception:
+                    logger.debug("openvr.shutdown failed", exc_info=True)
+                raise
         except openvr.error_code.InitError_Init_NoServerForBackgroundApp:
             raise SteamVRNotRunning("SteamVR is not running")
         except (
@@ -260,6 +271,7 @@ class OpenVRService:
             self.is_initialized = False
             self._registered = False
             self.app = None
+            self._system = self._event = None
 
     def _call_app_api(self, action: str, callback) -> None:
         """Call an IVRApplications method and normalize binding errors.
@@ -477,8 +489,10 @@ class OpenVRService:
         if not self._lock.acquire(blocking=False):
             return False  # a registration is in progress; poll next tick
         try:
-            system = openvr.VRSystem()
-            event = openvr.VREvent_t()
+            if self._system is None:
+                self._system = openvr.VRSystem()
+                self._event = openvr.VREvent_t()
+            system, event = self._system, self._event
             while system.pollNextEvent(event):
                 if event.eventType == openvr.VREvent_Quit:
                     # Tell SteamVR we are exiting so it doesn't wait on us.
@@ -528,6 +542,7 @@ class OpenVRService:
                 self.set_autostart(data["gui_openvr_autostart"])
             except (OpenVRException, OSError) as e:
                 self.autostart_enabled = False
+                self._shutdown()  # polling is off now: a session left open would never ack SteamVR's quit
                 if self.window is not None and hasattr(self.window, "set_openvr_autostart"):
                     self.window.set_openvr_autostart(False)
                 error = e.args[0] if isinstance(e, OpenVRException) else str(e)

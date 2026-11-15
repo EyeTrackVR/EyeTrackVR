@@ -4,9 +4,10 @@ The OneEuroFilter has two knobs: ``min_cutoff`` (rest-cutoff in Hz) and
 ``beta`` (speed coefficient). The relationship between them and the
 perceived smoothing is non-obvious to almost everyone. This module replaces
 both raw entries with a single 0..100 slider; the underlying parameters are
-derived from a tuned curve so the default (70) lands on the historical
-defaults (min_cutoff=0.0004, beta=0.9), 0 is "almost no smoothing", and 100
-is "very heavy smoothing".
+derived from a tuned curve: the default (50) gives min_cutoff=0.003162,
+beta=1.525 (the config.py defaults), 70 lands near the historical defaults
+(min_cutoff=0.0004, beta=0.9), 0 is "almost no smoothing", and 100 is "very
+heavy smoothing".
 
 The validation pipeline only owns the slider value. When the user moves the
 slider we expand the change into the three fields (intensity + the two
@@ -31,7 +32,7 @@ from utils.tooltips import attach_tooltip
 from localization import tr
 
 
-# Curve endpoints picked so that intensity=70 hits the legacy defaults
+# Curve endpoints picked so that intensity=70 roughly hits the legacy defaults
 # (min_cutoff=0.0004, beta=0.9) and the extremes still feel like meaningful
 # choices rather than degenerate ones. min_cutoff is log-interpolated, beta
 # linear: matches how each affects the filter perceptually.

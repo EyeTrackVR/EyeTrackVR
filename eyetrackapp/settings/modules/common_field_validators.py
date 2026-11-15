@@ -5,8 +5,8 @@ def check_is_float_convertible(v: str):
     """
     Check if value provided can be converted to a float or double.
 
-    PySimpleGUI does not support floats or doubles in UI, so we have to make sure
-    that what the user typed in is correct
+    Settings entries hold free text, so we have to make sure that what the user
+    typed in is a valid number
     """
     try:
         float(v)

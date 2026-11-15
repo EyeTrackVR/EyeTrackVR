@@ -14,6 +14,8 @@ import sys
 import threading
 import time
 
+from localization import tr
+
 from .client import Paused, origin
 
 
@@ -50,14 +52,12 @@ def verify_in_app(service, cancel):
             until = time.monotonic() + 300
             while time.monotonic() < until:
                 if cancel.is_set():
-                    raise Paused("Verification cancelled. Your encrypted upload is saved.")
+                    raise Paused(tr("contributions_service.verification_cancelled"))
                 try:
                     connection, _ = listener.accept()
                 except socket.timeout:
                     if process.poll() is not None:
-                        raise ValueError(
-                            "Verification closed or could not start. Ensure the embedded webview runtime is installed."
-                        )
+                        raise ValueError(tr("contributions_service.verification_failed"))
                     continue
                 with connection:
                     connection.settimeout(1)
@@ -75,7 +75,7 @@ def verify_in_app(service, cancel):
                             return token
                     except (OSError, ValueError):
                         continue
-            raise Paused("Verification timed out. Resume to try again.")
+            raise Paused(tr("contributions_service.verification_timed_out"))
         finally:
             if process.poll() is None:
                 process.terminate()

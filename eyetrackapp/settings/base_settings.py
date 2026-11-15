@@ -1,5 +1,7 @@
 from datetime import datetime, timedelta
+import logging
 import os
+import threading
 import time
 from typing import Iterable
 
@@ -16,6 +18,8 @@ from config import (
 )
 from localization import tr
 from utils.logging_utils import open_logs
+
+logger = logging.getLogger(__name__)
 
 
 # Section header (LabelFrame) title per settings-module class. Titles are
@@ -64,6 +68,32 @@ class BaseSettingsWidget:
         self._advanced_section = None
         self._advanced_toggle_row = None
         self._advanced_toggle_btn = None
+        self._saving_own = False
+        register = getattr(main_config, "register_listener_callback", None)
+        if callable(register):
+            register(self._on_config_update)
+
+    def _on_config_update(self, data: dict) -> None:
+        """A setting changed somewhere else (an OSC command, another panel): show it in
+        this page's widgets. Otherwise render_tick would see the widget disagree with
+        the config and write the old value straight back."""
+        if self._saving_own or self.frame is None:
+            return
+
+        def apply():
+            if self._pending_validated:
+                for field in data:
+                    self._pending_validated.pop(field, None)
+            for module in self.initialized_modules:
+                module.apply_external_changes(data)
+
+        if threading.current_thread() is threading.main_thread():
+            apply()  # before the next render_tick can queue a save of the old value
+            return
+        try:
+            self.frame.after(0, apply)
+        except (tk.TclError, RuntimeError):
+            pass  # window closed
 
     def started(self):
         return not self.cancellation_event.is_set()
@@ -102,7 +132,6 @@ class BaseSettingsWidget:
 
         if errors:
             self._handle_errors(errors)
-            return
         if merged:
             self.is_saving = True
             self._update_and_save_config(merged)
@@ -114,8 +143,12 @@ class BaseSettingsWidget:
         self.cancellation_event.set()
 
     def _update_and_save_config(self, validated_data: dict):
-        self.main_config.update(validated_data, save=True)
-        self.is_saving = False
+        self._saving_own = True
+        try:
+            self.main_config.update(validated_data, save=True)
+        finally:
+            self._saving_own = False
+            self.is_saving = False
 
     def _cancel_debounced_settings_save(self):
         if self._config_save_after_id is not None and self.frame is not None:
@@ -149,12 +182,10 @@ class BaseSettingsWidget:
         elapsed_seconds = (datetime.now() - self.last_error_printout).seconds
         if elapsed_seconds > self.error_printout_timeout:
             self.last_error_printout = now
-            messages = [
-                f"{Fore.RED}[ERROR]{Fore.RESET} {error['msg']} \n"
-                for module_errors in errors
-                for error in module_errors
-            ]
-            print("".join(messages))
+            # The log, not print(): the windowed build has no console.
+            for module_errors in errors:
+                for error in module_errors:
+                    logger.warning("Setting not saved: %s", error["msg"])
 
     def _collect_values(self):
         values = {}
@@ -176,10 +207,11 @@ class BaseSettingsWidget:
                 validated_data.update(module_validated_data.changes)
             if module_validated_data.errors:
                 errors.append(module_validated_data.errors)
+        # Each module validates on its own: one invalid field (an empty port box) must
+        # not hold back, or lose at exit, every other change on the page.
         if errors:
-            self._cancel_debounced_settings_save()
             self._handle_errors(errors)
-        elif validated_data:
+        if validated_data:
             self._schedule_debounced_settings_save(validated_data)
 
     def _initialize_modules(self, settings_modules, widget_id):

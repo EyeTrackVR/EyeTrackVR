@@ -48,6 +48,8 @@ from camera_enum import (
 from frame_eye import frame_eye_service, frame_source_eye, is_frame_capture_source
 
 WAIT_TIME = 0.1
+# Wireless trackers that lose power or Wi-Fi send no TCP reset: give up after these.
+_NETWORK_CAPTURE_TIMEOUTS = [cv2.CAP_PROP_OPEN_TIMEOUT_MSEC, 5000, cv2.CAP_PROP_READ_TIMEOUT_MSEC, 5000]
 logger = logging.getLogger(__name__)
 # Serial communication protocol:
 # header-begin (2 bytes)
@@ -519,7 +521,14 @@ class Camera:
                         )
                         # https://github.com/opencv/opencv/blob/4.8.0/modules/videoio/include/opencv2/videoio.hpp#L803
                         try:
-                            cam.open(open_source, _backend)
+                            opened, open_started = False, time.monotonic()
+                            if _is_network_source:
+                                # Bounded connect and read: OpenCV's default is 30 s, during
+                                # which this thread can't see a cancel or start its backoff.
+                                opened = cam.open(open_source, cv2.CAP_FFMPEG, _NETWORK_CAPTURE_TIMEOUTS)
+                            # Not for a network open that timed out: that would wait again.
+                            if not opened and time.monotonic() - open_started < 1.0:
+                                cam.open(open_source, _backend)
                         except cv2.error as e:
                             logger.warning("Failed to open capture source %s: %s", new_source, e)
                             self.camera_status = CameraState.DISCONNECTED
@@ -817,10 +826,19 @@ class Camera:
         # some sort of capture event conflict though.
         qsize = self.camera_output_outgoing.qsize()
         if qsize > 1:
-            logger.warning(
-                "Capture queue backpressure of %s. Check for crash or timing issues in algorithm.",
-                qsize,
-            )
+            # Once every few seconds: this holds on every frame while the tracker waits
+            # for a crop, and per-frame lines push everything else out of the log.
+            now = time.monotonic()
+            self._backpressure_frames = getattr(self, "_backpressure_frames", 0) + 1
+            if now - getattr(self, "_backpressure_logged", -1e9) >= 5.0:
+                logger.warning(
+                    "Capture queue backpressure of %s (%s frames since last report). "
+                    "Check for crash or timing issues in algorithm.",
+                    qsize,
+                    self._backpressure_frames,
+                )
+                self._backpressure_logged = now
+                self._backpressure_frames = 0
         if ts is None:
             ts = time.perf_counter()
         self._put_frame_drop_oldest(self.camera_output_outgoing, (image, frame_number, fps, ts))

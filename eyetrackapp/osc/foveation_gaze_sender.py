@@ -81,6 +81,56 @@ class _NamedMutex:
         self._handle = None
 
 
+# Horizontal shift, as a tangent, added to the gaze sent to PimaxMagic4All. See
+# set_headset_projection.
+_pm4a_yaw_bias_tan = 0.0
+
+
+def set_headset_projection(left_eye_raw, right_eye_raw=None) -> float:
+    """Tell the sender the headset's per-eye view (SteamVR's GetProjectionRaw for the left
+    eye: tangents of its left and right edges). Returns the shift now in use.
+
+    Measured in a game through PimaxMagic4All on a headset whose eye views reach further
+    outward than inward (Quest 3: 54 degrees out, 40 in): the right eye is only shaded
+    sharply where its own region overlaps the left eye's region, which lands
+    (outward - inward) further right. The gaze then sits on the edge of a sliver. The two
+    eyes can't be sent different gaze through PimaxMagic4All, so the gaze is shifted left
+    by a quarter of that difference: the left eye's region then sits as far left of the
+    gaze as the right eye's sliver sits right of it, and both contain it. On a headset
+    with symmetric eye views the shift is zero."""
+    global _pm4a_yaw_bias_tan
+    try:
+        outward, inward = abs(float(left_eye_raw[0])), abs(float(left_eye_raw[1]))
+    except (TypeError, ValueError, IndexError):
+        return _pm4a_yaw_bias_tan
+    if not (math.isfinite(outward) and math.isfinite(inward)) or max(outward, inward) > 20:
+        return _pm4a_yaw_bias_tan
+    _pm4a_yaw_bias_tan = -(outward - inward) / 4.0
+    logger.info(
+        "Foveation gaze: shifted %.1f degrees for this headset's eye views", math.degrees(math.atan(_pm4a_yaw_bias_tan))
+    )
+    return _pm4a_yaw_bias_tan
+
+
+def pm4a_wire_angles(lp: float, ly: float, rp: float, ry: float, yaw_bias_tan: float | None = None) -> list[float]:
+    """The four angles to put on port 9020 so that PimaxMagic4All ends up with this gaze.
+
+    PimaxMagic4All averages the two eyes into one direction and hands that direction's
+    x and y to the foveation code, which reads them as tangents of the gaze angle. They
+    are sines, so the sharp region falls short as the eyes leave the centre (3 degrees
+    at 30). Send angles whose sines are the tangents we mean, plus the headset shift."""
+    bias = _pm4a_yaw_bias_tan if yaw_bias_tan is None else yaw_bias_tan
+    left, right = direction_from_pitch_yaw(lp, ly), direction_from_pitch_yaw(rp, ry)
+    x, y, z = ((a + b) / 2.0 for a, b in zip(left, right))
+    if z > -0.05:
+        return [lp, ly, rp, ry]  # not looking forward: nothing sensible to convert
+    tan_x, tan_y = x / -z + bias, y / -z
+    up = math.asin(max(-0.97, min(0.97, tan_y)))
+    yaw = math.asin(max(-0.97, min(0.97, tan_x / math.cos(up))))
+    pitch = -math.degrees(up)  # the wire's pitch is positive down
+    return [pitch, math.degrees(yaw), pitch, math.degrees(yaw)]
+
+
 def _finite(value) -> float | None:
     try:
         value = float(value)
@@ -174,4 +224,4 @@ class FoveationGazeSender:
             return
         lp, ly = native_pitch_yaw(left if left_ok else right, self.data)
         rp, ry = native_pitch_yaw(right if right_ok else left, self.data)
-        self.client.send_message(FOVEATION_ADDRESS, [lp, ly, rp, ry])
+        self.client.send_message(FOVEATION_ADDRESS, pm4a_wire_angles(lp, ly, rp, ry))

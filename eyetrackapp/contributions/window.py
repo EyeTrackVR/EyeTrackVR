@@ -12,8 +12,10 @@ from tkinter.scrolledtext import ScrolledText
 
 import requests
 
+from localization import tr, tr_english
+
 from .bundles import MAX_HMD, clean_hmd
-from .client import QUOTA_MESSAGES, SUPPORT, ContributionClient, Paused, save, outside_git
+from .client import QUOTA_MESSAGES, ContributionClient, Paused, save, outside_git
 from .verification import verify_in_app
 
 # Suggestions only: free text stays allowed, and maintainers bin every submission themselves.
@@ -37,13 +39,16 @@ HMD_SUGGESTIONS = (
 )
 # How long to wait before re-checking an unreachable upload service.
 _CONFIG_RETRY_MS = 15000
-# Short checkbox labels. Ticking them gives the two numbered confirmations at the top of the
-# notice, whose full wording is what the recorded notice version and hash cover.
-DATASET_CONSENTS = (
-    "I'm an adult (18+), these recordings are only of me, and I accept this agreement.",
-    "I explicitly consent to the use of my eye images, which may include biometric and health "
-    "data, and to their transfer to the United States.",
-)
+# Short checkbox labels (language keys). Ticking them gives the two numbered confirmations at the
+# top of the notice, whose full wording is what the recorded notice version and hash cover.
+DATASET_CONSENTS = ("contributions.consent_agreement", "contributions.consent_sensitive")
+
+
+def dataset_consents():
+    """The checkbox labels in the active language; read at use time, after the language loads."""
+    return tuple(tr(key) for key in DATASET_CONSENTS)
+
+
 # One type scale for both windows. Pixel sizes match the Sun Valley theme's own -14 px body
 # font, so text drawn by Tk widgets and by the theme comes out the same size.
 FONT_TITLE = ("Segoe UI", -20, "bold")
@@ -125,16 +130,20 @@ def version_label(version):
     """'dataset-2026-10-24-v2' -> 'Agreement v2 · 24 Oct 2026'."""
     match = re.search(r"(\d{4})-(\d{2})-(\d{2})-v(\d+)$", version)
     if not match:
-        return "Agreement " + version
-    months = "Jan Feb Mar Apr May Jun Jul Aug Sep Oct Nov Dec".split()
+        return tr("contributions.agreement_version_other", version=version)
+    months = tr("contributions.months").split()
+    if len(months) != 12:
+        months = tr_english("contributions.months").split()
     year, month, day, number = match.groups()
-    return f"Agreement v{number} · {int(day)} {months[int(month) - 1]} {year}"
+    return tr("contributions.agreement_version", number=number, day=int(day), month=months[int(month) - 1], year=year)
 
 
 def setup_styles(window):
     """Styles shared by both contribution windows."""
     style = ttk.Style(window)
     style.configure("Consent.TCheckbutton", wraplength=600)
+    # Other long checkbox labels: translations can be much longer than the English text.
+    style.configure("Wrap.TCheckbutton", wraplength=600)
     style.configure("Danger.TButton", foreground=DANGER)
     style.map("Danger.TButton", foreground=[("disabled", "#5f6670")])
     style.configure("Contrib.TNotebook.Tab", font=FONT_BODY, padding=(14, 6))
@@ -165,7 +174,7 @@ class ContributionWindow:
         self._capture_receipt = None
         self._upload_sid = None
         self.window = tk.Toplevel(parent)
-        self.window.title("EyeTrackVR Contributions")
+        self.window.title(tr("contributions.window_title"))
         self.window.transient(parent)
         self.window.protocol("WM_DELETE_WINDOW", self.close)
         self.events = queue.Queue()
@@ -177,12 +186,10 @@ class ContributionWindow:
         # Two separate consents: the agreement, then sensitive data and the US transfer.
         self.agree = tk.BooleanVar(value=False)
         self.agree_sensitive = tk.BooleanVar(value=False)
-        self.status = tk.StringVar(value="Checking upload availability…")
-        self.availability = tk.StringVar(value="Connecting…")
-        self.selection = tk.StringVar(value="Your recording will be attached automatically after capture.")
-        self.capture_status = tk.StringVar(
-            value="Ready when you are. Start tracking, put on your headset, and follow the guide."
-        )
+        self.status = tk.StringVar(value=tr("contributions.status_checking"))
+        self.availability = tk.StringVar(value=tr("contributions.availability_connecting"))
+        self.selection = tk.StringVar(value=tr("contributions.selection_pending"))
+        self.capture_status = tk.StringVar(value=tr("contributions.capture_ready"))
         self.step = 0
         self._last_progress = 0
         self._consent_dialog = None
@@ -209,8 +216,15 @@ class ContributionWindow:
             + 24
         )
         height = max(height, min(needed, self.window.winfo_screenheight() - 80))
+        # Translated button labels can be wider than the English ones: keep the whole row of history
+        # buttons on screen (Resume upload and Refresh status take turns in its first slot).
+        shown = self.resume_button if self.resume_button.winfo_manager() else self.refresh_button
+        wider = max(self.resume_button.winfo_reqwidth(), self.refresh_button.winfo_reqwidth())
+        buttons = self._history_actions.winfo_reqwidth() - shown.winfo_reqwidth() + wider + 90
+        min_width = min(max(680, buttons), self.window.winfo_screenwidth() - 40)
+        width = max(width, min_width)
         self.window.geometry(f"{width}x{height}")
-        self.window.minsize(min(680, width), min(max(520, needed), height))
+        self.window.minsize(min(min_width, width), min(max(520, needed), height))
         from .native import decorate
 
         self.window.after(50, lambda: decorate(self.window))
@@ -230,17 +244,18 @@ class ContributionWindow:
         self._logo = load_logo(asset("logo.png"), 40, background)
         if self._logo:
             ttk.Label(header, image=self._logo).grid(row=0, column=0, rowspan=2, padx=(0, 12))
-        ttk.Label(header, text="Contribute to EyeTrackVR", font=FONT_TITLE).grid(row=0, column=1, sticky="w")
-        ttk.Label(header, textvariable=self.availability, style="Muted.TLabel", foreground=MUTED).grid(
-            row=1, column=1, sticky="w"
+        ttk.Label(header, text=tr("contributions.header_title"), font=FONT_TITLE).grid(row=0, column=1, sticky="w")
+        self.availability_label = ttk.Label(
+            header, textvariable=self.availability, style="Muted.TLabel", foreground=MUTED, wraplength=640
         )
+        self.availability_label.grid(row=1, column=1, sticky="w")
 
         self.tabs = ttk.Notebook(self.window, style="Contrib.TNotebook")
         self.tabs.grid(row=1, column=0, sticky="nsew", padx=24)
         new = ttk.Frame(self.tabs, padding=(12, 14))
         history = ttk.Frame(self.tabs, padding=16)
-        self.tabs.add(new, text="Record & contribute")
-        self.tabs.add(history, text="Your contributions")
+        self.tabs.add(new, text=tr("contributions.tab_record"))
+        self.tabs.add(history, text=tr("contributions.tab_history"))
         self._tab_frames = (new, history)
         new.columnconfigure(0, weight=1)
         new.rowconfigure(1, weight=1)
@@ -248,7 +263,7 @@ class ContributionWindow:
         steps = ttk.Frame(new)
         steps.grid(row=0, column=0, sticky="ew", pady=(0, 16))
         self.step_labels = []
-        for index, title in enumerate(("Setup", "Capture", "Agreement", "Upload")):
+        for index, title in enumerate(tr(key) for key in self.STEP_NAMES):
             steps.columnconfigure(index, weight=1)
             label = ttk.Label(steps, text=title, anchor="center", padding=6, font=FONT_BODY)
             label.grid(row=0, column=index, sticky="ew")
@@ -262,38 +277,22 @@ class ContributionWindow:
         # Every page shares one look: a title, short text, natural-height rows and the primary
         # action in the accent colour. Controls that can't be used are hidden, not disabled.
         recording = self.pages[0]
-        ttk.Label(recording, text="Help improve eye tracking", font=FONT_TITLE).pack(anchor="w", pady=(8, 8))
-        self.intro = ttk.Label(
-            recording,
-            wraplength=640,
-            justify="left",
-            text=(
-                "Record one guided session to help train EyeTrackVR's eye-tracking models. Nothing is uploaded "
-                "until you agree, and everything is encrypted on this computer first."
-            ),
-        )
+        ttk.Label(recording, text=tr("contributions.setup_title"), font=FONT_TITLE).pack(anchor="w", pady=(8, 8))
+        self.intro = ttk.Label(recording, wraplength=640, justify="left", text=tr("contributions.setup_intro"))
         self.intro.pack(fill="x", pady=(0, 20))
-        ttk.Label(recording, text="Before you begin", font=FONT_HEADING).pack(anchor="w", pady=(0, 6))
-        self.instructions = ttk.Label(
-            recording,
-            wraplength=640,
-            justify="left",
-            text=(
-                "1.  Start tracking and check that your cameras are working.\n"
-                "2.  Put on your headset and open SteamVR.\n"
-                "3.  Follow the voice prompts and the targets in VR."
-            ),
-        )
+        ttk.Label(recording, text=tr("contributions.setup_before"), font=FONT_HEADING).pack(anchor="w", pady=(0, 6))
+        self.instructions = ttk.Label(recording, wraplength=640, justify="left", text=tr("contributions.setup_steps"))
         self.instructions.pack(fill="x", pady=(0, 12))
         self.overlay = ttk.Checkbutton(
             recording,
-            text="Use the VR calibration overlay (recommended)",
+            text=tr("contributions.use_overlay"),
+            style="Wrap.TCheckbutton",
             variable=self.capture_controller.use_overlay_var
             if self.capture_controller
             else tk.BooleanVar(master=self.window, value=True),
         )
         self.overlay.pack(anchor="w", pady=(0, 20))
-        ttk.Label(recording, text="Which headset are you using?", font=FONT_HEADING).pack(anchor="w", pady=(0, 6))
+        ttk.Label(recording, text=tr("contributions.hmd_question"), font=FONT_HEADING).pack(anchor="w", pady=(0, 6))
         self.hmd_entry = ttk.Combobox(recording, textvariable=self.hmd, values=HMD_SUGGESTIONS, width=32)
         self.hmd_entry.pack(anchor="w")
         self.hmd_hint = ttk.Label(recording, wraplength=640, justify="left", style="Muted.TLabel", foreground=MUTED)
@@ -302,15 +301,9 @@ class ContributionWindow:
         self.update_hmd_hint()
 
         capture = self.pages[1]
-        ttk.Label(capture, text="Follow the guided capture", font=FONT_TITLE).pack(anchor="w", pady=(8, 8))
+        ttk.Label(capture, text=tr("contributions.capture_title"), font=FONT_TITLE).pack(anchor="w", pady=(8, 8))
         self.capture_instructions = ttk.Label(
-            capture,
-            wraplength=640,
-            justify="left",
-            text=(
-                "Keep your headset on and follow the voice prompts and targets. When the session finishes, "
-                "your recording is attached to the next step automatically."
-            ),
+            capture, wraplength=640, justify="left", text=tr("contributions.capture_text")
         )
         self.capture_instructions.pack(fill="x", pady=(0, 20))
         self.capture_status_label = ttk.Label(
@@ -319,16 +312,16 @@ class ContributionWindow:
         self.capture_status_label.pack(fill="x", pady=(0, 12))
         # Progress and its caption are shown only while recording (see capture_started).
         self.capture_progress = ttk.Progressbar(capture, mode="indeterminate", maximum=100)
-        self.capture_detail = ttk.Label(capture, style="Muted.TLabel", foreground=MUTED)
+        self.capture_detail = ttk.Label(capture, style="Muted.TLabel", foreground=MUTED, wraplength=640)
         controls = ttk.Frame(capture)
         controls.pack(fill="x", pady=(8, 0))
         self._capture_controls = controls
         self.record_button = ttk.Button(
-            controls, text="Start guided capture", style="Accent.TButton", command=self.start_capture
+            controls, text=tr("contributions.start_capture_btn"), style="Accent.TButton", command=self.start_capture
         )
         self.record_button.pack(side="left")
         self.stop_record_button = ttk.Button(
-            controls, text="Stop recording", style="Danger.TButton", command=self.stop_capture
+            controls, text=tr("contributions.stop_capture_btn"), style="Danger.TButton", command=self.stop_capture
         )
 
         # Only the notice scrolls. The header stays at the top, the consents and navigation
@@ -336,18 +329,11 @@ class ContributionWindow:
         agreement = self.pages[2]
         agreement.columnconfigure(0, weight=1)
         agreement.rowconfigure(3, weight=1)
-        ttk.Label(agreement, text="Read the collection agreement", font=FONT_TITLE).grid(row=0, column=0, sticky="w")
+        ttk.Label(agreement, text=tr("contributions.agreement_title"), font=FONT_TITLE).grid(
+            row=0, column=0, sticky="w"
+        )
         self.terms_summary = ttk.Label(
-            agreement,
-            wraplength=640,
-            justify="left",
-            text=(
-                "•  Run by Fovea Labs LLC in the United States. Adults 18+, recordings of yourself only.\n"
-                "•  Not open to people living in Illinois, Colorado, Texas or Washington.\n"
-                "•  Eye images may count as biometric data. Raw recordings are never published.\n"
-                "•  Kept until you withdraw or it's no longer useful; reviewed at least every 3 years.\n"
-                "•  Eye-tracking models trained on contributions may be released publicly."
-            ),
+            agreement, wraplength=640, justify="left", text=tr("contributions.agreement_summary")
         )
         self.terms_summary.grid(row=1, column=0, sticky="ew", pady=(8, 6))
         details = ttk.Frame(agreement)
@@ -376,10 +362,11 @@ class ContributionWindow:
         consents = ttk.Frame(agreement)
         consents.grid(row=4, column=0, sticky="ew", pady=(10, 0))
         consents.columnconfigure(0, weight=1)
+        consent_labels = dataset_consents()
         self.consent = ttk.Checkbutton(
             consents,
             variable=self.agree,
-            text=DATASET_CONSENTS[0],
+            text=consent_labels[0],
             style="Consent.TCheckbutton",
             command=self.update_navigation,
         )
@@ -387,7 +374,7 @@ class ContributionWindow:
         self.consent_sensitive = ttk.Checkbutton(
             consents,
             variable=self.agree_sensitive,
-            text=DATASET_CONSENTS[1],
+            text=consent_labels[1],
             style="Consent.TCheckbutton",
             command=self.update_navigation,
         )
@@ -406,26 +393,33 @@ class ContributionWindow:
         self.transfer_hint.grid(row=1, column=1, sticky="ew", pady=(0, 16))
         self.progress = ttk.Progressbar(transfer, maximum=100)
         self.progress.grid(row=2, column=0, columnspan=2, sticky="ew")
-        self.progress_detail = ttk.Label(transfer, style="Muted.TLabel", foreground=MUTED)
+        self.progress_detail = ttk.Label(transfer, style="Muted.TLabel", foreground=MUTED, wraplength=640)
         self.progress_detail.grid(row=3, column=0, columnspan=2, sticky="w", pady=(6, 16))
         # Only the buttons that apply are shown (see update_navigation): Pause while busy,
         # Resume when paused, and the receipt backup, which is primary once the upload is done.
         actions = ttk.Frame(transfer)
         actions.grid(row=4, column=0, columnspan=2, sticky="w")
-        self.pause = ttk.Button(actions, text="Pause upload", command=self.cancel.set, state="disabled")
+        self.pause = ttk.Button(
+            actions, text=tr("contributions.pause_upload_btn"), command=self.cancel.set, state="disabled"
+        )
         self.pause.grid(row=0, column=0, padx=(0, 8))
         self.resume_upload_button = ttk.Button(
-            actions, text="Resume upload", style="Accent.TButton", command=lambda: self.resume(self.upload_receipt)
+            actions,
+            text=tr("contributions.resume_upload_btn"),
+            style="Accent.TButton",
+            command=lambda: self.resume(self.upload_receipt),
         )
         self.resume_upload_button.grid(row=0, column=1, padx=(0, 8))
         self.backup_button = ttk.Button(
             actions,
-            text="Back up withdrawal receipt…",
+            text=tr("contributions.backup_receipt_btn"),
             state="disabled",
             command=lambda: self.export_receipt(self.upload_receipt),
         )
         self.backup_button.grid(row=0, column=2, padx=(0, 8))
-        self.new_session_button = ttk.Button(actions, text="Record another session", command=self.new_session)
+        self.new_session_button = ttk.Button(
+            actions, text=tr("contributions.new_session_btn"), command=self.new_session
+        )
         self.new_session_button.grid(row=0, column=3)
         self.transfer_note = ttk.Label(
             transfer,
@@ -433,22 +427,27 @@ class ContributionWindow:
             justify="left",
             style="Muted.TLabel",
             foreground=MUTED,
-            text=("If your connection drops, the encrypted upload stays on this computer and you can resume it later."),
+            text=tr("contributions.transfer_note"),
         )
         self.transfer_note.grid(row=5, column=0, columnspan=2, sticky="w", pady=(16, 0))
         self.set_upload_state("ready")
 
         navigation = ttk.Frame(new, padding=(0, 14, 0, 0))
         navigation.grid(row=2, column=0, sticky="ew")
-        self.back = ttk.Button(navigation, text="Back", command=self.go_back)
+        self.back = ttk.Button(navigation, text=tr("contributions.back_btn"), command=self.go_back)
         self.back.pack(side="left")
         self.upload = ttk.Button(
-            navigation, text="Verify and upload", style="Accent.TButton", command=self.start_upload
+            navigation, text=tr("contributions.verify_upload_btn"), style="Accent.TButton", command=self.start_upload
         )
         # Says why Verify and upload is unavailable on the agreement step.
-        self.upload_hint = ttk.Label(navigation, style="Muted.TLabel", foreground=MUTED)
+        self.upload_hint = ttk.Label(
+            navigation, style="Muted.TLabel", foreground=MUTED, wraplength=360, justify="right"
+        )
         self.next = ttk.Button(
-            navigation, text="Continue to capture", style="Accent.TButton", command=self.continue_flow
+            navigation,
+            text=tr("contributions.continue_capture_btn"),
+            style="Accent.TButton",
+            command=self.continue_flow,
         )
         self.next.pack(side="right")
         self.upload.pack(side="right")
@@ -457,24 +456,27 @@ class ContributionWindow:
         history.rowconfigure(1, weight=1)
         heading = ttk.Frame(history)
         heading.grid(row=0, column=0, columnspan=2, sticky="ew", pady=(0, 10))
-        ttk.Label(heading, text="Your contributions", font=FONT_TITLE).pack(anchor="w")
-        ttk.Label(
+        ttk.Label(heading, text=tr("contributions.history_title"), font=FONT_TITLE).pack(anchor="w")
+        self.history_intro = ttk.Label(
             heading,
-            text="Resume an interrupted upload, check its status, or withdraw it at any time.",
+            text=tr("contributions.history_intro"),
             style="Muted.TLabel",
             foreground=MUTED,
-        ).pack(anchor="w", pady=(4, 0))
+            wraplength=640,
+            justify="left",
+        )
+        self.history_intro.pack(anchor="w", pady=(4, 0))
         self.history = ttk.Treeview(
             history, columns=("prepared", "hmd", "state", "size", "id"), show="headings", height=6, selectmode="browse"
         )
         for key, title, width in (
-            ("prepared", "Recorded", 90),
-            ("hmd", "Headset", 150),
-            ("state", "Status", 120),
-            ("size", "Size", 70),
-            ("id", "Submission ID", 90),
+            ("prepared", "contributions.column_recorded", 90),
+            ("hmd", "contributions.column_headset", 150),
+            ("state", "contributions.column_status", 120),
+            ("size", "contributions.column_size", 70),
+            ("id", "contributions.column_id", 90),
         ):
-            self.history.heading(key, text=title)
+            self.history.heading(key, text=tr(title))
             self.history.column(key, width=width, minwidth=60)
         self.history.grid(row=1, column=0, sticky="nsew")
         scrollbar = ttk.Scrollbar(history, orient="vertical", command=self.history.yview)
@@ -485,24 +487,34 @@ class ContributionWindow:
             self.history,
             style="Muted.TLabel",
             foreground=MUTED,
-            text="No contributions on this computer yet. Restore a receipt to manage one from elsewhere.",
+            wraplength=560,
+            justify="center",
+            text=tr("contributions.history_empty"),
         )
         # Left: actions on the selected contribution (only the ones that apply are shown).
         # Right: receipt files.
-        actions = ttk.Frame(history)
+        actions = self._history_actions = ttk.Frame(history)
         actions.grid(row=2, column=0, columnspan=2, sticky="ew", pady=(12, 4))
         actions.columnconfigure(4, weight=1)
-        self.resume_button = ttk.Button(actions, text="Resume upload", style="Accent.TButton", command=self.resume)
+        self.resume_button = ttk.Button(
+            actions, text=tr("contributions.resume_upload_btn"), style="Accent.TButton", command=self.resume
+        )
         self.resume_button.grid(row=0, column=0, padx=(0, 8))
-        self.refresh_button = ttk.Button(actions, text="Refresh status", command=self.refresh_status)
+        self.refresh_button = ttk.Button(
+            actions, text=tr("contributions.refresh_status_btn"), command=self.refresh_status
+        )
         self.refresh_button.grid(row=0, column=1, padx=(0, 8))
-        self.copy_button = ttk.Button(actions, text="Copy ID", command=self.copy_id)
+        self.copy_button = ttk.Button(actions, text=tr("contributions.copy_id_btn"), command=self.copy_id)
         self.copy_button.grid(row=0, column=2, padx=(0, 8))
-        self.withdraw_button = ttk.Button(actions, text="Withdraw", style="Danger.TButton", command=self.withdraw)
+        self.withdraw_button = ttk.Button(
+            actions, text=tr("contributions.withdraw_btn"), style="Danger.TButton", command=self.withdraw
+        )
         self.withdraw_button.grid(row=0, column=3, padx=(0, 8))
-        self.export_button = ttk.Button(actions, text="Save receipt…", command=self.export_receipt)
+        self.export_button = ttk.Button(actions, text=tr("contributions.save_receipt_btn"), command=self.export_receipt)
         self.export_button.grid(row=0, column=5, padx=(0, 8))
-        self.import_button = ttk.Button(actions, text="Restore receipt…", command=self.import_receipt)
+        self.import_button = ttk.Button(
+            actions, text=tr("contributions.restore_receipt_btn"), command=self.import_receipt
+        )
         self.import_button.grid(row=0, column=6)
         self.receipt_help = ttk.Label(
             history,
@@ -510,10 +522,7 @@ class ContributionWindow:
             justify="left",
             style="Muted.TLabel",
             foreground=MUTED,
-            text=(
-                "Your private receipt is what lets you withdraw. Save a copy somewhere safe and never share it.\n"
-                "Need help? Email support@fovea-labs.com with the submission ID, which is safe to share."
-            ),
+            text=tr("contributions.receipt_help"),
         )
         self.receipt_help.grid(row=3, column=0, columnspan=2, sticky="ew", pady=8)
 
@@ -526,10 +535,12 @@ class ContributionWindow:
         self.status.trace_add(
             "write", lambda *_: self.status_label.grid() if self.status.get() else self.status_label.grid_remove()
         )
-        ttk.Label(
-            footer, text="Privacy questions: support@fovea-labs.com", style="Small.TLabel", foreground=MUTED
-        ).grid(row=1, column=0, sticky="w")
-        ttk.Button(footer, text="Close", command=self.close).grid(row=0, column=1, rowspan=2, padx=(12, 0))
+        ttk.Label(footer, text=tr("contributions.privacy_contact"), style="Small.TLabel", foreground=MUTED).grid(
+            row=1, column=0, sticky="w"
+        )
+        ttk.Button(footer, text=tr("contributions.close_btn"), command=self.close).grid(
+            row=0, column=1, rowspan=2, padx=(12, 0)
+        )
         self.window.bind("<Configure>", self._resize_wrap, add="+")
 
     def _resize_wrap(self, event):
@@ -543,6 +554,9 @@ class ContributionWindow:
                 self.terms_summary,
                 self.transfer_note,
                 self.receipt_help,
+                self.history_intro,
+                self.progress_detail,
+                self.capture_detail,
             ):
                 widget.configure(wraplength=max(280, event.width - 130))
             # Sits beside the completion check mark.
@@ -550,7 +564,14 @@ class ContributionWindow:
             # Shares its row with the version label.
             self.file_label.configure(wraplength=max(200, event.width // 2 - 60))
             self.status_label.configure(wraplength=max(240, event.width - 160))
-            ttk.Style(self.window).configure("Consent.TCheckbutton", wraplength=max(280, event.width - 160))
+            # Beside the logo.
+            self.availability_label.configure(wraplength=max(240, event.width - 120))
+            # Shares the navigation row with Back and Verify and upload.
+            self.upload_hint.configure(wraplength=max(160, event.width - 420))
+            self.history_empty.configure(wraplength=max(240, event.width - 160))
+            style = ttk.Style(self.window)
+            style.configure("Consent.TCheckbutton", wraplength=max(280, event.width - 160))
+            style.configure("Wrap.TCheckbutton", wraplength=max(280, event.width - 160))
 
     def update_hmd_hint(self):
         text = self.hmd.get()
@@ -559,13 +580,11 @@ class ContributionWindow:
         except ValueError:
             cleaned = None
         if not text.strip():
-            hint = (
-                "Pick your headset or type it in your own words, including any mods. No account or email is required."
-            )
+            hint = tr("contributions.hmd_hint_empty")
         elif cleaned is None:
-            hint = f"Use at most {MAX_HMD} characters ({len(text.strip())} now)."
+            hint = tr("contributions.hmd_hint_too_long", max=MAX_HMD, count=len(text.strip()))
         else:
-            hint = f"Encrypted with your recording · {len(cleaned)}/{MAX_HMD} characters"
+            hint = tr("contributions.hmd_hint_ok", count=len(cleaned), max=MAX_HMD)
         self.hmd_hint.configure(text=hint)
 
     def _load_bundled_notice(self):
@@ -573,17 +592,22 @@ class ContributionWindow:
             self.show_notice(json.loads(Path(__file__).with_name("notice.json").read_text(encoding="utf-8")))
         except (OSError, ValueError):
             self.notice.configure(state="normal")
-            self.notice.insert(
-                "1.0", "The agreement could not be loaded. It will load once the upload service is reachable."
-            )
+            self.notice.insert("1.0", tr("contributions.notice_unavailable"))
             self.notice.configure(state="disabled")
 
-    STEP_NAMES = ("Setup", "Capture", "Agreement", "Upload")
+    # Language keys, translated where shown.
+    STEP_NAMES = (
+        "contributions.step_setup",
+        "contributions.step_capture",
+        "contributions.step_agreement",
+        "contributions.step_upload",
+    )
 
     def update_steps(self):
         # Finished steps get a check mark in the accent colour, the current one is bold, later ones are muted.
         complete = self.step == 3 and self.upload_state == "complete"
-        for index, (label, name) in enumerate(zip(self.step_labels, self.STEP_NAMES)):
+        names = [tr(key) for key in self.STEP_NAMES]
+        for index, (label, name) in enumerate(zip(self.step_labels, names)):
             if index < self.step or complete:
                 label.configure(text="✓  " + name, foreground=ACCENT, font=FONT_BODY)
             elif index == self.step:
@@ -599,10 +623,10 @@ class ContributionWindow:
         self.upload.pack_forget()
         self.upload_hint.pack_forget()
         if self.step == 0:
-            self.next.configure(text="Continue to capture")
+            self.next.configure(text=tr("contributions.continue_capture_btn"))
             self.next.pack(side="right")
         elif self.step == 1 and self._capture_path:
-            self.next.configure(text="Continue to agreement")
+            self.next.configure(text=tr("contributions.continue_agreement_btn"))
             self.next.pack(side="right")
         elif self.step == 2:
             self.upload.pack(side="right")
@@ -618,11 +642,11 @@ class ContributionWindow:
             else "disabled"
         )
         if not self.consented():
-            hint = "Tick both boxes to continue"
+            hint = tr("contributions.hint_tick_both")
         elif not self.config:
-            hint = "Waiting for the upload service…"
+            hint = tr("contributions.hint_waiting_service")
         elif not self.config["enabled"]:
-            hint = "Uploads are closed right now"
+            hint = tr("contributions.hint_uploads_closed")
         else:
             hint = ""
         self.upload_hint.configure(text=hint)
@@ -671,7 +695,7 @@ class ContributionWindow:
             try:
                 clean_hmd(self.hmd.get())
             except ValueError:
-                self.status.set(f"Enter your headset (HMD, 1–{MAX_HMD} characters) before starting the guided capture.")
+                self.status.set(tr("contributions.status_enter_hmd", max=MAX_HMD))
                 self.hmd_entry.focus_set()
                 return
             self.show_step(1)
@@ -681,7 +705,7 @@ class ContributionWindow:
 
     def to_agreement(self):
         if self._capture_path is None or not self._capture_path.is_file():
-            self.status.set("Complete the guided capture first. Its recording will attach automatically.")
+            self.status.set(tr("contributions.status_capture_first"))
             return
         self.reset_consent()
         self.show_step(2)
@@ -691,7 +715,7 @@ class ContributionWindow:
     def clear_capture(self):
         self._capture_path = None
         self._capture_receipt = None
-        self.selection.set("Your recording will be attached automatically after capture.")
+        self.selection.set(tr("contributions.selection_pending"))
         self.reset_consent()
         self.update_navigation()
 
@@ -700,7 +724,7 @@ class ContributionWindow:
             return
         if not self.hmd.get().strip():
             self.show_step(0)
-            self.status.set("Enter your headset (HMD) before recording.")
+            self.status.set(tr("contributions.status_enter_hmd_record"))
             return
         self.capture_controller._start_collection()
         if not self.capture_active:
@@ -712,14 +736,14 @@ class ContributionWindow:
         self.clear_capture()
         self._upload_sid = None
         self.set_upload_state("ready")
-        self.capture_status.set("Ready when you are. Start tracking, put on your headset, and follow the guide.")
+        self.capture_status.set(tr("contributions.capture_ready"))
         self.show_step(0)
         self.status.set("")
 
     def stop_capture(self):
         if self.capture_controller:
             self.capture_controller._stop_collection()
-            self.status.set("Stopping capture. An unfinished session will not be attached.")
+            self.status.set(tr("contributions.status_stopping_capture"))
 
     def capture_started(self):
         self.clear_capture()
@@ -728,7 +752,7 @@ class ContributionWindow:
         # Indeterminate until the capture engine reports its first target.
         self.capture_progress.configure(mode="indeterminate", value=0)
         self.capture_progress.pack(fill="x", before=self._capture_controls)
-        self.capture_detail.configure(text="Starting…")
+        self.capture_detail.configure(text=tr("contributions.capture_starting"))
         self.capture_detail.pack(anchor="w", pady=(6, 8), before=self._capture_controls)
         self.capture_progress.start(15)
         self.set_busy(self.busy)
@@ -740,7 +764,9 @@ class ContributionWindow:
             return
         self.capture_progress.stop()
         self.capture_progress.configure(mode="determinate", value=100 * current / total)
-        self.capture_detail.configure(text=f"Step {current} of {total} · {round(100 * current / total)}%")
+        self.capture_detail.configure(
+            text=tr("contributions.capture_step", current=current, total=total, percent=round(100 * current / total))
+        )
 
     def capture_stopped(self, path):
         self.capture_active = False
@@ -751,8 +777,7 @@ class ContributionWindow:
             self._capture_path = Path(path).resolve()
             self._capture_receipt = None
             self.selection.set(
-                "Automatically attached: your new recording"
-                + f" · {self._capture_path.stat().st_size / 1024**2:.1f} MiB"
+                tr("contributions.selection_attached", size=f"{self._capture_path.stat().st_size / 1024**2:.1f}")
             )
             self.reset_consent()
             self.tabs.select(0)
@@ -761,7 +786,7 @@ class ContributionWindow:
         else:
             self.clear_capture()
             self.show_step(1)
-            self.status.set("Capture did not finish. Start again when you are ready; nothing will be uploaded.")
+            self.status.set(tr("contributions.status_capture_unfinished"))
         self.set_busy(self.busy)
 
     def consented(self):
@@ -807,18 +832,11 @@ class ContributionWindow:
             except Paused as error:
                 self.events.put(("error", str(error)))
             except requests.RequestException:
-                self.events.put(
-                    ("error", "Connection interrupted. Your receipt and encrypted upload are saved; use Resume.")
-                )
+                self.events.put(("error", tr("contributions.error_connection")))
             except ValueError as error:
                 self.events.put(("error", str(error)))
             except Exception:
-                self.events.put(
-                    (
-                        "error",
-                        "The operation could not finish. Your private receipt is retained. Check the app dependencies and try Resume.",
-                    )
-                )
+                self.events.put(("error", tr("contributions.error_operation")))
 
         threading.Thread(target=worker, daemon=True).start()
 
@@ -839,10 +857,10 @@ class ContributionWindow:
 
     def start_upload(self):
         if not self.config or not self.config["enabled"] or not self.consented():
-            self.status.set("Review and agree to the collection terms first.")
+            self.status.set(tr("contributions.status_agree_first"))
             return
         if self.capture_active or self._capture_path is None or self._capture_receipt is not None:
-            self.status.set("Complete a new capture, or resume the existing submission from Your contributions.")
+            self.status.set(tr("contributions.status_new_capture"))
             return
         # Snapshot all Tk values on its owning thread.
         source, hmd, terms = self._capture_path, self.hmd.get(), dict(self.config["terms"]["dataset"])
@@ -861,36 +879,21 @@ class ContributionWindow:
         self.set_upload_state("uploading")
         self.run(upload)
 
+    # (title, text) language keys of the Upload page for each state.
     UPLOAD_STATES = {
-        "ready": (
-            "Ready to upload securely",
-            "Your recording and headset description are encrypted on this computer "
-            "before upload. The upload service stores only data it cannot read.",
-        ),
-        "uploading": (
-            "Uploading your recording",
-            "Your recording and headset description are encrypted on this "
-            "computer before upload. The upload service stores only data it cannot read.",
-        ),
-        "paused": (
-            "Upload paused",
-            "Your receipt and the encrypted upload are saved on this computer. Resume when "
-            "you're ready; parts that already arrived are not sent again.",
-        ),
-        "complete": (
-            "Upload complete",
-            "Thank you! Your recording is waiting for private review by the EyeTrackVR "
-            "maintainers. Back up your withdrawal receipt so you can still withdraw if this computer is reset.",
-        ),
-        "updated": ("Contribution updated", "Its latest status is shown in Your contributions."),
+        "ready": ("contributions.upload_ready_title", "contributions.upload_encrypted_text"),
+        "uploading": ("contributions.upload_uploading_title", "contributions.upload_encrypted_text"),
+        "paused": ("contributions.upload_paused_title", "contributions.upload_paused_text"),
+        "complete": ("contributions.upload_complete_title", "contributions.upload_complete_text"),
+        "updated": ("contributions.upload_updated_title", "contributions.upload_updated_text"),
     }
 
     def set_upload_state(self, state):
         """Title, text and buttons of the Upload page for ready/uploading/paused/complete/updated."""
         self.upload_state = state
         title, hint = self.UPLOAD_STATES[state]
-        self.transfer_title.configure(text=title)
-        self.transfer_hint.configure(text=hint)
+        self.transfer_title.configure(text=tr(title))
+        self.transfer_hint.configure(text=tr(hint))
         if hasattr(self, "upload"):
             self.update_navigation()
 
@@ -902,7 +905,7 @@ class ContributionWindow:
     def selected(self):
         selected = self.history.selection()
         if not selected:
-            self.status.set("Select a contribution first.")
+            self.status.set(tr("contributions.status_select_first"))
             return None
         return selected[0]
 
@@ -925,14 +928,13 @@ class ContributionWindow:
         if sid:
             self.window.clipboard_clear()
             self.window.clipboard_append(sid)
-            self.status.set("Submission ID copied. It identifies your contribution for support but cannot withdraw it.")
+            self.status.set(tr("contributions.status_id_copied"))
 
     def withdraw(self):
         sid = self.selected()
         if sid and messagebox.askyesno(
-            "Withdraw contribution",
-            "Stop future use of this contribution and request deletion?\n"
-            "Hosted downloads will be blocked immediately after confirmation by the service.",
+            tr("contributions.withdraw_title"),
+            tr("contributions.withdraw_question"),
             parent=self.window,
         ):
             self.run(lambda: ("withdrawn", self.client.withdraw(sid)))
@@ -943,24 +945,24 @@ class ContributionWindow:
             return
         path = filedialog.asksaveasfilename(
             parent=self.window,
-            title="Save private withdrawal receipt",
+            title=tr("contributions.save_receipt_title"),
             initialfile=sid + ".receipt.json",
             defaultextension=".json",
-            filetypes=[("Private receipt", "*.json")],
+            filetypes=[(tr("contributions.receipt_filetype"), "*.json")],
         )
         if path:
             try:
                 # This backup contains a capability. Never place it in Git or share it publicly.
                 save(outside_git(path), self.client.read(sid))
-                self.status.set(
-                    "Private receipt saved. It permits withdrawal; keep it secure. Resume data stays on this computer."
-                )
+                self.status.set(tr("contributions.status_receipt_saved"))
             except (ValueError, OSError):
-                self.status.set("Could not save the private receipt. Choose a private location outside Git.")
+                self.status.set(tr("contributions.status_receipt_save_failed"))
 
     def import_receipt(self):
         path = filedialog.askopenfilename(
-            parent=self.window, title="Restore private withdrawal receipt", filetypes=[("Private receipt", "*.json")]
+            parent=self.window,
+            title=tr("contributions.restore_receipt_title"),
+            filetypes=[(tr("contributions.receipt_filetype"), "*.json")],
         )
         if not path:
             return
@@ -974,11 +976,9 @@ class ContributionWindow:
                 raise ValueError("This receipt is already stored on this computer")
             save(receipt, record)
             self.refresh_history(record["id"])
-            self.status.set(
-                "Receipt restored. Withdrawal is available; upload resume also requires the original encrypted payload."
-            )
+            self.status.set(tr("contributions.status_receipt_restored"))
         except (ValueError, OSError, TypeError):
-            self.status.set("Could not restore this receipt. Use an EyeTrackVR receipt for this service.")
+            self.status.set(tr("contributions.status_receipt_restore_failed"))
 
     def refresh_history(self, select=None):
         select = select or (self.history.selection() or [None])[0]
@@ -993,7 +993,7 @@ class ContributionWindow:
                 values=(
                     record.get("prepared", ""),
                     record.get("hmd", ""),
-                    self.STATUS_WORDS.get(state, state.capitalize()),
+                    tr(self.STATUS_WORDS[state]) if state in self.STATUS_WORDS else state.capitalize(),
                     f"{record['size'] / 1024**2:.1f} MiB",
                     sid[:8],
                 ),
@@ -1006,14 +1006,15 @@ class ContributionWindow:
             self.history_empty.place(relx=0.5, rely=0.5, anchor="center")
         self.update_history_buttons()
 
+    # Receipt state -> language key of the word shown in the Status column.
     STATUS_WORDS = {
-        "prepared": "Not uploaded yet",
-        "uploading": "Upload paused",
-        "pending": "Awaiting review",
-        "approved": "Accepted",
-        "rejected": "Not accepted",
-        "withdrawn": "Withdrawn",
-        "cancelled": "Cancelled",
+        "prepared": "contributions.state_prepared",
+        "uploading": "contributions.state_uploading",
+        "pending": "contributions.state_pending",
+        "approved": "contributions.state_approved",
+        "rejected": "contributions.state_rejected",
+        "withdrawn": "contributions.state_withdrawn",
+        "cancelled": "contributions.state_cancelled",
     }
     # Receipt states whose upload has finished one way or another.
     FINISHED = {"pending", "approved", "rejected", "withdrawn", "cancelled"}
@@ -1051,7 +1052,7 @@ class ContributionWindow:
 
     def ask_updated_consent(self, terms, event, result):
         dialog = tk.Toplevel(self.window)
-        dialog.title("Updated contribution terms")
+        dialog.title(tr("contributions.updated_terms_title"))
         dialog.transient(self.window)
         dialog.grab_set()
         accepted = [tk.BooleanVar(value=False), tk.BooleanVar(value=False)]
@@ -1066,9 +1067,11 @@ class ContributionWindow:
 
         # Packed bottom-up first so the consents and button keep their space; only the text scrolls.
         ttk.Button(
-            dialog, text="Continue", command=lambda: finish(True) if all(v.get() for v in accepted) else None
+            dialog,
+            text=tr("contributions.continue_btn"),
+            command=lambda: finish(True) if all(v.get() for v in accepted) else None,
         ).pack(side="bottom", pady=12)
-        for variable, label in reversed(list(zip(accepted, DATASET_CONSENTS))):
+        for variable, label in reversed(list(zip(accepted, dataset_consents()))):
             ttk.Checkbutton(dialog, text=label, variable=variable, style="Consent.TCheckbutton").pack(
                 side="bottom", fill="x", padx=16, pady=(0, 6)
             )
@@ -1092,9 +1095,12 @@ class ContributionWindow:
                         self.progress.start(15)
                     # Live progress sits under the bar; it is shown in the footer only off the Upload page.
                     detail = (
-                        (
-                            text.rstrip(".… ") + f" · {done / 1024**2:.1f} of {total / 1024**2:.1f} MiB"
-                            f" · {round(100 * done / total)}%"
+                        tr(
+                            "contributions.progress_detail",
+                            text=text.rstrip(".…。 "),
+                            done=f"{done / 1024**2:.1f}",
+                            total=f"{total / 1024**2:.1f}",
+                            percent=round(100 * done / total),
                         )
                         if total
                         else text
@@ -1115,10 +1121,16 @@ class ContributionWindow:
                     if kind == "error":
                         self.status.set(value)
                         if self.config is None:
+                            # The two refusals that ask for an EyeTrackVR update (compared as
+                            # translated text, so this works in every language).
+                            update_required = value in (
+                                tr("contributions_service.key_unverified"),
+                                tr("contributions_service.http_400"),
+                            )
                             self.availability.set(
-                                "Uploads unavailable · Update EyeTrackVR · Withdrawal still works"
-                                if "Update EyeTrackVR" in value
-                                else "Unable to connect · Agreement available offline · Retrying shortly"
+                                tr("contributions.availability_update")
+                                if update_required
+                                else tr("contributions.availability_offline")
                             )
                             # No manual refresh: retry the service check in the background.
                             self.window.after(_CONFIG_RETRY_MS, self._retry_config)
@@ -1127,41 +1139,30 @@ class ContributionWindow:
                     elif value[0] == "config":
                         self.config = value[1]
                         self.show_notice(self.config["terms"]["dataset"])
-                        self.availability.set(
-                            "" if self.config["enabled"] else "Uploads paused · Agreement available to read"
-                        )
+                        self.availability.set("" if self.config["enabled"] else tr("contributions.availability_paused"))
                         self.set_busy(False)
-                        self.status.set(
-                            ""
-                            if self.config["enabled"]
-                            else "Collection is currently closed. Saved receipts remain available for withdrawal."
-                        )
+                        self.status.set("" if self.config["enabled"] else tr("contributions.status_collection_closed"))
                         full = self.config.get("quota_full") if self.config["enabled"] else None
                         if full:
                             # Warn before a long capture; an upload prepared now waits locally for Resume.
                             self.availability.set(
-                                (
-                                    "Collection full for now"
-                                    if full == "lifetime_quota"
-                                    else "Today's upload limit reached"
-                                )
-                                + " · Ping prohurtz on Discord"
+                                tr("contributions.availability_full")
+                                if full == "lifetime_quota"
+                                else tr("contributions.availability_daily_limit")
                             )
                             self.status.set(
                                 QUOTA_MESSAGES[full]
                                 if full == "lifetime_quota"
-                                else "Today's upload limit for all contributors has been reached. You can still "
-                                "record now: your encrypted upload is kept on this computer to Resume after "
-                                "midnight UTC. Or " + SUPPORT + "."
+                                else tr("contributions.status_daily_limit")
                             )
                     elif value[0] == "refreshed":
                         # The table shows the new status.
                         self.status.set("")
                     elif value[0] == "withdrawn":
                         self.status.set(
-                            "Withdrawn. Hosted downloads are blocked and deletion is scheduled."
+                            tr("contributions.status_withdrawn")
                             if value[1] == "withdrawn"
-                            else "Local preparation cancelled; no hosted submission was found."
+                            else tr("contributions.status_local_cancelled")
                         )
                     else:
                         # The Upload page title and text describe the outcome.
@@ -1183,11 +1184,11 @@ class ContributionWindow:
     def close(self):
         if self.capture_active:
             self.stop_capture()
-            self.status.set("Stopping recording safely. Close again when it has stopped.")
+            self.status.set(tr("contributions.status_stopping_recording"))
             return
         if self.busy:
             self.cancel.set()
-            self.status.set("Pausing safely. Your receipt and encrypted payload will be kept; close once paused.")
+            self.status.set(tr("contributions.status_pausing"))
             return
         if self.capture_controller:
             # EyeTrackVR owns one reusable dialog for the lifetime of the app.

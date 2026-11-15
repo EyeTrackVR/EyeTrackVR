@@ -15,7 +15,7 @@ from localization import tr
 BASE_WIDTH = 200
 
 
-def _layout(width, dpi_scale):
+def _layout(width):
     unit = width / BASE_WIDTH
     pad, gap = max(3, round(8 * unit)), max(2, round(6 * unit))
     blink_w = brow_w = max(8, round(20 * unit))
@@ -26,11 +26,11 @@ def _layout(width, dpi_scale):
 class OutputVisualizer:
     @staticmethod
     def height_for(width: int, dpi_scale: float = 1.0) -> int:
-        pad, _gap, _blink, _brow, gaze = _layout(width, dpi_scale)
+        pad, _gap, _blink, _brow, gaze = _layout(width)
         return pad * 2 + gaze
 
     def __init__(self, parent, width: int, dpi_scale: float = 1.0):
-        self.pad, self.gap, self.blink_w, self.brow_w, self.gaze = _layout(width, dpi_scale)
+        self.pad, self.gap, self.blink_w, self.brow_w, self.gaze = _layout(width)
         self.width = width
         self.height = self.pad * 2 + self.gaze
         # Marker sizes (dot, ring, ticks) relative to the full-size view at this DPI,
@@ -111,13 +111,42 @@ class OutputVisualizer:
             "tick_brow_b": c.create_line(0, 0, 0, 0, fill=tick, width=1, tags="viz_main"),
         }
         c.itemconfigure("viz_fail", state="hidden")
+        self._place_static_items()
+
+    def _place_static_items(self) -> None:
+        """Geometry that only depends on the (fixed) canvas size: set once, not per frame."""
+        c = self.canvas
+        ids = self._item_ids
+        W, H = self.width, self.height
+        pad, G, gap, bw, ew = self.pad, self.gaze, self.gap, self.blink_w, self.brow_w
+        u = self.u
+        gx0 = gy0 = pad
+        bx0 = gx0 + G + gap
+        by0, bh = gy0, G
+        ex0 = bx0 + bw + gap
+        gc_x, gc_y = gx0 + G // 2, gy0 + G // 2
+        edge = round(5 * u)
+        inset = max(2, round(3 * u))
+        t = max(2, round(4 * u))
+
+        c.coords(ids["fail_bg"], 0, 0, W, H)
+        c.coords(ids["fail_txt"], W // 2, H // 2)
+        c.coords(ids["bg"], 0, 0, W, H)
+        c.coords(ids["panel"], gx0, gy0, gx0 + G, gy0 + G)
+        c.coords(ids["cross_v"], gc_x, gy0 + edge, gc_x, gy0 + G - edge)
+        c.coords(ids["cross_h"], gx0 + edge, gc_y, gx0 + G - edge, gc_y)
+        c.coords(ids["blink_track"], bx0, by0, bx0 + bw, by0 + bh)
+        c.coords(ids["tick_t"], bx0 + bw // 2 - t, by0 + inset, bx0 + bw // 2 + t, by0 + inset)
+        c.coords(ids["tick_b"], bx0 + bw // 2 - t, by0 + bh - inset, bx0 + bw // 2 + t, by0 + bh - inset)
+        c.coords(ids["brow_track"], ex0, by0, ex0 + ew, by0 + bh)
+        c.coords(ids["tick_brow_t"], ex0 + ew // 2 - t, by0 + inset, ex0 + ew // 2 + t, by0 + inset)
+        c.coords(ids["tick_brow_b"], ex0 + ew // 2 - t, by0 + bh - inset, ex0 + ew // 2 + t, by0 + bh - inset)
 
     def draw(self, eye_info: EyeInfo) -> None:
         """Dark-mode compact gaze dot + vertical blink bar (right)."""
         self._ensure_items()
         c = self.canvas
         ids = self._item_ids
-        W, H = self.width, self.height
         pad = self.pad
         G = self.gaze
         gap = self.gap
@@ -126,8 +155,6 @@ class OutputVisualizer:
 
         if eye_info.info_type == EyeInfoOrigin.FAILURE:
             c.itemconfigure("viz_main", state="hidden")
-            c.coords(ids["fail_bg"], 0, 0, W, H)
-            c.coords(ids["fail_txt"], W // 2, H // 2)
             c.itemconfigure("viz_fail", state="normal")
             return
 
@@ -138,15 +165,9 @@ class OutputVisualizer:
         bx0 = gx0 + G + gap
         by0, bh = gy0, G
 
-        c.coords(ids["bg"], 0, 0, W, H)
-        c.coords(ids["panel"], gx0, gy0, gx0 + G, gy0 + G)
-
         gc_x = gx0 + G // 2
         gc_y = gy0 + G // 2
         u = self.u
-        edge = round(5 * u)
-        c.coords(ids["cross_v"], gc_x, gy0 + edge, gc_x, gy0 + G - edge)
-        c.coords(ids["cross_h"], gx0 + edge, gc_y, gx0 + G - edge, gc_y)
 
         half = max(12.0 * u, (G / 2) - 10.0 * u)
         gaze_gain = 2.75
@@ -178,8 +199,6 @@ class OutputVisualizer:
         c.coords(ids["dot"], cx - r, cy - r, cx + r, cy + r)
 
         inset = max(2, round(3 * u))
-        t = max(2, round(4 * u))
-        c.coords(ids["blink_track"], bx0, by0, bx0 + bw, by0 + bh)
         if not np.isnan(eye_info.blink):
             b = float(np.clip(eye_info.blink, 0.0, 1.0))
             inner_h = bh - inset * 2
@@ -191,29 +210,11 @@ class OutputVisualizer:
         else:
             c.itemconfigure(ids["blink_bar"], state="hidden")
 
-        c.coords(
-            ids["tick_t"],
-            bx0 + bw // 2 - t,
-            by0 + inset,
-            bx0 + bw // 2 + t,
-            by0 + inset,
-        )
-        c.coords(
-            ids["tick_b"],
-            bx0 + bw // 2 - t,
-            by0 + bh - inset,
-            bx0 + bw // 2 + t,
-            by0 + bh - inset,
-        )
-
         ex0 = bx0 + bw + gap
         brow_val = float(np.clip(eye_info.eyebrow, 0.0, 1.0)) if not np.isnan(eye_info.eyebrow) else 0.5
         inner_h = bh - inset * 2
         fill_h = max(2, int(round(brow_val * inner_h)))
         y_top = by0 + bh - inset - fill_h
         y_bot = by0 + bh - inset
-        c.coords(ids["brow_track"], ex0, by0, ex0 + ew, by0 + bh)
         c.coords(ids["brow_bar"], ex0 + inset, y_top, ex0 + ew - inset, y_bot)
         c.itemconfigure(ids["brow_bar"], state="normal")
-        c.coords(ids["tick_brow_t"], ex0 + ew // 2 - t, by0 + inset, ex0 + ew // 2 + t, by0 + inset)
-        c.coords(ids["tick_brow_b"], ex0 + ew // 2 - t, by0 + bh - inset, ex0 + ew // 2 + t, by0 + bh - inset)

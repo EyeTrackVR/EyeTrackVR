@@ -6,7 +6,6 @@ import string
 import random
 import zipfile
 import threading
-import subprocess
 import platform
 import socket as _socket
 import struct
@@ -178,12 +177,6 @@ class _SessionRecorder:
         return frame.copy(), frame_number
 
 
-def _apply_theme_to_titlebar(root: tk.Toplevel) -> None:
-    from contributions.native import decorate
-
-    decorate(root)
-
-
 class DataCollectionWindow(OverlayPassesMixin):
     def __init__(self, parent, eyes):
         self.parent = parent
@@ -227,8 +220,8 @@ class DataCollectionWindow(OverlayPassesMixin):
                 from tkinter import messagebox
 
                 messagebox.showerror(
-                    "Contributions",
-                    "Could not open private contribution storage. Check access to your user data folder.",
+                    tr("data_collection.storage_error_title"),
+                    tr("data_collection.storage_error"),
                     parent=self.parent,
                 )
                 return
@@ -246,16 +239,6 @@ class DataCollectionWindow(OverlayPassesMixin):
     def close(self):
         if self._contributions is not None:
             self._contributions.close()
-
-    def _open_folder(self):
-        output_dir = os.path.join(os.getcwd())
-        system = platform.system().lower()
-        if system == "windows":
-            os.startfile(output_dir)
-        elif system == "darwin":
-            subprocess.Popen(["open", output_dir])
-        else:
-            subprocess.Popen(["xdg-open", output_dir])
 
     def _start_collection(self):
         if self.session_running or self._contributions.busy:
@@ -305,7 +288,7 @@ class DataCollectionWindow(OverlayPassesMixin):
         except Exception:
             logger.exception("Capture could not finish")
             self.session_cancel.set()
-            self.gui_queue.put(("status", "Recording could not finish. Please try again."))
+            self.gui_queue.put(("status", tr("data_collection.status_recording_failed")))
             self._discard_session_output()
             self._cleanup_session()
 

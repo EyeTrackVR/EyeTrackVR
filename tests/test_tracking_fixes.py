@@ -1,7 +1,6 @@
 """Regression tests for tracking-pipeline defects: HSF buffer sharing between
-eye threads, LEAP "no result yet" frames, robust-calibration polynomial loss /
-anchor misalignment, RANSAC axes + blink file, dilation axes and NEXT vs
-standalone eyebrow output."""
+eye threads, LEAP "no result yet" frames, RANSAC axes + blink file, dilation
+axes and NEXT vs standalone eyebrow output."""
 
 import threading
 from collections import deque
@@ -10,7 +9,6 @@ from types import SimpleNamespace
 
 import cv2
 import numpy as np
-import pytest
 
 import eye_processor as eye_processor_module
 import haar_surround_feature
@@ -19,12 +17,6 @@ from eye import EyeId, EyeInfoOrigin
 from eye_processor import EyeProcessor
 from leap import LEAP_C, LEAP_LID_METRIC_VERSION
 from osc.osc_message import OSCMessageType
-from utils.robust_calibration import (
-    NUM_EXPRESS_TARGETS,
-    CalibrationPhase,
-    RobustCalibrationSession,
-    _EXPRESS_GAZE_TARGETS,
-)
 
 
 # ── HSF: per-instance scratch buffers ────────────────────────────────────────
@@ -160,103 +152,6 @@ def test_leapm_skips_update_when_leap_has_no_result():
     assert (proc.out_x, proc.out_y) == (0.3, -0.2)
     assert proc.eyeopen == 0.8
     assert proc.current_algorithm == EyeInfoOrigin.LEAP
-
-
-# ── Robust calibration ───────────────────────────────────────────────────────
-
-
-def _raw_for(gx, gy):
-    # A known linear camera mapping (image Y grows downward).
-    return 100.0 + 20.0 * gx, 50.0 - 10.0 * gy
-
-
-def _trained_session():
-    sess = RobustCalibrationSession()
-    sess.poly_coeffs_x = np.arange(6, dtype=np.float64)
-    sess.poly_coeffs_y = np.arange(6, dtype=np.float64) * 2
-    sess.poly_trained = True
-    sess._poly_source = "card"
-    sess.phase = CalibrationPhase.DONE
-    return sess
-
-
-def test_failed_pursuit_keeps_previous_polynomial():
-    sess = _trained_session()
-    sess.start_pursuit()
-    sess._pursuit_data = [(0.5, 100.0, 50.0, 0.0, 0.0)] * 10
-
-    sess._fit_polynomial()
-
-    assert sess.phase == CalibrationPhase.DONE
-    assert "failed" in sess.status.lower()
-    assert sess.poly_trained
-    np.testing.assert_array_equal(sess.poly_coeffs_x, np.arange(6))
-    saved = sess.to_dict()
-    assert saved["poly_trained"] and saved["poly_coeffs_x"] == list(range(6))
-
-
-def test_new_express_run_resets_polynomial():
-    sess = _trained_session()
-    sess.start_express()
-    assert not sess.poly_trained
-    assert sess.poly_coeffs_x is None and sess.poly_coeffs_y is None
-    assert "poly_source" not in sess.to_dict()
-
-
-def _express_with_missing_target(missing):
-    sess = RobustCalibrationSession()
-    sess.start_express(overlay_driven=True)
-    for i, (gx, gy) in enumerate(_EXPRESS_GAZE_TARGETS):
-        if i != missing:
-            sess._express_raw[i] = [_raw_for(gx, gy)] * 30
-    sess._finalize_express()
-    return sess
-
-
-def test_express_medians_stay_aligned_when_a_target_is_missing():
-    sess = _express_with_missing_target(missing=1)
-
-    meds = sess._express_target_medians
-    assert len(meds) == NUM_EXPRESS_TARGETS
-    assert meds[1] is None
-    for i, (gx, gy) in enumerate(_EXPRESS_GAZE_TARGETS):
-        if i != 1:
-            assert meds[i] == pytest.approx(_raw_for(gx, gy))
-
-    # Card fit pairs each median with its own target (ridge adds ~0.1 bias).
-    assert sess.poly_trained
-    for gx, gy in _EXPRESS_GAZE_TARGETS:
-        assert sess.predict_poly(*_raw_for(gx, gy)) == pytest.approx((gx, gy), abs=0.2)
-
-
-def test_missing_centre_target_falls_back_to_extent_midpoint():
-    sess = _express_with_missing_target(missing=0)
-    assert sess.express_calibrated
-    assert (sess.express_center_x, sess.express_center_y) == pytest.approx(_raw_for(0, 0))
-
-
-def test_pursuit_anchors_stay_aligned_when_a_target_is_missing():
-    sess = _express_with_missing_target(missing=2)
-    sess.start_pursuit()
-    rng = np.random.default_rng(0)
-    for gx, gy in rng.uniform(-1, 1, size=(120, 2)):
-        sess._pursuit_data.append((0.5, *_raw_for(gx, gy), gx, gy))
-
-    sess._fit_polynomial()
-
-    assert sess.poly_trained and sess._poly_source == "pursuit"
-    for gx, gy in _EXPRESS_GAZE_TARGETS:
-        assert sess.predict_poly(*_raw_for(gx, gy)) == pytest.approx((gx, gy), abs=1e-3)
-
-
-def test_indexed_medians_round_trip_and_legacy_short_list_is_dropped():
-    sess = _express_with_missing_target(missing=3)
-    loaded = RobustCalibrationSession.from_dict(sess.to_dict())
-    assert loaded._express_target_medians == sess._express_target_medians
-
-    legacy = sess.to_dict()
-    legacy["express_target_medians"] = [m for m in sess._express_target_medians if m]
-    assert RobustCalibrationSession.from_dict(legacy)._express_target_medians == []
 
 
 # ── RANSAC: ellipse axes + blink file ────────────────────────────────────────

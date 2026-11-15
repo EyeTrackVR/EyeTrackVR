@@ -55,16 +55,40 @@ def openvrpaths_file() -> Path | None:
     return next((p for p in candidates if p.is_file()), None)
 
 
+def expected_driver_dir() -> Path:
+    """Where this install's driver folder lives (or would, once built)."""
+    if getattr(sys, "frozen", False):
+        return Path(sys.executable).resolve().parent / "steamvr_driver" / DRIVER_NAME
+    # From source: native/steamvr_driver/CMakeLists.txt built into <repo>/build/steamvr_driver.
+    return Path(__file__).resolve().parents[2] / "build" / "steamvr_driver" / DRIVER_NAME
+
+
 def bundled_driver_dir() -> Path | None:
     """The driver folder shipped with this install (or built from source), if complete."""
-    if getattr(sys, "frozen", False):
-        candidate = Path(sys.executable).resolve().parent / "steamvr_driver" / DRIVER_NAME
-    else:
-        # From source: native/steamvr_driver/CMakeLists.txt built into <repo>/build/steamvr_driver.
-        candidate = Path(__file__).resolve().parents[2] / "build" / "steamvr_driver" / DRIVER_NAME
+    candidate = expected_driver_dir()
     if (candidate / MANIFEST).is_file() and (candidate / _binary_relpath()).is_file():
         return candidate
     return None
+
+
+def read_openvrpaths(paths_file: Path) -> dict | None:
+    """openvrpaths.vrpath as a dict, or None if it can't be read. Read-only."""
+    try:
+        data = json.loads(paths_file.read_text(encoding="utf-8-sig"))
+    except (OSError, ValueError) as exc:
+        logger.warning("SteamVR driver: cannot read %s (%s)", paths_file, exc)
+        return None
+    return data if isinstance(data, dict) else None
+
+
+def registered_entries(paths_file: Path | None = None) -> list[str] | None:
+    """EyeTrackVR entries in SteamVR's driver list (this or any install), or None if there
+    is no readable openvrpaths.vrpath. Read-only."""
+    paths_file = paths_file or openvrpaths_file()
+    data = read_openvrpaths(paths_file) if paths_file else None
+    if data is None:
+        return None
+    return [e for e in (data.get("external_drivers") or []) if isinstance(e, str) and _is_ours(e)]
 
 
 def _manifest_name(driver_dir: Path) -> str | None:
@@ -116,13 +140,9 @@ def sync(enabled: bool, paths_file: Path | None = None, driver_dir: Path | None 
         driver_dir = driver_dir or bundled_driver_dir()
         if driver_dir is None:
             return NO_DRIVER
-    try:
-        data = json.loads(paths_file.read_text(encoding="utf-8-sig"))
-    except (OSError, ValueError) as exc:
-        logger.warning("SteamVR driver: cannot read %s (%s); leaving it alone", paths_file, exc)
-        return NOT_REGISTERED
-    if not isinstance(data, dict):
-        return NOT_REGISTERED
+    data = read_openvrpaths(paths_file)
+    if data is None:
+        return NOT_REGISTERED  # leave a file we can't parse alone
     entries = [e for e in (data.get("external_drivers") or []) if isinstance(e, str)]
     others = [e for e in entries if not _is_ours(e)]
     wanted = others + [str(driver_dir)] if enabled else others

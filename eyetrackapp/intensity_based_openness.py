@@ -36,20 +36,8 @@ import os
 import cv2
 from eye import EyeId
 from one_euro_filter import OneEuroFilter
-import psutil
-import sys
 
 logger = logging.getLogger(__name__)
-
-process = psutil.Process(os.getpid())  # set process priority to low
-try:  # medium chance this does absolutely nothing but eh
-    sys.getwindowsversion()
-except AttributeError:
-    process.nice(0)  # UNIX: 0 low 10 high
-    process.nice()
-else:
-    process.nice(psutil.BELOW_NORMAL_PRIORITY_CLASS)  # Windows
-    process.nice()
 
 
 # Higher intensity means more eyelid coverage and less visible pupil.

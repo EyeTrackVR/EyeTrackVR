@@ -27,8 +27,6 @@ LICENSE: Babble Software Distribution License 1.0
 ------------------------------------------------------------------------------------------------------
 """
 
-from typing import Tuple
-import platform
 import numpy as np
 import cv2
 import onnxruntime
@@ -39,21 +37,16 @@ import os
 os.environ["OMP_NUM_THREADS"] = "1"
 # DADDY
 # Please change the name of this script and the name of the method if you have something better.
-video_path = "ezgif.com-gif-maker.avi"
 input_size = 192  # Do not change this number.
 heatmap_size = 48  # Do not change this number.
 kernel_size = 7
-if platform.system() == "Darwin":
-    model_file = "assets/models/daddy230210.onnx"  # The model file name will be changed when performance stabilises.  # funny MacOS files issues :P
-else:
-    model_file = "assets/models/daddy230210.onnx"  # The model file name will be changed when performance stabilises.
+model_file = "assets/models/daddy230210.onnx"  # The model file name will be changed when performance stabilises.
 
 
 # SHA256 for model version verification
 # daddy230210.onnx = 59e59aa2a21024884200dd3acbd5e6a2e8d7209c46555fbdc727d4fe3adb68d3
 imshow_enable = False
 save_video = False
-save_filepath = "output.mp4"
 
 
 def get_max_preds(batch_heatmaps):
@@ -144,33 +137,6 @@ def get_final_preds(hm, realsize):
     return preds, maxvals
 
 
-def resize_with_pad(
-    image: np.array,
-    new_shape: Tuple[int, int],
-    padding_color: Tuple[int] = (255, 255, 255),
-) -> np.array:
-    """
-    https://gist.github.com/IdeaKing/11cf5e146d23c5bb219ba3508cca89ec
-    Maintains aspect ratio and resizes with padding.
-    Params:
-        image: Image to be resized.
-        new_shape: Expected (width, height) of new image.
-        padding_color: Tuple in BGR of padding color
-    Returns:
-        image: Resized image with padding
-    """
-    original_shape = (image.shape[1], image.shape[0])
-    ratio = float(max(new_shape)) / max(original_shape)
-    new_size = tuple([int(x * ratio) for x in original_shape])
-    image = cv2.resize(image, new_size)
-    delta_w = new_shape[0] - new_size[0]
-    delta_h = new_shape[1] - new_size[1]
-    top, bottom = delta_h // 2, delta_h - (delta_h // 2)
-    left, right = delta_w // 2, delta_w - (delta_w // 2)
-    image = cv2.copyMakeBorder(image, top, bottom, left, right, cv2.BORDER_CONSTANT, value=padding_color)
-    return image
-
-
 # Better Eye aspEct Ratio
 class BEER(object):
     def __init__(self):
@@ -250,26 +216,6 @@ class DADDY_cls(object):
         # video = cv2.VideoWriter(filepath, codec, 60.0, (200, 150), 0)  # (60, 60))  # (150, 200))
         # self.video = video
 
-    def open_video(self, video_path):
-        # Temporary implementation to run
-        cap = cv2.VideoCapture(video_path)
-        if not cap.isOpened():
-            raise IOError("Error opening video stream or file")
-        self.cap = cap
-        return True
-
-    def read_frame(self):
-        # Temporary implementation to run
-        if not self.cap.isOpened():
-            return False
-        ret, frame = self.cap.read()
-        if ret:
-            # I have set it to grayscale (1ch) just in case, but if the frame is 1ch, this line can be commented out.
-            # self.current_image=frame # debug code
-            self.current_image_gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-            return True
-        return False
-
     def single_run(self):
         # Temporary implementation to run
 
@@ -277,8 +223,6 @@ class DADDY_cls(object):
 
         gray_frame = self.current_image_gray.copy()
 
-        # frame_resize=resize_with_pad(gray_frame,(input_size,input_size))
-        # or
         frame_resize = cv2.resize(gray_frame, (input_size, input_size))
         imgs = np.divide(frame_resize[np.newaxis, np.newaxis], 255, dtype=np.float32)  # input/255.0
 
@@ -352,10 +296,3 @@ class External_Run_DADDY(object):
         self.algo.current_image_gray = current_image_gray
         pupil_x, pupil_y, ear = self.algo.single_run()
         return pupil_x, pupil_y, ear
-
-
-if __name__ == "__main__":
-    daddy = DADDY_cls()
-    daddy.open_video(video_path)
-    while daddy.read_frame():
-        _ = daddy.single_run()

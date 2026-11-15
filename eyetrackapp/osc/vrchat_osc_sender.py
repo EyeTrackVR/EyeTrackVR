@@ -7,6 +7,10 @@ from config import EyeTrackConfig, EyeTrackSettingsConfig
 from enum import IntEnum
 import time
 
+# A closed eye is resent as a 5x burst (lost UDP packets must not leave the
+# avatar's eyes open), at most once per this many seconds per eye.
+BLINK_BURST_INTERVAL_S = 0.2
+
 
 def _eyelid_transformer(config, eye_blink):
     if config.osc_invert_eye_close:
@@ -45,8 +49,9 @@ class VRChatOSCSender:
         self.l_eye_blink = 0.7
         self.l_eye_velocity = 0
         self.r_eye_velocity = 1
-        self.left_last_blink = time.time()
-        self.right_last_blink = time.time()
+        # time.monotonic() of the last closed-eye burst, per eye slot.
+        self.left_last_blink = float("-inf")
+        self.right_last_blink = float("-inf")
         self.r_dilation = 0
         self.l_dilation = 0
         self.r_squeeze = 0.0
@@ -98,6 +103,15 @@ class VRChatOSCSender:
     @staticmethod
     def get_is_single_eye(eye_display_id):
         return eye_display_id in [EyeId.RIGHT, EyeId.LEFT, 0, 1]
+
+    def _blink_burst_due(self, side_name: str) -> bool:
+        """True (and the burst is recorded) when this eye's last burst is older than the interval."""
+        now = time.monotonic()
+        attr = f"{side_name}_last_blink"
+        if now - getattr(self, attr) <= BLINK_BURST_INTERVAL_S:
+            return False
+        setattr(self, attr, now)
+        return True
 
     def update_eye_state(self, eye_id, eye_x, eye_y, eye_blink, avg_velocity, pupil_dilation, eye_squeeze=0.0):
         if eye_id == EyeId.LEFT:
@@ -212,23 +226,16 @@ class VRChatOSCSender:
         if eye_id in [EyeId.LEFT, EyeId.RIGHT] and not self.is_single_eye:
             self.output_vrcft_blink_data(**default_eye_blink_params, single_eye_mode=False)
 
+            # The eyelid itself went out with output_vrcft_blink_data above.
             if eye_id == EyeId.LEFT:
                 client.send_message(config.osc_left_eye_x_address, self.l_eye_x)
                 self.left_y = eye_y
                 self.l_dilation = pupil_dilation
-                client.send_message(
-                    config.osc_left_eye_close_address,
-                    _eyelid_transformer(config, self.l_eye_blink),
-                )
 
             if eye_id == EyeId.RIGHT:
                 client.send_message(config.osc_right_eye_x_address, self.r_eye_x)
                 self.right_y = eye_y
                 self.r_dilation = pupil_dilation
-                client.send_message(
-                    config.osc_right_eye_close_address,
-                    _eyelid_transformer(config, self.r_eye_blink),
-                )
 
         if main_config.eye_display_id == EyeId.BOTH and self.right_y != 621 and self.left_y != 621:
             y = (self.right_y + self.left_y) / 2
@@ -291,16 +298,12 @@ class VRChatOSCSender:
                 single_eye_mode=False,
             )
 
+            # The eyelid itself went out with output_vrcft_blink_data above.
             if eye_id == EyeId.LEFT:
                 self.l_dilation = pupil_dilation
                 client.send_message("/avatar/parameters/v2/EyeLeftX", self.l_eye_x)
                 if self.left_y != 621:
                     client.send_message("/avatar/parameters/v2/EyeLeftY", eye_y)
-
-                client.send_message(
-                    "/avatar/parameters/v2/EyeLidLeft",
-                    _eyelid_transformer(config, self.l_eye_blink),
-                )
                 client.send_message("/avatar/parameters/v2/CheekSquintLeft", self.l_squeeze)
                 client.send_message("/avatar/parameters/v2/EyeSquintLeft", self.l_squeeze)
 
@@ -309,11 +312,6 @@ class VRChatOSCSender:
                 client.send_message("/avatar/parameters/v2/EyeRightX", self.r_eye_x)
                 if eye_y != 621:
                     client.send_message("/avatar/parameters/v2/EyeRightY", eye_y)
-
-                client.send_message(
-                    "/avatar/parameters/v2/EyeLidRight",
-                    _eyelid_transformer(config, self.r_eye_blink),
-                )
                 client.send_message("/avatar/parameters/v2/CheekSquintRight", self.r_squeeze)
                 client.send_message("/avatar/parameters/v2/EyeSquintRight", self.r_squeeze)
 
@@ -335,8 +333,8 @@ class VRChatOSCSender:
         falloff_blink = self.r_eye_blink if eye_id == EyeId.LEFT else self.l_eye_blink
         blink_address = right_eye_blink_address if eye_id == EyeId.RIGHT else left_eye_blink_address
 
+        # Only a per-eye key for the burst timer; which slot each eye uses does not matter.
         side_name = "left" if eye_id == EyeId.RIGHT else "right"
-        last_side_blink = getattr(self, f"{side_name}_last_blink")
 
         if single_eye_mode:
             # in case of v1 params, we have to send the same data do each eye separately.
@@ -346,10 +344,9 @@ class VRChatOSCSender:
 
         elif eye_id in [EyeId.RIGHT, EyeId.LEFT] and not single_eye_mode:
             if active_eye_blink == 0.0:
-                if last_side_blink > 0.20:
+                if self._blink_burst_due(side_name):
                     for _ in range(5):
                         client.send_message(blink_address, _eyelid_transformer(config, active_eye_blink))
-                    setattr(self, f"{side_name}_last_blink", time.time() - last_side_blink)
                 if config.gui_outer_side_falloff:
                     if falloff_blink == 0.0:
                         client.send_message(
@@ -373,19 +370,19 @@ class VRChatOSCSender:
         active_eye_blink = self.r_eye_blink if eye_id == EyeId.RIGHT else self.l_eye_blink
         falloff_blink = self.r_eye_blink if eye_id == EyeId.LEFT else self.l_eye_blink
 
+        # Only a per-eye key for the burst timer; which slot each eye uses does not matter.
         side_name = "left" if eye_id == EyeId.RIGHT else "right"
-        last_side_blink = getattr(self, f"{side_name}_last_blink")
 
-        def send_native_binary_blink(address: str, blink_value):
-            if last_side_blink > 0.2:
-                for _ in range(5):
-                    client.send_message(address, float(1 - blink_value))
-                setattr(self, f"{side_name}_last_blink", time.time() - last_side_blink)
+        def send_native_binary_blink(address: str, blink_value) -> bool:
+            if not self._blink_burst_due(side_name):
+                return False
+            for _ in range(5):
+                client.send_message(address, float(1 - blink_value))
+            return True
 
         if single_eye_mode:
-            if active_eye_blink == 0.0:
-                send_native_binary_blink(blink_address, active_eye_blink)
-            else:
+            # Between bursts a closed eye still goes out once per frame.
+            if active_eye_blink != 0.0 or not send_native_binary_blink(blink_address, active_eye_blink):
                 client.send_message(blink_address, float(1 - active_eye_blink))
 
         if eye_id in [EyeId.RIGHT, EyeId.LEFT] and not single_eye_mode:
@@ -407,7 +404,7 @@ class VRChatOSCSender:
                     if falloff_blink == 0.0:
                         client.send_message(blink_address, float(1 - averaged_eye_blink))
 
-        if eye_id == EyeId.BOTH and self.r_eye_blink != 621 and self.r_eye_blink != 621:
+        if eye_id == EyeId.BOTH and self.r_eye_blink != 621 and self.l_eye_blink != 621:
             if self.r_eye_blink == 0.0 or self.l_eye_blink == 0.0:
                 send_native_binary_blink(blink_address, active_eye_blink)
             # FIXME: This path can stick in a squint state after a full blink.

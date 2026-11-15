@@ -387,17 +387,20 @@ def list_uvc_cameras() -> "list[dict]":
         return result
 
 
-def invalidate_uvc_camera_cache() -> None:
+def invalidate_uvc_camera_cache(force: bool = False) -> None:
     """Force the next ``list_uvc_cameras()`` call to re-enumerate devices.
-    Call this after a successful camera open or when the GUI requests a fresh scan.
+    Call this after a successful camera open, or with ``force=True`` when the
+    user asks for a fresh scan.
 
-    Rate-limited to once per TTL period: a flapping camera (opens then fails on
-    read, over and over) would otherwise clear the cache on every retry cycle,
-    spawning a new PowerShell/DirectShow enumeration every ~100 ms."""
+    Without ``force`` this is rate-limited to once per TTL period: a flapping
+    camera (opens then fails on read, over and over) would otherwise clear the
+    cache on every retry cycle, spawning a new PowerShell/DirectShow enumeration
+    every ~100 ms. A user's Scan click is not that, and must see a camera
+    plugged in moments ago."""
     global _uvc_list_cache, _uvc_list_cache_last_invalidated
     now = time.monotonic()
     with _uvc_list_cache_lock:
-        if now - _uvc_list_cache_last_invalidated < _UVC_LIST_CACHE_TTL:
+        if not force and now - _uvc_list_cache_last_invalidated < _UVC_LIST_CACHE_TTL:
             return
         _uvc_list_cache = None
         _uvc_list_cache_last_invalidated = now

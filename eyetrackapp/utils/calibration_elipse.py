@@ -1,6 +1,8 @@
+import logging
+
 import numpy as np
 
-from localization import tr
+logger = logging.getLogger(__name__)
 
 
 class CalibrationEllipse:
@@ -25,10 +27,6 @@ class CalibrationEllipse:
         self.ys.append(float(y))
         self.fitted = False
 
-    def set_inset_percent(self, percent_smaller=0.0):
-        clamped_percent = np.clip(percent_smaller, 0.0, 100.0)
-        self.scale_factor = 1.0 - (clamped_percent / 100.0)
-
     def init_from_save(self, evecs, axes):
         """
         Initialize from save.
@@ -38,11 +36,11 @@ class CalibrationEllipse:
             axes_array = np.asarray(axes, dtype=float)
 
             if axes_array.shape != (2,):
-                print(f"[ERROR] Invalid axes shape: {axes_array.shape}.")
+                logger.error("Invalid calibration axes shape: %s.", axes_array.shape)
                 return False
 
             if np.all(axes_array == 0) or np.any(np.isnan(axes_array)):
-                print("[ERROR] Saved data contains zero or NaN values.")
+                logger.error("Saved calibration data contains zero or NaN values.")
                 return False
 
             # Force Identity Matrix (No Rotation)
@@ -53,7 +51,7 @@ class CalibrationEllipse:
             return True
 
         except (ValueError, TypeError) as e:
-            print(f"[ERROR] Failed to load calibration data: {e}")
+            logger.error("Failed to load calibration data: %s", e)
             self.fitted = False
             return False
 
@@ -63,7 +61,7 @@ class CalibrationEllipse:
         """
         N = len(self.xs)
         if N < 2:
-            print("Warning: Need >= 2 samples to fit.")
+            logger.warning("Need >= 2 samples to fit the calibration ellipse.")
             self.fitted = False
             return 0, 0
 
@@ -135,76 +133,3 @@ class CalibrationEllipse:
             final_y = np.clip(final_y, -1.0, 1.0)
 
         return float(final_x), float(final_y)
-
-    def denormalize(self, norm_x, norm_y, target_pos=None):
-        if not self.fitted:
-            return 0.0, 0.0
-
-        # 1. Reverse the Output Mapping
-        nx = -norm_x if self.flip_x else norm_x
-        ny = norm_y if self.flip_y else -norm_y
-
-        # 2. Scale back up
-        rx, ry = self.axes * self.scale_factor
-        dx = nx * rx
-        dy = ny * ry
-
-        # 3. Add Center
-        if target_pos is None:
-            cx, cy = self.center
-        else:
-            cx, cy = target_pos
-
-        return float(cx + dx), float(cy + dy)
-
-    def fit_and_visualize(self):
-        # Imported on use: matplotlib costs ~0.5 s and ~30 MB at app startup.
-        import matplotlib.pyplot as plt
-
-        plt.figure(figsize=(10, 8))
-
-        plt.plot(self.xs, self.ys, "k.", label=tr("calibration.plot_samples"), alpha=0.5)
-        plt.axis("equal")
-        plt.grid(True, alpha=0.3)
-
-        # Invert plot Y axis to match screen coordinates
-        plt.gca().invert_yaxis()
-
-        if not self.fitted:
-            self.fit_ellipse()
-
-        if self.fitted:
-            scaled_axes = self.axes * self.scale_factor
-            t = np.linspace(0, 2 * np.pi, 200)
-
-            el_x = self.center[0] + scaled_axes[0] * np.cos(t)
-            el_y = self.center[1] + scaled_axes[1] * np.sin(t)
-
-            plt.plot(el_x, el_y, "b-", linewidth=2, label=tr("calibration.plot_fit"))
-            plt.plot(self.center[0], self.center[1], "r+", markersize=15, label=tr("calibration.plot_center"))
-
-            plt.hlines(
-                self.center[1],
-                self.center[0] - scaled_axes[0],
-                self.center[0] + scaled_axes[0],
-                colors="g",
-                linestyles="-",
-                label=tr("calibration.plot_width_x"),
-            )
-
-            plt.vlines(
-                self.center[0],
-                self.center[1] - scaled_axes[1],
-                self.center[1] + scaled_axes[1],
-                colors="m",
-                linestyles="-",
-                label=tr("calibration.plot_height_y"),
-            )
-
-            plt.title(tr("calibration.plot_title", flip_x=self.flip_x))
-        else:
-            plt.title(tr("calibration.plot_fit_failed"))
-
-        plt.legend()
-        plt.tight_layout()
-        plt.show()

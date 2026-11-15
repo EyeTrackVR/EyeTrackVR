@@ -34,27 +34,13 @@ from functools import lru_cache
 import cv2
 import numpy as np
 from utils.img_utils import safe_crop
-import psutil
-import sys
-import os
 
 logger = logging.getLogger(__name__)
 
-process = psutil.Process(os.getpid())  # set process priority to low
-try:  # medium chance this does absolutely nothing but eh
-    sys.getwindowsversion()
-except AttributeError:
-    process.nice(0)  # UNIX: 0 low 10 high
-    process.nice()
-else:
-    process.nice(psutil.BELOW_NORMAL_PRIORITY_CLASS)  # Windows
-    process.nice()
 
 # from line_profiler_pycharm import profile
 
 
-video_path = "ezgif.com-gif-maker.avi"
-imshow_enable = False
 calc_print_enable = False
 save_video = False
 skip_autoradius = False
@@ -62,7 +48,6 @@ skip_blink_detect = False
 
 # cache param
 lru_maxsize_vvs = 16
-lru_maxsize_vs = 64
 lru_maxsize_s = 128
 # CV param
 default_radius = 20
@@ -141,18 +126,6 @@ class HaarSurroundFeature:
         self.val_out = float(val_outer)  # np.array(val_outer, dtype=np.float64)
         self.r_in = r_inner
         self.r_out = r_outer
-
-    def get_kernel(self):
-        # Defined here, but not yet used?
-        # Create a kernel filled with the value of self.val_out
-        kernel = np.ones(shape=(2 * self.r_out - 1, 2 * self.r_out - 1), dtype=np.float64) * self.val_out
-
-        # Set the values of the inner area of the kernel using array slicing
-        start = self.r_out - self.r_in
-        end = self.r_out + self.r_in - 1
-        kernel[start:end, start:end] = self.val_in
-
-        return kernel
 
 
 def to_gray(frame):
@@ -391,49 +364,6 @@ class AutoRadiusCalc(object):
             self.adj_comp_flag = True
             return self.radius_cand_list[self.radius_middle_index]
 
-    def get_radius_base(self):
-        """
-        Use it when the new version doesn't work well.
-        :return:
-        """
-
-        prev_res_len = len(self.response_list)
-        # adjustment of radius
-        if prev_res_len == 1:
-            # len==1==response_list==[default_radius]
-            self.adj_comp_flag = False
-            return auto_radius_range[0]
-        elif prev_res_len == 2:
-            # len==2==response_list==[default_radius, auto_radius_range[0]]
-            self.adj_comp_flag = False
-            return auto_radius_range[1]
-        elif prev_res_len == 3:
-            # len==3==response_list==[default_radius,auto_radius_range[0],auto_radius_range[1]]
-            sort_res = sorted(self.response_list, key=lambda x: x[1])[0]
-            # Extract the radius with the lowest response value
-            if sort_res[0] == default_radius:
-                # If the default value is best, change now_mode to init after setting radius to the default value.
-                self.adj_comp_flag = True
-                return default_radius
-            elif sort_res[0] == auto_radius_range[0]:
-                self.radius_cand_list = [i for i in range(auto_radius_range[0], default_radius, auto_radius_step)][1:]
-                self.adj_comp_flag = False
-                return self.radius_cand_list.pop()
-            else:
-                self.radius_cand_list = [i for i in range(default_radius, auto_radius_range[1], auto_radius_step)][1:]
-                self.adj_comp_flag = False
-                return self.radius_cand_list.pop()
-        else:
-            # Try the contents of the radius_cand_list in order until the radius_cand_list runs out
-            # Better make it a binary search.
-            if len(self.radius_cand_list) == 0:
-                sort_res = sorted(self.response_list, key=lambda x: x[1])[0]
-                self.adj_comp_flag = True
-                return sort_res[0]
-            else:
-                self.adj_comp_flag = False
-                return self.radius_cand_list.pop()
-
     def add_response(self, radius, response):
         self.response_list.append((radius, response))
         return None
@@ -574,11 +504,6 @@ class CenterCorrection(object):
             x = center_x
             y = center_y
 
-        # if imshow_enable:
-        #     cv2.circle(frame, (orig_x, orig_y), 10, (255, 0, 0), -1)
-        #     cv2.circle(frame, (x, y), 7, (0, 0, 255), -1)
-
-        #
         # out_x = center_x if abs(x - center_x) > radius else x
         # out_y = center_y if abs(y - center_y) > radius else y
         out_x, out_y = orig_x, orig_y
@@ -592,11 +517,6 @@ class CenterCorrection(object):
             out_x = x
             out_y = y
 
-        # if imshow_enable:
-        #     cv2.circle(frame, (out_x, out_y), 5, (0, 255, 0), -1)
-        #
-        #     cv2.imshow("frame_bin", self.frame_bin * 255)
-        #     cv2.imshow("frame_final", self.frame_final * 255)
         return out_x, out_y
 
 
@@ -619,8 +539,6 @@ class HSF_cls(object):
         self.center_q1 = BlinkDetector()
         self.center_correct = CenterCorrection()
 
-        self.cap = None
-
         # Scratch buffers for the integral-image convolution, owned by this
         # instance (one per eye thread) and rebuilt only when the geometry
         # changes. Small dict because radius_adjust cycles through radii.
@@ -633,25 +551,6 @@ class HSF_cls(object):
             "crop": [],
             "total_cv": [],
         }
-
-    def open_video(self, video_path):
-        # Temporary implementation to run
-        cap = cv2.VideoCapture(video_path)
-        if not cap.isOpened():
-            raise IOError("Error opening video stream or file")
-        self.cap = cap
-        return True
-
-    def read_frame(self):
-        # Temporary implementation to run
-        if not self.cap.isOpened():
-            return False
-        ret, frame = self.cap.read()
-        if ret:
-            # I have set it to grayscale (1ch) just in case, but if the frame is 1ch, this line can be commented out.
-            self.current_image_gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-            return True
-        return False
 
     def _get_buffers(self, frame_shape, pad, x_step, y_step, r_in, r_out):
         key = (frame_shape, pad, x_step, y_step, r_in, r_out)
@@ -744,8 +643,6 @@ class HSF_cls(object):
             frame_conv_stride,
         )
         center_xy = get_hsf_center(pad, step[0], step[1], hsf_min_loc)
-        # Pseudo-visualization of HSF
-        # cv2.normalize(cv2.filter2D(cv2.filter2D(frame_pad, cv2.CV_64F, hsf.get_kernel()[hsf.get_kernel().shape[0]//2,:].reshape(1,-1), borderType=cv2.BORDER_CONSTANT), cv2.CV_64F, hsf.get_kernel()[:,hsf.get_kernel().shape[1]//2].reshape(-1,1), borderType=cv2.BORDER_CONSTANT),None,0,255,cv2.NORM_MINMAX,dtype=cv2.CV_8U))
 
         # self.timedict["conv_int"].append(timeit.default_timer() - conv_int_start_time)
         # Define the center point and radius
@@ -828,7 +725,6 @@ class HSF_cls(object):
                         # cropbox = [clamp(val, 0, gray_frame.shape[i]) for i, val in
                         #            zip([1, 0, 1, 0], [lower_x, lower_y, upper_x, upper_y])]  # debug code
 
-                # if imshow_enable or save_video:
                 cv2.circle(frame, (orig_x, orig_y), 6, (0, 0, 255), -1)
                 cv2.circle(frame, (center_x, center_y), 3, (255, 0, 0), -1)
 
@@ -841,17 +737,6 @@ class HSF_cls(object):
         # the lower the response the better the likelyhood of there being a pupil. you can adujst the radius and steps accordingly
         #    print('Kernel response:', response)
         #   print('Pixel position:', center_xy)
-
-        if imshow_enable:
-            if self.now_modeo != self.cv_modeo[0] and self.now_modeo != self.cv_modeo[1]:
-                if 0 in cropped_image.shape:
-                    # If shape contains 0, it is not detected well.
-                    pass
-                else:
-                    cv2.imshow("crop", cropped_image)
-                    cv2.imshow("frame", frame)
-            if cv2.waitKey(1) & 0xFF == ord("q"):
-                pass
 
         if self.now_modeo == self.cv_modeo[0]:
             # Moving from first_frame to the next mode
@@ -884,10 +769,3 @@ class External_Run_HSF(object):
         # return center_x, center_y,cropbox, frame
         center_x, center_y, frame, radius = self.algo.single_run()
         return center_x, center_y, frame, radius
-
-
-if __name__ == "__main__":
-    hsf = HSF_cls()
-    hsf.open_video(video_path)
-    while hsf.read_frame():
-        _ = hsf.single_run()

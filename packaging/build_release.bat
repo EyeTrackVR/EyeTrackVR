@@ -34,7 +34,8 @@ echo     version: "%VERSION%"  (files: %SAFEVERSION%)
 
 echo.
 echo [2/6] Building Windows app with PyInstaller ...
-poetry run pyinstaller packaging\windows\eyetrackapp.spec --noconfirm --distpath build\windows\dist --workpath build\windows\work
+REM The spec collects into a folder named "dist" under --distpath: build\windows\dist.
+poetry run pyinstaller packaging\windows\eyetrackapp.spec --noconfirm --distpath build\windows --workpath build\windows\work
 if errorlevel 1 goto :fail
 if not exist "build\windows\dist\eyetrackapp.exe" (
     echo ERROR: eyetrackapp.exe missing after PyInstaller build
@@ -43,8 +44,7 @@ if not exist "build\windows\dist\eyetrackapp.exe" (
 
 echo.
 echo [2b/6] Building SteamVR gaze driver ...
-REM Shipped beside the exe (not inside it: the onefile exe unpacks to a temp folder,
-REM and SteamVR needs a stable path). The app registers it when foveation gaze is on.
+REM Shipped beside the exe, not inside the bundle: SteamVR needs a stable, plain path. The app registers it when foveation gaze is on.
 REM Both native builds start clean, like packaging/linux/build.sh, so a stale CMake cache
 REM (e.g. one generated before the sources moved to native/) cannot break the release.
 if exist "build\steamvr_driver" rmdir /s /q "build\steamvr_driver"

@@ -29,6 +29,9 @@ class BaseSettingsModule:
         self.config = config
         self.widget_id = widget_id
         self.tk_vars = {}
+        # Fields a widget already wrote into the config for instant effect. They no
+        # longer differ from it, so validate() reports them from here to get them saved.
+        self.live_changes: dict = {}
 
     def get_validation_model(self):
         """Return validation model, can be overridden for custom behaviour"""
@@ -50,8 +53,8 @@ class BaseSettingsModule:
         if not self.config:
             raise MissingValidationConfigException()
         try:
-            changes = {}
             validated_model = self.initialize_validation_model(values)
+            changes, self.live_changes = self.live_changes, {}
             for field, value in validated_model.model_dump().items():
                 if getattr(self.config, field) != value:
                     changes[field] = value
@@ -61,6 +64,19 @@ class BaseSettingsModule:
             if not raise_exception:
                 return ValidationResult(None, e.errors())
             raise
+
+    def apply_external_changes(self, data: dict) -> None:
+        """Put settings changed outside this page into its widgets."""
+        fields = self.get_validation_model().model_fields
+        for field, value in data.items():
+            var = self.tk_vars.get(getattr(self, field, None)) if field in fields else None
+            if var is None:
+                continue
+            try:
+                if var.get() != value:
+                    var.set(value)
+            except Exception:  # a var of another type, or a destroyed widget
+                pass
 
     def get_layout(self) -> Iterable:
         raise NotImplementedError

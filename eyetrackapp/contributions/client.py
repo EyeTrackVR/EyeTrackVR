@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 import contextlib
 import hashlib
 import io
@@ -16,6 +17,8 @@ import uuid
 from urllib.parse import urlsplit
 
 import requests
+
+from localization import tr
 
 from .bundles import clean_hmd, dataset_bundle, inspect_bundle, issue_bundle, submission_record
 from .private_files import restrict_access
@@ -34,47 +37,65 @@ class Paused(Exception):
     """The exact ciphertext and receipt remain available for resume."""
 
 
-SUPPORT = "ping prohurtz on Discord"
+class _Messages(Mapping):
+    """Error code -> message, translated when read: the language is chosen after this module loads."""
+
+    def __init__(self, keys):
+        self._keys = dict(keys)
+
+    def __getitem__(self, code):
+        return tr(self._keys[code])
+
+    def __iter__(self):
+        return iter(self._keys)
+
+    def __len__(self):
+        return len(self._keys)
+
+
 # Keyed by the Worker's machine-readable error code; the upload is always kept for Resume.
-QUOTA_MESSAGES = {
-    "daily_quota": "Today's upload limit for all contributors has been reached. Your encrypted recording is "
-    "saved on this computer: use Your contributions → Resume after midnight UTC, or " + SUPPORT + ".",
-    "network_quota": "Your network has reached today's upload limit. Your encrypted recording is saved on this "
-    "computer: use Your contributions → Resume after midnight UTC, or " + SUPPORT + ".",
-    "lifetime_quota": "The collection is full for now. Your encrypted recording is saved on this computer; "
-    + SUPPORT
-    + " to get it uploaded.",
-    "chunk_attempts": "This upload failed too many times. Withdraw it and record again, or " + SUPPORT + ".",
-    "rate_limited": "Too many requests right now. Wait a minute, then use Resume.",
-}
+QUOTA_MESSAGES = _Messages(
+    {
+        "daily_quota": "contributions_service.quota_daily",
+        "network_quota": "contributions_service.quota_network",
+        "lifetime_quota": "contributions_service.quota_lifetime",
+        "chunk_attempts": "contributions_service.quota_chunk_attempts",
+        "rate_limited": "contributions_service.quota_rate_limited",
+    }
+)
 # Bug reports have their own quotas on the service; same codes, report wording.
-ISSUE_QUOTA_MESSAGES = {
-    "daily_quota": "Today's bug report limit for everyone has been reached. Your encrypted report is saved "
-    "and will send when you retry after midnight UTC, or " + SUPPORT + ".",
-    "network_quota": "Your network has sent today's maximum number of bug reports. Your encrypted report is "
-    "saved; retry after midnight UTC, or " + SUPPORT + ".",
-    "lifetime_quota": "Bug reports are full for now. Please " + SUPPORT + " instead.",
-    "chunk_attempts": "This report failed to send too many times. Please " + SUPPORT + ".",
-    "rate_limited": "Too many requests right now. Wait a minute, then retry.",
+ISSUE_QUOTA_MESSAGES = _Messages(
+    {
+        "daily_quota": "contributions_service.issue_quota_daily",
+        "network_quota": "contributions_service.issue_quota_network",
+        "lifetime_quota": "contributions_service.issue_quota_lifetime",
+        "chunk_attempts": "contributions_service.issue_quota_chunk_attempts",
+        "rate_limited": "contributions_service.issue_quota_rate_limited",
+    }
+)
+# HTTP status -> language key of the message shown for it.
+HTTP_MESSAGES = {
+    400: "contributions_service.http_400",
+    401: "contributions_service.http_401",
+    403: "contributions_service.http_403",
+    404: "contributions_service.http_404",
+    409: "contributions_service.http_409",
+    413: "contributions_service.http_413",
+    429: "contributions_service.http_429",
+    503: "contributions_service.http_503",
 }
 
 
 class ServiceError(ValueError):
     def __init__(self, status, code=None):
         self.status, self.code = status, code
-        messages = {
-            400: "The service rejected this upload's details. Update EyeTrackVR and try again.",
-            401: "The private receipt was not accepted.",
-            403: "Verification was not accepted. Please verify again.",
-            404: "This submission or service is unavailable.",
-            409: "This upload changed or expired. Refresh its status.",
-            413: "This recording exceeds the upload size limit.",
-            429: "The upload limit has been reached. Please try later, or " + SUPPORT + ".",
-            503: "Collection is closed or temporarily unavailable.",
-        }
-        super().__init__(
-            QUOTA_MESSAGES.get(code) or messages.get(status, f"The contribution service returned HTTP {status}.")
-        )
+        if code in QUOTA_MESSAGES:
+            message = QUOTA_MESSAGES[code]
+        elif status in HTTP_MESSAGES:
+            message = tr(HTTP_MESSAGES[status])
+        else:
+            message = tr("contributions_service.http_other", status=status)
+        super().__init__(message)
 
 
 def origin(value):
@@ -175,7 +196,7 @@ class ContributionClient:
 
                     fcntl.flock(stream, fcntl.LOCK_EX | fcntl.LOCK_NB)
             except OSError:
-                raise ValueError("Another contribution operation is running") from None
+                raise ValueError(tr("contributions_service.operation_running")) from None
             try:
                 yield
             finally:
@@ -218,10 +239,7 @@ class ContributionClient:
             or sorted(advertised) != sorted(self.recipients)
         ):
             # Never encrypt to a key this release cannot vouch for, even if the service offers one.
-            raise ValueError(
-                "This EyeTrackVR version cannot verify the service's encryption key. "
-                "Update EyeTrackVR to contribute. Saved receipts can still withdraw."
-            )
+            raise ValueError(tr("contributions_service.key_unverified"))
         if config.get("quota_full") not in QUOTA_MESSAGES:
             config["quota_full"] = None
         if config.get("issue_quota_full") not in ISSUE_QUOTA_MESSAGES:
@@ -274,12 +292,12 @@ class ContributionClient:
     @staticmethod
     def check_pause(cancel):
         if cancel.is_set():
-            raise Paused("Paused. Resume will reuse the exact encrypted payload.")
+            raise Paused(tr("contributions_service.paused"))
 
     def prepare(self, source, hmd, agreed_terms, cancel, progress):
         hmd = clean_hmd(hmd)
         if Path(source).stat().st_size > 256 * 1024**2:
-            raise ValueError("This archive exceeds the 256 MiB preparation limit")
+            raise ValueError(tr("contributions_service.archive_too_large"))
         # The HMD text and consent binding travel only inside the ciphertext.
         return self._seal(
             "dataset",
@@ -301,12 +319,12 @@ class ContributionClient:
         )
 
     def _seal(self, kind, agreed_terms, cancel, progress, build, hmd=None):
-        noun = "recording" if kind == "dataset" else "report"
+        dataset = kind == "dataset"
         config = self.config()
         if not config["enabled"]:
-            raise ValueError("Collection is currently closed")
+            raise ValueError(tr("contributions_service.collection_closed"))
         if config["terms"][kind] != agreed_terms:
-            raise ValueError("The collection terms changed. Review the updated terms before uploading.")
+            raise ValueError(tr("contributions_service.terms_changed"))
         limit = config["max_bytes"].get(kind)
         if type(limit) is not int or not 1 <= limit <= 256 * 1024**2:
             raise ValueError("Invalid contribution service configuration")
@@ -314,7 +332,7 @@ class ContributionClient:
         receipt, ciphertext = self.paths(sid)
         terms_sha256 = hashlib.sha256(agreed_terms["text"].encode()).hexdigest()
         self.check_pause(cancel)
-        progress("Preparing and encrypting locally…", 0, 0)
+        progress(tr("contributions_service.progress_preparing"), 0, 0)
         with tempfile.TemporaryDirectory(prefix="prepare-", dir=self.directory) as tmp:
             bundle = Path(tmp) / (kind + ".zip")
             build(bundle, submission_record(sid, kind, agreed_terms["version"], terms_sha256, hmd))
@@ -326,11 +344,19 @@ class ContributionClient:
             from pyrage import encrypt_file, x25519
 
             if bundle.stat().st_size > limit:
-                raise ValueError(f"This {noun} exceeds the upload size limit")
+                raise ValueError(
+                    tr("contributions_service.recording_too_large")
+                    if dataset
+                    else tr("contributions_service.report_too_large")
+                )
             temporary = Path(tmp) / "payload.age"
             encrypt_file(str(bundle), str(temporary), [x25519.Recipient.from_str(key) for key in self.recipients])
             if temporary.stat().st_size > limit:
-                raise ValueError(f"The encrypted {noun} exceeds the upload size limit")
+                raise ValueError(
+                    tr("contributions_service.encrypted_recording_too_large")
+                    if dataset
+                    else tr("contributions_service.encrypted_report_too_large")
+                )
             temporary.chmod(0o600)
             record = {
                 "schema": 3,
@@ -356,7 +382,21 @@ class ContributionClient:
 
     def resume(self, sid, verify, consent, cancel, progress):
         record = self.read(sid)
-        noun = "recording" if record["kind"] == "dataset" else "report"
+        # Progress lines name what is being sent: a recording or a bug report.
+        dataset = record["kind"] == "dataset"
+        uploading, sending, uploaded = (
+            (
+                tr("contributions_service.progress_uploading_recording"),
+                tr("contributions_service.progress_sending_recording"),
+                tr("contributions_service.progress_uploaded_recording"),
+            )
+            if dataset
+            else (
+                tr("contributions_service.progress_uploading_report"),
+                tr("contributions_service.progress_sending_report"),
+                tr("contributions_service.progress_uploaded_report"),
+            )
+        )
         receipt, ciphertext = self.paths(sid)
         prefix = "/v1/submissions/" + sid
 
@@ -385,35 +425,33 @@ class ContributionClient:
             or ciphertext.stat().st_size != record["size"]
             or hashes(ciphertext, record["chunk_bytes"]) != record["chunks"]
         ):
-            raise ValueError("The exact encrypted upload is missing or modified. Keep the receipt for withdrawal.")
+            raise ValueError(tr("contributions_service.payload_missing"))
         if state is None:
             if record.get("state") in TERMINAL | {"cancelled"}:
-                raise ValueError("This submission is no longer available to resume")
+                raise ValueError(tr("contributions_service.not_resumable"))
             if record["schema"] < 3:
-                raise ValueError(
-                    "This upload was prepared by an older EyeTrackVR version. Withdraw it and record again."
-                )
+                raise ValueError(tr("contributions_service.older_version"))
             config = self.config()
             if not config["enabled"]:
-                raise ValueError("Collection is currently closed; your upload is retained for resume")
+                raise ValueError(tr("contributions_service.closed_retained"))
             if record["chunk_bytes"] != config["chunk_bytes"]:
-                raise ValueError("Upload chunk size changed. Cancel this preparation and start a new contribution.")
+                raise ValueError(tr("contributions_service.chunk_size_changed"))
             terms = config["terms"][record["kind"]]
             if (
                 record["terms_version"] != terms["version"]
                 or record["terms_sha256"] != hashlib.sha256(terms["text"].encode()).hexdigest()
             ):
                 if not consent(terms):
-                    raise Paused("Updated terms were not accepted. Upload remains paused.")
+                    raise Paused(tr("contributions_service.terms_declined"))
                 record.update(
                     terms_version=terms["version"], terms_sha256=hashlib.sha256(terms["text"].encode()).hexdigest()
                 )
                 save(receipt, record)
-            progress("Verify in the EyeTrackVR window…", 0, record["size"])
+            progress(tr("contributions_service.progress_verify"), 0, record["size"])
             token = verify(self.service, cancel)
             self.check_pause(cancel)
             if not isinstance(token, str) or not 0 < len(token) <= 2048:
-                raise ValueError("In-app verification was not completed")
+                raise ValueError(tr("contributions_service.verification_incomplete"))
             fields = ("id", "kind", "consent", "terms_version", "terms_sha256", "size", "sha256", "chunks")
             body = {k: record[k] for k in fields}
             body["challenge"] = token
@@ -432,7 +470,7 @@ class ContributionClient:
         record["state"] = "uploading"
         save(receipt, record)
         done = sum(min(record["chunk_bytes"], record["size"] - p * record["chunk_bytes"]) for p in received)
-        progress(f"Uploading encrypted {noun}…", done, record["size"])
+        progress(uploading, done, record["size"])
         with ciphertext.open("rb") as stream:
             for part, expected in enumerate(record["chunks"]):
                 if part in received:
@@ -449,7 +487,7 @@ class ContributionClient:
                         def read(inner, count=-1):
                             self.check_pause(cancel)
                             data = super().read(count)
-                            progress(f"Sending encrypted {noun}…", done + inner.tell(), record["size"])
+                            progress(sending, done + inner.tell(), record["size"])
                             return data
 
                     try:
@@ -465,11 +503,11 @@ class ContributionClient:
                             raise
                         if attempt == 2:
                             raise
-                        progress("Connection interrupted; retrying…", done, record["size"])
+                        progress(tr("contributions_service.progress_retrying"), done, record["size"])
                         if cancel.wait(2**attempt):
                             self.check_pause(cancel)
                 done += len(block)
-                progress(f"Uploaded encrypted {noun}…", done, record["size"])
+                progress(uploaded, done, record["size"])
         self.check_pause(cancel)
         state = call("POST", "/complete", json={})
         record["state"] = state["status"]

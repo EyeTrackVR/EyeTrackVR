@@ -5,6 +5,7 @@ import os
 import subprocess
 import sys
 import threading
+import time
 from datetime import datetime
 from pathlib import Path
 
@@ -170,11 +171,11 @@ class TrackingLogger:
     t          - monotonic timestamp (seconds)
     eye        - L or R
     cx / cy    - raw pupil-keypoint pixel coords (pre-calibration)
-    cal_x/y    - calibrated output before snap-hold and velocity-falloff
-    out_x/y    - final output after snap-hold, falloff, and One-Euro filter
-    snap       - 1 while snap-hold is active, 0 otherwise
-    hold_f     - snap-hold frame counter
-    drift      - drift coefficient applied this frame (0.0 – 1.0)
+    cal_x/y    - calibrated output before velocity-falloff
+    out_x/y    - final output after falloff and One-Euro filter
+    snap       - always 0 (snap-hold was removed; column kept for CSV compatibility)
+    hold_f     - always 0 (as above)
+    drift      - always 0.000 (as above)
     kp_noise   - normalised raw-keypoint noise (rolling 15-frame avg)
     velocity   - smoothed calibrated-output velocity
     latch      - which eye the outer-side falloff is currently mirroring
@@ -183,6 +184,7 @@ class TrackingLogger:
     _instance: "TrackingLogger | None" = None
     _class_lock = threading.Lock()
     _write_lock = threading.Lock()
+    _next_check = 0.0
 
     SENTINEL = "enable_tracking_log"
     COLUMNS = [
@@ -214,9 +216,12 @@ class TrackingLogger:
         """Return the active logger if the sentinel file is present, else None.
         Creates or tears down the logger automatically as the sentinel changes.
         """
-        sentinel = _app_root() / cls.SENTINEL
+        now = time.monotonic()
+        if now < cls._next_check:  # called per tracked frame: keep the disk out of it
+            return cls._instance
         with cls._class_lock:
-            if sentinel.exists():
+            cls._next_check = now + 1.0
+            if (_app_root() / cls.SENTINEL).exists():
                 if cls._instance is None:
                     ts = datetime.now().strftime("%Y%m%d-%H%M%S")
                     path = log_directory() / f"tracking-{ts}.csv"

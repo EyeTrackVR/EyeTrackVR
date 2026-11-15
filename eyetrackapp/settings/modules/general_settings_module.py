@@ -19,6 +19,8 @@ _LEAF = {
     "gui_openvr_autostart": "start_stop_steamvr",
     "gui_use_gpu": "use_gpu",
     "gui_update_check": "check_updates",
+    "gui_update_beta": "update_beta",
+    "gui_vr_dashboard": "vr_dashboard",
     "gui_eye_dominant_diff_thresh": "eye_diff_threshold",
     "gui_use_overlay_cal": "use_overlay_cal",
     "gui_show_et_debug": "show_et_debug",
@@ -39,6 +41,8 @@ class GeneralSettingsValidationModel(BaseValidationModel):
     gui_flip_y_axis: bool
     gui_outer_side_falloff: bool
     gui_update_check: bool
+    gui_update_beta: bool
+    gui_vr_dashboard: bool
     gui_right_eye_dominant: bool
     gui_left_eye_dominant: bool
     gui_eye_dominant_diff_thresh: float
@@ -66,6 +70,8 @@ class GeneralSettingsModule(BaseSettingsModule):
         self.gui_left_eye_dominant = f"-LEFTEYEDOMINANT{widget_id}-"
         self.gui_right_eye_dominant = f"-RIGHTEYEDOMINANT{widget_id}-"
         self.gui_update_check = f"-UPDATECHECK{widget_id}-"
+        self.gui_update_beta = f"-UPDATEBETA{widget_id}-"
+        self.gui_vr_dashboard = f"-VRDASHBOARD{widget_id}-"
         self.gui_openvr_autostart = f"-OPENVRAUTOSTART{widget_id}-"
         self.gui_use_gpu = f"-USEGPU{widget_id}-"
         self.gui_show_et_debug = f"-SHOWETDEBUG{widget_id}-"
@@ -93,6 +99,7 @@ class GeneralSettingsModule(BaseSettingsModule):
                 (self.gui_flip_y_axis, self.config.gui_flip_y_axis),
                 (self.gui_update_check, self.config.gui_update_check),
             ),
+            ((self.gui_vr_dashboard, self.config.gui_vr_dashboard), None),
         ]
 
         # Map widget-key string → config attr so we can look up label + tooltip.
@@ -103,6 +110,7 @@ class GeneralSettingsModule(BaseSettingsModule):
             self.gui_openvr_autostart: "gui_openvr_autostart",
             self.gui_use_gpu: "gui_use_gpu",
             self.gui_update_check: "gui_update_check",
+            self.gui_vr_dashboard: "gui_vr_dashboard",
         }
 
         row = 0
@@ -124,9 +132,31 @@ class GeneralSettingsModule(BaseSettingsModule):
         falloff_cb = ttk.Checkbutton(parent, text=_label("gui_outer_side_falloff"), variable=falloff_var)
         falloff_cb.grid(row=row, column=0, sticky="w", padx=8, pady=2)
         attach_tooltip(falloff_cb, _tip("gui_outer_side_falloff"))
+
+        # Beside it, under "Check For Updates": the beta channel and a check on demand.
+        update_row = ttk.Frame(parent)
+        update_row.grid(row=row, column=1, sticky="w", padx=8, pady=2)
+        beta_var = tk.BooleanVar(value=bool(self.config.gui_update_beta))
+        self.tk_vars[self.gui_update_beta] = beta_var
+        beta_cb = ttk.Checkbutton(update_row, text=_label("gui_update_beta"), variable=beta_var)
+        beta_cb.pack(side="left")
+        attach_tooltip(beta_cb, _tip("gui_update_beta"))
+        check_btn = ttk.Button(update_row, text=tr("settings_general.check_now"), command=self._check_for_updates)
+        check_btn.pack(side="left", padx=(12, 0))
+        attach_tooltip(check_btn, tr("settings_general.check_now_tip"))
         row += 1
 
         self._build_language_row(parent, row)
+
+    def _check_for_updates(self):
+        import update_dialog
+
+        # The beta tick may be newer than the debounced save.
+        if self._main_config is not None:
+            beta = bool(self.tk_vars[self.gui_update_beta].get())
+            if beta != bool(self.config.gui_update_beta):
+                self._main_config.update({"gui_update_beta": beta}, save=True)
+        update_dialog.check_now()
 
     def _build_language_row(self, parent, row):
         """Language selector. The tk var we register holds the locale *code*

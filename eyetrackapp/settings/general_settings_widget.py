@@ -56,9 +56,16 @@ class SettingsWidget(BaseSettingsWidget):
             from ovr.dfr import dfr_controller
             from settings.dfr_panel import DfrPanel
 
-            panel = DfrPanel(dfr_controller, self.main_config).build(self.frame)
+            panel = DfrPanel(dfr_controller, self.main_config, self._enable_foveation_gaze).build(self.frame)
             if self._advanced_toggle_row is not None:
                 panel.pack(fill="x", padx=8, pady=6, anchor="n", before=self._advanced_toggle_row)
             else:
                 panel.pack(fill="x", padx=8, pady=6, anchor="n")
         return frame
+
+    def _enable_foveation_gaze(self) -> None:
+        """Tick "Foveated rendering gaze" for the DFR panel. Through the checkbox: the
+        next render_tick saves it, where a direct config write would be undone by it."""
+        for module in self.initialized_modules:
+            if isinstance(module, OSCSettingsModule):
+                module.tk_vars[module.gui_foveation_gaze].set(True)

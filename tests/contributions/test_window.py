@@ -1,6 +1,7 @@
 """Tk lifecycle and capture handoff checks without starting cameras or models."""
 
 from pathlib import Path
+import re
 import sys
 import time
 import tkinter as tk
@@ -9,7 +10,8 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "eyetrackapp"))
 from contributions.client import ContributionClient, save
-from contributions.window import DATASET_CONSENTS, ContributionWindow
+from contributions.window import ContributionWindow, dataset_consents, version_label
+from localization import tr, tr_english
 
 
 @pytest.fixture(scope="module")
@@ -46,7 +48,7 @@ def test_terms_are_visible_and_consent_not_preselected(root, tmp_path):
     assert "Current 18+ terms" in ui.notice.get("1.0", "end")
     assert not ui.agree.get()
     ui.start_upload()
-    assert not ui.busy and "agree" in ui.status.get()
+    assert not ui.busy and ui.status.get() == tr("contributions.status_agree_first")
     ui.close()
 
 
@@ -70,12 +72,12 @@ def test_notice_sections_render_as_headings_without_changing_wording(root, tmp_p
     ]
     assert ui.notice.yview()[0] == 0
     # Short labels that point at the numbered statements in the notice.
-    assert (ui.consent.cget("text"), ui.consent_sensitive.cget("text")) == DATASET_CONSENTS
-    assert not any(label.startswith("Statement") for label in DATASET_CONSENTS)
+    assert (ui.consent.cget("text"), ui.consent_sensitive.cget("text")) == dataset_consents()
+    assert not any(label.startswith("Statement") for label in dataset_consents())
     # The page has its own title, so the notice's title line is not repeated; the wording otherwise is.
     assert "Dataset agreement" not in shown
     ui.show_step(2)
-    assert "Tick both boxes" in ui.upload_hint.cget("text")
+    assert ui.upload_hint.cget("text") == tr("contributions.hint_tick_both")
     ui.agree.set(True)
     ui.agree_sensitive.set(True)
     ui.update_navigation()
@@ -95,7 +97,7 @@ def test_closed_collection_still_offers_withdrawal(root, tmp_path):
     ui.history.selection_set("d" * 32)
     ui.update_history_buttons()
     assert str(ui.withdraw_button.cget("state")) == "normal"
-    assert "closed" in ui.status.get()
+    assert ui.status.get() == tr("contributions.status_collection_closed")
     ui.close()
 
 
@@ -156,9 +158,9 @@ def test_connection_failure_never_leaves_agreement_blank(root, tmp_path):
     assert "Fovea Labs LLC" in ui.notice.get("1.0", "end")
     assert "support@fovea-labs.com" in ui.notice.get("1.0", "end")
     # The short labels stay in place whichever notice is shown.
-    assert (ui.consent.cget("text"), ui.consent_sensitive.cget("text")) == DATASET_CONSENTS
+    assert (ui.consent.cget("text"), ui.consent_sensitive.cget("text")) == dataset_consents()
     assert str(ui.upload.cget("state")) == "disabled"
-    assert "offline" in ui.availability.get().lower()
+    assert ui.availability.get() == tr("contributions.availability_offline")
     ui.close()
 
 
@@ -297,3 +299,55 @@ def test_full_daily_quota_is_announced_before_recording(root, tmp_path):
     assert "upload limit reached" in ui.availability.get() and "prohurtz" in ui.availability.get()
     assert "prohurtz on Discord" in ui.status.get() and "Resume" in ui.status.get()
     ui.close()
+
+
+def _texts(widget):
+    """Every text option shown by a widget tree: labels, buttons, checkboxes and tab titles."""
+    texts = []
+    try:
+        texts.append(str(widget.cget("text")))
+    except tk.TclError:
+        pass
+    if widget.winfo_class() == "TNotebook":
+        texts += [widget.tab(tab, "text") for tab in widget.tabs()]
+    for child in widget.winfo_children():
+        texts += _texts(child)
+    return texts
+
+
+@pytest.mark.parametrize("language", ["de", "es", "ja", "zh"])
+def test_windows_show_translated_text_and_never_raw_keys(root, tmp_path, language):
+    import localization
+    from contributions.report_window import ReportWindow
+
+    localization.init_localization(language)
+    client = ContributionClient(directory=tmp_path / "private")
+    client.config = lambda: {
+        "enabled": True,
+        "terms": {
+            "dataset": {"version": "dataset-2026-10-24-v3", "text": "Terms"},
+            "issue": {"version": "i", "text": "Notice"},
+        },
+    }
+    ui = ContributionWindow(root, client=client)
+    ui.window.withdraw()
+    drain(root, lambda: ui.config is not None)
+    report = ReportWindow(root, client=client)
+    report.window.withdraw()
+    drain(root, lambda: report.config is not None)
+    raw_key = re.compile(r"^(contributions|contributions_service|bug_report|data_collection)\.\w+$")
+    for window in (ui.window, report.window):
+        texts = _texts(window)
+        assert not [text for text in texts if raw_key.match(text)]
+    assert (
+        ui.consent.cget("text")
+        == tr("contributions.consent_agreement")
+        != tr_english("contributions.consent_agreement")
+    )
+    assert report.description_text() == tr("bug_report.description_template").strip()
+    # The agreement date uses this language's month names.
+    assert version_label("dataset-2026-10-24-v3") == tr(
+        "contributions.agreement_version", number="3", day=24, month=tr("contributions.months").split()[9], year="2026"
+    )
+    ui.close()
+    report.window.destroy()

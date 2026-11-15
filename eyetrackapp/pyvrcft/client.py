@@ -127,6 +127,8 @@ class VRCFTClient:
 
         self._oscquery_endpoint = None  # (host, port) of VRChat's HTTP server
         self._running = False
+        # Wakes the discovery thread's waits on stop(); a new one per start().
+        self._stop_event = threading.Event()
         self._threads: list[threading.Thread] = []
         self._send_sock: socket.socket | None = None
         self._recv_sock: socket.socket | None = None
@@ -230,15 +232,33 @@ class VRCFTClient:
         self._threads = [threading.Thread(target=self._send_loop, daemon=True, name="pyvrcft-send")]
         if self._recv_sock is not None:
             self._threads.append(threading.Thread(target=self._recv_loop, daemon=True, name="pyvrcft-recv"))
+        self._stop_event = threading.Event()
         if self.use_oscquery:
-            self._threads.append(threading.Thread(target=self._discover_loop, daemon=True, name="pyvrcft-mdns"))
+            self._threads.append(
+                threading.Thread(
+                    target=self._discover_loop,
+                    args=(self._stop_event,),
+                    daemon=True,
+                    name="pyvrcft-mdns",
+                )
+            )
         for t in self._threads:
             t.start()
 
     def stop(self) -> None:
         self._running = False
+        self._stop_event.set()
+        if self._recv_sock is not None and self._send_sock is not None:
+            # Wake the receive thread now rather than at its 0.5 s timeout.
+            try:
+                self._send_sock.sendto(b"", self._recv_sock.getsockname())
+            except OSError:
+                pass
         for t in self._threads:
-            t.join(timeout=2.0)
+            # The mDNS thread may be inside a query (up to 3 s) that cannot be cut
+            # short; it is a daemon that exits once that returns, so do not wait on it.
+            # stop() runs on the GUI thread when OSC settings change.
+            t.join(timeout=0.05 if t.name == "pyvrcft-mdns" else 2.0)
         self._threads = []
         for sock in (self._send_sock, self._recv_sock):
             if sock is not None:
@@ -257,8 +277,13 @@ class VRCFTClient:
     def _resolve_avatar(self, avatar_id: str = "") -> None:
         """Fetch the current avatar's parameter list and rebuild all slots."""
         info = None
-        if self._oscquery_endpoint is not None:
-            info = fetch_avatar_oscquery(*self._oscquery_endpoint)
+        endpoint = self._oscquery_endpoint
+        if endpoint is not None:
+            info = fetch_avatar_oscquery(*endpoint)
+            if info is None and self._oscquery_endpoint == endpoint:
+                # VRChat quit or restarted on a new port: let discovery find it again.
+                logger.info("VRChat OSCQuery at http://%s:%d stopped answering", *endpoint)
+                self._oscquery_endpoint = None
         if (info is None or not info.parameters) and avatar_id:
             info = load_avatar_config(avatar_id)
         if info is None:
@@ -407,6 +432,8 @@ class VRCFTClient:
                 continue
             except OSError:
                 return
+            if not self._running:
+                return  # stop()'s wake-up packet
             try:
                 for address, args in osc.parse(data):
                     self._dispatch(address, args)
@@ -465,19 +492,22 @@ class VRCFTClient:
             except Exception:
                 logger.exception("on_message callback failed")
 
-    def _discover_loop(self) -> None:
+    def _discover_loop(self, stop: threading.Event) -> None:
         """Find VRChat's OSCQuery server so we can resolve the avatar even if
-        we started after it loaded (no /avatar/change to catch)."""
-        while self._running and self._oscquery_endpoint is None:
+        we started after it loaded (no /avatar/change to catch). Runs until
+        stop: a failed avatar fetch forgets the endpoint, and it is found again."""
+        while not stop.is_set():
+            if self._oscquery_endpoint is not None:
+                stop.wait(1.0)
+                continue
             endpoint = mdns.discover_vrchat_oscquery(timeout=3.0)
+            if stop.is_set():
+                return
             if endpoint is not None:
                 self._oscquery_endpoint = endpoint
                 logger.info("Found VRChat OSCQuery at http://%s:%d", *endpoint)
                 if self.avatar is None:
                     self._resolve_avatar()
-                return
-            # VRChat may not be running yet; retry quietly.
-            for _ in range(10):
-                if not self._running:
-                    return
-                time.sleep(1.0)
+            if self._oscquery_endpoint is None:
+                # VRChat may not be running yet; retry quietly.
+                stop.wait(10.0)

@@ -164,12 +164,17 @@ def test_smart_calib_without_a_raw_tap_captures_the_model_gaze():
     assert p._next_smartcal_samples[0] == [pytest.approx((0.2, -0.3, 0.9, 0.5))]
 
 
-def test_next_dfr_gaze_is_bounded_like_the_osc_gaze():
+def test_next_dfr_gaze_goes_past_the_avatar_range_but_stays_bounded():
+    from next_processing import NEXT_DFR_GAZE_LIMIT
+
     p = _next_processor()
     p._next_smartcal_w = [3.0, 0.0, 0.0, 3.0]
     p._next_smartcal_b = [0.0, 0.0]
-    p._next_apply(0.1, 0.1, 0.5, 0.9, 0.0, raw_gaze=(0.9, -0.9))
-    assert (p.dfr_x, p.dfr_y) == (1.0, -1.0)
+    # Looking past the avatar's eye range: the sharp region has to follow the real eye.
+    p._next_apply(0.1, 0.1, 0.5, 0.9, 0.0, raw_gaze=(0.5, -0.5))
+    assert (p.dfr_x, p.dfr_y) == pytest.approx((1.5, -1.5))
+    p._next_apply(0.1, 0.1, 0.5, 0.9, 0.0, raw_gaze=(0.9, -0.9))  # a runaway transform
+    assert (p.dfr_x, p.dfr_y) == (NEXT_DFR_GAZE_LIMIT, -NEXT_DFR_GAZE_LIMIT)
 
 
 def test_next_without_a_raw_tap_falls_back_to_the_osc_gaze():

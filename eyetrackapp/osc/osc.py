@@ -24,6 +24,7 @@ LICENSE: Babble Software Distribution License 1.0
 ------------------------------------------------------------------------------------------------------
 """
 
+import ipaddress
 import logging
 import math
 import time
@@ -199,6 +200,8 @@ class OSCManager:
         # (its own receive port is released), so hand avatar switches over.
         self.listeners[AVATAR_CHANGE_ADDRESS] = [self._forward_avatar_change]
         self.listeners[FULL_FACE_ADDRESS] = [self._forward_full_face]
+        # setting key -> (address registered under, callbacks); see register_setting_listeners.
+        self._setting_listeners: dict[str, tuple[str, list]] = {}
 
     def _pyvrcft_client(self):
         sender = self.osc_sender.pyvrcft_sender if self.osc_sender is not None else None
@@ -312,6 +315,33 @@ class OSCManager:
 
         self.listeners[osc_address].extend(callbacks)
 
+    def register_setting_listeners(self, setting_key: str, callbacks: Iterable[Callable]):
+        """Listen on the OSC address held in a setting, and follow edits to it."""
+        callbacks = list(callbacks)
+        address = str(getattr(self.settings, setting_key))
+        self._setting_listeners[setting_key] = (address, callbacks)
+        self.register_listeners(address, callbacks)
+
+    def _rekey_setting_listeners(self, keys) -> bool:
+        """Move setting-addressed listeners whose address changed; True if any moved."""
+        moved = False
+        for key in keys & self._setting_listeners.keys():
+            old, callbacks = self._setting_listeners[key]
+            new = str(getattr(self.settings, key))
+            if new == old:
+                continue
+            # Replace lists rather than mutate them: the receiver thread may be iterating one.
+            remaining = [cb for cb in self.listeners.get(old, []) if cb not in callbacks]
+            if remaining:
+                self.listeners[old] = remaining
+            else:
+                self.listeners.pop(old, None)
+            self.listeners[new] = self.listeners.get(new, []) + callbacks
+            self._setting_listeners[key] = (new, callbacks)
+            logger.info("OSC %s now listens on %s", key, new)
+            moved = True
+        return moved
+
     SENDER_TRIGGER_KEYS = frozenset(
         {
             "gui_osc_port",
@@ -361,6 +391,12 @@ class OSCManager:
         restart_receiver = bool(
             self.RECEIVER_TRIGGER_KEYS.intersection(keys) and self._receiver_signature() != self._last_receiver_sig
         )
+        # The receiver looks listeners up per message, so a moved address works at
+        # once; only the OSCQuery tree, advertised at bind time, needs a restart.
+        if self._rekey_setting_listeners(keys):
+            receiver = self.osc_receiver
+            if receiver is not None and receiver.advertiser is not None:
+                restart_receiver = True
         # Release ports before anything rebinds them: the old receiver must let
         # go of the receiver port before a pyVRCFT sender (ROSC off) claims it,
         # and the old sender before a new receiver (ROSC on) binds it.
@@ -617,11 +653,19 @@ class OSCReceiver:
             return None
 
     def _bind_address(self) -> str:
-        # "auto" means VRChat is on another machine, which can only reach a
-        # receiver listening on every interface.
-        if streaming_target.is_auto(self.config.gui_osc_address):
-            return "0.0.0.0"
-        return self.config.gui_osc_address
+        # The OSC address is where VRChat runs (the send target). Loopback means
+        # this machine; anything else ("auto" included) is another machine,
+        # which can only reach a receiver listening on every interface. Binding
+        # to that remote IP itself fails and silently ends in-VR recenter.
+        address = str(self.config.gui_osc_address).strip()
+        if address.lower() == "localhost":
+            return address
+        try:
+            if ipaddress.ip_address(address).is_loopback:
+                return address
+        except ValueError:
+            pass
+        return "0.0.0.0"
 
     def _bind_fixed(self):
         try:

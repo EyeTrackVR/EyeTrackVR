@@ -15,6 +15,7 @@ import pytest
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "eyetrackapp"))
 from contributions.client import ContributionClient, ISSUE_QUOTA_MESSAGES, ServiceError, issue_home, receipt_home
 from contributions.report_window import ReportWindow, previous_log, write_tail
+from localization import tr
 
 TERMS = {
     "dataset": {"version": "dataset-test", "text": "18+ dataset notice"},
@@ -216,7 +217,7 @@ def test_report_window_retries_the_same_report_and_remakes_edited_ones(root, tmp
     assert len(fake.prepared) == 2 and fake.withdrawn == [sid]
     # A "Report sent" panel with the ID replaces the form.
     assert ui.sent_panel.winfo_manager() and not ui.form.winfo_manager()
-    assert ui.sent_title.cget("text") == "Report sent" and ui.status.get() == ""
+    assert ui.sent_title.cget("text") == tr("bug_report.sent_title") and ui.status.get() == ""
     assert ui.sent_id.get() == fake.prepared[1][0][:8]
     assert ui.description_text() == ""
     ui.window.destroy()

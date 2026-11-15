@@ -178,6 +178,7 @@ def test_osc_manager_syncs_driver_and_layer_with_the_toggle(main_config_v2_param
         assert len(calls) == n, calls
 
     s = main_config_v2_params.settings
+    s.gui_foveation_gaze = False  # on by default; start from off
     with (
         mock.patch("ovr.steamvr_driver_registration.sync_quietly", side_effect=lambda e: calls.append(("driver", e))),
         mock.patch("ovr.openxr_layer_registration.sync_quietly", side_effect=lambda e: calls.append(("layer", e))),

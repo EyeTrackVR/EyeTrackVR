@@ -37,13 +37,17 @@ def _library_name() -> str:
     return f"{LAYER_NAME}.dll" if sys.platform == "win32" else f"lib{LAYER_NAME}.so"
 
 
+def expected_layer_dir() -> Path:
+    """Where this install's layer folder lives (or would, once built)."""
+    if getattr(sys, "frozen", False):
+        return Path(sys.executable).resolve().parent / "openxr_layer"
+    # From source: native/openxr_layer/CMakeLists.txt built into <repo>/build/openxr_layer.
+    return Path(__file__).resolve().parents[2] / "build" / "openxr_layer" / "eyetrackvr_openxr_layer"
+
+
 def bundled_layer_dir() -> Path | None:
     """The layer folder shipped with this install (or built from source), if complete."""
-    if getattr(sys, "frozen", False):
-        candidate = Path(sys.executable).resolve().parent / "openxr_layer"
-    else:
-        # From source: native/openxr_layer/CMakeLists.txt built into <repo>/build/openxr_layer.
-        candidate = Path(__file__).resolve().parents[2] / "build" / "openxr_layer" / "eyetrackvr_openxr_layer"
+    candidate = expected_layer_dir()
     if (candidate / MANIFEST).is_file() and (candidate / _library_name()).is_file():
         return candidate
     return None
@@ -150,6 +154,30 @@ def _sync_linux(enabled: bool, layer_dir: Path | None, implicit_dir: Path) -> st
             pass
         raise
     return INSTALLED
+
+
+def installed_entries(*, registry=None, implicit_dir: Path | None = None) -> list[str]:
+    """EyeTrackVR layer registrations as the loader sees them, enabled ones only. Read-only.
+    Windows: manifest paths with value 0 under HKCU. Linux: our manifest in implicit.d."""
+    if sys.platform == "win32" or registry is not None:
+        values = (registry or WindowsRegistry()).values()
+        return [name for name, value in values.items() if _is_ours(name) and value == 0]
+    target = (implicit_dir or implicit_layer_dir()) / MANIFEST
+    return [str(target)] if target.is_file() else []
+
+
+def is_installed(layer_dir: Path, *, registry=None, implicit_dir: Path | None = None) -> bool:
+    """Whether sync(True, layer_dir) would find nothing to change. Read-only."""
+    if sys.platform == "win32" or registry is not None:
+        values = (registry or WindowsRegistry()).values()
+        wanted = str(layer_dir / MANIFEST)
+        ours = [name for name in values if _is_ours(name)]
+        return values.get(wanted) == 0 and all(os.path.normcase(n) == os.path.normcase(wanted) for n in ours)
+    try:
+        target = (implicit_dir or implicit_layer_dir()) / MANIFEST
+        return target.read_text(encoding="utf-8") == _manifest_for(layer_dir)
+    except (OSError, ValueError, KeyError, TypeError):
+        return False
 
 
 def sync(enabled: bool, layer_dir: Path | None = None, *, registry=None, implicit_dir: Path | None = None) -> str:

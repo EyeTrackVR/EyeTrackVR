@@ -26,7 +26,10 @@ class _FakeRegistry:
 def no_real_vr_config(monkeypatch, tmp_path_factory):
     """Starting OSCManager syncs the SteamVR driver registration and the OpenXR layer; never
     let a test touch this machine's openvrpaths.vrpath, OpenXR registry keys or layer folder."""
+    from osc import foveation_gaze_sender
     from ovr import openxr_layer_registration, steamvr_driver_registration
+
+    monkeypatch.setattr(foveation_gaze_sender, "_pm4a_yaw_bias_tan", 0.0)  # no headset in tests
 
     monkeypatch.setattr(steamvr_driver_registration, "openvrpaths_file", lambda: None)
     monkeypatch.setattr(openxr_layer_registration, "WindowsRegistry", _FakeRegistry)

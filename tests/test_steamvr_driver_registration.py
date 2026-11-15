@@ -116,6 +116,7 @@ def test_osc_manager_follows_the_toggle(main_config_v2_params):
         assert len(calls) == n, calls
 
     s = main_config_v2_params.settings
+    s.gui_foveation_gaze = False  # on by default; start from off
     with (
         mock.patch("ovr.steamvr_driver_registration.sync_quietly", side_effect=calls.append),
         mock.patch("osc.osc.udp_client.SimpleUDPClient"),

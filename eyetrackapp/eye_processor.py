@@ -68,8 +68,6 @@ from osc.osc_message import OSCMessageType, OSCMessage
 from eyebrow import EyeBrow
 from utils.calibration_elipse import CalibrationEllipse
 from utils.runtime_state import set_value as _set_runtime_value
-from utils.robust_calibration import RobustCalibrationSession, CalibrationPhase
-from utils.bs_detector import BSDetector
 
 
 os.environ["OMP_NUM_THREADS"] = "1"
@@ -272,15 +270,6 @@ class EyeProcessor(NextProcessingMixin):
         # Built on first use: AHSF pulls in numba (~0.5 s, ~36 MB) at import.
         self.ahsf_detector = None
 
-        # Robust calibration pipeline
-        self.robust_cal = RobustCalibrationSession()
-        self.bs_detector = BSDetector()
-        if getattr(config, "robust_calib_data", None):
-            try:
-                self.robust_cal = RobustCalibrationSession.from_dict(config.robust_calib_data)
-            except Exception as _e:
-                logger.warning("Failed to load robust calibration data: %s", _e)
-
         try:
             min_cutoff = float(self.settings.gui_min_cutoff)  # 0.0004
             beta = float(self.settings.gui_speed_coefficient)  # 0.9
@@ -302,26 +291,7 @@ class EyeProcessor(NextProcessingMixin):
             return True
         if s.gui_HSRAC or s.gui_AHRAC or s.gui_RANSAC3D:
             return True
-        # Robust calibration phases that sample the eye crop need the pre-algorithm frame.
-        if getattr(self, "robust_cal", None) is not None:
-            _phase = self.robust_cal.phase
-            if _phase == CalibrationPhase.BLINK:
-                return True
         return False
-
-    # ── Robust calibration triggers ──────────────────────────────────────────
-
-    def start_express_calibration(self) -> None:
-        """Begin 5-point express calibration (automatic target advancement)."""
-        self.robust_cal.start_express()
-
-    def start_blink_calibration(self) -> None:
-        """Begin 2-second closed-eye sclera threshold calibration."""
-        self.robust_cal.start_blink()
-
-    def start_pursuit_calibration(self) -> None:
-        """Begin 10-second smooth-pursuit SVR training session."""
-        self.robust_cal.start_pursuit()
 
     def _record_tracking_metrics(self):
         now = time.perf_counter()
@@ -757,7 +727,8 @@ class EyeProcessor(NextProcessingMixin):
 
     def DADDYM(self):
         self.thresh = self.current_image_gray.copy()
-        self.rawx, self.rawy, self.radius = self.daddy_runner.run(self.current_image_gray)
+        # The third value is DADDY's eye aspect ratio, not a pupil radius.
+        self.rawx, self.rawy, _ear = self.daddy_runner.run(self.current_image_gray)
         self.out_x, self.out_y, self.avg_velocity = cal.cal_osc(self, self.rawx, self.rawy, self.angle)
         self.current_algorithm = EyeInfoOrigin.DADDY
 
@@ -828,7 +799,7 @@ class EyeProcessor(NextProcessingMixin):
             ranblink,
             self.pupil_width,
             self.pupil_height,
-        ) = RANSAC3D(self, True)
+        ) = RANSAC3D(self, False)  # whole frame: no HSF estimate to crop around
         if self.settings.gui_RANSACBLINK:
             self.eyeopen = ranblink
         self.out_x, self.out_y, self.avg_velocity = cal.cal_osc(self, self.rawx, self.rawy, self.angle)
@@ -1008,11 +979,14 @@ class EyeProcessor(NextProcessingMixin):
             self.eyebrow_runner.stop()
             self.eyebrow_runner = None
         if self.eyebrow_runner is None:
+            if getattr(self, "_eyebrow_failed_variant", None) == variant:
+                return  # already failed for this model: don't rebuild a session every frame
             try:
                 self.eyebrow_runner = EyeBrow(variant)
             except Exception as e:
-                logger.warning("EyeBrow init failed: %s", e)
+                logger.warning("EyeBrow init failed for %s: %s", variant, e)
                 self.eyebrow_runner = None
+                self._eyebrow_failed_variant = variant
                 return
         if self.settings.gui_setup_mode == "bigscreen":
             mid = raw_frame.shape[1] // 2
@@ -1031,6 +1005,7 @@ class EyeProcessor(NextProcessingMixin):
         # Reset HSF runner on each thread start so a fresh runner is built from
         # current settings rather than inheriting stale state from a prior run.
         self.hsf_runner = None
+        self._last_frame_error_log = -1e9
 
         while True:
             if self.cancellation_event.is_set():
@@ -1103,32 +1078,42 @@ class EyeProcessor(NextProcessingMixin):
                         pass
             self._last_tracking_pull_mono = time.perf_counter()
 
-            raw_frame = self.current_image
-            self.current_raw_frame = raw_frame
+            # One bad frame (or a model error such as a GPU device reset) must not end
+            # the thread: the UI would keep showing "tracking" on a frozen gaze.
+            try:
+                raw_frame = self.current_image
+                self.current_raw_frame = raw_frame
 
-            self._maybe_apply_bigscreen_default_crop()
+                self._maybe_apply_bigscreen_default_crop()
 
-            if self._next_active:
-                # NEXT is trained on the unmodified camera frame. Keep the
-                # classical ROI/rotation in config, but do not apply either to
-                # NEXT's working or visualizer images.
-                self.current_image_white = self.current_image
-            elif not self.capture_crop_rotate_image():
-                continue
+                if self._next_active:
+                    # NEXT is trained on the unmodified camera frame. Keep the
+                    # classical ROI/rotation in config, but do not apply either to
+                    # NEXT's working or visualizer images.
+                    self.current_image_white = self.current_image
+                elif not self.capture_crop_rotate_image():
+                    continue
 
-            self._service_eyebrow_runner(raw_frame)
+                self._service_eyebrow_runner(raw_frame)
 
-            self.current_image_gray = cv2.cvtColor(self.current_image, cv2.COLOR_BGR2GRAY)
-            if self._needs_gray_clean_copy():
-                self.current_image_gray_clean = self.current_image_gray.copy()
-            else:
-                self.current_image_gray_clean = self.current_image_gray
+                self.current_image_gray = cv2.cvtColor(self.current_image, cv2.COLOR_BGR2GRAY)
+                if self._needs_gray_clean_copy():
+                    self.current_image_gray_clean = self.current_image_gray.copy()
+                else:
+                    self.current_image_gray_clean = self.current_image_gray
 
-            if self.cancellation_event.is_set():
-                logger.info("Exiting tracking thread")
-                return
-            else:
-                self._rebuild_algorithm_slots()
-                self.ALGOSELECT()
-                self.UPDATE()
-                self._record_tracking_metrics()
+                if self.cancellation_event.is_set():
+                    logger.info("Exiting tracking thread")
+                    return
+                else:
+                    self._rebuild_algorithm_slots()
+                    self.ALGOSELECT()
+                    self.UPDATE()
+                    self._record_tracking_metrics()
+            except Exception:
+                now = time.monotonic()
+                if now - self._last_frame_error_log >= 5.0:
+                    self._last_frame_error_log = now
+                    logger.exception("Tracking failed on a frame (%s); continuing", self.eye_id)
+                if self.cancellation_event.wait(0.01):
+                    return

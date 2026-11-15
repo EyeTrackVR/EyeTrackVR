@@ -51,10 +51,20 @@ if __name__ == "__main__" and sys.argv[1:2] == ["--unregister-integrations"]:
     openxr_layer_registration.sync_quietly(False)
     raise SystemExit(0)
 
+# "Check VR eye gaze" self-test (ovr/gaze_selftest.py): a text report, no GUI. The probe is its
+# short-lived OpenVR child (openvr.init is per process; the app may hold a session already).
+if __name__ == "__main__" and sys.argv[1:2] == ["--gaze-selftest"]:
+    from ovr import gaze_selftest
+
+    raise SystemExit(gaze_selftest.main())
+
+if __name__ == "__main__" and sys.argv[1:2] == ["--gaze-selftest-probe"]:
+    from ovr import gaze_selftest
+
+    raise SystemExit(gaze_selftest.probe_main(sys.argv[2] if len(sys.argv) > 2 else None))
+
 import logging
 import os
-import shutil
-import subprocess
 import sys
 import time
 import webbrowser
@@ -69,6 +79,7 @@ from camera_enum import (
     discover_etvr_mdns_sources,
     discover_etvr_serial_cameras,
     format_uvc_named_source,
+    invalidate_uvc_camera_cache,
     is_uvc_named_source,
     list_uvc_cameras,
     parse_uvc_named_source,
@@ -86,7 +97,6 @@ from utils import gaze_preview
 from utils.logging_utils import setup_logging
 from utils.misc_utils import is_nt, is_macos, resource_path
 from utils.tooltips import attach_tooltip
-from utils.version_utils import compare_app_versions
 
 
 APP_VERSION = "EyeTrackApp 0.3.0 BETA 11"
@@ -95,7 +105,6 @@ logger = logging.getLogger(__name__)
 winmm = None
 
 if is_nt:
-    from winotify import Notification
     from ctypes import windll, c_int
 
     try:
@@ -158,77 +167,6 @@ def set_timer_resolution(enabled):
                 logger.warning("Failed to set timer resolution: %s", rc.value)
         else:
             winmm.timeEndPeriod(1)
-
-
-def _check_for_updates_bg(config) -> None:
-    """Fetch latest GitHub release on a daemon thread; notifies if outdated."""
-    # Imported here, off the startup path (~200 ms).
-    import requests
-
-    try:
-        if not config.settings.gui_update_check:
-            return
-        response = requests.get(
-            "https://api.github.com/repos/EyeTrackVR/EyeTrackVR/releases/latest",
-            timeout=(3, 10),
-        )
-        response.raise_for_status()
-        latestversion = response.json()["name"]
-        version_comparison = compare_app_versions(APP_VERSION, latestversion)
-        if version_comparison == 0:
-            logger.info("App is the latest version: %s", latestversion)
-        elif version_comparison is not None and version_comparison < 0:
-            logger.warning(
-                "You have app version %s installed. Please update to %s for the newest features.",
-                APP_VERSION,
-                latestversion,
-            )
-            try:
-                if is_nt:
-                    icon = resource_path("assets/images/logo.ico")
-                    toast = Notification(
-                        app_id="EyeTrackApp",
-                        title="New Update Available!",
-                        msg=f"Please update to {latestversion}",
-                        icon=r"{}".format(icon),
-                    )
-                    toast.add_actions(
-                        label="Download Page",
-                        launch="https://github.com/EyeTrackVR/EyeTrackVR/releases/latest",
-                    )
-                    toast.show()
-                elif sys.platform.startswith("linux"):
-                    notify_send = shutil.which("notify-send")
-                    if notify_send is None:
-                        logger.info("Desktop update notifications unavailable: notify-send is not installed.")
-                        return
-                    subprocess.Popen(
-                        [
-                            notify_send,
-                            "--app-name=EyeTrackApp",
-                            f"--icon={resource_path('assets/images/logo.png')}",
-                            "EyeTrackVR: New Update Available!",
-                            f"Please update to {latestversion}",
-                        ],
-                        stdout=subprocess.DEVNULL,
-                        stderr=subprocess.DEVNULL,
-                    )
-            except (OSError, subprocess.SubprocessError) as exc:
-                logger.info("Desktop update notification failed: %s", exc)
-        elif version_comparison is not None:
-            logger.info(
-                "Installed app version %s is newer than published release %s; no update notification shown.",
-                APP_VERSION,
-                latestversion,
-            )
-        else:
-            logger.info(
-                "Could not compare installed version %r with release %r; no update notification shown.",
-                APP_VERSION,
-                latestversion,
-            )
-    except (requests.RequestException, KeyError, ValueError):
-        logger.info("Could not check for updates. Please try again later.", exc_info=True)
 
 
 def main():
@@ -349,8 +287,8 @@ def main():
     config.register_listener_callback(eyes[0].on_config_update)
     config.register_listener_callback(eyes[1].on_config_update)
 
-    osc_manager.register_listeners(
-        config.settings.gui_osc_recenter_address,
+    osc_manager.register_setting_listeners(
+        "gui_osc_recenter_address",
         [
             eyes[0].osc_recenter_eyes,
             eyes[1].osc_recenter_eyes,
@@ -392,8 +330,8 @@ def main():
             if eye.started():
                 eye.recalibrate_eyes()
 
-    osc_manager.register_listeners(
-        config.settings.gui_osc_recalibrate_address,
+    osc_manager.register_setting_listeners(
+        "gui_osc_recalibrate_address",
         [_osc_recalibrate],
     )
 
@@ -448,6 +386,23 @@ def main():
                             logger.debug("Could not scale font %s", name, exc_info=True)
                 except Exception as e:
                     logger.warning(f"Font scaling failed: {e}")
+            # Entries, comboboxes and spinboxes made after the theme's first
+            # <<ThemeChanged>> keep Tk's TkTextFont instead of the theme's body
+            # font; on HiDPI the loop above scales that point size a second time
+            # (tk scaling already did), so they came out much larger than the
+            # labels beside them. Make TkTextFont the body font.
+            try:
+                import tkinter.font as tkfont
+
+                body = tkfont.nametofont("SunValleyBodyFont", root=self.root)
+                tkfont.nametofont("TkTextFont", root=self.root).configure(
+                    family=body.cget("family"), size=body.cget("size")
+                )
+            except Exception:
+                logger.debug("Could not match the entry font to the theme", exc_info=True)
+            # The language the window's text was built in (the setup wizard can
+            # switch languages; the rest of the window follows on restart).
+            self.ui_language = getattr(config.settings, "gui_language", "en") or "en"
             apply_theme_to_titlebar(self.root)
             self.focus_paused = False
             self.current_page = "tracking"
@@ -718,6 +673,13 @@ def main():
                 connect_btn,
                 tr("tracking.connect_btn_tip"),
             )
+            setup_wizard_btn = ttk.Button(tracking_controls, text=tr("wizard.open_btn"), command=self.open_setup_wizard)
+            setup_wizard_btn.pack(fill="x", pady=(8, 0))
+            attach_tooltip(setup_wizard_btn, tr("wizard.open_btn_tip"))
+            from setup_wizard import AppAdapter, WizardPage
+
+            # show_page("wizard"): the setup wizard in place of the pages, without the navigation.
+            self._wizard_page = WizardPage(self.content, nav, setup_wizard_btn, lambda: AppAdapter(self, config, eyes))
 
             status_group = ttk.LabelFrame(sidebar_inner, text=tr("tracking.status_frame"), padding=8)
             status_group.pack(fill="both", expand=True)
@@ -1099,8 +1061,11 @@ def main():
             if sources_changed and self._mode_ui_ready:
                 self.apply_camera_inputs()
 
-        def scan_sources(self):
+        def scan_sources(self, on_update=None):
+            """on_update(source_map, done), if given, runs on the Tk thread after each partial result."""
             self.status_var.set(tr("status.scanning"))
+            # A scan is a request for the devices plugged in now, not the cached list.
+            invalidate_uvc_camera_cache(force=True)
 
             def _scan():
                 # Results dict: None means that source is still in-flight.
@@ -1180,6 +1145,8 @@ def main():
                         self.status_var.set(
                             tr("status.scan_detected", mdns=mdns_hint, serial=serial_hint, uvc=uvc_hint)
                         )
+                    if on_update is not None:
+                        on_update(dict(source_map), not pending)
 
                 with ThreadPoolExecutor(max_workers=3) as pool:
                     futures = {
@@ -1204,6 +1171,10 @@ def main():
                         self.root.after(0, _apply_partial)
 
             threading.Thread(target=_scan, daemon=True).start()
+
+        def open_setup_wizard(self):
+            """Show the setup wizard page: a paused wizard at its step, else a new one (setup_wizard.WizardPage)."""
+            self.show_page("wizard")
 
         def _camera_tracking_state_key(self, left_source, right_source):
             # Use explicit None checks: UVC index 0 is a valid source but is falsy in Python,
@@ -1241,8 +1212,14 @@ def main():
 
             new_key = self._camera_tracking_state_key(left_source, right_source)
             if new_key != self._last_camera_tracking_key:
-                eyes[1].stop()
-                eyes[0].stop()
+                # Signal both, then one short shared wait: this runs on the Tk thread, and a
+                # camera stuck in a network read would freeze the window for 5 s per eye.
+                # A thread still alive is kept as stale and start() waits for it.
+                for eye in (eyes[1], eyes[0]):
+                    eye.request_stop()
+                stop_deadline = time.monotonic() + 1.0
+                for eye in (eyes[1], eyes[0]):
+                    eye.stop(join_timeout=max(0.0, stop_deadline - time.monotonic()), warn_if_alive=False)
                 self._last_camera_tracking_key = new_key
 
             # UVC index 0 is falsy but valid; check for explicit "set" rather than truthiness.
@@ -1318,6 +1295,9 @@ def main():
             self.current_page = page_name
             for frame in [self.tracking_tab, *self._page_frames.values()]:
                 frame.pack_forget()
+            # Shows or pauses the setup wizard; hides the navigation while it shows.
+            if not self._wizard_page.sync(page_name):
+                page_name = self.current_page = "tracking"
 
             if page_name in ("settings", "algo", "vrcft"):
                 self._settings_actions_row.pack(side="right")
@@ -1344,6 +1324,10 @@ def main():
                 self._sync_nav_buttons()
                 self.root.update_idletasks()
                 self.root.after(0, lambda s=seq: self._deferred_enter_vrcft(s))
+            elif page_name == "wizard":
+                # Cameras run as on the Tracking page while the wizard checks them.
+                self.root.update_idletasks()
+                self.root.after(0, lambda s=seq: self._deferred_enter_tracking(s))
 
         def _deferred_enter_tracking(self, seq: int) -> None:
             if seq != self._nav_teardown_seq:
@@ -1531,6 +1515,12 @@ def main():
                     eye._set_tracking_mode()
                 self._show_tracking_frames()
                 in_roi = False
+
+            # Runs every UI tick: only touch the widgets when an input changed.
+            state = (in_roi, next_tracker, hasattr(self, "_tracking_actions"), hasattr(self, "_crop_eye_row"))
+            if state == getattr(self, "_mode_buttons_state", None):
+                return
+            self._mode_buttons_state = state
 
             if next_tracker:
                 self._global_roi_btn.pack_forget()
@@ -1735,12 +1725,26 @@ def main():
     app = AppUI()
     if (not is_macos) and (openvr_service is not None):
         openvr_service.window = app
-    threading.Thread(target=_check_for_updates_bg, args=(config,), daemon=True, name="UpdateCheck").start()
+    import update_dialog
+
+    update_dialog.install(app.root, config, APP_VERSION, app.shutdown, apply_theme_to_titlebar)
+    # Once the window is up, and not on top of the first-run setup wizard.
+    app.root.after(2000, lambda: update_dialog.check_at_startup() if config.settings.gui_setup_wizard_done else None)
+    # Buttons of the SteamVR dashboard panel do what the main window's buttons do.
+    dfr_controller.run_on_ui = lambda action: app.root.after(0, action)
+    dfr_controller.actions.update(
+        recenter=app._on_global_recenter,
+        recalibrate=app._on_global_calibration_toggle,
+    )
     # Populate the UVC dropdowns at launch so the user sees the current
     # cameras without having to click "Scan". after(0) defers it until the
     # event loop is running; scan_sources itself does the enumeration on a
     # background thread.
     app.root.after(0, app.scan_sources)
+    # Before the first page applies the source fields (that writes them to config).
+    from setup_wizard import run_first_run_check
+
+    run_first_run_check(app.root, config, app.open_setup_wizard)
     app.root.mainloop()
 
 

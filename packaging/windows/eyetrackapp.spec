@@ -24,7 +24,13 @@ from fetch_overlay import fetch
 overlay_dir = fetch("windows")
 block_cipher = None
 
-resources=[(f"{APP}/assets/audio/*", "assets/audio"), (f"{APP}/assets/images/*", "assets/images"), (f"{PYE3D}/refraction_models/*", "pye3d/refraction_models/"), (f"{APP}/assets/models/*", "assets/models"),(f"{overlay_dir}/*", "tools/"), (f"{APP}/lang/*", "lang/"), (f"{APP}/contributions/notice.json", "contributions")]
+# The calibration overlay (packaging/fetch_overlay.py): its exe and DLLs, its assets
+# in tools/assets, where it looks for its font, and its license notices. Named one by
+# one so a local log or the download marker in that folder is not shipped.
+OVERLAY = str(overlay_dir)
+
+# As data, so they are copied as built (not UPX-packed or scanned for imports).
+resources=[(f"{OVERLAY}/*.exe", "tools"), (f"{OVERLAY}/*.dll", "tools"),(f"{APP}/assets/audio/*", "assets/audio"), (f"{APP}/assets/images/*", "assets/images"), (f"{PYE3D}/refraction_models/*", "pye3d/refraction_models/"), (f"{APP}/assets/models/*", "assets/models"), (f"{OVERLAY}/assets/*", "tools/assets"), (f"{OVERLAY}/licenses/*", "tools/licenses"), (f"{APP}/lang/*", "lang/"), (f"{APP}/contributions/notice.json", "contributions")]
 
 a = Analysis(
 [os.path.join(APP, 'eyetrackapp.py')],
@@ -52,12 +58,13 @@ noarchive=False
 
 pyz = PYZ(a.pure, a.zipped_data, cipher=block_cipher)
 
+# A folder build (exe + _internal), like Linux: a one-file exe unpacks all of its models
+# and runtimes to %TEMP% on every launch.
 exe = EXE(
     pyz,
     a.scripts,
-    a.binaries,
-    a.datas,
     [],
+    exclude_binaries=True,
     name='eyetrackapp',
     debug=False,
     bootloader_ignore_signals=False,
@@ -71,5 +78,18 @@ exe = EXE(
     target_arch=None,
     codesign_identity=None,
     entitlements_file=None,
-    icon=os.path.join(APP, "assets", "images", "logo.ico"), 
+    icon=os.path.join(APP, "assets", "images", "logo.ico"),
+)
+
+# Named "dist" so the output is <distpath>/dist/eyetrackapp.exe: built with
+# --distpath build/windows, the layout the installer and build_release.bat use
+# (build/windows/dist/eyetrackapp.exe, native integrations beside it) stays the same.
+coll = COLLECT(
+    exe,
+    a.binaries,
+    a.datas,
+    strip=False,
+    upx=True,
+    upx_exclude=[],
+    name='dist',
 )

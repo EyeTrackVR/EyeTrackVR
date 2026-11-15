@@ -4,11 +4,8 @@
 **/*.pyc
 *.cfg
 *.log
-eyetrackapp/venv
 eyetrackapp/eyetrack_settings.json
 eyetrackapp/eyetrack_settings.backup
-eyetrackapp/build
-eyetrackapp/dist
 build
 dist
 .env
@@ -17,16 +14,12 @@ dist
 *.payload.age
 *.receipt.json
 *.local.json
-eyetrackapp/IBO_LEFT.png
-eyetrackapp/IBO_RIGHT.png
 
-eyetrackapp/IBO_LEFT.png
-eyetrackapp/IBO_RIGHT.png
-/EBPD_LEFT.png
-/eyetrackapp/EBPD_RIGHT.png
-/EBPD_RIGHT.png
-/IBO_RIGHT.png
-/IBO_LEFT.png
+# Blink calibration images written to the working directory (repo root or eyetrackapp/)
+IBO_LEFT.png
+IBO_RIGHT.png
+EBPD_LEFT.png
+EBPD_RIGHT.png
 /eyetrack_settings.backup
 /eyetrack_settings.json
 
@@ -36,9 +29,13 @@ app.vrmanifest
 
 # Local captures and recording exports
 *.[pP][nN][gG]
+!eyetrackapp/assets/**
 *.[aA][vV][iI]
 v6_*_ETVR_*/
 v6_*_ETVR_*.[zZ][iI][pP]
 
 # Calibration overlay runtimes (packaging/fetch_overlay.py)
 /overlay/
+
+# Written when running from source (app logs, gaze self-test report)
+eyetrackapp/logs/

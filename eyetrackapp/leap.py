@@ -79,6 +79,7 @@ if sys.platform.startswith("linux"):
 
 
 def run_model(input_queue, output_queue, session):
+    last_error_log = -1e9
     while True:
         frame = input_queue.get()
         if frame is None:
@@ -94,10 +95,19 @@ def run_model(input_queue, output_queue, session):
 
         gray_img = np.expand_dims(np.expand_dims(gray_img, axis=0), axis=0)
 
-        ort_inputs = {session.get_inputs()[0].name: gray_img}
-        with dml_lock:
-            pre_landmark = session.run(None, ort_inputs)
-        pre_landmark = np.reshape(pre_landmark, (-1, 2))
+        # A failed inference (e.g. the GPU device reset) must not end the worker: the
+        # caller would keep repeating its last result with no sign anything is wrong.
+        try:
+            ort_inputs = {session.get_inputs()[0].name: gray_img}
+            with dml_lock:
+                pre_landmark = session.run(None, ort_inputs)
+            pre_landmark = np.reshape(pre_landmark, (-1, 2))
+        except Exception:
+            now = time.monotonic()
+            if now - last_error_log >= 5.0:
+                last_error_log = now
+                logger.exception("LEAP inference failed; skipping frame")
+            continue
         output_queue.put((frame, pre_landmark))
 
 

@@ -41,8 +41,8 @@ Usage::
 
     from localization import tr, init_localization
     init_localization("es")          # once, before building the UI
-    label = tr("settings.use_gpu")   # -> "Aceleración por GPU"
-    status = tr("status.tracking_mode", mode="Dual")  # {mode} placeholder
+    label = tr("settings_general.use_gpu")   # -> "Usar aceleración por GPU"
+    status = tr("status.scan_pending", prefix="", pending="UVC")  # {prefix}/{pending} placeholders
 """
 
 from __future__ import annotations
@@ -121,7 +121,7 @@ def init_localization(lang_code: str | None) -> None:
 
 
 def _lookup(catalog: dict[str, Any], key: str) -> str | None:
-    """Resolve a dot-addressed key (``"settings.use_gpu"``) against a nested
+    """Resolve a dot-addressed key (``"settings_general.use_gpu"``) against a nested
     dict of TOML tables. Returns None if any segment is missing or the leaf is
     not a string."""
     node: Any = catalog

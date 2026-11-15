@@ -76,6 +76,13 @@ class OSCSettingsModule(BaseSettingsModule):
             return "vrcft_v1"
         return "vrcft_v2"
 
+    def apply_external_changes(self, data: dict) -> None:
+        super().apply_external_changes(data)
+        mode_fields = ("gui_pyvrcft", "gui_vrc_native", "gui_osc_vrcft_v1", "gui_osc_vrcft_v2", "gui_use_module")
+        mode_var = self.tk_vars.get(self.gui_osc_output_mode)
+        if mode_var is not None and any(field in data for field in mode_fields):
+            mode_var.set(self._output_mode_from(self.config))
+
     def reset_to_defaults(self, defaults):
         mode_var = self.tk_vars.get(self.gui_osc_output_mode)
         if mode_var is not None:

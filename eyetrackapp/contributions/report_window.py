@@ -15,6 +15,8 @@ from tkinter import ttk
 
 import requests
 
+from localization import tr
+
 from .client import ContributionClient, Paused, issue_home
 from .window import ACCENT, FONT_HEADING, FONT_TITLE, MUTED, NOTICE_STYLE, render_notice, setup_styles, style_notice
 
@@ -23,12 +25,11 @@ logger = logging.getLogger(__name__)
 MAX_DESCRIPTION = 20000
 # Only the newest part of each log is attached; issue_bundle caps the report at 8 MiB.
 LOG_TAIL_BYTES = 3 * 1024**2
-# Short checkbox labels; ticking them gives the two numbered confirmations at the top of the notice.
-ISSUE_CONSENTS = (
-    "I'm an adult (18+), I removed other people's personal information, and I accept the bug report notice.",
-    "I consent to my report being transferred to and stored in the United States.",
-)
-DESCRIPTION_TEMPLATE = "What happened?\n\nWhat did you expect?\n\nSteps to reproduce:\n1. "
+# Short checkbox labels (language keys); ticking them gives the two numbered confirmations at the
+# top of the notice.
+ISSUE_CONSENTS = ("bug_report.consent_notice", "bug_report.consent_transfer")
+# Starting text of the description box (language key); the user writes over it.
+DESCRIPTION_TEMPLATE = "bug_report.description_template"
 
 
 def previous_log(current):
@@ -61,7 +62,7 @@ class ReportWindow:
         self.details = details
         self._client = client
         self.window = tk.Toplevel(parent)
-        self.window.title("EyeTrackVR Bug Report")
+        self.window.title(tr("bug_report.window_title"))
         self.window.transient(parent)
         self.window.protocol("WM_DELETE_WINDOW", self.close)
         self.events = queue.Queue()
@@ -74,7 +75,7 @@ class ReportWindow:
         self.include_log = tk.BooleanVar(value=True)
         self.include_previous = tk.BooleanVar(value=False)
         self.include_details = tk.BooleanVar(value=True)
-        self.status = tk.StringVar(value="Connecting to the report service…")
+        self.status = tk.StringVar(value=tr("bug_report.status_connecting"))
         self.sent_id = tk.StringVar()
         self._last_progress = 0
         # (fingerprint, id) of a report prepared in this window but not yet delivered.
@@ -111,19 +112,19 @@ class ReportWindow:
         body.grid(row=0, column=0, sticky="nsew")
         body.columnconfigure(0, weight=1)
         body.rowconfigure(3, weight=1)
-        ttk.Label(body, text="Report a bug", font=FONT_TITLE).grid(row=0, column=0, sticky="w")
+        ttk.Label(body, text=tr("bug_report.title"), font=FONT_TITLE).grid(row=0, column=0, sticky="w")
         self.intro = ttk.Label(
             body,
             wraplength=640,
             justify="left",
             style="Muted.TLabel",
             foreground=MUTED,
-            text=(
-                "Your report and logs are encrypted on this computer and only the EyeTrackVR developers can read them."
-            ),
+            text=tr("bug_report.intro"),
         )
         self.intro.grid(row=1, column=0, sticky="ew", pady=(4, 12))
-        ttk.Label(body, text="What went wrong?", font=FONT_HEADING).grid(row=2, column=0, sticky="w", pady=(0, 6))
+        ttk.Label(body, text=tr("bug_report.description_heading"), font=FONT_HEADING).grid(
+            row=2, column=0, sticky="w", pady=(0, 6)
+        )
         description_panel = ttk.Frame(body)
         description_panel.grid(row=3, column=0, sticky="nsew")
         description_panel.columnconfigure(0, weight=1)
@@ -145,23 +146,27 @@ class ReportWindow:
         description_scroll = ttk.Scrollbar(description_panel, orient="vertical", command=self.description.yview)
         description_scroll.grid(row=0, column=1, sticky="ns")
         self.description.configure(yscrollcommand=description_scroll.set)
-        self.description.insert("1.0", DESCRIPTION_TEMPLATE)
+        self.description.insert("1.0", tr(DESCRIPTION_TEMPLATE))
         self.description.bind("<<Modified>>", self._description_changed)
 
         attachments = ttk.Frame(body)
         attachments.grid(row=4, column=0, sticky="ew", pady=(10, 0))
-        self.log_check = ttk.Checkbutton(attachments, variable=self.include_log, text="Attach this session's app log")
+        self.log_check = ttk.Checkbutton(
+            attachments, variable=self.include_log, text=tr("bug_report.attach_log"), style="Wrap.TCheckbutton"
+        )
         self.log_check.grid(row=0, column=0, sticky="w")
         self.previous_check = ttk.Checkbutton(
             attachments,
             variable=self.include_previous,
-            text="Attach the previous session's log (use this if the app crashed)",
+            text=tr("bug_report.attach_previous_log"),
+            style="Wrap.TCheckbutton",
         )
         self.previous_check.grid(row=1, column=0, sticky="w")
         self.details_check = ttk.Checkbutton(
             attachments,
             variable=self.include_details,
-            text="Include app details (version, OS, tracker and model settings)",
+            text=tr("bug_report.include_details"),
+            style="Wrap.TCheckbutton",
         )
         self.details_check.grid(row=2, column=0, sticky="w")
         self.attach_hint = ttk.Label(
@@ -170,10 +175,7 @@ class ReportWindow:
             foreground=MUTED,
             wraplength=640,
             justify="left",
-            text=(
-                "Home folder paths, IP and email addresses, and tokens are removed from logs before encryption. "
-                "Do not include passwords or anyone else's personal information."
-            ),
+            text=tr("bug_report.attach_hint"),
         )
         self.attach_hint.grid(row=5, column=0, sticky="ew", pady=(4, 12))
 
@@ -185,13 +187,10 @@ class ReportWindow:
             summary,
             wraplength=500,
             justify="left",
-            text=(
-                "Fovea Labs LLC (United States) keeps reports for up to 90 days to fix bugs and give support. "
-                "They are never used as eye-tracking training data or posted publicly."
-            ),
+            text=tr("bug_report.notice_summary"),
         )
         self.notice_summary.grid(row=0, column=0, sticky="w")
-        self.notice_toggle = ttk.Button(summary, text="Read the full notice", command=self.toggle_notice)
+        self.notice_toggle = ttk.Button(summary, text=tr("bug_report.read_notice_btn"), command=self.toggle_notice)
         self.notice_toggle.grid(row=0, column=1, sticky="e", padx=(12, 0))
         self.notice_panel = ttk.Frame(body)
         self.notice_panel.grid(row=7, column=0, sticky="nsew", pady=(8, 0))
@@ -203,22 +202,26 @@ class ReportWindow:
         scroll = ttk.Scrollbar(self.notice_panel, orient="vertical", command=self.notice.yview)
         scroll.grid(row=0, column=1, sticky="ns")
         self.notice.configure(yscrollcommand=scroll.set)
-        self._set_notice("The notice loads from the report service…")
+        self._set_notice(tr("bug_report.notice_loading"))
         self.notice_panel.grid_remove()
         self.consent = ttk.Checkbutton(
-            body, variable=self.agree, command=self.update_buttons, text=ISSUE_CONSENTS[0], style="Consent.TCheckbutton"
+            body,
+            variable=self.agree,
+            command=self.update_buttons,
+            text=tr(ISSUE_CONSENTS[0]),
+            style="Consent.TCheckbutton",
         )
         self.consent.grid(row=8, column=0, sticky="ew", pady=(12, 0))
         self.consent_transfer = ttk.Checkbutton(
             body,
             variable=self.agree_transfer,
             command=self.update_buttons,
-            text=ISSUE_CONSENTS[1],
+            text=tr(ISSUE_CONSENTS[1]),
             style="Consent.TCheckbutton",
         )
         self.consent_transfer.grid(row=9, column=0, sticky="ew", pady=(4, 0))
         # Says why Send report is unavailable.
-        self.send_hint = ttk.Label(body, style="Muted.TLabel", foreground=MUTED)
+        self.send_hint = ttk.Label(body, style="Muted.TLabel", foreground=MUTED, wraplength=640, justify="left")
         self.send_hint.grid(row=10, column=0, sticky="w", pady=(4, 0))
         self.progress = ttk.Progressbar(body, maximum=100)
         self.progress.grid(row=11, column=0, sticky="ew", pady=(8, 0))
@@ -230,18 +233,18 @@ class ReportWindow:
         ttk.Label(self.sent_panel, text="✓", style="Mark.TLabel", foreground=ACCENT).grid(
             row=0, column=0, rowspan=2, sticky="n", padx=(0, 16)
         )
-        self.sent_title = ttk.Label(self.sent_panel, text="Report sent", font=FONT_TITLE)
+        self.sent_title = ttk.Label(self.sent_panel, text=tr("bug_report.sent_title"), font=FONT_TITLE)
         self.sent_title.grid(row=0, column=1, sticky="w", pady=(6, 6))
         self.sent_text = ttk.Label(self.sent_panel, wraplength=520, justify="left")
         self.sent_text.grid(row=1, column=1, sticky="ew")
         id_row = ttk.Frame(self.sent_panel)
         id_row.grid(row=2, column=1, sticky="w", pady=(18, 0))
-        ttk.Label(id_row, text="Report ID", style="Muted.TLabel", foreground=MUTED).pack(side="left")
+        ttk.Label(id_row, text=tr("bug_report.report_id"), style="Muted.TLabel", foreground=MUTED).pack(side="left")
         self.id_label = ttk.Label(id_row, textvariable=self.sent_id, font=FONT_HEADING)
         self.id_label.pack(side="left", padx=(10, 14))
-        self.copy_button = ttk.Button(id_row, text="Copy report ID", command=self.copy_id)
+        self.copy_button = ttk.Button(id_row, text=tr("bug_report.copy_id_btn"), command=self.copy_id)
         self.copy_button.pack(side="left")
-        ttk.Button(self.sent_panel, text="Write another report", command=self.new_report).grid(
+        ttk.Button(self.sent_panel, text=tr("bug_report.new_report_btn"), command=self.new_report).grid(
             row=3, column=1, sticky="w", pady=(24, 0)
         )
         self.sent_panel.grid_remove()
@@ -255,31 +258,33 @@ class ReportWindow:
         self.status.trace_add(
             "write", lambda *_: self.status_label.grid() if self.status.get() else self.status_label.grid_remove()
         )
-        self.send_button = ttk.Button(footer, text="Send report", style="Accent.TButton", command=self.send)
+        self.send_button = ttk.Button(footer, text=tr("bug_report.send_btn"), style="Accent.TButton", command=self.send)
         self.send_button.grid(row=0, column=1, padx=(12, 0))
-        ttk.Button(footer, text="Close", command=self.close).grid(row=0, column=2, padx=(8, 0))
+        ttk.Button(footer, text=tr("bug_report.close_btn"), command=self.close).grid(row=0, column=2, padx=(8, 0))
         self.window.bind("<Configure>", self._resize_wrap, add="+")
         self.update_buttons()
 
     def _resize_wrap(self, event):
         if event.widget is self.window:
-            for widget in (self.intro, self.attach_hint):
+            for widget in (self.intro, self.attach_hint, self.send_hint):
                 widget.configure(wraplength=max(280, event.width - 60))
             self.notice_summary.configure(wraplength=max(240, event.width - 240))
             self.sent_text.configure(wraplength=max(240, event.width - 140))
             self.status_label.configure(wraplength=max(240, event.width - 260))
-            ttk.Style(self.window).configure("Consent.TCheckbutton", wraplength=max(280, event.width - 90))
+            style = ttk.Style(self.window)
+            style.configure("Consent.TCheckbutton", wraplength=max(280, event.width - 90))
+            style.configure("Wrap.TCheckbutton", wraplength=max(280, event.width - 90))
 
     def toggle_notice(self):
         """Open or close the full notice; while open it shares the spare height with the description."""
         if self.notice_panel.winfo_ismapped():
             self.notice_panel.grid_remove()
             self.form.rowconfigure(7, weight=0)
-            self.notice_toggle.configure(text="Read the full notice")
+            self.notice_toggle.configure(text=tr("bug_report.read_notice_btn"))
         else:
             self.notice_panel.grid()
             self.form.rowconfigure(7, weight=2)
-            self.notice_toggle.configure(text="Hide the notice")
+            self.notice_toggle.configure(text=tr("bug_report.hide_notice_btn"))
             self.notice.yview_moveto(0)
 
     def new_report(self):
@@ -289,7 +294,7 @@ class ReportWindow:
         self.send_button.grid()
         self.description.configure(state="normal")
         self.description.delete("1.0", "end")
-        self.description.insert("1.0", DESCRIPTION_TEMPLATE)
+        self.description.insert("1.0", tr(DESCRIPTION_TEMPLATE))
         self.progress.configure(value=0)
         self.sent_id.set("")
         self.status.set("")
@@ -319,9 +324,9 @@ class ReportWindow:
         )
         self.send_button.configure(state="normal" if ready else "disabled")
         if not text:
-            hint = "Describe the problem to continue"
+            hint = tr("bug_report.hint_describe")
         elif not self.consented():
-            hint = "Tick both boxes to send the report"
+            hint = tr("bug_report.hint_tick_both")
         else:
             hint = ""
         self.send_hint.configure(text=hint)
@@ -354,17 +359,11 @@ class ReportWindow:
             except Paused as error:
                 self.events.put(("error", str(error)))
             except requests.RequestException:
-                self.events.put(
-                    (
-                        "error",
-                        "Could not reach the report service. Check your connection and press "
-                        "Send report again; your encrypted report is kept.",
-                    )
-                )
+                self.events.put(("error", tr("bug_report.error_unreachable")))
             except ValueError as error:
                 self.events.put(("error", str(error)))
             except Exception:
-                self.events.put(("error", "The report could not be sent. Please ping prohurtz on Discord."))
+                self.events.put(("error", tr("bug_report.error_failed")))
 
         threading.Thread(target=worker, daemon=True).start()
 
@@ -431,7 +430,7 @@ class ReportWindow:
                 self.client.resume(sid, verify_in_app, lambda _terms: False, self.cancel, self.report_progress),
             )
 
-        self.status.set("Encrypting your report…")
+        self.status.set(tr("bug_report.status_encrypting"))
         self.run(upload)
 
     def copy_id(self):
@@ -439,9 +438,12 @@ class ReportWindow:
         if sid:
             self.window.clipboard_clear()
             self.window.clipboard_append(sid)
-            self.copy_button.configure(text="Copied")
+            self.copy_button.configure(text=tr("bug_report.copied"))
             self.window.after(
-                1500, lambda: self.copy_button.winfo_exists() and self.copy_button.configure(text="Copy report ID")
+                1500,
+                lambda: (
+                    self.copy_button.winfo_exists() and self.copy_button.configure(text=tr("bug_report.copy_id_btn"))
+                ),
             )
 
     def poll(self):
@@ -456,7 +458,9 @@ class ReportWindow:
                     elif str(self.progress.cget("mode")) != "indeterminate":
                         self.progress.configure(mode="indeterminate")
                         self.progress.start(15)
-                    self.status.set(text + (f" {round(100 * done / total)}%" if total else ""))
+                    self.status.set(
+                        tr("bug_report.progress", text=text, percent=round(100 * done / total)) if total else text
+                    )
                     continue
                 self.progress.stop()
                 self.progress.configure(mode="determinate")
@@ -465,16 +469,13 @@ class ReportWindow:
                     self.progress.configure(value=0)
                     self.status.set(value)
                     if self.config is None:
-                        self._set_notice(
-                            "The report service could not be reached, so the notice is unavailable. "
-                            "Close and reopen this window to try again."
-                        )
+                        self._set_notice(tr("bug_report.notice_unreachable"))
                 elif value[0] == "config":
                     self.config = value[1]
                     render_notice(self.notice, self.config["terms"]["issue"]["text"], title=False)
                     full = self.config.get("issue_quota_full")
                     if not self.config["enabled"]:
-                        self.status.set("Bug reports are closed right now. Please ping prohurtz on Discord.")
+                        self.status.set(tr("bug_report.status_closed"))
                     elif full:
                         from .client import ISSUE_QUOTA_MESSAGES
 
@@ -488,14 +489,11 @@ class ReportWindow:
                     self.progress.configure(value=100)
                     self.status.set("")
                     delivered = state in {"pending", "approved"}
-                    self.sent_title.configure(text="Report sent" if delivered else "Report status: " + state)
+                    self.sent_title.configure(
+                        text=tr("bug_report.sent_title") if delivered else tr("bug_report.status_title", state=state)
+                    )
                     self.sent_text.configure(
-                        text=(
-                            "Thank you! The EyeTrackVR developers can now read your report. If you follow up on "
-                            "Discord or by email, mention the report ID so we can find it."
-                            if delivered
-                            else "The report service gave this status for your report. Mention the report ID if you contact us."
-                        )
+                        text=tr("bug_report.sent_text") if delivered else tr("bug_report.status_text")
                     )
                     self.sent_id.set(sid[:8])
                     self.form.grid_remove()
@@ -526,6 +524,6 @@ class ReportWindow:
     def close(self):
         if self.busy:
             self.cancel.set()
-            self.status.set("Stopping safely. Your encrypted report is kept and sends next time.")
+            self.status.set(tr("bug_report.status_stopping"))
             return
         self.window.withdraw()

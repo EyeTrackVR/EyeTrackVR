@@ -78,6 +78,25 @@ the HMD refuse other drivers' writes. Publish gaze with EyeTrackVR's toggle on (
 With the driver registered, SteamVR running with a headset, and gaze published, it should report
 `supportsEyeGazeInteraction=1` and a forward vector that follows the published direction.
 
+## Live check
+
+With EyeTrackVR open and tracking, SteamVR running and the headset ready, run from a second window:
+
+```bash
+python eyetrackapp/eyetrackapp.py --gaze-selftest
+```
+
+(`eyetrackapp.exe --gaze-selftest` in a Windows release.) It checks each link in order: the setting, fresh gaze
+in the shared memory, the driver's registration, the OpenXR layer, SteamVR running, the driver's
+`eyetrackvr:` lines in `vrserver.txt`, and what an OpenVR app sees on the HMD. It prints one
+`PASS`/`FAIL`/`WARN`/`SKIP` line per check and what to do about the first failure, and saves the
+same text as `logs/gaze_selftest.txt` (the windowed Windows build only writes this file). Nothing is
+changed.
+
+A good result is `PASS` down to `OpenVR HMD`: the log check shows `Attach via shim to device 0 -> None (0)`
+and `Prop_SupportsXrEyeGazeInteraction_Bool = 1`. `Foveation centre` is a `WARN` while pyopenvr has no
+`GetEyeTrackedFoveationCenter`. The exit code is 0 when nothing failed.
+
 ## Not covered: Monado, WiVRn, other OpenXR runtimes
 
 SteamVR drivers only load in SteamVR. Monado's `steamvr_lh` hosts only Valve's lighthouse (and
