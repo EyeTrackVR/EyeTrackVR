@@ -15,6 +15,7 @@ Per user, no admin rights:
 
 import json
 import logging
+import ntpath
 import os
 import sys
 import tempfile
@@ -101,7 +102,8 @@ _WinregRegistry = WindowsRegistry  # tests replace WindowsRegistry; this keeps t
 
 
 def _is_ours(manifest_path: str) -> bool:
-    return Path(manifest_path).name.lower() == MANIFEST.lower()
+    # Registry entries are Windows paths; ntpath splits on both \ and /.
+    return ntpath.basename(manifest_path).lower() == MANIFEST.lower()
 
 
 def _sync_windows(enabled: bool, layer_dir: Path | None, registry) -> str:

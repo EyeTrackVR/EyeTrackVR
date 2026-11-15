@@ -28,6 +28,7 @@ copied into System32 once (UAC).
 
 import json
 import logging
+import ntpath
 import os
 import re
 import socket
@@ -270,7 +271,8 @@ def detect_method(key: str, exe: str, loaded) -> tuple[str, str]:
     when the process can't be inspected, which leaves the default: inject)."""
     if key in NATIVE_KEYS:
         return METHOD_NATIVE, ""
-    if key in QUAD_VIEWS_KEYS or os.path.basename(exe).lower() in QUAD_VIEWS_EXES:
+    # exe is a Windows path; ntpath splits it on any OS.
+    if key in QUAD_VIEWS_KEYS or ntpath.basename(exe).lower() in QUAD_VIEWS_EXES:
         return METHOD_OPENXR, ""
     # PimaxMagic4All hooks OpenVR's frame submission: an OpenXR game never calls it.
     if loaded("openxr_loader.dll") and loaded("openvr_api.dll") is False:
