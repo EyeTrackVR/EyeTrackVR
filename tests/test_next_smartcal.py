@@ -270,6 +270,31 @@ def test_dropping_stops_at_the_minimum_number_of_dots():
     assert len(dropped) <= 3 and len(kept) >= 6
 
 
+def _noisy(raw, seed, sigma=0.02):
+    rng = np.random.default_rng(seed)
+    return {dot: (x + rng.normal(0, sigma), y + rng.normal(0, sigma)) for dot, (x, y) in raw.items()}
+
+
+def test_a_better_current_calibration_is_kept():
+    tangents = next_smartcal_dot_tangents()
+    exact = {dot: _model(*tangents[dot]) for dot in range(len(NEXT_SMARTCAL_DOTS))}
+    ep = _fit(exact)
+    w, b = list(ep._next_smartcal_w), list(ep._next_smartcal_b)
+    ep._next_smartcal_samples = {dot: [(x, y, 0.75, 0.5)] * 8 for dot, (x, y) in _noisy(exact, 1).items()}
+    assert not _fit_next_smartcal([ep], Mock(), SETTINGS)
+    assert (ep._next_smartcal_w, ep._next_smartcal_b) == (w, b)
+
+
+def test_a_worse_current_calibration_is_replaced():
+    tangents = next_smartcal_dot_tangents()
+    exact = {dot: _model(*tangents[dot]) for dot in range(len(NEXT_SMARTCAL_DOTS))}
+    ep = _processor(_noisy(exact, 1))
+    ep._next_smartcal_w, ep._next_smartcal_b = [0.7, 0.0, 0.0, 0.9, 0.0, 0.9], [0.05, -0.08]
+    ep._next_smartcal_warp = SMARTCAL_SPACE_ANGLE
+    assert _fit_next_smartcal([ep], Mock(), SETTINGS)
+    assert ep._next_smartcal_b != [0.05, -0.08]
+
+
 def test_inconsistent_captures_are_rejected():
     rng = np.random.default_rng(3)
     ep = _processor({dot: tuple(rng.uniform(-0.6, 0.6, 2)) for dot in range(len(NEXT_SMARTCAL_DOTS))})

@@ -134,16 +134,23 @@ def _centre_dots(layout) -> list:
     return [dot for dot, (nx, ny) in enumerate(layout) if nx == 0.0 and ny == 0.0]
 
 
+def _gaze_limit_tan(settings, name, default):
+    return math.tan(math.radians(min(89.0, max(1.0, float(getattr(settings, name, default))))))
+
+
 def smartcal_tangents_to_gaze(tan_x: float, tan_y: float, settings):
     """Output gaze for a true gaze direction: its tangent as a fraction of the
     configured limit on that side (not clipped). The inverse of how the
     outputs read gaze, atan(gaze * tan(limit))."""
-
-    def limit(name, default):
-        return math.tan(math.radians(min(89.0, max(1.0, float(getattr(settings, name, default))))))
-
     pitch = ("gui_gaze_pitch_up_deg", 15.0) if tan_y >= 0.0 else ("gui_gaze_pitch_down_deg", 40.0)
-    return tan_x / limit("gui_gaze_yaw_max_deg", 40.0), tan_y / limit(*pitch)
+    return tan_x / _gaze_limit_tan(settings, "gui_gaze_yaw_max_deg", 40.0), tan_y / _gaze_limit_tan(settings, *pitch)
+
+
+def smartcal_gaze_to_tangents(x: float, y: float, settings):
+    """The gaze direction, as tangents, that an output gaze stands for. The
+    inverse of smartcal_tangents_to_gaze."""
+    pitch = ("gui_gaze_pitch_up_deg", 15.0) if y >= 0.0 else ("gui_gaze_pitch_down_deg", 40.0)
+    return x * _gaze_limit_tan(settings, "gui_gaze_yaw_max_deg", 40.0), y * _gaze_limit_tan(settings, *pitch)
 
 
 # The overlay holds each dot for 0.5 s (DC_HOLD_S in modes.cpp) after emitting
@@ -539,6 +546,25 @@ def _solve_angle_fit(medians: dict, tangents, layout, hinge_y=None):
     return [float(sol_x[0]), float(sol_x[1]), float(sol_y[0]), w22, y0, w22_up], [float(sol_x[2]), float(sol_y[2])]
 
 
+def _current_mapping_errors_deg(ep, medians: dict, tangents, settings) -> np.ndarray:
+    """(yaw, pitch) error in degrees at each captured dot of the gaze mapping
+    this eye uses now: its saved fit, or the raw model output without one."""
+    w, b, warp = getattr(ep, "_next_smartcal_w", None), getattr(ep, "_next_smartcal_b", None), None
+    if w is not None and b is not None:
+        warp = getattr(ep, "_next_smartcal_warp", None)
+    errors = []
+    for dot in sorted(medians):
+        raw = medians[dot]
+        if w is None or b is None:
+            seen = smartcal_gaze_to_tangents(*raw, settings)
+        elif warp == SMARTCAL_SPACE_ANGLE:
+            seen = next_smartcal_apply(w, b, warp, *raw)
+        else:
+            seen = smartcal_gaze_to_tangents(*next_smartcal_apply(w, b, warp, *raw), settings)
+        errors.append(np.degrees(np.arctan(seen) - np.arctan(tangents[dot])))
+    return np.asarray(errors, dtype=np.float64)
+
+
 def _heldout_errors_deg(medians: dict, tangents, layout) -> np.ndarray:
     """(yaw, pitch) error in degrees at each captured dot (in dot order) of a
     fit made without that dot, clamped like the saved fit.
@@ -721,6 +747,23 @@ def _fit_next_smartcal(eye_processors: list, baseconfig, settings, gaze_range=No
             )
             continue
 
+        # Replace the calibration only with a better one. The current mapping
+        # was not fit on these captures, so its error on them is held out too.
+        heldout_deg = np.hypot(heldout[:, 0], heldout[:, 1])
+        current = np.hypot(*_current_mapping_errors_deg(ep, medians, tangents, settings).T)
+        logger.info(
+            "NEXT smart cal (eye %s): new fit %.1f deg held out, current calibration %.1f deg on the same dots.",
+            eye,
+            float(np.nanmean(heldout_deg)),
+            float(np.mean(current)),
+        )
+        if float(np.nanmean(heldout_deg)) > float(np.mean(current)):
+            logger.warning(
+                "NEXT smart cal (eye %s): the new fit is less accurate than the current calibration. Keeping it.",
+                eye,
+            )
+            continue
+
         for dst in eye_processors if shared_fit else (ep,):
             dst.config.next_smartcal_w = list(w)
             dst.config.next_smartcal_b = list(b)
@@ -729,7 +772,6 @@ def _fit_next_smartcal(eye_processors: list, baseconfig, settings, gaze_range=No
             dst._next_smartcal_b = list(b)
             dst._next_smartcal_warp = SMARTCAL_SPACE_ANGLE
         saved_any = True
-        heldout_deg = np.hypot(heldout[:, 0], heldout[:, 1])
         logger.info(
             "NEXT smart cal (eye %s%s): fit from %d dots: W=%s B=%s, mean error %.1f deg "
             "(worst %.1f), held-out %.1f deg (worst %.1f), vertical gain up/down %.2f",
