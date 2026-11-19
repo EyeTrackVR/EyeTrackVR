@@ -14,6 +14,7 @@ from next_smartcal import (
     SMARTCAL_SPACE_ANGLE,
     _fit_errors_deg,
     _dot_medians,
+    _heldout_errors_deg,
     _fit_next_smartcal,
     next_smartcal_apply,
     next_smartcal_dot_tangents,
@@ -223,6 +224,21 @@ def test_real_monocular_capture_still_fits():
     ep = _fit(dict(enumerate(MONOCULAR_CAPTURE)))
     assert next_smartcal_transform_is_sane(ep._next_smartcal_w, ep._next_smartcal_b, ep._next_smartcal_warp)
     assert 0.0 < ep._next_smartcal_w[5]
+
+
+def test_held_out_error_is_honest_about_noise():
+    tangents = next_smartcal_dot_tangents()
+    exact = {dot: _model(*tangents[dot]) for dot in range(len(NEXT_SMARTCAL_DOTS))}
+    assert np.abs(_heldout_errors_deg(exact, tangents, NEXT_SMARTCAL_DOTS)).max() < 1e-6
+
+    ep = _fit(dict(enumerate(FUSED_CAPTURE)))
+    medians = _dot_medians(ep)
+    fit = np.hypot(*_fit_errors_deg(ep._next_smartcal_w, ep._next_smartcal_b, medians, tangents).T)
+    heldout = np.hypot(*_heldout_errors_deg(medians, tangents, NEXT_SMARTCAL_DOTS).T)
+    # A fit bends towards its own dots, so it misses them by less than a fit
+    # that never saw them.
+    assert heldout.mean() > fit.mean()
+    assert np.isfinite(heldout).all()
 
 
 def test_inconsistent_captures_are_rejected():
