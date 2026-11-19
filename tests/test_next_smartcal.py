@@ -14,6 +14,7 @@ from next_smartcal import (
     SMARTCAL_SPACE_ANGLE,
     _fit_errors_deg,
     _dot_medians,
+    _drop_inconsistent_dots,
     _heldout_errors_deg,
     _fit_next_smartcal,
     next_smartcal_apply,
@@ -239,6 +240,34 @@ def test_held_out_error_is_honest_about_noise():
     # that never saw them.
     assert heldout.mean() > fit.mean()
     assert np.isfinite(heldout).all()
+
+
+def test_a_dot_the_user_did_not_look_at_is_dropped():
+    tangents = next_smartcal_dot_tangents()
+    raw = {dot: _model(*tangents[dot]) for dot in range(len(NEXT_SMARTCAL_DOTS))}
+    raw[2] = (raw[2][0] + 0.35, raw[2][1] + 0.25)  # looked somewhere else
+    kept, dropped = _drop_inconsistent_dots(raw, tangents, NEXT_SMARTCAL_DOTS)
+    assert [dot for dot, _ in dropped] == [2] and 2 not in kept
+
+    ep = _fit(raw)
+    looking = _model(math.tan(math.radians(20.0)), math.tan(math.radians(-25.0)))
+    assert _angles(ep, looking) == pytest.approx([20.0, -25.0], abs=1e-6)
+
+
+def test_the_centre_dot_and_consistent_captures_are_kept():
+    tangents = next_smartcal_dot_tangents()
+    raw = {dot: _model(*tangents[dot]) for dot in range(len(NEXT_SMARTCAL_DOTS))}
+    raw[10] = (raw[10][0] + 0.3, raw[10][1])
+    assert 10 in _drop_inconsistent_dots(raw, tangents, NEXT_SMARTCAL_DOTS)[0]
+    for capture in (FUSED_CAPTURE, MONOCULAR_CAPTURE):
+        assert not _drop_inconsistent_dots(dict(enumerate(capture)), tangents, NEXT_SMARTCAL_DOTS)[1]
+
+
+def test_dropping_stops_at_the_minimum_number_of_dots():
+    rng = np.random.default_rng(3)
+    raw = {dot: tuple(rng.uniform(-0.6, 0.6, 2)) for dot in range(len(NEXT_SMARTCAL_DOTS))}
+    kept, dropped = _drop_inconsistent_dots(raw, next_smartcal_dot_tangents(), NEXT_SMARTCAL_DOTS)
+    assert len(dropped) <= 3 and len(kept) >= 6
 
 
 def test_inconsistent_captures_are_rejected():

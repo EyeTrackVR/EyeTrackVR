@@ -190,6 +190,16 @@ _SMARTCAL_ANGLE_REF = math.tan(math.radians(40.0))
 # Beyond this factor over the bound the fit is still treated as degenerate
 # (the bad captures seen in the wild were 10-200x).
 _SMARTCAL_CLAMP_FACTOR = 2.0
+# A dot whose held-out error is far above the others' was not fixated (a
+# glance away, a blink the median could not reject, a slipped pupil fit). One
+# such dot pulls the whole fit, and can push the mean error past the limit
+# below so the run is thrown away. It is dropped when its held-out error is
+# over MIN_DEG and RATIO times the median of the rest, worst first, up to
+# MAX_DROPPED dots and never below _SMARTCAL_MIN_DOTS. The centre dot is the
+# recentering anchor and is never dropped.
+_SMARTCAL_OUTLIER_MIN_DEG = 5.0
+_SMARTCAL_OUTLIER_RATIO = 3.0
+_SMARTCAL_MAX_DROPPED = 3
 # Mean angular distance (degrees) between the fitted mapping of the captured
 # points and the dots. A transform that can't get within this of its OWN
 # fitting points is fitting noise.
@@ -552,6 +562,30 @@ def _heldout_errors_deg(medians: dict, tangents, layout) -> np.ndarray:
     return errors
 
 
+def _drop_inconsistent_dots(medians: dict, tangents, layout):
+    """The captures without the dots that don't fit with the rest (see
+    _SMARTCAL_OUTLIER_MIN_DEG), and the dropped dots as (dot, held-out error
+    in degrees) in the order they were dropped."""
+    kept = dict(medians)
+    dropped = []
+    centres = set(_centre_dots(layout))
+    while len(kept) > _SMARTCAL_MIN_DOTS and len(dropped) < _SMARTCAL_MAX_DROPPED:
+        dots = sorted(kept)
+        errors = np.hypot(*_heldout_errors_deg(kept, tangents, layout).T)
+        candidates = [i for i, d in enumerate(dots) if d not in centres and np.isfinite(errors[i])]
+        if not candidates:
+            break
+        worst = max(candidates, key=lambda i: errors[i])
+        rest = np.delete(errors, worst)
+        rest = rest[np.isfinite(rest)]
+        limit = max(_SMARTCAL_OUTLIER_MIN_DEG, _SMARTCAL_OUTLIER_RATIO * float(np.median(rest))) if rest.size else 0.0
+        if not rest.size or errors[worst] <= limit:
+            break
+        dropped.append((dots[worst], float(errors[worst])))
+        del kept[dots[worst]]
+    return kept, dropped
+
+
 def _fit_next_smartcal(eye_processors: list, baseconfig, settings, gaze_range=None, layout=NEXT_SMARTCAL_DOTS) -> bool:
     """Least-squares fit the per-eye transform from raw gaze to true gaze angle
     (see the module header) on the per-dot raw medians.
@@ -609,6 +643,18 @@ def _fit_next_smartcal(eye_processors: list, baseconfig, settings, gaze_range=No
                 float(spread[1]),
             )
             continue
+
+        medians, dropped = _drop_inconsistent_dots(medians, tangents, layout)
+        if dropped:
+            logger.warning(
+                "NEXT smart cal (eye %s): dropped %d dot(s) that do not fit with the others: %s",
+                eye,
+                len(dropped),
+                ", ".join(f"{dot} ({error:.1f} deg held out)" for dot, error in dropped),
+            )
+            dots = sorted(medians)
+            R = np.asarray([medians[d] for d in dots], dtype=np.float64)
+            T = np.asarray([tangents[d] for d in dots], dtype=np.float64)
 
         solved = _solve_angle_fit(medians, tangents, layout)
         if solved is None:
