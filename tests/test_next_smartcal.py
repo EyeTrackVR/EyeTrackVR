@@ -87,9 +87,9 @@ def _model(tan_x, tan_y, up=1.4, down=0.8, offset=(0.02, -0.03)):
     return 1.3 * tan_x + offset[0], (up if tan_y >= 0.0 else down) * tan_y + offset[1]
 
 
-def _fit(raw_by_dot, gaze_range=None, settings=SETTINGS):
+def _fit(raw_by_dot, gaze_range=None, settings=SETTINGS, layout=NEXT_SMARTCAL_DOTS):
     ep = _processor(raw_by_dot)
-    assert _fit_next_smartcal([ep], Mock(), settings, gaze_range)
+    assert _fit_next_smartcal([ep], Mock(), settings, gaze_range, layout)
     return ep
 
 
@@ -188,6 +188,17 @@ def test_fit_uses_the_range_the_overlay_really_drew():
     looking_right = _model(math.tan(math.radians(20.0)), 0.0)
     assert _angles(_fit(raw, gaze_range), looking_right) == pytest.approx([20.0, 0.0], abs=1e-6)
     assert _angles(_fit(raw), looking_right)[0] > 23.0  # assuming the default range overshoots
+
+
+def test_fit_takes_any_layout_and_shares_the_centre_weight_between_centre_visits():
+    layout = ((0.0, 0.0), (-0.5, 0.0), (0.0, 0.5), (0.5, 0.0), (0.0, -0.5), (-0.9, 0.0), (0.0, 0.9), (0.9, 0.0))
+    layout += ((0.0, -0.9), (0.4, 0.4), (-0.4, -0.4), (0.0, 0.0))
+    tangents = next_smartcal_dot_tangents(layout=layout)
+    raw = {dot: _model(*tangents[dot]) for dot in range(len(layout))}
+    ep = _fit(raw, layout=layout)
+    for yaw, pitch in [(0.0, 0.0), (20.0, 10.0), (-25.0, -30.0)]:
+        looking = _model(math.tan(math.radians(yaw)), math.tan(math.radians(pitch)))
+        assert _angles(ep, looking) == pytest.approx([yaw, pitch], abs=1e-6)
 
 
 def test_without_the_centre_dot_one_vertical_gain_serves_both_directions():
