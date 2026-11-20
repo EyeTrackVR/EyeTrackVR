@@ -13,7 +13,11 @@ from next_smartcal import (
     NEXT_SMARTCAL_DOTS,
     SMARTCAL_SPACE_ANGLE,
     _fit_errors_deg,
+    _choose_saturation,
+    _clamp_angle_transform,
     _dot_medians,
+    _drop_inconsistent_dots,
+    _heldout_errors_deg,
     _fit_next_smartcal,
     next_smartcal_apply,
     next_smartcal_dot_tangents,
@@ -31,6 +35,21 @@ GAZE_RANGE_LINE = (
 NARROW_LINE = (
     "[INFO] Gaze range: centre=(0, 0) m (0° elev)  ±1.4 m (±25.0169°) x +0.75/-1.9 m "
     "(14.0362°..-32.3474° elev)  coverage=0.7  cap=30° lat/15° up/40° down"
+)
+# The overlay's old finetune table, which Smart Calib showed before the app
+# placed its own dots. The recorded captures below follow it.
+FINETUNE_DOTS = (
+    (0.0, 0.8),
+    (0.760845, 0.247214),
+    (0.470228, -0.647214),
+    (-0.470228, -0.647214),
+    (-0.760845, 0.247214),
+    (0.246870, 0.339787),
+    (0.399444, -0.129787),
+    (0.0, -0.42),
+    (-0.399444, -0.129787),
+    (-0.246870, 0.339787),
+    (0.0, 0.0),
 )
 SETTINGS = SimpleNamespace(
     gui_NEXT_gaze_mode="fused",
@@ -87,9 +106,9 @@ def _model(tan_x, tan_y, up=1.4, down=0.8, offset=(0.02, -0.03)):
     return 1.3 * tan_x + offset[0], (up if tan_y >= 0.0 else down) * tan_y + offset[1]
 
 
-def _fit(raw_by_dot, gaze_range=None, settings=SETTINGS):
+def _fit(raw_by_dot, gaze_range=None, settings=SETTINGS, layout=FINETUNE_DOTS):
     ep = _processor(raw_by_dot)
-    assert _fit_next_smartcal([ep], Mock(), settings, gaze_range)
+    assert _fit_next_smartcal([ep], Mock(), settings, gaze_range, layout)
     return ep
 
 
@@ -126,11 +145,11 @@ def test_an_unusable_gaze_range_is_ignored(log):
 
 
 def test_dot_tangents_follow_the_overlay_range():
-    default = next_smartcal_dot_tangents()
+    default = next_smartcal_dot_tangents(layout=FINETUNE_DOTS)
     assert default[0] == pytest.approx((0.0, 0.8 * math.tan(math.radians(15.0))))
     assert default[7] == pytest.approx((0.0, -0.42 * math.tan(math.radians(40.0))))
     assert default[10] == (0.0, 0.0)
-    narrow = next_smartcal_dot_tangents(parse_overlay_gaze_range(NARROW_LINE))
+    narrow = next_smartcal_dot_tangents(parse_overlay_gaze_range(NARROW_LINE), FINETUNE_DOTS)
     assert narrow[1][0] == pytest.approx(0.760845 * 1.4 / 3.0, rel=1e-4)
     assert narrow[7][1] == pytest.approx(-0.42 * 1.9 / 3.0, rel=1e-4)
 
@@ -150,8 +169,8 @@ def test_overlay_session_log_text_reads_the_run_log(tmp_path):
 
 
 def test_fit_recovers_true_angles_from_a_model_with_unequal_up_and_down_gain():
-    tangents = next_smartcal_dot_tangents()
-    ep = _fit({dot: _model(*tangents[dot]) for dot in range(len(NEXT_SMARTCAL_DOTS))})
+    tangents = next_smartcal_dot_tangents(layout=FINETUNE_DOTS)
+    ep = _fit({dot: _model(*tangents[dot]) for dot in range(len(FINETUNE_DOTS))})
     assert ep._next_smartcal_warp == SMARTCAL_SPACE_ANGLE == ep.config.next_smartcal_warp
     for yaw, pitch in [(0.0, 0.0), (20.0, 10.0), (-25.0, -30.0), (5.0, -3.0), (-12.0, 14.0)]:
         raw = _model(math.tan(math.radians(yaw)), math.tan(math.radians(pitch)))
@@ -159,8 +178,8 @@ def test_fit_recovers_true_angles_from_a_model_with_unequal_up_and_down_gain():
 
 
 def test_output_gaze_is_the_angle_as_a_fraction_of_the_limits():
-    tangents = next_smartcal_dot_tangents()
-    ep = _fit({dot: _model(*tangents[dot]) for dot in range(len(NEXT_SMARTCAL_DOTS))})
+    tangents = next_smartcal_dot_tangents(layout=FINETUNE_DOTS)
+    ep = _fit({dot: _model(*tangents[dot]) for dot in range(len(FINETUNE_DOTS))})
 
     def looking(yaw, pitch, settings=SETTINGS):
         return _gaze(ep, _model(math.tan(math.radians(yaw)), math.tan(math.radians(pitch))), settings)
@@ -183,16 +202,27 @@ def test_output_gaze_is_the_angle_as_a_fraction_of_the_limits():
 def test_fit_uses_the_range_the_overlay_really_drew():
     # On a narrow headset the same dots sit at smaller angles.
     gaze_range = parse_overlay_gaze_range(NARROW_LINE)
-    tangents = next_smartcal_dot_tangents(gaze_range)
-    raw = {dot: _model(*tangents[dot]) for dot in range(len(NEXT_SMARTCAL_DOTS))}
+    tangents = next_smartcal_dot_tangents(gaze_range, FINETUNE_DOTS)
+    raw = {dot: _model(*tangents[dot]) for dot in range(len(FINETUNE_DOTS))}
     looking_right = _model(math.tan(math.radians(20.0)), 0.0)
     assert _angles(_fit(raw, gaze_range), looking_right) == pytest.approx([20.0, 0.0], abs=1e-6)
     assert _angles(_fit(raw), looking_right)[0] > 23.0  # assuming the default range overshoots
 
 
+def test_fit_takes_any_layout_and_shares_the_centre_weight_between_centre_visits():
+    layout = ((0.0, 0.0), (-0.5, 0.0), (0.0, 0.5), (0.5, 0.0), (0.0, -0.5), (-0.9, 0.0), (0.0, 0.9), (0.9, 0.0))
+    layout += ((0.0, -0.9), (0.4, 0.4), (-0.4, -0.4), (0.0, 0.0))
+    tangents = next_smartcal_dot_tangents(layout=layout)
+    raw = {dot: _model(*tangents[dot]) for dot in range(len(layout))}
+    ep = _fit(raw, layout=layout)
+    for yaw, pitch in [(0.0, 0.0), (20.0, 10.0), (-25.0, -30.0)]:
+        looking = _model(math.tan(math.radians(yaw)), math.tan(math.radians(pitch)))
+        assert _angles(ep, looking) == pytest.approx([yaw, pitch], abs=1e-6)
+
+
 def test_without_the_centre_dot_one_vertical_gain_serves_both_directions():
-    tangents = next_smartcal_dot_tangents()
-    raw = {dot: (1.3 * tangents[dot][0], 0.9 * tangents[dot][1]) for dot in range(len(NEXT_SMARTCAL_DOTS) - 1)}
+    tangents = next_smartcal_dot_tangents(layout=FINETUNE_DOTS)
+    raw = {dot: (1.3 * tangents[dot][0], 0.9 * tangents[dot][1]) for dot in range(len(FINETUNE_DOTS) - 1)}
     ep = _fit(raw)
     assert ep._next_smartcal_w[5] == ep._next_smartcal_w[3]
     assert _angles(ep, (0.0, 0.0)) == pytest.approx([0.0, 0.0], abs=1e-6)
@@ -200,7 +230,12 @@ def test_without_the_centre_dot_one_vertical_gain_serves_both_directions():
 
 def test_real_fused_capture_lands_on_its_dots():
     ep = _fit(dict(enumerate(FUSED_CAPTURE)))
-    errors = _fit_errors_deg(ep._next_smartcal_w, ep._next_smartcal_b, _dot_medians(ep), next_smartcal_dot_tangents())
+    errors = _fit_errors_deg(
+        ep._next_smartcal_w,
+        ep._next_smartcal_b,
+        _dot_medians(ep, len(FINETUNE_DOTS)),
+        next_smartcal_dot_tangents(layout=FINETUNE_DOTS),
+    )
     yaw_rms, pitch_rms = np.sqrt((errors**2).mean(axis=0))
     # A single vertical gain left 2.0 deg pitch rms and the centre 1.3 deg up.
     assert yaw_rms < 1.2 and pitch_rms < 1.7
@@ -214,10 +249,149 @@ def test_real_monocular_capture_still_fits():
     assert 0.0 < ep._next_smartcal_w[5]
 
 
+def test_held_out_error_is_honest_about_noise():
+    tangents = next_smartcal_dot_tangents(layout=FINETUNE_DOTS)
+    exact = {dot: _model(*tangents[dot]) for dot in range(len(FINETUNE_DOTS))}
+    assert np.abs(_heldout_errors_deg(exact, tangents, FINETUNE_DOTS)).max() < 1e-6
+
+    ep = _fit(dict(enumerate(FUSED_CAPTURE)))
+    medians = _dot_medians(ep, len(FINETUNE_DOTS))
+    fit = np.hypot(*_fit_errors_deg(ep._next_smartcal_w, ep._next_smartcal_b, medians, tangents).T)
+    heldout = np.hypot(*_heldout_errors_deg(medians, tangents, FINETUNE_DOTS).T)
+    # A fit bends towards its own dots, so it misses them by less than a fit
+    # that never saw them.
+    assert heldout.mean() > fit.mean()
+    assert np.isfinite(heldout).all()
+
+
+def test_a_dot_the_user_did_not_look_at_is_dropped():
+    tangents = next_smartcal_dot_tangents(layout=FINETUNE_DOTS)
+    raw = {dot: _model(*tangents[dot]) for dot in range(len(FINETUNE_DOTS))}
+    raw[2] = (raw[2][0] + 0.35, raw[2][1] + 0.25)  # looked somewhere else
+    kept, dropped = _drop_inconsistent_dots(raw, tangents, FINETUNE_DOTS)
+    assert [dot for dot, _ in dropped] == [2] and 2 not in kept
+
+    ep = _fit(raw)
+    looking = _model(math.tan(math.radians(20.0)), math.tan(math.radians(-25.0)))
+    assert _angles(ep, looking) == pytest.approx([20.0, -25.0], abs=1e-6)
+
+
+def test_the_centre_dot_and_consistent_captures_are_kept():
+    tangents = next_smartcal_dot_tangents(layout=FINETUNE_DOTS)
+    raw = {dot: _model(*tangents[dot]) for dot in range(len(FINETUNE_DOTS))}
+    raw[10] = (raw[10][0] + 0.3, raw[10][1])
+    assert 10 in _drop_inconsistent_dots(raw, tangents, FINETUNE_DOTS)[0]
+    for capture in (FUSED_CAPTURE, MONOCULAR_CAPTURE):
+        assert not _drop_inconsistent_dots(dict(enumerate(capture)), tangents, FINETUNE_DOTS)[1]
+
+
+def test_one_of_two_centre_visits_can_be_dropped():
+    # The first centre capture caught the gaze still on the instruction text.
+    tangents = next_smartcal_dot_tangents()
+    raw = {dot: _model(*tangents[dot]) for dot in range(len(NEXT_SMARTCAL_DOTS))}
+    raw[0] = (raw[0][0], raw[0][1] - 0.35)
+    kept, dropped = _drop_inconsistent_dots(raw, tangents, NEXT_SMARTCAL_DOTS)
+    assert [dot for dot, _ in dropped] == [0] and len(NEXT_SMARTCAL_DOTS) - 1 in kept
+
+
+def test_dropping_stops_at_the_minimum_number_of_dots():
+    rng = np.random.default_rng(3)
+    raw = {dot: tuple(rng.uniform(-0.6, 0.6, 2)) for dot in range(len(FINETUNE_DOTS))}
+    kept, dropped = _drop_inconsistent_dots(raw, next_smartcal_dot_tangents(layout=FINETUNE_DOTS), FINETUNE_DOTS)
+    assert len(dropped) <= 3 and len(kept) >= 6
+
+
+def _noisy(raw, seed, sigma=0.02):
+    rng = np.random.default_rng(seed)
+    return {dot: (x + rng.normal(0, sigma), y + rng.normal(0, sigma)) for dot, (x, y) in raw.items()}
+
+
+def test_a_better_current_calibration_is_kept():
+    tangents = next_smartcal_dot_tangents(layout=FINETUNE_DOTS)
+    exact = {dot: _model(*tangents[dot]) for dot in range(len(FINETUNE_DOTS))}
+    ep = _fit(exact)
+    w, b = list(ep._next_smartcal_w), list(ep._next_smartcal_b)
+    ep._next_smartcal_samples = {dot: [(x, y, 0.75, 0.5)] * 8 for dot, (x, y) in _noisy(exact, 1).items()}
+    assert not _fit_next_smartcal([ep], Mock(), SETTINGS, layout=FINETUNE_DOTS)
+    assert (ep._next_smartcal_w, ep._next_smartcal_b) == (w, b)
+
+
+def test_a_worse_current_calibration_is_replaced():
+    tangents = next_smartcal_dot_tangents(layout=FINETUNE_DOTS)
+    exact = {dot: _model(*tangents[dot]) for dot in range(len(FINETUNE_DOTS))}
+    ep = _processor(_noisy(exact, 1))
+    ep._next_smartcal_w, ep._next_smartcal_b = [0.7, 0.0, 0.0, 0.9, 0.0, 0.9], [0.05, -0.08]
+    ep._next_smartcal_warp = SMARTCAL_SPACE_ANGLE
+    assert _fit_next_smartcal([ep], Mock(), SETTINGS, layout=FINETUNE_DOTS)
+    assert ep._next_smartcal_b != [0.05, -0.08]
+
+
+def test_the_layout_shows_a_central_core_before_the_extremes():
+    layout = NEXT_SMARTCAL_DOTS
+    assert layout[0] == layout[-1] == (0.0, 0.0)
+    radius = [math.hypot(*dot) for dot in layout]
+    assert max(radius[1:9]) < 0.5 < 0.9 < min(radius[9:17]) <= max(radius[9:17]) <= 1.0
+    # Symmetric, so no direction is fit on more dots than its opposite.
+    assert sorted(layout) == sorted((-x, -y) for x, y in layout)
+
+
+def test_the_layout_fits_without_its_extremes():
+    tangents = next_smartcal_dot_tangents()
+    raw = {dot: _model(*tangents[dot]) for dot in range(len(NEXT_SMARTCAL_DOTS)) if not 9 <= dot <= 16}
+    ep = _fit(raw, layout=NEXT_SMARTCAL_DOTS)
+    looking = _model(math.tan(math.radians(25.0)), math.tan(math.radians(-30.0)))
+    assert _angles(ep, looking) == pytest.approx([25.0, -30.0], abs=1e-6)
+
+
+def _saturating(tan_x, tan_y, ceiling=0.9, gain=1.6):
+    """A model whose raw output flattens towards +-ceiling, as NEXT's does."""
+    return tuple(ceiling * math.tanh(gain * v / ceiling) for v in (tan_x, tan_y))
+
+
+def test_a_saturating_model_is_fit_with_its_saturation_undone():
+    tangents = next_smartcal_dot_tangents()
+    raw = {dot: _saturating(*tangents[dot]) for dot in range(len(NEXT_SMARTCAL_DOTS))}
+    assert _choose_saturation(raw, tangents, NEXT_SMARTCAL_DOTS) == (0.9, 0.9)
+    ep = _fit(raw, layout=NEXT_SMARTCAL_DOTS)
+    assert ep._next_smartcal_w[6:] == [0.9, 0.9]
+    for yaw, pitch in [(25.0, 10.0), (-28.0, -35.0), (0.0, 14.0)]:
+        looking = _saturating(math.tan(math.radians(yaw)), math.tan(math.radians(pitch)))
+        assert _angles(ep, looking) == pytest.approx([yaw, pitch], abs=0.05)
+
+
+def test_each_axis_gets_its_own_saturation():
+    tangents = next_smartcal_dot_tangents()
+    raw = {
+        dot: (_saturating(*tangents[dot], ceiling=0.8)[0], _saturating(*tangents[dot], ceiling=1.2)[1])
+        for dot in range(len(NEXT_SMARTCAL_DOTS))
+    }
+    assert _choose_saturation(raw, tangents, NEXT_SMARTCAL_DOTS) == (0.8, 1.2)
+
+
+def test_a_linear_model_keeps_the_straight_fit():
+    tangents = next_smartcal_dot_tangents()
+    raw = {dot: _model(*tangents[dot]) for dot in range(len(NEXT_SMARTCAL_DOTS))}
+    assert _choose_saturation(raw, tangents, NEXT_SMARTCAL_DOTS) == (0.0, 0.0)
+    assert len(_fit(raw, layout=NEXT_SMARTCAL_DOTS)._next_smartcal_w) == 6
+
+
+def test_a_saturating_fit_is_stored_clamped_and_checked_like_a_straight_one():
+    ref = math.tan(math.radians(40.0))
+    w, b = [0.7, 0.0, 0.0, 1.1, 0.0, 0.6, 0.85, 1.0], [0.0, 0.01]
+    assert next_smartcal_transform_is_sane(w, b, SMARTCAL_SPACE_ANGLE)
+    # The straight fit is the same transform without the saturation.
+    assert next_smartcal_apply(w[:6], b, SMARTCAL_SPACE_ANGLE, 0.0, 0.0) == pytest.approx(
+        next_smartcal_apply(w, b, SMARTCAL_SPACE_ANGLE, 0.0, 0.0)
+    )
+    over = [4.0 * ref, 0.0, 0.0, 1.1, 0.0, 0.6, 0.85, 1.0]
+    clamped, _, was = _clamp_angle_transform(over, b)
+    assert was and clamped[6:] == [0.85, 1.0]
+
+
 def test_inconsistent_captures_are_rejected():
     rng = np.random.default_rng(3)
-    ep = _processor({dot: tuple(rng.uniform(-0.6, 0.6, 2)) for dot in range(len(NEXT_SMARTCAL_DOTS))})
-    assert not _fit_next_smartcal([ep], Mock(), SETTINGS)
+    ep = _processor({dot: tuple(rng.uniform(-0.6, 0.6, 2)) for dot in range(len(FINETUNE_DOTS))})
+    assert not _fit_next_smartcal([ep], Mock(), SETTINGS, layout=FINETUNE_DOTS)
     assert ep._next_smartcal_w is None
 
 

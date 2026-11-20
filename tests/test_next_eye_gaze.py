@@ -338,7 +338,7 @@ def _apply_processor(eye):
         leap_lid_close_threshold_right=0.1,
         leap_lid_widen_threshold_right=0.9,
     )
-    processor._next_smartcal_active_dot = None
+    processor._next_smartcal_trace = None
     processor._next_smartcal_w = None
     processor._next_smartcal_b = None
     processor._next_smartcal_warp = None

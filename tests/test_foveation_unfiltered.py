@@ -110,7 +110,7 @@ def _next_processor(**settings):
     )
     processor.settings = SimpleNamespace(**{**defaults, **settings})
     processor.config = SimpleNamespace(next_classic_calibration_active=False)
-    processor._next_smartcal_active_dot = None
+    processor._next_smartcal_trace = None
     processor._next_smartcal_w = None
     processor._next_smartcal_b = None
     processor._next_smartcal_warp = None
@@ -144,25 +144,23 @@ def test_smart_calib_captures_the_unfiltered_gaze():
     # The filtered gaze still lags behind on the previous dot; calibration
     # must sample what the model sees now, not the smoothed output.
     p = _next_processor()
-    p._next_smartcal_active_dot = 3
-    p._next_smartcal_dot_started = time.monotonic()
-    p._next_smartcal_samples = {}
+    p._next_smartcal_trace = []
 
     p._next_apply(0.1, 0.1, 0.5, 0.9, 0.0, raw_gaze=(0.6, -0.4))
 
-    assert p._next_smartcal_samples[3] == [pytest.approx((0.6, -0.4, 0.9, 0.5))]
+    ((_, *frame),) = p._next_smartcal_trace
+    assert frame == pytest.approx([0.6, -0.4, 0.9, 0.5])
     assert (p.out_x, p.out_y) == pytest.approx((0.1, 0.1))
 
 
 def test_smart_calib_without_a_raw_tap_captures_the_model_gaze():
     p = _next_processor()
-    p._next_smartcal_active_dot = 0
-    p._next_smartcal_dot_started = time.monotonic()
-    p._next_smartcal_samples = {}
+    p._next_smartcal_trace = []
 
     p._next_apply(0.2, -0.3, 0.5, 0.9, 0.0)
 
-    assert p._next_smartcal_samples[0] == [pytest.approx((0.2, -0.3, 0.9, 0.5))]
+    ((_, *frame),) = p._next_smartcal_trace
+    assert frame == pytest.approx([0.2, -0.3, 0.9, 0.5])
 
 
 def test_next_dfr_gaze_goes_past_the_avatar_range_but_stays_bounded():

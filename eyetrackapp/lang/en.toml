@@ -91,6 +91,7 @@ next_smartcal_reset_btn_tip = "Clear the saved Smart Calib fit and go back to th
 preview_btn = "Preview in Headset"
 stop_preview = "Stop Preview"
 preview_btn_tip = "Show your tracked gaze as a ring in the headset, over a dot that moves between the center and four directions, to check tracking and calibration."
+actions_hint = "Calibrate first, then use Preview in Headset to check how well your gaze is tracked."
 # In-headset card during the preview; "\n" separates its title from its subtitle.
 preview_panel = "Follow the dot with your eyes\nThe ring shows where EyeTrackVR sees you looking"
 # Bottom-bar button: open the data collection window
@@ -903,3 +904,40 @@ dfr_on = "On for this game"
 dfr_off = "Off for this game"
 gaze_marker = "Gaze marker"
 flip_vertical = "Flip vertical"
+
+[smartcal]
+# Smart Calib result, shown under the Tracking buttons after a calibration.
+# Errors are in degrees.
+applied = "Calibration saved."
+kept = "Kept your previous calibration: it was more accurate than this run."
+too_few_dots = "Calibration failed: only {used} of {total} dots were tracked. Check that the cameras see your pupils when you look towards the edges."
+no_spread = "Calibration failed: your tracked gaze barely moved between the dots. Check that tracking works, then follow the dots with your eyes."
+inconsistent = "Calibration failed: the dots did not fit together ({error}° average). Keep your head still and try again."
+degenerate = "Calibration failed: the result was implausible."
+stopped = "Calibration stopped before it finished. Nothing was changed."
+accuracy = "Average error {mean}°, worst {worst}°, on {used} of {total} dots."
+eye_left = "Left eye"
+eye_right = "Right eye"
+# Instruction in the headset while the Smart Calib dots show
+follow = "Look at the dot\nThe dots start once your eyes are steady. Follow them with your eyes, head still."
+
+[range_check]
+# Gaze range check: a Tracking page button that measures how far out the gaze
+# stays on target. Angles are in degrees.
+button = "Check Gaze Range"
+button_tip = "Step dots out toward the edge of the headset view, past your gaze limits, and measure how far out your calibrated gaze still lands on them. Nothing is changed. Shown after a Smart Calib."
+follow = "Look at the dot\nThe dots start once your eyes are steady. Follow them with your eyes, head still."
+title = "Gaze range check"
+verified = "Gaze stays within {error}° of the dot out to:"
+side = "{direction} {verified}° of {shown}°"
+up = "up"
+down = "down"
+left = "left"
+right = "right"
+up_left = "up left"
+up_right = "up right"
+down_left = "down left"
+down_right = "down right"
+limits = "Your gaze limits are {yaw}° sideways, {up}° up and {down}° down."
+not_tracked = "No tracked gaze reached the app. Start tracking, then run the check again."
+stopped = "The check stopped before it finished."

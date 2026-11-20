@@ -237,7 +237,8 @@ class EyeTrackCameraConfig(BaseModel):
     # NEXT Smart Calibration: the fitted transform from the raw NEXT model gaze
     # (right/up positive, [-1, 1]) to gaze. next_smartcal_warp names the space
     # the fit lives in: "angle" (current fits) maps to true gaze angle, with
-    # next_smartcal_w = [w11, w12, w21, w22, y0, w22_up] and next_smartcal_b =
+    # next_smartcal_w = [w11, w12, w21, w22, y0, w22_up] (plus the model
+    # saturation it undoes first, when it uses one) and next_smartcal_b =
     # [b1, b2]; None / "atanh" are legacy affines straight onto output gaze
     # with a 4-value w, saved by older builds. See the next_smartcal module
     # header. All None until "NEXT Smart Calib".
