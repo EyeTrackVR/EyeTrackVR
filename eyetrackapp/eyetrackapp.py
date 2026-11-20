@@ -804,6 +804,16 @@ def main():
             )
             self._preview_btn.pack(side="left", padx=8)
             attach_tooltip(self._preview_btn, tr("tracking.preview_btn_tip"))
+            # Measures how far out the calibrated NEXT gaze still lands on
+            # target, out to the edge of the headset view (see
+            # gaze_range_check). Shown with the NEXT tracker only.
+            self._range_check_btn = ttk.Button(
+                actions_inner,
+                text=tr("range_check.button"),
+                command=self._on_gaze_range_check,
+            )
+            attach_tooltip(self._range_check_btn, tr("range_check.button_tip"))
+            self._range_check_visible = False
             # Escape hatch for a bad NEXT Smart Calib fit: clears the saved
             # transform so the raw model gaze flows again. Only shown while the
             # NEXT tracker is active AND a fitted transform exists (see
@@ -1567,6 +1577,28 @@ def main():
             if self._preview_btn_text.get() != text:
                 self._preview_btn_text.set(text)
 
+        def _on_gaze_range_check(self):
+            from gaze_range_check import gaze_range_check_overlay
+
+            eps = [eye.ransac for eye in eyes if eye.started() and getattr(eye, "ransac", None) is not None]
+            if eps:
+                gaze_range_check_overlay(eps, config.settings)
+
+        def _sync_range_check_button(self):
+            # Without a gaze fit the angles come from the output limits, so the
+            # check could not say whether wider limits would work.
+            calibrated = any(
+                getattr(eye, "next_smartcal_w", None) is not None for eye in (config.left_eye, config.right_eye)
+            )
+            show = _next_smartcal_selected() and calibrated and any(e.started() for e in eyes)
+            if show == self._range_check_visible:
+                return
+            self._range_check_visible = show
+            if show:
+                self._range_check_btn.pack(side="left", padx=8, after=self._preview_btn)
+            else:
+                self._range_check_btn.pack_forget()
+
         def _on_ellipse_calibration(self):
             from overlay_calibration import overlay_ellipse_calibrate
 
@@ -1667,6 +1699,7 @@ def main():
                     self._sync_global_calibration_button()
                     self._sync_next_smartcal_reset_button()
                     self._sync_gaze_preview_button()
+                    self._sync_range_check_button()
             else:
                 if not self.focus_paused:
                     self.focus_paused = True
