@@ -123,7 +123,7 @@ def _next_processor(*, flip_y=False, calib_lids_brows=True):
     )
     processor.calibration_start_time = None
     processor._ellipse_collect_active = False
-    processor._next_smartcal_active_dot = None
+    processor._next_smartcal_trace = None
     processor._next_smartcal_w = None
     processor._next_smartcal_b = None
     processor._next_smartcal_warp = None

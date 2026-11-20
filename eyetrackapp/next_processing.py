@@ -26,7 +26,6 @@ from next_eye_gaze import (
 from next_model import External_Run_NEXT, variant_from_settings
 from next_smartcal import (
     NEXT_SMARTCAL_BROW_TARGET,
-    NEXT_SMARTCAL_CAPTURE_WINDOW_S,
     NEXT_SMARTCAL_LID_TARGET,
     next_smartcal_gaze,
     next_smartcal_neutral_apply,
@@ -306,24 +305,18 @@ class NextProcessingMixin:
         # NEXT does not impose an algorithm-specific Y-axis inversion.
         sc_gaze_x, sc_gaze_y = model_gaze_x, model_gaze_y
 
-        # While a dot is being held by the overlay, accumulate the native gaze
-        # so the regression can be fit against the dot's known position.
-        # Only within the capture window: the overlay holds each dot 0.5 s
-        # after its signal, then the next dot appears and the user follows it;
-        # sampling past the hold poisons this dot with the next dot's fixation.
-        _sc_dot = self._next_smartcal_active_dot
-        if _sc_dot is not None and (
-            time.monotonic() - self._next_smartcal_dot_started <= NEXT_SMARTCAL_CAPTURE_WINDOW_S
-        ):
-            # Lid and brow ride along in the same sample: the user holds a
-            # neutral face for the whole sequence, so these are captures of
-            # "eyes normally open, brow at rest" (pooled across dots at fit
-            # time). Costs nothing extra and needs no second calibration pass.
-            # Gaze is captured before the median and One-Euro filters. Their lag
-            # would otherwise carry the previous dot's fixation into this short
-            # window; the fit's per-dot median already rejects frame noise.
+        # While the overlay shows Smart Calib or range check dots, every frame
+        # goes to the run's trace. The run decides which frames capture a dot
+        # (gaze_capture) and records the whole trace. Lid and brow ride along:
+        # the user holds a neutral face for the whole sequence, so they are
+        # captures of "eyes normally open, brow at rest".
+        # Gaze is captured before the median and One-Euro filters. Their lag
+        # would otherwise carry the previous dot's fixation into the capture;
+        # the fit's per-dot median already rejects frame noise.
+        _sc_trace = self._next_smartcal_trace
+        if _sc_trace is not None:
             cap_x, cap_y = raw_gaze if raw_gaze is not None else (sc_gaze_x, sc_gaze_y)
-            self._next_smartcal_samples.setdefault(_sc_dot, []).append((cap_x, cap_y, eyeopen_raw, eyebrow))
+            _sc_trace.append((time.monotonic(), cap_x, cap_y, eyeopen_raw, eyebrow))
 
         # Apply the fitted transform (smart calib): raw model gaze -> true gaze
         # angle -> output gaze as a fraction of the configured gaze limits.
