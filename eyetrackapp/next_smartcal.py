@@ -114,30 +114,43 @@ NEXT_SMARTCAL_DOTS = (
 NEXT_SMARTCAL_DONE_SIGNAL = 100
 
 
-def next_smartcal_dot_tangents(gaze_range=None):
+def next_smartcal_dot_tangents(gaze_range=None, layout=NEXT_SMARTCAL_DOTS):
     """True direction of each overlay dot as (tan yaw, tan pitch) from straight
     ahead. The overlay places a dot linearly on a flat plane, so normalised n
     sits at tangent n * tan(range edge), with separate up and down edges about
     the centre dot's own elevation. ``gaze_range`` is parse_overlay_gaze_range's
-    result; None uses the overlay defaults."""
+    result; None uses the overlay defaults. ``layout`` holds the normalised dot
+    positions."""
     yaw, top, bottom, centre = gaze_range or _OVERLAY_GAZE_RANGE_DEFAULT
     rx = math.tan(math.radians(yaw))
     cy = math.tan(math.radians(centre))
     ry_up = math.tan(math.radians(top)) - cy
     ry_down = cy - math.tan(math.radians(bottom))
-    return [(nx * rx, cy + ny * (ry_up if ny >= 0.0 else ry_down)) for nx, ny in NEXT_SMARTCAL_DOTS]
+    return [(nx * rx, cy + ny * (ry_up if ny >= 0.0 else ry_down)) for nx, ny in layout]
+
+
+def _centre_dots(layout) -> list:
+    """Indices of the straight-ahead dots in a layout."""
+    return [dot for dot, (nx, ny) in enumerate(layout) if nx == 0.0 and ny == 0.0]
+
+
+def _gaze_limit_tan(settings, name, default):
+    return math.tan(math.radians(min(89.0, max(1.0, float(getattr(settings, name, default))))))
 
 
 def smartcal_tangents_to_gaze(tan_x: float, tan_y: float, settings):
     """Output gaze for a true gaze direction: its tangent as a fraction of the
     configured limit on that side (not clipped). The inverse of how the
     outputs read gaze, atan(gaze * tan(limit))."""
-
-    def limit(name, default):
-        return math.tan(math.radians(min(89.0, max(1.0, float(getattr(settings, name, default))))))
-
     pitch = ("gui_gaze_pitch_up_deg", 15.0) if tan_y >= 0.0 else ("gui_gaze_pitch_down_deg", 40.0)
-    return tan_x / limit("gui_gaze_yaw_max_deg", 40.0), tan_y / limit(*pitch)
+    return tan_x / _gaze_limit_tan(settings, "gui_gaze_yaw_max_deg", 40.0), tan_y / _gaze_limit_tan(settings, *pitch)
+
+
+def smartcal_gaze_to_tangents(x: float, y: float, settings):
+    """The gaze direction, as tangents, that an output gaze stands for. The
+    inverse of smartcal_tangents_to_gaze."""
+    pitch = ("gui_gaze_pitch_up_deg", 15.0) if y >= 0.0 else ("gui_gaze_pitch_down_deg", 40.0)
+    return x * _gaze_limit_tan(settings, "gui_gaze_yaw_max_deg", 40.0), y * _gaze_limit_tan(settings, *pitch)
 
 
 # The overlay holds each dot for 0.5 s (DC_HOLD_S in modes.cpp) after emitting
@@ -184,6 +197,16 @@ _SMARTCAL_ANGLE_REF = math.tan(math.radians(40.0))
 # Beyond this factor over the bound the fit is still treated as degenerate
 # (the bad captures seen in the wild were 10-200x).
 _SMARTCAL_CLAMP_FACTOR = 2.0
+# A dot whose held-out error is far above the others' was not fixated (a
+# glance away, a blink the median could not reject, a slipped pupil fit). One
+# such dot pulls the whole fit, and can push the mean error past the limit
+# below so the run is thrown away. It is dropped when its held-out error is
+# over MIN_DEG and RATIO times the median of the rest, worst first, up to
+# MAX_DROPPED dots and never below _SMARTCAL_MIN_DOTS. The centre dot is the
+# recentering anchor and is never dropped.
+_SMARTCAL_OUTLIER_MIN_DEG = 5.0
+_SMARTCAL_OUTLIER_RATIO = 3.0
+_SMARTCAL_MAX_DROPPED = 3
 # Mean angular distance (degrees) between the fitted mapping of the captured
 # points and the dots. A transform that can't get within this of its OWN
 # fitting points is fitting noise.
@@ -464,12 +487,12 @@ def reset_next_smartcal(eye_processors: list, baseconfig) -> None:
     logger.info("NEXT smart cal: transforms cleared (raw model gaze, lid and brow restored).")
 
 
-def _dot_medians(ep) -> dict:
+def _dot_medians(ep, dot_count: int = len(NEXT_SMARTCAL_DOTS)) -> dict:
     """{dot: (raw_x, raw_y)} for the dots this eye captured enough frames of.
     The median over the hold window rejects blinks / transient outliers."""
     samples = getattr(ep, "_next_smartcal_samples", {}) or {}
     medians = {}
-    for dot in range(len(NEXT_SMARTCAL_DOTS)):
+    for dot in range(dot_count):
         pts = samples.get(dot, [])
         if len(pts) < _SMARTCAL_MIN_SAMPLES_PER_DOT:
             continue
@@ -485,12 +508,117 @@ def _fit_errors_deg(w, b, medians: dict, tangents) -> np.ndarray:
     return np.degrees(np.arctan(fitted) - np.arctan(truth))
 
 
-def _fit_next_smartcal(eye_processors: list, baseconfig, settings, gaze_range=None) -> bool:
+def _solve_angle_fit(medians: dict, tangents, layout, hinge_y=None):
+    """Weighted least-squares angle fit (see the module header) of the captured
+    dots, as (w, b). None when the solve fails. ``hinge_y`` is the raw vertical
+    gaze to hinge on when no centre capture is among ``medians``."""
+    dots = sorted(medians)
+    R = np.asarray([medians[d] for d in dots], dtype=np.float64)  # N x 2 raw gaze
+    T = np.asarray([tangents[d] for d in dots], dtype=np.float64)  # N x 2 dot tangents
+    gx, gy = R[:, 0], R[:, 1]
+    A = np.column_stack([gx, gy, np.ones(len(R))])  # N x 3  [gx, gy, 1]
+    # The separate upward gain needs the centre capture to hinge on and a
+    # couple of dots on each side of it; otherwise one gain serves both.
+    centres = [d for d in _centre_dots(layout) if d in medians]
+    above = sum(layout[d][1] > 0.0 for d in dots)
+    below = sum(layout[d][1] < 0.0 for d in dots)
+    hinge = (bool(centres) or hinge_y is not None) and above >= 2 and below >= 2
+    if not hinge:
+        y0 = 0.0
+    elif centres:
+        y0 = float(np.mean([medians[d][1] for d in centres]))
+    else:
+        y0 = float(hinge_y)
+    Ay = np.column_stack([A, np.maximum(gy - y0, 0.0)]) if hinge else A
+    # Weighted least squares. Multiplying rows by sqrt(weight) makes the
+    # centre anchor count more without duplicating or over-sampling frames.
+    # A layout that visits the centre more than once shares the weight.
+    centre_weight = _SMARTCAL_CENTER_WEIGHT / max(1, len(centres))
+    sw = np.sqrt([centre_weight if d in centres else 1.0 for d in dots])
+    try:
+        sol_x, *_ = np.linalg.lstsq(A * sw[:, None], T[:, 0] * sw, rcond=None)  # [w11, w12, b1]
+        sol_y, *_ = np.linalg.lstsq(Ay * sw[:, None], T[:, 1] * sw, rcond=None)  # [w21, w22, b2, up - w22]
+    except np.linalg.LinAlgError as e:
+        logger.warning("NEXT smart cal: solve failed: %s", e)
+        return None
+    w22 = float(sol_y[1])
+    w22_up = w22 + float(sol_y[3]) if hinge else w22
+    return [float(sol_x[0]), float(sol_x[1]), float(sol_y[0]), w22, y0, w22_up], [float(sol_x[2]), float(sol_y[2])]
+
+
+def _current_mapping_errors_deg(ep, medians: dict, tangents, settings) -> np.ndarray:
+    """(yaw, pitch) error in degrees at each captured dot of the gaze mapping
+    this eye uses now: its saved fit, or the raw model output without one."""
+    w, b, warp = getattr(ep, "_next_smartcal_w", None), getattr(ep, "_next_smartcal_b", None), None
+    if w is not None and b is not None:
+        warp = getattr(ep, "_next_smartcal_warp", None)
+    errors = []
+    for dot in sorted(medians):
+        raw = medians[dot]
+        if w is None or b is None:
+            seen = smartcal_gaze_to_tangents(*raw, settings)
+        elif warp == SMARTCAL_SPACE_ANGLE:
+            seen = next_smartcal_apply(w, b, warp, *raw)
+        else:
+            seen = smartcal_gaze_to_tangents(*next_smartcal_apply(w, b, warp, *raw), settings)
+        errors.append(np.degrees(np.arctan(seen) - np.arctan(tangents[dot])))
+    return np.asarray(errors, dtype=np.float64)
+
+
+def _heldout_errors_deg(medians: dict, tangents, layout) -> np.ndarray:
+    """(yaw, pitch) error in degrees at each captured dot (in dot order) of a
+    fit made without that dot, clamped like the saved fit.
+
+    The error a fit makes on its own dots flatters it: with three or four
+    unknowns per axis it partly bends to their noise. Leaving each dot out in
+    turn measures how well the calibration predicts gaze it was not fit on,
+    which is what the user gets. NaN where the remaining dots can't be fit."""
+    errors = np.full((len(medians), 2), np.nan)
+    centres = _centre_dots(layout)
+    for i, dot in enumerate(sorted(medians)):
+        others = {d: m for d, m in medians.items() if d != dot}
+        # Leaving out the only centre capture would also drop the hinge and
+        # score a different model. Hinge on its raw gaze, not its target.
+        hinge_y = medians[dot][1] if dot in centres else None
+        solved = _solve_angle_fit(others, tangents, layout, hinge_y)
+        if solved is None:
+            continue
+        w, b, _ = _clamp_angle_transform(*solved)
+        errors[i] = _fit_errors_deg(w, b, {dot: medians[dot]}, tangents)[0]
+    return errors
+
+
+def _drop_inconsistent_dots(medians: dict, tangents, layout):
+    """The captures without the dots that don't fit with the rest (see
+    _SMARTCAL_OUTLIER_MIN_DEG), and the dropped dots as (dot, held-out error
+    in degrees) in the order they were dropped."""
+    kept = dict(medians)
+    dropped = []
+    centres = set(_centre_dots(layout))
+    while len(kept) > _SMARTCAL_MIN_DOTS and len(dropped) < _SMARTCAL_MAX_DROPPED:
+        dots = sorted(kept)
+        errors = np.hypot(*_heldout_errors_deg(kept, tangents, layout).T)
+        candidates = [i for i, d in enumerate(dots) if d not in centres and np.isfinite(errors[i])]
+        if not candidates:
+            break
+        worst = max(candidates, key=lambda i: errors[i])
+        rest = np.delete(errors, worst)
+        rest = rest[np.isfinite(rest)]
+        limit = max(_SMARTCAL_OUTLIER_MIN_DEG, _SMARTCAL_OUTLIER_RATIO * float(np.median(rest))) if rest.size else 0.0
+        if not rest.size or errors[worst] <= limit:
+            break
+        dropped.append((dots[worst], float(errors[worst])))
+        del kept[dots[worst]]
+    return kept, dropped
+
+
+def _fit_next_smartcal(eye_processors: list, baseconfig, settings, gaze_range=None, layout=NEXT_SMARTCAL_DOTS) -> bool:
     """Least-squares fit the per-eye transform from raw gaze to true gaze angle
     (see the module header) on the per-dot raw medians.
 
     ``gaze_range`` is the range the overlay really placed its dots in
-    (parse_overlay_gaze_range); None assumes the overlay defaults.
+    (parse_overlay_gaze_range); None assumes the overlay defaults. ``layout``
+    holds the normalised positions of the dots that were shown.
 
     In the per-eye gaze modes (gui_NEXT_gaze_mode, see next_eye_gaze) the gaze
     transform is fit ONCE, on the dominant eye, and applied to both eyes. Each
@@ -500,8 +628,7 @@ def _fit_next_smartcal(eye_processors: list, baseconfig, settings, gaze_range=No
     correction fits both. (Lid/brow anchors stay per eye.)
 
     Returns True if at least one eye produced a usable transform (and was saved)."""
-    tangents = next_smartcal_dot_tangents(gaze_range)
-    centre = len(NEXT_SMARTCAL_DOTS) - 1
+    tangents = next_smartcal_dot_tangents(gaze_range, layout)
     saved_any = False
     sources = eye_processors
     shared_fit = False
@@ -512,14 +639,14 @@ def _fit_next_smartcal(eye_processors: list, baseconfig, settings, gaze_range=No
             sources, shared_fit = source, True
     for ep in sources:
         eye = getattr(ep, "eye_id", "?")
-        medians = _dot_medians(ep)
+        medians = _dot_medians(ep, len(layout))
         dots = sorted(medians)
         if len(dots) < _SMARTCAL_MIN_DOTS:
             logger.warning(
                 "NEXT smart cal (eye %s): only %d/%d dots captured (<%d); skipping fit.",
                 eye,
                 len(dots),
-                len(NEXT_SMARTCAL_DOTS),
+                len(layout),
                 _SMARTCAL_MIN_DOTS,
             )
             continue
@@ -543,29 +670,22 @@ def _fit_next_smartcal(eye_processors: list, baseconfig, settings, gaze_range=No
             )
             continue
 
-        gx, gy = R[:, 0], R[:, 1]
-        A = np.column_stack([gx, gy, np.ones(len(R))])  # N x 3  [gx, gy, 1]
-        # The separate upward gain needs the centre capture to hinge on and a
-        # couple of dots on each side of it; otherwise one gain serves both.
-        above = sum(NEXT_SMARTCAL_DOTS[d][1] > 0.0 for d in dots)
-        below = sum(NEXT_SMARTCAL_DOTS[d][1] < 0.0 for d in dots)
-        hinge = centre in medians and above >= 2 and below >= 2
-        y0 = medians[centre][1] if hinge else 0.0
-        Ay = np.column_stack([A, np.maximum(gy - y0, 0.0)]) if hinge else A
-        # Weighted least squares. Multiplying rows by sqrt(weight) makes the
-        # centre anchor count more without duplicating or over-sampling frames.
-        sw = np.sqrt([_SMARTCAL_CENTER_WEIGHT if d == centre else 1.0 for d in dots])
-        try:
-            sol_x, *_ = np.linalg.lstsq(A * sw[:, None], T[:, 0] * sw, rcond=None)  # [w11, w12, b1]
-            sol_y, *_ = np.linalg.lstsq(Ay * sw[:, None], T[:, 1] * sw, rcond=None)  # [w21, w22, b2, up - w22]
-        except np.linalg.LinAlgError as e:
-            logger.warning("NEXT smart cal (eye %s): solve failed: %s", eye, e)
-            continue
+        medians, dropped = _drop_inconsistent_dots(medians, tangents, layout)
+        if dropped:
+            logger.warning(
+                "NEXT smart cal (eye %s): dropped %d dot(s) that do not fit with the others: %s",
+                eye,
+                len(dropped),
+                ", ".join(f"{dot} ({error:.1f} deg held out)" for dot, error in dropped),
+            )
+            dots = sorted(medians)
+            R = np.asarray([medians[d] for d in dots], dtype=np.float64)
+            T = np.asarray([tangents[d] for d in dots], dtype=np.float64)
 
-        w22 = float(sol_y[1])
-        w22_up = w22 + float(sol_y[3]) if hinge else w22
-        w = [float(sol_x[0]), float(sol_x[1]), float(sol_y[0]), w22, y0, w22_up]
-        b = [float(sol_x[2]), float(sol_y[2])]
+        solved = _solve_angle_fit(medians, tangents, layout)
+        if solved is None:
+            continue
+        w, b = solved
 
         # Diagnostic dump (INFO so it shows without debug config): each held
         # dot's raw median, where the dot really is, and how far the fit lands
@@ -573,13 +693,16 @@ def _fit_next_smartcal(eye_processors: list, baseconfig, settings, gaze_range=No
         # plateauing; a sign inverted against the dot means the capture is
         # flipped; wide scatter means a noisy follow.
         errors = _fit_errors_deg(w, b, medians, tangents)
+        heldout = _heldout_errors_deg(medians, tangents, layout)
         truth = np.degrees(np.arctan(T))
         logger.info(
-            "NEXT smart cal (eye %s) captures: dot raw -> dot angle (yaw, pitch deg), fit error (deg):\n%s",
+            "NEXT smart cal (eye %s) captures: dot raw -> dot angle (yaw, pitch deg), fit error and "
+            "held-out error (deg):\n%s",
             eye,
             "\n".join(
                 f"  {d:2d} ({R[i, 0]:+.3f}, {R[i, 1]:+.3f}) -> ({truth[i, 0]:+5.1f}, {truth[i, 1]:+5.1f})"
                 f"  err ({errors[i, 0]:+.1f}, {errors[i, 1]:+.1f})"
+                f"  held-out ({heldout[i, 0]:+.1f}, {heldout[i, 1]:+.1f})"
                 for i, d in enumerate(dots)
             ),
         )
@@ -624,6 +747,23 @@ def _fit_next_smartcal(eye_processors: list, baseconfig, settings, gaze_range=No
             )
             continue
 
+        # Replace the calibration only with a better one. The current mapping
+        # was not fit on these captures, so its error on them is held out too.
+        heldout_deg = np.hypot(heldout[:, 0], heldout[:, 1])
+        current = np.hypot(*_current_mapping_errors_deg(ep, medians, tangents, settings).T)
+        logger.info(
+            "NEXT smart cal (eye %s): new fit %.1f deg held out, current calibration %.1f deg on the same dots.",
+            eye,
+            float(np.nanmean(heldout_deg)),
+            float(np.mean(current)),
+        )
+        if float(np.nanmean(heldout_deg)) > float(np.mean(current)):
+            logger.warning(
+                "NEXT smart cal (eye %s): the new fit is less accurate than the current calibration. Keeping it.",
+                eye,
+            )
+            continue
+
         for dst in eye_processors if shared_fit else (ep,):
             dst.config.next_smartcal_w = list(w)
             dst.config.next_smartcal_b = list(b)
@@ -634,7 +774,7 @@ def _fit_next_smartcal(eye_processors: list, baseconfig, settings, gaze_range=No
         saved_any = True
         logger.info(
             "NEXT smart cal (eye %s%s): fit from %d dots: W=%s B=%s, mean error %.1f deg "
-            "(worst %.1f), vertical gain up/down %.2f",
+            "(worst %.1f), held-out %.1f deg (worst %.1f), vertical gain up/down %.2f",
             eye,
             ", dominant: applied to both eyes" if shared_fit else "",
             len(dots),
@@ -642,13 +782,15 @@ def _fit_next_smartcal(eye_processors: list, baseconfig, settings, gaze_range=No
             [round(v, 4) for v in b],
             residual,
             float(np.max(np.hypot(errors[:, 0], errors[:, 1]))),
+            float(np.nanmean(heldout_deg)),
+            float(np.nanmax(heldout_deg)),
             w[5] / w[3],
         )
         # How the other eye's own captures land under the fit it was handed: a
         # real deviation between the eyes shows here, and so does a model that
         # simply reads this eye differently, which the shared fit can't correct.
         for other in eye_processors if shared_fit else ():
-            other_medians = _dot_medians(other)
+            other_medians = _dot_medians(other, len(layout))
             if other is ep or len(other_medians) < _SMARTCAL_MIN_DOTS:
                 continue
             off = _fit_errors_deg(w, b, other_medians, tangents)
