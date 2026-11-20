@@ -163,12 +163,13 @@ class EyeProcessor(NextProcessingMixin):
         self._next_recenter_offset_y = 0.0
         self._next_recenter_armed_at = None  # perf_counter when NEXT recenter was requested
         # NEXT Smart Calibration state.
-        #   _next_smartcal_active_dot: index (0..10) of the overlay dot currently
-        #     being held/sampled, or None when not calibrating.
+        #   _next_smartcal_trace: every frame of a Smart Calib or range check
+        #     run as (monotonic time, raw_gaze_x, raw_gaze_y, raw_lid,
+        #     raw_brow), or None when none runs (see gaze_capture).
         #   _next_smartcal_samples: {dot -> [(raw_gaze_x, raw_gaze_y, raw_lid,
-        #     raw_brow), ...]} accumulated while that dot is held; medianed at
-        #     fit time. Gaze is medianed per dot; lid/brow are pooled across all
-        #     dots (the face is neutral for the whole sequence).
+        #     raw_brow), ...]}, the frames that captured each dot. Gaze is
+        #     medianed per dot; lid/brow are pooled across all dots (the face
+        #     is neutral for the whole sequence).
         #   _next_smartcal_lid_neutral / _brow_neutral: the captured resting
         #     readings those two channels are re-anchored against, or None.
         #   _next_smartcal_w / _b: the fitted gaze transform (loaded from
@@ -176,9 +177,8 @@ class EyeProcessor(NextProcessingMixin):
         #   _next_smartcal_warp: the space that fit lives in ("angle" = true
         #     gaze angle, what Smart Calib fits now; None / "atanh" = legacy
         #     affines onto output gaze from older builds). See next_smartcal.
-        self._next_smartcal_active_dot = None
-        self._next_smartcal_dot_started = 0.0
         self._next_smartcal_samples = {}
+        self._next_smartcal_trace = None
         self._next_smartcal_w = (
             list(self.config.next_smartcal_w) if getattr(self.config, "next_smartcal_w", None) is not None else None
         )

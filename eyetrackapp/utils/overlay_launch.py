@@ -13,6 +13,7 @@ import logging
 import os
 import platform
 import socket
+import struct
 import subprocess
 import sys
 import time
@@ -72,10 +73,45 @@ def overlay_command(*args: str, executable: str | None = None) -> list[str]:
 
 # The overlay sends its calibration signals here as big-endian int32s.
 OVERLAY_SIGNAL_PORT = 2112
+# The overlay's interactive and preview modes take commands here.
+OVERLAY_CMD_PORT = 2113
+
+# Interactive overlay protocol (the overlay's modes.cpp): the app places each
+# dot. 110 starts a pass and is answered by 10 once it runs. 111 <x> <y> then
+# glides a dot to (x, y), converges its ring and signals 20 as the dot becomes
+# capture-ready, holds it 0.5 s and keeps it on screen until the next 111.
+# Commands that arrive during that hold wait for it to end. 119 ends the pass
+# with 19, 50 <utf-8> shows text, 98 hides it and 200 quits.
+SIG_PASS_RUNNING = 10
+SIG_PASS_ENDED = 19
+SIG_DOT_HELD = 20
+SIG_READY = 255
+CMD_TEXT = 50
+CMD_HIDE_TEXT = 98
+CMD_START_PASS = 110
+CMD_DOT = 111
+CMD_END_PASS = 119
+CMD_QUIT = 200
+
+
+# The overlay shows at most this many bytes of text.
+HEADSET_TEXT_BYTES = 400
+
+
+def headset_text(lines: list) -> str:
+    """``lines`` as overlay text, cut to whole lines that fit."""
+    lines = list(lines)
+    while len("\n".join(lines).encode("utf-8")) > HEADSET_TEXT_BYTES and len(lines) > 1:
+        lines.pop()
+    return "\n".join(lines).encode("utf-8")[:HEADSET_TEXT_BYTES].decode("utf-8", "ignore")
 
 
 class OverlayExited(OSError):
     """The overlay process ended before the calibration finished."""
+
+
+class OverlayStopped(Exception):
+    """The app stopped waiting for the overlay."""
 
 
 class OverlaySession:
@@ -100,6 +136,7 @@ class OverlaySession:
         self.timeout = timeout
         self.process: subprocess.Popen | None = None
         self.sock: socket.socket | None = None
+        self._cmd_sock: socket.socket | None = None
         self._log = None
         self._finished = False
         self._deadline = 0.0
@@ -147,6 +184,41 @@ class OverlaySession:
                     raise OverlayExited(f"calibration overlay exited with code {code}; see calibration-overlay.log")
         raise TimeoutError(f"calibration overlay sent nothing for {self.timeout:.0f} s")
 
+    def wait_for(self, signal: int, keep_going=lambda: True) -> None:
+        """Read signals until ``signal`` arrives. Raises OverlayStopped once
+        ``keep_going()`` is false."""
+        while True:
+            if not keep_going():
+                raise OverlayStopped
+            data = self.recv(16)
+            if len(data) >= 4 and struct.unpack(">i", data[:4])[0] == signal:
+                return
+
+    def pause(self, seconds: float, keep_going=lambda: True) -> None:
+        """Wait ``seconds``. Raises OverlayStopped once ``keep_going()`` is
+        false and OverlayExited when the overlay quits meanwhile."""
+        deadline = time.monotonic() + seconds
+        while time.monotonic() < deadline:
+            if not keep_going():
+                raise OverlayStopped
+            code = self.process.poll()
+            if code is not None:
+                raise OverlayExited(f"calibration overlay exited with code {code}; see calibration-overlay.log")
+            time.sleep(min(0.05, max(0.0, deadline - time.monotonic())))
+
+    def send(self, code: int, *values: float) -> None:
+        """Send a command and its float arguments to the overlay's command port."""
+        self._send_command(struct.pack(f">i{len(values)}f", code, *values))
+
+    def send_text(self, code: int, text: str) -> None:
+        """Send a command followed by UTF-8 text."""
+        self._send_command(struct.pack(">i", code) + text.encode("utf-8"))
+
+    def _send_command(self, payload: bytes) -> None:
+        if self._cmd_sock is None:
+            self._cmd_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        self._cmd_sock.sendto(payload, ("127.0.0.1", OVERLAY_CMD_PORT))
+
     def log_text(self) -> str:
         """What the overlay has logged in this run so far (its resolved gaze
         range among it). Its output file can lag while it runs, so this also
@@ -183,7 +255,7 @@ class OverlaySession:
                         pass
                 _stop(self.process, self.TERMINATE_GRACE_S)
         finally:
-            for resource in (self.sock, self._log):
+            for resource in (self.sock, self._cmd_sock, self._log):
                 if resource is not None:
                     try:
                         resource.close()

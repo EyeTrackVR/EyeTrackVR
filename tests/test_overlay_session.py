@@ -14,7 +14,7 @@ import pytest
 import overlay_calibration as calibration
 from utils import logging_utils, overlay_launch
 from utils.calibration_elipse import CalibrationEllipse
-from utils.overlay_launch import OVERLAY_SIGNAL_PORT, OverlayExited, OverlaySession
+from utils.overlay_launch import OverlayExited, OverlaySession, OverlayStopped
 
 FAKE_OVERLAY = """
 import socket, struct, sys, time
@@ -32,7 +32,7 @@ def fake_overlay(monkeypatch, tmp_path):
     """Launch the stand-in instead of the overlay binary; returns a setter
     for the signals it sends and how long it then stays alive."""
     script = tmp_path / "fake_overlay.py"
-    script.write_text(FAKE_OVERLAY.format(port=OVERLAY_SIGNAL_PORT))
+    script.write_text(FAKE_OVERLAY.format(port=overlay_launch.OVERLAY_SIGNAL_PORT))
     monkeypatch.setattr(logging_utils, "log_directory", lambda: tmp_path)
     behaviour = {"signals": [], "linger": 0.0}
 
@@ -51,7 +51,7 @@ def fake_overlay(monkeypatch, tmp_path):
 
 def _port_is_free():
     with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as sock:
-        sock.bind(("127.0.0.1", OVERLAY_SIGNAL_PORT))
+        sock.bind(("127.0.0.1", overlay_launch.OVERLAY_SIGNAL_PORT))
 
 
 def test_finished_overlay_receives_signals_and_closes_by_itself(fake_overlay):
@@ -193,4 +193,18 @@ def test_start_and_close_work_without_a_with_block(fake_overlay):
     overlay.close()
 
     assert overlay.process.returncode is not None
+    _port_is_free()
+
+
+def test_a_pause_ends_early_when_stopped_or_when_the_overlay_quits(fake_overlay):
+    fake_overlay(signals=[], linger=5.0)
+    with OverlaySession("interactive") as overlay:
+        started = time.monotonic()
+        with pytest.raises(OverlayStopped):
+            overlay.pause(5.0, keep_going=lambda: time.monotonic() - started < 0.2)
+        assert time.monotonic() - started < 2.0
+
+    fake_overlay(signals=[], linger=0.0)
+    with OverlaySession("interactive") as overlay, pytest.raises(OverlayExited):
+        overlay.pause(10.0)
     _port_is_free()

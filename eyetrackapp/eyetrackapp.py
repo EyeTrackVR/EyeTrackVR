@@ -819,6 +819,9 @@ def main():
                 tr("tracking.next_smartcal_reset_btn_tip"),
             )
             self._next_smartcal_reset_visible = False
+            ttk.Label(self._tracking_actions, text=tr("tracking.actions_hint"), justify="center", wraplength=640).pack(
+                pady=(8, 0)
+            )
             bottom = ttk.Frame(self.root)
             bottom.pack(fill="x", padx=8, pady=4)
             ttk.Button(bottom, text=tr("issues.title"), command=self._toggle_issues_popup).pack(side="left")
@@ -1614,7 +1617,7 @@ def main():
                 return
             self._next_smartcal_reset_visible = show
             if show:
-                self._next_smartcal_reset_btn.pack(side="left", padx=8)
+                self._next_smartcal_reset_btn.pack(side="left", padx=8, after=self._global_calibration_btn)
             else:
                 self._next_smartcal_reset_btn.pack_forget()
 

@@ -1,3 +1,4 @@
+import socket
 import sys
 
 import pytest
@@ -55,6 +56,27 @@ def silent(monkeypatch):
     for module in list(sys.modules.values()):
         if getattr(module, "PlaySound", None) is played:
             monkeypatch.setattr(module, "PlaySound", mute)
+
+
+@pytest.fixture(autouse=True)
+def own_overlay_ports(monkeypatch):
+    """Every test talks to stand-in overlays on free ports of its own, never
+    on the real overlay's 2112 and 2113: a running EyeTrackVR or overlay on
+    this machine would otherwise take the test's signals, or get its
+    commands."""
+    import data_collection
+    import data_collection_passes
+    from utils import overlay_launch
+
+    sockets = [socket.socket(socket.AF_INET, socket.SOCK_DGRAM) for _ in range(2)]
+    for sock in sockets:
+        sock.bind(("127.0.0.1", 0))
+    signal_port, cmd_port = (sock.getsockname()[1] for sock in sockets)
+    for sock in sockets:
+        sock.close()
+    monkeypatch.setattr(overlay_launch, "OVERLAY_SIGNAL_PORT", signal_port)
+    for module in (overlay_launch, data_collection, data_collection_passes):
+        monkeypatch.setattr(module, "OVERLAY_CMD_PORT", cmd_port)
 
 
 @pytest.fixture()
