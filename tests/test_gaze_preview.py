@@ -12,7 +12,7 @@ import pytest
 import overlay_calibration as calibration
 from utils import gaze_preview, logging_utils, overlay_launch
 from utils.gaze_preview import CMD_GAZE, CMD_QUIT, CMD_TEXT, GazePreviewStream, gaze_tangents
-from utils.overlay_launch import OVERLAY_SIGNAL_PORT
+
 
 SETTINGS = SimpleNamespace(
     gui_gaze_yaw_max_deg=40.0,
@@ -113,7 +113,9 @@ def fake_overlay(monkeypatch, tmp_path):
     record = tmp_path / "commands.txt"
     script = tmp_path / "fake_overlay.py"
     script.write_text(
-        FAKE_OVERLAY.format(cmd_port=gaze_preview.OVERLAY_CMD_PORT, sig_port=OVERLAY_SIGNAL_PORT, record=str(record))
+        FAKE_OVERLAY.format(
+            cmd_port=overlay_launch.OVERLAY_CMD_PORT, sig_port=overlay_launch.OVERLAY_SIGNAL_PORT, record=str(record)
+        )
     )
     monkeypatch.setattr(logging_utils, "log_directory", lambda: tmp_path)
     behaviour = {"arg": ""}

@@ -18,7 +18,8 @@ import struct
 import threading
 import time
 
-OVERLAY_CMD_PORT = 2113
+from utils import overlay_launch
+
 CMD_TEXT = 50
 CMD_GAZE = 140
 CMD_QUIT = 200
@@ -46,8 +47,8 @@ def _finite(value) -> float | None:
 class GazePreviewStream:
     """Sends each output gaze sample to the overlay, both eyes combined."""
 
-    def __init__(self, settings, address=("127.0.0.1", OVERLAY_CMD_PORT)):
-        self.address = address
+    def __init__(self, settings, address=None):
+        self.address = address or ("127.0.0.1", overlay_launch.OVERLAY_CMD_PORT)
         self.fov = (
             float(settings.gui_gaze_yaw_max_deg),
             float(settings.gui_gaze_pitch_up_deg),
