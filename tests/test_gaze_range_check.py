@@ -2,7 +2,6 @@
 measures how far out the calibrated gaze still lands on them."""
 
 import math
-import threading
 import time
 from types import SimpleNamespace
 
@@ -17,6 +16,7 @@ from gaze_range_report import headset_report, log_report
 from next_smartcal import SMARTCAL_SPACE_ANGLE, next_smartcal_dot_tangents, smartcal_tangents_to_gaze
 from tests import interactive_overlay
 from tests.test_next_smartcal import GAZE_RANGE_LINE
+from utils.overlay_launch import CMD_DOT, OverlaySession
 
 SETTINGS = SimpleNamespace(
     gui_gaze_yaw_max_deg=40.0,
@@ -205,31 +205,46 @@ def english():
 
 
 class _Eye:
-    """Looks at whichever dot the overlay was last told to show and feeds the
-    raw gaze an uncalibrated model reads there to the trace."""
+    """An eye processor that looks at each dot from the moment the app tells
+    the overlay to show it.
 
-    def __init__(self, record):
-        self.processor = SimpleNamespace(eye_id=EyeId.LEFT, _next_smartcal_w=None, _next_smartcal_b=None)
-        self.record = record
-        self._stop = threading.Event()
-        self._thread = threading.Thread(target=self._feed, daemon=True)
-        self._thread.start()
+    Its trace holds a frame every FRAME_S up to the moment it is read, each
+    with the raw gaze an uncalibrated model reads on the dot the eye looked
+    at then: what an eye thread would have appended, without a thread or an
+    overlay whose timing decides which dot a frame is of."""
 
-    def _feed(self):
-        while not self._stop.is_set():
-            try:
-                dots = [line.split()[1:] for line in self.record.read_text().splitlines() if line.startswith("111 ")]
-            except OSError:
-                dots = []
-            trace = getattr(self.processor, "_next_smartcal_trace", None)
-            if dots and trace is not None:
-                target = next_smartcal_dot_tangents(GAZE_RANGE, [tuple(map(float, dots[-1]))])[0]
-                trace.append((time.monotonic(), *smartcal_tangents_to_gaze(*target, SETTINGS), 0.8, 0.5))
-            time.sleep(0.002)
+    FRAME_S = 0.002
+    eye_id = EyeId.LEFT
+    _next_smartcal_w = _next_smartcal_b = None
 
-    def stop(self):
-        self._stop.set()
-        self._thread.join()
+    def __init__(self, monkeypatch):
+        self._frames = None
+        self._looks = []  # (since, raw gaze)
+        send = OverlaySession.send
+
+        def look_and_send(session, code, *values):
+            if code == CMD_DOT:
+                target = next_smartcal_dot_tangents(GAZE_RANGE, [values])[0]
+                self._looks.append((time.monotonic(), smartcal_tangents_to_gaze(*target, SETTINGS)))
+            send(session, code, *values)
+
+        monkeypatch.setattr(OverlaySession, "send", look_and_send)
+
+    @property
+    def _next_smartcal_trace(self):
+        if self._frames is None or not self._looks:
+            return self._frames
+        now = time.monotonic()
+        at = self._frames[-1][0] + self.FRAME_S if self._frames else self._looks[0][0]
+        while at <= now:
+            gaze = [gaze for since, gaze in self._looks if since <= at][-1]
+            self._frames.append((at, *gaze, 0.8, 0.5))
+            at += self.FRAME_S
+        return self._frames
+
+    @_next_smartcal_trace.setter
+    def _next_smartcal_trace(self, frames):
+        self._frames = frames
 
 
 def test_the_check_runs_in_the_headset_and_reports(monkeypatch, tmp_path):
@@ -245,10 +260,9 @@ def test_the_check_runs_in_the_headset_and_reports(monkeypatch, tmp_path):
         (gaze_capture, "SETTLE_S", 0.03),
     ):
         monkeypatch.setattr(module, name, value)
-    eye = _Eye(record)
+    eye = _Eye(monkeypatch)
 
-    check.gaze_range_check_overlay([eye.processor], SETTINGS).wait(timeout=60)
-    eye.stop()
+    check.gaze_range_check_overlay([eye], SETTINGS).wait(timeout=60)
 
     assert launched == [("interactive", *check.overlay_range_args())]
     commands = record.read_text().splitlines()
@@ -259,4 +273,4 @@ def test_the_check_runs_in_the_headset_and_reports(monkeypatch, tmp_path):
     assert commands[-2].startswith("50 Gaze range check|Gaze stays within 2.0° of the dot out to:|up 15° of 15°")
     assert commands[-1] == "200"
     assert not var.overlay_active
-    assert eye.processor._next_smartcal_trace is None
+    assert eye._next_smartcal_trace is None
