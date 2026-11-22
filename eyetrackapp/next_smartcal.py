@@ -240,6 +240,14 @@ _SMARTCAL_CLAMP_FACTOR = 2.0
 # runs from 3.0 to 2.1 deg.
 _SMARTCAL_SATURATIONS = (1.2, 1.0, 0.9, 0.85, 0.8)
 _SMARTCAL_CURVE_MARGIN = 0.95
+# Undoing a tanh steepens without limit towards its ceiling: at 95 % of it a
+# raw step, and the camera noise in it, counts ten times what it does at the
+# centre, and every raw gaze at or past the ceiling used to land on one value.
+# So the undo follows the curve only until it is MAX_SLOPE times as steep as
+# at the centre (at _SMARTCAL_UNDO_KNEE of the ceiling, 0.87) and goes on
+# straight from there: never steeper, and still telling apart every raw gaze.
+_SMARTCAL_UNDO_MAX_SLOPE = 4.0
+_SMARTCAL_UNDO_KNEE = math.sqrt(1.0 - 1.0 / _SMARTCAL_UNDO_MAX_SLOPE)
 # A dot whose held-out error is far above the others' was not fixated (a
 # glance away, a blink the median could not reject, a slipped pupil fit). One
 # such dot pulls the whole fit, and can push the mean error past the limit
@@ -270,6 +278,15 @@ _SMARTCAL_MIN_RAW_SPREAD = 0.10
 # (that would be 1.25 of real gaze). 0.25 keeps the same guard at that gain.
 _SMARTCAL_SANITY_EARLY_R = 0.25
 _SMARTCAL_SANITY_EARLY_MAX = 0.85
+# That ring sits where a saturation curve is still nearly straight, so it says
+# nothing about what the curve does further out, where it acts. A new fit
+# with a curve is therefore also probed on these rings of raw gaze, out to
+# the edge of the model's output (raw +-1, the edge of the range it was
+# trained on): nowhere may it carry a raw gaze further than the steepest
+# straight fit that is accepted would (_SMARTCAL_MAX_GAIN and
+# _SMARTCAL_MAX_BIAS). Only checked when fitting: a curve saved by an older
+# build keeps loading.
+_SMARTCAL_SANITY_CURVE_RADII = (0.5, 0.75, 1.0)
 
 # ── Lid / brow half of the smart calibration ──────────────────────────────────
 # The user holds a neutral face for the whole dot sequence (they are only moving
@@ -388,10 +405,15 @@ def _saturation(w) -> tuple:
 
 def _desaturate(v: float, saturation: float) -> float:
     """Undo a model output that flattens towards +-``saturation`` (a tanh
-    curve with that ceiling), or nothing for saturation 0."""
+    curve with that ceiling), or nothing for saturation 0. Straight on from
+    the knee (see _SMARTCAL_UNDO_MAX_SLOPE)."""
     if saturation <= 0.0:
         return float(v)
-    return math.atanh(max(-_SMARTCAL_WARP_CLAMP, min(_SMARTCAL_WARP_CLAMP, float(v) / saturation)))
+    u = float(v) / saturation
+    if abs(u) <= _SMARTCAL_UNDO_KNEE:
+        return math.atanh(u)
+    beyond = (abs(u) - _SMARTCAL_UNDO_KNEE) * _SMARTCAL_UNDO_MAX_SLOPE
+    return math.copysign(math.atanh(_SMARTCAL_UNDO_KNEE) + beyond, u)
 
 
 def next_smartcal_apply(w, b, warp, x_raw, y_raw):
@@ -456,6 +478,26 @@ def next_smartcal_transform_is_sane(w, b, warp=None) -> bool:
                 return False
         return True
     return _affine_is_sane(w, b, warp)
+
+
+def _curve_stays_in_bounds(w, b) -> bool:
+    """Whether an angle fit with a saturation curve keeps the whole raw range
+    within what a straight fit may do (see _SMARTCAL_SANITY_CURVE_RADII).
+    True for a straight fit, which its own bounds cover."""
+    if not any(_saturation(w)):
+        return True
+    for r in _SMARTCAL_SANITY_CURVE_RADII:
+        limit = _SMARTCAL_MAX_GAIN * r + math.hypot(_SMARTCAL_MAX_BIAS, _SMARTCAL_MAX_BIAS)
+        for ang in np.linspace(0.0, 2.0 * math.pi, 8, endpoint=False):
+            tx, ty = next_smartcal_apply(w, b, SMARTCAL_SPACE_ANGLE, math.cos(ang) * r, math.sin(ang) * r)
+            if not math.isfinite(tx + ty) or math.hypot(tx, ty) / _SMARTCAL_ANGLE_REF > limit:
+                return False
+    return True
+
+
+def _new_fit_is_sane(w, b) -> bool:
+    """The check a newly made angle fit must pass to be used."""
+    return next_smartcal_transform_is_sane(w, b, SMARTCAL_SPACE_ANGLE) and _curve_stays_in_bounds(w, b)
 
 
 def _affine_is_sane(w, b, warp) -> bool:
@@ -715,9 +757,7 @@ def _choose_saturation(medians: dict, tangents, layout) -> tuple:
     ceilings = (0.0, *_SMARTCAL_SATURATIONS)
     for saturation in ((sx, sy) for sx in ceilings for sy in ceilings):
         solved = _solve_angle_fit(medians, tangents, layout, saturation=saturation)
-        if solved is None or not next_smartcal_transform_is_sane(
-            *_clamp_angle_transform(*solved)[:2], SMARTCAL_SPACE_ANGLE
-        ):
+        if solved is None or not _new_fit_is_sane(*_clamp_angle_transform(*solved)[:2]):
             continue
         errors = np.hypot(*_heldout_errors_deg(medians, tangents, layout, saturation).T)
         if np.isfinite(errors).any():
@@ -945,7 +985,7 @@ def _fit_next_smartcal(
                 [round(v, 4) for v in w],
                 [round(v, 4) for v in b],
             )
-        if not next_smartcal_transform_is_sane(w, b, SMARTCAL_SPACE_ANGLE):
+        if not _new_fit_is_sane(w, b):
             logger.warning(
                 "NEXT smart cal (eye %s): rejected degenerate transform W=%s B=%s "
                 "(gain/bias/monotonicity out of bounds). Keeping previous "

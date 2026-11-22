@@ -18,6 +18,8 @@ from next_smartcal import (
     _fit_errors_deg,
     _choose_saturation,
     _clamp_angle_transform,
+    _curve_stays_in_bounds,
+    _desaturate,
     _dot_medians,
     _drop_inconsistent_dots,
     _heldout_errors_deg,
@@ -449,9 +451,12 @@ def test_a_saturating_model_is_fit_with_its_saturation_undone():
     assert _choose_saturation(raw, tangents, NEXT_SMARTCAL_DOTS) == (0.9, 0.9)
     ep = _fit(raw, layout=NEXT_SMARTCAL_DOTS)
     assert ep._next_smartcal_w[6:] == [0.9, 0.9]
+    # The lowest dots are just past where the undo stops following the curve
+    # (test_the_saturation_undo_never_gets_steeper_than_its_limit), which
+    # costs a few hundredths of a degree.
     for yaw, pitch in [(25.0, 10.0), (-28.0, -35.0), (0.0, 14.0)]:
         looking = _saturating(math.tan(math.radians(yaw)), math.tan(math.radians(pitch)))
-        assert _angles(ep, looking) == pytest.approx([yaw, pitch], abs=0.05)
+        assert _angles(ep, looking) == pytest.approx([yaw, pitch], abs=0.1)
 
 
 def test_each_axis_gets_its_own_saturation():
@@ -468,6 +473,50 @@ def test_a_linear_model_keeps_the_straight_fit():
     raw = {dot: _model(*tangents[dot]) for dot in range(len(NEXT_SMARTCAL_DOTS))}
     assert _choose_saturation(raw, tangents, NEXT_SMARTCAL_DOTS) == (0.0, 0.0)
     assert len(_fit(raw, layout=NEXT_SMARTCAL_DOTS)._next_smartcal_w) == 6
+
+
+def test_the_saturation_undo_never_gets_steeper_than_its_limit():
+    import next_smartcal
+
+    ceiling, limit = 0.8, next_smartcal._SMARTCAL_UNDO_MAX_SLOPE
+    # The plain inverse up to the knee, and the same either side of zero.
+    assert _desaturate(0.4, ceiling) == pytest.approx(math.atanh(0.5))
+    assert _desaturate(-0.76, ceiling) == -_desaturate(0.76, ceiling)
+    assert _desaturate(0.3, 0.0) == 0.3
+    # From there on a raw step never counts more than ``limit`` times what it
+    # does at the centre, where the inverse was ten times as steep at 95 % of
+    # the ceiling and far more beyond.
+    centre = _desaturate(0.001, ceiling) / 0.001
+    raws = np.linspace(0.0, 1.2, 241)
+    undone = np.array([_desaturate(raw, ceiling) for raw in raws])
+    slopes = np.diff(undone) / np.diff(raws)
+    assert slopes.max() == pytest.approx(limit * centre, rel=1e-3)
+    assert slopes[int(0.95 * ceiling / 0.005)] == pytest.approx(limit * centre, rel=1e-3)
+    # No jump at the knee, and a raw gaze at or past the ceiling is still told
+    # apart from one just under it.
+    assert np.all(slopes > 0.0) and np.abs(np.diff(slopes)).max() < 0.2 * centre
+    assert _desaturate(0.8, ceiling) < _desaturate(0.85, ceiling) < _desaturate(1.0, ceiling) < math.inf
+
+
+def test_a_curve_is_checked_over_the_whole_raw_range():
+    ref = math.tan(math.radians(40.0))
+    gain = 1.6 * ref
+    b = [0.0, 0.0]
+    steep = [gain, 0.0, 0.0, gain, 0.0, gain, 0.8, 0.8]
+    # Near the centre, where a curve is nearly straight, it looks like the
+    # straight fit of the same gain, which is fine.
+    assert next_smartcal_transform_is_sane(steep, b, SMARTCAL_SPACE_ANGLE)
+    assert _curve_stays_in_bounds(steep[:6], b)
+    # Further out it carries the raw gaze past anything a straight fit may.
+    assert not _curve_stays_in_bounds(steep, b)
+    assert _curve_stays_in_bounds([0.7, 0.0, 0.0, 1.1, 0.0, 0.6, 0.85, 1.0], [0.0, 0.01])
+
+    # Such a curve is not among those a fit chooses from, however well it
+    # would predict the dots: this model is steep and flattens early.
+    tangents = next_smartcal_dot_tangents()
+    raw = {dot: _saturating(*tangents[dot], ceiling=0.8, gain=0.45) for dot in range(len(NEXT_SMARTCAL_DOTS))}
+    ep = _fit(raw, layout=NEXT_SMARTCAL_DOTS)
+    assert _curve_stays_in_bounds(ep._next_smartcal_w, ep._next_smartcal_b)
 
 
 def test_a_saturating_fit_is_stored_clamped_and_checked_like_a_straight_one():
