@@ -519,6 +519,35 @@ def test_a_curve_is_checked_over_the_whole_raw_range():
     assert _curve_stays_in_bounds(ep._next_smartcal_w, ep._next_smartcal_b)
 
 
+def test_the_score_of_a_fit_is_held_out_from_the_choice_of_curve_too(monkeypatch):
+    import next_smartcal
+
+    tangents = next_smartcal_dot_tangents(layout=FINETUNE_DOTS)
+    exact = {dot: _saturating(*tangents[dot], ceiling=1.0) for dot in range(len(FINETUNE_DOTS))}
+    chosen_under, chosen_without = 0.0, 0.0
+    for seed in (5, 6, 7):
+        raw = _noisy(exact, seed)
+        saturation = _choose_saturation(raw, tangents, FINETUNE_DOTS)
+        chosen_under += np.hypot(*_heldout_errors_deg(raw, tangents, FINETUNE_DOTS, saturation).T).mean()
+        chosen_without += np.hypot(*_heldout_errors_deg(raw, tangents, FINETUNE_DOTS, None).T).mean()
+    # The curve picked for predicting these dots best flatters the fit.
+    assert chosen_without > 1.1 * chosen_under
+
+    # The fit is scored the honest way: each dot by a curve chosen without it.
+    choose = next_smartcal._choose_saturation
+    chosen_from = []
+    monkeypatch.setattr(
+        next_smartcal,
+        "_choose_saturation",
+        lambda medians, *args, **kwargs: chosen_from.append(sorted(medians)) or choose(medians, *args, **kwargs),
+    )
+    results = []
+    assert _fit_next_smartcal([_processor(exact)], Mock(), SETTINGS, None, FINETUNE_DOTS, results)
+    dots = list(range(len(FINETUNE_DOTS)))
+    assert all([d for d in dots if d != dot] in chosen_from for dot in dots)
+    assert results[0].heldout_mean == pytest.approx(0.0, abs=1e-6)
+
+
 def test_a_saturating_fit_is_stored_clamped_and_checked_like_a_straight_one():
     ref = math.tan(math.radians(40.0))
     w, b = [0.7, 0.0, 0.0, 1.1, 0.0, 0.6, 0.85, 1.0], [0.0, 0.01]

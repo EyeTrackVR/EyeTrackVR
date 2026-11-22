@@ -701,11 +701,19 @@ def _heldout_errors_deg(medians: dict, tangents, layout, saturation=(0.0, 0.0)) 
     The error a fit makes on its own dots flatters it: with three or four
     unknowns per axis it partly bends to their noise. Leaving each dot out in
     turn measures how well the calibration predicts gaze it was not fit on,
-    which is what the user gets. NaN where the remaining dots can't be fit."""
+    which is what the user gets. NaN where the remaining dots can't be fit.
+
+    With ``saturation`` None the curve is chosen without the dot as well
+    (_choose_saturation on the others), which is what the whole fit is worth:
+    the errors under the curve that _choose_saturation picked are the lowest
+    of three dozen tries on these very dots, and flatter it again."""
     errors = np.full((len(medians), 2), np.nan)
     centres = _centre_dots(layout)
+    choose = saturation is None
     for i, dot in enumerate(sorted(medians)):
         others = {d: m for d, m in medians.items() if d != dot}
+        if choose:
+            saturation = _choose_saturation(others, tangents, layout, quiet=True)
         # Leaving out the only centre capture would also drop the hinge and
         # score a different model. Hinge on its raw gaze, not its target.
         hinge_y = medians[dot][1] if dot in centres else None
@@ -749,7 +757,7 @@ class SmartCalEyeResult:
     current_mean: float | None = None
 
 
-def _choose_saturation(medians: dict, tangents, layout) -> tuple:
+def _choose_saturation(medians: dict, tangents, layout, quiet: bool = False) -> tuple:
     """The (sideways, vertical) saturation (0: none) whose fit best predicts
     held-out dots. Only saturations whose fit of all dots would be accepted
     take part."""
@@ -768,12 +776,13 @@ def _choose_saturation(medians: dict, tangents, layout) -> tuple:
     best = min(scores, key=scores.get)
     if best != straight and straight in scores and scores[best] > _SMARTCAL_CURVE_MARGIN * scores[straight]:
         best = straight
-    logger.info(
-        "NEXT smart cal: held-out median error %.1f deg with saturation %g sideways, %g vertical (straight fit %s)",
-        scores[best],
-        *best,
-        f"{scores[straight]:.1f} deg" if straight in scores else "rejected",
-    )
+    if not quiet:
+        logger.info(
+            "NEXT smart cal: held-out median error %.1f deg with saturation %g sideways, %g vertical (straight fit %s)",
+            scores[best],
+            *best,
+            f"{scores[straight]:.1f} deg" if straight in scores else "rejected",
+        )
     return best
 
 
@@ -936,7 +945,9 @@ def _fit_next_smartcal(
         # plateauing; a sign inverted against the dot means the capture is
         # flipped; wide scatter means a noisy follow.
         errors = _fit_errors_deg(w, b, medians, tangents)
-        heldout = _heldout_errors_deg(medians, tangents, layout, saturation)
+        # Held out from the choice of curve too, so that the score below is
+        # not the pick of the curves tried (see _heldout_errors_deg).
+        heldout = _heldout_errors_deg(medians, tangents, layout, None)
         heldout_deg = np.hypot(heldout[:, 0], heldout[:, 1])
         if np.isfinite(heldout_deg).any():
             result.heldout_mean = float(np.nanmean(heldout_deg))
@@ -998,7 +1009,12 @@ def _fit_next_smartcal(
             continue
 
         # Replace the calibration only with a better one. The current mapping
-        # was not fit on these captures, so its error on them is held out too.
+        # was not fit on these captures, so its error on them is held out too,
+        # as is the new fit's, curve choice included. Neither side is given a
+        # margin: what is left is small and pulls both ways (each held-out fit
+        # has one dot fewer than the saved one, which counts against the new
+        # fit; the dots dropped as outliers were judged by it, which counts
+        # for it), and a near tie is two calibrations of the same accuracy.
         new_mean = result.heldout_mean
         if new_mean is None or not math.isfinite(new_mean):
             # No dot could be held out, so nothing says this fit is any good.
