@@ -123,11 +123,15 @@ class OverlaySession:
     early (for example when no VR runtime is running). The overlay's output
     goes to ``calibration-overlay.log`` in the log folder.
 
+    A wait takes a ``keep_going`` and raises ``OverlayStopped`` once that is
+    false. It looks every POLL_S, so a stop is honoured within that time
+    however long the overlay stays silent.
+
     On leaving the ``with`` block the overlay is stopped. After ``finish()``
     it first gets a few seconds to show its completion card and exit by itself.
     """
 
-    POLL_S = 0.25
+    POLL_S = 0.1
     FINISH_GRACE_S = 5.0
     TERMINATE_GRACE_S = 2.0
 
@@ -171,9 +175,12 @@ class OverlaySession:
             self.close()
             raise
 
-    def recv(self, bufsize: int = 4096) -> bytes:
-        """The next datagram from the overlay."""
+    def recv(self, bufsize: int = 4096, keep_going=lambda: True) -> bytes:
+        """The next datagram from the overlay. Raises OverlayStopped once
+        ``keep_going()`` is false."""
         while time.monotonic() < self._deadline:
+            if not keep_going():
+                raise OverlayStopped
             try:
                 data, _ = self.sock.recvfrom(bufsize)
                 self._deadline = time.monotonic() + self.timeout
@@ -188,9 +195,7 @@ class OverlaySession:
         """Read signals until ``signal`` arrives. Raises OverlayStopped once
         ``keep_going()`` is false."""
         while True:
-            if not keep_going():
-                raise OverlayStopped
-            data = self.recv(16)
+            data = self.recv(16, keep_going)
             if len(data) >= 4 and struct.unpack(">i", data[:4])[0] == signal:
                 return
 

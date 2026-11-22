@@ -15,7 +15,7 @@ from dataclasses import asdict, dataclass, field
 
 import numpy as np
 
-from calibration_state import var
+from calibration_state import OVERLAY_RUN_SMARTCAL, begin_overlay_run, end_overlay_run, overlay_keep_going
 from next_eye_gaze import GAZE_MODE_FUSED, dominant_eye_from_settings, gaze_mode_from_settings
 from utils.async_call import Async
 from utils.misc_utils import PlaySound, SND_ASYNC, SND_FILENAME, resource_path
@@ -1082,10 +1082,6 @@ def calibration_range_args(settings) -> list:
     ]
 
 
-def _calibrating() -> bool:
-    return var.overlay_active
-
-
 def start_when_ready(overlay, trace, events: list, keep_going) -> None:
     """Start a pass with the centre dot up and wait until the user rests
     their gaze on it, then hide the instruction (sent before). Appends
@@ -1095,6 +1091,8 @@ def start_when_ready(overlay, trace, events: list, keep_going) -> None:
     overlay.send(CMD_DOT, 0.0, 0.0)
     overlay.wait_for(SIG_DOT_HELD, keep_going)
     rested = trace.wait_until_resting(READY_TIMEOUT_S, READY_REST_S, keep_going)
+    if not keep_going():
+        raise OverlayStopped
     if not rested:
         logger.warning("Calibration overlay: the gaze did not rest on the first dot. Starting anyway.")
     overlay.send(CMD_HIDE_TEXT)
@@ -1110,7 +1108,10 @@ def show_dot_and_capture(overlay, trace, events: list, dot, position, keep_going
         events.append((time.monotonic(), "show", dot))
         overlay.wait_for(SIG_DOT_HELD, keep_going)
     events.append((time.monotonic(), "held", dot))
-    if not trace.wait_until_resting(DOT_REST_TIMEOUT_S, keep_going=keep_going):
+    rested = trace.wait_until_resting(DOT_REST_TIMEOUT_S, keep_going=keep_going)
+    if not keep_going():
+        raise OverlayStopped
+    if not rested:
         # A gaze that never came to rest is not a fixation of this dot.
         events.append((time.monotonic(), "unrested", dot))
         return [(ep, []) for ep in trace.processors]
@@ -1128,32 +1129,32 @@ def _show_dots(overlay, trace, eye_processors: list, layout, events: list) -> No
     "end", None) once the last dot is done."""
     from localization import tr
 
-    overlay.wait_for(SIG_READY, _calibrating)
+    overlay.wait_for(SIG_READY, overlay_keep_going)
     # Text sent before the pass starts replaces the overlay's own.
     overlay.send_text(CMD_TEXT, tr("smartcal.follow"))
-    start_when_ready(overlay, trace, events, _calibrating)
+    start_when_ready(overlay, trace, events, overlay_keep_going)
     for dot, position in enumerate(layout):
         # The ready dot is the centre: a layout that starts there captures it.
         shown = None if dot == 0 and tuple(position) == (0.0, 0.0) else position
-        captured = show_dot_and_capture(overlay, trace, events, dot, shown, _calibrating)
+        captured = show_dot_and_capture(overlay, trace, events, dot, shown, overlay_keep_going)
         logger.debug("NEXT smart cal: captured dot %d", dot)
         for ep, frames in captured:
             ep._next_smartcal_samples[dot] = [tuple(values) for _, *values in frames]
     overlay.send(CMD_END_PASS)
-    overlay.wait_for(SIG_PASS_ENDED, _calibrating)
+    overlay.wait_for(SIG_PASS_ENDED, overlay_keep_going)
     events.append((time.monotonic(), "end", None))
 
 
 def _show_summary(overlay, results) -> None:
-    """Show the result in the headset for a few seconds, or until the overlay
-    closes."""
+    """Show the result in the headset for a few seconds, or until the run is
+    stopped or the overlay closes."""
     from smartcal_report import headset_report
 
     if not results:
         return
     overlay.send_text(CMD_TEXT, headset_report(results))
     deadline = time.monotonic() + _SMARTCAL_SUMMARY_S
-    while time.monotonic() < deadline and var.overlay_active and overlay.process.poll() is None:
+    while time.monotonic() < deadline and overlay_keep_going() and overlay.process.poll() is None:
         time.sleep(0.1)
 
 
@@ -1170,9 +1171,8 @@ def _overlay_gaze_range(overlay):
 def next_smartcal_overlay(eye_processors: list, settings, baseconfig, layout=NEXT_SMARTCAL_DOTS) -> None:
     """Show the Smart Calib dots in the overlay's interactive mode and fit the
     NEXT smart-cal transform to what the eyes did."""
-    if var.overlay_active:
+    if not begin_overlay_run(OVERLAY_RUN_SMARTCAL):
         return
-    var.overlay_active = True
     results = []
     events = []
     gaze_range = None
@@ -1212,7 +1212,7 @@ def next_smartcal_overlay(eye_processors: list, settings, baseconfig, layout=NEX
         traces = trace.close() if trace is not None else {}
         _save_recording_safely(traces, layout, gaze_range, settings, events, results, started)
         _publish_report(results, finished)
-        var.overlay_active = False
+        end_overlay_run()
 
 
 # Each run's raw frames are kept in the log folder so that captures from any

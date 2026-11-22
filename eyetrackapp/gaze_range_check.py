@@ -27,7 +27,7 @@ from types import SimpleNamespace
 
 import numpy as np
 
-from calibration_state import var
+from calibration_state import OVERLAY_RUN_RANGE_CHECK, begin_overlay_run, end_overlay_run, overlay_keep_going
 from gaze_capture import OPEN_LID, GazeTrace
 from next_eye_gaze import GAZE_MODE_FUSED, dominant_eye_from_settings, gaze_mode_from_settings
 from next_smartcal import (
@@ -272,24 +272,20 @@ def _log(result: RangeCheckResult) -> None:
     )
 
 
-def _checking() -> bool:
-    return var.overlay_active
-
-
 def _show_points(overlay, trace, points, settings, events: list) -> dict:
     """Show the check's dots once the user is ready and capture each at rest.
     Returns {point: gaze_samples of the scored eyes} for score."""
     from localization import tr
 
-    overlay.wait_for(SIG_READY, _checking)
+    overlay.wait_for(SIG_READY, overlay_keep_going)
     overlay.send_text(CMD_TEXT, tr("range_check.follow"))
-    start_when_ready(overlay, trace, events, _checking)
+    start_when_ready(overlay, trace, events, overlay_keep_going)
     mappings = {id(ep): mapping_of(ep) for ep in scored_eyes(trace.processors, settings)}
     captured = {}
     for i, (_, _, nx, ny) in enumerate(points):
-        captured[i] = show_dot_and_capture(overlay, trace, events, i, (nx, ny), _checking)
+        captured[i] = show_dot_and_capture(overlay, trace, events, i, (nx, ny), overlay_keep_going)
     overlay.send(CMD_END_PASS)
-    overlay.wait_for(SIG_PASS_ENDED, _checking)
+    overlay.wait_for(SIG_PASS_ENDED, overlay_keep_going)
     # Blinks are judged against each eye's usual lid over the whole run.
     min_lids = {id(ep): trace.open_lid(ep) for ep in trace.processors}
     return {
@@ -303,9 +299,8 @@ def gaze_range_check_overlay(eye_processors: list, settings) -> None:
     """Run the gaze range check in the headset and report the result."""
     from gaze_range_report import headset_report, log_report
 
-    if var.overlay_active:
+    if not begin_overlay_run(OVERLAY_RUN_RANGE_CHECK):
         return
-    var.overlay_active = True
     points = check_points()
     result = None
     no_range = False
@@ -326,7 +321,7 @@ def gaze_range_check_overlay(eye_processors: list, settings) -> None:
                     _log(result)
                 overlay.send_text(CMD_TEXT, headset_report(result, no_range))
                 deadline = time.monotonic() + SUMMARY_S
-                while time.monotonic() < deadline and overlay.process.poll() is None:
+                while time.monotonic() < deadline and overlay_keep_going() and overlay.process.poll() is None:
                     time.sleep(0.1)
             except OverlayStopped:
                 logger.info("Gaze range check stopped.")
@@ -343,4 +338,4 @@ def gaze_range_check_overlay(eye_processors: list, settings) -> None:
             logger.info("Gaze range check report:\n%s", log_report(result, no_range))
         except Exception:
             logger.exception("Gaze range check: could not build the report")
-        var.overlay_active = False
+        end_overlay_run()

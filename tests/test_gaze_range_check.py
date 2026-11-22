@@ -10,7 +10,7 @@ import pytest
 import gaze_capture
 import gaze_range_check as check
 import next_smartcal
-from calibration_state import var
+from calibration_state import request_overlay_stop, var
 from eye import EyeId
 from gaze_range_report import headset_report, log_report
 from next_smartcal import SMARTCAL_SPACE_ANGLE, next_smartcal_dot_tangents, smartcal_tangents_to_gaze
@@ -250,19 +250,23 @@ class _Eye:
         self._frames = frames
 
 
-def test_the_check_runs_in_the_headset_and_reports(monkeypatch, tmp_path):
-    record = interactive_overlay.install(monkeypatch, tmp_path, FULL_RANGE_LINE)()
-    launched = []
-    real_command = check.OverlaySession
-    monkeypatch.setattr(check, "OverlaySession", lambda *args, **kw: launched.append(args) or real_command(*args, **kw))
+def _quick_run(monkeypatch, summary_s=0.0):
     for module, name, value in (
-        (check, "SUMMARY_S", 0.0),
+        (check, "SUMMARY_S", summary_s),
         (next_smartcal, "READY_REST_S", 0.05),
         (next_smartcal, "REACTION_S", 0.0),
         (next_smartcal, "NEXT_SMARTCAL_CAPTURE_WINDOW_S", 0.04),
         (gaze_capture, "SETTLE_S", 0.03),
     ):
         monkeypatch.setattr(module, name, value)
+
+
+def test_the_check_runs_in_the_headset_and_reports(monkeypatch, tmp_path):
+    record = interactive_overlay.install(monkeypatch, tmp_path, FULL_RANGE_LINE)()
+    launched = []
+    real_command = check.OverlaySession
+    monkeypatch.setattr(check, "OverlaySession", lambda *args, **kw: launched.append(args) or real_command(*args, **kw))
+    _quick_run(monkeypatch)
     eye = _Eye(monkeypatch)
 
     check.gaze_range_check_overlay([eye], SETTINGS).wait(timeout=60)
@@ -277,3 +281,51 @@ def test_the_check_runs_in_the_headset_and_reports(monkeypatch, tmp_path):
     assert commands[-1] == "200"
     assert not var.overlay_active
     assert eye._next_smartcal_trace is None
+
+
+def test_a_stop_from_the_app_ends_the_check_and_closes_the_overlay(monkeypatch, tmp_path):
+    record = interactive_overlay.install(monkeypatch, tmp_path, FULL_RANGE_LINE)()
+    _quick_run(monkeypatch)
+    eye = _Eye(monkeypatch)
+    send = OverlaySession.send
+    dots = []
+
+    def send_and_stop(session, code, *values):
+        send(session, code, *values)
+        if code == CMD_DOT:
+            dots.append(values)
+            if len(dots) == 4:
+                request_overlay_stop()
+
+    monkeypatch.setattr(OverlaySession, "send", send_and_stop)
+
+    started = time.monotonic()
+    check.gaze_range_check_overlay([eye], SETTINGS).wait(timeout=60)
+
+    commands = record.read_text().splitlines()
+    assert commands[-1] == "200" and "119" not in commands
+    assert len(dots) == 4 and time.monotonic() - started < 10
+    assert not var.overlay_active and var.overlay_run is None and not var.overlay_stop_requested
+    assert eye._next_smartcal_trace is None
+
+
+def test_a_stop_ends_the_result_shown_in_the_headset(monkeypatch, tmp_path):
+    record = interactive_overlay.install(monkeypatch, tmp_path, FULL_RANGE_LINE)()
+    _quick_run(monkeypatch, summary_s=60.0)
+    eye = _Eye(monkeypatch)
+    send_text = OverlaySession.send_text
+    texts = []
+
+    def send_text_and_stop(session, code, text):
+        send_text(session, code, text)
+        texts.append(text)
+        if len(texts) == 2:  # the instruction, then the result
+            request_overlay_stop()
+
+    monkeypatch.setattr(OverlaySession, "send_text", send_text_and_stop)
+
+    check.gaze_range_check_overlay([eye], SETTINGS).wait(timeout=30)
+
+    commands = record.read_text().splitlines()
+    assert commands[-2].startswith("50 Gaze range check|") and commands[-1] == "200"
+    assert not var.overlay_active

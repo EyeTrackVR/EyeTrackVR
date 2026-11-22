@@ -11,7 +11,7 @@ import pytest
 
 import gaze_capture
 import next_smartcal
-from calibration_state import var
+from calibration_state import request_overlay_stop, var
 from eye import EyeId
 from next_smartcal import NEXT_SMARTCAL_DOTS, SMARTCAL_SPACE_ANGLE, next_smartcal_dot_tangents, samples_from_recording
 from tests import interactive_overlay
@@ -195,3 +195,42 @@ def test_an_overlay_that_quits_mid_run_changes_nothing(fake_overlay, monkeypatch
 
     assert eye.processor._next_smartcal_w is None
     assert not var.overlay_active
+
+
+def _stop_at_dot(monkeypatch, number):
+    """Ask the run to stop as it sends the ``number``th dot since now."""
+    send = OverlaySession.send
+    sent = []
+
+    def send_and_stop(session, code, *values):
+        send(session, code, *values)
+        if code == CMD_DOT:
+            sent.append(values)
+            if len(sent) == number:
+                request_overlay_stop()
+
+    monkeypatch.setattr(OverlaySession, "send", send_and_stop)
+
+
+def test_a_stop_from_the_app_ends_the_run_and_closes_the_overlay(fake_overlay, tmp_path, monkeypatch):
+    record = fake_overlay()
+    eye = _Eye(monkeypatch)
+    _stop_at_dot(monkeypatch, 5)
+    baseconfig = Mock()
+
+    started = time.monotonic()
+    next_smartcal.next_smartcal_overlay([eye.processor], SETTINGS, baseconfig).wait(timeout=30)
+
+    # The overlay is told to quit, as at the end of a whole run.
+    commands = record.read_text().splitlines()
+    assert commands[-1] == "200" and "119" not in commands
+    assert len([c for c in commands if c.startswith("111")]) == 5
+    assert time.monotonic() - started < 10
+    assert eye.processor._next_smartcal_w is None and not baseconfig.save.called
+    assert not var.overlay_active and var.overlay_run is None and not var.overlay_stop_requested
+    assert eye.processor._next_smartcal_trace is None
+    _port_is_free(overlay_launch.OVERLAY_SIGNAL_PORT)
+
+    # The next run is not stopped by the last one's request.
+    next_smartcal.next_smartcal_overlay([eye.processor], SETTINGS, Mock()).wait(timeout=30)
+    assert eye.processor._next_smartcal_warp == SMARTCAL_SPACE_ANGLE

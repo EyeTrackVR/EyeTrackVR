@@ -208,3 +208,30 @@ def test_a_pause_ends_early_when_stopped_or_when_the_overlay_quits(fake_overlay)
     with OverlaySession("interactive") as overlay, pytest.raises(OverlayExited):
         overlay.pause(10.0)
     _port_is_free()
+
+
+def test_a_wait_for_a_silent_overlay_ends_soon_after_a_stop(fake_overlay):
+    # The overlay sends nothing here, and the session's own timeout is far off.
+    fake_overlay(signals=[], linger=30.0)
+    with OverlaySession("interactive", timeout=120.0) as overlay:
+        started = time.monotonic()
+        with pytest.raises(OverlayStopped):
+            overlay.wait_for(20, keep_going=lambda: time.monotonic() - started < 0.3)
+        assert time.monotonic() - started < 0.3 + 2 * OverlaySession.POLL_S + 0.2
+    _port_is_free()
+
+
+def test_a_stop_is_only_taken_from_a_run_that_can_stop():
+    from calibration_state import begin_overlay_run, end_overlay_run, overlay_keep_going, request_overlay_stop, var
+
+    request_overlay_stop()  # nothing runs: not left behind for the next run
+    assert not var.overlay_stop_requested
+    assert begin_overlay_run("smartcal") and not begin_overlay_run("range_check")
+    try:
+        assert overlay_keep_going() and var.overlay_run == "smartcal"
+        request_overlay_stop()
+        # Still the active run until its overlay is gone.
+        assert var.overlay_active and not overlay_keep_going()
+    finally:
+        end_overlay_run()
+    assert not var.overlay_active and var.overlay_run is None and not var.overlay_stop_requested
