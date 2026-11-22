@@ -710,6 +710,7 @@ def main():
             # camera widget; users always wanted them paired.
             mode_row = ttk.Frame(tracking_main)
             mode_row.pack(fill="x", pady=(0, 32))
+            self._mode_row = mode_row
             mode_inner = ttk.Frame(mode_row)
             mode_inner.pack(anchor="center")
             self._global_tracking_btn = ttk.Button(
@@ -1528,10 +1529,14 @@ def main():
                 return
             self._mode_buttons_state = state
 
+            # NEXT has no cropping, so a lone Tracking Mode button would do
+            # nothing: hide the whole mode row (both buttons and its padding).
             if next_tracker:
-                self._global_roi_btn.pack_forget()
-            elif not self._global_roi_btn.winfo_manager():
-                self._global_roi_btn.pack(side="left", padx=8)
+                self._mode_row.pack_forget()
+            elif not self._mode_row.winfo_manager():
+                # Restore it above the eye panels (first call runs before they exist).
+                before = {"before": self.tracking_eyes_row} if hasattr(self, "tracking_eyes_row") else {}
+                self._mode_row.pack(fill="x", pady=(0, 32), **before)
 
             if hasattr(self, "_tracking_actions"):
                 if in_roi:
