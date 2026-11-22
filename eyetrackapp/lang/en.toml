@@ -906,7 +906,7 @@ gaze_marker = "Gaze marker"
 flip_vertical = "Flip vertical"
 
 [smartcal]
-# Smart Calib result, shown under the Tracking buttons after a calibration.
+# Smart Calib result, shown in the headset after a calibration and logged.
 # Errors are in degrees.
 applied = "Calibration saved."
 kept = "Kept your previous calibration: it was more accurate than this run."

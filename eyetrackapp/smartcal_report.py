@@ -1,4 +1,4 @@
-"""What a Smart Calib run did, in words, for the Tracking page.
+"""What a Smart Calib run did, in words, for the headset and the log.
 
 Copyright (c) 2026 EyeTrackVR <3
 LICENSE: Babble Software Distribution License 1.0
