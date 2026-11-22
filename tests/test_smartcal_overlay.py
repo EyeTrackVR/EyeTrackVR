@@ -2,6 +2,8 @@
 samples the gaze while it is held, fits and reports."""
 
 import json
+import math
+import random
 import socket
 import time
 from types import SimpleNamespace
@@ -71,8 +73,10 @@ class _Eye:
     and reads the raw gaze a model reads for it. It takes ``saccade_s`` to get
     there, with the gaze still moving."""
 
-    def __init__(self, monkeypatch, saccade_s=0.0):
+    def __init__(self, monkeypatch, saccade_s=0.0, noise=0.0):
         self.saccade_s = saccade_s
+        self.noise = noise  # of the camera image, per axis in raw gaze
+        self._random = random.Random(7)
         self._looks = []  # (since, raw gaze on arrival)
         self.processor = _Processor(self._gaze_at)
         send = OverlaySession.send
@@ -93,6 +97,8 @@ class _Eye:
             # Still on the way, correcting: well off the dot and moving.
             off = 0.1 if int((at - since) / 0.01) % 2 else -0.1
             return arrived[0] + off, arrived[1] - off
+        if self.noise:
+            return tuple(value + self._random.gauss(0.0, self.noise) for value in arrived)
         return arrived
 
 
@@ -139,6 +145,39 @@ def test_a_dot_is_captured_once_the_gaze_rests_on_it(fake_overlay, monkeypatch):
         arrived = _model(*next_smartcal_dot_tangents(layout=[(x, y)])[0])
         samples = eye.processor._next_smartcal_samples[dot]
         assert samples and all(sample[:2] == pytest.approx(arrived) for sample in samples), dot
+
+
+@pytest.mark.parametrize("noise", [0.03, 0.045])
+def test_a_noisy_camera_still_gets_a_fit(fake_overlay, tmp_path, monkeypatch, noise):
+    # At 0.03 the gaze rests by the rule in the stretches the noise allows.
+    # Well above it hardly ever does, and a dot is captured from its
+    # steadiest stretch. Judged by the farthest frame, as it was, neither
+    # rested on enough dots for a fit.
+    monkeypatch.setattr(next_smartcal, "DOT_REST_TIMEOUT_S", 0.25)
+    monkeypatch.setattr(next_smartcal, "READY_TIMEOUT_S", 0.5)
+    fake_overlay()
+    eye = _Eye(monkeypatch, noise=noise)
+
+    next_smartcal.next_smartcal_overlay([eye.processor], SETTINGS, Mock()).wait(timeout=60)
+
+    (path,) = (tmp_path / "smartcal").glob("*.json")
+    recording = json.loads(path.read_text())
+    (result,) = recording["results"]
+    assert result["outcome"] == "applied" and result["dots_used"] >= len(NEXT_SMARTCAL_DOTS) - 3
+    unrested = [dot for _, kind, dot in recording["events"] if kind == "unrested"]
+    if noise > 0.04:
+        assert len(unrested) > len(NEXT_SMARTCAL_DOTS) // 2
+    assert set(result["unrested"]) <= set(unrested)
+    # Every dot was captured, rested on or not, and the recording replays them.
+    assert all(len(frames) >= 5 for frames in eye.processor._next_smartcal_samples.values())
+    assert samples_from_recording(recording)["left"].keys() == eye.processor._next_smartcal_samples.keys()
+    # The fit reads the gaze within the noise of the dots' medians.
+    for yaw, pitch in [(20.0, 8.0), (-25.0, -30.0)]:
+        tangents = [math.tan(math.radians(yaw)), math.tan(math.radians(pitch))]
+        fitted = next_smartcal.next_smartcal_apply(
+            eye.processor._next_smartcal_w, eye.processor._next_smartcal_b, SMARTCAL_SPACE_ANGLE, *_model(*tangents)
+        )
+        assert [math.degrees(math.atan(t)) for t in fitted] == pytest.approx([yaw, pitch], abs=4.0)
 
 
 def test_each_run_is_recorded_and_replays_to_the_same_fit(fake_overlay, tmp_path, monkeypatch):

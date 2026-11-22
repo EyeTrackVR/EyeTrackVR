@@ -170,6 +170,8 @@ class EyeProcessor(NextProcessingMixin):
         #     raw_brow), ...]}, the frames that captured each dot. Gaze is
         #     medianed per dot; lid/brow are pooled across all dots (the face
         #     is neutral for the whole sequence).
+        #   _next_smartcal_unrested: the dots of the last run captured from
+        #     a gaze that did not rest on them (next_smartcal.unrested_dots).
         #   _next_smartcal_lid_neutral / _brow_neutral: the captured resting
         #     readings those two channels are re-anchored against, or None.
         #   _next_smartcal_w / _b: the fitted gaze transform (loaded from
@@ -178,6 +180,7 @@ class EyeProcessor(NextProcessingMixin):
         #     gaze angle, what Smart Calib fits now; None / "atanh" = legacy
         #     affines onto output gaze from older builds). See next_smartcal.
         self._next_smartcal_samples = {}
+        self._next_smartcal_unrested = []
         self._next_smartcal_trace = None
         self._next_smartcal_w = (
             list(self.config.next_smartcal_w) if getattr(self.config, "next_smartcal_w", None) is not None else None

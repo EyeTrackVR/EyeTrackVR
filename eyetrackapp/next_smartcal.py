@@ -691,7 +691,8 @@ class SmartCalEyeResult:
     "no_spread", "inconsistent" or "degenerate". Errors are in degrees:
     ``heldout_*`` from fits that did not see the dot, ``current_mean`` for the
     calibration used before. ``dropped`` lists the dots left out of the fit as
-    (dot, held-out error)."""
+    (dot, held-out error), ``unrested`` the dots in it that the gaze did not
+    rest on (see show_dot_and_capture)."""
 
     eye: object
     dots_total: int
@@ -699,6 +700,7 @@ class SmartCalEyeResult:
     reason: str | None = None
     dots_used: int = 0
     dropped: list = field(default_factory=list)
+    unrested: list = field(default_factory=list)
     fit_error: float | None = None
     heldout_mean: float | None = None
     heldout_worst: float | None = None
@@ -859,6 +861,18 @@ def _fit_next_smartcal(
         else:
             medians = kept
         result.dropped, result.dots_used = dropped, len(medians)
+        # Captured from a gaze that did not rest: the same held-out check as
+        # any dot has just decided which of them stay.
+        result.unrested = [dot for dot in getattr(ep, "_next_smartcal_unrested", None) or () if dot in medians]
+        if result.unrested:
+            logger.warning(
+                "NEXT smart cal (eye %s): the gaze did not rest on %d of the %d dots used (%s); "
+                "they are taken from its steadiest moment on each. A noisy camera image does this.",
+                eye,
+                len(result.unrested),
+                len(medians),
+                ", ".join(str(dot) for dot in result.unrested),
+            )
         if dropped:
             logger.warning(
                 "NEXT smart cal (eye %s): dropped %d dot(s) that do not fit with the others: %s",
@@ -1102,7 +1116,12 @@ def start_when_ready(overlay, trace, events: list, keep_going) -> None:
 
 def show_dot_and_capture(overlay, trace, events: list, dot, position, keep_going) -> dict:
     """Show the dot at ``position`` (None: it is already up), wait until the
-    gaze rests on it and capture it. Returns [(processor, frames)]."""
+    gaze rests on it and capture it. Returns [(processor, frames)].
+
+    A gaze that does not rest in time (see gaze_capture) is captured from
+    the steadiest stretch of the wait instead, after an "unrested" event, so
+    that a camera too noisy for the rest rule still gets its dots. No frames
+    when even that stretch was a moving gaze."""
     if position is not None:
         overlay.send(CMD_DOT, *position)
         events.append((time.monotonic(), "show", dot))
@@ -1112,9 +1131,14 @@ def show_dot_and_capture(overlay, trace, events: list, dot, position, keep_going
     if not keep_going():
         raise OverlayStopped
     if not rested:
-        # A gaze that never came to rest is not a fixation of this dot.
         events.append((time.monotonic(), "unrested", dot))
-        return [(ep, []) for ep in trace.processors]
+        stretch = trace.steadiest_stretch()
+        if stretch is None:
+            # A gaze that kept moving is not a fixation of this dot.
+            return [(ep, []) for ep in trace.processors]
+        events.append((stretch[0], "capture", dot))
+        events.append((stretch[1], "captured", dot))
+        return trace.frames(*stretch)
     start = time.monotonic()
     overlay.pause(NEXT_SMARTCAL_CAPTURE_WINDOW_S, keep_going)
     end = time.monotonic()
@@ -1143,6 +1167,15 @@ def _show_dots(overlay, trace, eye_processors: list, layout, events: list) -> No
     overlay.send(CMD_END_PASS)
     overlay.wait_for(SIG_PASS_ENDED, overlay_keep_going)
     events.append((time.monotonic(), "end", None))
+    unrested = unrested_dots(events)
+    for ep in eye_processors:
+        ep._next_smartcal_unrested = unrested
+
+
+def unrested_dots(events) -> list:
+    """The dots whose capture is the steadiest stretch of a gaze that did not
+    rest on them (see show_dot_and_capture)."""
+    return sorted({dot for _, kind, dot in events if kind == "unrested"})
 
 
 def _show_summary(overlay, results) -> None:
@@ -1184,6 +1217,7 @@ def next_smartcal_overlay(eye_processors: list, settings, baseconfig, layout=NEX
             # Fresh sample state for this run.
             for ep in eye_processors:
                 ep._next_smartcal_samples = {}
+                ep._next_smartcal_unrested = []
             trace = GazeTrace(eye_processors)
             try:
                 _show_dots(overlay, trace, eye_processors, layout, events)
@@ -1237,7 +1271,9 @@ def save_recording(traces: dict, layout, gaze_range, settings, events: list, res
     degrees), ``capture_window_s``, ``events`` as [time, kind, dot] with kind
     "ready" (dot: whether the gaze rested), then per dot "show" (not for a
     centre dot already up), "held" (its ring converged), "capture" and
-    "captured" (the frames that captured it) or "unrested" (none were), and a final "end", ``eyes`` as {eye: [[time, raw x, raw y, lid, brow], ...]} with every
+    "captured" (the frames that captured it), after an "unrested" when the
+    gaze did not rest and they are the steadiest stretch of the wait, with no
+    "capture" when even that was moving, and a final "end", ``eyes`` as {eye: [[time, raw x, raw y, lid, brow], ...]} with every
     frame of the run, and ``results`` (SmartCalEyeResult per fitted eye)."""
     from utils.logging_utils import log_directory
 

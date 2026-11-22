@@ -43,6 +43,17 @@ SETTLE_S = 0.2
 RATIO = 3.0
 FLOOR = 0.01
 CEILING = 0.05
+# Scatter is how far from their middle SCATTER_PERCENT of a stretch's frames
+# stay, not the single farthest one. On a clean camera the two agree: a gaze
+# that moves through a stretch spreads all of its frames. On a noisy one the
+# farthest frame of a resting gaze grows with every frame looked at, and a
+# per-axis noise of 0.02 raw put it over CEILING in nearly every stretch, so
+# the gaze never counted as resting on any dot.
+SCATTER_PERCENT = 90.0
+# A dot the gaze never rested on by that rule is still captured, from the
+# steadiest stretch of its wait (GazeTrace.steadiest_stretch), unless even
+# that scattered by more than this: then the gaze was moving, not noisy.
+UNRESTED_CEILING = 0.15
 # Fewer open-eye frames than this in a stretch say nothing about it.
 MIN_FRAMES = 3
 POLL_S = 0.01
@@ -59,13 +70,18 @@ def open_lid(lids) -> float:
 
 
 def _scatter(frames, min_lid: float = OPEN_LID) -> float:
-    """Largest distance of the open-eye frames' raw gaze from their mean."""
+    """The distance from their median that SCATTER_PERCENT of the open-eye
+    frames' raw gaze stay within."""
     points = [(x, y) for _, x, y, lid, _ in frames if lid >= min_lid]
     if len(points) < MIN_FRAMES:
         return math.inf
-    mx = sum(x for x, _ in points) / len(points)
-    my = sum(y for _, y in points) / len(points)
-    return max(math.hypot(x - mx, y - my) for x, y in points)
+    mx = statistics.median(x for x, _ in points)
+    my = statistics.median(y for _, y in points)
+    distances = sorted(math.hypot(x - mx, y - my) for x, y in points)
+    at = (len(distances) - 1) * SCATTER_PERCENT / 100.0
+    below = int(at)
+    above = min(below + 1, len(distances) - 1)
+    return distances[below] + (distances[above] - distances[below]) * (at - below)
 
 
 class GazeTrace:
@@ -74,6 +90,7 @@ class GazeTrace:
     def __init__(self, eye_processors: list):
         self.processors = list(eye_processors)
         self._steadiest = math.inf
+        self._stretch = None  # (scatter, start, end): the steadiest of the last wait
         self._open_lids = {}  # processor id -> (frames it is from, open_lid)
         for ep in self.processors:
             ep._next_smartcal_trace = []
@@ -110,21 +127,34 @@ class GazeTrace:
         false.
 
         Every SETTLE_S stretch teaches the noise (the steadiest one so far),
-        and the whole last ``rest_s`` must stay within RATIO times it. Any
-        movement inside that window then fails it, even before the run has
+        and the whole last ``rest_s`` must stay within RATIO times it. A gaze
+        that moves through that window then fails it, even before the run has
         seen a steadier moment."""
         rest_s = SETTLE_S if rest_s is None else rest_s
         started = time.monotonic()
+        self._stretch = None
         while True:
             now = time.monotonic()
             if now - started >= SETTLE_S:
                 self._steadiest = min(self._steadiest, self.scatter(now - SETTLE_S, now))
-            if now - started >= rest_s and math.isfinite(self._steadiest):
-                if self.scatter(now - rest_s, now) <= min(CEILING, max(FLOOR, RATIO * self._steadiest)):
+            if now - started >= rest_s:
+                scatter = self.scatter(now - rest_s, now)
+                if math.isfinite(scatter) and (self._stretch is None or scatter < self._stretch[0]):
+                    self._stretch = (scatter, now - rest_s, now)
+                if math.isfinite(self._steadiest) and scatter <= min(CEILING, max(FLOOR, RATIO * self._steadiest)):
                     return True
             if now - started >= timeout or not keep_going():
                 return False
             time.sleep(POLL_S)
+
+    def steadiest_stretch(self):
+        """(start, end) of the steadiest ``rest_s`` of the last
+        wait_until_resting: the best there is of a dot the gaze did not rest
+        on by the rule, as on a camera too noisy for it. None when even that
+        was a moving gaze (see UNRESTED_CEILING) or nothing was tracked."""
+        if self._stretch is None or self._stretch[0] > UNRESTED_CEILING:
+            return None
+        return self._stretch[1:]
 
     def close(self) -> dict:
         """Stop tracing and hand back {eye id: frames}."""
