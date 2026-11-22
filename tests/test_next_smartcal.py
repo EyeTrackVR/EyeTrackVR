@@ -11,6 +11,7 @@ import pytest
 from eye import EyeId
 from next_smartcal import (
     NEXT_SMARTCAL_DOTS,
+    SMARTCAL_KEPT,
     SMARTCAL_SPACE_ANGLE,
     _fit_errors_deg,
     _choose_saturation,
@@ -19,6 +20,7 @@ from next_smartcal import (
     _drop_inconsistent_dots,
     _heldout_errors_deg,
     _fit_next_smartcal,
+    gaze_fit_applied,
     next_smartcal_apply,
     next_smartcal_dot_tangents,
     next_smartcal_gaze,
@@ -314,6 +316,32 @@ def test_a_better_current_calibration_is_kept():
     ep._next_smartcal_samples = {dot: [(x, y, 0.75, 0.5)] * 8 for dot, (x, y) in _noisy(exact, 1).items()}
     assert not _fit_next_smartcal([ep], Mock(), SETTINGS, layout=FINETUNE_DOTS)
     assert (ep._next_smartcal_w, ep._next_smartcal_b) == (w, b)
+
+
+def test_a_low_resting_lid_is_not_taken_for_blinks():
+    tangents = next_smartcal_dot_tangents(layout=FINETUNE_DOTS)
+    exact = {dot: _model(*tangents[dot]) for dot in range(len(FINETUNE_DOTS))}
+    ep = _processor(exact)
+    # The open eye reads 0.2 here; the blink in each capture reads far lower.
+    ep._next_smartcal_samples = {
+        dot: [(x, y, 0.2, 0.5)] * 8 + [(x + 0.5, y - 0.5, 0.03, 0.5)] * 2 for dot, (x, y) in exact.items()
+    }
+    assert _dot_medians(ep, len(FINETUNE_DOTS)) == pytest.approx(exact)
+    assert _fit_next_smartcal([ep], Mock(), SETTINGS, layout=FINETUNE_DOTS)
+
+
+def test_saving_only_lids_and_brows_does_not_count_as_a_gaze_fit():
+    tangents = next_smartcal_dot_tangents(layout=FINETUNE_DOTS)
+    exact = {dot: _model(*tangents[dot]) for dot in range(len(FINETUNE_DOTS))}
+    ep = _fit(exact)
+    w = list(ep._next_smartcal_w)
+    ep._next_smartcal_samples = {dot: [(x, y, 0.6, 0.4)] * 8 for dot, (x, y) in _noisy(exact, 1).items()}
+    settings = SimpleNamespace(**{**vars(SETTINGS), "gui_NEXT_calib_lids_brows": True})
+    results = []
+    # The lid/brow anchors are saved, so something was.
+    assert _fit_next_smartcal([ep], Mock(), settings, layout=FINETUNE_DOTS, results=results)
+    assert ep._next_smartcal_lid_neutral == pytest.approx(0.6) and ep._next_smartcal_w == w
+    assert results[0].outcome == SMARTCAL_KEPT and not gaze_fit_applied(results)
 
 
 def test_a_worse_current_calibration_is_replaced():

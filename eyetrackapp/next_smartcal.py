@@ -19,7 +19,7 @@ from calibration_state import var
 from next_eye_gaze import GAZE_MODE_FUSED, dominant_eye_from_settings, gaze_mode_from_settings
 from utils.async_call import Async
 from utils.misc_utils import PlaySound, SND_ASYNC, SND_FILENAME, resource_path
-from gaze_capture import OPEN_LID, GazeTrace
+from gaze_capture import GazeTrace, open_lid
 from utils.overlay_launch import (
     CMD_DOT,
     CMD_END_PASS,
@@ -560,10 +560,11 @@ def _dot_medians(ep, dot_count: int = len(NEXT_SMARTCAL_DOTS)) -> dict:
     """{dot: (raw_x, raw_y)} for the dots this eye captured enough frames of.
     The median over the hold window rejects blinks / transient outliers."""
     samples = getattr(ep, "_next_smartcal_samples", {}) or {}
+    min_lid = open_lid(s[2] for pts in samples.values() for s in pts if len(s) >= 3)
     medians = {}
     for dot in range(dot_count):
         # Gaze from blinks says nothing; lid and brow use every frame.
-        pts = [s for s in samples.get(dot, []) if len(s) < 3 or s[2] >= OPEN_LID]
+        pts = [s for s in samples.get(dot, []) if len(s) < 3 or s[2] >= min_lid]
         if len(pts) < _SMARTCAL_MIN_SAMPLES_PER_DOT:
             continue
         arr = np.asarray(pts, dtype=np.float64)
@@ -793,7 +794,8 @@ def _fit_next_smartcal(
     correction fits both. (Lid/brow anchors stay per eye.)
 
     Appends a SmartCalEyeResult per fitted eye to ``results`` when given.
-    Returns True if at least one eye produced a usable transform (and was saved)."""
+    Returns True if anything was saved: a gaze transform, or only the lid/brow
+    anchors (gaze_fit_applied tells the two apart)."""
     tangents = next_smartcal_dot_tangents(gaze_range, layout)
     saved_any = False
     sources = eye_processors
@@ -1005,6 +1007,12 @@ def _fit_next_smartcal(
     return saved_any
 
 
+def gaze_fit_applied(results) -> bool:
+    """Whether a run replaced the gaze calibration of any eye. A run that only
+    saved the lid/brow anchors kept the gaze calibration the user had."""
+    return any(result.outcome == SMARTCAL_APPLIED for result in results)
+
+
 # Before the first dot is captured, the instruction and the centre dot stay up
 # until the gaze has rested for READY_REST_S: longer than a reading fixation
 # (about 0.25 s), so the user is looking at the dot and not reading. Then the
@@ -1158,7 +1166,10 @@ def next_smartcal_overlay(eye_processors: list, settings, baseconfig, layout=NEX
                 _show_dots(overlay, trace, eye_processors, layout, events)
                 gaze_range = _overlay_gaze_range(overlay)
                 if gaze_range is not None:
-                    if _fit_next_smartcal(eye_processors, baseconfig, settings, gaze_range, layout, results):
+                    _fit_next_smartcal(eye_processors, baseconfig, settings, gaze_range, layout, results)
+                    # The chime says the gaze was recalibrated, not that only
+                    # the lid/brow anchors were saved beside a kept gaze fit.
+                    if gaze_fit_applied(results):
                         PlaySound(resource_path("assets/audio/completed.wav"), SND_FILENAME | SND_ASYNC)
                     finished = True
                     _show_summary(overlay, results)

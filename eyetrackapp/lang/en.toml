@@ -920,3 +920,24 @@ eye_left = "Left eye"
 eye_right = "Right eye"
 # Instruction in the headset while the Smart Calib dots show
 follow = "Look at the dot\nThe dots start once your eyes are steady. Follow them with your eyes, head still."
+
+[range_check]
+# Gaze range check: a Tracking page button that measures how far out the gaze
+# stays on target. Angles are in degrees.
+button = "Check Gaze Range"
+button_tip = "Step dots out toward the edge of the headset view, past your gaze limits, and measure how far out your calibrated gaze still lands on them. Nothing is changed. Shown after a Smart Calib."
+follow = "Look at the dot\nThe dots start once your eyes are steady. Follow them with your eyes, head still."
+title = "Gaze range check"
+verified = "Gaze stays within {error}° of the dot out to:"
+side = "{direction} {verified}° of {shown}°"
+up = "up"
+down = "down"
+left = "left"
+right = "right"
+up_left = "up left"
+up_right = "up right"
+down_left = "down left"
+down_right = "down right"
+limits = "Your gaze limits are {yaw}° sideways, {up}° up and {down}° down."
+not_tracked = "No tracked gaze reached the app. Start tracking, then run the check again."
+stopped = "The check stopped before it finished."
