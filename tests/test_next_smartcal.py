@@ -12,6 +12,7 @@ from eye import EyeId
 from next_smartcal import (
     NEXT_SMARTCAL_DOTS,
     SMARTCAL_KEPT,
+    SMARTCAL_NOT_BETTER,
     SMARTCAL_REJECTED,
     SMARTCAL_SPACE_ANGLE,
     _fit_errors_deg,
@@ -317,6 +318,18 @@ def test_a_better_current_calibration_is_kept():
     ep._next_smartcal_samples = {dot: [(x, y, 0.75, 0.5)] * 8 for dot, (x, y) in _noisy(exact, 1).items()}
     assert not _fit_next_smartcal([ep], Mock(), SETTINGS, layout=FINETUNE_DOTS)
     assert (ep._next_smartcal_w, ep._next_smartcal_b) == (w, b)
+
+
+def test_a_first_run_worse_than_the_uncalibrated_gaze_does_not_claim_a_previous_calibration():
+    tangents = next_smartcal_dot_tangents(layout=FINETUNE_DOTS)
+    # A model that already reads the gaze right: a fit can only add its noise.
+    exact = {dot: smartcal_tangents_to_gaze(*tangents[dot], SETTINGS) for dot in range(len(FINETUNE_DOTS))}
+    ep = _processor(_noisy(exact, 1))
+    results = []
+    assert not _fit_next_smartcal([ep], Mock(), SETTINGS, layout=FINETUNE_DOTS, results=results)
+    assert ep._next_smartcal_w is None
+    assert results[0].outcome == SMARTCAL_NOT_BETTER and not gaze_fit_applied(results)
+    assert results[0].heldout_mean > results[0].current_mean
 
 
 def test_a_low_resting_lid_is_not_taken_for_blinks():

@@ -673,6 +673,7 @@ def _heldout_errors_deg(medians: dict, tangents, layout, saturation=(0.0, 0.0)) 
 
 SMARTCAL_APPLIED = "applied"
 SMARTCAL_KEPT = "kept"
+SMARTCAL_NOT_BETTER = "not_better"
 SMARTCAL_REJECTED = "rejected"
 
 
@@ -681,7 +682,8 @@ class SmartCalEyeResult:
     """How one eye's gaze fit went, for the calibration report.
 
     ``outcome`` is SMARTCAL_APPLIED, SMARTCAL_KEPT (the current calibration was
-    more accurate) or SMARTCAL_REJECTED, with ``reason`` one of "too_few_dots",
+    more accurate), SMARTCAL_NOT_BETTER (there was none, and the uncalibrated
+    gaze was more accurate) or SMARTCAL_REJECTED, with ``reason`` one of "too_few_dots",
     "no_spread", "inconsistent" or "degenerate". Errors are in degrees:
     ``heldout_*`` from fits that did not see the dot, ``current_mean`` for the
     calibration used before. ``dropped`` lists the dots left out of the fit as
@@ -959,11 +961,17 @@ def _fit_next_smartcal(
             current_mean,
         )
         if new_mean > current_mean:
-            logger.warning(
-                "NEXT smart cal (eye %s): the new fit is less accurate than the current calibration. Keeping it.",
-                eye,
+            # Without a saved fit the current mapping is the uncalibrated
+            # gaze: there is no previous calibration to say was kept.
+            calibrated = getattr(ep, "_next_smartcal_w", None) is not None and (
+                getattr(ep, "_next_smartcal_b", None) is not None
             )
-            result.outcome = SMARTCAL_KEPT
+            logger.warning(
+                "NEXT smart cal (eye %s): the new fit is less accurate than the %s. Not applying it.",
+                eye,
+                "current calibration" if calibrated else "uncalibrated gaze",
+            )
+            result.outcome = SMARTCAL_KEPT if calibrated else SMARTCAL_NOT_BETTER
             continue
 
         for dst in eye_processors if shared_fit else (ep,):

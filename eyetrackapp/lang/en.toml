@@ -910,6 +910,7 @@ flip_vertical = "Flip vertical"
 # Errors are in degrees.
 applied = "Calibration saved."
 kept = "Kept your previous calibration: it was more accurate than this run."
+not_better = "Calibration not saved: this run was less accurate than the uncalibrated tracking. Try again."
 too_few_dots = "Calibration failed: only {used} of {total} dots were tracked. Check that the cameras see your pupils when you look towards the edges."
 no_spread = "Calibration failed: your tracked gaze barely moved between the dots. Check that tracking works, then follow the dots with your eyes."
 inconsistent = "Calibration failed: the dots did not fit together ({error}° average). Keep your head still and try again."
