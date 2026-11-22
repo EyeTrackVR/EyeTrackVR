@@ -12,6 +12,7 @@ from eye import EyeId
 from next_smartcal import (
     NEXT_SMARTCAL_DOTS,
     SMARTCAL_KEPT,
+    SMARTCAL_REJECTED,
     SMARTCAL_SPACE_ANGLE,
     _fit_errors_deg,
     _choose_saturation,
@@ -352,6 +353,37 @@ def test_a_worse_current_calibration_is_replaced():
     ep._next_smartcal_warp = SMARTCAL_SPACE_ANGLE
     assert _fit_next_smartcal([ep], Mock(), SETTINGS, layout=FINETUNE_DOTS)
     assert ep._next_smartcal_b != [0.05, -0.08]
+
+
+def test_a_fit_that_cannot_be_scored_is_not_applied(monkeypatch):
+    import next_smartcal
+
+    tangents = next_smartcal_dot_tangents(layout=FINETUNE_DOTS)
+    exact = {dot: _model(*tangents[dot]) for dot in range(len(FINETUNE_DOTS))}
+    monkeypatch.setattr(next_smartcal, "_heldout_errors_deg", lambda medians, *args: np.full((len(medians), 2), np.nan))
+    for fitted in (False, True):
+        ep = _processor(exact)
+        if fitted:
+            ep._next_smartcal_w, ep._next_smartcal_b = [0.7, 0.0, 0.0, 0.9, 0.0, 0.9], [0.05, -0.08]
+            ep._next_smartcal_warp = SMARTCAL_SPACE_ANGLE
+        before = (ep._next_smartcal_w, ep._next_smartcal_b)
+        results = []
+        assert not _fit_next_smartcal([ep], Mock(), SETTINGS, layout=FINETUNE_DOTS, results=results)
+        assert (ep._next_smartcal_w, ep._next_smartcal_b) == before
+        assert (results[0].outcome, results[0].reason) == (SMARTCAL_REJECTED, "degenerate")
+        assert results[0].heldout_mean is None and not gaze_fit_applied(results)
+
+
+def test_a_current_calibration_that_reads_nothing_is_replaced():
+    tangents = next_smartcal_dot_tangents(layout=FINETUNE_DOTS)
+    exact = {dot: _model(*tangents[dot]) for dot in range(len(FINETUNE_DOTS))}
+    ep = _processor(_noisy(exact, 1))
+    ep._next_smartcal_w, ep._next_smartcal_b = [math.nan, 0.0, 0.0, 0.9, 0.0, 0.9], [0.0, 0.0]
+    ep._next_smartcal_warp = SMARTCAL_SPACE_ANGLE
+    results = []
+    assert _fit_next_smartcal([ep], Mock(), SETTINGS, layout=FINETUNE_DOTS, results=results)
+    assert gaze_fit_applied(results) and results[0].current_mean is None
+    assert next_smartcal_transform_is_sane(ep._next_smartcal_w, ep._next_smartcal_b, ep._next_smartcal_warp)
 
 
 def test_the_layout_shows_a_central_core_before_the_extremes():

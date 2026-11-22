@@ -939,15 +939,26 @@ def _fit_next_smartcal(
 
         # Replace the calibration only with a better one. The current mapping
         # was not fit on these captures, so its error on them is held out too.
-        current = np.hypot(*_current_mapping_errors_deg(ep, medians, tangents, settings).T)
-        result.current_mean = float(np.mean(current))
+        new_mean = result.heldout_mean
+        if new_mean is None or not math.isfinite(new_mean):
+            # No dot could be held out, so nothing says this fit is any good.
+            logger.warning("NEXT smart cal (eye %s): the fit could not be scored. Keeping previous calibration.", eye)
+            result.reason = "degenerate"
+            continue
+        current_mean = float(np.mean(np.hypot(*_current_mapping_errors_deg(ep, medians, tangents, settings).T)))
+        # A current mapping that reads no gaze at all (a broken saved fit) is
+        # worse than any fit that got this far.
+        if not math.isfinite(current_mean):
+            current_mean = math.inf
+        else:
+            result.current_mean = current_mean
         logger.info(
             "NEXT smart cal (eye %s): new fit %.1f deg held out, current calibration %.1f deg on the same dots.",
             eye,
-            float(np.nanmean(heldout_deg)),
-            float(np.mean(current)),
+            new_mean,
+            current_mean,
         )
-        if float(np.nanmean(heldout_deg)) > float(np.mean(current)):
+        if new_mean > current_mean:
             logger.warning(
                 "NEXT smart cal (eye %s): the new fit is less accurate than the current calibration. Keeping it.",
                 eye,
