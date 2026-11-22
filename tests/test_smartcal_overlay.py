@@ -3,7 +3,6 @@ samples the gaze while it is held, fits and reports."""
 
 import json
 import socket
-import threading
 import time
 from types import SimpleNamespace
 from unittest.mock import Mock
@@ -18,6 +17,7 @@ from next_smartcal import NEXT_SMARTCAL_DOTS, SMARTCAL_SPACE_ANGLE, next_smartca
 from tests import interactive_overlay
 from tests.test_next_smartcal import GAZE_RANGE_LINE, _model
 from utils import overlay_launch
+from utils.overlay_launch import CMD_DOT, OverlaySession
 
 
 @pytest.fixture(autouse=True)
@@ -34,51 +34,66 @@ def fake_overlay(monkeypatch, tmp_path):
     return interactive_overlay.install(monkeypatch, tmp_path, GAZE_RANGE_LINE)
 
 
-class _Eye:
-    """Looks at whichever dot the overlay was last told to show and feeds the
-    raw gaze a model reads for it to the trace, as the NEXT eye thread does.
-    It takes ``saccade_s`` to get there, with the gaze still moving."""
+class _Processor:
+    """An eye processor whose trace holds a frame every FRAME_S up to the
+    moment it is read: what an eye thread would have appended, without a
+    thread whose timing decides which dot a frame is of."""
 
-    def __init__(self, record, saccade_s=0.0):
-        self.processor = SimpleNamespace(
-            eye_id=EyeId.LEFT, config=SimpleNamespace(), _next_smartcal_w=None, _next_smartcal_b=None
-        )
-        self.record = record
-        self.saccade_s = saccade_s
-        self._stop = threading.Event()
-        self._thread = threading.Thread(target=self._feed, daemon=True)
-        self._thread.start()
+    FRAME_S = 0.002
+    eye_id = EyeId.LEFT
+    _next_smartcal_w = _next_smartcal_b = None
 
-    def _target(self):
-        try:
-            dots = [line.split()[1:] for line in self.record.read_text().splitlines() if line.startswith("111 ")]
-        except OSError:
+    def __init__(self, gaze_at):
+        self.config = SimpleNamespace()
+        self._frames = None
+        self._gaze_at = gaze_at
+
+    @property
+    def _next_smartcal_trace(self):
+        if self._frames is None:
             return None
-        return tuple(map(float, dots[-1])) if dots else None
+        now = time.monotonic()
+        at = self._frames[-1][0] + self.FRAME_S if self._frames else now
+        while at <= now:
+            gaze = self._gaze_at(at)
+            if gaze is not None:
+                self._frames.append((at, *gaze, 0.75, 0.5))
+            at += self.FRAME_S
+        return self._frames
 
-    def _feed(self):
-        target, moved_at, looking = None, 0.0, (0.0, 0.0)
-        while not self._stop.is_set():
-            now = time.monotonic()
-            shown = self._target()
-            if shown != target:
-                target, moved_at = shown, now
-            if target is not None:
-                arrived = _model(*next_smartcal_dot_tangents(layout=[target])[0])
-                if now - moved_at < self.saccade_s:
-                    # Still on the way, correcting: well off the dot and moving.
-                    off = 0.1 if int((now - moved_at) / 0.01) % 2 else -0.1
-                    looking = (arrived[0] + off, arrived[1] - off)
-                else:
-                    looking = arrived
-            trace = getattr(self.processor, "_next_smartcal_trace", None)
-            if trace is not None:
-                trace.append((now, *looking, 0.75, 0.5))
-            time.sleep(0.002)
+    @_next_smartcal_trace.setter
+    def _next_smartcal_trace(self, frames):
+        self._frames = frames
 
-    def stop(self):
-        self._stop.set()
-        self._thread.join()
+
+class _Eye:
+    """Looks at each dot from the moment the app tells the overlay to show it,
+    and reads the raw gaze a model reads for it. It takes ``saccade_s`` to get
+    there, with the gaze still moving."""
+
+    def __init__(self, monkeypatch, saccade_s=0.0):
+        self.saccade_s = saccade_s
+        self._looks = []  # (since, raw gaze on arrival)
+        self.processor = _Processor(self._gaze_at)
+        send = OverlaySession.send
+
+        def look_and_send(session, code, *values):
+            if code == CMD_DOT:
+                self._looks.append((time.monotonic(), _model(*next_smartcal_dot_tangents(layout=[values])[0])))
+            send(session, code, *values)
+
+        monkeypatch.setattr(OverlaySession, "send", look_and_send)
+
+    def _gaze_at(self, at):
+        looks = [look for look in self._looks if look[0] <= at]
+        if not looks:
+            return None
+        since, arrived = looks[-1]
+        if at - since < self.saccade_s:
+            # Still on the way, correcting: well off the dot and moving.
+            off = 0.1 if int((at - since) / 0.01) % 2 else -0.1
+            return arrived[0] + off, arrived[1] - off
+        return arrived
 
 
 SETTINGS = SimpleNamespace(gui_NEXT_gaze_mode="fused", gui_NEXT_calib_lids_brows=False)
@@ -89,12 +104,11 @@ def _port_is_free(port):
         sock.bind(("127.0.0.1", port))
 
 
-def test_the_app_shows_every_dot_then_fits_and_reports(fake_overlay):
+def test_the_app_shows_every_dot_then_fits_and_reports(fake_overlay, monkeypatch):
     record = fake_overlay()
-    eye = _Eye(record)
+    eye = _Eye(monkeypatch)
 
     next_smartcal.next_smartcal_overlay([eye.processor], SETTINGS, Mock(), NEXT_SMARTCAL_DOTS).wait(timeout=30)
-    eye.stop()
 
     # The dots spread over the output limits, within the headset's view.
     assert fake_overlay.launched == [
@@ -115,12 +129,11 @@ def test_the_app_shows_every_dot_then_fits_and_reports(fake_overlay):
     _port_is_free(overlay_launch.OVERLAY_SIGNAL_PORT)
 
 
-def test_a_dot_is_captured_once_the_gaze_rests_on_it(fake_overlay):
-    record = fake_overlay()
-    eye = _Eye(record, saccade_s=0.06)
+def test_a_dot_is_captured_once_the_gaze_rests_on_it(fake_overlay, monkeypatch):
+    fake_overlay()
+    eye = _Eye(monkeypatch, saccade_s=0.06)
 
     next_smartcal.next_smartcal_overlay([eye.processor], SETTINGS, Mock()).wait(timeout=30)
-    eye.stop()
 
     for dot, (x, y) in enumerate(NEXT_SMARTCAL_DOTS):
         arrived = _model(*next_smartcal_dot_tangents(layout=[(x, y)])[0])
@@ -128,11 +141,11 @@ def test_a_dot_is_captured_once_the_gaze_rests_on_it(fake_overlay):
         assert samples and all(sample[:2] == pytest.approx(arrived) for sample in samples), dot
 
 
-def test_each_run_is_recorded_and_replays_to_the_same_fit(fake_overlay, tmp_path):
-    eye = _Eye(fake_overlay())
+def test_each_run_is_recorded_and_replays_to_the_same_fit(fake_overlay, tmp_path, monkeypatch):
+    fake_overlay()
+    eye = _Eye(monkeypatch)
 
     next_smartcal.next_smartcal_overlay([eye.processor], SETTINGS, Mock()).wait(timeout=30)
-    eye.stop()
 
     (path,) = (tmp_path / "smartcal").glob("*.json")
     recording = json.loads(path.read_text())
@@ -174,11 +187,11 @@ def test_only_the_newest_recordings_are_kept(tmp_path, monkeypatch):
     assert next_smartcal.save_recording({EyeId.LEFT: []}, NEXT_SMARTCAL_DOTS, None, SETTINGS, [], [], 0.0) is None
 
 
-def test_an_overlay_that_quits_mid_run_changes_nothing(fake_overlay):
-    eye = _Eye(fake_overlay("quit-early"))
+def test_an_overlay_that_quits_mid_run_changes_nothing(fake_overlay, monkeypatch):
+    fake_overlay("quit-early")
+    eye = _Eye(monkeypatch)
 
     next_smartcal.next_smartcal_overlay([eye.processor], SETTINGS, Mock()).wait(timeout=30)
-    eye.stop()
 
     assert eye.processor._next_smartcal_w is None
     assert not var.overlay_active
