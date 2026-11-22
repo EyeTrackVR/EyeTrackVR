@@ -298,6 +298,22 @@ def test_one_of_two_centre_visits_can_be_dropped():
     assert [dot for dot, _ in dropped] == [0] and len(NEXT_SMARTCAL_DOTS) - 1 in kept
 
 
+def test_a_dot_without_a_gaze_reading_is_left_out_instead_of_sinking_the_fit():
+    tangents = next_smartcal_dot_tangents()
+    raw = {dot: _model(*tangents[dot]) for dot in range(len(NEXT_SMARTCAL_DOTS))}
+    raw[9] = (math.nan, 0.1)
+    results = []
+    ep = _processor(raw)
+    assert _fit_next_smartcal([ep], Mock(), SETTINGS, None, NEXT_SMARTCAL_DOTS, results)
+    assert 9 not in _dot_medians(ep) and results[0].dots_used == len(NEXT_SMARTCAL_DOTS) - 1
+    assert _angles(ep, _model(0.3, -0.2)) == pytest.approx(np.degrees(np.arctan([0.3, -0.2])), abs=1e-6)
+    # Such dots count as not captured: too few of the rest is no fit.
+    few = {dot: (math.nan, math.nan) if dot > 4 else raw[dot] for dot in raw}
+    results = []
+    assert not _fit_next_smartcal([_processor(few)], Mock(), SETTINGS, None, NEXT_SMARTCAL_DOTS, results)
+    assert results[0].reason == "too_few_dots"
+
+
 def test_dropping_stops_at_the_minimum_number_of_dots():
     layout = ((0.0, 0.0), (-0.5, 0.0), (0.0, 0.5), (0.5, 0.0), (0.0, -0.5), (-0.9, 0.3), (0.9, 0.6), (0.4, -0.9))
     tangents = next_smartcal_dot_tangents(layout=layout)

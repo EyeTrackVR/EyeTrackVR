@@ -557,8 +557,9 @@ def reset_next_smartcal(eye_processors: list, baseconfig) -> None:
 
 
 def _dot_medians(ep, dot_count: int = len(NEXT_SMARTCAL_DOTS)) -> dict:
-    """{dot: (raw_x, raw_y)} for the dots this eye captured enough frames of.
-    The median over the hold window rejects blinks / transient outliers."""
+    """{dot: (raw_x, raw_y)} for the dots this eye captured enough frames of
+    and read a gaze for. The median over the hold window rejects blinks /
+    transient outliers."""
     samples = getattr(ep, "_next_smartcal_samples", {}) or {}
     min_lid = open_lid(s[2] for pts in samples.values() for s in pts if len(s) >= 3)
     medians = {}
@@ -568,7 +569,10 @@ def _dot_medians(ep, dot_count: int = len(NEXT_SMARTCAL_DOTS)) -> dict:
         if len(pts) < _SMARTCAL_MIN_SAMPLES_PER_DOT:
             continue
         arr = np.asarray(pts, dtype=np.float64)
-        medians[dot] = (float(np.median(arr[:, 0])), float(np.median(arr[:, 1])))
+        median = (float(np.median(arr[:, 0])), float(np.median(arr[:, 1])))
+        # A dot the model read no gaze for (NaN) would sink every fit it is in.
+        if math.isfinite(median[0]) and math.isfinite(median[1]):
+            medians[dot] = median
     return medians
 
 
