@@ -389,6 +389,12 @@ class EyeTrackSettingsConfig(BaseModel):
     # neutral throughout the dot sequence, so those captures anchor "normal
     # open" / "neutral brow" to their target output values.
     gui_NEXT_calib_lids_brows: bool = True
+    # Keep each Smart Calib run in logs/smartcal (next_smartcal.save_recording):
+    # numbers only (time, raw gaze, lid, brow, the result), the newest 20
+    # runs. On by default, because a calibration that went wrong can only be
+    # looked into from the run itself, and off for users who do not want it
+    # in the log folder they attach to bug reports.
+    gui_NEXT_smartcal_recording: bool = True
     # Left/right sync on the shared NEXT model, 0..100 per channel: small L/R
     # differences read as their average, clear ones (winks, one-sided raises)
     # pass through. 0 = off, higher holds the eyes together over larger

@@ -211,6 +211,27 @@ def test_each_run_is_recorded_and_replays_to_the_same_fit(fake_overlay, tmp_path
     assert replayed._next_smartcal_w == pytest.approx(eye.processor._next_smartcal_w, abs=1e-4)
 
 
+def test_recording_can_be_turned_off(fake_overlay, tmp_path, monkeypatch):
+    from config import EyeTrackSettingsConfig
+    from settings.modules.tracking_algorithm_module import TrackingAlgorithmValidationModel
+
+    # On unless turned off, as for a config saved before the setting existed.
+    assert EyeTrackSettingsConfig().gui_NEXT_smartcal_recording is True
+    assert EyeTrackSettingsConfig(**{"gui_NEXT_calib_lids_brows": False}).gui_NEXT_smartcal_recording is True
+    assert "gui_NEXT_smartcal_recording" in TrackingAlgorithmValidationModel.model_fields
+
+    fake_overlay()
+    eye = _Eye(monkeypatch)
+    settings = SimpleNamespace(**vars(SETTINGS), gui_NEXT_smartcal_recording=False)
+
+    next_smartcal.next_smartcal_overlay([eye.processor], settings, Mock()).wait(timeout=30)
+
+    # The run itself is as ever; nothing of it is left in the log folder.
+    assert eye.processor._next_smartcal_warp == SMARTCAL_SPACE_ANGLE
+    assert not (tmp_path / "smartcal").exists()
+    assert eye.processor._next_smartcal_trace is None
+
+
 def test_only_the_newest_recordings_are_kept(tmp_path, monkeypatch):
     from utils import logging_utils
 

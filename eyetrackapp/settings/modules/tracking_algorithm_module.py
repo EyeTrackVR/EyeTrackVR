@@ -41,6 +41,7 @@ class TrackingAlgorithmValidationModel(BaseValidationModel):
     gui_AHRAC: bool
     gui_NEXT: bool
     gui_NEXT_calib_lids_brows: bool
+    gui_NEXT_smartcal_recording: bool
     gui_NEXT_lid_sync: SyncStrength
     gui_NEXT_brow_sync: SyncStrength
     gui_NEXT_gaze_mode: Literal[GAZE_MODES]
@@ -72,6 +73,7 @@ class TrackingAlgorithmModule(BaseSettingsModule):
         self.gui_RANSAC3D = f"-RANSAC3D{widget_id}-"
         self.gui_NEXT = f"-NEXT{widget_id}-"
         self.gui_NEXT_calib_lids_brows = f"-NEXTCALIBLIDSBROWS{widget_id}-"
+        self.gui_NEXT_smartcal_recording = f"-NEXTSMARTCALRECORDING{widget_id}-"
         self.gui_NEXT_lid_sync = f"-NEXTLIDSYNC{widget_id}-"
         self.gui_NEXT_brow_sync = f"-NEXTBROWSYNC{widget_id}-"
         self.gui_NEXT_gaze_mode = f"-NEXTGAZEMODE{widget_id}-"
@@ -144,10 +146,22 @@ class TrackingAlgorithmModule(BaseSettingsModule):
         lids_brows_cb.grid(row=2, column=0, columnspan=3, sticky="w", padx=8, pady=(2, 4))
         attach_tooltip(lids_brows_cb, tr("algo_tracking.next_calib_lids_brows_tip"))
 
+        # The other Smart Calib option: opt out of keeping each run's numbers
+        # in the log folder (next_smartcal.save_recording).
+        recording_var = tk.BooleanVar(value=bool(getattr(self.config, "gui_NEXT_smartcal_recording", True)))
+        self.tk_vars[self.gui_NEXT_smartcal_recording] = recording_var
+        recording_cb = ttk.Checkbutton(
+            parent,
+            text=tr("algo_tracking.next_smartcal_recording"),
+            variable=recording_var,
+        )
+        recording_cb.grid(row=3, column=0, columnspan=3, sticky="w", padx=8, pady=(2, 4))
+        attach_tooltip(recording_cb, tr("algo_tracking.next_smartcal_recording_tip"))
+
         # Left/right sync: one slider per channel, in the speed slider's grid.
         for row, field, label in (
-            (3, "gui_NEXT_lid_sync", "next_lid_sync"),
-            (4, "gui_NEXT_brow_sync", "next_brow_sync"),
+            (4, "gui_NEXT_lid_sync", "next_lid_sync"),
+            (5, "gui_NEXT_brow_sync", "next_brow_sync"),
         ):
             sync_var = tk.IntVar(value=int(getattr(self.config, field, DEFAULT_SYNC)))
             self.tk_vars[getattr(self, field)] = sync_var
@@ -164,25 +178,25 @@ class TrackingAlgorithmModule(BaseSettingsModule):
             )
 
         # Per-eye gaze for strabismus / amblyopia (fused by default).
-        self._build_gaze_mode(parent, row=5)
+        self._build_gaze_mode(parent, row=6)
 
         # Off by default: only for users whose vertical gaze breaks when squinting.
         squint_var = tk.BooleanVar(value=bool(getattr(self.config, "gui_NEXT_squint_y_hold", False)))
         self.tk_vars[self.gui_NEXT_squint_y_hold] = squint_var
         squint_cb = ttk.Checkbutton(parent, text=tr("algo_tracking.next_squint_y_hold"), variable=squint_var)
-        squint_cb.grid(row=6, column=0, columnspan=6, sticky="w", padx=8, pady=(2, 4))
+        squint_cb.grid(row=7, column=0, columnspan=6, sticky="w", padx=8, pady=(2, 4))
         attach_tooltip(squint_cb, tr("algo_tracking.next_squint_y_hold_tip"))
 
         # On by default: the value-only gaze filter (next_smooth); off = old chain.
         smooth_var = tk.BooleanVar(value=bool(getattr(self.config, "gui_NEXT_smooth_gaze", True)))
         self.tk_vars[self.gui_NEXT_smooth_gaze] = smooth_var
         smooth_cb = ttk.Checkbutton(parent, text=tr("algo_tracking.next_smooth_gaze"), variable=smooth_var)
-        smooth_cb.grid(row=7, column=0, columnspan=6, sticky="w", padx=8, pady=(2, 4))
+        smooth_cb.grid(row=8, column=0, columnspan=6, sticky="w", padx=8, pady=(2, 4))
         attach_tooltip(smooth_cb, tr("algo_tracking.next_smooth_gaze_tip"))
 
         # NEXT model: headset family plus a size slider (lightest -> best).
         model_frame = ttk.Frame(parent)
-        model_frame.grid(row=8, column=0, columnspan=6, sticky="w", padx=8, pady=(2, 4))
+        model_frame.grid(row=9, column=0, columnspan=6, sticky="w", padx=8, pady=(2, 4))
         self._build_model_selector(model_frame)
 
         # Keep the combobox in sync when the setup-mode auto-shift changes the

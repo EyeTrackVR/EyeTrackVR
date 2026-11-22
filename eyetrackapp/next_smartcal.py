@@ -1300,14 +1300,16 @@ def next_smartcal_overlay(eye_processors: list, settings, baseconfig, layout=NEX
     finally:
         # Taken away first: the eye threads stop appending to it.
         traces = trace.close() if trace is not None else {}
-        _save_recording_safely(traces, layout, gaze_range, settings, events, results, started)
+        if getattr(settings, "gui_NEXT_smartcal_recording", True):
+            _save_recording_safely(traces, layout, gaze_range, settings, events, results, started)
         _publish_report(results, finished)
         end_overlay_run()
 
 
 # Each run's raw frames are kept in the log folder so that captures from any
 # headset can be replayed against changes to the capture and the fit. The
-# newest RECORDINGS_KEPT runs stay, at roughly 100 to 200 KB each.
+# newest RECORDINGS_KEPT runs stay, at roughly 100 to 200 KB each. The
+# gui_NEXT_smartcal_recording setting turns this off.
 RECORDING_FORMAT = 2
 RECORDINGS_KEPT = 20
 
