@@ -28,7 +28,7 @@ from types import SimpleNamespace
 import numpy as np
 
 from calibration_state import var
-from gaze_capture import GazeTrace
+from gaze_capture import OPEN_LID, GazeTrace
 from next_eye_gaze import GAZE_MODE_FUSED, dominant_eye_from_settings, gaze_mode_from_settings
 from next_smartcal import (
     CALIBRATION_COVERAGE,
@@ -65,8 +65,6 @@ RAYS = (
 )
 # Fewer open-eye samples than this and the dot counts as not tracked.
 MIN_SAMPLES = 5
-# Samples with the eyes this closed are blinks.
-MIN_OPENNESS = 0.3
 # A dot passes when the mean gaze lands close to it and scatters little
 # around that mean, judged against how the same setup does near the centre:
 # the median of the innermost dots (a quarter of the range out). Accuracy
@@ -131,15 +129,21 @@ def scored_eyes(eye_processors: list, settings) -> list:
     return fitted or list(eye_processors)
 
 
-def gaze_samples(eye_processors_frames, settings, mappings=None) -> list:
-    """Per eye, (tan_x, tan_y, openness) of each of its traced frames: where
-    the eye's mapping (``mappings`` by processor id, else its current one)
-    says it looked, before the output limits."""
+def gaze_samples(eye_processors_frames, settings, mappings=None, min_lids=None) -> list:
+    """Per eye, (tan_x, tan_y, open) of each of its traced frames: where the
+    eye's mapping (``mappings`` by processor id, else its current one) says
+    it looked, before the output limits, and whether the eye was open and not
+    blinking: its lid at least ``min_lids`` by processor id (GazeTrace.open_lid),
+    else OPEN_LID."""
     eyes = []
     for ep, frames in eye_processors_frames:
         mapping = (mappings or {}).get(id(ep), ep)
+        min_lid = (min_lids or {}).get(id(ep), OPEN_LID)
         eyes.append(
-            [(*current_gaze_tangents(mapping, raw_x, raw_y, settings), lid) for _, raw_x, raw_y, lid, _ in frames]
+            [
+                (*current_gaze_tangents(mapping, raw_x, raw_y, settings), lid >= min_lid)
+                for _, raw_x, raw_y, lid, _ in frames
+            ]
         )
     return eyes
 
@@ -151,12 +155,12 @@ def _unit(tan_x: float, tan_y: float) -> np.ndarray:
 
 def score_point(samples, target) -> tuple:
     """(error, jitter) in degrees of the open-eye ``samples`` (tan_x, tan_y,
-    openness) against the ``target`` tangents, or None when too few.
+    open) against the ``target`` tangents, or None when too few.
 
     Error is the angle between the mean gaze direction and the target. Jitter
     is the angular spread of the gaze around its mean, from how much the mean
     of the unit directions shrinks below 1."""
-    directions = [_unit(x, y) for x, y, openness in samples if openness >= MIN_OPENNESS]
+    directions = [_unit(x, y) for x, y, is_open in samples if is_open]
     if len(directions) < MIN_SAMPLES:
         return None
     mean = np.mean(directions, axis=0)
@@ -197,7 +201,7 @@ class RayResult:
 class RangeCheckResult:
     rays: list
     limits: tuple = (40.0, 15.0, 40.0)  # the output gaze limits: sideways, up, down
-    tracked: bool = True  # any gaze arrived at all
+    tracked: bool = True  # any open-eye gaze arrived at all
     max_error_deg: float = MIN_ERROR_DEG  # the limits the dots were judged by
     max_jitter_deg: float = MIN_JITTER_DEG
 
@@ -247,7 +251,7 @@ def score(points, samples: dict, gaze_range, settings) -> RangeCheckResult:
     return RangeCheckResult(
         rays=[rays[name] for name, _, _ in RAYS],
         limits=limits,
-        tracked=any(eye for eyes in samples.values() for eye in eyes),
+        tracked=any(is_open for eyes in samples.values() for eye in eyes for _, _, is_open in eye),
         max_error_deg=max_error,
         max_jitter_deg=max_jitter,
     )
@@ -281,13 +285,17 @@ def _show_points(overlay, trace, points, settings, events: list) -> dict:
     overlay.send_text(CMD_TEXT, tr("range_check.follow"))
     start_when_ready(overlay, trace, events, _checking)
     mappings = {id(ep): mapping_of(ep) for ep in scored_eyes(trace.processors, settings)}
-    samples = {}
+    captured = {}
     for i, (_, _, nx, ny) in enumerate(points):
-        captured = show_dot_and_capture(overlay, trace, events, i, (nx, ny), _checking)
-        samples[i] = gaze_samples([(ep, frames) for ep, frames in captured if id(ep) in mappings], settings, mappings)
+        captured[i] = show_dot_and_capture(overlay, trace, events, i, (nx, ny), _checking)
     overlay.send(CMD_END_PASS)
     overlay.wait_for(SIG_PASS_ENDED, _checking)
-    return samples
+    # Blinks are judged against each eye's usual lid over the whole run.
+    min_lids = {id(ep): trace.open_lid(ep) for ep in trace.processors}
+    return {
+        i: gaze_samples([(ep, frames) for ep, frames in eyes if id(ep) in mappings], settings, mappings, min_lids)
+        for i, eyes in captured.items()
+    }
 
 
 @Async

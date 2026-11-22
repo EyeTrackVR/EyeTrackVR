@@ -33,9 +33,9 @@ def _tangents(points, gaze_range=GAZE_RANGE):
     return next_smartcal_dot_tangents(gaze_range, [(nx, ny) for _, _, nx, ny in points])
 
 
-def _on_target(target, n=10, pitch_off_deg=0.0, openness=1.0):
+def _on_target(target, n=10, pitch_off_deg=0.0, is_open=True):
     pitch = math.atan(target[1]) + math.radians(pitch_off_deg)
-    return [(target[0], math.tan(pitch), openness)] * n
+    return [(target[0], math.tan(pitch), is_open)] * n
 
 
 def test_dots_step_outward_to_the_edge_of_the_range():
@@ -60,9 +60,9 @@ def test_the_gaze_is_read_through_the_calibration_before_the_limits_clip_it():
     uncalibrated = SimpleNamespace(_next_smartcal_w=None, _next_smartcal_b=None)
     frames = [(0.0, 0.9, 0.4, 0.8, 0.5)]
     # 2 * 0.9 is far past tan(40 deg): the check sees it, the output would not.
-    assert check.gaze_samples([(calibrated, frames)], SETTINGS) == [[pytest.approx((1.8, 0.9, 0.8))]]
+    assert check.gaze_samples([(calibrated, frames)], SETTINGS) == [[pytest.approx((1.8, 0.9, True))]]
     tan40, tan15 = math.tan(math.radians(40.0)), math.tan(math.radians(15.0))
-    assert check.gaze_samples([(uncalibrated, frames)], SETTINGS) == [[pytest.approx((0.9 * tan40, 0.4 * tan15, 0.8))]]
+    assert check.gaze_samples([(uncalibrated, frames)], SETTINGS) == [[pytest.approx((0.9 * tan40, 0.4 * tan15, True))]]
 
 
 def test_a_point_scores_its_error_and_jitter():
@@ -77,8 +77,25 @@ def test_a_point_scores_its_error_and_jitter():
     error, jitter = check.score_point(wobble, ahead)
     assert error == pytest.approx(0.0, abs=1e-6) and jitter == pytest.approx(1.0, abs=1e-3)
     # Blinks don't count, and too few samples is not tracked.
-    assert check.score_point(_on_target(target, openness=0.1), target) is None
+    assert check.score_point(_on_target(target, is_open=False), target) is None
     assert check.score_point(_on_target(target, n=4), target) is None
+
+
+def test_blinks_are_judged_against_each_eyes_usual_lid():
+    low, high = SimpleNamespace(_next_smartcal_w=None), SimpleNamespace(_next_smartcal_w=None)
+    frames = [(0.0, 0.1, 0.1, 0.2, 0.5), (0.1, 0.1, 0.1, 0.02, 0.5)]
+    # Without the run's lids a lid of 0.2 is a blink; for an eye that reads low it is open.
+    assert [[is_open for _, _, is_open in eye] for eye in check.gaze_samples([(low, frames)], SETTINGS)] == [
+        [False, False]
+    ]
+    eyes = check.gaze_samples([(low, frames), (high, frames)], SETTINGS, min_lids={id(low): 0.1, id(high): 0.3})
+    assert [[is_open for _, _, is_open in eye] for eye in eyes] == [[True, False], [False, False]]
+
+
+def test_closed_eyes_are_not_tracked_gaze():
+    points = check.check_points()
+    closed = {i: [_on_target(t, is_open=False)] for i, t in enumerate(_tangents(points))}
+    assert not check.score(points, closed, GAZE_RANGE, SETTINGS).tracked
 
 
 def test_each_eye_is_scored_on_its_own():
