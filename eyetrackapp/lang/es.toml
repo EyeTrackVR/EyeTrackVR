@@ -160,6 +160,8 @@ tracking_right = "Siguiendo solo el ojo derecho."
 mode_none = "Modo: ninguna cámara activa"
 # EN: "Enter at least one camera source."
 enter_source = "Introduce al menos una fuente de cámara."
+# EN: "The headset overlay is busy. Stop the calibration or preview, or wait for it to finish, then try again."
+overlay_busy = "La superposición del visor está ocupada. Detén la calibración o la vista previa, o espera a que termine, y vuelve a intentarlo."
 
 [camera]
 # EN: "Camera Address"

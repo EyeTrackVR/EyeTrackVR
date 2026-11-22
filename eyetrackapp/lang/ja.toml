@@ -160,6 +160,8 @@ tracking_right = "右目のみトラッキング中。"
 mode_none = "モード: アクティブなカメラなし"
 # EN: "Enter at least one camera source."
 enter_source = "カメラソースを 1 つ以上入力してください。"
+# EN: "The headset overlay is busy. Stop the calibration or preview, or wait for it to finish, then try again."
+overlay_busy = "ヘッドセットのオーバーレイは使用中です。キャリブレーションまたはプレビューを停止するか、終了を待ってから、もう一度お試しください。"
 
 [camera]
 # EN: "Camera Address"

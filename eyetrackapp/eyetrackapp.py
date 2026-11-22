@@ -1582,9 +1582,23 @@ def main():
             if self._preview_btn_text.get() != text:
                 self._preview_btn_text.set(text)
 
+        def _show_status_briefly(self, text, ms=5000):
+            """Show ``text`` in the status box, then what it showed before
+            unless something else has replaced it."""
+            previous = self.status_var.get()
+            if previous == text:
+                return
+            self.status_var.set(text)
+            self.root.after(ms, lambda: self.status_var.get() == text and self.status_var.set(previous))
+
         def _on_gaze_range_check(self):
+            from calibration_state import var as calibration
             from gaze_range_check import gaze_range_check_overlay
 
+            if calibration.overlay_active:
+                # A calibration, the preview or a check already has the overlay.
+                self._show_status_briefly(tr("status.overlay_busy"))
+                return
             eps = [eye.ransac for eye in eyes if eye.started() and getattr(eye, "ransac", None) is not None]
             if eps:
                 gaze_range_check_overlay(eps, config.settings)

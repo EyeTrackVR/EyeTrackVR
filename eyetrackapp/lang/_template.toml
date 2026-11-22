@@ -197,6 +197,8 @@ tracking_right = ""
 mode_none = ""
 # EN: "Enter at least one camera source."
 enter_source = ""
+# EN: "The headset overlay is busy. Stop the calibration or preview, or wait for it to finish, then try again."
+overlay_busy = ""
 
 [camera]
 # EN: "Camera Address"

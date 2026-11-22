@@ -139,6 +139,8 @@ mode_single_right = "Mode: Single-eye (right)"
 tracking_right = "Tracking right eye only."
 mode_none = "Mode: No active camera"
 enter_source = "Enter at least one camera source."
+# Shown for a few seconds when a headset check is asked for while the overlay shows something else
+overlay_busy = "The headset overlay is busy. Stop the calibration or preview, or wait for it to finish, then try again."
 
 # ---------------------------------------------------------------------------
 # Per-eye camera widget (tracking page)
