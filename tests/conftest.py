@@ -1,3 +1,5 @@
+import sys
+
 import pytest
 from config import (
     EyeTrackConfig,
@@ -35,6 +37,24 @@ def no_real_vr_config(monkeypatch, tmp_path_factory):
     monkeypatch.setattr(openxr_layer_registration, "WindowsRegistry", _FakeRegistry)
     implicit = tmp_path_factory.mktemp("implicit.d")
     monkeypatch.setattr(openxr_layer_registration, "implicit_layer_dir", lambda: implicit)
+
+
+@pytest.fixture(autouse=True)
+def silent(monkeypatch):
+    """No test plays a sound: a calibration that succeeds in a test would
+    otherwise play its completion chime through the desktop's speakers."""
+    from utils import misc_utils
+
+    played = misc_utils.PlaySound
+
+    def mute(*_args, **_kwargs):
+        pass
+
+    monkeypatch.setattr(misc_utils, "PlaySound", mute)
+    # Modules that imported the function itself keep their own reference.
+    for module in list(sys.modules.values()):
+        if getattr(module, "PlaySound", None) is played:
+            monkeypatch.setattr(module, "PlaySound", mute)
 
 
 @pytest.fixture()
