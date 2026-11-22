@@ -43,12 +43,13 @@ def no_real_vr_config(monkeypatch, tmp_path_factory):
 @pytest.fixture(autouse=True)
 def silent(monkeypatch):
     """No test plays a sound: a calibration that succeeds in a test would
-    otherwise play its completion chime through the desktop's speakers."""
+    otherwise play its completion chime through the desktop's speakers. The
+    stand-in takes what winsound.PlaySound takes, so a wrong call still fails."""
     from utils import misc_utils
 
     played = misc_utils.PlaySound
 
-    def mute(*_args, **_kwargs):
+    def mute(sound, flags, /):
         pass
 
     monkeypatch.setattr(misc_utils, "PlaySound", mute)
