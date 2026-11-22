@@ -24,11 +24,12 @@ def _sides(result, names) -> str:
     )
 
 
-def headset_report(result) -> str:
+def headset_report(result, no_range: bool = False) -> str:
     """What the check found, for the headset. ``result`` is None when the
-    check did not finish."""
+    check did not finish, or with ``no_range`` when it did but the overlay
+    did not report where it showed the dots."""
     if result is None:
-        return tr("range_check.stopped")
+        return tr("range_check.no_range" if no_range else "range_check.stopped")
     if not result.tracked:
         return tr("range_check.not_tracked")
     names = [ray.name for ray in result.rays]
@@ -42,10 +43,10 @@ def headset_report(result) -> str:
     )
 
 
-def log_report(result) -> str:
+def log_report(result, no_range: bool = False) -> str:
     """The headset report, and the output limits to compare it with."""
     if result is None or not result.tracked:
-        return headset_report(result)
+        return headset_report(result, no_range)
     yaw, up, down = result.limits
     return (
         headset_report(result) + "\n" + tr("range_check.limits", yaw=f"{yaw:.0f}", up=f"{up:.0f}", down=f"{down:.0f}")

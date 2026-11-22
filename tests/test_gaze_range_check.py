@@ -194,6 +194,9 @@ def test_the_report_lists_every_direction(english):
     ]
     assert len(headset_report(result)) <= 400
     assert headset_report(None) == "The check stopped before it finished."
+    assert log_report(None, no_range=True) == (
+        "The check could not be scored: the overlay did not report where it showed the dots."
+    )
     assert "No tracked gaze" in headset_report(check.score(points, {}, GAZE_RANGE, SETTINGS))
 
 

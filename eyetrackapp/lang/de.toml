@@ -1460,3 +1460,5 @@ limits = "Deine Blickgrenzen sind {yaw}째 seitlich, {up}째 nach oben und {down}�
 not_tracked = "Es kam kein erfasster Blick in der App an. Starte das Tracking und f체hre die Pr체fung erneut aus."
 # EN: "The check stopped before it finished."
 stopped = "Die Pr체fung wurde vor dem Ende abgebrochen."
+# EN: "The check could not be scored: the overlay did not report where it showed the dots."
+no_range = "Die Pr체fung konnte nicht ausgewertet werden: Das Overlay hat nicht gemeldet, wo es die Punkte gezeigt hat."

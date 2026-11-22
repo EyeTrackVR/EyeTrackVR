@@ -1460,3 +1460,5 @@ limits = "你的视线范围上限为左右 {yaw}°，向上 {up}°，向下 {do
 not_tracked = "应用没有收到检测到的视线。请先开始追踪，然后再次运行检查。"
 # EN: "The check stopped before it finished."
 stopped = "检查在完成前已停止。"
+# EN: "The check could not be scored: the overlay did not report where it showed the dots."
+no_range = "无法评估本次检查：叠加层没有报告圆点的显示位置。"

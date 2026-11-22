@@ -308,6 +308,7 @@ def gaze_range_check_overlay(eye_processors: list, settings) -> None:
     var.overlay_active = True
     points = check_points()
     result = None
+    no_range = False
     trace = None
     try:
         with OverlaySession("interactive", *overlay_range_args()) as overlay:
@@ -316,11 +317,14 @@ def gaze_range_check_overlay(eye_processors: list, settings) -> None:
                 samples = _show_points(overlay, trace, points, settings, [])
                 gaze_range = parse_overlay_gaze_range(overlay.log_text())
                 if gaze_range is None:
+                    # The dots go out to the edge of this headset's view, so
+                    # their angles can't be assumed.
+                    no_range = True
                     logger.warning("Gaze range check: the overlay did not report where it drew the dots.")
                 else:
                     result = score(points, samples, gaze_range, settings)
                     _log(result)
-                overlay.send_text(CMD_TEXT, headset_report(result))
+                overlay.send_text(CMD_TEXT, headset_report(result, no_range))
                 deadline = time.monotonic() + SUMMARY_S
                 while time.monotonic() < deadline and overlay.process.poll() is None:
                     time.sleep(0.1)
@@ -336,7 +340,7 @@ def gaze_range_check_overlay(eye_processors: list, settings) -> None:
         if trace is not None:
             trace.close()
         try:
-            logger.info("Gaze range check report:\n%s", log_report(result))
+            logger.info("Gaze range check report:\n%s", log_report(result, no_range))
         except Exception:
             logger.exception("Gaze range check: could not build the report")
         var.overlay_active = False

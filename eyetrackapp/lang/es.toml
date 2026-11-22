@@ -1460,3 +1460,5 @@ limits = "Tus límites de mirada son {yaw}° a los lados, {up}° hacia arriba y 
 not_tracked = "No llegó ninguna mirada detectada a la aplicación. Inicia el seguimiento y vuelve a ejecutar la comprobación."
 # EN: "The check stopped before it finished."
 stopped = "La comprobación se detuvo antes de terminar."
+# EN: "The check could not be scored: the overlay did not report where it showed the dots."
+no_range = "No se pudo evaluar la comprobación: la superposición no indicó dónde mostró los puntos."

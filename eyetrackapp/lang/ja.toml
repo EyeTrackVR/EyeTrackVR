@@ -1460,3 +1460,5 @@ limits = "視線の上限は左右 {yaw}°、上 {up}°、下 {down}° です。
 not_tracked = "アプリに視線データが届きませんでした。トラッキングを開始してから、もう一度チェックしてください。"
 # EN: "The check stopped before it finished."
 stopped = "チェックは完了前に停止しました。"
+# EN: "The check could not be scored: the overlay did not report where it showed the dots."
+no_range = "チェックを評価できませんでした：オーバーレイが点の表示位置を報告しませんでした。"
