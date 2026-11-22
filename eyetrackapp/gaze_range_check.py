@@ -29,6 +29,7 @@ import numpy as np
 
 from calibration_state import var
 from gaze_capture import GazeTrace
+from next_eye_gaze import GAZE_MODE_FUSED, dominant_eye_from_settings, gaze_mode_from_settings
 from next_smartcal import (
     CALIBRATION_COVERAGE,
     current_gaze_tangents,
@@ -113,16 +114,34 @@ def mapping_of(ep) -> SimpleNamespace:
     )
 
 
+def scored_eyes(eye_processors: list, settings) -> list:
+    """The eyes the check scores: those with a gaze fit. An eye without one
+    reads the raw model gaze, which says nothing about the calibration. In
+    the per-eye gaze modes both eyes share the dominant eye's fit and the
+    other eye may really look elsewhere (see _fit_next_smartcal), so only the
+    dominant eye is scored. Every eye when none has a fit."""
+    fitted = [
+        ep
+        for ep in eye_processors
+        if getattr(ep, "_next_smartcal_w", None) is not None and getattr(ep, "_next_smartcal_b", None) is not None
+    ]
+    if gaze_mode_from_settings(settings) != GAZE_MODE_FUSED:
+        dominant = dominant_eye_from_settings(settings)
+        fitted = [ep for ep in fitted if getattr(ep, "eye_id", None) == dominant] or fitted
+    return fitted or list(eye_processors)
+
+
 def gaze_samples(eye_processors_frames, settings, mappings=None) -> list:
-    """(tan_x, tan_y, openness) per traced frame of every eye: where each
-    eye's mapping (``mappings`` by processor id, else its current one) says
-    it looked, before the output limits."""
-    samples = []
+    """Per eye, (tan_x, tan_y, openness) of each of its traced frames: where
+    the eye's mapping (``mappings`` by processor id, else its current one)
+    says it looked, before the output limits."""
+    eyes = []
     for ep, frames in eye_processors_frames:
         mapping = (mappings or {}).get(id(ep), ep)
-        for _, raw_x, raw_y, lid, _ in frames:
-            samples.append((*current_gaze_tangents(mapping, raw_x, raw_y, settings), lid))
-    return samples
+        eyes.append(
+            [(*current_gaze_tangents(mapping, raw_x, raw_y, settings), lid) for _, raw_x, raw_y, lid, _ in frames]
+        )
+    return eyes
 
 
 def _unit(tan_x: float, tan_y: float) -> np.ndarray:
@@ -146,6 +165,17 @@ def score_point(samples, target) -> tuple:
     cosine = float(np.dot(mean / np.linalg.norm(mean), _unit(*target)))
     error = math.degrees(math.acos(min(1.0, max(-1.0, cosine))))
     return error, jitter
+
+
+def score_dot(eyes, target) -> tuple:
+    """(error, jitter) in degrees of a dot from each eye's samples of it, or
+    None when no eye tracked it. Each eye is scored on its own (score_point),
+    so an offset between the eyes does not count as jitter, and the dot
+    takes the largest error and the largest jitter among them."""
+    scores = [scored for scored in (score_point(samples, target) for samples in eyes) if scored is not None]
+    if not scores:
+        return None
+    return max(error for error, _ in scores), max(jitter for _, jitter in scores)
 
 
 def _angle_deg(target) -> float:
@@ -186,9 +216,10 @@ def limits_from_centre(scores) -> tuple:
 
 
 def score(points, samples: dict, gaze_range, settings) -> RangeCheckResult:
-    """Score every dot and verify each ray from the centre outward."""
+    """Score every dot and verify each ray from the centre outward.
+    ``samples`` holds each dot's gaze_samples."""
     tangents = next_smartcal_dot_tangents(gaze_range, [(nx, ny) for _, _, nx, ny in points])
-    scores = [score_point(samples.get(i, []), target) for i, target in enumerate(tangents)]
+    scores = [score_dot(samples.get(i, []), target) for i, target in enumerate(tangents)]
     max_error, max_jitter = limits_from_centre(
         [scores[i] for i, (_, level, _, _) in enumerate(points) if level == REFERENCE_LEVEL]
     )
@@ -216,7 +247,7 @@ def score(points, samples: dict, gaze_range, settings) -> RangeCheckResult:
     return RangeCheckResult(
         rays=[rays[name] for name, _, _ in RAYS],
         limits=limits,
-        tracked=any(samples.values()),
+        tracked=any(eye for eyes in samples.values() for eye in eyes),
         max_error_deg=max_error,
         max_jitter_deg=max_jitter,
     )
@@ -243,17 +274,17 @@ def _checking() -> bool:
 
 def _show_points(overlay, trace, points, settings, events: list) -> dict:
     """Show the check's dots once the user is ready and capture each at rest.
-    Returns {point: samples} for score."""
+    Returns {point: gaze_samples of the scored eyes} for score."""
     from localization import tr
 
     overlay.wait_for(SIG_READY, _checking)
     overlay.send_text(CMD_TEXT, tr("range_check.follow"))
     start_when_ready(overlay, trace, events, _checking)
-    mappings = {id(ep): mapping_of(ep) for ep in trace.processors}
+    mappings = {id(ep): mapping_of(ep) for ep in scored_eyes(trace.processors, settings)}
     samples = {}
     for i, (_, _, nx, ny) in enumerate(points):
         captured = show_dot_and_capture(overlay, trace, events, i, (nx, ny), _checking)
-        samples[i] = gaze_samples(captured, settings, mappings)
+        samples[i] = gaze_samples([(ep, frames) for ep, frames in captured if id(ep) in mappings], settings, mappings)
     overlay.send(CMD_END_PASS)
     overlay.wait_for(SIG_PASS_ENDED, _checking)
     return samples

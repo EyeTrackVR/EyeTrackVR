@@ -60,9 +60,9 @@ def test_the_gaze_is_read_through_the_calibration_before_the_limits_clip_it():
     uncalibrated = SimpleNamespace(_next_smartcal_w=None, _next_smartcal_b=None)
     frames = [(0.0, 0.9, 0.4, 0.8, 0.5)]
     # 2 * 0.9 is far past tan(40 deg): the check sees it, the output would not.
-    assert check.gaze_samples([(calibrated, frames)], SETTINGS) == [pytest.approx((1.8, 0.9, 0.8))]
+    assert check.gaze_samples([(calibrated, frames)], SETTINGS) == [[pytest.approx((1.8, 0.9, 0.8))]]
     tan40, tan15 = math.tan(math.radians(40.0)), math.tan(math.radians(15.0))
-    assert check.gaze_samples([(uncalibrated, frames)], SETTINGS) == [pytest.approx((0.9 * tan40, 0.4 * tan15, 0.8))]
+    assert check.gaze_samples([(uncalibrated, frames)], SETTINGS) == [[pytest.approx((0.9 * tan40, 0.4 * tan15, 0.8))]]
 
 
 def test_a_point_scores_its_error_and_jitter():
@@ -81,6 +81,32 @@ def test_a_point_scores_its_error_and_jitter():
     assert check.score_point(_on_target(target, n=4), target) is None
 
 
+def test_each_eye_is_scored_on_its_own():
+    target = (0.0, math.tan(math.radians(10.0)))
+    # The eyes sit 2 deg either side of the dot: steady, each 2 deg off.
+    eyes = [_on_target(target, pitch_off_deg=2.0), _on_target(target, pitch_off_deg=-2.0)]
+    error, jitter = check.score_dot(eyes, target)
+    assert error == pytest.approx(2.0, abs=1e-6) and jitter == pytest.approx(0.0, abs=1e-3)
+    # The worse eye decides, and an eye that lost the dot does not hide the other.
+    assert check.score_dot([_on_target(target), _on_target(target, pitch_off_deg=3.0)], target)[0] == pytest.approx(3.0)
+    assert check.score_dot([_on_target(target), []], target)[0] == pytest.approx(0.0, abs=1e-6)
+    assert check.score_dot([[], _on_target(target, n=4)], target) is None
+
+
+def test_only_eyes_with_a_gaze_fit_are_scored():
+    def eye(eye_id, fitted=True):
+        fit = ([1.0, 0.0, 0.0, 1.0, 0.0, 1.0], [0.0, 0.0]) if fitted else (None, None)
+        return SimpleNamespace(eye_id=eye_id, _next_smartcal_w=fit[0], _next_smartcal_b=fit[1])
+
+    left, right, raw = eye(EyeId.LEFT), eye(EyeId.RIGHT), eye(EyeId.RIGHT, fitted=False)
+    assert check.scored_eyes([left, right], SETTINGS) == [left, right]
+    assert check.scored_eyes([left, raw], SETTINGS) == [left]
+    assert check.scored_eyes([raw], SETTINGS) == [raw]
+    # The per-eye gaze modes fit the dominant eye and hand the fit to both.
+    independent = SimpleNamespace(gui_NEXT_gaze_mode="independent", gui_NEXT_dominant_eye="right")
+    assert check.scored_eyes([left, right], independent) == [right]
+
+
 def test_a_direction_is_verified_out_to_its_first_miss():
     points = check.check_points()
     tangents = _tangents(points)
@@ -93,7 +119,7 @@ def test_a_direction_is_verified_out_to_its_first_miss():
             off = 5.0  # a miss part way out ends the verified range there
         if name == "down" and level >= 0.75:
             continue  # the lids hide the pupil
-        samples[i] = _on_target(tangents[i], pitch_off_deg=off)
+        samples[i] = [_on_target(tangents[i], pitch_off_deg=off)]
     result = check.score(points, samples, GAZE_RANGE, SETTINGS)
     rays = {ray.name: ray for ray in result.rays}
     assert rays["up"].verified_deg == pytest.approx(math.degrees(math.atan(0.75 * math.tan(math.radians(15.0)))))
@@ -110,7 +136,7 @@ def _verified(offsets):
     points = check.check_points()
     tangents = _tangents(points)
     samples = {
-        i: _on_target(tangents[i], pitch_off_deg=offsets(name, level)) for i, (name, level, _, _) in enumerate(points)
+        i: [_on_target(tangents[i], pitch_off_deg=offsets(name, level))] for i, (name, level, _, _) in enumerate(points)
     }
     result = check.score(points, samples, GAZE_RANGE, SETTINGS)
     return result, {ray.name: ray.verified_deg for ray in result.rays}
@@ -141,7 +167,7 @@ def test_limits_fall_back_to_the_floors_without_a_tracked_centre():
 def test_the_report_lists_every_direction(english):
     points = check.check_points()
     tangents = _tangents(points)
-    result = check.score(points, {i: _on_target(t) for i, t in enumerate(tangents)}, GAZE_RANGE, SETTINGS)
+    result = check.score(points, {i: [_on_target(t)] for i, t in enumerate(tangents)}, GAZE_RANGE, SETTINGS)
     assert log_report(result).splitlines() == [
         "Gaze range check",
         "Gaze stays within 2.0° of the dot out to:",
