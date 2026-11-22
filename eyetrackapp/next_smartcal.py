@@ -19,7 +19,7 @@ from calibration_state import var
 from next_eye_gaze import GAZE_MODE_FUSED, dominant_eye_from_settings, gaze_mode_from_settings
 from utils.async_call import Async
 from utils.misc_utils import PlaySound, SND_ASYNC, SND_FILENAME, resource_path
-from gaze_capture import OPEN_LID, GazeTrace
+from gaze_capture import GazeTrace, open_lid
 from utils.overlay_launch import (
     CMD_DOT,
     CMD_END_PASS,
@@ -560,10 +560,11 @@ def _dot_medians(ep, dot_count: int = len(NEXT_SMARTCAL_DOTS)) -> dict:
     """{dot: (raw_x, raw_y)} for the dots this eye captured enough frames of.
     The median over the hold window rejects blinks / transient outliers."""
     samples = getattr(ep, "_next_smartcal_samples", {}) or {}
+    min_lid = open_lid(s[2] for pts in samples.values() for s in pts if len(s) >= 3)
     medians = {}
     for dot in range(dot_count):
         # Gaze from blinks says nothing; lid and brow use every frame.
-        pts = [s for s in samples.get(dot, []) if len(s) < 3 or s[2] >= OPEN_LID]
+        pts = [s for s in samples.get(dot, []) if len(s) < 3 or s[2] >= min_lid]
         if len(pts) < _SMARTCAL_MIN_SAMPLES_PER_DOT:
             continue
         arr = np.asarray(pts, dtype=np.float64)

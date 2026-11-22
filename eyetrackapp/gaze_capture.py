@@ -19,10 +19,21 @@ LICENSE: Babble Software Distribution License 1.0
 from __future__ import annotations
 
 import math
+import statistics
 import time
 
-# Frames with the lids this closed are blinks, not gaze.
+# Frames with the lids below OPEN_FRACTION of the run's usual lid reading are
+# blinks, not gaze. How high the raw lid of an open eye reads differs between
+# users and cameras (Smart Calib takes a resting lid from 0.15 up), so a fixed
+# level would call every frame of a low-reading eye a blink. Never above
+# OPEN_LID, and never below MIN_OPEN_LID: a run with the eyes shut has no
+# open-eye frames.
 OPEN_LID = 0.3
+OPEN_FRACTION = 0.5
+MIN_OPEN_LID = 0.05
+# The usual lid reading of a growing trace is taken again every this many
+# frames.
+LID_REFRESH_FRAMES = 30
 # The gaze rests when, over the last SETTLE_S, it stays within RATIO times the
 # steadiest scatter seen in this run, but never stricter than FLOOR (raw gaze
 # units, about half a degree) and never looser than CEILING (about two
@@ -37,9 +48,19 @@ MIN_FRAMES = 3
 POLL_S = 0.01
 
 
-def _scatter(frames) -> float:
+def open_lid(lids) -> float:
+    """The lid reading from which a frame counts as open-eyed, from the
+    ``lids`` of a run. The eyes are open for most of a run, so the median is
+    their usual open reading."""
+    lids = list(lids)
+    if not lids:
+        return OPEN_LID
+    return max(MIN_OPEN_LID, min(OPEN_LID, OPEN_FRACTION * statistics.median(lids)))
+
+
+def _scatter(frames, min_lid: float = OPEN_LID) -> float:
     """Largest distance of the open-eye frames' raw gaze from their mean."""
-    points = [(x, y) for _, x, y, lid, _ in frames if lid >= OPEN_LID]
+    points = [(x, y) for _, x, y, lid, _ in frames if lid >= min_lid]
     if len(points) < MIN_FRAMES:
         return math.inf
     mx = sum(x for x, _ in points) / len(points)
@@ -53,6 +74,7 @@ class GazeTrace:
     def __init__(self, eye_processors: list):
         self.processors = list(eye_processors)
         self._steadiest = math.inf
+        self._open_lids = {}  # processor id -> (frames it is from, open_lid)
         for ep in self.processors:
             ep._next_smartcal_trace = []
 
@@ -65,12 +87,22 @@ class GazeTrace:
             out.append((ep, [frame for frame in list(trace) if start <= frame[0] <= end]))
         return out
 
+    def open_lid(self, ep) -> float:
+        """The lid reading from which this eye's frames count as open-eyed
+        (see open_lid), from its trace so far."""
+        trace = ep._next_smartcal_trace or []
+        seen, level = self._open_lids.get(id(ep), (0, OPEN_LID))
+        if trace and (not seen or len(trace) - seen >= LID_REFRESH_FRAMES):
+            level = open_lid(frame[3] for frame in list(trace))
+            self._open_lids[id(ep)] = (len(trace), level)
+        return level
+
     def scatter(self, start: float, end: float = math.inf) -> float:
         """The worst tracked eye's scatter between ``start`` and ``end``."""
         # An eye without enough frames says nothing, so a stalled camera
         # does not hold up the others.
-        scatters = [s for s in (_scatter(frames) for _, frames in self.frames(start, end)) if math.isfinite(s)]
-        return max(scatters, default=math.inf)
+        scatters = (_scatter(frames, self.open_lid(ep)) for ep, frames in self.frames(start, end))
+        return max((s for s in scatters if math.isfinite(s)), default=math.inf)
 
     def wait_until_resting(self, timeout: float, rest_s: float | None = None, keep_going=lambda: True) -> bool:
         """Wait until the gaze has rested for ``rest_s`` (SETTLE_S when None).
