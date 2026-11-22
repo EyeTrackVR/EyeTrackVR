@@ -1432,6 +1432,8 @@ follow = "点を見てください\n目が落ち着くと点が動き始めま�
 [range_check]
 # EN: "Check Gaze Range"
 button = "視線範囲をチェック"
+# EN: "Stop Gaze Range Check"
+stop_button = "視線範囲チェックを停止"
 # EN: "Step dots out toward the edge of the headset view, past your gaze limits, and measure how far out your calibrated gaze still lands on them. Nothing is changed. Shown after a Smart Calib."
 button_tip = "ヘッドセットの視野の端近くまで、視線の上限を超えて点を表示し、キャリブレーション済みの視線がどこまで点に合うかを測定します。設定は変更されません。Smart Calib の後に表示されます。"
 # EN: "Look at the dot\nThe dots start once your eyes are steady. Follow them with your eyes, head still."

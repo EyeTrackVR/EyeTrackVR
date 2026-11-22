@@ -928,6 +928,7 @@ follow = "Look at the dot\nThe dots start once your eyes are steady. Follow them
 # Gaze range check: a Tracking page button that measures how far out the gaze
 # stays on target. Angles are in degrees.
 button = "Check Gaze Range"
+stop_button = "Stop Gaze Range Check"
 button_tip = "Step dots out toward the edge of the headset view, past your gaze limits, and measure how far out your calibrated gaze still lands on them. Nothing is changed. Shown after a Smart Calib."
 follow = "Look at the dot\nThe dots start once your eyes are steady. Follow them with your eyes, head still."
 title = "Gaze range check"

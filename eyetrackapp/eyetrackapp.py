@@ -93,6 +93,7 @@ from settings.general_settings_widget import SettingsWidget
 from settings.algo_settings_widget import AlgoSettingsWidget
 from osc.osc import OSCManager
 from osc.osc_message import OSCMessage
+import calibration_state
 from utils import gaze_preview
 from utils.logging_utils import setup_logging
 from utils.misc_utils import is_nt, is_macos, resource_path
@@ -808,9 +809,10 @@ def main():
             # Measures how far out the calibrated NEXT gaze still lands on
             # target, out to the edge of the headset view (see
             # gaze_range_check). Shown with the NEXT tracker only.
+            self._range_check_btn_text = tk.StringVar(value=tr("range_check.button"))
             self._range_check_btn = ttk.Button(
                 actions_inner,
-                text=tr("range_check.button"),
+                textvariable=self._range_check_btn_text,
                 command=self._on_gaze_range_check,
             )
             attach_tooltip(self._range_check_btn, tr("range_check.button_tip"))
@@ -1450,6 +1452,10 @@ def main():
             # ellipse spiral would collect nothing, because the NEXT path never
             # feeds cal_osc. Every other tracker gets the spiral.
             use_smartcal = _next_smartcal_selected()
+            if self._overlay_run_is(calibration_state.OVERLAY_RUN_SMARTCAL):
+                # The button reads Stop Calibration while a Smart Calib runs.
+                calibration_state.request_overlay_stop()
+                return
             if config.settings.gui_use_overlay_cal:
                 if use_smartcal:
                     self._on_next_smartcal()
@@ -1591,11 +1597,19 @@ def main():
             self.status_var.set(text)
             self.root.after(ms, lambda: self.status_var.get() == text and self.status_var.set(previous))
 
+        @staticmethod
+        def _overlay_run_is(run) -> bool:
+            """Whether ``run`` (calibration_state.OVERLAY_RUN_*) has the
+            overlay. Its button then stops it."""
+            return calibration_state.var.overlay_run == run
+
         def _on_gaze_range_check(self):
-            from calibration_state import var as calibration
             from gaze_range_check import gaze_range_check_overlay
 
-            if calibration.overlay_active:
+            if self._overlay_run_is(calibration_state.OVERLAY_RUN_RANGE_CHECK):
+                calibration_state.request_overlay_stop()
+                return
+            if calibration_state.var.overlay_active:
                 # A calibration, the preview or a check already has the overlay.
                 self._show_status_briefly(tr("status.overlay_busy"))
                 return
@@ -1609,7 +1623,12 @@ def main():
             calibrated = any(
                 getattr(eye, "next_smartcal_w", None) is not None for eye in (config.left_eye, config.right_eye)
             )
-            show = _next_smartcal_selected() and calibrated and any(e.started() for e in eyes)
+            running = self._overlay_run_is(calibration_state.OVERLAY_RUN_RANGE_CHECK)
+            text = tr("range_check.stop_button") if running else tr("range_check.button")
+            if self._range_check_btn_text.get() != text:
+                self._range_check_btn_text.set(text)
+            # A running check keeps its button, which is how it is stopped.
+            show = running or (_next_smartcal_selected() and calibrated and any(e.started() for e in eyes))
             if show == self._range_check_visible:
                 return
             self._range_check_visible = show
@@ -1673,7 +1692,8 @@ def main():
                 self._next_smartcal_reset_btn.pack_forget()
 
         def _sync_global_calibration_button(self):
-            text = tr("tracking.stop_calibration") if self._any_eye_calibrating() else tr("tracking.start_calibration")
+            calibrating = self._any_eye_calibrating() or self._overlay_run_is(calibration_state.OVERLAY_RUN_SMARTCAL)
+            text = tr("tracking.stop_calibration") if calibrating else tr("tracking.start_calibration")
             if self._calibration_btn_text.get() != text:
                 self._calibration_btn_text.set(text)
 
