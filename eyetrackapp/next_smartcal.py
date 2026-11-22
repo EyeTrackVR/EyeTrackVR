@@ -793,7 +793,8 @@ def _fit_next_smartcal(
     correction fits both. (Lid/brow anchors stay per eye.)
 
     Appends a SmartCalEyeResult per fitted eye to ``results`` when given.
-    Returns True if at least one eye produced a usable transform (and was saved)."""
+    Returns True if anything was saved: a gaze transform, or only the lid/brow
+    anchors (gaze_fit_applied tells the two apart)."""
     tangents = next_smartcal_dot_tangents(gaze_range, layout)
     saved_any = False
     sources = eye_processors
@@ -1005,6 +1006,12 @@ def _fit_next_smartcal(
     return saved_any
 
 
+def gaze_fit_applied(results) -> bool:
+    """Whether a run replaced the gaze calibration of any eye. A run that only
+    saved the lid/brow anchors kept the gaze calibration the user had."""
+    return any(result.outcome == SMARTCAL_APPLIED for result in results)
+
+
 # Before the first dot is captured, the instruction and the centre dot stay up
 # until the gaze has rested for READY_REST_S: longer than a reading fixation
 # (about 0.25 s), so the user is looking at the dot and not reading. Then the
@@ -1158,7 +1165,10 @@ def next_smartcal_overlay(eye_processors: list, settings, baseconfig, layout=NEX
                 _show_dots(overlay, trace, eye_processors, layout, events)
                 gaze_range = _overlay_gaze_range(overlay)
                 if gaze_range is not None:
-                    if _fit_next_smartcal(eye_processors, baseconfig, settings, gaze_range, layout, results):
+                    _fit_next_smartcal(eye_processors, baseconfig, settings, gaze_range, layout, results)
+                    # The chime says the gaze was recalibrated, not that only
+                    # the lid/brow anchors were saved beside a kept gaze fit.
+                    if gaze_fit_applied(results):
                         PlaySound(resource_path("assets/audio/completed.wav"), SND_FILENAME | SND_ASYNC)
                     finished = True
                     _show_summary(overlay, results)
