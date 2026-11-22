@@ -299,10 +299,16 @@ def test_one_of_two_centre_visits_can_be_dropped():
 
 
 def test_dropping_stops_at_the_minimum_number_of_dots():
-    rng = np.random.default_rng(3)
-    raw = {dot: tuple(rng.uniform(-0.6, 0.6, 2)) for dot in range(len(FINETUNE_DOTS))}
-    kept, dropped = _drop_inconsistent_dots(raw, next_smartcal_dot_tangents(layout=FINETUNE_DOTS), FINETUNE_DOTS)
-    assert len(dropped) <= 3 and len(kept) >= 6
+    layout = ((0.0, 0.0), (-0.5, 0.0), (0.0, 0.5), (0.5, 0.0), (0.0, -0.5), (-0.9, 0.3), (0.9, 0.6), (0.4, -0.9))
+    tangents = next_smartcal_dot_tangents(layout=layout)
+    raw = {dot: _model(*tangents[dot]) for dot in range(len(layout))}
+    raw[1] = (raw[1][0] + 0.35, raw[1][1] + 0.25)
+    raw[6] = (raw[6][0] - 0.3, raw[6][1] + 0.3)
+    kept, dropped = _drop_inconsistent_dots(raw, tangents, layout)
+    # Six dots are left. Of those, dot 2 fits worst and would go next.
+    assert [dot for dot, _ in dropped] == [1, 6] and sorted(kept) == [0, 2, 3, 4, 5, 7]
+    errors = np.hypot(*_heldout_errors_deg(kept, tangents, layout).T)
+    assert errors[1] == errors.max() > max(5.0, 3.0 * np.median(np.delete(errors, 1)))
 
 
 def _noisy(raw, seed, sigma=0.02):
