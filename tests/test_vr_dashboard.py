@@ -47,6 +47,9 @@ def test_buttons_follow_the_dfr_state():
     assert by_name(on, "dfr_enabled").value is False and by_name(on, "dfr_enabled").active
     assert [b.value for b in on if b.name == "dfr_mode" and b.active] == ["minimum"]
 
+    release = vr_dashboard.layout({**state(enabled=True), "qualities": ["maximum", "balanced", "minimum"]})
+    assert [b.value for b in release if b.name == "dfr_mode"] == ["maximum", "balanced", "minimum"]
+
     no_game = vr_dashboard.layout(state(available=False, enabled=True))
     assert not any(b.enabled for b in no_game if b.name.startswith("dfr_"))
     assert by_name(no_game, "recenter").enabled  # recenter never depends on a game

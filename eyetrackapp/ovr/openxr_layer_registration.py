@@ -4,7 +4,7 @@ Install EyeTrackVR's OpenXR API layer (native/openxr_layer/) as an implicit laye
 The layer gives OpenXR runtimes without eye tracking (Monado, WiVRn, VDXR, WMR, ...)
 XR_EXT_eye_gaze_interaction, fed by EyeTrackVR's gaze shared memory. It steps aside on
 runtimes that already offer the extension (SteamVR with EyeTrackVR's driver), so it is safe
-to have installed. It is installed only while "Foveated rendering gaze" is on; games pick it
+to have installed. It is installed only while "Foveated rendering support" is on; games pick it
 up the next time they start.
 
 Per user, no admin rights:

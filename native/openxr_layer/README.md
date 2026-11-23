@@ -39,7 +39,7 @@ It serves one instance at a time; a second concurrent instance is passed through
 
 ## Installation
 
-EyeTrackVR installs the layer while **Foveated rendering gaze** is on, and removes it when the toggle
+EyeTrackVR installs the layer while **Foveated rendering support** is on, and removes it when the toggle
 is turned off and on uninstall (`eyetrackapp/ovr/openxr_layer_registration.py`). It is per user, with
 no admin rights:
 

@@ -245,6 +245,10 @@ class EyeTrackCameraConfig(BaseModel):
     next_smartcal_w: Union[List[float], None] = None
     next_smartcal_b: Union[List[float], None] = None
     next_smartcal_warp: Union[str, None] = None
+    # The gaze the model gave when the fit was made: "tan" (tangent of the gaze
+    # angle, exports stamped gaze_space=tan) or None / "norm" (a position in the
+    # collection overlay's range). A fit is ignored on the other kind of model.
+    next_smartcal_gaze_space: Union[str, None] = None
     # NEXT Smart Calibration, lid/brow half: the user's neutral raw readings,
     # captured across the same dot sequence (the face is at rest the whole time,
     # so every dot is a neutral sample). Each is the anchor of a piecewise-linear
@@ -411,10 +415,6 @@ class EyeTrackSettingsConfig(BaseModel):
     # Hold vertical gaze while the lids hide the pupil, for users whose gaze
     # goes wrong when they squint (next_eye_gaze.SquintYHold).
     gui_NEXT_squint_y_hold: bool = False
-    # Gaze of the shared NEXT model through next_smooth.Smoother instead of the
-    # median + One-Euro chain: steady on a still eye, immediate on a real move,
-    # held through blinks. Off = the old chain and its two sliders.
-    gui_NEXT_smooth_gaze: bool = True
     # Headset (HMD) the models were trained for: ETVR / BSB / PSVR (shown as
     # PSVR/TOBII). PSVR is a manual NEXT-only choice; setup-mode auto-selection remains
     # limited to ETVR and BSB. Selects the NEXT Hybrid family and

@@ -106,6 +106,32 @@ _FILTER_MUL = np.array([1.0, 10.0, 5.0, 1.0, 10.0, 5.0, 0.1, 0.1], dtype=np.floa
 # median and One-Euro settings, on a separate filter so [0:8] is untouched.
 _EYE_GAZE_FILTER_MUL = np.full(4, _FILTER_MUL[6], dtype=np.float32)
 
+# Foveated rendering wants fast response, so its gaze always runs the median +
+# One-Euro chain at fixed settings, whatever the slider says. The slider tunes the
+# VRChat gaze (Smoother) instead. Lighter than the slider default (0.003162, 1.525):
+# 3x the cutoff and 1.5x the speed term settle a large saccade in ~175 ms instead
+# of ~235 ms and a small one ~45% sooner, with resting jitter still far below the
+# raw signal's. This stream also feeds the gaze shared memory (SteamVR driver,
+# OpenXR layer, dashboard gaze marker).
+_DFR_CUTOFF, _DFR_BETA = 0.009486, 2.2875
+_DEFAULT_CUTOFF = 0.003162  # slider default: Smoother runs unscaled here
+
+
+# A model stamped gaze_space=tan outputs the tangent of the gaze angle; the
+# others output a position in the collection overlay's range, where +-1 was
+# about 30 degrees. The same eye movement is tan(30 deg) as large in tangents,
+# and so is the frame noise, so the Smoother's bands shrink by that much.
+GAZE_SPACE_TAN = "tan"
+_TAN_GAZE_UNIT = 0.5774
+
+
+def _smoother_scale(base_cutoff: float) -> float:
+    """Time/band scale of the VRChat gaze Smoother for a min_cutoff slider
+    value: 1.0 at the default, larger (steadier) as the slider goes up."""
+    if not base_cutoff > 0:
+        return 1.0
+    return float(np.clip((_DEFAULT_CUTOFF / base_cutoff) ** 0.3, 0.2, 5.0))
+
 # ImageNet normalization constants (CHW), only used for the (not expected)
 # legacy case where an export didn't bake normalization into the graph.
 _MEAN = np.array([0.485, 0.456, 0.406], dtype=np.float32).reshape(3, 1, 1)
@@ -162,10 +188,6 @@ class _Frame:
 class NEXT_Stereo_cls:
     """Wraps Hybrid/stereo ONNX and smooths its primary eight outputs."""
 
-    # Set per pass from gui_NEXT_smooth_gaze; a runner built without
-    # init_eye_gaze_state() keeps the median + One-Euro gaze chain.
-    smooth_gaze = False
-
     def __init__(self, model_path: str, use_gpu: bool = False):
         self.model_path = model_path
         self.use_gpu = bool(use_gpu)
@@ -206,6 +228,7 @@ class NEXT_Stereo_cls:
         if model_input.shape[1] != 6 * self.temporal_frames or output_size not in (8, 12):
             raise ValueError("NEXT shared model requires 6*T input channels and 8 or 12 outputs")
         self.supports_single_eye = meta.get("hybrid") == "per-eye-gaze" and output_size == 12
+        self.gaze_space = meta.get("gaze_space", "norm")
         # Gaze Y is normalized to the app's convention, which is whatever the
         # deployed mono NEXT exports do (they carry no axis stamp, and their
         # output is correct downstream with no flip). Every stereo export
@@ -252,15 +275,29 @@ class NEXT_Stereo_cls:
             step_s=NEXT_FILTER_STEP_S,
         )
         self._eye_gaze_windows = [TimedMedian(_GAZE_MEDIAN_WINDOW) for _ in range(4)]
-        # gui_NEXT_smooth_gaze: the gaze channels go through next_smooth
-        # instead of the median + One-Euro chain (steady on a still eye,
-        # immediate on a move, held through blinks, one-eye passes bridged).
-        self.smooth_gaze = True
+        # VRChat gaze goes through next_smooth (steady on a still eye, immediate
+        # on a move, held through blinks, one-eye passes bridged). The median +
+        # One-Euro chain above runs alongside it at fixed settings for DFR.
         self._gaze_smoother = Smoother()
         self._eye_gaze_snaps = [Snap(*GAZE_BAND, lead=GAZE_LEAD) for _ in range(2)]
+        self._gaze_scale = (1.0, 1.0)
         self._per_eye_gaze = PerEyeGaze()
         self.last_eye_gaze = None
         self.last_raw_eye_gaze = None
+        self.last_dfr_gaze = None
+        self.last_dfr_eye_gaze = None
+
+    # Overlay positions unless the export says otherwise (see GAZE_SPACE_TAN).
+    gaze_space = "norm"
+
+    def _set_smoother_scale(self, scale: float) -> None:
+        unit = _TAN_GAZE_UNIT if self.gaze_space == GAZE_SPACE_TAN else 1.0
+        if (scale, unit) == self._gaze_scale:
+            return
+        self._gaze_scale = (scale, unit)
+        tau, d0, d1 = GAZE_BAND[0] * scale, GAZE_BAND[1] * scale * unit, GAZE_BAND[2] * scale * unit
+        for snap in (*self._gaze_smoother.g.values(), *self._eye_gaze_snaps):
+            snap.tau, snap.d0, snap.d1 = tau, d0, d1
 
     def chw(self, frame: _Frame) -> np.ndarray:
         """One BGR eye frame -> [3, H, W] float32 (raw 0..255 RGB, or normalized
@@ -306,6 +343,10 @@ class NEXT_Stereo_cls:
         raw = raw[:8].copy()
         self.one_euro_filter.min_cutoff[:] = base_cutoff * _FILTER_MUL
         self.one_euro_filter.beta[:] = base_beta * _FILTER_MUL
+        # The gaze channels of this filter feed DFR and ignore the sliders.
+        self.one_euro_filter.min_cutoff[6:8] = _DFR_CUTOFF * _FILTER_MUL[6:8]
+        self.one_euro_filter.beta[6:8] = _DFR_BETA * _FILTER_MUL[6:8]
+        self._set_smoother_scale(_smoother_scale(base_cutoff))
 
         raw[7] *= self.gaze_y_sign
         # Shared gaze straight from the model, before any filtering: foveated
@@ -337,39 +378,39 @@ class NEXT_Stereo_cls:
             # The export negates channels 9 and 11 together with 7.
             eye_raw[1] *= self.gaze_y_sign
             eye_raw[3] *= self.gaze_y_sign
-        if self.smooth_gaze:
-            # Raw lids drive the blink hold; the model's own per-eye gaze (the
-            # fused gaze itself on an 8-output export) bridges one-eye passes.
-            vec = np.zeros(12, dtype=np.float64)
-            vec[:6] = raw[:6]
-            vec[6:8] = model_gaze
-            vec[8:12] = eye_raw if eye_raw is not None else np.tile(model_gaze, 2)
-            out[6:8] = self._gaze_smoother(now, vec, valid_l, valid_r)[6:8]
+        self.last_dfr_gaze = (float(out[6]), float(out[7]))
+        # Raw lids drive the blink hold; the model's own per-eye gaze (the
+        # fused gaze itself on an 8-output export) bridges one-eye passes.
+        vec = np.zeros(12, dtype=np.float64)
+        vec[:6] = raw[:6]
+        vec[6:8] = model_gaze
+        vec[8:12] = eye_raw if eye_raw is not None else np.tile(model_gaze, 2)
+        out[6:8] = self._gaze_smoother(now, vec, valid_l, valid_r)[6:8]
         if eye_raw is not None:
-            self._filter_eye_gaze(eye_raw, valid, float(raw[1]), float(raw[4]), now, base_cutoff, base_beta)
+            self._filter_eye_gaze(eye_raw, valid, float(raw[1]), float(raw[4]), now)
         return out
 
-    def _filter_eye_gaze(self, eye_raw, valid, lid_l, lid_r, now, base_cutoff, base_beta) -> None:
+    def _filter_eye_gaze(self, eye_raw, valid, lid_l, lid_r, now) -> None:
         """Per-eye gaze for the independent / dominant gaze modes. Unusable
         eyes (black sentinel, wink) are rebuilt before any filtering, so the
         sentinel's zeros never reach the filter state."""
         valid_l, valid_r = valid.get(EyeId.LEFT, True), valid.get(EyeId.RIGHT, True)
         eye = self._per_eye_gaze.update(eye_raw, valid_l, valid_r, lid_l, lid_r, now)
         self.last_raw_eye_gaze = eye.copy()
-        if self.smooth_gaze:
-            # An eye rebuilt from its peer is as trustworthy as the peer.
-            trust_l, trust_r = self._gaze_smoother.trust
-            trust = (trust_l if valid_l else trust_r, trust_r if valid_r else trust_l)
-            dt = self._gaze_smoother.dt
-            self.last_eye_gaze = np.concatenate(
-                [self._eye_gaze_snaps[i](now, eye[2 * i : 2 * i + 2], dt, trust[i]) for i in range(2)]
-            ).astype(np.float32)
-            return
+        # DFR: the median + One-Euro chain at fixed settings.
+        dfr = eye.copy()
         for i, window in enumerate(self._eye_gaze_windows):
-            eye[i] = window(float(eye[i]), now)
-        self.eye_gaze_filter.min_cutoff[:] = base_cutoff * _EYE_GAZE_FILTER_MUL
-        self.eye_gaze_filter.beta[:] = base_beta * _EYE_GAZE_FILTER_MUL
-        self.last_eye_gaze = self.eye_gaze_filter(eye).astype(np.float32)
+            dfr[i] = window(float(dfr[i]), now)
+        self.eye_gaze_filter.min_cutoff[:] = _DFR_CUTOFF * _EYE_GAZE_FILTER_MUL
+        self.eye_gaze_filter.beta[:] = _DFR_BETA * _EYE_GAZE_FILTER_MUL
+        self.last_dfr_eye_gaze = self.eye_gaze_filter(dfr).astype(np.float32)
+        # VRChat: an eye rebuilt from its peer is as trustworthy as the peer.
+        trust_l, trust_r = self._gaze_smoother.trust
+        trust = (trust_l if valid_l else trust_r, trust_r if valid_r else trust_l)
+        dt = self._gaze_smoother.dt
+        self.last_eye_gaze = np.concatenate(
+            [self._eye_gaze_snaps[i](now, eye[2 * i : 2 * i + 2], dt, trust[i]) for i in range(2)]
+        ).astype(np.float32)
 
 
 class SharedPass(NamedTuple):
@@ -383,6 +424,8 @@ class SharedPass(NamedTuple):
     # unfiltered), None for 8-output exports. See next_eye_gaze.
     eye_gaze: np.ndarray | None = None
     raw_eye_gaze: np.ndarray | None = None
+    # Foveated-rendering gaze of the same pass (fixed One-Euro chain).
+    dfr_eye_gaze: np.ndarray | None = None
 
 
 def slice_stereo_result(result: np.ndarray, eye_id) -> tuple:
@@ -421,6 +464,7 @@ class StereoNextCoordinator:
         self._ver = {EyeId.LEFT: 0, EyeId.RIGHT: 0}
         self._result = None  # latest filtered 8-vector
         self._raw_gaze = None  # (gaze_x, gaze_y) of the same pass, before filtering
+        self._dfr_gaze = None  # same pass through the fixed One-Euro chain (DFR)
         self._result_ver = None  # (left_ver, right_ver) it was computed from
         # Capture timestamp each eye actually contributed to _result, None when
         # that eye was blacked out. Used to skip a redundant second pass.
@@ -488,6 +532,7 @@ class StereoNextCoordinator:
                 out = self.runner.postprocess(raw, valid, base_cutoff, base_beta)
                 self._result = out
                 self._raw_gaze = getattr(self.runner, "last_raw_gaze", None)
+                self._dfr_gaze = getattr(self.runner, "last_dfr_gaze", None)
                 self._result_ver = version
                 for eye in (EyeId.LEFT, EyeId.RIGHT):
                     self._result_ts[eye] = snapshot[eye][-1].ts if valid[eye] and snapshot[eye] else None
@@ -499,6 +544,7 @@ class StereoNextCoordinator:
                     time.perf_counter(),
                     getattr(self.runner, "last_eye_gaze", None),
                     getattr(self.runner, "last_raw_eye_gaze", None),
+                    getattr(self.runner, "last_dfr_eye_gaze", None),
                 )
                 self._served[eye_id] = self._pass
                 self.last_mode = mode
@@ -515,6 +561,12 @@ class StereoNextCoordinator:
         filtering, or None before the first pass."""
         with self._state_lock:
             return self._raw_gaze
+
+    def dfr_gaze(self):
+        """Shared (gaze_x, gaze_y) of the latest pass for foveated rendering:
+        median + One-Euro at fixed settings. None before the first pass."""
+        with self._state_lock:
+            return self._dfr_gaze
 
     def _wait_for_pair(self, eye_id) -> None:
         """Give the other half of this eye's camera pair a moment to arrive, so

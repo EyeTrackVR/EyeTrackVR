@@ -19,7 +19,7 @@ namespace etvr {
         // EyeTrackVR can start after SteamVR, and on Linux it recreates the block on restart.
         bool read(etvr_gaze& out);
 
-        // The block exists (EyeTrackVR's "Foveated rendering gaze" output is on).
+        // The block exists (EyeTrackVR's "Foveated rendering support" output is on).
         bool published();
 
         // Now, in the clock domain the block's *_time_ns fields use on this OS.

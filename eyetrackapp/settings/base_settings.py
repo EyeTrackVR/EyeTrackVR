@@ -31,6 +31,7 @@ _SECTION_TITLE_KEYS = {
     "OneEuroSettingsModule": "settings_base.section_oneeuro",
     "OSCSettingsModule": "settings_base.section_osc",
     "AdvancedOSCSettingsModule": "settings_base.section_osc_advanced",
+    "FoveationSettingsModule": "dfr.section",
     "TrackingAlgorithmModule": "settings_base.section_tracking_algo",
     "BlinkAlgoModule": "settings_base.section_blink",
     "AdvancedTrackingAlgoSettingsModule": "settings_base.section_algo_advanced",

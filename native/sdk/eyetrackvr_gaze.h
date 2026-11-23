@@ -9,7 +9,7 @@
  *   Windows: named file mapping  "Local\EyeTrackVR.Gaze.v1"   (OpenFileMappingW)
  *   Linux:   POSIX shared memory "/eyetrackvr_gaze_v1"        (shm_open)
  *
- * The block exists only while EyeTrackVR's "Foveated rendering gaze" output is
+ * The block exists only while EyeTrackVR's "Foveated rendering support" output is
  * on. A reader that cannot open it, or reads a stale or invalid sample, should
  * fall back to fixed foveation.
  *

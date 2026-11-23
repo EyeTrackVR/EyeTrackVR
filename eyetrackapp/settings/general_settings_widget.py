@@ -24,13 +24,12 @@ LICENSE: Babble Software Distribution License 1.0
 ------------------------------------------------------------------------------------------------------
 """
 
-import sys
-
 from config import EyeTrackConfig
 from eye import EyeId
 
 from settings.base_settings import BaseSettingsWidget
 from settings.modules.advanced_osc_settings_module import AdvancedOSCSettingsModule
+from settings.modules.foveation_settings_module import FoveationSettingsModule
 from settings.modules.general_settings_module import GeneralSettingsModule
 from settings.modules.one_euro_settings_module import OneEuroSettingsModule
 from settings.modules.osc_settings_module import OSCSettingsModule
@@ -42,30 +41,10 @@ class SettingsWidget(BaseSettingsWidget):
             GeneralSettingsModule,
             OneEuroSettingsModule,
             OSCSettingsModule,
+            FoveationSettingsModule,
             AdvancedOSCSettingsModule,
         ]
         super().__init__(widget_id, main_config, settings_modules)
 
     def advanced_module_types(self) -> tuple:
         return (AdvancedOSCSettingsModule,)
-
-    def build(self, parent):
-        frame = super().build(parent)
-        if sys.platform == "win32":
-            # Live per-game DFR section, just above the Advanced toggle.
-            from ovr.dfr import dfr_controller
-            from settings.dfr_panel import DfrPanel
-
-            panel = DfrPanel(dfr_controller, self.main_config, self._enable_foveation_gaze).build(self.frame)
-            if self._advanced_toggle_row is not None:
-                panel.pack(fill="x", padx=8, pady=6, anchor="n", before=self._advanced_toggle_row)
-            else:
-                panel.pack(fill="x", padx=8, pady=6, anchor="n")
-        return frame
-
-    def _enable_foveation_gaze(self) -> None:
-        """Tick "Foveated rendering gaze" for the DFR panel. Through the checkbox: the
-        next render_tick saves it, where a direct config write would be undone by it."""
-        for module in self.initialized_modules:
-            if isinstance(module, OSCSettingsModule):
-                module.tk_vars[module.gui_foveation_gaze].set(True)

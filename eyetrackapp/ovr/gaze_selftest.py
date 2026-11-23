@@ -532,13 +532,13 @@ def _flags(flags: int) -> str:
 def check_setting(config) -> Check:
     settings = getattr(config, "settings", config)
     if bool(getattr(settings, "gui_foveation_gaze", False)):
-        return Check("setting", "Setting", PASS, '"Foveated rendering gaze" is on')
+        return Check("setting", "Setting", PASS, '"Foveated rendering support" is on')
     return Check(
         "setting",
         "Setting",
         FAIL,
-        '"Foveated rendering gaze" is off, so EyeTrackVR publishes no gaze for VR',
-        hint='Turn on "Foveated rendering gaze" in EyeTrackVR\'s settings. That also registers the SteamVR '
+        '"Foveated rendering support" is off, so EyeTrackVR publishes no gaze for VR',
+        hint='Turn on "Foveated rendering support" in EyeTrackVR\'s settings. That also registers the SteamVR '
         "driver and the OpenXR layer. Then restart SteamVR (it loads drivers only at startup) and run this "
         "check again while EyeTrackVR is tracking.",
     )
@@ -679,7 +679,7 @@ def check_driver(p: Probes) -> Check:
             title,
             FAIL,
             f"not registered with SteamVR ({where} in {s.paths_file})",
-            hint='EyeTrackVR registers its driver while "Foveated rendering gaze" is on: turn the setting off '
+            hint='EyeTrackVR registers its driver while "Foveated rendering support" is on: turn the setting off '
             "and on again (or restart EyeTrackVR), then restart SteamVR.",
         )
     if s.steamvr_setting is not None:
@@ -716,7 +716,7 @@ def check_layer(p: Probes) -> Check:
         title,
         WARN,
         f"not installed for this install{other}",
-        hint=f'Turn "Foveated rendering gaze" off and on again, or restart EyeTrackVR. {only}',
+        hint=f'Turn "Foveated rendering support" off and on again, or restart EyeTrackVR. {only}',
     )
 
 

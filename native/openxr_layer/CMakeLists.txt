@@ -5,7 +5,7 @@ project(eyetrackvr_openxr_layer CXX)
 # manifest, which points at the library by relative path.
 #   cmake -S native/openxr_layer -B build/openxr_layer -DCMAKE_BUILD_TYPE=Release
 #   cmake --build build/openxr_layer --config Release
-# EyeTrackVR installs the manifest as an implicit layer while "Foveated rendering gaze" is on.
+# EyeTrackVR installs the manifest as an implicit layer while "Foveated rendering support" is on.
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)

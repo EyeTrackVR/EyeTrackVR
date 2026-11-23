@@ -1,4 +1,4 @@
-"""OpenXR eye gaze layer registration: an implicit layer while "Foveated rendering gaze" is on,
+"""OpenXR eye gaze layer registration: an implicit layer while "Foveated rendering support" is on,
 per user, without disturbing other layers. Both platform paths run on any OS here."""
 
 import json

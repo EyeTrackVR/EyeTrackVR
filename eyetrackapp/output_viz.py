@@ -170,7 +170,11 @@ class OutputVisualizer:
         u = self.u
 
         half = max(12.0 * u, (G / 2) - 10.0 * u)
-        gaze_gain = 2.75
+        # NEXT gaze is a fraction of the configured gaze limits (+-1 = gui_gaze_yaw_max_deg
+        # / _pitch_up_deg / _pitch_down_deg), so the panel edge is that limit. The
+        # classic trackers keep the old magnification: at 2.75 a NEXT gaze of 0.36
+        # (about 17 degrees of yaw) already sat on the edge.
+        gaze_gain = 1.0 if eye_info.info_type == EyeInfoOrigin.NEXT else 2.75
         if not np.isnan(eye_info.x) and not np.isnan(eye_info.y):
             cx = int(round(gc_x - float(eye_info.x) * half * gaze_gain))
             cy = int(round(gc_y - float(eye_info.y) * half * gaze_gain))

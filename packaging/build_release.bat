@@ -35,6 +35,9 @@ echo     version: "%VERSION%"  (files: %SAFEVERSION%)
 echo.
 echo [2/6] Building Windows app with PyInstaller ...
 REM The spec collects into a folder named "dist" under --distpath: build\windows\dist.
+REM ETVR_RELEASE_BUILD makes the spec bundle the release marker (eyetrackapp\build_info.py),
+REM which hides developer-only options such as the DFR "Debug view" quality.
+set "ETVR_RELEASE_BUILD=1"
 poetry run pyinstaller packaging\windows\eyetrackapp.spec --noconfirm --distpath build\windows --workpath build\windows\work
 if errorlevel 1 goto :fail
 if not exist "build\windows\dist\eyetrackapp.exe" (

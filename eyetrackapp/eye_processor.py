@@ -189,6 +189,8 @@ class EyeProcessor(NextProcessingMixin):
             list(self.config.next_smartcal_b) if getattr(self.config, "next_smartcal_b", None) is not None else None
         )
         self._next_smartcal_warp = getattr(self.config, "next_smartcal_warp", None)
+        # Which kind of model gaze the fit was made on (None = overlay positions).
+        self._next_smartcal_gaze_space = getattr(self.config, "next_smartcal_gaze_space", None)
         self._next_smartcal_lid_neutral = getattr(self.config, "next_smartcal_lid_neutral", None)
         self._next_smartcal_brow_neutral = getattr(self.config, "next_smartcal_brow_neutral", None)
         # Validate transforms persisted by older builds (which saved fits with

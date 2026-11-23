@@ -74,7 +74,7 @@ int main(int argc, char** argv) {
     int count = argc > 1 ? atoi(argv[1]) : 1;
     const void* shared = map_gaze(argc > 2 ? argv[2] : NULL);
     if (!shared) {
-        fprintf(stderr, "EyeTrackVR gaze not published (enable \"Foveated rendering gaze\")\n");
+        fprintf(stderr, "EyeTrackVR gaze not published (enable \"Foveated rendering support\")\n");
         return 2;
     }
     for (int i = 0; i < count; i++) {

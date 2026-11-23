@@ -28,6 +28,7 @@ from next_smartcal import (
     NEXT_SMARTCAL_BROW_TARGET,
     NEXT_SMARTCAL_LID_TARGET,
     next_smartcal_gaze,
+    smartcal_tangents_to_gaze,
     next_smartcal_neutral_apply,
 )
 from next_stereo_model import get_stereo_coordinator
@@ -112,6 +113,40 @@ NEXT_DFR_GAZE_LIMIT = 2.5
 
 class NextProcessingMixin:
     _next_squint_hold: SquintYHold | None = None  # state of gui_NEXT_squint_y_hold
+    # What the running model's gaze means: "tan" = tangent of the gaze angle
+    # (exports stamped gaze_space=tan), "norm" = a position in the collection
+    # overlay's range. A Smart Calib fit only applies to the kind it was made on.
+    _next_gaze_space: str = "norm"
+    _next_smartcal_gaze_space: str | None = None
+    _next_fit_mismatch_logged: bool = False
+
+    def _next_gaze_out(self, raw_x: float, raw_y: float) -> tuple[float, float, bool]:
+        """Output gaze (not clipped) for a model gaze, and whether it is on the
+        output scale (+-1 = the configured gaze limits). The Smart Calib fit
+        when there is one for this kind of model; otherwise a tangent-space
+        model's own angles as a fraction of the limits; otherwise the model
+        value as it is."""
+        fitted = self._next_smartcal_w is not None and self._next_smartcal_b is not None
+        if fitted and (self._next_smartcal_gaze_space or "norm") != self._next_gaze_space:
+            if not self._next_fit_mismatch_logged:
+                self._next_fit_mismatch_logged = True
+                logger.warning(
+                    "NEXT smart cal (eye %s): the stored fit was made on a model with %s gaze and this "
+                    "model outputs %s gaze; ignoring it. Re-run NEXT Smart Calib.",
+                    self.eye_id,
+                    self._next_smartcal_gaze_space or "norm",
+                    self._next_gaze_space,
+                )
+            fitted = False
+        if fitted:
+            x, y = next_smartcal_gaze(
+                self._next_smartcal_w, self._next_smartcal_b, self._next_smartcal_warp, raw_x, raw_y, self.settings
+            )
+            return x, y, True
+        if self._next_gaze_space == "tan":
+            x, y = smartcal_tangents_to_gaze(raw_x, raw_y, self.settings)
+            return x, y, True
+        return raw_x, raw_y, False
 
     def NEXTM(self):
         """NEXT tracking with native single/dual-eye Hybrid inference.
@@ -150,12 +185,11 @@ class NextProcessingMixin:
             coord.submit(self.eye_id, next_frame, self.current_capture_ts)
             if coord.supports_single_eye or coord.peer_active(self.eye_id):
                 self._next_mode_changed(True)
-                runner = getattr(coord, "runner", None)
-                if runner is not None:
-                    runner.smooth_gaze = bool(getattr(self.settings, "gui_NEXT_smooth_gaze", True))
+                self._next_gaze_space = getattr(getattr(coord, "runner", None), "gaze_space", "norm")
                 gaze_x, gaze_y, eyebrow, eyelid, squeeze = coord.run(self.eye_id, base_cutoff, base_beta)
                 served = coord.served_pass(self.eye_id)
                 raw_gaze = coord.raw_gaze()
+                dfr_gaze = coord.dfr_gaze()
                 extra = {}
                 # Per-eye gaze modes (strabismus / amblyopia, see next_eye_gaze):
                 # swap in the Hybrid's monocular gaze of the same pass. Recenter
@@ -168,6 +202,8 @@ class NextProcessingMixin:
                     gaze_x, gaze_y = select_eye_gaze(eye_gaze, self.eye_id, mode, dominant)
                     if served.raw_eye_gaze is not None:
                         raw_gaze = select_eye_gaze(served.raw_eye_gaze, self.eye_id, mode, dominant)
+                    if served.dfr_eye_gaze is not None:
+                        dfr_gaze = select_eye_gaze(served.dfr_eye_gaze, self.eye_id, mode, dominant)
                     extra["recenter_gaze"] = select_eye_gaze(eye_gaze, dominant, GAZE_MODE_DOMINANT, dominant)
                 self._next_apply(
                     gaze_x,
@@ -176,6 +212,7 @@ class NextProcessingMixin:
                     eyelid,
                     squeeze,
                     raw_gaze=raw_gaze,
+                    dfr_gaze=dfr_gaze,
                     shared=(coord.expression_coupler, served),
                     **extra,
                 )
@@ -214,16 +251,8 @@ class NextProcessingMixin:
         """A model-space gaze through this eye's Smart Calib transform and
         user flips, exactly as the OSC gaze gets them (before recenter).
         ``limit`` bounds the result: 1.0 is the avatar's full eye range."""
-        x, y = raw_x, raw_y
-        if self._next_smartcal_w is not None and self._next_smartcal_b is not None:
-            x, y = next_smartcal_gaze(
-                self._next_smartcal_w,
-                self._next_smartcal_b,
-                self._next_smartcal_warp,
-                raw_x,
-                raw_y,
-                self.settings,
-            )
+        x, y, scaled = self._next_gaze_out(raw_x, raw_y)
+        if scaled:
             # Bounded, so a strong transform can't throw the gaze anywhere.
             x = float(np.clip(x, -limit, limit))
             y = float(np.clip(y, -limit, limit))
@@ -281,12 +310,16 @@ class NextProcessingMixin:
                 openness = max(openness, peer)
         return self._next_squint_hold.apply(gaze_y, openness, time.perf_counter())
 
-    def _next_apply(self, gaze_x, gaze_y, eyebrow, eyelid, squeeze, raw_gaze=None, shared=None, recenter_gaze=None):
+    def _next_apply(
+        self, gaze_x, gaze_y, eyebrow, eyelid, squeeze, raw_gaze=None, shared=None, recenter_gaze=None, dfr_gaze=None
+    ):
         """Shared NEXT post-processing for the mono and stereo model paths:
         user-configured flips, smart-calibration, recenter, eyelid remap, and
         the OSC enqueue. Inputs preserve the model's native axis orientation.
-        ``raw_gaze`` is the same gaze before the runner's filtering; it becomes
-        the foveated-rendering gaze (self.dfr_x / dfr_y). ``shared`` is the
+        ``raw_gaze`` is the same gaze before the runner's filtering (Smart Calib
+        capture, and the foveated-rendering gaze self.dfr_x / dfr_y when
+        ``dfr_gaze`` is not given). ``dfr_gaze`` is the shared runner's gaze
+        for foveated rendering: median + One-Euro at fixed settings. ``shared`` is the
         stereo path's (expression coupler, served pass), None on the per-eye
         fallback, which has no paired reading to couple against.
         ``recenter_gaze`` (per-eye gaze modes only) is the model-space gaze the
@@ -322,15 +355,8 @@ class NextProcessingMixin:
         # angle -> output gaze as a fraction of the configured gaze limits.
         # Smart Calib is NEXT's only calibration, so a fitted transform always
         # applies.
-        if self._next_smartcal_w is not None and self._next_smartcal_b is not None:
-            _cal_x, _cal_y = next_smartcal_gaze(
-                self._next_smartcal_w,
-                self._next_smartcal_b,
-                self._next_smartcal_warp,
-                sc_gaze_x,
-                sc_gaze_y,
-                self.settings,
-            )
+        _cal_x, _cal_y, _scaled = self._next_gaze_out(sc_gaze_x, sc_gaze_y)
+        if _scaled:
             # Keep the result in the model's native output range so a strong
             # transform can't push extreme values downstream to OSC.
             gaze_x = float(np.clip(_cal_x, -1.0, 1.0))
@@ -394,8 +420,9 @@ class NextProcessingMixin:
         gaze_x -= self._next_recenter_offset_x
         gaze_y -= self._next_recenter_offset_y
 
-        if raw_gaze is not None:
-            self.dfr_x, self.dfr_y = self._next_dfr_gaze(*raw_gaze)
+        dfr_source = dfr_gaze if dfr_gaze is not None else raw_gaze
+        if dfr_source is not None:
+            self.dfr_x, self.dfr_y = self._next_dfr_gaze(*dfr_source)
         else:  # runner without a raw tap: fall back to the OSC gaze
             self.dfr_x, self.dfr_y = gaze_x, gaze_y
 

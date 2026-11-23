@@ -48,3 +48,24 @@ def test_static_items_are_placed_once(root):
     viz.draw(_info(x=-0.3, blink=0.1))
     viz.draw(_info(origin=EyeInfoOrigin.FAILURE))
     assert set(touched) == MOVING
+
+
+def _dot_centre(viz):
+    x0, y0, x1, y1 = viz.canvas.coords(viz._item_ids["dot"])
+    return (x0 + x1) / 2, (y0 + y1) / 2
+
+
+def test_next_gaze_fills_the_panel_at_the_gaze_limit(root):
+    viz = OutputVisualizer(root, 200)
+    centre = viz.pad + viz.gaze // 2
+    viz.draw(_info(x=0.0, y=0.0, origin=EyeInfoOrigin.NEXT))
+    assert _dot_centre(viz) == pytest.approx((centre, centre), abs=1.5)
+    # Half of the gaze limit sits about halfway to the edge, not on it
+    # (the classic trackers' 2.75 magnification pinned 0.36 to the edge).
+    viz.draw(_info(x=0.5, y=0.0, origin=EyeInfoOrigin.NEXT))
+    half_way = centre - _dot_centre(viz)[0]
+    viz.draw(_info(x=1.0, y=0.0, origin=EyeInfoOrigin.NEXT))
+    full = centre - _dot_centre(viz)[0]
+    assert 0.4 * full < half_way < 0.6 * full
+    viz.draw(_info(x=0.5, y=0.0, origin=EyeInfoOrigin.HSRAC))
+    assert centre - _dot_centre(viz)[0] > 1.5 * half_way

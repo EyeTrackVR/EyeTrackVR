@@ -62,6 +62,7 @@ def _stereo_model(*, gaze_y_sign=-1.0):
     model._gaze_x_window = TimedMedian(3)
     model._gaze_y_window = TimedMedian(3)
     model._last_expr = {EyeId.LEFT: None, EyeId.RIGHT: None}
+    model.init_eye_gaze_state()
     return model
 
 

@@ -8,7 +8,7 @@ Feeds EyeTrackVR's gaze into SteamVR's eye tracking input on **any** headset, so
   OpenVR eye tracker uses it).
 
 It reads the gaze shared memory ([native/sdk/eyetrackvr_gaze.h](../sdk/eyetrackvr_gaze.h))
-and does nothing unless EyeTrackVR's **Foveated rendering gaze** output is on. EyeTrackVR
+and does nothing unless EyeTrackVR's **Foveated rendering support** output is on. EyeTrackVR
 registers it with SteamVR while that toggle is on (`eyetrackapp/ovr/steamvr_driver_registration.py`).
 SteamVR loads drivers at startup, so restart SteamVR after changing the toggle.
 

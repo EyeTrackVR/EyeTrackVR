@@ -3,7 +3,7 @@ Register EyeTrackVR's SteamVR driver (native/steamvr_driver/) with SteamVR, or r
 
 The driver feeds EyeTrackVR's gaze into SteamVR's eye tracking input on any headset, so
 SteamVR's OpenXR runtime offers XR_EXT_eye_gaze_interaction. It is registered only while
-"Foveated rendering gaze" is on, and SteamVR loads drivers at startup, so a change takes
+"Foveated rendering support" is on, and SteamVR loads drivers at startup, so a change takes
 effect the next time SteamVR starts.
 
 Registration is an entry in openvrpaths.vrpath's "external_drivers" list, which is all

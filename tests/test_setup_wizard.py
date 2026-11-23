@@ -598,6 +598,35 @@ class FakeAdapter:
     def mark_done(self):
         self.calls.append(("mark_done",))
 
+    # Foveated rendering step
+    foveation = True
+    installable = True
+    installed = (False, False)
+    install_result = None
+
+    def foveation_on(self):
+        return self.foveation
+
+    def set_foveation(self, on):
+        self.calls.append(("set_foveation", on))
+        self.foveation = on
+
+    def dfr_installable(self):
+        return self.installable
+
+    def dfr_installed(self):
+        return self.installed
+
+    def install_dfr(self, progress):
+        self.calls.append(("install_dfr",))
+        progress("system_files")
+        if self.install_result is None:
+            self.installed = (True, True)
+        return self.install_result
+
+    def finish_dfr_install(self):
+        self.calls.append(("finish_dfr_install",))
+
 
 @pytest.fixture(scope="module")
 def _shared_root():
@@ -696,7 +725,9 @@ def test_full_etvr_walkthrough(tk_root):
     # An eye that isn't working never blocks the way on.
     assert not _disabled(w.next_btn)
 
-    w.next()  # no calibration step: straight to the end
+    w.next()  # no calibration step
+    assert w.step == sw.STEP_FOVEATION
+    w.next()
     assert w.step == sw.STEP_DONE
     summary = _text(w.done_summary)
     assert sw.tr("wizard.mode_etvr") in summary
@@ -783,7 +814,8 @@ def test_bigscreen_uses_one_camera_for_both_eyes(tk_root):
     assert w.left_var.get() == "Bigscreen Bigeye"
     w.next()
     assert fake.calls[-1] == ("apply_sources", "uvc:Bigscreen Bigeye@b", "uvc:Bigscreen Bigeye@b")
-    w.next()
+    w.next()  # check
+    w.next()  # foveated rendering
     assert sw.tr("wizard.done_camera", camera="Bigscreen Bigeye") in _text(w.done_summary)
     w.close()
 
@@ -802,7 +834,8 @@ def test_psvr_uses_one_camera_like_the_bigscreen(tk_root):
     assert w.left_var.get() == "USB Camera"  # the only camera: a guess
     w.next()
     assert fake.calls[-1] == ("apply_sources", "uvc:USB Camera@a", "uvc:USB Camera@a")
-    w.next()
+    w.next()  # check
+    w.next()  # foveated rendering
     summary = _text(w.done_summary)
     assert sw.tr("wizard.done_headset", headset=sw.tr("wizard.mode_psvr")) in summary
     assert sw.tr("wizard.done_camera", camera="USB Camera") in summary
@@ -823,6 +856,8 @@ def test_one_eye_only_can_move_on(tk_root):
     w._refresh_check()
     assert _text(w.check_status["right"]) == sw.tr("wizard.check_not_used")
     assert not _disabled(w.next_btn)
+    w.next()
+    assert w.step == sw.STEP_FOVEATION
     w.next()
     assert w.step == sw.STEP_DONE
     w.close()
@@ -1168,3 +1203,64 @@ def test_closing_the_main_window_on_the_wizard_page(tk_root):
     win.wizard_page.sync("tracking")
     tk_root.update()
     assert win.wizard_page.wizard is None
+
+
+def test_foveation_step_installs_both_tools(tk_root, monkeypatch):
+    fake = FakeAdapter()
+    w = sw.SetupWizard(tk_root, fake)
+    w.show_step(sw.STEP_FOVEATION)
+    assert w.foveation_var.get() is True
+    assert _shown(w.dfr_box) and _shown(w.dfr_install_btn) and not _disabled(w.dfr_install_btn)
+    assert _text(w.dfr_status["PimaxMagic4All"]) == sw.tr("wizard.foveation_missing")
+    assert _text(w.dfr_message) == sw.tr("wizard.foveation_hint")
+
+    # The worker thread runs inline here; its result comes back through after(0).
+    class Inline:
+        def __init__(self, target, **_):
+            self.target = target
+
+        def start(self):
+            self.target()
+
+    monkeypatch.setattr(sw.threading, "Thread", Inline)
+    w.install_dfr()
+    tk_root.update()
+    assert ("install_dfr",) in fake.calls and fake.calls[-1] == ("finish_dfr_install",)
+    assert _text(w.dfr_status["Quad-Views-Foveated"]) == sw.tr("wizard.foveation_installed")
+    assert not _shown(w.dfr_install_btn) and not _shown(w.dfr_message)
+
+    # Turning support off hides the install part and saves the setting.
+    w.foveation_cb.invoke()
+    assert fake.calls[-1] == ("set_foveation", False) and not _shown(w.dfr_box)
+    w.close()
+
+
+def test_foveation_step_reports_a_failed_install(tk_root, monkeypatch):
+    fake = FakeAdapter()
+    fake.install_result = "system_files_failed"
+    w = sw.SetupWizard(tk_root, fake)
+    w.show_step(sw.STEP_FOVEATION)
+
+    class Inline:
+        def __init__(self, target, **_):
+            self.target = target
+
+        def start(self):
+            self.target()
+
+    monkeypatch.setattr(sw.threading, "Thread", Inline)
+    w.install_dfr()
+    tk_root.update()
+    assert _text(w.dfr_message) == sw.tr("dfr.setup_system_files_failed")
+    assert _shown(w.dfr_install_btn) and not _disabled(w.dfr_install_btn)
+    assert ("finish_dfr_install",) not in fake.calls
+    w.close()
+
+
+def test_foveation_step_without_installs_only_has_the_switch(tk_root):
+    fake = FakeAdapter()
+    fake.installable = False  # Linux: the gaze outputs only
+    w = sw.SetupWizard(tk_root, fake)
+    w.show_step(sw.STEP_FOVEATION)
+    assert _shown(w.foveation_cb) and not _shown(w.dfr_box)
+    w.close()

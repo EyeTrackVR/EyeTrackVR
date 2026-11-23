@@ -62,7 +62,9 @@ def tool(tmp_path):
     return d
 
 
-def make(tool_dir, *, steamvr=True, dfr_ui=False, system_ok=True, gaze=True, loads=True, registry=None):
+def make(
+    tool_dir, *, steamvr=True, dfr_ui=False, system_ok=True, gaze=True, loads=True, registry=None, quad_views=True
+):
     """``loads``: what the game's module list says after MagicAttach ran. True: the DLLs
     load at once, False: not until the test adds the pid to ``c.injected``, None: the
     process can't be inspected."""
@@ -91,7 +93,9 @@ def make(tool_dir, *, steamvr=True, dfr_ui=False, system_ok=True, gaze=True, loa
         tracking=lambda exe: c.tracker,
         is_active=lambda pid: c.in_use,
         module_loaded=lambda pid, dll: dll in c.modules,
+        quad_views_ok=lambda: c.quad_views,
     )
+    c.quad_views = quad_views
     c.modules = {"d3d11.dll", "openvr_api.dll"}  # a Direct3D 11 OpenVR game
     c.gaze, c.tracker, c.injected, c.in_use = gaze, dfr.TRACKING_UNKNOWN, set(), True
     c._ensure_monitor = lambda running: None  # no real monitor process in tests
@@ -110,6 +114,17 @@ def test_steamvr_off_touches_nothing(tool):
     c, attaches = make(tool, steamvr=False)
     assert c.tick().state == dfr.STEAMVR_OFF
     assert c.registry.values == {} and attaches == []
+
+
+@pytest.mark.parametrize("steamvr", [False, True])
+def test_missing_quad_views_is_reported_before_any_game(tool, steamvr):
+    # PimaxMagic4All set up, Quad-Views-Foveated not: Set up must be offered without a game.
+    c, _ = make(tool, steamvr=steamvr, quad_views=False)
+    st = c.tick()
+    assert st.state == (dfr.NO_GAME if steamvr else dfr.STEAMVR_OFF) and not st.quad_views
+    c.quad_views = True
+    c.recheck_setup()
+    assert c.tick().quad_views
 
 
 def test_new_game_is_off_and_never_touched(tool):
@@ -308,6 +323,12 @@ def test_native_and_openxr_games_are_never_injected(tool):
     scene(c, 200, key="steam.app.999")
     c.set_game("steam.app.999", enabled=True)
     assert c.status().state == dfr.OPENXR and attaches == []
+    c.quad_views = False  # Quad-Views-Foveated missing: Set up offers to install it
+    c.recheck_setup()
+    assert c.status().state == dfr.NEEDS_QUAD_VIEWS and attaches == []
+    assert c.status().state in dfr.SET_UP_STATES and c.status().state not in dfr.SETUP_STATES
+    assert c.dashboard_state(c.status())["note"]
+    c.quad_views = True
 
     c.modules = {"vulkan-1.dll", "openvr_api.dll"}
     scene(c, 300, key="steam.app.998")
@@ -563,7 +584,8 @@ def test_setup_runs_only_the_steps_that_are_missing(tool, tmp_path):
     steps = []
     state = {"installed": False}
 
-    def install(tool_dir):
+    def install(tool_dir, msi):
+        assert msi is None  # Quad-Views-Foveated is installed here
         state["installed"] = True
         return True
 
@@ -576,6 +598,8 @@ def test_setup_runs_only_the_steps_that_are_missing(tool, tmp_path):
             installed=lambda d: state["installed"],
             present=lambda: present,
             steamvr_running=lambda: steamvr,
+            quad_views_installed=lambda: True,
+            download_quad_views=lambda: pytest.fail("must not download"),
         )
 
     c, _ = make(tmp_path / "missing", system_ok=False)
@@ -593,6 +617,92 @@ def test_setup_runs_only_the_steps_that_are_missing(tool, tmp_path):
     with pytest.raises(dfr_setup.SetupError) as error:
         run(c, present=True, steamvr=True)  # replacing copies a running game may hold
     assert error.value.reason == dfr_setup.STEAMVR_RUNNING
+
+
+def test_setup_installs_quad_views_with_the_system_files_in_one_step(tool, tmp_path):
+    calls, steps = [], []
+    state = {"system": False, "qv": False}
+
+    def install(tool_dir, msi):
+        calls.append((tool_dir, msi))
+        state["system"] |= tool_dir is not None
+        state["qv"] |= msi is not None
+        return True
+
+    def run(c, download_quad_views):
+        return dfr_setup.run(
+            c,
+            steps.append,
+            download=lambda: tool,
+            install=install,
+            installed=lambda d: state["system"],
+            present=lambda: False,
+            steamvr_running=lambda: False,
+            quad_views_installed=lambda: state["qv"],
+            download_quad_views=download_quad_views,
+        )
+
+    msi = tmp_path / "qv.msi"
+    c, _ = make(tmp_path / "missing", system_ok=False)
+    assert run(c, lambda: msi) == str(tool)
+    assert calls == [(str(tool), msi)]  # one elevated step for both
+    assert steps == ["download", "download_quad_views", "system_files"]
+
+    # PimaxMagic4All already set up: only Quad-Views-Foveated is installed.
+    calls.clear()
+    state["qv"] = False
+    run(c, lambda: msi)
+    assert calls == [(None, msi)]
+
+    # A failed Quad-Views-Foveated download doesn't stop PimaxMagic4All's setup.
+    calls.clear()
+    state.update(system=False, qv=False)
+
+    def offline():
+        raise OSError("offline")
+
+    assert run(c, offline) == str(tool) and calls == [(str(tool), None)]
+
+
+def test_quad_views_detection_and_download(tmp_path):
+    from ovr import quad_views
+
+    manifest = r"C:\Program Files\OpenXR-Quad-Views-Foveated\openxr-api-layer.json"
+    on_disk = lambda path: path == manifest  # noqa: E731
+    assert quad_views.installed({manifest: 0}, exists=on_disk)
+    assert not quad_views.installed({manifest: 1}, exists=on_disk)  # disabled
+    assert not quad_views.installed({manifest: 0}, exists=lambda path: False)  # uninstalled, key left behind
+    assert not quad_views.installed({r"C:\x\XR_APILAYER_EYETRACKVR_eye_gaze.json": 0}, exists=lambda path: True)
+
+    good = b"msi"
+    saved = quad_views.RELEASE_SHA256
+    quad_views.RELEASE_SHA256 = hashlib.sha256(good).hexdigest()
+    try:
+        with pytest.raises(ValueError):
+            quad_views.download(tmp_path, fetch=lambda url: b"tampered")
+        assert not list(tmp_path.iterdir())
+        path = quad_views.download(tmp_path, fetch=lambda url: good)
+        assert path.read_bytes() == good
+        assert quad_views.download(tmp_path, fetch=lambda url: pytest.fail("reuses the file")) == path
+    finally:
+        quad_views.RELEASE_SHA256 = saved
+    assert r'msiexec.exe /i "C:\a b\q.msi" /qn' in quad_views.install_command(Path(r"C:\a b\q.msi"))
+    with pytest.raises(ValueError):
+        quad_views.install_command(Path(r"C:\a&b\q.msi"))
+
+
+def test_release_builds_leave_out_the_debug_view(tool, monkeypatch):
+    import build_info
+
+    assert "debug" in dfr.user_modes()
+    monkeypatch.setattr(build_info, "is_release_build", lambda: True)
+    assert dfr.user_modes() == ("maximum", "balanced", "minimum")
+    c, _ = make(tool)
+    c.config.settings.gui_dfr_games = {GAME: {"enabled": True, "mode": "debug"}}
+    assert c.game_settings(GAME)["mode"] == dfr.DEFAULT_MODE  # saved by a dev build
+    c.set_game(GAME, mode="debug")
+    assert c.game_settings(GAME)["mode"] == dfr.DEFAULT_MODE
+    assert "debug" not in c.dashboard_state(c.status())["qualities"]
 
 
 # ------------------------------------------------------------------ monitor protocol
@@ -730,6 +840,7 @@ def test_monitor_exits_when_the_app_closes_the_socket(monkeypatch):
         dfr.ATTACH_FAILED,
         dfr.NATIVE,
         dfr.OPENXR,
+        dfr.NEEDS_QUAD_VIEWS,
         dfr.RENDERER,
         dfr.DISABLED,
     ],
@@ -759,14 +870,21 @@ def test_panel_shows_every_state(state, monkeypatch):
         panel._refresh()
         assert panel.enabled_var.get() is True
         assert panel.status_label.cget("text").strip()
-        expected = "disabled" if state in dfr.NO_SWITCH_STATES else "normal"
-        assert str(panel.enabled_cb.cget("state")) == expected
+        # Settings that don't apply are hidden, not greyed out.
         in_setup = state in dfr.SETUP_STATES
-        assert (panel.switch_row.winfo_manager() == "pack") is not in_setup
-        can_set_up = state in (dfr.TOOL_MISSING, dfr.NEEDS_SYSTEM_FILES)
+        usable = not in_setup and state not in dfr.NO_SWITCH_STATES
+        assert (panel.switch_row.winfo_manager() == "pack") is usable
+        assert (panel.quality_row.winfo_manager() == "pack") is usable
+        assert (panel.method_row.winfo_manager() == "pack") is (not in_setup and state != dfr.BLOCKED)
+        assert (panel.game_label.winfo_manager() == "pack") is not in_setup
+        can_set_up = state in dfr.SET_UP_STATES
         assert (panel.setup_btn.winfo_manager() == "pack") is can_set_up
         assert (panel.retry_btn.winfo_manager() == "pack") is (state == dfr.ATTACH_FAILED)
         assert (panel.gaze_btn.winfo_manager() == "pack") is (state == dfr.GAZE_OFF)
+        status.quad_views = False  # Quad-Views-Foveated alone is missing: Set up
+        panel._refresh()
+        assert panel.setup_btn.winfo_manager() == "pack"
+        status.quad_views = True
         for tracking in (dfr.TRACKING_NONE, "VRChat OSC (EyeTrackVR)"):
             status.tracking = tracking
             panel._refresh()

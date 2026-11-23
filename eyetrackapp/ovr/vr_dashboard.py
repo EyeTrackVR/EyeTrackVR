@@ -9,6 +9,7 @@ message and the app does the work. This side only draws and hit-tests, so it nev
 needs the app's settings, models or cameras.
 
   app -> here  {"type": "state", "labels": {...}, "game": "...", "note": "...", "dfr_supported": true,
+                "qualities": ["maximum", "balanced", "minimum"],
                 "dfr": {"available": true, "enabled": false, "mode": "balanced", "key": "steam.app.1"}}
   here -> app  {"type": "action", "name": "recenter" | "recalibrate"}
                {"type": "action", "name": "dfr_enabled", "key": "steam.app.1", "value": true}
@@ -114,7 +115,9 @@ def layout(state: dict) -> list[Button]:
             value=not dfr.get("invert_y"),
         ),
     ]
-    for rect, quality in zip(_row(len(QUALITIES), 450, 520), QUALITIES):
+    # The app lists the qualities to offer (release builds have no debug view).
+    qualities = [q for q in (state.get("qualities") or QUALITIES) if q in QUALITIES]
+    for rect, quality in zip(_row(len(qualities), 450, 520), qualities):
         buttons.append(
             Button(
                 "dfr_mode",

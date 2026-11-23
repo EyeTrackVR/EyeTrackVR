@@ -32,6 +32,14 @@ OVERLAY = str(overlay_dir)
 # As data, so they are copied as built (not UPX-packed or scanned for imports).
 resources=[(f"{OVERLAY}/*.exe", "tools"), (f"{OVERLAY}/*.dll", "tools"),(f"{APP}/assets/audio/*", "assets/audio"), (f"{APP}/assets/images/*", "assets/images"), (f"{PYE3D}/refraction_models/*", "pye3d/refraction_models/"), (f"{APP}/assets/models/*", "assets/models"), (f"{OVERLAY}/assets/*", "tools/assets"), (f"{OVERLAY}/licenses/*", "tools/licenses"), (f"{APP}/lang/*", "lang/"), (f"{APP}/contributions/notice.json", "contributions")]
 
+# packaging/build_release.bat sets ETVR_RELEASE_BUILD=1: bundle the marker that hides
+# developer-only options (eyetrackapp/build_info.py), such as the DFR debug view.
+if os.environ.get("ETVR_RELEASE_BUILD") == "1":
+    _marker_dir = os.path.join(ROOT, "build", "windows", "release_marker")
+    os.makedirs(_marker_dir, exist_ok=True)
+    open(os.path.join(_marker_dir, "release_build"), "w").close()
+    resources.append((os.path.join(_marker_dir, "release_build"), "."))
+
 a = Analysis(
 [os.path.join(APP, 'eyetrackapp.py')],
 pathex=[APP],

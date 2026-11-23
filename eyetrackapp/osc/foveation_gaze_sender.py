@@ -1,7 +1,7 @@
 """
 Gaze output for foveated rendering tools on this PC.
 
-Two transports, both on while "Foveated rendering gaze" is enabled:
+Two transports, both on while "Foveated rendering support" is enabled:
 
 * VRChat-style ``/tracking/eye/LeftRightPitchYaw`` (degrees, pitch positive
   down, yaw positive right) to UDP 9020, where PimaxMagic4All's "VRChat OSC"

@@ -47,7 +47,6 @@ class TrackingAlgorithmValidationModel(BaseValidationModel):
     gui_NEXT_gaze_mode: Literal[GAZE_MODES]
     gui_NEXT_dominant_eye: Literal[DOMINANT_EYES]
     gui_NEXT_squint_y_hold: bool
-    gui_NEXT_smooth_gaze: bool
     gui_model_variant: str
     gui_model_size: str
     gui_max_tracking_speed: int
@@ -79,7 +78,6 @@ class TrackingAlgorithmModule(BaseSettingsModule):
         self.gui_NEXT_gaze_mode = f"-NEXTGAZEMODE{widget_id}-"
         self.gui_NEXT_dominant_eye = f"-NEXTDOMINANTEYE{widget_id}-"
         self.gui_NEXT_squint_y_hold = f"-NEXTSQUINTYHOLD{widget_id}-"
-        self.gui_NEXT_smooth_gaze = f"-NEXTSMOOTHGAZE{widget_id}-"
         self.gui_model_variant = f"-MODELVARIANT{widget_id}-"
         self.gui_model_size = f"-MODELSIZE{widget_id}-"
         self.gui_max_tracking_speed = f"-MAXTRACKSPEED{widget_id}-"
@@ -187,16 +185,9 @@ class TrackingAlgorithmModule(BaseSettingsModule):
         squint_cb.grid(row=7, column=0, columnspan=6, sticky="w", padx=8, pady=(2, 4))
         attach_tooltip(squint_cb, tr("algo_tracking.next_squint_y_hold_tip"))
 
-        # On by default: the value-only gaze filter (next_smooth); off = old chain.
-        smooth_var = tk.BooleanVar(value=bool(getattr(self.config, "gui_NEXT_smooth_gaze", True)))
-        self.tk_vars[self.gui_NEXT_smooth_gaze] = smooth_var
-        smooth_cb = ttk.Checkbutton(parent, text=tr("algo_tracking.next_smooth_gaze"), variable=smooth_var)
-        smooth_cb.grid(row=8, column=0, columnspan=6, sticky="w", padx=8, pady=(2, 4))
-        attach_tooltip(smooth_cb, tr("algo_tracking.next_smooth_gaze_tip"))
-
         # NEXT model: headset family plus a size slider (lightest -> best).
         model_frame = ttk.Frame(parent)
-        model_frame.grid(row=9, column=0, columnspan=6, sticky="w", padx=8, pady=(2, 4))
+        model_frame.grid(row=8, column=0, columnspan=6, sticky="w", padx=8, pady=(2, 4))
         self._build_model_selector(model_frame)
 
         # Keep the combobox in sync when the setup-mode auto-shift changes the

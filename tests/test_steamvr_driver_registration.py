@@ -1,5 +1,5 @@
 """SteamVR driver registration: openvrpaths.vrpath's external_drivers follows the
-"Foveated rendering gaze" toggle, without disturbing other drivers or keys."""
+"Foveated rendering support" toggle, without disturbing other drivers or keys."""
 
 import json
 import sys

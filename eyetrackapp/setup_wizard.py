@@ -17,6 +17,8 @@ from __future__ import annotations
 import logging
 import queue
 import re
+import sys
+import threading
 import tkinter as tk
 import tkinter.font as tkfont
 from dataclasses import dataclass
@@ -27,8 +29,8 @@ from localization import tr
 
 logger = logging.getLogger(__name__)
 
-STEP_LANGUAGE, STEP_HEADSET, STEP_CAMERAS, STEP_CHECK, STEP_DONE = range(5)
-STEP_COUNT = 5
+STEP_LANGUAGE, STEP_HEADSET, STEP_CAMERAS, STEP_CHECK, STEP_FOVEATION, STEP_DONE = range(6)
+STEP_COUNT = 6
 SIDES = ("left", "right")
 
 # Wizard headset choices that are not main-window setup modes: a PSVR2 (or
@@ -409,6 +411,50 @@ class AppAdapter:
     def show_tracking_page(self) -> None:
         self.app.show_page("tracking")
 
+    # Foveated rendering: the "Foveated rendering support" setting, and on Windows the
+    # one-time install of PimaxMagic4All and Quad-Views-Foveated (ovr/dfr_setup.py).
+
+    def foveation_on(self) -> bool:
+        return bool(getattr(self.settings, "gui_foveation_gaze", False))
+
+    def set_foveation(self, on: bool) -> None:
+        if self.foveation_on() != on:
+            self.config.update({"gui_foveation_gaze": on}, save=True)
+
+    def dfr_installable(self) -> bool:
+        return sys.platform == "win32"
+
+    def dfr_installed(self) -> tuple[bool, bool]:
+        """(PimaxMagic4All set up, Quad-Views-Foveated installed)."""
+        from ovr import dfr, quad_views
+
+        tool_dir = dfr.dfr_controller.tool_dir()
+        pimax = not dfr.tool_missing_files(tool_dir) and dfr.system_files_installed(tool_dir)
+        return bool(pimax), quad_views.installed()
+
+    def install_dfr(self, progress) -> str | None:
+        """Blocking (call it off the Tk thread). Returns None, or why it failed (the
+        <reason> of a "dfr.setup_<reason>" string)."""
+        from ovr import dfr, dfr_setup
+
+        try:
+            self._dfr_tool_dir = dfr_setup.run(dfr.dfr_controller, progress)
+        except dfr_setup.SetupError as e:
+            return e.reason
+        except Exception:
+            logger.exception("Foveated rendering setup failed")
+            return dfr_setup.DOWNLOAD_FAILED
+        return None
+
+    def finish_dfr_install(self) -> None:
+        """On the Tk thread, after install_dfr succeeded."""
+        from ovr import dfr, dfr_setup
+
+        tool_dir = getattr(self, "_dfr_tool_dir", None)
+        if tool_dir:
+            dfr_setup.finish(dfr.dfr_controller, tool_dir)
+        dfr.dfr_controller.recheck_setup()
+
     def mark_done(self) -> None:
         self.config.settings.gui_setup_wizard_done = True
         self.config.save()
@@ -621,6 +667,7 @@ class SetupWizard:
             STEP_HEADSET: self._build_headset(self.body),
             STEP_CAMERAS: self._build_cameras(self.body),
             STEP_CHECK: self._build_check(self.body),
+            STEP_FOVEATION: self._build_foveation(self.body),
             STEP_DONE: self._build_done(self.body),
         }
 
@@ -737,6 +784,33 @@ class SetupWizard:
         self.crop_result = self._label(self.crop_box, muted=True, small=True)
         return page
 
+    def _build_foveation(self, parent):
+        page = ttk.Frame(parent)
+        self._label(page, tr("wizard.foveation_intro")).pack(anchor="w", pady=(0, 10))
+        self.foveation_var = tk.BooleanVar(value=bool(self.adapter.foveation_on()))
+        self.foveation_cb = ttk.Checkbutton(
+            page, text=tr("dfr.support"), variable=self.foveation_var, command=self._on_foveation_toggle
+        )
+        self.foveation_cb.pack(anchor="w")
+
+        # Windows: what is installed, and one button for the rest.
+        self.dfr_box = ttk.Frame(page)
+        rows = ttk.Frame(self.dfr_box)
+        rows.pack(fill="x", pady=(12, 0))
+        self.dfr_status = {}
+        for row, name in enumerate(("PimaxMagic4All", "Quad-Views-Foveated")):
+            ttk.Label(rows, text=name, font=self._bold_font).grid(row=row, column=0, sticky="w", padx=(0, 12), pady=3)
+            label = self._label(rows, share=0.6)
+            label.grid(row=row, column=1, sticky="w", pady=3)
+            self.dfr_status[name] = label
+        self.dfr_install_btn = ttk.Button(
+            self.dfr_box, text=tr("wizard.foveation_install_btn"), command=self.install_dfr, style="Accent.TButton"
+        )
+        self.dfr_message = self._label(self.dfr_box, muted=True, small=True)
+        self._dfr_step = None  # set while the install runs
+        self._dfr_error = None
+        return page
+
     def _build_done(self, parent):
         page = ttk.Frame(parent)
         self.done_summary = self._label(page)
@@ -807,6 +881,7 @@ class SetupWizard:
             STEP_HEADSET: tr("wizard.headset_title"),
             STEP_CAMERAS: tr("wizard.cameras_title"),
             STEP_CHECK: tr("wizard.check_title"),
+            STEP_FOVEATION: tr("wizard.foveation_title"),
             STEP_DONE: tr("wizard.done_title"),
         }
         self.title_label.configure(text=titles[step])
@@ -817,6 +892,8 @@ class SetupWizard:
             self._crop_state = None
             self.crop_result.pack_forget()
             self._refresh_check()
+        elif step == STEP_FOVEATION:
+            self._refresh_foveation()
         elif step == STEP_DONE:
             self._refresh_done()
         if step == STEP_CHECK and self._poll_id is None and not self.paused:
@@ -886,6 +963,91 @@ class SetupWizard:
             self.next_btn.state(["!disabled"] if ok else ["disabled"])
         except tk.TclError:
             pass
+
+    # -- step 5: foveated rendering ---------------------------------------
+
+    def _on_foveation_toggle(self) -> None:
+        try:
+            self.adapter.set_foveation(bool(self.foveation_var.get()))
+        except Exception:
+            logger.warning("Could not save the foveated rendering setting", exc_info=True)
+        self._refresh_foveation()
+
+    def _refresh_foveation(self) -> None:
+        if self._closed:
+            return
+        if not self.adapter.dfr_installable() or not self.foveation_var.get():
+            self.dfr_box.pack_forget()
+            return
+        self.dfr_box.pack(fill="x")
+        try:
+            done = tuple(self.adapter.dfr_installed())
+        except Exception:
+            logger.warning("Could not check the foveated rendering tools", exc_info=True)
+            done = (False, False)
+        for name, ok in zip(self.dfr_status, done):
+            self.dfr_status[name].configure(
+                text=tr("wizard.foveation_installed") if ok else tr("wizard.foveation_missing")
+            )
+        busy = self._dfr_step is not None
+        message = ""
+        if all(done) and not busy:
+            self.dfr_install_btn.pack_forget()
+        else:
+            self.dfr_install_btn.pack(anchor="w", pady=(10, 0))
+            self.dfr_install_btn.state(["disabled"] if busy else ["!disabled"])
+            if busy:
+                steps = {"download": "dfr.setup_downloading", "download_quad_views": "dfr.setup_downloading_quad_views"}
+                message = tr(steps.get(self._dfr_step, "dfr.setup_installing"))
+            elif self._dfr_error:
+                error = self._dfr_error
+                message = tr(f"dfr.setup_{error}")
+            else:
+                message = tr("wizard.foveation_hint")
+        self.dfr_message.configure(text=message)
+        if message:
+            self.dfr_message.pack(anchor="w", pady=(6, 0))
+        else:
+            self.dfr_message.pack_forget()
+
+    def install_dfr(self) -> None:
+        """Download and install both tools (one Windows prompt) without blocking the page."""
+        if self._closed or self._dfr_step is not None:
+            return
+        self._dfr_step = "start"
+        self._dfr_error = None
+        self._refresh_foveation()
+
+        def progress(step):
+            self._dfr_step = step  # shown by the next poll
+
+        def work():
+            error = self.adapter.install_dfr(progress)
+
+            def done():
+                if self._closed:
+                    return
+                self._dfr_step = None
+                self._dfr_error = error
+                if error is None:
+                    try:
+                        self.adapter.finish_dfr_install()
+                    except Exception:
+                        logger.warning("Could not finish the foveated rendering setup", exc_info=True)
+                self._refresh_foveation()
+
+            try:
+                self.frame.after(0, done)
+            except (tk.TclError, RuntimeError):
+                pass  # window closed meanwhile
+
+        def poll():
+            if self._dfr_step is not None and not self._closed:
+                self._refresh_foveation()
+                self._after(_POLL_MS, poll)
+
+        threading.Thread(target=work, daemon=True, name="WizardDfrSetup").start()
+        self._after(_POLL_MS, poll)
 
     # -- step 3: cameras --------------------------------------------------
 

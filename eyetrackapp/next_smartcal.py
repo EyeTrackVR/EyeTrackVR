@@ -587,6 +587,8 @@ def reset_next_smartcal(eye_processors: list, baseconfig) -> None:
         ep._next_smartcal_w = None
         ep._next_smartcal_b = None
         ep._next_smartcal_warp = None
+        ep._next_smartcal_gaze_space = None
+        ep.config.next_smartcal_gaze_space = None
         ep._next_smartcal_lid_neutral = None
         ep._next_smartcal_brow_neutral = None
         ep.config.next_smartcal_w = None
@@ -1052,6 +1054,9 @@ def _fit_next_smartcal(
             dst.config.next_smartcal_w = list(w)
             dst.config.next_smartcal_b = list(b)
             dst.config.next_smartcal_warp = SMARTCAL_SPACE_ANGLE
+            dst.config.next_smartcal_gaze_space = getattr(dst, "_next_gaze_space", "norm")
+            dst._next_smartcal_gaze_space = dst.config.next_smartcal_gaze_space
+            dst._next_fit_mismatch_logged = False
             dst._next_smartcal_w = list(w)
             dst._next_smartcal_b = list(b)
             dst._next_smartcal_warp = SMARTCAL_SPACE_ANGLE

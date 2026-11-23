@@ -153,14 +153,7 @@ needs_hybrid = pytest.mark.skipif(
 
 @pytest.fixture
 def hybrid():
-    return _legacy_chain(NEXT_Stereo_cls(HYBRID_PATH))
-
-
-def _legacy_chain(runner):
-    # These tests pin the median + One-Euro gaze chain (gui_NEXT_smooth_gaze off);
-    # the smoother has its own in test_next_smooth_gaze.py.
-    runner.smooth_gaze = False
-    return runner
+    return NEXT_Stereo_cls(HYBRID_PATH)
 
 
 def _raw12(rng):
@@ -173,8 +166,8 @@ def _raw12(rng):
 def test_fused_outputs_ignore_the_per_eye_channels(hybrid):
     # Same [0:8] stream through two fresh runners, one with wildly different
     # per-eye channels and one with none at all: the fused result is identical.
-    other = _legacy_chain(NEXT_Stereo_cls(HYBRID_PATH))
-    legacy = _legacy_chain(NEXT_Stereo_cls(HYBRID_PATH))
+    other = NEXT_Stereo_cls(HYBRID_PATH)
+    legacy = NEXT_Stereo_cls(HYBRID_PATH)
     # The One-Euro step depends on wall-clock spacing between calls; identity
     # filters keep the comparison exact (medians and the hold still run).
     for runner in (hybrid, other, legacy):
@@ -188,8 +181,11 @@ def test_fused_outputs_ignore_the_per_eye_channels(hybrid):
         a = hybrid.postprocess(raw, valid, 0.5, 0.2)
         b = other.postprocess(alt, valid, 0.5, 0.2)
         c = legacy.postprocess(raw[:8].copy(), valid, 0.5, 0.2)
-        np.testing.assert_array_equal(a, b)
-        np.testing.assert_array_equal(a, c)
+        # Expressions and the DFR gaze chain (identity filter + medians) are
+        # time-independent; the VRChat gaze smoother is not compared here.
+        np.testing.assert_array_equal(a[:6], b[:6])
+        np.testing.assert_array_equal(a[:6], c[:6])
+        assert hybrid.last_dfr_gaze == other.last_dfr_gaze == legacy.last_dfr_gaze
     assert legacy.last_eye_gaze is None
     assert hybrid.last_eye_gaze is not None
 
@@ -204,6 +200,8 @@ def test_per_eye_y_uses_the_shared_gaze_y_sign(hybrid):
     out = hybrid.postprocess(raw.copy(), {EyeId.LEFT: True, EyeId.RIGHT: True}, 0.0, 0.0)
     s = hybrid.gaze_y_sign
     assert out[7] == pytest.approx(0.2 * s)
+    assert hybrid.last_dfr_gaze[1] == pytest.approx(0.2 * s)
+    np.testing.assert_allclose(hybrid.last_dfr_eye_gaze, [0.11, 0.21 * s, 0.31, 0.41 * s], atol=1e-6)
     np.testing.assert_allclose(hybrid.last_eye_gaze, [0.11, 0.21 * s, 0.31, 0.41 * s], atol=1e-6)
     np.testing.assert_allclose(hybrid.last_raw_eye_gaze, [0.11, 0.21 * s, 0.31, 0.41 * s], atol=1e-6)
 
@@ -220,7 +218,7 @@ def test_black_eye_never_reaches_the_per_eye_filter(hybrid):
     raw = np.array([0.5, 0.8, 0.0, 0.0, 0.0, 0.0, -0.3, 0.1, -0.3, 0.1, 0.0, 0.0], dtype=np.float32)
     for _ in range(5):
         hybrid.postprocess(raw.copy(), {EyeId.LEFT: True, EyeId.RIGHT: False}, 0.0, 0.0)
-    np.testing.assert_allclose(hybrid.last_eye_gaze, [-0.3, 0.1 * s, -0.1, 0.1 * s], atol=1e-5)
+    np.testing.assert_allclose(hybrid.last_dfr_eye_gaze, [-0.3, 0.1 * s, -0.1, 0.1 * s], atol=1e-5)
 
 
 # ── eye processor routing ────────────────────────────────────────────────────
@@ -253,6 +251,7 @@ def _coord(served):
         run=Mock(return_value=(0.05, 0.06, 0.3, 0.4, 0.5)),
         peer_active=Mock(),
         raw_gaze=Mock(return_value=(0.07, 0.08)),
+        dfr_gaze=Mock(return_value=(0.075, 0.085)),
         expression_coupler=Mock(),
         served_pass=Mock(return_value=served),
     )
@@ -268,6 +267,7 @@ def _served():
         1.0,
         np.array([0.1, 0.2, 0.3, 0.4], dtype=np.float32),
         np.array([0.11, 0.21, 0.31, 0.41], dtype=np.float32),
+        np.array([0.12, 0.22, 0.32, 0.42], dtype=np.float32),
     )
 
 
@@ -279,7 +279,14 @@ def test_fused_mode_routes_the_shared_gaze_unchanged(monkeypatch, eye):
     monkeypatch.setattr("next_processing.get_stereo_coordinator", lambda *args: coord)
     processor.NEXTM()
     processor._next_apply.assert_called_once_with(
-        0.05, 0.06, 0.3, 0.4, 0.5, raw_gaze=(0.07, 0.08), shared=(coord.expression_coupler, served)
+        0.05,
+        0.06,
+        0.3,
+        0.4,
+        0.5,
+        raw_gaze=(0.07, 0.08),
+        dfr_gaze=(0.075, 0.085),
+        shared=(coord.expression_coupler, served),
     )
 
 
@@ -302,6 +309,7 @@ def test_per_eye_modes_route_the_monocular_gaze(monkeypatch, mode, dominant, eye
     assert args[:2] == pytest.approx(gaze)
     assert args[2:] == (0.3, 0.4, 0.5)
     assert kwargs["raw_gaze"] == pytest.approx(raw)
+    assert kwargs["dfr_gaze"] == pytest.approx((raw[0] + 0.01, raw[1] + 0.01))
     reference = (0.3, 0.4) if dominant == "right" else (0.1, 0.2)
     assert kwargs["recenter_gaze"] == pytest.approx(reference)
     assert kwargs["shared"] == (coord.expression_coupler, served)
@@ -315,7 +323,14 @@ def test_per_eye_mode_without_per_eye_channels_stays_fused(monkeypatch):
     monkeypatch.setattr("next_processing.get_stereo_coordinator", lambda *args: coord)
     processor.NEXTM()
     processor._next_apply.assert_called_once_with(
-        0.05, 0.06, 0.3, 0.4, 0.5, raw_gaze=(0.07, 0.08), shared=(coord.expression_coupler, served)
+        0.05,
+        0.06,
+        0.3,
+        0.4,
+        0.5,
+        raw_gaze=(0.07, 0.08),
+        dfr_gaze=(0.075, 0.085),
+        shared=(coord.expression_coupler, served),
     )
 
 

@@ -19,7 +19,7 @@ BASE_CUTOFF, BASE_BETA = 0.003162, 1.525
 
 
 def _settle_times(monkeypatch, passes_per_s, valid, step_s):
-    """ms until shared gaze X reaches 50% / 90% of a 0 -> 0.5 saccade."""
+    """ms until the DFR gaze X (median + One-Euro chain) reaches 50% / 90% of a 0 -> 0.5 saccade."""
     clock = [0.0]
     monkeypatch.setattr(one_euro_filter, "perf_counter", lambda: clock[0])
     monkeypatch.setattr("next_stereo_model.time.perf_counter", lambda: clock[0])
@@ -32,19 +32,19 @@ def _settle_times(monkeypatch, passes_per_s, valid, step_s):
     model._gaze_y_window = TimedMedian(3)
     model._last_expr = {EyeId.LEFT: None, EyeId.RIGHT: None}
     model.init_eye_gaze_state()
-    model.smooth_gaze = False  # this file covers the median + One-Euro chain
     hits = {}
     for i in range(int(3.0 * passes_per_s)):
         t = i / passes_per_s
         clock[0] = t
         raw = np.zeros(12, dtype=np.float32)
         raw[6] = raw[8] = raw[10] = 0.5 if t >= 1.0 else 0.0
-        out = model.postprocess(raw, valid, BASE_CUTOFF, BASE_BETA)
+        model.postprocess(raw, valid, BASE_CUTOFF, BASE_BETA)
+        gaze_x = model.last_dfr_gaze[0]
         # Per-eye gaze modes get the shared gaze's exact (fixed-step) smoothing.
         if step_s is not None:
-            np.testing.assert_allclose(model.last_eye_gaze[[0, 2]], out[6], atol=1e-6)
+            np.testing.assert_allclose(model.last_dfr_eye_gaze[[0, 2]], gaze_x, atol=1e-6)
         for frac in (0.5, 0.9):
-            if t >= 1.0 and frac not in hits and out[6] >= 0.5 * frac:
+            if t >= 1.0 and frac not in hits and gaze_x >= 0.5 * frac:
                 hits[frac] = (t - 1.0) * 1000.0
     return hits
 

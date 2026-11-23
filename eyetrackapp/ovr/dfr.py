@@ -18,7 +18,7 @@ eye tracker they picked from PimaxMagic4All's own log. So an app restart, a reus
 process id or a failed injection can't leave the panel saying something untrue.
 
 The injected code picks its eye tracker once, when it loads. Nothing is attached until
-EyeTrackVR's gaze output is up (the "Foveated rendering gaze" setting), or the game
+EyeTrackVR's gaze output is up (the "Foveated rendering support" setting), or the game
 would stay on fixed foveation until it restarts.
 
 Pimax's binaries are not shipped with EyeTrackVR: ovr/dfr_setup.py downloads a
@@ -44,6 +44,17 @@ logger = logging.getLogger(__name__)
 MODE_OFF = 0
 MODES = {"maximum": 1, "balanced": 2, "minimum": 3, "debug": 4}  # FR-Utility "mode" values
 DEFAULT_MODE = "balanced"
+DEBUG_MODE = "debug"  # shows the foveation rings; not offered in release builds
+
+
+def user_modes() -> tuple[str, ...]:
+    """The qualities the user can pick: release builds (packaging/build_release.bat)
+    leave out the debug view."""
+    from build_info import is_release_build
+
+    return tuple(m for m in MODES if m != DEBUG_MODE or not is_release_build())
+
+
 REGISTRY_KEY = r"SOFTWARE\FR-Utility"
 
 TOOL_FILES = (
@@ -63,7 +74,7 @@ BLOCKED_KEYS = {"steam.app.438100": "VRChat (Easy Anti-Cheat)"}
 ANTI_CHEAT_MARKERS = ("easyanticheat", "battleye", "beservice", "eac_launcher")
 
 # How a game gets foveated rendering. The per-game switch only exists for INJECT; the
-# others get EyeTrackVR's gaze through the "Foveated rendering gaze" outputs on their own.
+# others get EyeTrackVR's gaze through the "Foveated rendering support" outputs on their own.
 METHOD_AUTO = "auto"  # setting only: work it out (detect_method)
 METHOD_INJECT = "inject"  # PimaxMagic4All, added to the game by this app
 METHOD_NATIVE = "native"  # the game foveates itself from SteamVR's eye tracking
@@ -86,6 +97,7 @@ STEAMVR_OFF = "steamvr_off"
 NO_GAME = "no_game"
 TOOL_MISSING = "tool_missing"  # no complete PimaxMagic4All copy
 NEEDS_SYSTEM_FILES = "needs_system_files"
+NEEDS_QUAD_VIEWS = "needs_quad_views"  # OpenXR game, Quad-Views-Foveated not installed (Set up adds it)
 DFR_UI_RUNNING = "dfr_ui_running"  # PimaxMagic4All's own UI would fight us
 BLOCKED = "blocked"
 OFF = "off"  # game known, DFR off for it
@@ -102,7 +114,9 @@ DISABLED = "disabled"  # the user set this game's method to none
 
 SETUP_STATES = (UNSUPPORTED, TOOL_MISSING, NEEDS_SYSTEM_FILES)
 # The game is handled another way, or not at all: there is no switch to use.
-NO_SWITCH_STATES = (BLOCKED, NATIVE, OPENXR, RENDERER, DISABLED)
+NO_SWITCH_STATES = (BLOCKED, NATIVE, OPENXR, NEEDS_QUAD_VIEWS, RENDERER, DISABLED)
+# Set up can be pressed: it installs whatever is missing (ovr/dfr_setup.py).
+SET_UP_STATES = (TOOL_MISSING, NEEDS_SYSTEM_FILES, NEEDS_QUAD_VIEWS)
 # A game is in front and its switch can be used.
 SWITCHABLE_STATES = (OFF, GAZE_OFF, ATTACHING, ATTACHED, IDLE, ATTACH_FAILED, DFR_UI_RUNNING)
 
@@ -125,6 +139,7 @@ class Status:
     tracking: str = TRACKING_UNKNOWN  # eye tracker the game uses, TRACKING_NONE, or unknown
     method: str = METHOD_INJECT  # how this game gets foveated rendering
     method_choice: str = METHOD_AUTO  # the saved per-game setting
+    quad_views: bool = True  # Quad-Views-Foveated installed (False: Set up still has it to add)
 
 
 def status_text(status: Status) -> str:
@@ -187,9 +202,9 @@ def system_files_present(system32: Path | None = None) -> bool:
     return any((system32 / name).exists() for name in SYSTEM_FILES)
 
 
-def system_files_command(tool_dir: str, system32: Path | None = None) -> str:
-    """cmd.exe arguments that copy the system DLLs into System32. Raises ValueError for
-    a path cmd could misread."""
+def system_files_copy(tool_dir: str, system32: Path | None = None) -> str:
+    """The cmd.exe command that copies the system DLLs into System32. Raises ValueError
+    for a path cmd could misread."""
     system32 = system32 or _system32()
     copies = []
     for name in SYSTEM_FILES:
@@ -197,12 +212,34 @@ def system_files_command(tool_dir: str, system32: Path | None = None) -> str:
         if any(c in source + target for c in '"%^&|<>'):
             raise ValueError(f"unsupported character in {source!r}")
         copies.append(f'copy /y /b "{source}" "{target}" >nul')
-    return f'/d /s /c "{" && ".join(copies)}"'
+    return " && ".join(copies)
+
+
+def cmd_arguments(*commands: str) -> str:
+    """cmd.exe arguments that run each command in turn, whether or not the one before failed."""
+    return f'/d /s /c "{" & ".join(f"({c})" for c in commands)}"'
+
+
+def system_files_command(tool_dir: str, system32: Path | None = None) -> str:
+    """cmd.exe arguments that copy the system DLLs into System32."""
+    return cmd_arguments(system_files_copy(tool_dir, system32))
 
 
 def install_system_files(tool_dir: str) -> bool:
     """Copy PimaxMagic4All's two DLLs into System32, elevated (one UAC prompt), and wait.
     Returns True once System32 holds this copy's files."""
+    try:
+        parameters = system_files_command(tool_dir)
+    except ValueError as e:
+        logger.warning("DFR: cannot install the system files (%s)", e)
+        return False
+    run_elevated(parameters)
+    return system_files_installed(tool_dir)
+
+
+def run_elevated(parameters: str, timeout_ms: int = 60_000) -> bool:
+    """Run cmd.exe with these arguments elevated (one UAC prompt), hidden, and wait.
+    Returns False when the prompt was declined or cmd could not start."""
     import ctypes
     from ctypes import wintypes
 
@@ -225,11 +262,6 @@ def install_system_files(tool_dir: str) -> bool:
             ("hProcess", wintypes.HANDLE),
         ]
 
-    try:
-        parameters = system_files_command(tool_dir)
-    except ValueError as e:
-        logger.warning("DFR: cannot install the system files (%s)", e)
-        return False
     SEE_MASK_NOCLOSEPROCESS = 0x40
     info = SHELLEXECUTEINFOW()
     info.cbSize = ctypes.sizeof(info)
@@ -241,9 +273,9 @@ def install_system_files(tool_dir: str) -> bool:
     if not ctypes.windll.shell32.ShellExecuteExW(ctypes.byref(info)) or not info.hProcess:
         return False  # declined at the UAC prompt, or could not start
     kernel32 = ctypes.windll.kernel32
-    kernel32.WaitForSingleObject(info.hProcess, 60_000)
+    kernel32.WaitForSingleObject(info.hProcess, timeout_ms)
     kernel32.CloseHandle(info.hProcess)
-    return system_files_installed(tool_dir)
+    return True
 
 
 def anti_cheat_reason(key: str, exe: str) -> str:
@@ -292,6 +324,12 @@ def _process_running(image: str) -> bool:
     from ovr.openvr_service import _windows_process_running
 
     return _windows_process_running(image)
+
+
+def _quad_views_installed() -> bool:
+    from ovr import quad_views
+
+    return quad_views.installed()
 
 
 def _vrserver_running() -> bool:
@@ -480,6 +518,7 @@ class DfrController:
         tracking=None,
         is_active=None,
         module_loaded=None,
+        quad_views_ok=None,
     ):
         self.config = config  # EyeTrackConfig
         self.registry = registry if registry is not None else (Registry() if sys.platform == "win32" else None)
@@ -488,6 +527,7 @@ class DfrController:
         self._steamvr_running = steamvr_running or _vrserver_running
         self._dfr_ui_running = dfr_ui_running or (lambda: _process_running("dfr-ui.exe"))
         self._system_files_ok = system_files_ok or system_files_installed
+        self._quad_views_ok = quad_views_ok or _quad_views_installed
         self._gaze_ready = gaze_ready or gaze_output_ready
         self._has_module = has_module or process_has_module
         self._is_active = is_active or (lambda pid: process_has_module(pid, ACTIVE_MODULES))
@@ -539,7 +579,7 @@ class DfrController:
         method = entry.get("method", METHOD_AUTO)
         return {
             "enabled": bool(entry.get("enabled", False)),
-            "mode": mode if mode in MODES else DEFAULT_MODE,
+            "mode": mode if mode in user_modes() else DEFAULT_MODE,
             "invert_y": bool(entry.get("invert_y", False)),
             "method": method if method in METHODS else METHOD_AUTO,
             "name": entry.get("name", ""),
@@ -561,7 +601,7 @@ class DfrController:
         entry = dict(games.get(key) or {})
         if enabled is not None:
             entry["enabled"] = bool(enabled)
-        if mode is not None and mode in MODES:
+        if mode is not None and mode in user_modes():
             entry["mode"] = mode
         if invert_y is not None:
             entry["invert_y"] = bool(invert_y)
@@ -587,6 +627,7 @@ class DfrController:
         with self._lock:
             self._cache.pop("tool", None)
             self._cache.pop("system", None)
+            self._cache.pop("quad_views", None)
         self.tick()
 
     def retry_attach(self) -> None:
@@ -772,16 +813,18 @@ class DfrController:
             "gaze_marker": tr("dashboard.gaze_marker"),
             "flip_vertical": tr("dashboard.flip_vertical"),
         }
-        labels.update({f"quality_{mode}": tr(f"dfr.quality_{mode}") for mode in MODES})
+        labels.update({f"quality_{mode}": tr(f"dfr.quality_{mode}") for mode in user_modes()})
         return {
             "type": "state",
             "labels": labels,
             "game": game,
             # Injection is Windows-only: elsewhere the panel has no foveated rendering part.
             "dfr_supported": status.state != UNSUPPORTED,
+            "qualities": list(user_modes()),
             "note": {
                 NATIVE: tr("dfr.note_native"),
                 OPENXR: tr("dfr.note_openxr"),
+                NEEDS_QUAD_VIEWS: tr("dfr.note_needs_quad_views"),
                 BLOCKED: tr("dfr.note_none"),
                 RENDERER: tr("dfr.note_none"),
                 DISABLED: tr("dfr.note_none"),
@@ -982,12 +1025,16 @@ class DfrController:
             self._apply_off(None)
             return Status(setup, tool_dir=tool_dir, steamvr=steamvr)
 
+        # Checked with or without a game, so Set up can add it before the first OpenXR game.
+        quad_views = bool(self._cached("quad_views", self.SYSTEM_CHECK_S, self._quad_views_ok))
         steamvr = bool(self._cached("steamvr", self.PROCESS_CHECK_S, self._steamvr_running))
         self._ensure_monitor(steamvr)
         scene = self._scene if steamvr else _Scene()
         if not (steamvr and is_game_key(scene.key)):
             self._apply_off(None)
-            return Status(NO_GAME if steamvr else STEAMVR_OFF, tool_dir=tool_dir, steamvr=steamvr)
+            return Status(
+                NO_GAME if steamvr else STEAMVR_OFF, tool_dir=tool_dir, steamvr=steamvr, quad_views=quad_views
+            )
 
         game = self.game_settings(scene.key)
         process = self._process_for(scene)
@@ -1000,6 +1047,7 @@ class DfrController:
             tool_dir=tool_dir,
             steamvr=True,
             invert_y=game["invert_y"],
+            quad_views=quad_views,
         )
         if process.blocked is None:
             process.blocked = anti_cheat_reason(scene.key, scene.exe)
@@ -1011,7 +1059,7 @@ class DfrController:
         elif status.method == METHOD_NATIVE:
             status.state = NATIVE
         elif status.method == METHOD_OPENXR:
-            status.state = OPENXR
+            status.state = OPENXR if quad_views else NEEDS_QUAD_VIEWS
         elif status.method == METHOD_NONE:
             status.state, status.detail = (RENDERER, reason) if reason else (DISABLED, "")
         elif self._cached("dfr_ui", self.PROCESS_CHECK_S, self._dfr_ui_running):

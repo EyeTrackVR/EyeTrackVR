@@ -1,4 +1,4 @@
-"""gui_NEXT_smooth_gaze: the shared model's gaze through next_smooth.Smoother.
+"""VRChat gaze of the shared model: next_smooth.Smoother, scaled by the smoothing slider.
 
 A still eye is steadied, a real move is followed within a couple of passes, a
 blink does not move gaze, a wink does not freeze it, and a lost camera is not
@@ -104,7 +104,6 @@ def _runner(monkeypatch, clock):
 def test_runner_routes_fused_and_per_eye_gaze_through_the_smoother(monkeypatch):
     clock = [0.0]
     model = _runner(monkeypatch, clock)
-    assert model.smooth_gaze
     for i in range(180):
         clock[0] = i / FPS
         x = 0.5 if i >= 90 else 0.0
@@ -114,15 +113,33 @@ def test_runner_routes_fused_and_per_eye_gaze_through_the_smoother(monkeypatch):
             assert out[6] > 0.45  # the old chain needs over ten frames for this
     assert out[6] == np.float32(out[6]) and abs(out[6] - 0.5) < 0.01
     np.testing.assert_allclose(model.last_eye_gaze, [0.55, 0.1, 0.45, 0.1], atol=0.01)
-    # The foveated-rendering tap stays the model's own gaze.
     assert model.last_raw_gaze == (0.5, np.float32(0.1))
 
 
-def test_setting_off_keeps_the_old_chain(monkeypatch):
-    clock = [0.0]
-    model = _runner(monkeypatch, clock)
-    model.smooth_gaze = False
-    for i in range(96):
-        clock[0] = i / FPS
-        out = model.postprocess(_raw((0.5 if i >= 90 else 0.0, 0.0)).astype(np.float32), BOTH, 0.003162, 1.525)
-    assert out[6] < 0.3  # six frames after the step the One-Euro chain is still on its way
+def test_dfr_gaze_keeps_the_fixed_chain_whatever_the_slider(monkeypatch):
+    results = []
+    for cutoff in (0.003162, 0.00002):
+        clock = [0.0]
+        model = _runner(monkeypatch, clock)
+        for i in range(96):
+            clock[0] = i / FPS
+            model.postprocess(_raw((0.5 if i >= 90 else 0.0, 0.0)).astype(np.float32), BOTH, cutoff, 1.525)
+        results.append(model.last_dfr_gaze[0])
+    assert results[0] < 0.45  # six frames after the step the One-Euro chain is still on its way
+    assert results[0] == results[1]
+
+
+def test_slider_scales_the_vrchat_gaze_only(monkeypatch):
+    def settle(cutoff):
+        clock = [0.0]
+        model = _runner(monkeypatch, clock)
+        rng = np.random.default_rng(0)
+        outs = []
+        for i in range(240):
+            clock[0] = i / FPS
+            gaze = (rng.normal(0, 0.008), 0.0)
+            outs.append(model.postprocess(_raw(gaze).astype(np.float32), BOTH, cutoff, 1.525)[6])
+        return np.std(outs[60:])
+
+    assert settle(0.003162) < settle(0.5)  # lighter smoothing passes more jitter
+    assert settle(0.00002) < settle(0.003162)
