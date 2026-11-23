@@ -132,6 +132,7 @@ def _smoother_scale(base_cutoff: float) -> float:
         return 1.0
     return float(np.clip((_DEFAULT_CUTOFF / base_cutoff) ** 0.3, 0.2, 5.0))
 
+
 # ImageNet normalization constants (CHW), only used for the (not expected)
 # legacy case where an export didn't bake normalization into the graph.
 _MEAN = np.array([0.485, 0.456, 0.406], dtype=np.float32).reshape(3, 1, 1)

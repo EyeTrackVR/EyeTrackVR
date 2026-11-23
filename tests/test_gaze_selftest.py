@@ -264,7 +264,9 @@ def test_setting_off_skips_what_depends_on_it(probes):
     assert checks["vrserver_log"].status == SKIP and "SteamVR driver was skipped" in checks["vrserver_log"].message
     # SteamVR is checked regardless.
     assert checks["steamvr"].status == PASS and checks["openvr_hmd"].status == PASS
-    assert st.next_steps(list(checks.values())).startswith('First failure: Setting. Turn on "Foveated rendering support"')
+    assert st.next_steps(list(checks.values())).startswith(
+        'First failure: Setting. Turn on "Foveated rendering support"'
+    )
 
 
 def test_setting_reads_plain_settings_object_too():

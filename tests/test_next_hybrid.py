@@ -267,7 +267,10 @@ def test_processor_uses_hybrid_without_an_active_peer(monkeypatch, eye, hybrid_a
         coord.run.assert_called_once_with(eye, 0.0004, 0.9)
         processor.next_runner.run.assert_not_called()
         processor._next_apply.assert_called_once_with(
-            *coord.run.return_value, raw_gaze=(0.15, 0.25), dfr_gaze=(0.16, 0.26), shared=(coord.expression_coupler, "pass")
+            *coord.run.return_value,
+            raw_gaze=(0.15, 0.25),
+            dfr_gaze=(0.16, 0.26),
+            shared=(coord.expression_coupler, "pass"),
         )
         coord.served_pass.assert_called_once_with(eye)
     else:

@@ -831,9 +831,9 @@ def main():
             bottom = ttk.Frame(self.root)
             bottom.pack(fill="x", padx=8, pady=4)
             ttk.Button(bottom, text=tr("issues.title"), command=self._toggle_issues_popup).pack(side="left")
-            ttk.Button(
-                bottom, text=tr("tracking.contribute_data_btn"), command=self._open_data_collection
-            ).pack(side="left", padx=(10, 0))
+            ttk.Button(bottom, text=tr("tracking.contribute_data_btn"), command=self._open_data_collection).pack(
+                side="left", padx=(10, 0)
+            )
             self.focus_label = ttk.Label(bottom, text=tr("tracking.interface_paused"))
             self.focus_label.pack(side="left", padx=12)
             self.focus_label.pack_forget()

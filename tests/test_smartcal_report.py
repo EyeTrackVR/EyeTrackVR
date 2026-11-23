@@ -47,7 +47,9 @@ def test_the_headset_shows_the_outcome_and_accuracy():
         "Average error 1.8°, worst 3.9°, on 10 of 11 dots.",
     ]
     assert headset_report([_applied(outcome=SMARTCAL_KEPT)]).startswith("Kept your previous calibration")
-    assert headset_report([_applied(outcome=SMARTCAL_NOT_BETTER)]).startswith("Calibration not saved: this run was less")
+    assert headset_report([_applied(outcome=SMARTCAL_NOT_BETTER)]).startswith(
+        "Calibration not saved: this run was less"
+    )
 
 
 def test_a_failed_calibration_says_what_went_wrong():
