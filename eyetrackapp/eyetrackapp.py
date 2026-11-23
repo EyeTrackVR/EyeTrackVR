@@ -578,53 +578,7 @@ def main():
             tracking_main.pack(side="left", fill="both", expand=True)
 
             _sidebar_hdr_font = ("Segoe UI", round(10 * self._dpi_scale), "bold")
-            _setup_type_outer = ttk.Frame(sidebar_inner)
-            _setup_type_outer.pack(fill="x", pady=(0, 24))
-            ttk.Label(_setup_type_outer, text=tr("tracking.setup_type"), font=_sidebar_hdr_font).pack(
-                anchor="w", pady=(0, 4)
-            )
-            setup_type = ttk.Frame(_setup_type_outer)
-            setup_type.pack(fill="x")
-            etvr_radio = ttk.Radiobutton(
-                setup_type,
-                text=tr("tracking.setup_etvr"),
-                variable=self.mode_var,
-                value="etvr",
-                command=self.on_mode_change,
-            )
-            etvr_radio.pack(anchor="w", pady=4)
-            attach_tooltip(
-                etvr_radio,
-                tr("tracking.setup_etvr_tip"),
-            )
-            bsb_radio = ttk.Radiobutton(
-                setup_type,
-                text=tr("tracking.setup_bigscreen"),
-                variable=self.mode_var,
-                value="bigscreen",
-                command=self.on_mode_change,
-            )
-            bsb_radio.pack(anchor="w", pady=4)
-            attach_tooltip(
-                bsb_radio,
-                tr("tracking.setup_bigscreen_tip"),
-            )
-            # Only offered on the headset itself: the eye cameras are read from
-            # its local dsp_service, which a PC has no way to reach.
-            if on_frame:
-                frame_radio = ttk.Radiobutton(
-                    setup_type,
-                    text=tr("tracking.setup_frame"),
-                    variable=self.mode_var,
-                    value="frame",
-                    command=self.on_mode_change,
-                )
-                frame_radio.pack(anchor="w", pady=4)
-                attach_tooltip(
-                    frame_radio,
-                    tr("tracking.setup_frame_tip"),
-                )
-
+            # The setup type (ETVR, Bigscreen Beyond, Steam Frame) is picked in the setup wizard.
             _tracking_controls_outer = ttk.Frame(sidebar_inner)
             _tracking_controls_outer.pack(fill="x", pady=(0, 24))
             ttk.Label(_tracking_controls_outer, text=tr("tracking.camera_settings"), font=_sidebar_hdr_font).pack(
