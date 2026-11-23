@@ -155,8 +155,7 @@ def test_http_server_is_loopback_only(no_multicast):
 
 
 def test_receiver_advertises_a_free_port_and_receives(main_config, no_multicast):
-    settings = main_config.settings
-    settings.gui_osc_oscquery = True
+    settings = main_config.settings  # VRChat on this PC (127.0.0.1)
     settings.gui_osc_receiver_port = _free_udp_port()
     received = []
     listeners = {settings.gui_osc_recenter_address: [received.append]}
@@ -187,7 +186,6 @@ def test_receiver_falls_back_to_fixed_port_when_mdns_fails(main_config, monkeypa
 
     monkeypatch.setattr(MDNSResponder, "start", unavailable)
     settings = main_config.settings
-    settings.gui_osc_oscquery = True
     settings.gui_osc_receiver_port = _free_udp_port()
     receiver = OSCReceiver(threading.Event(), main_config, {})
     try:
@@ -197,7 +195,7 @@ def test_receiver_falls_back_to_fixed_port_when_mdns_fails(main_config, monkeypa
         receiver.server.server_close()
 
 
-def test_fixed_mode_is_unchanged(main_config):
+def test_auto_port_turned_off_uses_the_fixed_port(main_config):
     settings = main_config.settings
     settings.gui_osc_oscquery = False
     settings.gui_osc_receiver_port = _free_udp_port()
@@ -209,8 +207,35 @@ def test_fixed_mode_is_unchanged(main_config):
         receiver.server.server_close()
 
 
-def test_toggling_oscquery_restarts_the_receiver():
+def test_vrchat_on_another_pc_uses_the_fixed_port(main_config):
+    # OSCQuery listens on this PC only, which a remote VRChat can't reach.
+    settings = main_config.settings
+    settings.gui_osc_address = "192.0.2.10"  # TEST-NET-1: never this machine
+    settings.gui_osc_receiver_port = _free_udp_port()
+    receiver = OSCReceiver(threading.Event(), main_config, {})
+    try:
+        assert receiver.advertiser is None
+        assert receiver.server.server_address == ("0.0.0.0", settings.gui_osc_receiver_port)
+    finally:
+        receiver.server.server_close()
+
+
+def test_auto_port_and_vrchat_address_restart_the_receiver():
+    # Both decide between OSCQuery and the fixed port.
     assert "gui_osc_oscquery" in OSCManager.RECEIVER_TRIGGER_KEYS
+    assert "gui_osc_address" in OSCManager.RECEIVER_TRIGGER_KEYS
+
+
+def test_auto_port_is_the_default_and_old_configs_turn_it_on():
+    from config import CURRENT_CONFIG_VERSION, EyeTrackSettingsConfig, _migrate_config_dict
+
+    assert EyeTrackSettingsConfig().gui_osc_oscquery is True
+    # It used to be an opt-in, saved off by default.
+    old = _migrate_config_dict({"version": 6, "settings": {"gui_osc_oscquery": False}})
+    assert old["settings"]["gui_osc_oscquery"] is True and old["version"] == CURRENT_CONFIG_VERSION
+    # Turned off after the change: kept off.
+    current = _migrate_config_dict({"version": CURRENT_CONFIG_VERSION, "settings": {"gui_osc_oscquery": False}})
+    assert current["settings"]["gui_osc_oscquery"] is False
 
 
 def test_avatar_change_is_forwarded_to_pyvrcft(main_config):

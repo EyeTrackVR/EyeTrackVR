@@ -93,17 +93,12 @@ class OSCSettingsModule(BaseSettingsModule):
         osc_bar.grid(row=0, column=0, sticky="w", pady=2)
         mode_var = tk.StringVar(value=osc_out_initial)
         self.tk_vars[self.gui_osc_output_mode] = mode_var
-        native_rb = ttk.Radiobutton(osc_bar, text=tr("osc.mode_native"), variable=mode_var, value="native")
-        native_rb.pack(side="left", padx=(8, 4))
-        attach_tooltip(native_rb, tr("osc.mode_native_tip"))
-        v2_rb = ttk.Radiobutton(osc_bar, text=tr("osc.mode_vrcft_v2"), variable=mode_var, value="vrcft_v2")
-        v2_rb.pack(side="left", padx=4)
-        attach_tooltip(v2_rb, tr("osc.mode_vrcft_v2_tip"))
-        # VRCFT v1 (legacy) is hidden from the GUI but kept in the backend:
-        # get_values_map still maps a saved "vrcft_v1" mode, and
-        # output_v1_params still runs, so existing v1 configs keep working.
+        # pyVRCFT here; VRC Native and VRCFT v2 are the same choice, under
+        # Advanced (build_advanced). VRCFT v1 (legacy) is hidden from the GUI but
+        # kept in the backend: get_values_map still maps a saved "vrcft_v1" mode,
+        # and output_v1_params still runs, so existing v1 configs keep working.
         pyvrcft_rb = ttk.Radiobutton(osc_bar, text=tr("osc.mode_pyvrcft"), variable=mode_var, value="pyvrcft")
-        pyvrcft_rb.pack(side="left", padx=4)
+        pyvrcft_rb.pack(side="left", padx=(8, 4))
         attach_tooltip(pyvrcft_rb, tr("osc.mode_pyvrcft_tip"))
 
         ros_var = tk.BooleanVar(value=bool(self.config.gui_ROSC))
@@ -112,15 +107,22 @@ class OSCSettingsModule(BaseSettingsModule):
         receive_cb.pack(side="left", padx=(24, 8))
         attach_tooltip(receive_cb, tr("osc.receive_tip"))
 
-        oscquery_var = tk.BooleanVar(value=bool(self.config.gui_osc_oscquery))
+    def build_advanced(self, parent):
+        """The other output modes: one choice with pyVRCFT (same variable)."""
+        mode_var = self.tk_vars[self.gui_osc_output_mode]
+        row = ttk.Frame(parent)
+        row.grid(row=0, column=0, sticky="w", padx=8, pady=2)
+        ttk.Label(row, text=tr("osc.other_outputs")).pack(side="left", padx=(0, 8))
+        native_rb = ttk.Radiobutton(row, text=tr("osc.mode_native"), variable=mode_var, value="native")
+        native_rb.pack(side="left", padx=4)
+        attach_tooltip(native_rb, tr("osc.mode_native_tip"))
+        v2_rb = ttk.Radiobutton(row, text=tr("osc.mode_vrcft_v2"), variable=mode_var, value="vrcft_v2")
+        v2_rb.pack(side="left", padx=4)
+        attach_tooltip(v2_rb, tr("osc.mode_vrcft_v2_tip"))
+
+        # On by default; off to receive on the fixed Receiver Port (Advanced OSC).
+        oscquery_var = tk.BooleanVar(value=bool(getattr(self.config, "gui_osc_oscquery", True)))
         self.tk_vars[self.gui_osc_oscquery] = oscquery_var
-        oscquery_cb = ttk.Checkbutton(osc_bar, text=tr("osc.oscquery"), variable=oscquery_var)
-        oscquery_cb.pack(side="left", padx=(0, 8))
+        oscquery_cb = ttk.Checkbutton(parent, text=tr("osc.oscquery"), variable=oscquery_var)
+        oscquery_cb.grid(row=1, column=0, sticky="w", padx=8, pady=2)
         attach_tooltip(oscquery_cb, tr("osc.oscquery_tip"))
-
-        # Auto port only matters while receiving.
-        def sync_oscquery_state(*_):
-            oscquery_cb.configure(state="normal" if ros_var.get() else "disabled")
-
-        ros_var.trace_add("write", sync_oscquery_state)
-        sync_oscquery_state()

@@ -59,7 +59,7 @@ from frame_eye import models_paused_for_recording
 from haar_surround_feature import External_Run_HSF
 from ransac import RANSAC3D
 from blink import BLINK
-from utils.img_utils import circle_crop
+from utils.img_utils import circle_crop, eye_frame
 from eye import EyeId, EyeInfo, EyeInfoOrigin
 from intensity_based_openness import IntensityBasedOpeness
 from ellipse_based_pupil_dilation import EllipseBasedPupilDilation
@@ -340,19 +340,20 @@ class EyeProcessor(NextProcessingMixin):
 
         preview_image = self.current_image_gray
         if self._next_active and self.current_raw_frame is not None:
-            # NEXT inference deliberately bypasses the legacy ROI and rotation.
-            # Make its visualizer show that same input instead of the cropped
-            # working image used by the classical algorithms.  Do not rewrite
-            # the saved ROI/rotation: selecting a non-NEXT tracker again should
-            # immediately restore that tracker's previous view.
-            preview_frame = self.current_raw_frame
-            if self.settings.gui_setup_mode == "bigscreen":
-                mid = preview_frame.shape[1] // 2
-                preview_frame = preview_frame[:, :mid] if self.eye_id == EyeId.LEFT else preview_frame[:, mid:]
+            # NEXT bypasses the classical ROI but honours the camera rotation
+            # (eye_frame). Show its visualizer that same input instead of the
+            # cropped working image of the classical algorithms. The saved ROI is
+            # left alone: selecting a non-NEXT tracker again restores its view.
+            preview_frame = eye_frame(
+                self.current_raw_frame,
+                self.settings.gui_setup_mode,
+                self.eye_id == EyeId.LEFT,
+                self.config.rotation_angle,
+            )
             preview_image = cv2.cvtColor(preview_frame, cv2.COLOR_BGR2GRAY)
             # NEXT has no threshold image. Its old threshold panel was merely a
             # copy of the cropped working image, so keep both panels consistent
-            # with the raw model input while NEXT is active.
+            # with the model input while NEXT is active.
             threshold_image = preview_image
 
         preview_image = cv2.resize(preview_image, (150, 150), interpolation=cv2.INTER_AREA)
@@ -1092,9 +1093,9 @@ class EyeProcessor(NextProcessingMixin):
                 self._maybe_apply_bigscreen_default_crop()
 
                 if self._next_active:
-                    # NEXT is trained on the unmodified camera frame. Keep the
-                    # classical ROI/rotation in config, but do not apply either to
-                    # NEXT's working or visualizer images.
+                    # NEXT takes the whole camera frame: the classical ROI stays in
+                    # config but is not applied. NEXTM turns the frame upright by the
+                    # camera rotation itself (eye_frame).
                     self.current_image_white = self.current_image
                 elif not self.capture_crop_rotate_image():
                     continue

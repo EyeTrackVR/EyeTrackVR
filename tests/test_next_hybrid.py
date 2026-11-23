@@ -4,6 +4,7 @@
 from types import SimpleNamespace
 from unittest.mock import Mock
 
+import cv2
 import numpy as np
 import pytest
 
@@ -221,9 +222,11 @@ def test_paired_cameras_cost_one_pass_per_pair(monkeypatch, paired):
 @pytest.mark.parametrize("hybrid_available", [True, False])
 @pytest.mark.parametrize("variant", ["ETVR", "BSB", "PSVR"])
 @pytest.mark.parametrize("setup", ["standard", "bigscreen"])
-def test_processor_uses_hybrid_without_an_active_peer(monkeypatch, eye, hybrid_available, variant, setup):
+@pytest.mark.parametrize("rotation", [0, 90])
+def test_processor_uses_hybrid_without_an_active_peer(monkeypatch, eye, hybrid_available, variant, setup, rotation):
     processor = EyeProcessor.__new__(EyeProcessor)
     processor.eye_id = eye
+    processor.config = SimpleNamespace(rotation_angle=rotation)
     processor.current_raw_frame = _image()
     processor.current_image_gray = np.zeros((64, 80), dtype=np.uint8)
     processor.current_capture_ts = 1000.0
@@ -259,6 +262,9 @@ def test_processor_uses_hybrid_without_an_active_peer(monkeypatch, eye, hybrid_a
     if setup == "bigscreen":
         mid = expected.shape[1] // 2
         expected = expected[:, :mid] if eye == EyeId.LEFT else expected[:, mid:]
+    if rotation:
+        # This eye's half first, then turned upright (counter-clockwise, like the classical trackers).
+        expected = cv2.rotate(expected, cv2.ROTATE_90_COUNTERCLOCKWISE)
     assert submitted_eye == eye
     assert submitted_ts == 1000.0
     np.testing.assert_array_equal(submitted_frame, expected)
@@ -277,6 +283,50 @@ def test_processor_uses_hybrid_without_an_active_peer(monkeypatch, eye, hybrid_a
         coord.run.assert_not_called()
         processor.next_runner.run.assert_called_once()
         processor._next_apply.assert_called_once_with(*processor.next_runner.run.return_value, raw_gaze=(0.25, 0.35))
+
+
+def test_a_new_rotation_restarts_the_next_frame_history(monkeypatch):
+    processor = EyeProcessor.__new__(EyeProcessor)
+    processor.eye_id = EyeId.LEFT
+    processor.config = SimpleNamespace(rotation_angle=0)
+    processor.current_raw_frame = _image()
+    processor.current_image_gray = np.zeros((64, 80), dtype=np.uint8)
+    processor.current_capture_ts = 1000.0
+    processor.settings = SimpleNamespace(
+        gui_min_cutoff=0.0004,
+        gui_speed_coefficient=0.9,
+        gui_setup_mode="standard",
+        gui_model_variant="ETVR",
+        gui_use_gpu=False,
+    )
+    processor._next_apply = Mock()
+    processor._next_mode_changed = Mock()
+    processor.next_runner = Mock()
+    processor.next_runner.run.return_value = (0.2, 0.3, 0.4, 0.5, 0.6)
+    coord = Mock(supports_single_eye=True)
+    coord.run.return_value = (0.1, 0.2, 0.3, 0.4, 0.5)
+    monkeypatch.setattr("next_processing.get_stereo_coordinator", lambda *args: coord)
+    processor.NEXTM()
+    processor.NEXTM()
+    coord.reset_eye.assert_not_called()
+    processor.config.rotation_angle = 270
+    processor.NEXTM()
+    coord.reset_eye.assert_called_once_with(EyeId.LEFT)
+    processor.next_runner.reset_history.assert_called_once()
+    assert coord.submit.call_args.args[1].shape[:2] == (80, 64)  # turned a quarter
+    processor.NEXTM()
+    coord.reset_eye.assert_called_once()
+
+
+def test_coordinator_reset_eye_drops_only_that_eyes_history():
+    import threading
+    from collections import deque
+
+    coord = StereoNextCoordinator.__new__(StereoNextCoordinator)
+    coord._state_lock = threading.Lock()
+    coord._hist = {EyeId.LEFT: deque([_Frame(1.0, _image(1))]), EyeId.RIGHT: deque([_Frame(1.0, _image(2))])}
+    coord.reset_eye(EyeId.LEFT)
+    assert not coord._hist[EyeId.LEFT] and len(coord._hist[EyeId.RIGHT]) == 1
 
 
 @pytest.mark.parametrize("variant", ["ETVR", "BSB", "PSVR"])

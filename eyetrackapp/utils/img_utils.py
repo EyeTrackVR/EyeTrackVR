@@ -79,3 +79,26 @@ def tk_photo_from_rgb(rgb, master):
     h, w = rgb.shape[:2]
     data = b"P6 %d %d 255 " % (w, h) + np.ascontiguousarray(rgb).tobytes()
     return tk.PhotoImage(master=master, data=data, format="ppm")
+
+
+# A camera's rotation_angle is counter-clockwise (cv2.getRotationMatrix2D).
+_QUARTER_TURNS = {90: cv2.ROTATE_90_COUNTERCLOCKWISE, 180: cv2.ROTATE_180, 270: cv2.ROTATE_90_CLOCKWISE}
+
+
+def quarter_turn(angle) -> int:
+    """A camera's rotation_angle as the nearest of 0, 90, 180 and 270."""
+    try:
+        return (round(float(angle) / 90.0) * 90) % 360
+    except (TypeError, ValueError, OverflowError):
+        return 0
+
+
+def eye_frame(frame, setup_mode: str, left: bool, angle):
+    """This eye's camera picture as NEXT sees it: its half of a Bigscreen frame
+    (one camera, both eyes side by side), turned upright by the camera's
+    rotation in quarter turns. No ROI: NEXT always gets the whole picture."""
+    if setup_mode == "bigscreen":
+        mid = frame.shape[1] // 2
+        frame = frame[:, :mid] if left else frame[:, mid:]
+    turn = _QUARTER_TURNS.get(quarter_turn(angle))
+    return cv2.rotate(frame, turn) if turn is not None else frame

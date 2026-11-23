@@ -24,6 +24,7 @@ _LEAF = {
     "gui_eye_dominant_diff_thresh": "eye_diff_threshold",
     "gui_use_overlay_cal": "use_overlay_cal",
     "gui_show_et_debug": "show_et_debug",
+    "gui_light_mode": "light_mode",
 }
 
 
@@ -51,6 +52,7 @@ class GeneralSettingsValidationModel(BaseValidationModel):
     gui_show_et_debug: bool
     gui_use_overlay_cal: bool
     gui_language: str
+    gui_light_mode: bool
 
 
 class GeneralSettingsModule(BaseSettingsModule):
@@ -77,6 +79,7 @@ class GeneralSettingsModule(BaseSettingsModule):
         self.gui_show_et_debug = f"-SHOWETDEBUG{widget_id}-"
         self.gui_use_overlay_cal = f"-USEOVERLAYCAL{widget_id}-"
         self.gui_language = f"-LANGUAGE{widget_id}-"
+        self.gui_light_mode = f"-LIGHTMODE{widget_id}-"
         # Populated in build(): maps the dropdown's visible native name to the
         # locale code we persist, and back.
         self._lang_display_to_code: dict[str, str] = {}
@@ -127,11 +130,16 @@ class GeneralSettingsModule(BaseSettingsModule):
                 attach_tooltip(cb, _tip(attr))
             row += 1
 
-        falloff_var = tk.BooleanVar(value=self.config.gui_outer_side_falloff)
-        self.tk_vars[self.gui_outer_side_falloff] = falloff_var
-        falloff_cb = ttk.Checkbutton(parent, text=_label("gui_outer_side_falloff"), variable=falloff_var)
-        falloff_cb.grid(row=row, column=0, sticky="w", padx=8, pady=2)
-        attach_tooltip(falloff_cb, _tip("gui_outer_side_falloff"))
+        light_var = tk.BooleanVar(value=bool(getattr(self.config, "gui_light_mode", False)))
+        self.tk_vars[self.gui_light_mode] = light_var
+        light_cb = ttk.Checkbutton(
+            parent,
+            text=_label("gui_light_mode"),
+            variable=light_var,
+            command=lambda: self._on_light_mode(light_var.get()),
+        )
+        light_cb.grid(row=row, column=0, sticky="w", padx=8, pady=2)
+        attach_tooltip(light_cb, _tip("gui_light_mode"))
 
         # Beside it, under "Check For Updates": the beta channel and a check on demand.
         update_row = ttk.Frame(parent)
@@ -147,6 +155,19 @@ class GeneralSettingsModule(BaseSettingsModule):
         row += 1
 
         self._build_language_row(parent, row)
+
+    def _on_light_mode(self, light: bool):
+        """Saved right away (like the language): the theme is applied at startup,
+        and the restart note blocks the event loop the debounced save runs on."""
+        if bool(light) == bool(getattr(self.config, "gui_light_mode", False)):
+            return
+        if self._main_config is not None:
+            self._main_config.update({"gui_light_mode": bool(light)}, save=True)
+        else:
+            self.config.gui_light_mode = bool(light)
+        messagebox.showinfo(
+            tr("settings_general.light_mode_restart_title"), tr("settings_general.light_mode_restart_note")
+        )
 
     def _check_for_updates(self):
         import update_dialog
@@ -231,6 +252,11 @@ class GeneralSettingsModule(BaseSettingsModule):
                 self.gui_show_et_debug,
                 self.config.gui_show_et_debug,
                 "gui_show_et_debug",
+            ),
+            (
+                self.gui_outer_side_falloff,
+                self.config.gui_outer_side_falloff,
+                "gui_outer_side_falloff",
             ),
         ]
         for row, (key, default, attr) in enumerate(fields):

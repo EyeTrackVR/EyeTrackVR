@@ -14,9 +14,13 @@ def dark_titlebar(hwnd):
     import ctypes
     from ctypes import wintypes
 
+    from ui_theme import is_light
+
     dwm = ctypes.windll.dwmapi.DwmSetWindowAttribute
     dwm.argtypes = [wintypes.HWND, wintypes.DWORD, ctypes.c_void_p, wintypes.DWORD]
-    for attribute, value in ((20, 1), (35, 0x202020), (36, 0xEEEEEE)):
+    # Dark mode flag, caption colour, caption text (COLORREF is 0x00BBGGRR); light follows the theme.
+    attributes = ((20, 0), (35, 0xF7F9FA), (36, 0x261D1F)) if is_light() else ((20, 1), (35, 0x202020), (36, 0xEEEEEE))
+    for attribute, value in attributes:
         color = ctypes.c_int(value)
         dwm(wintypes.HWND(hwnd), attribute, ctypes.byref(color), ctypes.sizeof(color))
 

@@ -1,11 +1,11 @@
 """
-First-run setup wizard: language -> headset -> cameras -> check -> done.
+First-run setup wizard: language -> headset -> cameras -> rotation -> foveated rendering -> done.
 
 The helpers at the top are Tk-free so they can be unit tested. SetupWizard is a
 page of the main window (WizardPage puts it in place of the other pages) that
 drives the app through a narrow adapter: AppAdapter wraps the real AppUI
-(eyetrackapp.py) and reuses its own code paths (the setup mode selector, Scan,
-Connect and cropping mode), and tests pass a fake with the same methods.
+(eyetrackapp.py) and reuses its own code paths (the setup mode, Scan and
+Connect), and tests pass a fake with the same methods.
 Calibration is left to the Tracking page (or the SteamVR dashboard) after setup.
 
 Every background result reaches the wizard on the Tk thread and is ignored once
@@ -26,12 +26,16 @@ from tkinter import ttk
 
 from frame_eye import FRAME_LEFT_SOURCE, FRAME_RIGHT_SOURCE, is_frame_capture_source, is_steam_frame
 from localization import tr
+from ui_theme import color
 
 logger = logging.getLogger(__name__)
 
-STEP_LANGUAGE, STEP_HEADSET, STEP_CAMERAS, STEP_CHECK, STEP_FOVEATION, STEP_DONE = range(6)
+STEP_LANGUAGE, STEP_HEADSET, STEP_CAMERAS, STEP_ROTATE, STEP_FOVEATION, STEP_DONE = range(6)
 STEP_COUNT = 6
 SIDES = ("left", "right")
+# The camera rotations offered (degrees counter-clockwise, as the tracker turns
+# the picture). Any other angle can still be set with the Tracking page slider.
+ROTATIONS = (0, 90, 180, 270)
 
 # Wizard headset choices that are not main-window setup modes: a PSVR2 (or
 # other commercial headset) shows both eyes in one camera picture like the
@@ -43,6 +47,8 @@ HEADSET_MODEL_VARIANT = {"etvr": "ETVR", "bigscreen": "BSB", "psvr": "PSVR"}
 # A scan that never reports back must not leave Rescan disabled for good.
 _SCAN_WATCHDOG_MS = 20000
 _POLL_MS = 500
+_PREVIEW_MS = 100
+_PREVIEW_BOX = 200
 _FRAME_WAIT_MS = 5000
 
 # Tracker flags in the order the bug report lists them.
@@ -193,26 +199,33 @@ def app_mode(headset: str) -> str:
     return _HEADSET_APP_MODE.get(headset, headset)
 
 
-def tracker_needs_crop(settings) -> bool:
-    """NEXT runs on the raw frame; every other tracker needs an eye crop."""
-    return not (bool(getattr(settings, "gui_NEXT", False)) or bool(getattr(settings, "gui_NEXT_BSB", False)))
+def rotation_choice(angle) -> int | None:
+    """Which of ROTATIONS ``angle`` is, or None for an angle in between."""
+    try:
+        angle = round(float(angle)) % 360
+    except (TypeError, ValueError):
+        return None
+    return angle if angle in ROTATIONS else None
 
 
-def crop_missing(eye_config) -> bool:
-    # The tracker waits for a crop while either side is 0 (eye_processor.run).
-    return eye_config.roi_window_w <= 0 or eye_config.roi_window_h <= 0
+def preview_image(image, mode: str, side: str, degrees, box: int):
+    """This eye's camera picture exactly as NEXT gets it (eye_frame: its half of
+    a Bigscreen frame, turned by the camera rotation), scaled to fit a box x box
+    square. RGB."""
+    import cv2
+    import numpy as np
 
+    from utils.img_utils import eye_frame
 
-def full_frame_roi(shape, mode: str = "etvr", side: str = "left") -> tuple[int, int, int, int]:
-    """(x, y, w, h) covering the whole picture; in Bigscreen mode this eye's half,
-    as the Bigscreen auto-crop does."""
-    height, width = int(shape[0]), int(shape[1])
-    if height <= 0 or width <= 0:
-        raise ValueError(f"empty frame {shape!r}")
-    if mode == "bigscreen":
-        half = width // 2
-        return (0, 0, half, height) if side == "left" else (half, 0, width - half, height)
-    return (0, 0, width, height)
+    eye = eye_frame(image, mode, side == "left", degrees)
+    scale = box / max(eye.shape[:2])
+    size = (max(1, round(eye.shape[1] * scale)), max(1, round(eye.shape[0] * scale)))
+    eye = cv2.resize(np.ascontiguousarray(eye), size, interpolation=cv2.INTER_AREA)
+    if eye.ndim == 2:
+        return cv2.cvtColor(eye, cv2.COLOR_GRAY2RGB)
+    if eye.shape[2] == 4:
+        return cv2.cvtColor(eye, cv2.COLOR_BGRA2RGB)
+    return cv2.cvtColor(eye, cv2.COLOR_BGR2RGB)
 
 
 def tracker_name(settings) -> str:
@@ -353,9 +366,9 @@ class AppAdapter:
     def any_eye_running(self) -> bool:
         return any(eye.started() for eye in self._eyes.values())
 
-    def request_frame_shape(self, side: str, callback) -> None:
-        """callback((h, w, ...)) with the next picture's shape, or callback(None)
-        after a few seconds without one. Taps the camera like cropping mode does."""
+    def request_frame(self, side: str, callback) -> None:
+        """callback(image) with the camera's next picture, or callback(None) after
+        a few seconds without one. Taps the camera like cropping mode does."""
         camera = self._eyes[side]._effective_camera()
         tap: queue.Queue = queue.Queue(maxsize=1)
         camera.set_extra_output_queues([*camera._extra_output_queues, tap])
@@ -381,32 +394,26 @@ class AppAdapter:
                 callback(None)
                 return
             _untap()
-            callback(tuple(image.shape))
+            callback(image)
 
         try:
             root.after(100, _poll)
         except tk.TclError:
             _untap()
 
-    def set_roi(self, side: str, roi) -> None:
+    def get_rotation(self, side: str) -> float:
+        return self._eyes[side].config.rotation_angle
+
+    def set_rotation(self, side: str, degrees: int) -> None:
         eye = self._eyes[side]
-        cfg = eye.config
-        cfg.roi_window_x, cfg.roi_window_y, cfg.roi_window_w, cfg.roi_window_h = (int(v) for v in roi)
-        # The crop box redraws from config the next time cropping mode opens.
-        for attr in ("xy0", "xy1", "cr", "ca", "roi_size"):
-            setattr(eye, attr, None)
+        eye.config.rotation_angle = int(degrees)
+        # The eye's own Rotation slider: it writes its value back into the config.
+        rotation_var = getattr(eye, "rotation_var", None)
+        if rotation_var is not None:
+            rotation_var.set(int(degrees))
+        # Cropping mode redraws its box for the new angle.
+        eye.cartesian_needs_update = True
         self.config.save()
-
-    def open_crop_mode(self) -> None:
-        # Leaving the wizard page pauses the wizard (WizardPage.sync).
-        self.app.show_page("tracking")
-        self.app._on_global_roi_mode()
-
-    def leave_crop_mode(self) -> None:
-        # Tracking waits while an eye is in cropping mode; the crop box is saved
-        # on every mouse release, so switching back keeps it.
-        if any(getattr(eye, "in_roi_mode", False) for eye in self._eyes.values()):
-            self.app._on_global_tracking_mode()
 
     def show_tracking_page(self) -> None:
         self.app.show_page("tracking")
@@ -466,7 +473,7 @@ class AppAdapter:
 
 
 class SetupWizard:
-    MUTED = "#9a9a9a"
+    MUTED = color("muted")
     # The content column: a comfortable reading width, centred on wide windows.
     COLUMN_WIDTH = 680
     PADDING = 24
@@ -488,8 +495,7 @@ class SetupWizard:
         self._label_to_value: dict[str, str] = {}
         self._autofilled: tuple[str, str] | None = None
         self._guessed = False
-        self._crop_busy = 0
-        self._crop_state = None
+        self._preview_pending: set[str] = set()
         scale = getattr(adapter, "dpi_scale", 1.0) or 1.0
         self._padding = round(self.PADDING * scale)
         self._column_width = round(self.COLUMN_WIDTH * scale)
@@ -616,8 +622,8 @@ class SetupWizard:
             return False
 
     def pause(self) -> None:
-        """The page was hidden without ending setup (cropping on the Tracking
-        page, or another page opened): keep the step and the choices."""
+        """The page was hidden without ending setup (another page opened): keep
+        the step and the choices."""
         if self._closed or self.paused:
             return
         self.paused = True
@@ -628,10 +634,6 @@ class SetupWizard:
         if self._closed or not self.paused:
             return
         self.paused = False
-        try:
-            self.adapter.leave_crop_mode()
-        except Exception:
-            logger.warning("Could not leave cropping mode", exc_info=True)
         self.show_step(self.step)
 
     # -- layout -----------------------------------------------------------
@@ -666,7 +668,7 @@ class SetupWizard:
             STEP_LANGUAGE: self._build_language(self.body),
             STEP_HEADSET: self._build_headset(self.body),
             STEP_CAMERAS: self._build_cameras(self.body),
-            STEP_CHECK: self._build_check(self.body),
+            STEP_ROTATE: self._build_rotate(self.body),
             STEP_FOVEATION: self._build_foveation(self.body),
             STEP_DONE: self._build_done(self.body),
         }
@@ -748,40 +750,46 @@ class SetupWizard:
         self.cam_manual = self._label(page, tr("wizard.cameras_manual_hint"), muted=True, small=True)
         return page
 
-    def _build_check(self, parent):
+    def _build_rotate(self, parent):
         page = ttk.Frame(parent)
-        self._label(page, tr("wizard.check_intro")).pack(anchor="w", pady=(0, 10))
-        rows = ttk.Frame(page)
-        rows.pack(fill="x")
-        rows.columnconfigure(1, weight=1)
-        self.check_status = {}
-        for row, (side, text) in enumerate(
-            (("left", tr("wizard.check_left_eye")), ("right", tr("wizard.check_right_eye")))
-        ):
-            ttk.Label(rows, text=text, font=self._bold_font).grid(row=row, column=0, sticky="nw", padx=(0, 12), pady=3)
-            label = self._label(rows, share=0.75)
-            label.grid(row=row, column=1, sticky="w", pady=3)
-            self.check_status[side] = label
-        self.check_hint = self._label(page, tr("wizard.check_not_connecting_hint"), muted=True, small=True)
-        self.check_hint.pack(anchor="w", pady=(6, 0))
-
-        self.crop_box = ttk.Frame(page)
-        self.crop_box.pack(fill="x", pady=(16, 0))
-        self.crop_text = self._label(self.crop_box)
-        self.crop_text.pack(anchor="w")
-        self.crop_buttons = ttk.Frame(self.crop_box)
-        button_row = ttk.Frame(self.crop_buttons)
-        button_row.pack(anchor="w")
-        self.crop_full_btn = ttk.Button(
-            button_row, text=tr("wizard.crop_full_btn"), command=self.use_full_frame, style="Accent.TButton"
-        )
-        self.crop_adjust_btn = ttk.Button(button_row, text=tr("wizard.crop_adjust_btn"), command=self.open_crop)
-        # Said before the page goes away, with the way back.
-        self.crop_where = self._label(
-            self.crop_buttons, tr("wizard.crop_adjust_where", resume=tr("wizard.continue_btn")), muted=True, small=True
-        )
-        self.crop_where.pack(anchor="w", pady=(6, 0))
-        self.crop_result = self._label(self.crop_box, muted=True, small=True)
+        self._label(page, tr("wizard.rotate_intro")).pack(anchor="w", pady=(0, 12))
+        self.rotate_none = self._label(page, tr("wizard.rotate_no_camera"), muted=True)
+        self.rotate_row = ttk.Frame(page)
+        self.rotate_row.pack(fill="x")
+        box = round(_PREVIEW_BOX * (getattr(self.adapter, "dpi_scale", 1.0) or 1.0))
+        self._preview_box = box
+        self._preview_pending = set()
+        self.rotate_cols, self.rotate_previews, self.rotate_buttons = {}, {}, {}
+        for side, text in (("left", tr("wizard.check_left_eye")), ("right", tr("wizard.check_right_eye"))):
+            column = ttk.Frame(self.rotate_row)
+            ttk.Label(column, text=text, font=self._bold_font).pack(anchor="w")
+            # A fixed square, so the buttons below don't move as pictures come and go.
+            holder = tk.Frame(column, width=box, height=box, background=color("surface"))
+            holder.pack_propagate(False)
+            holder.pack(anchor="w", pady=(6, 8))
+            preview = tk.Label(
+                holder,
+                background=color("surface"),
+                foreground=self.MUTED,
+                font=self._small_font,
+                wraplength=box - 24,
+                justify="center",
+            )
+            preview.pack(fill="both", expand=True)
+            buttons = ttk.Frame(column)
+            buttons.pack(anchor="w")
+            self.rotate_buttons[side] = {}
+            for degrees in ROTATIONS:
+                button = ttk.Button(
+                    buttons,
+                    text=f"{degrees}°",
+                    width=5,
+                    command=lambda s=side, d=degrees: self.set_rotation(s, d),
+                )
+                button.pack(side="left", padx=(0, 4))
+                self.rotate_buttons[side][degrees] = button
+            self.rotate_cols[side] = column
+            self.rotate_previews[side] = preview
         return page
 
     def _build_foveation(self, parent):
@@ -866,7 +874,6 @@ class SetupWizard:
         self.left_var.set(cameras[0])
         self.right_var.set(cameras[1])
         self._refresh_choices()
-        self._crop_state = None
         self.show_step(self.step)
 
     # -- navigation -------------------------------------------------------
@@ -880,7 +887,7 @@ class SetupWizard:
             STEP_LANGUAGE: tr("wizard.language_title"),
             STEP_HEADSET: tr("wizard.headset_title"),
             STEP_CAMERAS: tr("wizard.cameras_title"),
-            STEP_CHECK: tr("wizard.check_title"),
+            STEP_ROTATE: tr("wizard.rotate_title"),
             STEP_FOVEATION: tr("wizard.foveation_title"),
             STEP_DONE: tr("wizard.done_title"),
         }
@@ -888,16 +895,14 @@ class SetupWizard:
         self.step_label.configure(text=tr("wizard.step_of", current=step + 1, total=STEP_COUNT))
         if step == STEP_CAMERAS:
             self._enter_cameras()
-        elif step == STEP_CHECK:
-            self._crop_state = None
-            self.crop_result.pack_forget()
-            self._refresh_check()
+        elif step == STEP_ROTATE:
+            self._enter_rotate()
         elif step == STEP_FOVEATION:
             self._refresh_foveation()
         elif step == STEP_DONE:
             self._refresh_done()
-        if step == STEP_CHECK and self._poll_id is None and not self.paused:
-            self._poll_id = self._after(_POLL_MS, self._poll)
+        if step == STEP_ROTATE and self._poll_id is None and not self.paused:
+            self._poll_id = self._after(_PREVIEW_MS, self._poll)
         self._sync_buttons()
 
     def next(self) -> None:
@@ -1227,132 +1232,85 @@ class SetupWizard:
         self._guessed = False
         self._refresh_cam_status()
 
-    # -- step 4: check ----------------------------------------------------
-
     def _poll(self) -> None:
         self._poll_id = None
         if self._closed or self.paused:
             return
-        if self.step != STEP_CHECK:
+        if self.step == STEP_ROTATE:
+            self._refresh_rotate()
+            self._poll_id = self._after(_PREVIEW_MS, self._poll)
+
+    # -- step 4: camera rotation -------------------------------------------
+
+    def _enter_rotate(self) -> None:
+        sides = self._active_sides()
+        for column in self.rotate_cols.values():
+            column.grid_forget()
+        for index, side in enumerate(sides):
+            self.rotate_cols[side].grid(row=0, column=index, sticky="nw", padx=(0, 32))
+            self.rotate_previews[side].configure(image="", text=tr("wizard.rotate_waiting"))
+            self.rotate_previews[side].image = None
+        if sides:
+            self.rotate_none.pack_forget()
+        else:
+            self.rotate_none.pack(anchor="w", before=self.rotate_row)
+        self._sync_rotation_buttons()
+        self._refresh_rotate()
+
+    def _sync_rotation_buttons(self) -> None:
+        for side, buttons in self.rotate_buttons.items():
+            try:
+                current = rotation_choice(self.adapter.get_rotation(side))
+            except Exception:
+                current = None
+            for degrees, button in buttons.items():
+                button.configure(style="Accent.TButton" if degrees == current else "TButton")
+
+    def set_rotation(self, side: str, degrees: int) -> None:
+        if self._closed:
             return
-        self._refresh_check()
-        self._poll_id = self._after(_POLL_MS, self._poll)
+        try:
+            self.adapter.set_rotation(side, degrees)
+        except Exception:
+            logger.warning("Could not set the %s camera rotation", side, exc_info=True)
+        self._sync_rotation_buttons()
+
+    def _refresh_rotate(self) -> None:
+        """Ask each shown eye's camera for its next picture (one request at a time)."""
+        for side in self._active_sides():
+            if side in self._preview_pending:
+                continue
+            self._preview_pending.add(side)
+            try:
+                self.adapter.request_frame(side, lambda image, s=side: self._show_preview(s, image))
+            except Exception:
+                logger.warning("Could not read a picture from the %s camera", side, exc_info=True)
+                self._preview_pending.discard(side)
+
+    def _show_preview(self, side: str, image) -> None:
+        self._preview_pending.discard(side)
+        if self._closed or self.step != STEP_ROTATE:
+            return
+        label = self.rotate_previews[side]
+        if image is None:
+            label.configure(image="", text=tr("wizard.rotate_waiting"))
+            label.image = None
+            return
+        try:
+            from PIL import Image, ImageTk
+
+            rgb = preview_image(image, self._mode(), side, self.adapter.get_rotation(side), self._preview_box)
+            photo = ImageTk.PhotoImage(Image.fromarray(rgb), master=label)
+        except Exception:
+            logger.debug("Could not show the %s camera picture", side, exc_info=True)
+            return
+        label.configure(image=photo, text="")
+        label.image = photo  # Tk keeps no reference of its own
 
     def _active_sides(self) -> list[str]:
         return [side for side in SIDES if self.adapter.eye_state(side) != "none"]
 
-    def _refresh_check(self) -> None:
-        texts = {
-            "none": tr("wizard.check_not_used"),
-            "connecting": tr("wizard.check_connecting"),
-            "connected": tr("wizard.check_connected"),
-            "disconnected": tr("wizard.check_disconnected"),
-        }
-        states = {side: self.adapter.eye_state(side) for side in SIDES}
-        for side, state in states.items():
-            text = texts.get(state, texts["connecting"])
-            if self.check_status[side].cget("text") != text:
-                self.check_status[side].configure(text=text)
-        trouble = any(state == "disconnected" for state in states.values())
-        if trouble != bool(self.check_hint.winfo_manager()):
-            if trouble:
-                self.check_hint.pack(anchor="w", pady=(6, 0), before=self.crop_box)
-            else:
-                self.check_hint.pack_forget()
-
-        active = [side for side, state in states.items() if state != "none"]
-        if not tracker_needs_crop(self.adapter.settings):
-            crop_state = "none_needed"
-        elif not active:
-            crop_state = "no_camera"
-        elif any(crop_missing(self.adapter.eye_config(side)) for side in active):
-            crop_state = "missing"
-        else:
-            crop_state = "set"
-        if crop_state == self._crop_state:
-            return
-        self._crop_state = crop_state
-        self.crop_buttons.pack_forget()
-        self.crop_full_btn.pack_forget()
-        self.crop_adjust_btn.pack_forget()
-        text = {
-            "none_needed": "",
-            "no_camera": "",
-            "missing": tr("wizard.crop_missing"),
-            "set": tr("wizard.crop_set"),
-        }[crop_state]
-        self.crop_text.configure(text=text)
-        if crop_state == "missing":
-            self.crop_full_btn.pack(side="left", padx=(0, 8))
-            self.crop_adjust_btn.pack(side="left")
-        elif crop_state == "set":
-            self.crop_adjust_btn.pack(side="left")
-        if crop_state in ("missing", "set"):
-            # Above the result line when that is showing.
-            before = {"before": self.crop_result} if self.crop_result.winfo_manager() else {}
-            self.crop_buttons.pack(anchor="w", fill="x", pady=(8, 0), **before)
-        self._sync_crop_busy()
-
-    def _sync_crop_busy(self) -> None:
-        self.crop_full_btn.state(["disabled"] if self._crop_busy else ["!disabled"])
-
-    def _show_crop_result(self, text: str) -> None:
-        self.crop_result.configure(text=text)
-        if not self.crop_result.winfo_manager():
-            self.crop_result.pack(anchor="w", pady=(6, 0))
-
-    def use_full_frame(self) -> None:
-        """Set each active eye's crop to the whole picture so tracking can start."""
-        if self._closed or self._crop_busy:
-            return
-        mode = self._mode()
-        sides = [s for s in self._active_sides() if crop_missing(self.adapter.eye_config(s))]
-        if not sides:
-            return
-        self._crop_busy = len(sides)
-        self._sync_crop_busy()
-        self._show_crop_result(tr("wizard.crop_waiting"))
-        failed = []
-
-        def _got(side, shape):
-            if self._closed:
-                return
-            try:
-                if shape is None:
-                    failed.append(side)
-                else:
-                    self.adapter.set_roi(side, full_frame_roi(shape, mode, side))
-            except Exception:
-                logger.warning("Could not set the full-frame crop", exc_info=True)
-                failed.append(side)
-            self._crop_busy -= 1
-            if self._crop_busy:
-                return
-            try:
-                self._sync_crop_busy()
-                self._show_crop_result(tr("wizard.crop_no_picture") if failed else tr("wizard.crop_full_done"))
-                self._refresh_check()
-            except tk.TclError:
-                pass
-
-        for side in sides:
-            try:
-                self.adapter.request_frame_shape(side, lambda shape, s=side: _got(s, shape))
-            except Exception:
-                logger.warning("Could not read a picture from the %s camera", side, exc_info=True)
-                _got(side, None)
-
-    def open_crop(self) -> None:
-        """Cropping is done on the Tracking page: the app pauses this page and
-        the Continue setup button brings it back at this step (WizardPage)."""
-        if self._closed:
-            return
-        try:
-            self.adapter.open_crop_mode()
-        except Exception:
-            logger.warning("Could not open cropping mode", exc_info=True)
-
-    # -- step 5: done -----------------------------------------------------
+    # -- step 6: done -----------------------------------------------------
 
     def _refresh_done(self) -> None:
         mode = self._mode()
@@ -1391,8 +1349,7 @@ class WizardPage:
     AppUI.show_page() calls sync() on every page switch. While the wizard shows,
     it fills the page area and the navigation bar is hidden, so its own buttons
     are the way out: Skip setup and Finish end it and return to the Tracking
-    page. Any other page switch (Adjust the crop, or other code opening a
-    page) pauses it: it keeps its step and choices, the
+    page. Any other page switch (other code opening a page) pauses it: it keeps its step and choices, the
     navigation comes back, and the Tracking page's wizard button reads
     "Continue setup" until show_page("wizard") resumes it.
     """

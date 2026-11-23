@@ -46,7 +46,6 @@ def test_bind_address_follows_where_vrchat_runs(address, expected):
 
 def test_remote_target_still_binds_the_receiver(main_config):
     s = main_config.settings
-    s.gui_osc_oscquery = False
     s.gui_osc_address = "192.0.2.10"  # TEST-NET-1: never an address of this machine
     s.gui_osc_receiver_port = _free_udp_port()
     receiver = OSCReceiver(None, main_config, {})

@@ -33,21 +33,16 @@ _SECTION_TITLE_KEYS = {
     "AdvancedOSCSettingsModule": "settings_base.section_osc_advanced",
     "FoveationSettingsModule": "dfr.section",
     "TrackingAlgorithmModule": "settings_base.section_tracking_algo",
-    "BlinkAlgoModule": "settings_base.section_blink",
+    "BlinkAlgoSettingsModule": "settings_base.section_blink",
     "AdvancedTrackingAlgoSettingsModule": "settings_base.section_algo_advanced",
     "VRCFTSettingsModule": "settings_base.section_vrcft",
 }
 
 
 class BaseSettingsWidget:
-    # Arrows kept in the translated string; ▾ = expand, ▴ = collapse.
-    @property
-    def _SHOW_ADVANCED_TEXT(self):
-        return tr("settings_base.show_advanced")
-
-    @property
-    def _HIDE_ADVANCED_TEXT(self):
-        return tr("settings_base.hide_advanced")
+    def advanced_title(self) -> str:
+        """Title of this widget's Advanced page."""
+        return tr("settings_base.advanced_page_title")
 
     def __init__(self, widget_id: EyeId, main_config: EyeTrackConfig, settings_modules: Iterable):
         self.widget_id = widget_id
@@ -65,8 +60,13 @@ class BaseSettingsWidget:
         self._last_settings_render_mono = 0.0
         self._pending_validated: dict | None = None
         self._config_save_after_id = None
-        self._advanced_visible = False
-        self._advanced_section = None
+        # The Advanced page: a full page of the main window, like the setup
+        # wizard. The main window sets these before build(): where the page is
+        # built, and how to open it and go back (eyetrackapp.AppUI.show_page).
+        self.advanced_parent = None
+        self.open_advanced = None
+        self.close_advanced = None
+        self.advanced_frame = None
         self._advanced_toggle_row = None
         self._advanced_toggle_btn = None
         self._saving_own = False
@@ -254,53 +254,52 @@ class BaseSettingsWidget:
         return section
 
     def _build_advanced_section(self, advanced_modules):
+        """The button that opens the Advanced page, and the page itself. Built
+        eagerly (not when first opened) so every tk var exists for validation and
+        saving."""
         self._advanced_toggle_row = ttk.Frame(self.frame)
         self._advanced_toggle_row.pack(fill="x", padx=8, pady=(2, 0))
         self._advanced_toggle_btn = ttk.Button(
             self._advanced_toggle_row,
-            text=self._SHOW_ADVANCED_TEXT,
-            command=self._toggle_advanced,
+            text=tr("settings_base.show_advanced"),
+            command=self._open_advanced,
         )
         self._advanced_toggle_btn.pack(side="left")
 
-        # Build eagerly so tk_vars exist for validation/save while hidden.
-        # Each contributor gets its own Frame to isolate grid placements.
-        self._advanced_section = ttk.LabelFrame(self.frame, text=tr("settings_base.advanced"))
+        # Without a page to go to (no main window), it is built but never shown.
+        page = self.advanced_frame = ttk.Frame(self.advanced_parent or self.frame)
+        header = ttk.Frame(page)
+        header.pack(fill="x", padx=8, pady=(4, 6))
+        ttk.Button(header, text=f"‹ {tr('wizard.back_btn')}", command=self._close_advanced).pack(side="left")
+        ttk.Label(header, text=self.advanced_title(), font=("Segoe UI", 12, "bold")).pack(side="left", padx=12)
+
+        # One box per module: its own advanced options under its section title.
         advanced_set = set(id(m) for m in advanced_modules)
         for module in self.initialized_modules:
-            if id(module) in advanced_set:
+            if id(module) in advanced_set or not hasattr(module, "build_advanced"):
                 continue
-            if hasattr(module, "build_advanced"):
-                sub = ttk.Frame(self._advanced_section)
-                sub.pack(fill="x", padx=2, pady=2, anchor="n")
-                module.build_advanced(sub)
+            module.build_advanced(self._advanced_box(page, module))
         for module in advanced_modules:
-            sub = ttk.Frame(self._advanced_section)
-            sub.pack(fill="x", padx=2, pady=2, anchor="n")
-            module.build(sub)
+            module.build(self._advanced_box(page, module))
 
-        diagnostics_row = ttk.Frame(self._advanced_section)
+        diagnostics_row = ttk.Frame(page)
         diagnostics_row.pack(fill="x", padx=8, pady=(6, 4), anchor="w")
         ttk.Button(diagnostics_row, text=tr("settings_base.open_logs"), command=open_logs).pack(side="left")
 
-        self._advanced_visible = False
+    def _advanced_box(self, page, module):
+        title_key = _SECTION_TITLE_KEYS.get(module.__class__.__name__)
+        title = tr(title_key) if title_key else module.__class__.__name__.replace("Module", "")
+        box = ttk.LabelFrame(page, text=title)
+        box.pack(fill="x", padx=8, pady=6, anchor="n")
+        return box
 
-    def _toggle_advanced(self):
-        if self._advanced_section is None or self._advanced_toggle_btn is None:
-            return
-        if self._advanced_visible:
-            self._advanced_section.pack_forget()
-            self._advanced_toggle_btn.config(text=self._SHOW_ADVANCED_TEXT)
-        else:
-            self._advanced_section.pack(
-                fill="x",
-                padx=8,
-                pady=6,
-                anchor="n",
-                after=self._advanced_toggle_row,
-            )
-            self._advanced_toggle_btn.config(text=self._HIDE_ADVANCED_TEXT)
-        self._advanced_visible = not self._advanced_visible
+    def _open_advanced(self):
+        if self.open_advanced is not None:
+            self.open_advanced()
+
+    def _close_advanced(self):
+        if self.close_advanced is not None:
+            self.close_advanced()
 
     def _build_action_buttons(self):
         button_row = ttk.Frame(self.frame)

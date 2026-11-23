@@ -3,6 +3,7 @@ from types import SimpleNamespace
 
 import cv2
 import numpy as np
+import pytest
 
 from config import (
     CURRENT_CONFIG_VERSION,
@@ -36,25 +37,38 @@ def _visualized_stack(processor, threshold):
     return processor.image_queue_outgoing.get_nowait()[0]
 
 
-def test_next_visualizer_uses_raw_uncropped_unrotated_frame():
+@pytest.mark.parametrize(
+    "rotation, turn",
+    [
+        (0, None),
+        (37, None),
+        (90, cv2.ROTATE_90_COUNTERCLOCKWISE),
+        (180, cv2.ROTATE_180),
+        (270, cv2.ROTATE_90_CLOCKWISE),
+    ],
+)
+def test_next_visualizer_shows_the_uncropped_frame_turned_like_next_sees_it(rotation, turn):
     processor = _processor(next_active=True)
+    processor.config.rotation_angle = rotation
     raw = np.zeros((12, 20, 3), dtype=np.uint8)
     raw[:, :10] = (10, 40, 200)
     raw[:, 10:] = (180, 30, 5)
+    raw[:3, :3] = 255  # a corner to tell the turns apart
     processor.current_raw_frame = raw
     processor.current_image = np.full((5, 6, 3), 255, dtype=np.uint8)
     processor.current_image_gray = np.full((5, 6), 255, dtype=np.uint8)
 
     stack = _visualized_stack(processor, np.full((5, 6), 123, dtype=np.uint8))
+    model_input = raw if turn is None else cv2.rotate(raw, turn)  # 37 rounds to no turn
     expected = cv2.resize(
-        cv2.cvtColor(raw, cv2.COLOR_BGR2GRAY),
+        cv2.cvtColor(model_input, cv2.COLOR_BGR2GRAY),
         (150, 150),
         interpolation=cv2.INTER_AREA,
     )
 
     np.testing.assert_array_equal(stack[:, :150], expected)
     np.testing.assert_array_equal(stack[:, 150:], expected)
-    assert processor.config.rotation_angle == 37
+    assert processor.config.rotation_angle == rotation  # the saved rotation is left alone
 
 
 def test_next_bigscreen_visualizer_uses_only_the_selected_eye_half():
@@ -166,3 +180,12 @@ def test_config_migration_preserves_explicit_legacy_next_calibration():
     assert migrated["version"] == CURRENT_CONFIG_VERSION
     assert migrated["left_eye"]["next_classic_calibration_active"] is True
     assert migrated["right_eye"]["next_classic_calibration_active"] is False
+
+
+@pytest.mark.parametrize(
+    "angle, turn", [(0, 0), (37, 0), (46, 90), (85, 90), (180, 180), (270, 270), (-90, 270), (360, 0), (None, 0)]
+)
+def test_rotation_snaps_to_the_nearest_quarter_turn_for_next(angle, turn):
+    from utils.img_utils import quarter_turn
+
+    assert quarter_turn(angle) == turn

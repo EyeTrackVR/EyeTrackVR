@@ -33,6 +33,7 @@ from next_smartcal import (
 )
 from next_stereo_model import get_stereo_coordinator
 from osc.osc_message import OSCMessage, OSCMessageType
+from utils.img_utils import eye_frame, quarter_turn
 from utils.runtime_state import set_value as _set_runtime_value
 
 logger = logging.getLogger(__name__)
@@ -165,17 +166,28 @@ class NextProcessingMixin:
         base_cutoff = float(self.settings.gui_min_cutoff)
         base_beta = float(self.settings.gui_speed_coefficient)
 
-        # NEXT runs on the RAW camera frame (no ROI window, no rotation) to match
-        # how the model was trained/exported (see infer.py's --roi handling). In
-        # bigscreen mode one camera carries both eyes side-by-side, so feed this
-        # eye's half; the LEFT/RIGHT split mirrors data_collection's bigscreen crop.
-        next_frame = self.current_raw_frame
-        if self.settings.gui_setup_mode == "bigscreen":
-            mid = next_frame.shape[1] // 2
-            next_frame = next_frame[:, :mid] if self.eye_id == EyeId.LEFT else next_frame[:, mid:]
+        # NEXT runs on the whole camera frame (no ROI window), turned upright by
+        # the camera rotation: the top eyelid and eyebrow at the top, as the
+        # Steam Frame's upside-down camera is turned (frame_eye). In bigscreen
+        # mode one camera carries both eyes side by side, so this eye's half is
+        # taken first; the LEFT/RIGHT split mirrors data_collection's bigscreen crop.
+        next_frame = eye_frame(
+            self.current_raw_frame,
+            self.settings.gui_setup_mode,
+            self.eye_id == EyeId.LEFT,
+            self.config.rotation_angle,
+        )
 
         variant = variant_from_settings(self.settings)
         coord = get_stereo_coordinator(variant, self.settings.gui_use_gpu)
+        turn = quarter_turn(self.config.rotation_angle)
+        if turn != getattr(self, "_next_turn", turn):
+            # The temporal frame stack must not mix pictures turned two ways.
+            if self.next_runner is not None:
+                self.next_runner.reset_history()
+            if coord is not None:
+                coord.reset_eye(self.eye_id)
+        self._next_turn = turn
         if coord is not None:
             # The Frame's two cameras deliver each pair together, and a Bigscreen's
             # two eyes are halves of one frame: wait for the pair, one pass covers both.

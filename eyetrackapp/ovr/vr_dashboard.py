@@ -41,14 +41,20 @@ MARKER_DISTANCE_M = 1.5
 MARKER_WIDTH_M = 0.09  # about 3.5 degrees across
 MARKER_STALE_S = 0.5  # hide it when the app stops publishing
 
-BACKGROUND = (28, 28, 30, 255)
-PANEL = (44, 44, 48, 255)
-TEXT = (235, 235, 240, 255)
-MUTED = (160, 160, 168, 255)
-BUTTON = (62, 62, 70, 255)
-BUTTON_ACTIVE = (0, 120, 212, 255)
-BUTTON_DISABLED = (52, 52, 57, 255)
-TEXT_DISABLED = (110, 110, 118, 255)
+# The app's dark theme (ui_theme.DARK; the headset has no light mode).
+BACKGROUND = (24, 23, 28, 255)  # #18171c
+PANEL = (33, 31, 39, 255)  # #211f27
+BORDER = (61, 58, 71, 255)  # #3d3a47
+TEXT = (235, 233, 240, 255)  # #ebe9f0
+MUTED = (154, 152, 162, 255)  # #9a98a2
+BUTTON = (42, 39, 49, 255)  # #2a2731
+BUTTON_ACTIVE = (181, 160, 238, 255)  # the accent, #b5a0ee
+TEXT_ON_ACTIVE = BACKGROUND  # dark text on the accent, as on the app's accent buttons
+BUTTON_DISABLED = (29, 28, 34, 255)
+BORDER_DISABLED = (40, 38, 46, 255)
+TEXT_DISABLED = (82, 80, 86, 255)  # #525056
+# Drawn this many times larger, then scaled down: smooth rounded shapes in the headset.
+SUPERSAMPLE = 2
 
 DEFAULT_LABELS = {
     "recenter": "Recenter",
@@ -205,78 +211,130 @@ def _fit(draw, text: str, size: int, max_width: int):
     return _font(text, size)
 
 
-def _draw_switch(draw, button: Button) -> None:
+def _logo_path() -> Path:
+    return _bundle_dir() / "assets" / "images" / "logo.png"
+
+
+def _button_colours(button: Button) -> tuple:
+    """(fill, outline, text) for a button's state."""
+    if button.active:
+        return BUTTON_ACTIVE, BUTTON_ACTIVE, TEXT_ON_ACTIVE
+    if button.enabled:
+        return BUTTON, BORDER, TEXT
+    return BUTTON_DISABLED, BORDER_DISABLED, TEXT_DISABLED
+
+
+def _draw_switch(draw, button: Button, k: int) -> None:
     """An on/off switch with its label: the knob's side and the track colour show the
     state at a glance, where a button's wording alone did not."""
-    left, top, right, bottom = button.rect
+    left, top, right, bottom = (v * k for v in button.rect)
     middle = (top + bottom) // 2
-    track = (left, middle - 30, left + 116, middle + 30)
-    colour = BUTTON_ACTIVE if button.active else BUTTON if button.enabled else BUTTON_DISABLED
-    draw.rounded_rectangle(track, radius=30, fill=colour)
-    knob_x = track[2] - 30 if button.active else track[0] + 30
-    knob = TEXT if button.enabled else TEXT_DISABLED
-    draw.ellipse((knob_x - 22, middle - 22, knob_x + 22, middle + 22), fill=knob)
-    font = _fit(draw, button.label, 30, right - track[2] - 28)
+    track = (left, middle - 30 * k, left + 116 * k, middle + 30 * k)
+    if button.active:
+        draw.rounded_rectangle(track, radius=30 * k, fill=BUTTON_ACTIVE)
+        knob = BACKGROUND
+    else:
+        fill, outline, _ = _button_colours(button)
+        draw.rounded_rectangle(track, radius=30 * k, fill=fill, outline=outline, width=2 * k)
+        knob = MUTED if button.enabled else TEXT_DISABLED
+    knob_x = track[2] - 30 * k if button.active else track[0] + 30 * k
+    draw.ellipse((knob_x - 21 * k, middle - 21 * k, knob_x + 21 * k, middle + 21 * k), fill=knob)
+    font = _fit(draw, button.label, 30 * k, right - track[2] - 28 * k)
     box = draw.textbbox((0, 0), button.label, font=font)
     draw.text(
-        (track[2] + 20, middle - (box[3] + box[1]) / 2),
+        (track[2] + 20 * k, middle - (box[3] + box[1]) / 2),
         button.label,
         font=font,
         fill=TEXT if button.enabled else TEXT_DISABLED,
     )
 
 
+def _header(image, draw, k: int) -> None:
+    """The logo on its tile (the page colour, so only the mark shows) and the name."""
+    size = 64 * k
+    try:
+        from ui_theme import logo_tile
+
+        # Little padding: the tile is the panel colour, so only the mark shows.
+        image.alpha_composite(logo_tile(_logo_path(), size, padding=0.04), (32 * k, 20 * k))
+        x = 108 * k
+    except Exception:
+        x = 40 * k  # no logo file: the name alone
+    font = _font(OVERLAY_NAME, 40 * k)
+    box = draw.textbbox((0, 0), OVERLAY_NAME, font=font)
+    draw.text((x, 52 * k - (box[3] + box[1]) / 2), OVERLAY_NAME, font=font, fill=TEXT)
+
+
 def render(state: dict):
-    """The panel as an RGBA PIL image."""
+    """The panel as an RGBA PIL image (WIDTH x HEIGHT)."""
     from PIL import Image, ImageDraw
 
-    image = Image.new("RGBA", (WIDTH, HEIGHT), BACKGROUND)
+    k = SUPERSAMPLE
+    image = Image.new("RGBA", (WIDTH * k, HEIGHT * k), BACKGROUND)
     draw = ImageDraw.Draw(image)
     labels = {**DEFAULT_LABELS, **(state.get("labels") or {})}
-    draw.text((40, 30), OVERLAY_NAME, font=_font(OVERLAY_NAME, 40), fill=TEXT)
+    _header(image, draw, k)
 
     supported = state.get("dfr_supported", True)
     if supported:
-        draw.rounded_rectangle((24, 222, WIDTH - 24, HEIGHT - 20), radius=18, fill=PANEL)
-        draw.text((40, 240), labels["dfr_title"], font=_fit(draw, labels["dfr_title"], 30, 920), fill=TEXT)
+        draw.rounded_rectangle(
+            (24 * k, 222 * k, (WIDTH - 24) * k, (HEIGHT - 20) * k),
+            radius=22 * k,
+            fill=PANEL,
+            outline=BORDER,
+            width=2 * k,
+        )
+        title = labels["dfr_title"]
+        draw.text((40 * k, 238 * k), title, font=_fit(draw, title, 30 * k, 920 * k), fill=TEXT)
     game = str(state.get("game") or "") if supported else ""
     if game:
-        draw.text((40, 284), game, font=_fit(draw, game, 26, 920), fill=TEXT)
+        draw.text((40 * k, 282 * k), game, font=_fit(draw, game, 24 * k, 920 * k), fill=MUTED)
     note = str(state.get("note") or "") if supported else ""  # why this game has no switch
     if note:
-        draw.text((40, 318), note, font=_fit(draw, note, 20, 920), fill=MUTED)
+        draw.text((40 * k, 316 * k), note, font=_fit(draw, note, 20 * k, 920 * k), fill=MUTED)
 
     for button in layout(state):
-        left, top, right, bottom = button.rect
         if button.name == "dfr_enabled":
-            _draw_switch(draw, button)
+            _draw_switch(draw, button, k)
             continue
-        fill = BUTTON_ACTIVE if button.active else BUTTON if button.enabled else BUTTON_DISABLED
-        draw.rounded_rectangle(button.rect, radius=14, fill=fill)
-        font = _fit(draw, button.label, 30, right - left - 24)
+        left, top, right, bottom = (v * k for v in button.rect)
+        fill, outline, text = _button_colours(button)
+        draw.rounded_rectangle((left, top, right, bottom), radius=16 * k, fill=fill, outline=outline, width=2 * k)
+        font = _fit(draw, button.label, 30 * k, right - left - 24 * k)
         width = draw.textlength(button.label, font=font)
         box = draw.textbbox((0, 0), button.label, font=font)
         draw.text(
             ((left + right - width) / 2, (top + bottom - (box[3] + box[1])) / 2),
             button.label,
             font=font,
-            fill=TEXT if button.enabled else TEXT_DISABLED,
+            fill=text,
         )
-    return image
+    return image.resize((WIDTH, HEIGHT), Image.LANCZOS)
+
+
+def render_icon(size: int = 256):
+    """The dashboard tab's thumbnail: the logo on its rounded tile, corners clear."""
+    from ui_theme import logo_tile
+
+    return logo_tile(_logo_path(), size)
 
 
 def render_marker():
-    """The gaze marker: a ring with a centre dot, see-through in between."""
+    """The gaze marker: an accent ring with a centre dot, see-through in between. A dark
+    halo keeps both visible over bright and dark scenes alike."""
     from PIL import Image, ImageDraw
 
-    size = MARKER_PIXELS
+    k = 4  # drawn larger and scaled down for smooth edges
+    size = MARKER_PIXELS * k
     image = Image.new("RGBA", (size, size), (0, 0, 0, 0))
     draw = ImageDraw.Draw(image)
-    draw.ellipse((10, 10, size - 10, size - 10), outline=(0, 0, 0, 200), width=26)
-    draw.ellipse((16, 16, size - 16, size - 16), outline=(0, 230, 120, 255), width=14)
+    halo = BACKGROUND[:3] + (190,)
+    draw.ellipse((12 * k, 12 * k, size - 12 * k, size - 12 * k), outline=halo, width=24 * k)
+    draw.ellipse((18 * k, 18 * k, size - 18 * k, size - 18 * k), outline=BUTTON_ACTIVE, width=12 * k)
     centre = size // 2
-    draw.ellipse((centre - 14, centre - 14, centre + 14, centre + 14), fill=(0, 230, 120, 255), outline=(0, 0, 0, 200))
-    return image
+    draw.ellipse((centre - 18 * k, centre - 18 * k, centre + 18 * k, centre + 18 * k), fill=halo)
+    draw.ellipse((centre - 12 * k, centre - 12 * k, centre + 12 * k, centre + 12 * k), fill=BUTTON_ACTIVE)
+    return image.resize((MARKER_PIXELS, MARKER_PIXELS), Image.LANCZOS)
 
 
 def _raw(image):
@@ -397,11 +455,16 @@ class Dashboard:
         scale = openvr.HmdVector2_t()
         scale.v[0], scale.v[1] = float(WIDTH), float(HEIGHT)
         self.overlay.setOverlayMouseScale(self.handle, scale)
-        if icon_path and os.path.isfile(icon_path):
-            try:
-                self.overlay.setOverlayFromFile(thumbnail, icon_path)
-            except Exception:
-                pass  # the tab just shows its name
+        try:
+            # The tab icon: the logo on its rounded tile, as in the app.
+            icon = render_icon()
+            self.overlay.setOverlayRaw(thumbnail, _raw(icon), icon.width, icon.height, 4)
+        except Exception:
+            if icon_path and os.path.isfile(icon_path):
+                try:
+                    self.overlay.setOverlayFromFile(thumbnail, icon_path)
+                except Exception:
+                    pass  # the tab just shows its name
 
     @property
     def marker_on(self) -> bool:

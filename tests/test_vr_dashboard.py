@@ -140,6 +140,9 @@ def fake_openvr(clicks=()):
             return True, event
 
         def setOverlayRaw(self, handle, buffer, width, height, depth):
+            if handle == 12:  # the dashboard tab's thumbnail
+                calls.icon_raw = (len(buffer), width, height, depth)
+                return
             calls.raw.append((handle, len(buffer), width, height, depth))
 
         def destroyOverlay(self, handle):
@@ -180,6 +183,8 @@ def test_overlay_redraws_only_on_change_and_flips_the_mouse_y():
     sent = []
     panel = vr_dashboard.Dashboard(vr, sent.append)
     assert calls.key == vr_dashboard.OVERLAY_KEY and calls.scale == (vr_dashboard.WIDTH, vr_dashboard.HEIGHT)
+    # The tab icon: the logo on its rounded tile, uploaded as pixels.
+    assert calls.icon_raw == (256 * 256 * 4, 256, 256, 4)
     panel.set_state(current)
     panel.poll()
     assert sent == [{"type": "action", "name": "recenter"}]

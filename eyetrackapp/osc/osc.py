@@ -621,7 +621,10 @@ class OSCReceiver:
         # OSCUDPServer needs a dedicated serve_forever thread so shutdown can be
         # requested from the manager thread.
         self.server = None
-        if getattr(self.config, "gui_osc_oscquery", False):
+        # VRChat on this PC finds the receiver itself (OSCQuery); one on another
+        # machine can't reach the loopback-only OSCQuery port, so it gets the
+        # fixed port on every interface.
+        if getattr(self.config, "gui_osc_oscquery", True) and self._vrchat_is_local():
             self.server = self._bind_oscquery()
         if self.server is None:
             self.server = self._bind_fixed()
@@ -651,6 +654,9 @@ class OSCReceiver:
             if server is not None:
                 server.server_close()
             return None
+
+    def _vrchat_is_local(self) -> bool:
+        return self._bind_address() != "0.0.0.0"
 
     def _bind_address(self) -> str:
         # The OSC address is where VRChat runs (the send target). Loopback means

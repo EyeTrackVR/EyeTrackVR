@@ -11,6 +11,7 @@ from utils.runtime_state import get_value as _get_runtime_value
 from utils.tooltips import attach_tooltip
 from next_processing import remap_leap_lid_openness
 from localization import tr
+from ui_theme import color
 
 logger = logging.getLogger(__name__)
 
@@ -85,9 +86,6 @@ class BlinkAlgoSettingsModule(BaseSettingsModule):
         # Items: (canvas, eye_id, close_var, widen_var, readout_label).
         self._viz = []
         self._viz_after_id = None
-        self._manual_tuning_visible = False
-        self._manual_tuning_frame = None
-        self._manual_tuning_button = None
         self._manual_threshold_vars = ()
 
     def _build_threshold_entry(self, parent, var, step=0.05):
@@ -140,18 +138,18 @@ class BlinkAlgoSettingsModule(BaseSettingsModule):
             height=_VIZ_H,
             highlightthickness=0,
             bd=0,
-            bg="#1f1f1f",
+            bg=color("surface"),
             cursor="hand2",
         )
         canvas.grid(row=0, column=0, sticky="w")
         readout_frame = ttk.Frame(wrap)
         readout_frame.grid(row=0, column=1, sticky="w", padx=(6, 0))
         raw_readout = ttk.Label(
-            readout_frame, text=tr("algo_blink.readout_raw", value="--"), width=10, foreground="#bbbbbb"
+            readout_frame, text=tr("algo_blink.readout_raw", value="--"), width=10, foreground=color("muted")
         )
         raw_readout.pack(anchor="w")
         adj_readout = ttk.Label(
-            readout_frame, text=tr("algo_blink.readout_adj", value="--"), width=10, foreground="#9999ff"
+            readout_frame, text=tr("algo_blink.readout_adj", value="--"), width=10, foreground=color("accent")
         )
         adj_readout.pack(anchor="w")
         canvas.bind(
@@ -182,37 +180,37 @@ class BlinkAlgoSettingsModule(BaseSettingsModule):
         bar_bot = h - 12  # leave 12 px at bottom for "0" / "1" labels
 
         # Base zones (closed / neutral / wide) spanning the full bar width.
-        canvas.create_rectangle(inner_left, bar_top, close_x, bar_bot, fill="#5a2a2a", outline="")
-        canvas.create_rectangle(close_x, bar_top, widen_x, bar_bot, fill="#3a3a3a", outline="")
-        canvas.create_rectangle(widen_x, bar_top, inner_right, bar_bot, fill="#2a5a2a", outline="")
+        canvas.create_rectangle(inner_left, bar_top, close_x, bar_bot, fill=color("blink_zone"), outline="")
+        canvas.create_rectangle(close_x, bar_top, widen_x, bar_bot, fill=color("panel"), outline="")
+        canvas.create_rectangle(widen_x, bar_top, inner_right, bar_bot, fill=color("wide_zone"), outline="")
 
         # Overshoot overlays: distinct dark tint over the regions outside 0–1.
-        canvas.create_rectangle(inner_left, bar_top, x_zero, bar_bot, fill="#251a2e", outline="")
-        canvas.create_rectangle(x_one, bar_top, inner_right, bar_bot, fill="#1a251a", outline="")
+        canvas.create_rectangle(inner_left, bar_top, x_zero, bar_bot, fill=color("off_scale"), outline="")
+        canvas.create_rectangle(x_one, bar_top, inner_right, bar_bot, fill=color("off_scale"), outline="")
 
         # Boundary lines and labels at 0.0 and 1.0.
         for bx, lbl in ((x_zero, "0"), (x_one, "1")):
-            canvas.create_line(bx, bar_top, bx, bar_bot + 2, fill="#aaaaaa", width=1)
+            canvas.create_line(bx, bar_top, bx, bar_bot + 2, fill=color("muted"), width=1)
             canvas.create_text(
                 bx,
                 bar_bot + 4,
                 text=lbl,
-                fill="#888888",
+                fill=color("muted"),
                 font=("Segoe UI", 7),
                 anchor="n",
             )
 
         # Threshold markers with grab-handle nubs, drawn on top of all zones.
-        canvas.create_line(close_x, 1, close_x, bar_bot, fill="#ff8a8a", width=3)
-        canvas.create_rectangle(close_x - 3, 0, close_x + 3, bar_top, fill="#ff8a8a", outline="")
-        canvas.create_line(widen_x, 1, widen_x, bar_bot, fill="#8aff8a", width=3)
-        canvas.create_rectangle(widen_x - 3, 0, widen_x + 3, bar_top, fill="#8aff8a", outline="")
+        canvas.create_line(close_x, 1, close_x, bar_bot, fill=color("blink_point"), width=3)
+        canvas.create_rectangle(close_x - 3, 0, close_x + 3, bar_top, fill=color("blink_point"), outline="")
+        canvas.create_line(widen_x, 1, widen_x, bar_bot, fill=color("wide_point"), width=3)
+        canvas.create_rectangle(widen_x - 3, 0, widen_x + 3, bar_top, fill=color("wide_point"), outline="")
 
         # Live raw lid indicator (yellow ▼ on top + thin vertical guide).
         if raw is not None:
             rx = self._viz_value_to_x(raw)
-            canvas.create_polygon(rx - 4, 0, rx + 4, 0, rx, 7, fill="#ffd84a", outline="")
-            canvas.create_line(rx, 6, rx, bar_bot, fill="#ffd84a", width=1)
+            canvas.create_polygon(rx - 4, 0, rx + 4, 0, rx, 7, fill=color("live"), outline="")
+            canvas.create_line(rx, 6, rx, bar_bot, fill=color("live"), width=1)
 
     def _tick_viz(self):
         if not self._viz:
@@ -293,13 +291,13 @@ class BlinkAlgoSettingsModule(BaseSettingsModule):
         return col
 
     def build(self, parent):
-        # The LEAP Lid / EyeBrow algorithm toggles live under Advanced on this
-        # page (see build_advanced). Their tk vars are created there, which the
-        # settings widget builds eagerly, so validation and the LEAP auto-check
-        # wiring still find them while the popup is closed.
+        # The LEAP Lid / EyeBrow algorithm toggles and Manual Eyelid Tuning live
+        # on the Advanced page (see build_advanced). The settings widget builds it
+        # eagerly, so validation and the LEAP auto-check wiring find their tk vars
+        # whether or not the page has been opened.
 
         # Build manual threshold variables eagerly so validation and live model
-        # updates continue even while the disclosure panel is collapsed.
+        # updates work whether or not the Advanced page has been opened.
         left_close = tk.StringVar(value=f"{float(self.config.leap_lid_close_threshold_left):.2f}")
         left_widen = tk.StringVar(value=f"{float(self.config.leap_lid_widen_threshold_left):.2f}")
         right_close = tk.StringVar(value=f"{float(self.config.leap_lid_close_threshold_right):.2f}")
@@ -314,26 +312,6 @@ class BlinkAlgoSettingsModule(BaseSettingsModule):
             right_close,
             right_widen,
         )
-
-        manual_row = ttk.Frame(parent)
-        manual_row.grid(row=1, column=0, columnspan=3, sticky="w", padx=8, pady=(0, 2))
-        self._manual_tuning_button = ttk.Button(
-            manual_row,
-            text=f"{tr('algo_blink.manual_tuning')} ▾",
-            command=self._toggle_manual_tuning,
-        )
-        self._manual_tuning_button.pack(side="left")
-
-        manual = ttk.Frame(parent)
-        manual.grid(row=2, column=0, columnspan=3, sticky="w")
-        self._manual_tuning_frame = manual
-
-        # Hint text applies to both eye columns below.
-        ttk.Label(
-            manual,
-            text=tr("algo_blink.hint"),
-            foreground="#888888",
-        ).grid(row=0, column=0, columnspan=3, sticky="w", padx=8, pady=(0, 4))
 
         def _live_float(cfg, field, var):
             def _cb(*_):
@@ -363,20 +341,6 @@ class BlinkAlgoSettingsModule(BaseSettingsModule):
             _live_float(self.config, "leap_lid_widen_threshold_right", right_widen),
         )
 
-        self._build_eye_column(manual, tr("algo_blink.left_eye"), _EYE_ID_LEFT, left_close, left_widen).grid(
-            row=1, column=0, sticky="nw", padx=(8, 12), pady=4
-        )
-        ttk.Separator(manual, orient="vertical").grid(row=1, column=1, sticky="ns", pady=4)
-        self._build_eye_column(manual, tr("algo_blink.right_eye"), _EYE_ID_RIGHT, right_close, right_widen).grid(
-            row=1, column=2, sticky="nw", padx=(12, 8), pady=4
-        )
-        ttk.Button(
-            manual,
-            text=tr("algo_blink.reset_defaults"),
-            command=self._reset_manual_eyelid_tuning,
-        ).grid(row=2, column=0, columnspan=3, sticky="w", padx=8, pady=(6, 2))
-        manual.grid_remove()
-
         # Row 3: the Redo button lives where the calibration entries used to.
         # Calibration duration + min blink size now live under Advanced; the
         # tk vars are created here so they exist for the validation model
@@ -398,26 +362,6 @@ class BlinkAlgoSettingsModule(BaseSettingsModule):
         self._redo_button.grid(row=0, column=0, sticky="w", pady=2)
         attach_tooltip(self._redo_button, tr("algo_blink.redo_eyelid_calib_tip"))
 
-        # Kick off polling now that all canvases exist.
-        self._tick_viz()
-
-    def _toggle_manual_tuning(self):
-        frame = self._manual_tuning_frame
-        button = self._manual_tuning_button
-        if frame is None or button is None:
-            return
-        try:
-            if self._manual_tuning_visible:
-                frame.grid_remove()
-                arrow = "▾"
-            else:
-                frame.grid()
-                arrow = "▴"
-            self._manual_tuning_visible = not self._manual_tuning_visible
-            button.config(text=f"{tr('algo_blink.manual_tuning')} {arrow}")
-        except tk.TclError:
-            pass
-
     def _reset_manual_eyelid_tuning(self):
         if len(self._manual_threshold_vars) != 4:
             return
@@ -429,7 +373,7 @@ class BlinkAlgoSettingsModule(BaseSettingsModule):
 
     def build_advanced(self, parent):
         # Row 0: the LEAP Lid / EyeBrow algorithm toggles, moved off the main
-        # page. Built here (eagerly, popup or not) so their tk vars exist for
+        # page. Built here (eagerly, page shown or not) so their tk vars exist for
         # validation and for the LEAP -> LEAP Lid auto-check wiring.
         for idx, (key, default, label, tip) in enumerate(
             [
@@ -471,6 +415,40 @@ class BlinkAlgoSettingsModule(BaseSettingsModule):
         min_span_lbl.grid(row=4, column=0, sticky="w", padx=8, pady=2)
         attach_tooltip(min_span_lbl, tr("algo_blink.min_blink_size_tip"))
         ttk.Entry(parent, textvariable=self._leap_min_span_var, width=8).grid(row=4, column=1, sticky="w", pady=2)
+
+        self._build_manual_tuning(parent, row=5)
+
+    def _build_manual_tuning(self, parent, row):
+        """Manual eyelid thresholds, per eye, on the Advanced page."""
+        left_close, left_widen, right_close, right_widen = self._manual_threshold_vars
+        ttk.Label(parent, text=tr("algo_blink.manual_tuning")).grid(
+            row=row, column=0, columnspan=3, sticky="w", padx=8, pady=(10, 2)
+        )
+        manual = ttk.Frame(parent)
+        manual.grid(row=row + 1, column=0, columnspan=3, sticky="w")
+
+        # Hint text applies to both eye columns below.
+        ttk.Label(
+            manual,
+            text=tr("algo_blink.hint"),
+            foreground=color("muted"),
+        ).grid(row=0, column=0, columnspan=3, sticky="w", padx=8, pady=(0, 4))
+
+        self._build_eye_column(manual, tr("algo_blink.left_eye"), _EYE_ID_LEFT, left_close, left_widen).grid(
+            row=1, column=0, sticky="nw", padx=(8, 12), pady=4
+        )
+        ttk.Separator(manual, orient="vertical").grid(row=1, column=1, sticky="ns", pady=4)
+        self._build_eye_column(manual, tr("algo_blink.right_eye"), _EYE_ID_RIGHT, right_close, right_widen).grid(
+            row=1, column=2, sticky="nw", padx=(12, 8), pady=4
+        )
+        ttk.Button(
+            manual,
+            text=tr("algo_blink.reset_defaults"),
+            command=self._reset_manual_eyelid_tuning,
+        ).grid(row=2, column=0, columnspan=3, sticky="w", padx=8, pady=(6, 2))
+
+        # Kick off polling now that all canvases exist.
+        self._tick_viz()
 
     def _on_redo_eyelid_calib(self):
         """Bump every eye's recalibration sequence so LEAP_C resets its

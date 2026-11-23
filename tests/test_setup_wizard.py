@@ -246,30 +246,6 @@ def _settings(**overrides):
     return types.SimpleNamespace(**values)
 
 
-def test_tracker_needs_crop():
-    assert sw.tracker_needs_crop(_settings()) is False
-    assert sw.tracker_needs_crop(_settings(gui_NEXT=False, gui_NEXT_BSB=True)) is False
-    assert sw.tracker_needs_crop(_settings(gui_NEXT=False, gui_LEAP=True)) is True
-    # The real default tracker is NEXT.
-    assert sw.tracker_needs_crop(EyeTrackConfig().settings) is False
-
-
-def test_crop_missing():
-    eye = EyeTrackConfig().left_eye
-    assert sw.crop_missing(eye) is False  # 240x240 default
-    eye.roi_window_w = 0
-    assert sw.crop_missing(eye) is True
-
-
-def test_full_frame_roi():
-    assert sw.full_frame_roi((480, 640, 3)) == (0, 0, 640, 480)
-    assert sw.full_frame_roi((240, 240)) == (0, 0, 240, 240)
-    assert sw.full_frame_roi((400, 801, 3), "bigscreen", "left") == (0, 0, 400, 400)
-    assert sw.full_frame_roi((400, 801, 3), "bigscreen", "right") == (400, 0, 401, 400)
-    with pytest.raises(ValueError):
-        sw.full_frame_roi((0, 640))
-
-
 def test_psvr_runs_in_bigscreen_mode():
     assert sw.app_mode("psvr") == "bigscreen"
     assert [sw.app_mode(m) for m in ("etvr", "bigscreen", "frame")] == ["etvr", "bigscreen", "frame"]
@@ -356,8 +332,6 @@ class _Eye:
         self.config = cfg
         self._started = started
         self.camera = _Camera()
-        self.xy0 = self.xy1 = self.cr = self.ca = self.roi_size = "old"
-        self.in_roi_mode = False
 
     def started(self):
         return self._started
@@ -386,8 +360,6 @@ def _fake_app(config):
         ("apply_camera_inputs", app.left_camera_var.get(), app.right_camera_var.get())
     )
     app.show_page = lambda page: calls.append(("show_page", page))
-    app._on_global_roi_mode = lambda: calls.append(("roi_mode",))
-    app._on_global_tracking_mode = lambda: calls.append(("tracking_mode",))
     return app
 
 
@@ -448,52 +420,49 @@ def test_adapter_routes_through_the_main_window(monkeypatch):
     assert adapter.eye_state("left") == "connecting"  # set but not started yet
     assert adapter.any_eye_running() is True
 
-    adapter.set_roi("left", (0, 0, 640, 480))
-    assert (config.left_eye.roi_window_w, config.left_eye.roi_window_h) == (640, 480)
-    assert left_eye.xy0 is None and left_eye.roi_size is None
+    # Rotation: the eye's Rotation slider follows, or it would write its old value back.
+    saves.clear()
+    left_eye.rotation_var = _Var(0)
+    adapter.set_rotation("left", 90)
+    assert config.left_eye.rotation_angle == 90 and adapter.get_rotation("left") == 90
+    assert left_eye.rotation_var.get() == 90
+    assert left_eye.cartesian_needs_update is True
     assert saves
-
-    adapter.open_crop_mode()
-    assert app.calls[-2:] == [("show_page", "tracking"), ("roi_mode",)]
-    adapter.leave_crop_mode()  # neither eye is cropping: nothing to do
-    assert app.calls[-1] == ("roi_mode",)
-    left_eye.in_roi_mode = True
-    adapter.leave_crop_mode()
-    assert app.calls[-1] == ("tracking_mode",)
 
     adapter.mark_done()
     assert config.settings.gui_setup_wizard_done is True
 
 
-def test_adapter_reads_one_frame_shape_and_removes_its_tap():
+def test_adapter_reads_one_picture_and_removes_its_tap():
     config = EyeTrackConfig()
     app = _fake_app(config)
     eye = _Eye(config.left_eye)
     other = queue.Queue()
     eye.camera._extra_output_queues = [other]
     adapter = sw.AppAdapter(app, config, [_Eye(config.right_eye), eye])
-    shapes = []
-    adapter.request_frame_shape("left", shapes.append)
+    pictures = []
+    adapter.request_frame("left", pictures.append)
     tap = eye.camera._extra_output_queues[-1]
     assert tap is not other
     app.root.run_pending()  # nothing yet
-    assert shapes == []
-    tap.put((np.zeros((480, 640, 3), np.uint8), 1, 30.0, 0.0))
+    assert pictures == []
+    picture = np.zeros((480, 640, 3), np.uint8)
+    tap.put((picture, 1, 30.0, 0.0))
     app.root.run_pending()
-    assert shapes == [(480, 640, 3)]
+    assert len(pictures) == 1 and pictures[0] is picture
     assert eye.camera._extra_output_queues == [other]
 
 
-def test_adapter_frame_shape_gives_up():
+def test_adapter_picture_request_gives_up():
     config = EyeTrackConfig()
     app = _fake_app(config)
     eye = _Eye(config.left_eye)
     adapter = sw.AppAdapter(app, config, [_Eye(config.right_eye), eye])
-    shapes = []
-    adapter.request_frame_shape("left", shapes.append)
+    pictures = []
+    adapter.request_frame("left", pictures.append)
     for _ in range(100):
         app.root.run_pending()
-    assert shapes == [None]
+    assert pictures == [None]
     assert eye.camera._extra_output_queues == []
 
 
@@ -523,12 +492,9 @@ class FakeAdapter:
         self.show_page = show_page
         self.calls = []
         self.scans = []
-        self.frame_requests = []
+        self.picture_requests = []
         self.states = {side: "none" for side in sw.SIDES}
-        self.configs = {
-            side: types.SimpleNamespace(roi_window_x=0, roi_window_y=0, roi_window_w=240, roi_window_h=240)
-            for side in sw.SIDES
-        }
+        self.configs = {side: types.SimpleNamespace(rotation_angle=0) for side in sw.SIDES}
 
     def languages(self):
         return LANGUAGES
@@ -574,21 +540,15 @@ class FakeAdapter:
     def any_eye_running(self):
         return any(state != "none" for state in self.states.values())
 
-    def request_frame_shape(self, side, callback):
-        self.frame_requests.append((side, callback))
+    def request_frame(self, side, callback):
+        self.picture_requests.append((side, callback))
 
-    def set_roi(self, side, roi):
-        self.calls.append(("set_roi", side, roi))
-        cfg = self.configs[side]
-        cfg.roi_window_x, cfg.roi_window_y, cfg.roi_window_w, cfg.roi_window_h = roi
+    def get_rotation(self, side):
+        return self.configs[side].rotation_angle
 
-    def open_crop_mode(self):
-        self.calls.append(("open_crop_mode",))
-        if self.show_page:
-            self.show_page("tracking")
-
-    def leave_crop_mode(self):
-        self.calls.append(("leave_crop_mode",))
+    def set_rotation(self, side, degrees):
+        self.calls.append(("set_rotation", side, degrees))
+        self.configs[side].rotation_angle = degrees
 
     def show_tracking_page(self):
         self.calls.append(("show_tracking_page",))
@@ -713,19 +673,14 @@ def test_full_etvr_walkthrough(tk_root):
 
     w.next()
     assert fake.calls[-1] == ("apply_sources", LEFT_URL, RIGHT_URL)
-    assert w.step == sw.STEP_CHECK
-    fake.states.update(left="connected", right="disconnected")
-    w._refresh_check()
-    assert _text(w.check_status["left"]) == sw.tr("wizard.check_connected")
-    assert _text(w.check_status["right"]) == sw.tr("wizard.check_disconnected")
-    assert _shown(w.check_hint)
-    # NEXT: no crop controls and nothing to say about cropping.
-    assert _text(w.crop_text) == ""
-    assert not _shown(w.crop_buttons)
-    # An eye that isn't working never blocks the way on.
+    assert w.step == sw.STEP_ROTATE
+    assert _text(w.title_label) == sw.tr("wizard.rotate_title")
+    assert _shown(w.rotate_cols["left"]) and _shown(w.rotate_cols["right"])
+    assert not _shown(w.rotate_none)
+    # A camera without a picture yet never blocks the way on.
     assert not _disabled(w.next_btn)
 
-    w.next()  # no calibration step
+    w.next()  # no check or calibration step
     assert w.step == sw.STEP_FOVEATION
     w.next()
     assert w.step == sw.STEP_DONE
@@ -814,7 +769,7 @@ def test_bigscreen_uses_one_camera_for_both_eyes(tk_root):
     assert w.left_var.get() == "Bigscreen Bigeye"
     w.next()
     assert fake.calls[-1] == ("apply_sources", "uvc:Bigscreen Bigeye@b", "uvc:Bigscreen Bigeye@b")
-    w.next()  # check
+    w.next()  # rotation
     w.next()  # foveated rendering
     assert sw.tr("wizard.done_camera", camera="Bigscreen Bigeye") in _text(w.done_summary)
     w.close()
@@ -834,7 +789,7 @@ def test_psvr_uses_one_camera_like_the_bigscreen(tk_root):
     assert w.left_var.get() == "USB Camera"  # the only camera: a guess
     w.next()
     assert fake.calls[-1] == ("apply_sources", "uvc:USB Camera@a", "uvc:USB Camera@a")
-    w.next()  # check
+    w.next()  # rotation
     w.next()  # foveated rendering
     summary = _text(w.done_summary)
     assert sw.tr("wizard.done_headset", headset=sw.tr("wizard.mode_psvr")) in summary
@@ -852,11 +807,9 @@ def test_one_eye_only_can_move_on(tk_root):
     assert not _disabled(w.next_btn)
     w.next()
     assert fake.calls[-1] == ("apply_sources", LEFT_URL, "")
-    fake.states["left"] = "disconnected"
-    w._refresh_check()
-    assert _text(w.check_status["right"]) == sw.tr("wizard.check_not_used")
-    assert not _disabled(w.next_btn)
-    w.next()
+    # Only the eye in use is shown to turn.
+    assert _shown(w.rotate_cols["left"]) and not _shown(w.rotate_cols["right"])
+    w.next()  # rotation
     assert w.step == sw.STEP_FOVEATION
     w.next()
     assert w.step == sw.STEP_DONE
@@ -920,40 +873,73 @@ def test_switching_headset_on_the_way_back(tk_root):
     w.close()
 
 
-def test_crop_controls_for_trackers_that_need_one(tk_root):
-    fake = FakeAdapter(sources=("COM3", "COM4"), settings=_settings(gui_NEXT=False, gui_LEAP=True))
-    fake.states.update(left="connected", right="connected")
-    fake.configs["left"].roi_window_w = 0
+@pytest.mark.parametrize(
+    "angle, choice", [(0, 0), (90, 90), (180.0, 180), (270, 270), (360, 0), (-90, 270), (45, None), ("x", None)]
+)
+def test_rotation_choice(angle, choice):
+    assert sw.rotation_choice(angle) == choice
+
+
+def test_preview_turns_the_picture_like_the_tracker():
+    np = pytest.importorskip("numpy")
+    cv2 = pytest.importorskip("cv2")
+    # A wide picture with a white mark in its top-left corner.
+    image = np.zeros((40, 80, 3), dtype=np.uint8)
+    image[:4, :4] = 255
+    for degrees in sw.ROTATIONS:
+        shown = sw.preview_image(image, "etvr", "left", degrees, 80)
+        # The tracker's own turn (eye_processor: cv2.getRotationMatrix2D, counter-clockwise).
+        turned = np.rot90(image, k=degrees // 90)
+        assert shown.shape[:2] == turned.shape[:2]
+        mark = np.argwhere(turned[:, :, 0] == 255).mean(axis=0)
+        assert np.allclose(np.argwhere(shown[:, :, 0] > 127).mean(axis=0), mark, atol=1.5)
+    matrix = cv2.getRotationMatrix2D((39.5, 39.5), 90, 1)
+    square = np.zeros((80, 80), dtype=np.uint8)
+    square[:4, :4] = 255
+    assert np.argwhere(cv2.warpAffine(square, matrix, (80, 80)) > 127).mean(axis=0)[0] > 40  # top-left -> bottom-left
+    assert np.argwhere(np.rot90(square)).mean(axis=0)[0] > 40
+    # Bigscreen: each eye's half, fitted to the box.
+    assert sw.preview_image(image, "bigscreen", "right", 90, 20).shape == (20, 20, 3)
+    gray = np.zeros((10, 20), dtype=np.uint8)
+    assert sw.preview_image(gray, "etvr", "left", 0, 20).shape == (10, 20, 3)
+
+
+def test_rotation_step_sets_each_eye_and_shows_live_pictures(tk_root):
+    np = pytest.importorskip("numpy")
+    fake = FakeAdapter(sources=("COM3", "COM4"))
+    fake.states.update(left="connecting", right="connecting")
+    fake.configs["right"].rotation_angle = 45  # set with the Tracking page slider
     w = sw.SetupWizard(tk_root, fake)
-    w.show_step(sw.STEP_CHECK)
-    assert _text(w.crop_text) == sw.tr("wizard.crop_missing")
-    assert _shown(w.crop_full_btn) and _shown(w.crop_adjust_btn)
+    w.show_step(sw.STEP_ROTATE)
+    assert _text(w.rotate_previews["left"]) == sw.tr("wizard.rotate_waiting")
+    accent = {
+        side: [d for d, b in w.rotate_buttons[side].items() if b.cget("style") == "Accent.TButton"] for side in sw.SIDES
+    }
+    assert accent == {"left": [0], "right": []}
 
-    w.crop_full_btn.invoke()
-    assert [side for side, _cb in fake.frame_requests] == ["left"]  # only the eye without a crop
-    assert _disabled(w.crop_full_btn)
-    assert _text(w.crop_result) == sw.tr("wizard.crop_waiting")
-    fake.frame_requests[0][1]((480, 640, 3))
-    assert fake.calls[-1] == ("set_roi", "left", (0, 0, 640, 480))
-    assert _text(w.crop_result) == sw.tr("wizard.crop_full_done")
-    # Now every eye has a crop: only the adjust button is left.
-    assert _text(w.crop_text) == sw.tr("wizard.crop_set")
-    assert not _shown(w.crop_full_btn) and _shown(w.crop_adjust_btn)
+    w.rotate_buttons["left"][270].invoke()
+    assert fake.calls[-1] == ("set_rotation", "left", 270)
+    assert [d for d, b in w.rotate_buttons["left"].items() if b.cget("style") == "Accent.TButton"] == [270]
 
-    # Before leaving for the Tracking page, the way back is spelled out.
-    assert _shown(w.crop_where)
-    assert sw.tr("wizard.continue_btn") in _text(w.crop_where)
-    w.crop_adjust_btn.invoke()
-    assert fake.calls[-1] == ("open_crop_mode",)
+    # One picture request per eye at a time; each answer asks for the next.
+    assert [side for side, _cb in fake.picture_requests] == ["left", "right"]
+    w._refresh_rotate()
+    assert len(fake.picture_requests) == 2
+    fake.picture_requests[0][1](np.zeros((40, 80, 3), dtype=np.uint8))
+    assert _text(w.rotate_previews["left"]) == ""
+    assert w.rotate_previews["left"].image is not None
+    w._refresh_rotate()
+    assert [side for side, _cb in fake.picture_requests[2:]] == ["left"]
+    fake.picture_requests[1][1](None)  # no picture in time
+    assert _text(w.rotate_previews["right"]) == sw.tr("wizard.rotate_waiting")
 
-    # No picture in time: say so, and allow another try.
-    fake.configs["right"].roi_window_h = 0
-    w._refresh_check()
-    w.crop_full_btn.invoke()
-    fake.frame_requests[-1][1](None)
-    assert _text(w.crop_result) == sw.tr("wizard.crop_no_picture")
-    assert not _disabled(w.crop_full_btn)
+    # No camera chosen: nothing to turn.
+    fake.states.update(left="none", right="none")
+    w.show_step(sw.STEP_ROTATE)
+    assert _shown(w.rotate_none)
+    assert not _shown(w.rotate_cols["left"]) and not _shown(w.rotate_cols["right"])
     w.close()
+    fake.picture_requests[-1][1](np.zeros((4, 4, 3), dtype=np.uint8))  # late: ignored
 
 
 def test_skip_marks_done_on_every_step(tk_root):
@@ -974,7 +960,7 @@ def test_skip_marks_done_on_every_step(tk_root):
     fake.scans[0]({LEFT_URL: LEFT_URL}, True)
     w.rescan()
     w.back()
-    w.use_full_frame()
+    w.set_rotation("left", 90)
     w._rebuild()
     w.pause()
     w.resume()
@@ -987,18 +973,16 @@ def test_closing_the_main_window_with_the_wizard_open(tk_root):
     import tkinter as tk
 
     root = tk.Toplevel(tk_root)  # stands in for the main window
-    fake = FakeAdapter(sources=("COM3", None), settings=_settings(gui_NEXT=False, gui_LEAP=True))
+    fake = FakeAdapter(sources=("COM3", None))
     fake.states["left"] = "connected"
-    fake.configs["left"].roi_window_w = 0
     w = sw.SetupWizard(root, fake)
     w.next()  # language
     w.next()
-    w.show_step(sw.STEP_CHECK)
-    w.crop_full_btn.invoke()
+    w.show_step(sw.STEP_ROTATE)
     root.destroy()
     # Late background results after the main window is gone must not raise.
     fake.scans[0]({LEFT_URL: LEFT_URL}, True)
-    fake.frame_requests[0][1]((480, 640, 3))
+    fake.picture_requests[0][1](np.zeros((48, 64, 3), np.uint8))
     w._on_scan_update(w._scan_gen, {}, True)
     w._poll()
     assert not w.is_open()
@@ -1096,8 +1080,8 @@ def test_first_run_opens_on_the_wizard_page(tk_root, monkeypatch):
     _assert_page_showing(win2, "tracking", paused=False)
 
 
-def test_crop_pauses_and_continue_setup_resumes_at_the_same_step(tk_root):
-    win = _MainWindow(tk_root, settings=_settings(gui_NEXT=False, gui_LEAP=True))
+def test_another_page_pauses_and_continue_setup_resumes_at_the_same_step(tk_root):
+    win = _MainWindow(tk_root)
     win.show_page("wizard")
     w = win.wizard_page.wizard
     fake = win.adapters[0]
@@ -1107,12 +1091,10 @@ def test_crop_pauses_and_continue_setup_resumes_at_the_same_step(tk_root):
     w.swap()  # a choice to keep
     w.next()
     assert fake.calls[-1] == ("apply_sources", "COM4", "COM3")
-    assert w.step == sw.STEP_CHECK
-    assert _shown(w.crop_adjust_btn)
+    assert w.step == sw.STEP_ROTATE
+    assert w._poll_id is not None  # the live pictures
 
-    w.crop_adjust_btn.invoke()
-    assert fake.calls[-1] == ("open_crop_mode",)
-    # The Tracking page in cropping mode, with the navigation back.
+    win.show_page("tracking")  # other code opening a page
     _assert_page_showing(win, "tracking", paused=True)
     assert w.is_open() and w.paused
     assert w._poll_id is None  # nothing polls a hidden page
@@ -1121,8 +1103,7 @@ def test_crop_pauses_and_continue_setup_resumes_at_the_same_step(tk_root):
     win.button.invoke()  # Continue setup
     assert win.wizard_page.wizard is w
     _assert_wizard_showing(win, w)
-    assert w.step == sw.STEP_CHECK
-    assert fake.calls[-1] == ("leave_crop_mode",)
+    assert w.step == sw.STEP_ROTATE
     assert (w.left_var.get(), w.right_var.get()) == ("USB (COM4)", "USB (COM3)")
     assert w._poll_id is not None
     assert len(win.adapters) == 1
@@ -1179,23 +1160,21 @@ def test_a_wizard_that_cannot_open_leaves_the_navigation(tk_root):
 
 
 def test_closing_the_main_window_on_the_wizard_page(tk_root):
-    win = _MainWindow(tk_root, sources=("COM3", None), settings=_settings(gui_NEXT=False, gui_LEAP=True))
+    win = _MainWindow(tk_root, sources=("COM3", None))
     win.show_page("wizard")
     w = win.wizard_page.wizard
     fake = win.adapters[0]
     w.next()  # language
     w.next()
     fake.states["left"] = "connected"
-    fake.configs["left"].roi_window_w = 0
-    w.show_step(sw.STEP_CHECK)
-    w.crop_full_btn.invoke()
-    assert w._after_ids  # the scan watchdog and the poll
+    w.show_step(sw.STEP_ROTATE)
+    assert w._after_ids  # the scan watchdog and the picture poll
     win.top.destroy()
     assert not w.is_open()
     assert w._after_ids == set()  # no timer left to fire into destroyed widgets
     # Late background results and page switches after the window is gone must not raise.
     fake.scans[0]({LEFT_URL: LEFT_URL}, True)
-    fake.frame_requests[0][1]((480, 640, 3))
+    fake.picture_requests[0][1](np.zeros((48, 64, 3), np.uint8))
     w._on_scan_update(w._scan_gen, {}, True)
     w._poll()
     w.pause()

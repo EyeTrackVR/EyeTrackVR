@@ -109,7 +109,7 @@ DEFAULT_LID_WIDEN_THRESHOLD = 0.9
 #           and a model size (gui_model_size). "<HMD> LITE" variants become
 #           headset <HMD> at size LITE, and TOBII folds into PSVR (one shared
 #           model family).
-CURRENT_CONFIG_VERSION: int = 6
+CURRENT_CONFIG_VERSION: int = 7
 
 
 def _migrate_config_dict(data: dict) -> dict:
@@ -192,6 +192,14 @@ def _migrate_config_dict(data: dict) -> dict:
                     "Migrated config from v5: model %s split into headset + size",
                     " ".join(parts),
                 )
+
+    if stored < 7:
+        # Auto port (OSCQuery) became the default receive mode; it used to be an
+        # opt-in, so configs from before saved it off without anyone choosing that.
+        settings = data.get("settings")
+        if isinstance(settings, dict) and settings.get("gui_osc_oscquery") is False:
+            settings["gui_osc_oscquery"] = True
+            logger.info("Migrated config from v6: receive on an automatic port (OSCQuery)")
 
     data["version"] = CURRENT_CONFIG_VERSION
     return data
@@ -466,8 +474,9 @@ class EyeTrackSettingsConfig(BaseModel):
     gui_update_skip_version: str = ""
     gui_ROSC: bool = False
     # Receive on any free port and let VRChat find it via OSCQuery (mDNS)
-    # instead of gui_osc_receiver_port; falls back to that port on failure.
-    gui_osc_oscquery: bool = False
+    # instead of gui_osc_receiver_port. Only with VRChat on this PC: one on
+    # another machine, or OSCQuery failing to start, gets the fixed port.
+    gui_osc_oscquery: bool = True
     gui_circular_crop_right: bool = False
     gui_circular_crop_left: bool = False
     ibo_filter_samples: int = 400
@@ -584,6 +593,8 @@ class EyeTrackSettingsConfig(BaseModel):
     # localization.init_localization(); changing it in the GUI prompts a
     # restart. See localization.py.
     gui_language: str = "en"
+    # Light theme instead of the default dark one (ui_theme); applied at startup.
+    gui_light_mode: bool = False
 
     @model_validator(mode="before")
     @classmethod

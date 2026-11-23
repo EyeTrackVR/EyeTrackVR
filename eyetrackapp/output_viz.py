@@ -9,6 +9,7 @@ import numpy as np
 from eye import EyeInfo
 from eye_processor import EyeInfoOrigin
 from localization import tr
+from ui_theme import color
 
 
 # Full-size width at 100% DPI; the main tracking page uses exactly this.
@@ -37,7 +38,7 @@ class OutputVisualizer:
         # so the main page is unchanged and smaller copies shrink in proportion.
         self.u = width / (BASE_WIDTH * dpi_scale)
         self._item_ids = None
-        self.canvas = tk.Canvas(parent, width=self.width, height=self.height, bg="#1e1f23", highlightthickness=0)
+        self.canvas = tk.Canvas(parent, width=self.width, height=self.height, bg=color("bg"), highlightthickness=0)
 
     def hide(self) -> None:
         """Hide all visualization items inside the canvas without unpacking the canvas."""
@@ -51,19 +52,21 @@ class OutputVisualizer:
             return
         c = self.canvas
         W, H = self.width, self.height
-        fail_bg = "#3a2428"
-        fail_fg = "#ff9aaa"
-        bg = "#1e1f23"
-        panel = "#2a2c33"
-        panel_border = "#454859"
-        cross = "#3d4049"
-        track_fill = "#32353d"
-        track_border = "#4a4e5c"
-        blink_fill_col = "#c4a5ff"
-        brow_fill_col = "#a5d6ff"
-        tick = "#6d7285"
-        dot = "#f4f2ff"
-        ring_col = "#b49cff"
+        # The app theme's colours (ui_theme): the page background, raised panels,
+        # the eyelid bar and pupil ring in the accent, the eyebrow bar a quieter shade.
+        fail_bg = color("fail_bg")
+        fail_fg = color("fail_fg")
+        bg = color("bg")
+        panel = color("surface")
+        panel_border = color("border")
+        cross = color("grid")
+        track_fill = color("surface")
+        track_border = color("border")
+        blink_fill_col = color("accent")
+        brow_fill_col = color("brow")
+        tick = color("muted")
+        dot = color("gaze_dot")
+        ring_col = color("accent")
         c.configure(bg=bg)
         self._item_ids = {
             "fail_bg": c.create_rectangle(0, 0, W, H, outline="", fill=fail_bg, tags="viz_fail"),
@@ -143,7 +146,7 @@ class OutputVisualizer:
         c.coords(ids["tick_brow_b"], ex0 + ew // 2 - t, by0 + bh - inset, ex0 + ew // 2 + t, by0 + bh - inset)
 
     def draw(self, eye_info: EyeInfo) -> None:
-        """Dark-mode compact gaze dot + vertical blink bar (right)."""
+        """Compact gaze dot, then the vertical eyelid and eyebrow bars (right)."""
         self._ensure_items()
         c = self.canvas
         ids = self._item_ids

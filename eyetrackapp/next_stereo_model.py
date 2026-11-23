@@ -493,6 +493,12 @@ class StereoNextCoordinator:
             self._ver[eye_id] += 1
             self._submitted.notify_all()
 
+    def reset_eye(self, eye_id) -> None:
+        """Drop this eye's frame history (its camera picture changed, e.g. a new
+        rotation): the temporal stack must not mix the old and new pictures."""
+        with self._state_lock:
+            self._hist[eye_id].clear()
+
     def peer_active(self, eye_id) -> bool:
         """True when the other eye is streaming, i.e. two eyes are connected and
         the stereo model should be driving both of them."""

@@ -17,6 +17,7 @@ import time
 from localization import tr
 
 from .client import Paused, origin
+from ui_theme import color
 
 
 def verified_reply(result, nonce):
@@ -100,7 +101,7 @@ def run_helper(service, port, nonce):
         width=620,
         height=480,
         min_size=(480, 380),
-        background_color="#20242b",
+        background_color=color("text_bg"),
         text_select=False,
     )
     from .native import asset, dark_titlebar

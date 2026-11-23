@@ -16,6 +16,7 @@ from next_model import (
     MODEL_SIZES,
     split_variant,
 )
+from ui_theme import color
 
 logger = logging.getLogger(__name__)
 
@@ -144,18 +145,6 @@ class TrackingAlgorithmModule(BaseSettingsModule):
         lids_brows_cb.grid(row=2, column=0, columnspan=3, sticky="w", padx=8, pady=(2, 4))
         attach_tooltip(lids_brows_cb, tr("algo_tracking.next_calib_lids_brows_tip"))
 
-        # The other Smart Calib option: opt out of keeping each run's numbers
-        # in the log folder (next_smartcal.save_recording).
-        recording_var = tk.BooleanVar(value=bool(getattr(self.config, "gui_NEXT_smartcal_recording", True)))
-        self.tk_vars[self.gui_NEXT_smartcal_recording] = recording_var
-        recording_cb = ttk.Checkbutton(
-            parent,
-            text=tr("algo_tracking.next_smartcal_recording"),
-            variable=recording_var,
-        )
-        recording_cb.grid(row=3, column=0, columnspan=3, sticky="w", padx=8, pady=(2, 4))
-        attach_tooltip(recording_cb, tr("algo_tracking.next_smartcal_recording_tip"))
-
         # Left/right sync: one slider per channel, in the speed slider's grid.
         for row, field, label in (
             (4, "gui_NEXT_lid_sync", "next_lid_sync"),
@@ -177,13 +166,6 @@ class TrackingAlgorithmModule(BaseSettingsModule):
 
         # Per-eye gaze for strabismus / amblyopia (fused by default).
         self._build_gaze_mode(parent, row=6)
-
-        # Off by default: only for users whose vertical gaze breaks when squinting.
-        squint_var = tk.BooleanVar(value=bool(getattr(self.config, "gui_NEXT_squint_y_hold", False)))
-        self.tk_vars[self.gui_NEXT_squint_y_hold] = squint_var
-        squint_cb = ttk.Checkbutton(parent, text=tr("algo_tracking.next_squint_y_hold"), variable=squint_var)
-        squint_cb.grid(row=7, column=0, columnspan=6, sticky="w", padx=8, pady=(2, 4))
-        attach_tooltip(squint_cb, tr("algo_tracking.next_squint_y_hold_tip"))
 
         # NEXT model: headset family plus a size slider (lightest -> best).
         model_frame = ttk.Frame(parent)
@@ -265,7 +247,7 @@ class TrackingAlgorithmModule(BaseSettingsModule):
         size_lbl = ttk.Label(parent, text=tr("algo_tracking.model_size"))
         size_lbl.grid(row=0, column=2, sticky="w", padx=(16, 4))
         attach_tooltip(size_lbl, tr("algo_tracking.model_size_tip"))
-        ttk.Label(parent, text=tr("algo_tracking.model_size_lightest"), foreground="#888888").grid(
+        ttk.Label(parent, text=tr("algo_tracking.model_size_lightest"), foreground=color("muted")).grid(
             row=0, column=3, sticky="e", padx=(0, 2)
         )
         index_var = tk.DoubleVar(value=MODEL_SIZES.index(size))
@@ -280,7 +262,7 @@ class TrackingAlgorithmModule(BaseSettingsModule):
         )
         scale.grid(row=0, column=4, sticky="w")
         attach_tooltip(scale, tr("algo_tracking.model_size_tip"))
-        ttk.Label(parent, text=tr("algo_tracking.model_size_best"), foreground="#888888").grid(
+        ttk.Label(parent, text=tr("algo_tracking.model_size_best"), foreground=color("muted")).grid(
             row=0, column=5, sticky="w", padx=(2, 6)
         )
         value_lbl = ttk.Label(parent, width=8)
@@ -333,7 +315,29 @@ class TrackingAlgorithmModule(BaseSettingsModule):
         ttk.Label(parent, text=tr("algo_tracking.advanced_heading")).grid(
             row=0, column=0, columnspan=4, sticky="w", padx=8, pady=(2, 2)
         )
-        self._render_radio_grid(parent, self._advanced_entries, ncol=3, row_offset=1)
+        positions = self._render_radio_grid(parent, self._advanced_entries, ncol=3, row_offset=1)
+        row = max((r for r, _c in positions.values()), default=0) + 1
+
+        # NEXT options few people need. Built here eagerly like everything under
+        # Advanced, so their tk vars exist for validation and saving.
+        # Smart Calib: opt out of keeping each run's numbers in the log folder
+        # (next_smartcal.save_recording).
+        recording_var = tk.BooleanVar(value=bool(getattr(self.config, "gui_NEXT_smartcal_recording", True)))
+        self.tk_vars[self.gui_NEXT_smartcal_recording] = recording_var
+        recording_cb = ttk.Checkbutton(
+            parent,
+            text=tr("algo_tracking.next_smartcal_recording"),
+            variable=recording_var,
+        )
+        recording_cb.grid(row=row, column=0, columnspan=4, sticky="w", padx=8, pady=(8, 2))
+        attach_tooltip(recording_cb, tr("algo_tracking.next_smartcal_recording_tip"))
+
+        # Off by default: only for users whose vertical gaze breaks when squinting.
+        squint_var = tk.BooleanVar(value=bool(getattr(self.config, "gui_NEXT_squint_y_hold", False)))
+        self.tk_vars[self.gui_NEXT_squint_y_hold] = squint_var
+        squint_cb = ttk.Checkbutton(parent, text=tr("algo_tracking.next_squint_y_hold"), variable=squint_var)
+        squint_cb.grid(row=row + 1, column=0, columnspan=4, sticky="w", padx=8, pady=2)
+        attach_tooltip(squint_cb, tr("algo_tracking.next_squint_y_hold_tip"))
 
     def _render_radio_grid(self, parent, entries, ncol, row_offset=0) -> dict:
         """Render radio buttons and return {name: (row, col)} for each entry."""

@@ -17,6 +17,7 @@ from localization import tr, tr_english
 from .bundles import MAX_HMD, clean_hmd
 from .client import QUOTA_MESSAGES, ContributionClient, Paused, save, outside_git
 from .verification import verify_in_app
+from ui_theme import color
 
 # Suggestions only: free text stays allowed, and maintainers bin every submission themselves.
 HMD_SUGGESTIONS = (
@@ -55,15 +56,17 @@ FONT_TITLE = ("Segoe UI", -20, "bold")
 FONT_HEADING = ("Segoe UI", -15, "bold")
 FONT_BODY = ("Segoe UI", -14)
 FONT_SMALL = ("Segoe UI", -12)
-MUTED = "#8a93a0"
-ACCENT = "#57c8ff"
-DANGER = "#ff8f8f"
+# The app theme's colours (ui_theme). Read when this module is first imported,
+# which is when a contribution window first opens: after the mode is chosen.
+MUTED = color("muted")
+ACCENT = color("accent")
+DANGER = color("danger")
 # A section lead-in such as "Who we are." or "How long we keep it." at the start of a paragraph.
 SECTION = re.compile(r"([A-Z][A-Za-z' ]{1,40}?)\.\s+(.+)", re.S)
 NOTICE_STYLE = {
-    "background": "#20242b",
-    "foreground": "#d9dfe7",
-    "selectbackground": "#365b80",
+    "background": color("text_bg"),
+    "foreground": color("text_fg"),
+    "selectbackground": color("text_select"),
     "relief": "flat",
     "borderwidth": 0,
     "highlightthickness": 0,
@@ -87,8 +90,8 @@ def style_notice(text):
             text.tag_configure(tag, rmargin=right)
         text.tag_configure("item", lmargin1=4, lmargin2=24, rmargin=right)
 
-    text.tag_configure("title", font=FONT_TITLE, foreground="#ffffff", spacing3=8)
-    text.tag_configure("heading", font=FONT_HEADING, foreground="#ffffff", spacing1=14, spacing3=2)
+    text.tag_configure("title", font=FONT_TITLE, foreground=color("heading"), spacing3=8)
+    text.tag_configure("heading", font=FONT_HEADING, foreground=color("heading"), spacing1=14, spacing3=2)
     text.tag_configure("body", spacing3=6)
     text.tag_configure("item", spacing3=4)
     margins()
@@ -145,7 +148,7 @@ def setup_styles(window):
     # Other long checkbox labels: translations can be much longer than the English text.
     style.configure("Wrap.TCheckbutton", wraplength=600)
     style.configure("Danger.TButton", foreground=DANGER)
-    style.map("Danger.TButton", foreground=[("disabled", "#5f6670")])
+    style.map("Danger.TButton", foreground=[("disabled", color("muted"))])
     style.configure("Contrib.TNotebook.Tab", font=FONT_BODY, padding=(14, 6))
     style.configure("Muted.TLabel", foreground=MUTED)
     style.configure("Small.TLabel", foreground=MUTED, font=FONT_SMALL)
@@ -153,14 +156,14 @@ def setup_styles(window):
 
 
 def load_logo(path, size, background):
-    """The logo is a white mark on an opaque black square; draw the mark on the window background."""
+    """The logo on its rounded dark tile (ui_theme.logo_tile), over the window background."""
     try:
-        from PIL import Image, ImageTk
+        from PIL import ImageTk
 
-        mark = Image.open(path).convert("L").resize((size, size), Image.LANCZOS)
-        image = Image.new("RGB", (size, size), background)
-        image.paste((255, 255, 255), (0, 0), mark)
-        return ImageTk.PhotoImage(image)
+        from ui_theme import is_light, logo_tile
+
+        # On the dark theme the tile is the page colour, so padding would only shrink the mark.
+        return ImageTk.PhotoImage(logo_tile(path, size, background, padding=0.14 if is_light() else 0.04))
     except Exception:
         return None
 
@@ -253,7 +256,9 @@ class ContributionWindow:
         header = ttk.Frame(self.window, padding=(24, 16, 24, 12))
         header.grid(row=0, column=0, sticky="ew")
         header.columnconfigure(1, weight=1)
-        background = ttk.Style(self.window).lookup("TFrame", "background") or "#1c1c1c"
+        # The theme's own background (ui_theme): ttk's style lookup can hand back a
+        # Tk object here, which PIL can't draw with.
+        background = color("bg")
         self._logo = load_logo(asset("logo.png"), 40, background)
         if self._logo:
             ttk.Label(header, image=self._logo).grid(row=0, column=0, rowspan=2, padx=(0, 12))

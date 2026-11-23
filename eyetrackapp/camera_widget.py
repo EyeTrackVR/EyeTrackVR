@@ -43,6 +43,7 @@ from utils.img_utils import tk_photo_from_rgb
 from localization import tr
 from output_viz import OutputVisualizer
 import numpy as np
+from ui_theme import color
 
 logger = logging.getLogger(__name__)
 
@@ -242,7 +243,7 @@ class CameraWidget:
             self.tracking_frame,
             width=tw,
             height=th,
-            bg="#1e1f23",
+            bg=color("surface"),
             highlightthickness=0,
             bd=0,
         )
@@ -250,7 +251,7 @@ class CameraWidget:
         self._tracking_image_holder.pack_propagate(False)
         self.tracking_image_widget = tk.Label(
             self._tracking_image_holder,
-            bg="#1e1f23",
+            bg=color("surface"),
             bd=0,
             highlightthickness=0,
         )
@@ -262,7 +263,7 @@ class CameraWidget:
             self.tracking_frame,
             width=_dim,
             height=_dim,
-            bg="#1e1f23",
+            bg=color("surface"),
             highlightthickness=0,
             bd=0,
         )
@@ -270,7 +271,7 @@ class CameraWidget:
         self._eye_preview_holder.pack_propagate(False)
         self._eye_preview_widget = tk.Label(
             self._eye_preview_holder,
-            bg="#1e1f23",
+            bg=color("surface"),
             bd=0,
             highlightthickness=0,
         )
@@ -338,7 +339,7 @@ class CameraWidget:
             self.roi_frame,
             width=self._ROI_CANVAS_MAX_DIM,
             height=self._ROI_CANVAS_MAX_DIM // 2,
-            bg="#424042",
+            bg=color("surface"),
             highlightthickness=0,
         )
         self.roi_canvas.pack(padx=8, pady=4, anchor="w")

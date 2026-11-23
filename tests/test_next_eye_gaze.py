@@ -228,6 +228,7 @@ def _routing_processor(eye, mode, dominant="left"):
     processor = EyeProcessor.__new__(EyeProcessor)
     processor.eye_id = eye
     processor.current_raw_frame = np.zeros((64, 80, 3), dtype=np.uint8)
+    processor.config = SimpleNamespace(rotation_angle=0)
     processor.current_image_gray = np.zeros((64, 80), dtype=np.uint8)
     processor.current_capture_ts = 1000.0
     processor.settings = _settings(

@@ -521,7 +521,14 @@ def test_rosc_toggle_releases_and_reclaims_receiver_port(main_config, udp_listen
     s.gui_VRCFTModulePort = _free_udp_port()
 
     no_mdns = functools.partial(VRCFTClient, use_oscquery=False)
-    with mock.patch.object(pyvrcft_sender_module, "VRCFTClient", no_mdns):
+    # The receiver advertises over OSCQuery (VRChat on this PC): no real mDNS here.
+    from osc.oscquery import MDNSResponder
+
+    with (
+        mock.patch.object(pyvrcft_sender_module, "VRCFTClient", no_mdns),
+        mock.patch.object(MDNSResponder, "start", lambda self: None),
+        mock.patch.object(MDNSResponder, "stop", lambda self: None),
+    ):
         manager, msg_queue = _start_manager(main_config)
         try:
             assert _wait_for(lambda: _started_pyvrcft(manager) is not None)

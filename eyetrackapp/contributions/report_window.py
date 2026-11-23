@@ -19,6 +19,7 @@ from localization import tr
 
 from .client import ContributionClient, Paused, issue_home
 from .window import ACCENT, FONT_HEADING, FONT_TITLE, MUTED, NOTICE_STYLE, render_notice, setup_styles, style_notice
+from ui_theme import color
 
 logger = logging.getLogger(__name__)
 
@@ -135,9 +136,9 @@ class ReportWindow:
             wrap="word",
             font=NOTICE_STYLE["font"],
             undo=True,
-            background="#20242b",
-            foreground="#f1f4f8",
-            insertbackground="#f1f4f8",
+            background=color("text_bg"),
+            foreground=color("text_fg"),
+            insertbackground=color("text_fg"),
             relief="flat",
             padx=12,
             pady=10,

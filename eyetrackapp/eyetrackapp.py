@@ -71,6 +71,7 @@ import webbrowser
 import tkinter as tk
 from tkinter import ttk
 import sv_ttk
+import ui_theme
 import queue
 import threading
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -378,7 +379,8 @@ def main():
                     self.root.iconphoto(True, self._icon_photo)
             except Exception:
                 logger.debug("Could not set the window icon", exc_info=True)
-            sv_ttk.set_theme("dark")
+            # Light or dark (Settings > Light mode), chosen once here: switching asks for a restart.
+            sv_ttk.set_theme(ui_theme.set_light(bool(getattr(config.settings, "gui_light_mode", False))))
             if is_nt and self._dpi_scale > 1.05:
                 try:
                     import tkinter.font as tkfont
@@ -456,13 +458,40 @@ def main():
             self.content = ttk.Frame(self.root)
             self.content.pack(fill="both", expand=True, padx=8, pady=(0, 16))
 
-            self.tracking_tab = ttk.Frame(self.content)
+            from scroll_page import ScrollPage
+
+            # Each page scrolls once the window is too short for it.
+            self.tracking_page = ScrollPage(self.content)
+            self.tracking_tab = ttk.Frame(self.tracking_page.body)
+            self.tracking_tab.pack(fill="both", expand=True)
+
+            def scrolling(name, widget, build):
+                # The page, and its Advanced page ("<name>_advanced"): a full page
+                # in place of the others, without the navigation, like the setup
+                # wizard. Its Back button returns to the page.
+                page = ScrollPage(self.content)
+                advanced = ScrollPage(self.content)
+                widget.advanced_parent = advanced.body
+                widget.open_advanced = lambda: self.show_page(f"{name}_advanced")
+                widget.close_advanced = lambda: self.show_page(name)
+                build(page.body).pack(fill="both", expand=True)
+                if widget.advanced_frame is not None:
+                    widget.advanced_frame.pack(fill="both", expand=True)
+                    self._page_frames[f"{name}_advanced"] = advanced
+                else:
+                    advanced.destroy()
+                return page
+
             # Settings pages are built the first time they open: building all
             # three up front cost ~0.4 s and two thirds of the startup widgets.
             self._page_builders = {
-                "settings": lambda: settings[0].build(self.content),
-                "algo": lambda: settings[1].build(self.content, eye_widgets=eyes, dpi_scale=self._dpi_scale),
-                "vrcft": lambda: settings[2].build(self.content),
+                "settings": lambda: scrolling("settings", settings[0], settings[0].build),
+                "algo": lambda: scrolling(
+                    "algo",
+                    settings[1],
+                    lambda body: settings[1].build(body, eye_widgets=eyes, dpi_scale=self._dpi_scale),
+                ),
+                "vrcft": lambda: scrolling("vrcft", settings[2], settings[2].build),
             }
             self._page_frames = {}
 
@@ -494,7 +523,7 @@ def main():
                 text=tr("issues.header_issues"),
                 font=_issues_hdr_font,
                 bg=_hdr_bg,
-                fg="#e8e8e8",
+                fg=ui_theme.color("fg"),
             ).pack(anchor="w", pady=(0, 6))
             ttk.Label(
                 _issues_content,
@@ -507,7 +536,7 @@ def main():
                 text=tr("issues.header_improve"),
                 font=_issues_hdr_font,
                 bg=_hdr_bg,
-                fg="#e8e8e8",
+                fg=ui_theme.color("fg"),
             ).pack(anchor="w", pady=(0, 6))
             ttk.Label(
                 _issues_content,
@@ -540,7 +569,7 @@ def main():
                 text=tr("issues.header_bug"),
                 font=_issues_hdr_font,
                 bg=_hdr_bg,
-                fg="#e8e8e8",
+                fg=ui_theme.color("fg"),
             ).pack(anchor="w", pady=(16, 6))
             ttk.Label(
                 _issues_content,
@@ -602,7 +631,7 @@ def main():
             # ``uvc:<name>@<address>`` strings, which the capture thread
             # re-resolves to a live cv2 index every loop.
             self.left_camera_entry = ttk.Combobox(
-                tracking_controls, textvariable=self.left_camera_var, values=(), foreground="#e0e0e0"
+                tracking_controls, textvariable=self.left_camera_var, values=(), foreground=ui_theme.color("fg")
             )
             self.left_camera_entry.pack(fill="x", pady=(0, 8))
             attach_tooltip(
@@ -611,7 +640,7 @@ def main():
             )
             self.right_camera_label = ttk.Label(tracking_controls, text=tr("tracking.right_source"))
             self.right_camera_entry = ttk.Combobox(
-                tracking_controls, textvariable=self.right_camera_var, values=(), foreground="#e0e0e0"
+                tracking_controls, textvariable=self.right_camera_var, values=(), foreground=ui_theme.color("fg")
             )
             self.right_camera_label.pack(anchor="w", pady=(0, 2))
             self.right_camera_entry.pack(fill="x", pady=(0, 8))
@@ -874,7 +903,7 @@ def main():
                 "settings": settings[0],
                 "algo": settings[1],
                 "vrcft": settings[2],
-            }.get(self.current_page)
+            }.get(self.current_page.removesuffix("_advanced"))
 
         def _active_settings_reset_config(self):
             widget = self._active_settings_widget()
@@ -892,18 +921,26 @@ def main():
                 btn.configure(style="Accent.TButton" if page_id == self.current_page else "TButton")
 
         def _apply_initial_window_geometry(self):
-            # Leave enough room for the fixed sidebar and both eye panels at
-            # common 1440p Windows scaling; 880 clipped the right-eye panel on
-            # some 27-inch displays. Do not keep enlarging the default-width
-            # floor above 125% DPI, though, or it becomes excessive on 4K. The
-            # requested size can still grow it when content genuinely needs it.
+            # Just wide enough for the Tracking page (the fixed sidebar and both
+            # eye panels, about 924 px at 100%). The eye panels reach full width
+            # only after the window is up, so the size requested now is short of
+            # it; the floor avoids a visible jump. Cropping mode and the ET debug
+            # images need more: _grow_to_fit widens the window for them.
             self.root.update_idletasks()
             s = self._dpi_scale
-            width_scale = min(s, 1.25)
-            min_w, min_h = round(1120 * width_scale), round(660 * s)
+            min_w, min_h = round(940 * s), round(660 * s)
             w = max(self.root.winfo_reqwidth(), min_w)
             h = max(self.root.winfo_reqheight(), min_h)
             self.root.geometry(f"{w}x{h}")
+
+        def _grow_to_fit(self):
+            """Widen the window when the Tracking page needs more room than it has:
+            cropping mode and the ET debug images make the eye panels wider than
+            the default width allows. Never narrows it."""
+            need = min(self.root.winfo_reqwidth(), self.root.winfo_screenwidth())
+            have = self.root.winfo_width()
+            if have > 1 and need > have:
+                self.root.geometry(f"{need}x{self.root.winfo_height()}")
 
         def set_openvr_autostart(self, value):
             # The settings page may not be built yet; it then reads config when it opens.
@@ -1235,10 +1272,16 @@ def main():
                 page_name = "settings"
             if page_name == "data" and not self._data_collection.build():
                 page_name = "tracking"
+            # "<page>_advanced": that settings page's Advanced page, built with it.
+            base_page = page_name.removesuffix("_advanced")
+            if base_page != page_name:
+                self._page_frame(base_page)
+                if page_name not in self._page_frames:
+                    page_name = base_page
             self._nav_teardown_seq += 1
             seq = self._nav_teardown_seq
             self.current_page = page_name
-            for frame in [self.tracking_tab, *self._page_frames.values()]:
+            for frame in [self.tracking_page, *self._page_frames.values()]:
                 frame.pack_forget()
             if self._data_collection.window is not None:
                 self._data_collection.window.pack_forget()
@@ -1248,13 +1291,13 @@ def main():
             if not self._wizard_page.sync(page_name):
                 page_name = self.current_page = "tracking"
 
-            if page_name in ("settings", "algo", "vrcft"):
+            if base_page in ("settings", "algo", "vrcft"):
                 self._settings_actions_row.pack(side="right")
             else:
                 self._settings_actions_row.pack_forget()
 
             if page_name == "tracking":
-                self.tracking_tab.pack(fill="both", expand=True)
+                self.tracking_page.pack(fill="both", expand=True)
                 self._sync_nav_buttons()
                 self.root.update_idletasks()
                 self.root.after(0, lambda s=seq: self._deferred_enter_tracking(s))
@@ -1277,6 +1320,17 @@ def main():
                 # Cameras run as on the Tracking page while the wizard checks them.
                 self.root.update_idletasks()
                 self.root.after(0, lambda s=seq: self._deferred_enter_tracking(s))
+            elif page_name != base_page:
+                # Like the setup wizard: no navigation, its own Back button is the way out.
+                self._nav.pack_forget()
+                self._page_frames[page_name].pack(fill="both", expand=True)
+                self.root.update_idletasks()
+                enter = {
+                    "settings": self._deferred_enter_settings,
+                    "algo": self._deferred_enter_algo,
+                    "vrcft": self._deferred_enter_vrcft,
+                }[base_page]
+                self.root.after(0, lambda s=seq: enter(s))
             elif page_name == "data":
                 # Like the setup wizard: no navigation, its own Close button is the way out.
                 self._nav.pack_forget()
@@ -1667,6 +1721,7 @@ def main():
                     self._sync_next_smartcal_reset_button()
                     self._sync_gaze_preview_button()
                     self._sync_range_check_button()
+                    self._grow_to_fit()
             else:
                 if not self.focus_paused:
                     self.focus_paused = True

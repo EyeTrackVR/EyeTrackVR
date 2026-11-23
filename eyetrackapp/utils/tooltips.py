@@ -22,15 +22,13 @@ from __future__ import annotations
 
 import tkinter as tk
 from tkinter import ttk
+from ui_theme import color
 
 
 # Style applied to the inner label. Configured once on first use against
 # whichever root the first tooltip is attached to; ttk styles are tied to a
 # Tk interpreter, not a specific widget, so this is safe to share.
 _STYLE_NAME = "Tooltip.TLabel"
-_BG = "#1f1f1f"
-_FG = "#e6e6e6"
-_BORDER = "#3a3a3a"
 
 # Set to True after we've configured the shared ttk style on the interpreter.
 _STYLE_READY = False
@@ -44,8 +42,8 @@ def _ensure_style(widget: tk.Misc) -> None:
         style = ttk.Style(widget)
         style.configure(
             _STYLE_NAME,
-            background=_BG,
-            foreground=_FG,
+            background=color("tooltip_bg"),
+            foreground=color("tooltip_fg"),
             padding=(8, 4),
         )
         _STYLE_READY = True
@@ -168,9 +166,9 @@ class Tooltip:
             tip.wm_attributes("-alpha", 0.0)
         except tk.TclError:
             self._alpha_supported = False
-        tip.configure(bg=_BORDER)
+        tip.configure(bg=color("tooltip_border"))
         # 1px outer border in #3a3a3a around the body.
-        inner = tk.Frame(tip, bg=_BG, padx=0, pady=0)
+        inner = tk.Frame(tip, bg=color("tooltip_bg"), padx=0, pady=0)
         inner.pack(padx=1, pady=1)
         label = ttk.Label(
             inner,
