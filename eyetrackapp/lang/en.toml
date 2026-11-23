@@ -65,8 +65,6 @@ scan_btn_tip = "Search for connected cameras: USB webcams (UVC), ETVR serial tra
 # Button: apply/connect camera sources
 connect_btn = "Connect"
 connect_btn_tip = "Apply the current Left/Right values and (re)open the camera streams. Required after typing a value by hand."
-# LabelFrame title for the sidebar status box
-status_frame = "Status"
 # Button: switch both eyes to live tracking
 tracking_mode_btn = "Tracking Mode"
 tracking_mode_btn_tip = "Run the eye-tracking algorithm on both cameras. Use after setting your crop regions in Cropping Mode."
@@ -110,36 +108,21 @@ reset_settings_btn = "Reset settings to default"
 # Popup window title AND the bottom-bar button that opens it
 title = "Having Issues?"
 header_issues = "Having tracking issues?"
-body_issues = "Please ensure your cameras are well lit, focused, rotated and cropped correctly. Please ask in our discord for assistance if needed. We are here to help!"
+body_issues = "Please ensure your cameras are well lit and focused. Please ask in our discord for assistance if needed. We are here to help!"
 header_improve = "Improve your experience"
 body_improve = "Please consider contributing data to our training to improve future models for much better tracking and features. It only takes a few minutes. Every submission helps and we really want data on setups that work poorly, as well as ones that work well. Thank you!"
 data_collection_btn = "Data Collection mode"
 discord_btn = "Discord"
 header_bug = "Found a bug?"
-body_bug = "Send a description and your app log straight to the developers so we can fix it. Reports are encrypted on this computer, only the developers can read them, and they are kept separate from data contributions."
+body_bug = "Send a description and your app log straight to the developers so we can fix it. Reports are encrypted on this computer and only the developers can read them."
 report_bug_btn = "Report a bug"
 close_btn = "Close"
 
 # ---------------------------------------------------------------------------
-# Dynamic status / mode text shown in the tracking sidebar
+# Status messages from the tracking page
 # ---------------------------------------------------------------------------
 [status]
-ready = "Ready."
-scanning = "Scanning UVC, mDNS, and serial sources..."
-# Placeholder shown when a scan category found nothing
-scan_none = "none"
-# {prefix} = ready results so far, {pending} = source names still in flight
-scan_pending = "{prefix}Scanning {pending}..."
-scan_detected = "Detected mDNS: {mdns} | Serial: {serial} | UVC: {uvc}"
-mode_dual = "Mode: Dual-eye tracking"
-tracking_both = "Tracking both eyes."
-mode_single_left = "Mode: Single-eye (left)"
-tracking_left = "Tracking left eye only."
-mode_single_right = "Mode: Single-eye (right)"
-tracking_right = "Tracking right eye only."
-mode_none = "Mode: No active camera"
-enter_source = "Enter at least one camera source."
-# Shown for a few seconds when a headset check is asked for while the overlay shows something else
+# Shown when a headset check is asked for while the overlay shows something else
 overlay_busy = "The headset overlay is busy. Stop the calibration or preview, or wait for it to finish, then try again."
 
 # ---------------------------------------------------------------------------

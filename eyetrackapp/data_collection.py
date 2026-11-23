@@ -178,8 +178,15 @@ class _SessionRecorder:
 
 
 class DataCollectionWindow(OverlayPassesMixin):
-    def __init__(self, parent, eyes):
+    """Data collection: records the eye cameras for the contribution flow
+    (contributions/window.py), which shows as a page of the main window.
+
+    The main window packs ``window`` into ``parent`` (its page area) after
+    build(); the flow's Close button calls ``on_close`` to leave the page."""
+
+    def __init__(self, parent, eyes, on_close=None):
         self.parent = parent
+        self._on_close = on_close
         self.eyes = eyes
         self.session_running = False
         self.session_cancel = threading.Event()
@@ -204,15 +211,16 @@ class DataCollectionWindow(OverlayPassesMixin):
     def _create_window(self):
         from contributions.window import ContributionWindow
 
-        self._contributions = ContributionWindow(self.parent, capture_controller=self)
+        self._contributions = ContributionWindow(self.parent, capture_controller=self, on_hide=self._hide)
         self.window = self._contributions.window
         self._status_var = self._contributions.capture_status
         self._start_btn = self._contributions.record_button
         self._stop_btn = self._contributions.stop_record_button
-        self.window.withdraw()
         self._poll_gui_queue()
 
-    def show(self):
+    def build(self) -> bool:
+        """Build the page the first time it is wanted. False when it can't be
+        (the user has been told why)."""
         if self._contributions is None:
             try:
                 self._create_window()
@@ -224,17 +232,19 @@ class DataCollectionWindow(OverlayPassesMixin):
                     tr("data_collection.storage_error"),
                     parent=self.parent,
                 )
-                return
-        self.window.deiconify()
-        self.window.update_idletasks()
-        width, height = self.window.winfo_width(), self.window.winfo_height()
-        x = self.parent.winfo_rootx() + max(0, (self.parent.winfo_width() - width) // 2)
-        y = self.parent.winfo_rooty() + max(0, (self.parent.winfo_height() - height) // 2)
-        x = max(0, min(x, self.window.winfo_screenwidth() - width))
-        y = max(0, min(y, self.window.winfo_screenheight() - height - 60))
-        self.window.geometry(f"+{x}+{y}")
-        self.window.lift()
-        self.window.focus_set()
+                return False
+        return True
+
+    def show(self):
+        """Pack the page into ``parent``. The main window does this itself, from show_page()."""
+        if self.build():
+            self.window.pack(fill="both", expand=True)
+
+    def _hide(self):
+        if self._on_close is not None:
+            self._on_close()
+        else:
+            self.window.pack_forget()
 
     def close(self):
         if self._contributions is not None:

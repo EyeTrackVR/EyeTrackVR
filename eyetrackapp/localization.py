@@ -42,7 +42,7 @@ Usage::
     from localization import tr, init_localization
     init_localization("es")          # once, before building the UI
     label = tr("settings_general.use_gpu")   # -> "Usar aceleración por GPU"
-    status = tr("status.scan_pending", prefix="", pending="UVC")  # {prefix}/{pending} placeholders
+    status = tr("dfr.current_game", name="VRChat")  # {name} placeholder
 """
 
 from __future__ import annotations

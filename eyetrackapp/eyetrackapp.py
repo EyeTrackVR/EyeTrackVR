@@ -384,6 +384,8 @@ def main():
                     import tkinter.font as tkfont
 
                     for name in tkfont.names(root=self.root):
+                        if name.startswith("SunValley"):
+                            continue  # etvr-ttk-theme >= 2.8 scales its own fonts from tk scaling
                         try:
                             f = tkfont.nametofont(name, root=self.root)
                             size = f.cget("size")
@@ -437,7 +439,9 @@ def main():
             self._source_display_map: dict[str, str] = {}
 
             nav = ttk.Frame(self.root)
-            nav.pack(fill="x", padx=16, pady=(16, 4))
+            self._nav = nav
+            self._nav_pack = {"fill": "x", "padx": 16, "pady": (16, 4)}
+            nav.pack(**self._nav_pack)
             self._nav_buttons = {}
             for page_id, label in (
                 ("tracking", tr("nav.tracking")),
@@ -473,7 +477,11 @@ def main():
             # Themed on first show: a withdrawn Toplevel has no native frame yet.
             self._issues_popup_themed = False
 
-            self._data_collection_popup = DataCollectionWindow(self.root, eyes)
+            # show_page("data"): data collection in place of the pages, without the
+            # navigation (like the setup wizard). Its Close button returns to Tracking.
+            self._data_collection = DataCollectionWindow(
+                self.content, eyes, on_close=lambda: self.show_page("tracking")
+            )
 
             _issues_hdr_font = ("Segoe UI", 12, "bold")
             _hdr_bg = self._issues_popup.cget("background")
@@ -512,7 +520,7 @@ def main():
 
             def _launch_data_collection():
                 self._on_issues_popup_close()
-                self._toggle_data_collection_popup()
+                self._open_data_collection()
 
             def _open_discord():
                 webbrowser.open("https://discord.gg/kkXYbVykZX")
@@ -545,9 +553,12 @@ def main():
                 self._on_issues_popup_close()
                 self._show_bug_report()
 
-            ttk.Button(_issues_content, text=tr("issues.report_bug_btn"), command=_launch_bug_report).pack(
-                anchor="w", pady=(0, 8)
-            )
+            ttk.Button(
+                _issues_content,
+                text=tr("issues.report_bug_btn"),
+                command=_launch_bug_report,
+                style="Accent.TButton",
+            ).pack(anchor="w", pady=(0, 8))
             self._bug_report = None
 
             _issues_close_row = ttk.Frame(self._issues_popup)
@@ -688,24 +699,6 @@ def main():
             # show_page("wizard"): the setup wizard in place of the pages, without the navigation.
             self._wizard_page = WizardPage(self.content, nav, setup_wizard_btn, lambda: AppAdapter(self, config, eyes))
 
-            status_group = ttk.LabelFrame(sidebar_inner, text=tr("tracking.status_frame"), padding=8)
-            status_group.pack(fill="both", expand=True)
-            self.mode_label_var = tk.StringVar(value="")
-            self.status_var = tk.StringVar(value=tr("status.ready"))
-            ttk.Label(
-                status_group,
-                textvariable=self.status_var,
-                wraplength=240,
-                justify="left",
-                anchor="w",
-            ).pack(anchor="w", fill="x")
-            ttk.Label(
-                status_group,
-                textvariable=self.mode_label_var,
-                wraplength=240,
-                justify="left",
-            ).pack(anchor="w", pady=(6, 0))
-
             # Global mode toggle: flips both eyes between Tracking and
             # Cropping at once. Per-eye buttons used to live inside each
             # camera widget; users always wanted them paired.
@@ -839,7 +832,7 @@ def main():
             bottom.pack(fill="x", padx=8, pady=4)
             ttk.Button(bottom, text=tr("issues.title"), command=self._toggle_issues_popup).pack(side="left")
             ttk.Button(
-                bottom, text=tr("tracking.contribute_data_btn"), command=self._toggle_data_collection_popup
+                bottom, text=tr("tracking.contribute_data_btn"), command=self._open_data_collection
             ).pack(side="left", padx=(10, 0))
             self.focus_label = ttk.Label(bottom, text=tr("tracking.interface_paused"))
             self.focus_label.pack(side="left", padx=12)
@@ -1085,7 +1078,6 @@ def main():
 
         def scan_sources(self, on_update=None):
             """on_update(source_map, done), if given, runs on the Tk thread after each partial result."""
-            self.status_var.set(tr("status.scanning"))
             # A scan is a request for the devices plugged in now, not the cached list.
             invalidate_uvc_camera_cache(force=True)
 
@@ -1149,24 +1141,7 @@ def main():
                         if cur in encoded_to_label:
                             var.set(encoded_to_label[cur])
 
-                    pending = [k.upper() for k, v in results.items() if v is None]
-                    if pending:
-                        ready_parts = []
-                        if results["uvc"] is not None:
-                            ready_parts.append(f"UVC: {', '.join(uvc_display_values) or tr('status.scan_none')}")
-                        if results["mdns"] is not None:
-                            ready_parts.append(f"mDNS: {', '.join(mdns_values) or tr('status.scan_none')}")
-                        if results["serial"] is not None:
-                            ready_parts.append(f"Serial: {', '.join(serial_display_values) or tr('status.scan_none')}")
-                        prefix = " | ".join(ready_parts) + (" | " if ready_parts else "")
-                        self.status_var.set(tr("status.scan_pending", prefix=prefix, pending=", ".join(pending)))
-                    else:
-                        uvc_hint = ", ".join(uvc_display_values) or tr("status.scan_none")
-                        mdns_hint = ", ".join(mdns_values) or tr("status.scan_none")
-                        serial_hint = ", ".join(serial_display_values) or tr("status.scan_none")
-                        self.status_var.set(
-                            tr("status.scan_detected", mdns=mdns_hint, serial=serial_hint, uvc=uvc_hint)
-                        )
+                    pending = [k for k, v in results.items() if v is None]
                     if on_update is not None:
                         on_update(dict(source_map), not pending)
 
@@ -1269,8 +1244,6 @@ def main():
                         eyes[1].start()
                 config.settings.tracker_single_eye = 0
                 config.eye_display_id = EyeId.BOTH
-                self.mode_label_var.set(tr("status.mode_dual"))
-                self.status_var.set(tr("status.tracking_both"))
             elif has_left:
                 if not eyes[1].started():
                     eyes[0].camera.set_extra_output_queues([])
@@ -1279,8 +1252,6 @@ def main():
                     eyes[1].start()
                 config.settings.tracker_single_eye = 1
                 config.eye_display_id = EyeId.LEFT
-                self.mode_label_var.set(tr("status.mode_single_left"))
-                self.status_var.set(tr("status.tracking_left"))
             elif has_right:
                 if not eyes[0].started():
                     eyes[0].camera.set_extra_output_queues([])
@@ -1289,15 +1260,11 @@ def main():
                     eyes[0].start()
                 config.settings.tracker_single_eye = 2
                 config.eye_display_id = EyeId.RIGHT
-                self.mode_label_var.set(tr("status.mode_single_right"))
-                self.status_var.set(tr("status.tracking_right"))
             else:
                 eyes[0].stop()
                 eyes[1].stop()
                 config.settings.tracker_single_eye = 0
                 config.eye_display_id = EyeId.BOTH
-                self.mode_label_var.set(tr("status.mode_none"))
-                self.status_var.set(tr("status.enter_source"))
 
             config.save()
             self._sync_timer_resolution()
@@ -1312,11 +1279,17 @@ def main():
             """Switch tabs. Heavy work (camera thread joins, config apply) is deferred so the UI can redraw first."""
             if page_name == "vrcft" and not self._vrcft_module_settings_enabled():
                 page_name = "settings"
+            if page_name == "data" and not self._data_collection.build():
+                page_name = "tracking"
             self._nav_teardown_seq += 1
             seq = self._nav_teardown_seq
             self.current_page = page_name
             for frame in [self.tracking_tab, *self._page_frames.values()]:
                 frame.pack_forget()
+            if self._data_collection.window is not None:
+                self._data_collection.window.pack_forget()
+            if not self._nav.winfo_manager():
+                self._nav.pack(**self._nav_pack, before=self.content)
             # Shows or pauses the setup wizard; hides the navigation while it shows.
             if not self._wizard_page.sync(page_name):
                 page_name = self.current_page = "tracking"
@@ -1348,6 +1321,13 @@ def main():
                 self.root.after(0, lambda s=seq: self._deferred_enter_vrcft(s))
             elif page_name == "wizard":
                 # Cameras run as on the Tracking page while the wizard checks them.
+                self.root.update_idletasks()
+                self.root.after(0, lambda s=seq: self._deferred_enter_tracking(s))
+            elif page_name == "data":
+                # Like the setup wizard: no navigation, its own Close button is the way out.
+                self._nav.pack_forget()
+                self._data_collection.window.pack(fill="both", expand=True)
+                # Cameras run as on the Tracking page so they can be recorded.
                 self.root.update_idletasks()
                 self.root.after(0, lambda s=seq: self._deferred_enter_tracking(s))
 
@@ -1399,8 +1379,9 @@ def main():
             else:
                 self._show_issues_popup()
 
-        def _toggle_data_collection_popup(self):
-            self._data_collection_popup.show()
+        def _open_data_collection(self):
+            if self.current_page != "data":
+                self.show_page("data")
 
         def _show_bug_report(self):
             # Built on first use so startup never pays for it.
@@ -1588,15 +1569,6 @@ def main():
             if self._preview_btn_text.get() != text:
                 self._preview_btn_text.set(text)
 
-        def _show_status_briefly(self, text, ms=5000):
-            """Show ``text`` in the status box, then what it showed before
-            unless something else has replaced it."""
-            previous = self.status_var.get()
-            if previous == text:
-                return
-            self.status_var.set(text)
-            self.root.after(ms, lambda: self.status_var.get() == text and self.status_var.set(previous))
-
         @staticmethod
         def _overlay_run_is(run) -> bool:
             """Whether ``run`` (calibration_state.OVERLAY_RUN_*) has the
@@ -1611,7 +1583,9 @@ def main():
                 return
             if calibration_state.var.overlay_active:
                 # A calibration, the preview or a check already has the overlay.
-                self._show_status_briefly(tr("status.overlay_busy"))
+                from tkinter import messagebox
+
+                messagebox.showinfo("EyeTrackVR", tr("status.overlay_busy"), parent=self.root)
                 return
             eps = [eye.ransac for eye in eyes if eye.started() and getattr(eye, "ransac", None) is not None]
             if eps:

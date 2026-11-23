@@ -166,17 +166,26 @@ def load_logo(path, size, background):
 
 
 class ContributionWindow:
-    def __init__(self, parent, client=None, capture_controller=None):
+    """The contribution flow in its own window, or, given ``on_hide``, as a frame
+    inside ``parent`` (EyeTrackVR's main window shows it as a page). ``on_hide``
+    then runs when the user closes it; the frame is kept for the next visit."""
+
+    def __init__(self, parent, client=None, capture_controller=None, on_hide=None):
         self.client = client or ContributionClient()
         self.capture_controller = capture_controller
         self.capture_active = False
         self._capture_path = None
         self._capture_receipt = None
         self._upload_sid = None
-        self.window = tk.Toplevel(parent)
-        self.window.title(tr("contributions.window_title"))
-        self.window.transient(parent)
-        self.window.protocol("WM_DELETE_WINDOW", self.close)
+        self._on_hide = on_hide
+        self.embedded = on_hide is not None
+        if self.embedded:
+            self.window = ttk.Frame(parent)
+        else:
+            self.window = tk.Toplevel(parent)
+            self.window.title(tr("contributions.window_title"))
+            self.window.transient(parent)
+            self.window.protocol("WM_DELETE_WINDOW", self.close)
         self.events = queue.Queue()
         self.cancel = threading.Event()
         self.busy = False
@@ -197,6 +206,12 @@ class ContributionWindow:
         self.show_step(0)
         self._load_bundled_notice()
         self.refresh_history()
+        if not self.embedded:
+            self._size_window()
+        self._poll_job = self.window.after(50, self.poll)
+        self.run(lambda: ("config", self.client.config()))
+
+    def _size_window(self):
         self.window.update_idletasks()
         # Keep the footer on screen even on a laptop or a scaled desktop.
         width = min(900, max(560, self.window.winfo_screenwidth() - 100))
@@ -228,8 +243,6 @@ class ContributionWindow:
         from .native import decorate
 
         self.window.after(50, lambda: decorate(self.window))
-        self._poll_job = self.window.after(50, self.poll)
-        self.run(lambda: ("config", self.client.config()))
 
     def _build_ui(self):
         from .native import asset
@@ -1053,7 +1066,7 @@ class ContributionWindow:
     def ask_updated_consent(self, terms, event, result):
         dialog = tk.Toplevel(self.window)
         dialog.title(tr("contributions.updated_terms_title"))
-        dialog.transient(self.window)
+        dialog.transient(self.window.winfo_toplevel())
         dialog.grab_set()
         accepted = [tk.BooleanVar(value=False), tk.BooleanVar(value=False)]
         from .native import decorate
@@ -1190,7 +1203,10 @@ class ContributionWindow:
             self.cancel.set()
             self.status.set(tr("contributions.status_pausing"))
             return
-        if self.capture_controller:
+        if self.embedded:
+            # EyeTrackVR's page: it hides the frame and keeps it for the next visit.
+            self._on_hide()
+        elif self.capture_controller:
             # EyeTrackVR owns one reusable dialog for the lifetime of the app.
             self.window.withdraw()
         else:
