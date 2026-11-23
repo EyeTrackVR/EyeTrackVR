@@ -217,6 +217,8 @@ def layer_state() -> LayerState:
 
 
 def steamvr_running() -> bool:
+    if sys.platform not in ("win32", "linux"):
+        return False  # no SteamVR (and no openvr package) on macOS
     from ovr.openvr_service import _vrserver_running
 
     return _vrserver_running()

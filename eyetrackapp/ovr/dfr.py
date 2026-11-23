@@ -333,6 +333,8 @@ def _quad_views_installed() -> bool:
 
 
 def _vrserver_running() -> bool:
+    if sys.platform not in ("win32", "linux"):
+        return False  # no SteamVR (and no openvr package) on macOS
     from ovr.openvr_service import _vrserver_running as running
 
     return running()
