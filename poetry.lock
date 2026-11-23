@@ -463,6 +463,18 @@ files = [
 toml = ["tomli ; python_full_version <= \"3.11.0a6\""]
 
 [[package]]
+name = "etvr-ttk-theme"
+version = "2.7.0"
+description = "A gorgeous theme for Tkinter, based on Windows 11's UI"
+optional = false
+python-versions = ">=3.9"
+groups = ["main"]
+files = [
+    {file = "etvr_ttk_theme-2.7.0-py3-none-any.whl", hash = "sha256:2a14c1a6fd155082abe843862f6fc7f454d13834c42985e37ac9900030b73819"},
+    {file = "etvr_ttk_theme-2.7.0.tar.gz", hash = "sha256:f8477269db0cf90ed0ab4ce2548d7f01bf449ff511f2ee1e36bdc59153c382ab"},
+]
+
+[[package]]
 name = "flatbuffers"
 version = "25.12.19"
 description = "The FlatBuffers serialization format for Python"
@@ -1833,18 +1845,6 @@ files = [
 ]
 
 [[package]]
-name = "sv-ttk"
-version = "2.6.1"
-description = "A gorgeous theme for Tkinter, based on Windows 11's UI"
-optional = false
-python-versions = ">=3.9"
-groups = ["main"]
-files = [
-    {file = "sv_ttk-2.6.1-py3-none-any.whl", hash = "sha256:8ca5944f95431a911986b00c54e7f44608f3f811382cd985fd14bb3e65f95d97"},
-    {file = "sv_ttk-2.6.1.tar.gz", hash = "sha256:47589d5e20398cf404e8362f24f3ed48f3830cd0ace056d83354fa25d8e4fe48"},
-]
-
-[[package]]
 name = "sympy"
 version = "1.14.0"
 description = "Computer algebra system (CAS) in Python"
@@ -1911,4 +1911,4 @@ zstd = ["backports-zstd (>=1.0.0) ; python_version < \"3.14\""]
 [metadata]
 lock-version = "2.1"
 python-versions = "~3.14.0"
-content-hash = "85a68a20a176ee2c7a12d6dabd7a84b8108bddb22882846e6e2f0b9e53d9b7d4"
+content-hash = "57326e5fa52d51e937e66c418a30dac21a89122e29a771f8bc8412dd377c3767"

@@ -19,7 +19,7 @@ PySide6 = { version = "^6.10", platform = "linux" }
 opencv-python = "^4.6.0.66"
 numpy = "~2.3.5"
 pye3d = "^0.3.2"
-sv-ttk = "^2.6.1"
+etvr-ttk-theme = "^2.7.0"
 pydantic = "^2.4.2"
 pyserial = "^3.5"
 pywinstyles = {version = "^1.8.0", platform = "win32"}
