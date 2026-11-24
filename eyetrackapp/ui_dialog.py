@@ -75,7 +75,10 @@ def _show(parent, title: str, message: str, buttons, default: int = -1) -> objec
             focus = button
     window.protocol("WM_DELETE_WINDOW", lambda: answer(buttons[0][1]))
     window.bind("<Escape>", lambda _e: answer(buttons[0][1]))
-    window.bind("<Return>", lambda _e: answer(buttons[default][1]))
+    # Return answers the default. Kept on the window too, so it can be checked
+    # without relying on how each platform delivers a simulated key press.
+    window.answer_default = lambda: answer(buttons[default][1])
+    window.bind("<Return>", lambda _e: window.answer_default())
 
     _place(window, master)
     window.deiconify()
@@ -89,6 +92,10 @@ def _show(parent, title: str, message: str, buttons, default: int = -1) -> objec
         window.grab_set()
     except tk.TclError:
         pass  # another window holds the grab: still usable, just not modal
+    try:
+        window.focus_force()  # keys go to the dialog, not the window behind it
+    except tk.TclError:
+        pass
     if focus is not None:
         focus.focus_set()
     window.wait_window()
