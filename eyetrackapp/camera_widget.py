@@ -211,8 +211,9 @@ class CameraWidget:
         # both eyes calibrate together. _calibration_toggle_btn stays unset and
         # _sync_calibration_toggle_button() no-ops via its getattr guard.
 
+        # Centred above the camera feed, like the feed and the visualizer below it.
         status_row = ttk.Frame(self.tracking_frame)
-        status_row.pack(fill="x", padx=4, pady=2)
+        status_row.pack(padx=4, pady=2, anchor="center")
         self.mode_var = tk.StringVar(value=tr("camera.status_calibrating"))
         self.fps_var = tk.StringVar(value="")
         self.latency_var = tk.StringVar(value="")
@@ -222,9 +223,16 @@ class CameraWidget:
         # eye_processor. Widths sized for the worst-case readouts:
         #   fps     - "120 Fps"     (7 chars)
         #   latency - "999 ms lat"  (10 chars)
-        ttk.Label(status_row, textvariable=self.mode_var, anchor="w").pack(side="left")
-        ttk.Label(status_row, textvariable=self.fps_var, width=8, anchor="w").pack(side="left", padx=(4, 0))
-        ttk.Label(status_row, textvariable=self.latency_var, width=11, anchor="w").pack(side="left", padx=(4, 0))
+        # Long states ("Waiting for SteamVR eye tracking to start") wrap to the
+        # feed's width instead of widening this eye's panel.
+        ttk.Label(
+            status_row, textvariable=self.mode_var, anchor="w", wraplength=round(200 * dpi_scale), justify="left"
+        ).pack(side="left")
+        # Shown only while there is a reading (tracking): empty, their fixed widths
+        # would keep a long status from wrapping to the feed's width.
+        self._fps_label = ttk.Label(status_row, textvariable=self.fps_var, width=8, anchor="w")
+        self._latency_label = ttk.Label(status_row, textvariable=self.latency_var, width=11, anchor="w")
+        self._rates_shown = False
 
         # Source stack from processor is 300×150; compact display for dual-eye layout
         self._tracking_display_size = (round(380 * dpi_scale), round(190 * dpi_scale))
@@ -267,7 +275,8 @@ class CameraWidget:
             highlightthickness=0,
             bd=0,
         )
-        self._eye_preview_holder.pack(padx=4, pady=2, anchor="w")
+        # The camera preview, and below it the visualizer, centred in the eye's panel.
+        self._eye_preview_holder.pack(padx=4, pady=2, anchor="center")
         self._eye_preview_holder.pack_propagate(False)
         self._eye_preview_widget = tk.Label(
             self._eye_preview_holder,
@@ -286,7 +295,8 @@ class CameraWidget:
         self._graph_row = graph_row
         self._output_viz = OutputVisualizer(graph_row, self._viz_canvas_w, dpi_scale)
         self.output_canvas = self._output_viz.canvas
-        self.output_canvas.pack(side="left")
+        # Centred in the row (expand), leaving room beside it for the ROI message.
+        self.output_canvas.pack(side="left", expand=True)
         self.roi_message_var = tk.StringVar(value=tr("camera.roi_prompt"))
         self.roi_message_label = ttk.Label(graph_row, textvariable=self.roi_message_var)
         # roi_message_label is packed/unpacked dynamically in render_tick; the fixed-height
@@ -925,6 +935,14 @@ class CameraWidget:
         if latency_readout != self._last_latency_readout:
             self._last_latency_readout = latency_readout
             self.latency_var.set(latency_readout)
+        rates = bool(fps_readout or latency_readout)
+        if rates != self._rates_shown:
+            self._rates_shown = rates
+            for label in (self._fps_label, self._latency_label):
+                if rates:
+                    label.pack(side="left", padx=(4, 0))
+                else:
+                    label.pack_forget()
 
         self._sync_calibration_toggle_button()
 
@@ -1141,7 +1159,7 @@ class CameraWidget:
                 if self._debug_image_visible != debug_on:
                     self._debug_image_visible = debug_on
                     if debug_on:
-                        self._tracking_image_holder.pack(padx=4, pady=2, anchor="w", before=self._graph_row)
+                        self._tracking_image_holder.pack(padx=4, pady=2, anchor="center", before=self._graph_row)
                     else:
                         self._tracking_image_holder.pack_forget()
 

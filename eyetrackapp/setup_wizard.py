@@ -765,8 +765,11 @@ class SetupWizard:
             side="left", anchor="w"
         )
         self.rotate_none = self._label(page, tr("wizard.rotate_no_camera"), muted=True)
+        # The eyes side by side, each centred in half the page (both in the middle
+        # when only one camera is in use).
         self.rotate_row = ttk.Frame(page)
         self.rotate_row.pack(fill="x")
+        self.rotate_row.columnconfigure((0, 1), weight=1, uniform="eye")
         box = round(_PREVIEW_BOX * (getattr(self.adapter, "dpi_scale", 1.0) or 1.0))
         self._preview_box = box
         self._preview_pending = set()
@@ -1317,7 +1320,7 @@ class SetupWizard:
         for column in self.rotate_cols.values():
             column.grid_forget()
         for index, side in enumerate(sides):
-            self.rotate_cols[side].grid(row=0, column=index, sticky="nw", padx=(0, 32))
+            self.rotate_cols[side].grid(row=0, column=index, columnspan=2 if len(sides) == 1 else 1, sticky="n")
             self.rotate_previews[side].configure(image="", text=tr("wizard.rotate_waiting"))
             self.rotate_previews[side].image = None
         if sides:

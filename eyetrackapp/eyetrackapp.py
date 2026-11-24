@@ -746,16 +746,19 @@ def main():
 
             self.tracking_eyes_row = ttk.Frame(tracking_main)
             # anchor="center": keeps both eye panels as a unit in the middle of
-            # tracking_main rather than stretching them edge-to-edge.
+            # tracking_main rather than stretching them edge-to-edge. The two
+            # panels share one width (uniform columns), so the camera feeds sit
+            # symmetrically and the buttons below centre on them, whatever each
+            # eye's status line says.
             self.tracking_eyes_row.pack(anchor="center")
+            self.tracking_eyes_row.columnconfigure((0, 1), uniform="eye")
             self.left_frame = eyes[1].build(
                 self.tracking_eyes_row, show_camera_controls=False, dpi_scale=self._dpi_scale
             )
             self.right_frame = eyes[0].build(
                 self.tracking_eyes_row, show_camera_controls=False, dpi_scale=self._dpi_scale
             )
-            self.left_frame.pack(side="left", fill="y", padx=(0, 8))
-            self.right_frame.pack(side="left", fill="y", padx=(8, 0))
+            self._show_tracking_frames()
             for eye in eyes:
                 eye.on_capture_source_rebound = self._on_capture_source_rebound
 
@@ -1465,18 +1468,17 @@ def main():
                         eye.recalibrate_eyes()
 
         def _show_tracking_frames(self):
-            self.left_frame.pack_forget()
-            self.right_frame.pack_forget()
-            self.left_frame.pack(side="left", fill="y", padx=(0, 8))
-            self.right_frame.pack(side="left", fill="y", padx=(8, 0))
+            self.left_frame.grid_forget()
+            self.right_frame.grid_forget()
+            self.left_frame.grid(row=0, column=0, sticky="nsew", padx=(0, 8))
+            self.right_frame.grid(row=0, column=1, sticky="nsew", padx=(8, 0))
 
         def _show_crop_frames(self, eye_name: str):
-            self.left_frame.pack_forget()
-            self.right_frame.pack_forget()
-            if eye_name == "left":
-                self.left_frame.pack(side="left", fill="y")
-            else:
-                self.right_frame.pack(side="left", fill="y")
+            self.left_frame.grid_forget()
+            self.right_frame.grid_forget()
+            # One eye at a time: across both columns, centred.
+            frame = self.left_frame if eye_name == "left" else self.right_frame
+            frame.grid(row=0, column=0, columnspan=2, sticky="ns")
 
         def _on_crop_eye_select(self, eye_name: str):
             self._crop_active_eye = eye_name

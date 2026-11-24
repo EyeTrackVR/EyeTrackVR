@@ -121,7 +121,7 @@ class AlgoSettingsWidget(BaseSettingsWidget):
         section = ttk.LabelFrame(self.frame, text=tr("algo_widget.eye_preview"))
         section.pack(fill="x", padx=8, pady=6, anchor="n")
         row = ttk.Frame(section)
-        row.pack(padx=8, pady=(4, 6), anchor="w")
+        row.pack(padx=8, pady=(4, 6), anchor="center")
 
         self._preview_labels = []
         self._preview_photos = []
@@ -129,7 +129,7 @@ class AlgoSettingsWidget(BaseSettingsWidget):
 
         for eye in self._eye_widgets:
             col = ttk.Frame(row)
-            col.pack(side="left", padx=(0, 16))
+            col.pack(side="left", padx=8)
             label_text = tr("algo_widget.left_eye") if eye.eye_id == EyeId.LEFT else tr("algo_widget.right_eye")
             ttk.Label(col, text=label_text).pack(anchor="w", pady=(0, 2))
             pair = ttk.Frame(col)
