@@ -144,7 +144,6 @@ status_frame_eye_tracking_off = "Eye tracking is off in SteamVR settings: turn i
 status_frame_not_ready = "Waiting for SteamVR eye tracking to start"
 status_awaiting_crop = "Awaiting Crop"
 status_calibration = "Calibration"
-status_tracking = "Tracking"
 
 # ---------------------------------------------------------------------------
 # Data Collection window

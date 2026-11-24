@@ -154,8 +154,6 @@ status_frame_not_ready = "Esperando a que se inicie el seguimiento ocular de Ste
 status_awaiting_crop = "Esperando recorte"
 # EN: "Calibration"
 status_calibration = "Calibración"
-# EN: "Tracking"
-status_tracking = "Siguiendo"
 
 [data_collection]
 # EN: "Error: No active cameras running. Start tracking first."

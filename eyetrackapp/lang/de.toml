@@ -154,8 +154,6 @@ status_frame_not_ready = "Warte auf den Start des SteamVR-Eye-Trackings"
 status_awaiting_crop = "Warte auf Zuschnitt"
 # EN: "Calibration"
 status_calibration = "Kalibrierung"
-# EN: "Tracking"
-status_tracking = "Tracking"
 
 [data_collection]
 # EN: "Error: No active cameras running. Start tracking first."

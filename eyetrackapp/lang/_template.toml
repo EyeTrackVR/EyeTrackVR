@@ -191,8 +191,6 @@ status_frame_not_ready = ""
 status_awaiting_crop = ""
 # EN: "Calibration"
 status_calibration = ""
-# EN: "Tracking"
-status_tracking = ""
 
 [data_collection]
 # EN: "Error: No active cameras running. Start tracking first."

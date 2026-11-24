@@ -154,8 +154,6 @@ status_frame_not_ready = "正在等待 SteamVR 眼动追踪启动"
 status_awaiting_crop = "等待裁剪"
 # EN: "Calibration"
 status_calibration = "校准"
-# EN: "Tracking"
-status_tracking = "追踪中"
 
 [data_collection]
 # EN: "Error: No active cameras running. Start tracking first."

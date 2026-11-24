@@ -225,9 +225,11 @@ class CameraWidget:
         #   latency - "999 ms lat"  (10 chars)
         # Long states ("Waiting for SteamVR eye tracking to start") wrap to the
         # feed's width instead of widening this eye's panel.
-        ttk.Label(
+        self._mode_label = ttk.Label(
             status_row, textvariable=self.mode_var, anchor="w", wraplength=round(200 * dpi_scale), justify="left"
-        ).pack(side="left")
+        )
+        self._mode_label.pack(side="left")
+        self._mode_shown = True
         # Shown only while there is a reading (tracking): empty, their fixed widths
         # would keep a long status from wrapping to the feed's width.
         self._fps_label = ttk.Label(status_row, textvariable=self.fps_var, width=8, anchor="w")
@@ -699,7 +701,7 @@ class CameraWidget:
         self._schedule_main_config_save()
 
     def _format_fps(self, fps):
-        return f"{round(fps)} Fps"
+        return f"{round(fps)} FPS"
 
     def _format_latency(self, latency_ms):
         # Tracking pipeline can be sub-ms when algos are light, so show one
@@ -922,7 +924,7 @@ class CameraWidget:
         elif self.ransac.calibration_start_time is not None:
             mode_readout = tr("camera.status_calibration")
         else:
-            mode_readout = tr("camera.status_tracking")
+            mode_readout = ""  # tracking: the FPS and latency say it all
             fps_readout = self._format_fps(self.ransac.output_fps)
             latency_readout = self._format_latency(self.ransac.output_latency_ms)
 
@@ -935,12 +937,21 @@ class CameraWidget:
         if latency_readout != self._last_latency_readout:
             self._last_latency_readout = latency_readout
             self.latency_var.set(latency_readout)
+        # Only what has something to say: no empty label leaves a gap.
+        if bool(mode_readout) != self._mode_shown:
+            self._mode_shown = bool(mode_readout)
+            if self._mode_shown:
+                self._mode_label.pack(side="left", before=self._fps_label if self._rates_shown else None)
+            else:
+                self._mode_label.pack_forget()
         rates = bool(fps_readout or latency_readout)
         if rates != self._rates_shown:
             self._rates_shown = rates
             for label in (self._fps_label, self._latency_label):
                 if rates:
-                    label.pack(side="left", padx=(4, 0))
+                    # The first shown item needs no gap before it.
+                    first = label is self._fps_label and not self._mode_shown
+                    label.pack(side="left", padx=(0 if first else 4, 0))
                 else:
                     label.pack_forget()
 

@@ -154,8 +154,6 @@ status_frame_not_ready = "SteamVR のアイトラッキングの開始を待っ�
 status_awaiting_crop = "クロップ待ち"
 # EN: "Calibration"
 status_calibration = "キャリブレーション"
-# EN: "Tracking"
-status_tracking = "トラッキング中"
 
 [data_collection]
 # EN: "Error: No active cameras running. Start tracking first."
