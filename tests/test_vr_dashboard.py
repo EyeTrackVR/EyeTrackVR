@@ -396,7 +396,6 @@ def test_controller_sends_the_state_once_per_change(tmp_path):
         "available": True,
         "enabled": False,
         "mode": "balanced",
-        "invert_y": False,
         "key": GAME,
     }
     count = len(lines)
@@ -462,23 +461,14 @@ def test_dashboard_switch_turns_dfr_and_the_gaze_output_on_for_the_game_in_front
     c.on_monitor_message({"type": "action", "name": "dfr_mode", "key": GAME, "value": "minimum"})
     c.on_monitor_message({"type": "action", "name": "dfr_mode", "key": GAME, "value": "ludicrous"})
     assert c.config.settings.gui_dfr_games[GAME]["mode"] == "minimum"
-    c.on_monitor_message({"type": "action", "name": "dfr_invert_y", "key": GAME, "value": True})
-    assert c.config.settings.gui_dfr_games[GAME]["invert_y"] is True
-    assert c._monitor_socket.lines[-1]["dfr"]["invert_y"] is True  # the button lights up
 
 
-def test_flip_vertical_button_is_usable_only_while_dfr_is_on():
-    off = by_name(vr_dashboard.layout(state()), "dfr_invert_y")
-    assert not off.enabled
-    current = state(enabled=True)
-    button = by_name(vr_dashboard.layout(current), "dfr_invert_y")
-    assert button.enabled and not button.active and button.value is True
-    assert vr_dashboard.action_for(button, current) == {
-        "type": "action",
-        "name": "dfr_invert_y",
-        "key": GAME,
-        "value": True,
-    }
+def test_panel_has_no_flip_vertical_button():
+    # Flip vertical is set in the app's foveated rendering settings only.
+    names = [b.name for b in vr_dashboard.layout(state(enabled=True))]
+    assert names[:4] == ["recenter", "recalibrate", "gaze_marker", "dfr_enabled"]
+    assert set(names[4:]) == {"dfr_mode"}
+    assert "flip_vertical" not in vr_dashboard.DEFAULT_LABELS
 
 
 def test_a_failing_handler_does_not_stop_the_reader(tmp_path):

@@ -1357,8 +1357,6 @@ dfr_on = "Activado en este juego"
 dfr_off = "Desactivado en este juego"
 # EN: "Gaze marker"
 gaze_marker = "Marcador de mirada"
-# EN: "Flip vertical"
-flip_vertical = "Invertir vertical"
 
 [smartcal]
 # EN: "Calibration saved."

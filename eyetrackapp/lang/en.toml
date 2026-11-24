@@ -876,7 +876,6 @@ dfr_title = "Foveated rendering"
 dfr_on = "On for this game"
 dfr_off = "Off for this game"
 gaze_marker = "Gaze marker"
-flip_vertical = "Flip vertical"
 
 [smartcal]
 # Smart Calib result, shown in the headset after a calibration and logged.

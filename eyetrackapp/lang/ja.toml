@@ -1357,8 +1357,6 @@ dfr_on = "このゲームではオン"
 dfr_off = "このゲームではオフ"
 # EN: "Gaze marker"
 gaze_marker = "視線マーカー"
-# EN: "Flip vertical"
-flip_vertical = "上下を反転"
 
 [smartcal]
 # EN: "Calibration saved."

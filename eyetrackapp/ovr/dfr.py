@@ -813,7 +813,6 @@ class DfrController:
             "dfr_on": tr("dashboard.dfr_on"),
             "dfr_off": tr("dashboard.dfr_off"),
             "gaze_marker": tr("dashboard.gaze_marker"),
-            "flip_vertical": tr("dashboard.flip_vertical"),
         }
         labels.update({f"quality_{mode}": tr(f"dfr.quality_{mode}") for mode in user_modes()})
         return {
@@ -835,7 +834,6 @@ class DfrController:
                 "available": status.state in SWITCHABLE_STATES,
                 "enabled": status.enabled,
                 "mode": status.mode,
-                "invert_y": status.invert_y,
                 "key": status.game_key,
             },
         }
@@ -890,8 +888,6 @@ class DfrController:
             self._ui(switch)
         elif name == "dfr_mode" and value in MODES:
             self._ui(lambda: self.set_game(key, mode=value))
-        elif name == "dfr_invert_y":
-            self._ui(lambda: self.set_game(key, invert_y=bool(value)))
 
     # --------------------------------------------------------- decisions
 

@@ -1357,8 +1357,6 @@ dfr_on = "Für dieses Spiel an"
 dfr_off = "Für dieses Spiel aus"
 # EN: "Gaze marker"
 gaze_marker = "Blickmarker"
-# EN: "Flip vertical"
-flip_vertical = "Vertikal spiegeln"
 
 [smartcal]
 # EN: "Calibration saved."

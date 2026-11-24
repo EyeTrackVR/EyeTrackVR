@@ -1357,8 +1357,6 @@ dfr_on = "此游戏已开启"
 dfr_off = "此游戏已关闭"
 # EN: "Gaze marker"
 gaze_marker = "视线标记"
-# EN: "Flip vertical"
-flip_vertical = "垂直翻转"
 
 [smartcal]
 # EN: "Calibration saved."

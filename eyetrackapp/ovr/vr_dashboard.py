@@ -14,7 +14,6 @@ needs the app's settings, models or cameras.
   here -> app  {"type": "action", "name": "recenter" | "recalibrate"}
                {"type": "action", "name": "dfr_enabled", "key": "steam.app.1", "value": true}
                {"type": "action", "name": "dfr_mode", "key": "steam.app.1", "value": "maximum"}
-               {"type": "action", "name": "dfr_invert_y", "key": "steam.app.1", "value": true}
 
 The gaze marker is handled here alone: a ring in the headset where EyeTrackVR says the
 user is looking, read from the gaze shared memory. It shows whether gaze reaches VR and
@@ -63,7 +62,6 @@ DEFAULT_LABELS = {
     "dfr_title": "Foveated rendering",
     "dfr_on": "On for this game",
     "dfr_off": "Off for this game",
-    "flip_vertical": "Flip vertical",
     "quality_maximum": "Maximum",
     "quality_balanced": "Balanced",
     "quality_minimum": "Minimum",
@@ -103,22 +101,15 @@ def layout(state: dict) -> list[Button]:
     if not state.get("dfr_supported", True):
         return buttons  # per-game foveated rendering is Windows-only
     buttons += [
+        # The game's on/off switch, across the row. (Flip vertical is set in the
+        # app's foveated rendering settings, not here.)
         Button(
             "dfr_enabled",
-            (40, 350, 650, 430),
+            (40, 350, 960, 430),
             labels["dfr_on"] if enabled else labels["dfr_off"],
             enabled=available,
             active=available and enabled,
             value=not enabled,
-        ),
-        # Some engines (Unity) render upside down; the Debug view shows whether to flip.
-        Button(
-            "dfr_invert_y",
-            (666, 350, 960, 430),
-            labels["flip_vertical"],
-            enabled=available and enabled,
-            active=available and enabled and bool(dfr.get("invert_y")),
-            value=not dfr.get("invert_y"),
         ),
     ]
     # The app lists the qualities to offer (release builds have no debug view).
