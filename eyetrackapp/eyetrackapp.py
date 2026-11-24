@@ -390,13 +390,21 @@ def main():
                 try:
                     import tkinter.font as tkfont
 
+                    # Only pixel sizes (negative) need scaling here: point sizes
+                    # already follow tk scaling. The theme's fonts are pixel
+                    # sized; a theme that scales them itself no longer has its
+                    # body font at the stock -14, so leave those alone then.
+                    try:
+                        theme_scaled = tkfont.nametofont("SunValleyBodyFont", root=self.root).cget("size") != -14
+                    except Exception:
+                        theme_scaled = False
                     for name in tkfont.names(root=self.root):
-                        if name.startswith("SunValley"):
-                            continue  # etvr-ttk-theme >= 2.8 scales its own fonts from tk scaling
+                        if theme_scaled and name.startswith("SunValley"):
+                            continue
                         try:
                             f = tkfont.nametofont(name, root=self.root)
                             size = f.cget("size")
-                            if size != 0:
+                            if size < 0:
                                 f.configure(size=round(size * self._dpi_scale))
                         except Exception:
                             logger.debug("Could not scale font %s", name, exc_info=True)
@@ -404,9 +412,8 @@ def main():
                     logger.warning(f"Font scaling failed: {e}")
             # Entries, comboboxes and spinboxes made after the theme's first
             # <<ThemeChanged>> keep Tk's TkTextFont instead of the theme's body
-            # font; on HiDPI the loop above scales that point size a second time
-            # (tk scaling already did), so they came out much larger than the
-            # labels beside them. Make TkTextFont the body font.
+            # font, so they did not match the labels beside them. Make
+            # TkTextFont the body font.
             try:
                 import tkinter.font as tkfont
 
@@ -611,7 +618,7 @@ def main():
             tracking_main = ttk.Frame(tracking_outer)
             tracking_main.pack(side="left", fill="both", expand=True)
 
-            _sidebar_hdr_font = ("Segoe UI", round(10 * self._dpi_scale), "bold")
+            _sidebar_hdr_font = ("Segoe UI", 10, "bold")  # points: tk scaling handles DPI
             # The setup type (ETVR, Bigscreen Beyond, Steam Frame) is picked in the setup wizard.
             _tracking_controls_outer = ttk.Frame(sidebar_inner)
             _tracking_controls_outer.pack(fill="x", pady=(0, 24))
