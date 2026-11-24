@@ -780,13 +780,14 @@ def main():
                 command=self._on_global_calibration_toggle,
                 style="Accent.TButton",
             )
-            self._global_calibration_btn.pack(side="left", padx=(0, 8))
+            # The same margin on every button, so the group's centre is the row's.
+            self._global_calibration_btn.pack(side="left", padx=6)
             attach_tooltip(self._global_calibration_btn, tr("tracking.start_calibration_tip"))
             ttk.Button(
                 actions_inner,
                 text=tr("tracking.recenter_btn"),
                 command=self._on_global_recenter,
-            ).pack(side="left", padx=8)
+            ).pack(side="left", padx=6)
             # Shows the output gaze live in the headset, over a reference dot,
             # so tracking and calibration can be checked without VRChat.
             self._preview_btn_text = tk.StringVar(value=tr("tracking.preview_btn"))
@@ -795,7 +796,7 @@ def main():
                 textvariable=self._preview_btn_text,
                 command=self._on_gaze_preview_toggle,
             )
-            self._preview_btn.pack(side="left", padx=8)
+            self._preview_btn.pack(side="left", padx=6)
             attach_tooltip(self._preview_btn, tr("tracking.preview_btn_tip"))
             # Measures how far out the calibrated NEXT gaze still lands on
             # target, out to the edge of the headset view (see
@@ -823,9 +824,19 @@ def main():
                 tr("tracking.next_smartcal_reset_btn_tip"),
             )
             self._next_smartcal_reset_visible = False
-            ttk.Label(self._tracking_actions, text=tr("tracking.actions_hint"), justify="center", wraplength=640).pack(
-                pady=(8, 0)
+            # As wide as the buttons above it (wrapping, never cut off), centred
+            # under them, with the text left-aligned.
+            actions_hint = ttk.Label(
+                self._tracking_actions, text=tr("tracking.actions_hint"), justify="left", wraplength=400
             )
+            actions_hint.pack(pady=(8, 0), anchor="center")
+
+            def wrap_hint(event):
+                width = max(200, event.width - 12)  # inside the buttons' outer margins
+                if int(str(actions_hint.cget("wraplength"))) != width:
+                    actions_hint.configure(wraplength=width)
+
+            actions_inner.bind("<Configure>", wrap_hint, add="+")
             bottom = ttk.Frame(self.root)
             bottom.pack(fill="x", padx=8, pady=4)
             ttk.Button(bottom, text=tr("issues.title"), command=self._toggle_issues_popup).pack(side="left")
@@ -915,14 +926,15 @@ def main():
                 btn.configure(style="Accent.TButton" if page_id == self.current_page else "TButton")
 
         def _apply_initial_window_geometry(self):
-            # Just wide enough for the Tracking page (the fixed sidebar and both
-            # eye panels, about 924 px at 100%). The eye panels reach full width
-            # only after the window is up, so the size requested now is short of
-            # it; the floor avoids a visible jump. Cropping mode and the ET debug
-            # images need more: _grow_to_fit widens the window for them.
+            # Just wide enough for the widest page: the Advanced algorithm page's
+            # eyelid tuning (about 837 px at 100%; the Tracking page needs 763).
+            # The eye panels reach full width only after the window is up, so the
+            # size requested now is short of it; the floor avoids a visible jump.
+            # Cropping mode and the ET debug images need more: _grow_to_fit
+            # widens the window for them.
             self.root.update_idletasks()
             s = self._dpi_scale
-            min_w, min_h = round(940 * s), round(660 * s)
+            min_w, min_h = round(840 * s), round(660 * s)
             w = max(self.root.winfo_reqwidth(), min_w)
             h = max(self.root.winfo_reqheight(), min_h)
             self.root.geometry(f"{w}x{h}")
@@ -1470,8 +1482,8 @@ def main():
         def _show_tracking_frames(self):
             self.left_frame.grid_forget()
             self.right_frame.grid_forget()
-            self.left_frame.grid(row=0, column=0, sticky="nsew", padx=(0, 8))
-            self.right_frame.grid(row=0, column=1, sticky="nsew", padx=(8, 0))
+            self.left_frame.grid(row=0, column=0, sticky="nsew", padx=(0, 4))
+            self.right_frame.grid(row=0, column=1, sticky="nsew", padx=(4, 0))
 
         def _show_crop_frames(self, eye_name: str):
             self.left_frame.grid_forget()
@@ -1608,7 +1620,7 @@ def main():
                 return
             self._range_check_visible = show
             if show:
-                self._range_check_btn.pack(side="left", padx=8, after=self._preview_btn)
+                self._range_check_btn.pack(side="left", padx=6, after=self._preview_btn)
             else:
                 self._range_check_btn.pack_forget()
 
@@ -1662,7 +1674,7 @@ def main():
                 return
             self._next_smartcal_reset_visible = show
             if show:
-                self._next_smartcal_reset_btn.pack(side="left", padx=8, after=self._global_calibration_btn)
+                self._next_smartcal_reset_btn.pack(side="left", padx=6, after=self._global_calibration_btn)
             else:
                 self._next_smartcal_reset_btn.pack_forget()
 
