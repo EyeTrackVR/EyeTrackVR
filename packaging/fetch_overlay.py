@@ -23,19 +23,19 @@ import tarfile
 import urllib.request
 from pathlib import Path
 
-RELEASE = "https://github.com/EyeTrackVR/EyeTrackVR-Calibration-Overlay/releases/download/v0.4.0"
+RELEASE = "https://github.com/EyeTrackVR/EyeTrackVR-Calibration-Overlay/releases/download/v0.5.0"
 ASSETS = {  # overlay/ folder: release asset, SHA-256
     "windows": (
         "EyeTrackVR-Overlay-win64.tar.xz",
-        "854da3dc09198bbc804c19c1ab4643d70d719240b4af8200392b4487620ade76",
+        "c07b8ea7e177c48c86020f96056021e4d38e739406a9c9c679280af3f176209b",
     ),
     "linux": (
         "EyeTrackVR-Overlay-linux64.tar.xz",
-        "f97aa36af6a31139c65d58f4d628ea0d2b6ea8ad24f3752b018d53d06be74b1b",
+        "b27443b938e8b7a4134216b222156e5a4e4a0dae8648c7a1aab58a589fecbaa9",
     ),
     "linux-arm64": (
         "EyeTrackVR-Overlay-linuxarm64.tar.xz",
-        "5942c637e4155f434006a5727b084007e1462696720b2454e6cd5e632f338992",
+        "6e0bfa6dcfa2a67721a0b2752551334fbd354b171666b8ddd6853b1b307d6585",
     ),
 }
 DIST = Path(__file__).resolve().parents[1] / "overlay"
