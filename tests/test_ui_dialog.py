@@ -69,7 +69,13 @@ def test_message_has_one_button_and_closes(root):
 
 
 def test_return_answers_no_on_a_destructive_question(root):
-    _answer_with(root, lambda d: d.event_generate("<Return>"))
+    # What Return does (window.answer_default, bound to <Return>); a simulated key
+    # press only reaches a window that has the focus, which CI displays don't give.
+    def press_return(dialog):
+        assert dialog.bind("<Return>")
+        dialog.answer_default()
+
+    _answer_with(root, press_return)
     assert ui_dialog.ask_yes_no(root, "Delete config", "Delete?", destructive=True) is False
-    _answer_with(root, lambda d: d.event_generate("<Return>"))
+    _answer_with(root, press_return)
     assert ui_dialog.ask_yes_no(root, "Restart", "Restart now?") is True

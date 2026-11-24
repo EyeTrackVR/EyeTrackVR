@@ -45,13 +45,15 @@ def test_a_page_that_fits_fills_the_window_without_a_scrollbar(root):
 
 
 def test_a_tall_page_scrolls_and_stops_when_the_window_grows(root):
+    # Small sizes: a CI display may be no taller than 768 px, and a window can't
+    # grow past the screen.
     root.geometry("400x200")
-    page = _page(root, 800)
+    page = _page(root, 450)
     _settle(root)
     assert page.overflowing
     page.scroll(5)
     assert page.canvas.yview()[0] > 0.0
-    root.geometry("400x900")
+    root.geometry("400x600")
     _settle(root)
     assert not page.overflowing
     assert page.canvas.yview()[0] == 0.0  # back to the top
