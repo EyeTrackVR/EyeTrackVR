@@ -15,6 +15,7 @@ the wizard is closed; nothing here blocks the Tk thread on camera or network I/O
 from __future__ import annotations
 
 import logging
+import math
 import queue
 import re
 import sys
@@ -752,7 +753,17 @@ class SetupWizard:
 
     def _build_rotate(self, parent):
         page = ttk.Frame(parent)
-        self._label(page, tr("wizard.rotate_intro")).pack(anchor="w", pady=(0, 12))
+        self._label(page, tr("wizard.rotate_intro")).pack(anchor="w", pady=(0, 6))
+        # Cameras mounted at an angle: which way the leftover tilt should go, in
+        # words and as a picture (right: outer corners low; wrong: outer corners high).
+        hint = ttk.Frame(page)
+        hint.pack(fill="x", pady=(0, 12))
+        example = self._tilt_example(hint)
+        example.pack(side="right", padx=(12, 0))
+        beside = example.winfo_reqwidth() + 12
+        self._label(hint, tr("wizard.rotate_tilt_hint"), muted=True, small=True, beside=beside).pack(
+            side="left", anchor="w"
+        )
         self.rotate_none = self._label(page, tr("wizard.rotate_no_camera"), muted=True)
         self.rotate_row = ttk.Frame(page)
         self.rotate_row.pack(fill="x")
@@ -776,21 +787,80 @@ class SetupWizard:
                 justify="center",
             )
             preview.pack(fill="both", expand=True)
+            # 2 x 2 under the picture, as wide as it: 0° 90° / 180° 270°.
             buttons = ttk.Frame(column)
-            buttons.pack(anchor="w")
+            buttons.pack(fill="x")
+            buttons.columnconfigure((0, 1), weight=1, uniform="turn")
             self.rotate_buttons[side] = {}
-            for degrees in ROTATIONS:
+            for index, degrees in enumerate(ROTATIONS):
                 button = ttk.Button(
                     buttons,
                     text=f"{degrees}°",
-                    width=5,
                     command=lambda s=side, d=degrees: self.set_rotation(s, d),
                 )
-                button.pack(side="left", padx=(0, 4))
+                row, col = divmod(index, 2)
+                button.grid(
+                    row=row, column=col, sticky="ew", padx=(0 if col == 0 else 3, 3 if col == 0 else 0), pady=(0, 6)
+                )
                 self.rotate_buttons[side][degrees] = button
             self.rotate_cols[side] = column
             self.rotate_previews[side] = preview
         return page
+
+    def _tilt_example(self, parent):
+        """Two eyes with their outer corners low (right, ✓) and high (wrong, ✗), as a
+        camera picture shows them: the eye on the left has its outer corner on the left.
+        A faint line through each eye's corners makes the slope plain: / \\ versus \\ /.
+        Drawn with PIL at 4x and scaled down, so the curves are smooth everywhere."""
+        from PIL import Image, ImageDraw, ImageTk
+
+        scale = getattr(self.adapter, "dpi_scale", 1.0) or 1.0
+        k = 4  # supersampling
+        u = lambda v: v * scale * k  # noqa: E731
+        width, height = round(250 * scale), round(52 * scale)
+        image = Image.new("RGB", (width * k, height * k), color("bg"))
+        draw = ImageDraw.Draw(image)
+        stroke = max(1, round(u(1.6)))
+
+        def eye(cx, cy, tilt_deg):
+            a, b = u(16), u(7.5)  # half width, half height of the upper lid
+            t = math.radians(tilt_deg)
+
+            def at(x, y):
+                return (cx + x * math.cos(t) - y * math.sin(t), cy + x * math.sin(t) + y * math.cos(t))
+
+            # The corners' line, a little past each corner.
+            draw.line([at(-a - u(7), 0), at(a + u(7), 0)], fill=color("border"), width=max(1, round(u(1.4))))
+            # An almond: a full upper lid and a flatter lower one, meeting at the corners.
+            steps = 40
+            upper = [at(x, -b * (1 - (x / a) ** 2) ** 0.75) for x in (-a + 2 * a * i / steps for i in range(steps + 1))]
+            lower = [
+                at(x, b * 0.75 * (1 - (x / a) ** 2) ** 0.85) for x in (a - 2 * a * i / steps for i in range(steps + 1))
+            ]
+            outline = upper + lower
+            draw.polygon(outline, fill=color("bg"))
+            r = u(4.6)
+            draw.ellipse((cx - r, cy - r, cx + r, cy + r), fill=color("accent"))
+            draw.line(outline + [outline[0]], fill=color("fg"), width=stroke, joint="curve")
+
+        cy = height * k / 2
+        marks = []
+        for left, tilt, mark, mark_colour in (
+            (0, 22, "✓", color("wide_point")),
+            (u(132), -22, "✗", color("blink_point")),
+        ):
+            # 22: left eye "/" and right eye "\\" (outer corners low); -22: the reverse.
+            eye(left + u(24), cy, -tilt)
+            eye(left + u(70), cy, tilt)
+            marks.append((left + u(106), mark, mark_colour))
+        photo = ImageTk.PhotoImage(image.resize((width, height), Image.LANCZOS))
+        # The marks are text: drawn by Tk in the theme's font, over the picture.
+        canvas = tk.Canvas(parent, width=width, height=height, background=color("bg"), highlightthickness=0, bd=0)
+        canvas.create_image(0, 0, image=photo, anchor="nw")
+        canvas.image = photo  # Tk keeps no reference of its own
+        for x, mark, mark_colour in marks:
+            canvas.create_text(x / k, height / 2, text=mark, fill=mark_colour, font=self._bold_font)
+        return canvas
 
     def _build_foveation(self, parent):
         page = ttk.Frame(parent)

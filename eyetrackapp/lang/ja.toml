@@ -1271,6 +1271,8 @@ cameras_manual_hint = "一覧にない場合は、アドレスを直接入力し
 rotate_title = "カメラの向き"
 # EN: "Turn each eye's picture so it is upright: the top eyelid and eyebrow at the top, just like when you look at someone."
 rotate_intro = "各目の映像がまっすぐになるように回転してください。人の顔を見るときと同じように、上まぶたと眉が上に来るようにします。"
+# EN: "Turn both eyes the same way. If they still look a little tilted, choose the turn where each eye's outer corner (ear side) is lower than its inner corner (nose side):"
+rotate_tilt_hint = "両目を同じ向きに回転してください。まだ少し傾いて見える場合は、目尻（耳側）が目頭（鼻側）より低くなる向きを選んでください："
 # EN: "Waiting for a picture from this camera…"
 rotate_waiting = "このカメラからの映像を待っています…"
 # EN: "No camera is chosen, so there is nothing to turn. Press Back to choose your cameras."

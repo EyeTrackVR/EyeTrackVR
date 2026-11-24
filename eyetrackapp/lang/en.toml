@@ -821,6 +821,7 @@ cameras_guess = "We guessed which camera is which. If left and right are mixed u
 cameras_manual_hint = "Not in the list? Type the address instead, for example 192.168.1.20, COM5 or a camera number like 0."
 rotate_title = "Turn the cameras"
 rotate_intro = "Turn each eye's picture so it is upright: the top eyelid and eyebrow at the top, just like when you look at someone."
+rotate_tilt_hint = "Turn both eyes the same way. If they still look a little tilted, choose the turn where each eye's outer corner (ear side) is lower than its inner corner (nose side):"
 rotate_waiting = "Waiting for a picture from this camera…"
 rotate_no_camera = "No camera is chosen, so there is nothing to turn. Press Back to choose your cameras."
 check_left_eye = "Left eye"

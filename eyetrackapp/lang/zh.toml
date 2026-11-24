@@ -1271,6 +1271,8 @@ cameras_manual_hint = "列表中没有？请直接输入地址，例如 192.168.
 rotate_title = "旋转摄像头"
 # EN: "Turn each eye's picture so it is upright: the top eyelid and eyebrow at the top, just like when you look at someone."
 rotate_intro = "旋转每只眼睛的画面，使其保持正向：上眼睑和眉毛朝上，就像你看着别人时一样。"
+# EN: "Turn both eyes the same way. If they still look a little tilted, choose the turn where each eye's outer corner (ear side) is lower than its inner corner (nose side):"
+rotate_tilt_hint = "两只眼睛转到相同方向。如果仍然有点倾斜，请选择外眼角（耳朵一侧）低于内眼角（鼻子一侧）的方向："
 # EN: "Waiting for a picture from this camera…"
 rotate_waiting = "正在等待此摄像头的画面…"
 # EN: "No camera is chosen, so there is nothing to turn. Press Back to choose your cameras."

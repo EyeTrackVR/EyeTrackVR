@@ -1271,6 +1271,8 @@ cameras_manual_hint = "¿No aparece en la lista? Escribe la dirección, por ejem
 rotate_title = "Girar las cámaras"
 # EN: "Turn each eye's picture so it is upright: the top eyelid and eyebrow at the top, just like when you look at someone."
 rotate_intro = "Gira la imagen de cada ojo hasta que quede derecha: el párpado superior y la ceja arriba, igual que cuando miras a alguien."
+# EN: "Turn both eyes the same way. If they still look a little tilted, choose the turn where each eye's outer corner (ear side) is lower than its inner corner (nose side):"
+rotate_tilt_hint = "Gira los dos ojos igual. Si aún se ven algo inclinados, elige el giro en el que el rabillo exterior de cada ojo (lado de la oreja) queda más bajo que el interior (lado de la nariz):"
 # EN: "Waiting for a picture from this camera…"
 rotate_waiting = "Esperando una imagen de esta cámara…"
 # EN: "No camera is chosen, so there is nothing to turn. Press Back to choose your cameras."
