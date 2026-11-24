@@ -225,12 +225,12 @@ class DataCollectionWindow(OverlayPassesMixin):
             try:
                 self._create_window()
             except (OSError, ValueError):
-                from tkinter import messagebox
+                import ui_dialog
 
-                messagebox.showerror(
+                ui_dialog.show_error(
+                    self.parent,
                     tr("data_collection.storage_error_title"),
                     tr("data_collection.storage_error"),
-                    parent=self.parent,
                 )
                 return False
         return True

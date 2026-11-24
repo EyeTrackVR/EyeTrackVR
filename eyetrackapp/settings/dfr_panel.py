@@ -10,7 +10,9 @@ applied immediately rather than through the validate-and-save cycle.
 
 import threading
 import tkinter as tk
-from tkinter import messagebox, ttk
+from tkinter import ttk
+
+import ui_dialog
 from tkinter import font as tkfont
 
 from localization import tr
@@ -175,10 +177,10 @@ class DfrPanel:
                     self._turn_on_gaze()
                     if not quad_views.installed():
                         # PimaxMagic4All is ready either way; only OpenXR games miss out.
-                        messagebox.showwarning(tr("dfr.section"), tr("dfr.setup_quad_views_failed"), parent=self.frame)
+                        ui_dialog.show_warning(self.frame, tr("dfr.section"), tr("dfr.setup_quad_views_failed"))
                 else:
                     self.controller.recheck_setup()
-                    messagebox.showwarning(tr("dfr.section"), tr(f"dfr.setup_{error}"), parent=self.frame)
+                    ui_dialog.show_warning(self.frame, tr("dfr.section"), tr(f"dfr.setup_{error}"))
                 self._refresh()
 
             try:

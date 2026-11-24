@@ -20,3 +20,12 @@ def test_differently_padded_numeric_versions_compare_equal():
 def test_unrecognised_release_name_is_not_treated_as_an_update():
     assert parse_app_version("nightly") is None
     assert compare_app_versions("EyeTrackApp 0.3.0", "nightly") is None
+
+
+def test_release_candidate_sits_between_the_betas_and_the_final_release():
+    # Beta testers are offered RC1; RC1 testers are never offered an older beta.
+    assert compare_app_versions("EyeTrackApp 0.3.0 BETA 11", "EyeTrackApp 0.3.0 RC1") == -1
+    assert compare_app_versions("EyeTrackApp 0.3.0 RC1", "EyeTrackApp 0.3.0 BETA 12") == 1
+    assert compare_app_versions("EyeTrackApp 0.3.0 RC1", "EyeTrackApp 0.3.0 RC2") == -1
+    assert compare_app_versions("EyeTrackApp 0.3.0 RC1", "v0.3.0") == -1
+    assert parse_app_version("0.3.0-RC1") == parse_app_version("EyeTrackApp 0.3.0 RC1")

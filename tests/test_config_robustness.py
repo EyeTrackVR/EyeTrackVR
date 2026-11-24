@@ -223,9 +223,9 @@ def test_show_warning_reuses_existing_root(monkeypatch):
     new_root = Mock(side_effect=AssertionError("second Tk root created"))
     monkeypatch.setattr(module.tk, "Tk", new_root)
     showwarning = Mock()
-    monkeypatch.setattr(module.messagebox, "showwarning", showwarning)
+    monkeypatch.setattr("ui_dialog.show_warning", showwarning)
 
     module._show_warning("title", "msg")
 
-    assert showwarning.call_args.kwargs["parent"] is root
+    assert showwarning.call_args.args[0] is root
     new_root.assert_not_called()

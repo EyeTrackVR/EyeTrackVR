@@ -6,7 +6,9 @@ import time
 from typing import Iterable
 
 import tkinter as tk
-from tkinter import messagebox, ttk
+from tkinter import ttk
+
+import ui_dialog
 from colorama import Fore
 from threading import Event
 from eye import EyeId
@@ -301,43 +303,6 @@ class BaseSettingsWidget:
         if self.close_advanced is not None:
             self.close_advanced()
 
-    def _build_action_buttons(self):
-        button_row = ttk.Frame(self.frame)
-        button_row.pack(fill="x", padx=10, pady=(6, 10))
-        tk.Button(
-            button_row,
-            text=tr("settings_base.reset_settings"),
-            command=self.reset_config,
-            font=("Segoe UI", 9),
-            fg="#000000",
-            bg="#d9a3a3",
-            activebackground="#c99393",
-            activeforeground="#000000",
-            relief="flat",
-            padx=12,
-            pady=6,
-            cursor="hand2",
-            border=0,
-            highlightthickness=0,
-        ).pack(side="left")
-        tk.Button(
-            button_row,
-            text=tr("settings_base.delete_config_btn"),
-            command=self.delete_config,
-            font=("Segoe UI", 9),
-            fg="#ffffff",
-            bg="#a33a3a",
-            activebackground="#8a2a2a",
-            activeforeground="#ffffff",
-            relief="flat",
-            padx=12,
-            pady=6,
-            cursor="hand2",
-            border=0,
-            highlightthickness=0,
-        ).pack(side="left", padx=(8, 0))
-        return button_row
-
     def delete_config(self):
         """Wipe the on-disk config (main + backup) and exit. Next launch will
         start from defaults. We exit rather than re-init the in-memory config
@@ -345,11 +310,11 @@ class BaseSettingsWidget:
         objects in every module, so a hot-swap would leave stale state
         scattered across the process."""
         parent = self.frame.winfo_toplevel() if self.frame is not None else None
-        confirmed = messagebox.askyesno(
+        confirmed = ui_dialog.ask_yes_no(
+            parent,
             tr("settings_base.delete_config_title"),
             tr("settings_base.delete_config_message"),
-            parent=parent,
-            icon="warning",
+            destructive=True,
         )
         if not confirmed:
             return
@@ -386,6 +351,17 @@ class BaseSettingsWidget:
             except tk.TclError:
                 pass
         os._exit(0)
+
+    def ask_reset_config(self):
+        """The Reset button: a quick "are you sure", then reset_config()."""
+        parent = self.frame.winfo_toplevel() if self.frame is not None else None
+        if ui_dialog.ask_yes_no(
+            parent,
+            tr("settings_base.reset_confirm_title"),
+            tr("settings_base.reset_confirm_message"),
+            destructive=True,
+        ):
+            self.reset_config()
 
     def reset_config(self):
         default_values = {}

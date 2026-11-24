@@ -11,7 +11,9 @@ import logging
 import threading
 import tkinter as tk
 import webbrowser
-from tkinter import messagebox, ttk
+from tkinter import ttk
+
+import ui_dialog
 
 from localization import tr
 from utils import updater
@@ -61,9 +63,9 @@ def _check(manual: bool) -> None:
                 logger.info("Update available: %s (installed: %s)", update.version, version)
                 UpdateWindow(root, update, _app["config"], _app["quit_app"], _app["style_window"]).show()
             elif manual and failed:
-                messagebox.showwarning(tr("update.title"), tr("update.check_failed"), parent=root)
+                ui_dialog.show_warning(root, tr("update.title"), tr("update.check_failed"))
             elif manual:
-                messagebox.showinfo(tr("update.title"), tr("update.up_to_date", version=version), parent=root)
+                ui_dialog.show_info(root, tr("update.title"), tr("update.up_to_date", version=version))
             else:
                 logger.info("No newer release than %s.", version)
 

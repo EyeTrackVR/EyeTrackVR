@@ -9,7 +9,6 @@ import threading
 import time
 from logging import getLogger, WARN, INFO
 import tkinter as tk
-from tkinter import messagebox
 from colorama import Fore
 
 from config import _USER_DATA_DIR
@@ -591,14 +590,16 @@ class OpenVRService:
 def _show_warning(title: str, message: str) -> None:
     # A second tk.Tk() alongside the app root breaks Tk variables/images, so
     # parent the dialog to the existing root and only create one if none exists.
+    import ui_dialog
+
     root = getattr(tk, "_default_root", None)
     if root is not None:
-        messagebox.showwarning(title, message, parent=root)
+        ui_dialog.show_warning(root, title, message)
         return
     popup_root = tk.Tk()
     popup_root.withdraw()
     try:
-        messagebox.showwarning(title, message, parent=popup_root)
+        ui_dialog.show_warning(popup_root, title, message)
     finally:
         popup_root.destroy()
 

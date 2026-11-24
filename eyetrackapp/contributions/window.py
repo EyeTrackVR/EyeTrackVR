@@ -7,7 +7,7 @@ import re
 import threading
 import time
 import tkinter as tk
-from tkinter import filedialog, messagebox, ttk
+from tkinter import filedialog, ttk
 from tkinter.scrolledtext import ScrolledText
 
 import requests
@@ -18,6 +18,7 @@ from .bundles import MAX_HMD, clean_hmd
 from .client import QUOTA_MESSAGES, ContributionClient, Paused, save, outside_git
 from .verification import verify_in_app
 from ui_theme import color
+import ui_dialog
 
 # Suggestions only: free text stays allowed, and maintainers bin every submission themselves.
 HMD_SUGGESTIONS = (
@@ -950,10 +951,11 @@ class ContributionWindow:
 
     def withdraw(self):
         sid = self.selected()
-        if sid and messagebox.askyesno(
+        if sid and ui_dialog.ask_yes_no(
+            self.window,
             tr("contributions.withdraw_title"),
             tr("contributions.withdraw_question"),
-            parent=self.window,
+            destructive=True,
         ):
             self.run(lambda: ("withdrawn", self.client.withdraw(sid)))
 

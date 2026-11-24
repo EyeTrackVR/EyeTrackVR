@@ -1,6 +1,8 @@
 from settings.modules.base_module import BaseSettingsModule, BaseValidationModel
 import tkinter as tk
-from tkinter import messagebox, ttk
+from tkinter import ttk
+
+import ui_dialog
 
 from localization import available_languages, tr
 from utils.tooltips import attach_tooltip
@@ -130,20 +132,10 @@ class GeneralSettingsModule(BaseSettingsModule):
                 attach_tooltip(cb, _tip(attr))
             row += 1
 
-        light_var = tk.BooleanVar(value=bool(getattr(self.config, "gui_light_mode", False)))
-        self.tk_vars[self.gui_light_mode] = light_var
-        light_cb = ttk.Checkbutton(
-            parent,
-            text=_label("gui_light_mode"),
-            variable=light_var,
-            command=lambda: self._on_light_mode(light_var.get()),
-        )
-        light_cb.grid(row=row, column=0, sticky="w", padx=8, pady=2)
-        attach_tooltip(light_cb, _tip("gui_light_mode"))
-
-        # Beside it, under "Check For Updates": the beta channel and a check on demand.
+        # Under "Check For Updates", beside the dashboard switch: the beta channel
+        # and a check on demand.
         update_row = ttk.Frame(parent)
-        update_row.grid(row=row, column=1, sticky="w", padx=8, pady=2)
+        update_row.grid(row=row - 1, column=1, sticky="w", padx=8, pady=2)
         beta_var = tk.BooleanVar(value=bool(self.config.gui_update_beta))
         self.tk_vars[self.gui_update_beta] = beta_var
         beta_cb = ttk.Checkbutton(update_row, text=_label("gui_update_beta"), variable=beta_var)
@@ -152,9 +144,20 @@ class GeneralSettingsModule(BaseSettingsModule):
         check_btn = ttk.Button(update_row, text=tr("settings_general.check_now"), command=self._check_for_updates)
         check_btn.pack(side="left", padx=(12, 0))
         attach_tooltip(check_btn, tr("settings_general.check_now_tip"))
-        row += 1
 
-        self._build_language_row(parent, row)
+        lang_row = self._build_language_row(parent, row)
+
+        # Right of the language: the other look-and-feel choice.
+        light_var = tk.BooleanVar(value=bool(getattr(self.config, "gui_light_mode", False)))
+        self.tk_vars[self.gui_light_mode] = light_var
+        light_cb = ttk.Checkbutton(
+            lang_row,
+            text=_label("gui_light_mode"),
+            variable=light_var,
+            command=lambda: self._on_light_mode(light_var.get()),
+        )
+        light_cb.pack(side="left", padx=(24, 0))
+        attach_tooltip(light_cb, _tip("gui_light_mode"))
 
     def _on_light_mode(self, light: bool):
         """Saved right away (like the language): the theme is applied at startup,
@@ -165,8 +168,8 @@ class GeneralSettingsModule(BaseSettingsModule):
             self._main_config.update({"gui_light_mode": bool(light)}, save=True)
         else:
             self.config.gui_light_mode = bool(light)
-        messagebox.showinfo(
-            tr("settings_general.light_mode_restart_title"), tr("settings_general.light_mode_restart_note")
+        ui_dialog.show_info(
+            None, tr("settings_general.light_mode_restart_title"), tr("settings_general.light_mode_restart_note")
         )
 
     def _check_for_updates(self):
@@ -210,6 +213,7 @@ class GeneralSettingsModule(BaseSettingsModule):
         )
         combo.pack(side="left")
         combo.bind("<<ComboboxSelected>>", self._on_language_selected)
+        return lang_row
 
     def _on_language_selected(self, _event=None):
         new_code = self._lang_display_to_code.get(self._lang_display_var.get(), "en")
@@ -226,7 +230,8 @@ class GeneralSettingsModule(BaseSettingsModule):
             self._main_config.update({"gui_language": new_code}, save=True)
         else:
             self.config.gui_language = new_code
-        messagebox.showinfo(
+        ui_dialog.show_info(
+            None,
             tr("settings_general.language_restart_title"),
             tr("settings_general.language_restart_note"),
         )

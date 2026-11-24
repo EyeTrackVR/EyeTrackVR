@@ -244,10 +244,10 @@ center_dot_panel = "Look at the center dot"
 show_advanced = "Advanced settings  ›"
 advanced_page_title = "Advanced Settings"
 open_logs = "Open Logs"
-reset_settings = "Reset settings to default"
-delete_config_btn = "Delete config"
 delete_config_title = "Delete config"
-delete_config_message = "Delete the config file and quit?\n\nAll saved settings, calibrations, and camera sources will be lost. The app will close; relaunch it to start fresh."
+delete_config_message = "Delete the config and close EyeTrackVR?\nAll settings, calibrations and camera sources will be lost."
+reset_confirm_title = "Reset settings"
+reset_confirm_message = "Reset these settings to their defaults?"
 # Section header titles (LabelFrame around each settings module)
 section_general = "General Settings"
 section_oneeuro = "One Euro Filter"
@@ -916,3 +916,11 @@ limits = "Your gaze limits are {yaw}° sideways, {up}° up and {down}° down."
 not_tracked = "No tracked gaze reached the app. Start tracking, then run the check again."
 stopped = "The check stopped before it finished."
 no_range = "The check could not be scored: the overlay did not report where it showed the dots."
+
+# ---------------------------------------------------------------------------
+# Message and yes/no dialogs (ui_dialog.py)
+# ---------------------------------------------------------------------------
+[dialog]
+yes = "Yes"
+no = "No"
+ok = "OK"

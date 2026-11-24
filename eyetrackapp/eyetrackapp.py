@@ -101,7 +101,7 @@ from utils.misc_utils import is_nt, is_macos, resource_path
 from utils.tooltips import attach_tooltip
 
 
-APP_VERSION = "EyeTrackApp 0.3.0 BETA 10"
+APP_VERSION = "EyeTrackApp 0.3.0 RC1"
 setup_logging(APP_VERSION)
 logger = logging.getLogger(__name__)
 winmm = None
@@ -185,14 +185,19 @@ def main():
     if not single_instance.acquire():
         logger.warning("EyeTrackVR is already running; this copy is exiting")
         try:
-            from tkinter import messagebox
+            import ui_dialog
 
-            init_localization(getattr(EyeTrackConfig.load().settings, "gui_language", "en"))
+            settings = EyeTrackConfig.load().settings
+            init_localization(getattr(settings, "gui_language", "en"))
             notice = tk.Tk()
             notice.withdraw()
+            sv_ttk.set_theme(ui_theme.set_light(bool(getattr(settings, "gui_light_mode", False))))
             notice.after(8000, notice.destroy)  # never linger if nobody is at the desktop
-            messagebox.showinfo("EyeTrackVR", tr("openvr.already_running"), parent=notice)
-            notice.destroy()
+            ui_dialog.show_info(notice, "EyeTrackVR", tr("openvr.already_running"))
+            try:
+                notice.destroy()
+            except tk.TclError:
+                pass  # the 8 s timer already closed it
         except Exception:
             logger.debug("Could not show the already-running notice", exc_info=True)
         return
@@ -823,37 +828,16 @@ def main():
 
             # Settings-only actions, shown only while a settings page is active.
             self._settings_actions_row = ttk.Frame(bottom)
-            tk.Button(
+            # Normal themed buttons; each asks before it does anything (base_settings).
+            ttk.Button(
                 self._settings_actions_row,
                 text=tr("tracking.delete_config_btn"),
                 command=self._active_settings_delete_config,
-                font=("Segoe UI", 9),
-                fg="#ffffff",
-                bg="#a33a3a",
-                activebackground="#8a2a2a",
-                activeforeground="#ffffff",
-                relief="flat",
-                padx=12,
-                pady=6,
-                cursor="hand2",
-                border=0,
-                highlightthickness=0,
             ).pack(side="right", padx=(8, 0))
-            tk.Button(
+            ttk.Button(
                 self._settings_actions_row,
                 text=tr("tracking.reset_settings_btn"),
                 command=self._active_settings_reset_config,
-                font=("Segoe UI", 9),
-                fg="#000000",
-                bg="#d9a3a3",
-                activebackground="#c99393",
-                activeforeground="#000000",
-                relief="flat",
-                padx=12,
-                pady=6,
-                cursor="hand2",
-                border=0,
-                highlightthickness=0,
             ).pack(side="right")
 
             self.root.protocol("WM_DELETE_WINDOW", self.shutdown)
@@ -908,7 +892,7 @@ def main():
         def _active_settings_reset_config(self):
             widget = self._active_settings_widget()
             if widget is not None:
-                widget.reset_config()
+                widget.ask_reset_config()
 
         def _active_settings_delete_config(self):
             widget = self._active_settings_widget()
@@ -1591,9 +1575,9 @@ def main():
                 return
             if calibration_state.var.overlay_active:
                 # A calibration, the preview or a check already has the overlay.
-                from tkinter import messagebox
+                import ui_dialog
 
-                messagebox.showinfo("EyeTrackVR", tr("status.overlay_busy"), parent=self.root)
+                ui_dialog.show_info(self.root, "EyeTrackVR", tr("status.overlay_busy"))
                 return
             eps = [eye.ransac for eye in eyes if eye.started() and getattr(eye, "ransac", None) is not None]
             if eps:
