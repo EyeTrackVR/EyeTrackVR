@@ -317,7 +317,7 @@ def test_verification_cancel_terminates_helper_without_browser(monkeypatch):
     assert "--contribution-verification" in calls[0]
 
 
-@pytest.mark.parametrize("returncode, reason", [(-6, "killed by SIGABRT"), (1, "exit code 1")])
+@pytest.mark.parametrize("returncode, reason", [(-15, "killed by SIGTERM"), (1, "exit code 1")])
 def test_a_helper_that_dies_fails_verification_and_logs_how(monkeypatch, caplog, returncode, reason):
     class Process:
         def __init__(self):
