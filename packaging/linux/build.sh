@@ -69,10 +69,10 @@ test -x "$BUNDLE/eyetrackvr" || { echo "ERROR: bundle missing eyetrackvr binary"
 
 test -x "$BUNDLE/_internal/tools/linux/EyeTrackVR-Overlay"
 
-# The spec strips the build host's C++ runtime; a bundled copy older than the
-# user's breaks their GPU drivers inside the verification window.
-if find "$BUNDLE" \( -name 'libstdc++.so*' -o -name 'libgcc_s.so*' \) | grep -q .; then
-    echo "ERROR: bundle ships libstdc++/libgcc_s; they must stay system-provided"
+# The spec strips the build host's C++ runtime and libgbm; bundled copies older
+# than the user's break their GPU drivers inside the verification window.
+if find "$BUNDLE" \( -name 'libstdc++.so*' -o -name 'libgcc_s.so*' -o -name 'libgbm.so*' \) | grep -q .; then
+    echo "ERROR: bundle ships libstdc++/libgcc_s/libgbm; they must stay system-provided"
     exit 1
 fi
 

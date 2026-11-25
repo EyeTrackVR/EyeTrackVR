@@ -90,7 +90,8 @@ a = Analysis(
 # into this process (Qt WebEngine's verification window) and need the system's
 # libstdc++; an older bundled copy makes them fail to load ("GLIBCXX_3.4.32 not
 # found") and the window aborts. Any distro new enough for our glibc has these.
-_HOST_RUNTIME = ("libstdc++.so", "libgcc_s.so")
+# libgbm is part of Mesa and has to match the system's drivers the same way.
+_HOST_RUNTIME = ("libstdc++.so", "libgcc_s.so", "libgbm.so")
 a.binaries = [b for b in a.binaries if not os.path.basename(b[0]).startswith(_HOST_RUNTIME)]
 
 pyz = PYZ(a.pure, a.zipped_data, cipher=block_cipher)
