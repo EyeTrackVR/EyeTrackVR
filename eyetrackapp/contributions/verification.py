@@ -6,8 +6,10 @@ No JS API exposes native filesystem, receipts, camera state, or app objects.
 
 import hmac
 import json
+import logging
 from pathlib import Path
 import secrets
+import signal
 import socket
 import subprocess
 import sys
@@ -19,6 +21,8 @@ from localization import tr
 from .client import Paused, origin
 from ui_theme import color
 
+logger = logging.getLogger(__name__)
+
 
 def verified_reply(result, nonce):
     """Malformed local IPC is ignored; it must not abort a valid verification."""
@@ -29,6 +33,18 @@ def verified_reply(result, nonce):
         return None
     token = result.get("token")
     return token if isinstance(token, str) and 0 < len(token) <= 2048 else None
+
+
+def _exit_reason(process) -> str:
+    """How the helper process ended. Its output is never read (it may hold page
+    data), so the exit status is the only trace a failed window leaves."""
+    code = process.returncode
+    if code is not None and code < 0:
+        try:
+            return f"killed by {signal.Signals(-code).name}"
+        except ValueError:
+            return f"killed by signal {-code}"
+    return f"exit code {code}"
 
 
 def verify_in_app(service, cancel):
@@ -58,6 +74,7 @@ def verify_in_app(service, cancel):
                     connection, _ = listener.accept()
                 except socket.timeout:
                     if process.poll() is not None:
+                        logger.warning("Verification window exited before verifying: %s", _exit_reason(process))
                         raise ValueError(tr("contributions_service.verification_failed"))
                     continue
                 with connection:

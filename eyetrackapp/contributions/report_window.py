@@ -31,6 +31,11 @@ LOG_TAIL_BYTES = 3 * 1024**2
 ISSUE_CONSENTS = ("bug_report.consent_notice", "bug_report.consent_transfer")
 # Starting text of the description box (language key); the user writes over it.
 DESCRIPTION_TEMPLATE = "bug_report.description_template"
+# Form rows that change weight at runtime.
+DESCRIPTION_ROW = 4
+NOTICE_ROW = 11
+# Vertical space around the lines between the form's sections.
+SECTION_GAP = 12
 
 
 def previous_log(current):
@@ -58,14 +63,23 @@ def write_tail(source, destination, limit=LOG_TAIL_BYTES):
 
 
 class ReportWindow:
-    def __init__(self, parent, details=None, client=None):
+    """The bug report form in its own window, or, given ``on_hide``, as a frame inside
+    ``parent`` (EyeTrackVR's main window shows it as a page). ``on_hide`` is called by
+    Close so the owner can switch back to another page."""
+
+    def __init__(self, parent, details=None, client=None, on_hide=None):
         self.parent = parent
         self.details = details
         self._client = client
-        self.window = tk.Toplevel(parent)
-        self.window.title(tr("bug_report.window_title"))
-        self.window.transient(parent)
-        self.window.protocol("WM_DELETE_WINDOW", self.close)
+        self._on_hide = on_hide
+        self.embedded = on_hide is not None
+        if self.embedded:
+            self.window = ttk.Frame(parent)
+        else:
+            self.window = tk.Toplevel(parent)
+            self.window.title(tr("bug_report.window_title"))
+            self.window.transient(parent)
+            self.window.protocol("WM_DELETE_WINDOW", self.close)
         self.events = queue.Queue()
         self.cancel = threading.Event()
         self.busy = False
@@ -78,10 +92,19 @@ class ReportWindow:
         self.include_details = tk.BooleanVar(value=True)
         self.status = tk.StringVar(value=tr("bug_report.status_connecting"))
         self.sent_id = tk.StringVar()
+        self._wrap_width = None
+        # True only while a report is being sent; the progress bar is for that, not for loading the notice.
+        self.sending = False
         self._last_progress = 0
         # (fingerprint, id) of a report prepared in this window but not yet delivered.
         self._pending = None
         self._build_ui()
+        if not self.embedded:
+            self._size_window()
+        self._poll_job = self.window.after(50, self.poll)
+        self.load_config()
+
+    def _size_window(self):
         self.window.update_idletasks()
         width = min(720, max(560, self.window.winfo_screenwidth() - 100))
         height = min(760, max(480, self.window.winfo_screenheight() - 140))
@@ -93,8 +116,6 @@ class ReportWindow:
         from .native import decorate
 
         self.window.after(50, lambda: decorate(self.window))
-        self._poll_job = self.window.after(50, self.poll)
-        self.load_config()
 
     @property
     def client(self):
@@ -109,10 +130,18 @@ class ReportWindow:
         setup_styles(self.window)
         # The form: only the description (and the notice, when opened) grow; everything else keeps
         # its natural size and the window's minimum size always fits it (see __init__).
-        body = self.form = ttk.Frame(self.window, padding=(20, 16, 20, 8))
+        body = self.form = ttk.Frame(self.window, padding=(24, 20, 24, 8))
         body.grid(row=0, column=0, sticky="nsew")
         body.columnconfigure(0, weight=1)
-        body.rowconfigure(3, weight=1)
+        body.rowconfigure(DESCRIPTION_ROW, weight=1)
+
+        def heading(row, key, top=0):
+            ttk.Label(body, text=tr(key), font=FONT_HEADING).grid(row=row, column=0, sticky="w", pady=(top, 6))
+
+        def divider(row):
+            ttk.Separator(body).grid(row=row, column=0, sticky="ew", pady=SECTION_GAP)
+
+        # Header (row 2 is free: the intro's own spacing separates it).
         ttk.Label(body, text=tr("bug_report.title"), font=FONT_TITLE).grid(row=0, column=0, sticky="w")
         self.intro = ttk.Label(
             body,
@@ -122,24 +151,30 @@ class ReportWindow:
             foreground=MUTED,
             text=tr("bug_report.intro"),
         )
-        self.intro.grid(row=1, column=0, sticky="ew", pady=(4, 12))
-        ttk.Label(body, text=tr("bug_report.description_heading"), font=FONT_HEADING).grid(
-            row=2, column=0, sticky="w", pady=(0, 6)
-        )
+        self.intro.grid(row=1, column=0, sticky="ew", pady=(4, 16))
+
+        # What went wrong: the only part that grows with the window (with the notice, when open).
+        heading(3, "bug_report.description_heading")
         description_panel = ttk.Frame(body)
-        description_panel.grid(row=3, column=0, sticky="nsew")
+        description_panel.grid(row=DESCRIPTION_ROW, column=0, sticky="nsew")
         description_panel.columnconfigure(0, weight=1)
         description_panel.rowconfigure(0, weight=1)
         self.description = tk.Text(
             description_panel,
-            height=5,
+            width=1,  # the grid sets the width; the default 80 columns would widen the page
+            height=4,
             wrap="word",
             font=NOTICE_STYLE["font"],
             undo=True,
-            background=color("text_bg"),
+            # Looks like an input field: a raised background and a border that turns accent on focus.
+            background=color("panel"),
             foreground=color("text_fg"),
             insertbackground=color("text_fg"),
+            selectbackground=color("text_select"),
             relief="flat",
+            highlightthickness=1,
+            highlightbackground=color("border"),
+            highlightcolor=color("accent"),
             padx=12,
             pady=10,
         )
@@ -150,26 +185,28 @@ class ReportWindow:
         self.description.insert("1.0", tr(DESCRIPTION_TEMPLATE))
         self.description.bind("<<Modified>>", self._description_changed)
 
+        # What to include.
+        heading(5, "bug_report.attachments_heading", top=14)
         attachments = ttk.Frame(body)
-        attachments.grid(row=4, column=0, sticky="ew", pady=(10, 0))
+        attachments.grid(row=6, column=0, sticky="ew")
         self.log_check = ttk.Checkbutton(
             attachments, variable=self.include_log, text=tr("bug_report.attach_log"), style="Wrap.TCheckbutton"
         )
-        self.log_check.grid(row=0, column=0, sticky="w")
+        self.log_check.grid(row=0, column=0, sticky="w", pady=1)
         self.previous_check = ttk.Checkbutton(
             attachments,
             variable=self.include_previous,
             text=tr("bug_report.attach_previous_log"),
             style="Wrap.TCheckbutton",
         )
-        self.previous_check.grid(row=1, column=0, sticky="w")
+        self.previous_check.grid(row=1, column=0, sticky="w", pady=1)
         self.details_check = ttk.Checkbutton(
             attachments,
             variable=self.include_details,
             text=tr("bug_report.include_details"),
             style="Wrap.TCheckbutton",
         )
-        self.details_check.grid(row=2, column=0, sticky="w")
+        self.details_check.grid(row=2, column=0, sticky="w", pady=1)
         self.attach_hint = ttk.Label(
             body,
             style="Small.TLabel",
@@ -178,11 +215,13 @@ class ReportWindow:
             justify="left",
             text=tr("bug_report.attach_hint"),
         )
-        self.attach_hint.grid(row=5, column=0, sticky="ew", pady=(4, 12))
+        self.attach_hint.grid(row=7, column=0, sticky="ew", pady=(6, 0))
+        divider(8)
 
-        # A layered notice: a short summary with the full notice one click away.
+        # Before you send: a layered notice (short summary, full notice one click away) and consent.
+        heading(9, "bug_report.privacy_heading")
         summary = ttk.Frame(body)
-        summary.grid(row=6, column=0, sticky="ew")
+        summary.grid(row=10, column=0, sticky="ew")
         summary.columnconfigure(0, weight=1)
         self.notice_summary = ttk.Label(
             summary,
@@ -192,12 +231,12 @@ class ReportWindow:
         )
         self.notice_summary.grid(row=0, column=0, sticky="w")
         self.notice_toggle = ttk.Button(summary, text=tr("bug_report.read_notice_btn"), command=self.toggle_notice)
-        self.notice_toggle.grid(row=0, column=1, sticky="e", padx=(12, 0))
+        self.notice_toggle.grid(row=0, column=1, sticky="ne", padx=(16, 0))
         self.notice_panel = ttk.Frame(body)
-        self.notice_panel.grid(row=7, column=0, sticky="nsew", pady=(8, 0))
+        self.notice_panel.grid(row=NOTICE_ROW, column=0, sticky="nsew", pady=(10, 0))
         self.notice_panel.columnconfigure(0, weight=1)
         self.notice_panel.rowconfigure(0, weight=1)
-        self.notice = tk.Text(self.notice_panel, height=6, takefocus=True, **NOTICE_STYLE)
+        self.notice = tk.Text(self.notice_panel, width=1, height=6, takefocus=True, **NOTICE_STYLE)
         style_notice(self.notice)
         self.notice.grid(row=0, column=0, sticky="nsew")
         scroll = ttk.Scrollbar(self.notice_panel, orient="vertical", command=self.notice.yview)
@@ -212,7 +251,7 @@ class ReportWindow:
             text=tr(ISSUE_CONSENTS[0]),
             style="Consent.TCheckbutton",
         )
-        self.consent.grid(row=8, column=0, sticky="ew", pady=(12, 0))
+        self.consent.grid(row=12, column=0, sticky="ew", pady=(12, 0))
         self.consent_transfer = ttk.Checkbutton(
             body,
             variable=self.agree_transfer,
@@ -220,15 +259,15 @@ class ReportWindow:
             text=tr(ISSUE_CONSENTS[1]),
             style="Consent.TCheckbutton",
         )
-        self.consent_transfer.grid(row=9, column=0, sticky="ew", pady=(4, 0))
+        self.consent_transfer.grid(row=13, column=0, sticky="ew", pady=(4, 0))
         # Says why Send report is unavailable.
-        self.send_hint = ttk.Label(body, style="Muted.TLabel", foreground=MUTED, wraplength=640, justify="left")
-        self.send_hint.grid(row=10, column=0, sticky="w", pady=(4, 0))
+        self.send_hint = ttk.Label(body, style="Small.TLabel", foreground=MUTED, wraplength=640, justify="left")
+        self.send_hint.grid(row=14, column=0, sticky="w", pady=(6, 0))
         self.progress = ttk.Progressbar(body, maximum=100)
-        self.progress.grid(row=11, column=0, sticky="ew", pady=(8, 0))
+        self.progress.grid(row=15, column=0, sticky="ew", pady=(10, 0))
 
         # Shown instead of the form once a report is delivered.
-        self.sent_panel = ttk.Frame(self.window, padding=(20, 40, 20, 8))
+        self.sent_panel = ttk.Frame(self.window, padding=(24, 40, 24, 8))
         self.sent_panel.grid(row=0, column=0, sticky="nsew")
         self.sent_panel.columnconfigure(1, weight=1)
         ttk.Label(self.sent_panel, text="✓", style="Mark.TLabel", foreground=ACCENT).grid(
@@ -251,8 +290,9 @@ class ReportWindow:
         self.sent_panel.grid_remove()
 
         # The status line is only for errors and live progress; it hides itself when empty.
-        footer = ttk.Frame(self.window, padding=(20, 8, 20, 16))
-        footer.grid(row=1, column=0, sticky="ew")
+        ttk.Separator(self.window).grid(row=1, column=0, sticky="ew")
+        footer = ttk.Frame(self.window, padding=(24, 12, 24, 16))
+        footer.grid(row=2, column=0, sticky="ew")
         footer.columnconfigure(0, weight=1)
         self.status_label = ttk.Label(footer, textvariable=self.status, wraplength=440, justify="left")
         self.status_label.grid(row=0, column=0, sticky="ew")
@@ -267,24 +307,32 @@ class ReportWindow:
 
     def _resize_wrap(self, event):
         if event.widget is self.window:
-            for widget in (self.intro, self.attach_hint, self.send_hint):
-                widget.configure(wraplength=max(280, event.width - 60))
-            self.notice_summary.configure(wraplength=max(240, event.width - 240))
-            self.sent_text.configure(wraplength=max(240, event.width - 140))
-            self.status_label.configure(wraplength=max(240, event.width - 260))
-            style = ttk.Style(self.window)
-            style.configure("Consent.TCheckbutton", wraplength=max(280, event.width - 90))
-            style.configure("Wrap.TCheckbutton", wraplength=max(280, event.width - 90))
+            self._wrap_to(event.width)
+
+    def _wrap_to(self, width):
+        """Wrap every long label to the page width. Skips unchanged widths so the layout never reflows for nothing."""
+        if width <= 1 or width == self._wrap_width:
+            return
+        self._wrap_width = width
+        for widget in (self.intro, self.attach_hint, self.send_hint):
+            widget.configure(wraplength=max(280, width - 64))
+        beside_button = width - 64 - self.notice_toggle.winfo_reqwidth() - 24
+        self.notice_summary.configure(wraplength=max(240, beside_button))
+        self.sent_text.configure(wraplength=max(240, width - 140))
+        self.status_label.configure(wraplength=max(240, width - 260))
+        style = ttk.Style(self.window)
+        style.configure("Consent.TCheckbutton", wraplength=max(280, width - 90))
+        style.configure("Wrap.TCheckbutton", wraplength=max(280, width - 90))
 
     def toggle_notice(self):
         """Open or close the full notice; while open it shares the spare height with the description."""
         if self.notice_panel.winfo_ismapped():
             self.notice_panel.grid_remove()
-            self.form.rowconfigure(7, weight=0)
+            self.form.rowconfigure(NOTICE_ROW, weight=0)
             self.notice_toggle.configure(text=tr("bug_report.read_notice_btn"))
         else:
             self.notice_panel.grid()
-            self.form.rowconfigure(7, weight=2)
+            self.form.rowconfigure(NOTICE_ROW, weight=2)
             self.notice_toggle.configure(text=tr("bug_report.hide_notice_btn"))
             self.notice.yview_moveto(0)
 
@@ -332,7 +380,7 @@ class ReportWindow:
             hint = ""
         self.send_hint.configure(text=hint)
         # The progress bar only appears while sending or once a report went out.
-        if self.busy or float(self.progress.cget("value")) > 0:
+        if self.sending or float(self.progress.cget("value")) > 0:
             self.progress.grid()
         else:
             self.progress.grid_remove()
@@ -363,7 +411,9 @@ class ReportWindow:
                 self.events.put(("error", tr("bug_report.error_unreachable")))
             except ValueError as error:
                 self.events.put(("error", str(error)))
-            except Exception:
+            except Exception as error:
+                # The type only: the message may hold private paths.
+                logger.warning("Contribution operation failed: %s", type(error).__name__)
                 self.events.put(("error", tr("bug_report.error_failed")))
 
         threading.Thread(target=worker, daemon=True).start()
@@ -432,6 +482,7 @@ class ReportWindow:
             )
 
         self.status.set(tr("bug_report.status_encrypting"))
+        self.sending = True
         self.run(upload)
 
     def copy_id(self):
@@ -466,6 +517,7 @@ class ReportWindow:
                 self.progress.stop()
                 self.progress.configure(mode="determinate")
                 self.busy = False
+                self.sending = False
                 if kind == "error":
                     self.progress.configure(value=0)
                     self.status.set(value)
@@ -509,6 +561,15 @@ class ReportWindow:
             self._poll_job = self.window.after(50, self.poll)
 
     def show(self):
+        if self.embedded:
+            # Called before the owner packs the frame: wrapping to the page width now means
+            # the first layout is the final one, with nothing reflowing once it appears.
+            self.parent.update_idletasks()
+            self._wrap_to(self.parent.winfo_width())
+            self.description.focus_set()
+            if self.config is None and not self.busy:
+                self.load_config()
+            return
         self.window.deiconify()
         self.window.update_idletasks()
         width, height = self.window.winfo_width(), self.window.winfo_height()
@@ -527,4 +588,7 @@ class ReportWindow:
             self.cancel.set()
             self.status.set(tr("bug_report.status_stopping"))
             return
-        self.window.withdraw()
+        if self.embedded:
+            self._on_hide()
+        else:
+            self.window.withdraw()
