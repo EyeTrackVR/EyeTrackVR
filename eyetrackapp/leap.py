@@ -41,7 +41,7 @@ from one_euro_filter import OneEuroFilter
 from utils.misc_utils import resource_path
 from pathlib import Path
 import sys
-from utils.onnx_runtime import DML_INFERENCE_LOCK
+from utils.onnx_runtime import DML_INFERENCE_LOCK, create_inference_session
 
 logger = logging.getLogger(__name__)
 
@@ -49,7 +49,6 @@ os.environ["OMP_NUM_THREADS"] = (
     "1"  # on slower systems this can cause issues due to slow single core perf. in such cases, it is better to use GPU compute
 )
 
-frames = 0
 models = Path("assets/models")
 LEAP_LID_METRIC_VERSION = 1
 # Backward-compatible local name; shared with NEXT mono/stereo sessions.
@@ -78,12 +77,16 @@ if sys.platform.startswith("linux"):
                 os.execv(sys.executable, [sys.executable] + sys.argv)
 
 
-def run_model(input_queue, output_queue, session):
+def run_model(input_queue, output_queue, session_for):
+    """Inference worker. Each queued item is (frame, use_gpu); ``session_for``
+    maps use_gpu to (session, input name, uses DirectML), so the GPU toggle
+    applies from the next frame without rebuilding the worker."""
     last_error_log = -1e9
     while True:
-        frame = input_queue.get()
-        if frame is None:
+        item = input_queue.get()
+        if item is None:
             break
+        frame, use_gpu = item
 
         if frame.ndim == 2:
             gray_img = frame.astype(np.float32)
@@ -98,8 +101,14 @@ def run_model(input_queue, output_queue, session):
         # A failed inference (e.g. the GPU device reset) must not end the worker: the
         # caller would keep repeating its last result with no sign anything is wrong.
         try:
-            ort_inputs = {session.get_inputs()[0].name: gray_img}
-            with dml_lock:
+            session, input_name, uses_directml = session_for(use_gpu)
+            ort_inputs = {input_name: gray_img}
+            # Only DirectML needs the process-wide lock; CPU sessions of both
+            # eyes (and NEXT) can run at the same time.
+            if uses_directml:
+                with dml_lock:
+                    pre_landmark = session.run(None, ort_inputs)
+            else:
                 pre_landmark = session.run(None, ort_inputs)
             pre_landmark = np.reshape(pre_landmark, (-1, 2))
         except Exception:
@@ -111,10 +120,10 @@ def run_model(input_queue, output_queue, session):
         output_queue.put((frame, pre_landmark))
 
 
-def run_onnx_model(queues, session, frame):
+def run_onnx_model(queues, use_gpu, frame):
     for queue in queues:
         if not queue.full():
-            queue.put(frame)
+            queue.put((frame, use_gpu))
             break
 
 
@@ -136,8 +145,6 @@ class LEAP_C:
         self.queue_max_size = 1
         self.model_path = resource_path(models / "pfld-sim.onnx")
 
-        self.print_fps = False
-        self.frames = 0
         self.queues = [Queue(maxsize=self.queue_max_size) for _ in range(self.num_threads)]
         self.threads = []
         self.model_output = np.zeros((12, 2))
@@ -169,7 +176,6 @@ class LEAP_C:
         self._last_percentile_refresh = 0.0
         self._open_percentile = 0.8
         self._closed_percentile = 0.8
-        self.maxlist = []
         self.previous_time = None
         self.old_matrix = None
         self.total_velocity_new = 0
@@ -180,68 +186,43 @@ class LEAP_C:
 
         self.eye_config: EyeTrackCameraConfig = eye_config
         self.config: EyeTrackConfig = config
-        self.ort_session_cpu = onnxruntime.InferenceSession(self.model_path, opts, providers=["CPUExecutionProvider"])
-
-        available_providers = onnxruntime.get_available_providers()
-        preferred_order = [
-            "CUDAExecutionProvider",
-            "OpenVINOExecutionProvider",
-            "ROCMExecutionProvider",
-            "DmlExecutionProvider",
-            "CoreMLExecutionProvider",
-        ]
-
-        providers = []
-        for p in preferred_order:
-            if p in available_providers:
-                if p == "DmlExecutionProvider":
-                    providers.append((p, {"enable_share_strategy": True}))
-                else:
-                    providers.append(p)
-
-        logger.info("Active ONNX GPU providers for this session: %s", providers)
-
-        # Building the GPU session must never take the app down:
-        #   - providers=[] (CPU-only machine) makes InferenceSession raise
-        #   - CUDAExecutionProvider is listed as "available" whenever
-        #     onnxruntime-gpu is installed, but session creation still fails
-        #     if the CUDA/cuDNN system libraries are missing (common on Linux)
-        # In both cases fall back to the CPU session; runtime provider choice
-        # (gui_use_gpu) then simply resolves to CPU.
-        self.ort_session_gpu = None
-        if providers:
-            try:
-                # Trailing CPU provider lets ORT place unsupported ops on CPU
-                # instead of failing session creation outright.
-                self.ort_session_gpu = onnxruntime.InferenceSession(
-                    self.model_path,
-                    opts,
-                    providers=providers + ["CPUExecutionProvider"],
-                )
-            except Exception as e:
-                logger.warning(
-                    "GPU ONNX session unavailable (%s); LEAP will run on CPU. "
-                    "On Linux this usually means onnxruntime-gpu is installed "
-                    "without the CUDA/cuDNN system libraries.",
-                    e,
-                )
-        if self.ort_session_gpu is None:
-            self.ort_session_gpu = self.ort_session_cpu
+        self._session_opts = opts
+        cpu = onnxruntime.InferenceSession(self.model_path, opts, providers=["CPUExecutionProvider"])
+        self._cpu_session = (cpu, cpu.get_inputs()[0].name, False)
+        # Built by the worker the first time GPU is selected (most users never
+        # turn it on); False after a failed build so it is not retried per frame.
+        self._gpu_session = None
         for i in range(self.num_threads):
-            if self.config.settings.gui_use_gpu:
-                thread = threading.Thread(
-                    target=run_model,
-                    args=(self.queues[i], self.output_queue, self.ort_session_gpu),
-                    name=f"Thread {i}",
-                )
-            else:
-                thread = threading.Thread(
-                    target=run_model,
-                    args=(self.queues[i], self.output_queue, self.ort_session_cpu),
-                    name=f"Thread {i}",
-                )
+            # Daemon: a worker blocked on its queue must not keep the app alive.
+            thread = threading.Thread(
+                target=run_model,
+                args=(self.queues[i], self.output_queue, self._session_for),
+                name=f"LEAP {i}",
+                daemon=True,
+            )
             self.threads.append(thread)
             thread.start()
+
+    def _session_for(self, use_gpu):
+        """(session, input name, uses DirectML) for this frame's GPU setting.
+        A missing or broken accelerator falls back to the CPU session (see
+        create_inference_session)."""
+        if not use_gpu:
+            return self._cpu_session
+        if self._gpu_session is None:
+            self._gpu_session = False
+            try:
+                session, uses_directml = create_inference_session(
+                    self.model_path,
+                    self._session_opts,
+                    use_gpu=True,
+                    component="LEAP",
+                    logger=logger,
+                )
+                self._gpu_session = (session, session.get_inputs()[0].name, uses_directml)
+            except Exception as e:
+                logger.warning("LEAP GPU session unavailable (%s); running on CPU.", e)
+        return self._gpu_session or self._cpu_session
 
     def shutdown(self):
         """Stop the inference worker threads so swapping algorithms doesn't
@@ -271,10 +252,7 @@ class LEAP_C:
     def leap_run(self):
         img_height, img_width = self.current_image_gray_clean.shape[:2]
         frame = cv2.resize(self.current_image_gray_clean, (112, 112))
-        if self.config.settings.gui_use_gpu:
-            run_onnx_model(self.queues, self.ort_session_gpu, frame)
-        else:
-            run_onnx_model(self.queues, self.ort_session_cpu, frame)
+        run_onnx_model(self.queues, bool(self.config.settings.gui_use_gpu), frame)
 
         if not self.output_queue.empty():
             frame, pre_landmark = self.output_queue.get()

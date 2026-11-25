@@ -9,7 +9,6 @@ import tkinter as tk
 from tkinter import ttk
 
 import ui_dialog
-from colorama import Fore
 from threading import Event
 from eye import EyeId
 from config import (
@@ -71,6 +70,8 @@ class BaseSettingsWidget:
         self.advanced_frame = None
         self._advanced_toggle_row = None
         self._advanced_toggle_btn = None
+        # Section frame built for each module on the main page, by module id.
+        self._module_sections: dict[int, ttk.LabelFrame] = {}
         self._saving_own = False
         register = getattr(main_config, "register_listener_callback", None)
         if callable(register):
@@ -163,8 +164,13 @@ class BaseSettingsWidget:
         self._pending_validated = None
 
     def _schedule_debounced_settings_save(self, validated_data: dict):
-        self._pending_validated = {**(self._pending_validated or {}), **validated_data}
-        if self.frame is None:
+        merged = {**(self._pending_validated or {}), **validated_data}
+        # render_tick reports an unsaved edit again on every tick (0.2 s), so
+        # restarting the 450 ms timer for the same edit meant it never fired and
+        # changes only applied on leaving the page.
+        unchanged = self._config_save_after_id is not None and merged == self._pending_validated
+        self._pending_validated = merged
+        if self.frame is None or unchanged:
             return
         top = self.frame.winfo_toplevel()
         if self._config_save_after_id is not None:
@@ -253,6 +259,7 @@ class BaseSettingsWidget:
         )
         section.pack(fill="x", padx=8, pady=6, anchor="n")
         module.build(section)
+        self._module_sections[id(module)] = section
         return section
 
     def _build_advanced_section(self, advanced_modules):
@@ -270,7 +277,12 @@ class BaseSettingsWidget:
 
         # Without a page to go to (no main window), it is built but never shown.
         page = self.advanced_frame = ttk.Frame(self.advanced_parent or self.frame)
-        header = ttk.Frame(page)
+        # The settings themselves, behind the first-open notice (see
+        # _build_advanced_notice). Everything is built either way, so the tk vars
+        # exist for validation and saving whether or not it has been accepted.
+        self._advanced_content = content = ttk.Frame(page)
+        self._advanced_notice = self._build_advanced_notice(page)
+        header = ttk.Frame(content)
         header.pack(fill="x", padx=8, pady=(4, 6))
         ttk.Button(header, text=f"‹ {tr('wizard.back_btn')}", command=self._close_advanced).pack(side="left")
         ttk.Label(header, text=self.advanced_title(), font=("Segoe UI", 12, "bold")).pack(side="left", padx=12)
@@ -280,13 +292,57 @@ class BaseSettingsWidget:
         for module in self.initialized_modules:
             if id(module) in advanced_set or not hasattr(module, "build_advanced"):
                 continue
-            module.build_advanced(self._advanced_box(page, module))
+            module.build_advanced(self._advanced_box(content, module))
         for module in advanced_modules:
-            module.build(self._advanced_box(page, module))
+            module.build(self._advanced_box(content, module))
 
-        diagnostics_row = ttk.Frame(page)
+        diagnostics_row = ttk.Frame(content)
         diagnostics_row.pack(fill="x", padx=8, pady=(6, 4), anchor="w")
         ttk.Button(diagnostics_row, text=tr("settings_base.open_logs"), command=open_logs).pack(side="left")
+        self._sync_advanced_notice()
+
+    def _build_advanced_notice(self, page):
+        """The page shown instead of the settings until the user has accepted it
+        once (gui_advanced_acknowledged). Go back is the main button."""
+        notice = ttk.Frame(page)
+        body = ttk.Frame(notice)
+        body.pack(fill="x", padx=24, pady=(48, 0))
+        ttk.Label(body, text=tr("settings_base.advanced_notice_title"), font=("Segoe UI", 14, "bold")).pack(anchor="w")
+        ttk.Label(
+            body,
+            text=tr("settings_base.advanced_notice_body"),
+            wraplength=520,
+            justify="left",
+        ).pack(anchor="w", pady=(12, 0))
+        buttons = ttk.Frame(body)
+        buttons.pack(anchor="w", pady=(24, 0))
+        ttk.Button(
+            buttons,
+            text=tr("settings_base.advanced_notice_back"),
+            command=self._close_advanced,
+            style="Accent.TButton",
+        ).pack(side="left")
+        ttk.Button(buttons, text=tr("settings_base.advanced_notice_ack"), command=self._acknowledge_advanced).pack(
+            side="left", padx=(8, 0)
+        )
+        return notice
+
+    def _sync_advanced_notice(self):
+        """Show the notice until it has been accepted, the settings after."""
+        content = getattr(self, "_advanced_content", None)
+        notice = getattr(self, "_advanced_notice", None)
+        if content is None or notice is None:
+            return
+        if getattr(self.config, "gui_advanced_acknowledged", False):
+            notice.pack_forget()
+            content.pack(fill="both", expand=True)
+        else:
+            content.pack_forget()
+            notice.pack(fill="both", expand=True)
+
+    def _acknowledge_advanced(self):
+        self.main_config.update({"gui_advanced_acknowledged": True}, save=True)
+        self._sync_advanced_notice()
 
     def _advanced_box(self, page, module):
         title_key = _SECTION_TITLE_KEYS.get(module.__class__.__name__)
@@ -296,6 +352,7 @@ class BaseSettingsWidget:
         return box
 
     def _open_advanced(self):
+        self._sync_advanced_notice()
         if self.open_advanced is not None:
             self.open_advanced()
 
@@ -331,10 +388,9 @@ class BaseSettingsWidget:
                     os.remove(path)
                     removed.append(path)
             except OSError as e:
-                print(f"{Fore.RED}[ERROR]{Fore.RESET} Could not delete {path}: {e}")
-        print(
-            f"{Fore.GREEN}[INFO]{Fore.RESET} Deleted config file(s): {', '.join(removed) if removed else 'none found'}"
-        )
+                # The log, not print(): the windowed build has no console.
+                logger.error("Could not delete %s: %s", path, e)
+        logger.info("Deleted config file(s): %s", ", ".join(removed) if removed else "none found")
 
         # Hand off to the main window's shutdown sequence so camera threads,
         # OSC, etc. unwind cleanly. The root's WM_DELETE_WINDOW protocol is
@@ -366,7 +422,7 @@ class BaseSettingsWidget:
     def reset_config(self):
         default_values = {}
         base_settings = EyeTrackSettingsConfig()
-        print("\033[92m[INFO] Resetting config to defaults\033[0m")
+        logger.info("Resetting config to defaults")
         for module in self.initialized_modules:
             for key in module.get_key_for_panel_defaults():
                 default_val = getattr(base_settings, key)
@@ -379,7 +435,7 @@ class BaseSettingsWidget:
             reset_hook = getattr(module, "reset_to_defaults", None)
             if reset_hook is not None:
                 reset_hook(base_settings)
-        print("\033[92m[INFO] Config reset, saving\033[0m")
+        logger.info("Config reset, saving")
         self._cancel_debounced_settings_save()
         self.is_saving = True
         self._update_and_save_config(default_values)

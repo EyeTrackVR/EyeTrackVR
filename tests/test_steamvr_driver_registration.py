@@ -106,7 +106,7 @@ def test_sync_quietly_never_raises(tmp_path):
         assert reg.sync_quietly(True) is None
 
 
-def test_osc_manager_follows_the_toggle(main_config_v2_params):
+def test_osc_manager_syncs_driver_and_layer_with_the_toggle(main_config_v2_params):
     calls = []
 
     def wait_for(n):
@@ -118,21 +118,41 @@ def test_osc_manager_follows_the_toggle(main_config_v2_params):
     s = main_config_v2_params.settings
     s.gui_foveation_gaze = False  # on by default; start from off
     with (
-        mock.patch("ovr.steamvr_driver_registration.sync_quietly", side_effect=calls.append),
+        mock.patch("ovr.steamvr_driver_registration.sync_quietly", side_effect=lambda e: calls.append(("driver", e))),
+        mock.patch("ovr.openxr_layer_registration.sync_quietly", side_effect=lambda e: calls.append(("layer", e))),
         mock.patch("osc.osc.udp_client.SimpleUDPClient"),
     ):
         manager = OSCManager(config=main_config_v2_params, osc_message_in_queue=Queue())
         manager.start()
         try:
-            wait_for(1)  # startup: toggle off -> make sure no stale registration is left
+            wait_for(2)  # startup: toggle off -> make sure no stale registration is left
             s.gui_foveation_gaze = True
             manager.update({"gui_foveation_gaze": True})
-            wait_for(2)
+            wait_for(4)
             s.gui_foveation_gaze = False
             manager.update({"gui_foveation_gaze": False})
-            wait_for(3)
+            wait_for(6)
             manager.update({"gui_osc_port": 9999})  # unrelated setting: no sync
-            time.sleep(0.1)
+            time.sleep(0.1)  # a sync would have started inside update(); give it time to show
         finally:
             manager.shutdown()
-    assert calls == [False, True, False]
+    assert calls == [
+        ("driver", False),
+        ("layer", False),
+        ("driver", True),
+        ("layer", True),
+        ("driver", False),
+        ("layer", False),
+    ]
+
+
+def test_registered_entries_lists_every_copy_of_ours(tmp_path):
+    ours = tmp_path / "a" / "steamvr_driver" / "eyetrackvr"
+    ours.mkdir(parents=True)
+    (ours / reg.MANIFEST).write_text(json.dumps({"name": "eyetrackvr"}))
+    gone = str(tmp_path / "gone" / "steamvr_driver" / "eyetrackvr")  # an uninstalled copy
+    paths = _paths(tmp_path, [str(tmp_path / "other" / "driver"), str(ours), gone])
+    assert reg.registered_entries(paths) == [str(ours), gone]
+    assert reg.registered_entries(None) is None  # conftest: no openvrpaths.vrpath
+    paths.write_text("{not json")
+    assert reg.registered_entries(paths) is None

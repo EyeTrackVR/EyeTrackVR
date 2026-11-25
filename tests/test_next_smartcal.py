@@ -587,3 +587,17 @@ def test_angle_fit_sanity():
 def test_tangents_to_gaze_defaults_without_settings():
     x, y = smartcal_tangents_to_gaze(math.tan(math.radians(40.0)), -math.tan(math.radians(40.0)), SimpleNamespace())
     assert (x, y) == pytest.approx((1.0, -1.0))
+
+
+def test_smartcal_accepts_under_driven_vertical_gain():
+    # Held-out BSB users need ~2.5x on gaze_y; that fit used to be rejected.
+    assert next_smartcal_transform_is_sane([1.28, 0.0, 0.0, 2.56], [0.0, 0.05])
+    assert next_smartcal_transform_is_sane([1.5, 0.0, 0.0, 1.5], [0.05, 0.05])
+
+
+@pytest.mark.parametrize(
+    "w, b",
+    [([10.0, 0.0, 0.0, 10.0], [0.0, 0.0]), ([1.0, 0.0, 0.0, -1.0], [0.0, 0.0]), ([2.0, 0.0, 0.0, 2.0], [0.0, 0.5])],
+)
+def test_smartcal_still_rejects_degenerate_fits(w, b):
+    assert not next_smartcal_transform_is_sane(w, b)

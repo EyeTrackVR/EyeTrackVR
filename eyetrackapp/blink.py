@@ -32,15 +32,13 @@ from collections import deque
 import numpy as np
 
 _FILTER_MAXLEN = 300
+# Below this many samples the bounds are recomputed every frame (cheap, and a
+# freshly reset window changes fast); above it, every _BOUNDS_REFRESH_FRAMES.
+_BOUNDS_EXACT_BELOW = 64
+_BOUNDS_REFRESH_FRAMES = 10
 
 
 def BLINK(self):
-
-    if self.blink_clear:
-        self.max_ints = []
-        self.max_int = 0
-        self.frames = 0
-
     intensity = np.sum(self.current_image_gray_clean)
 
     # Reset filter on (re)calibration. Use a bounded deque so append is O(1).
@@ -50,7 +48,14 @@ def BLINK(self):
 
     # Single sort for both percentile bounds, instead of two np.percentile calls.
     if len(self.filterlist) >= 2:
-        lo, hi = np.percentile(self.filterlist, (1, 99))
+        bounds = getattr(self, "_blink_bounds", None)
+        age = getattr(self, "_blink_bounds_age", 0) + 1
+        if bounds is None or len(self.filterlist) < _BOUNDS_EXACT_BELOW or age >= _BOUNDS_REFRESH_FRAMES:
+            bounds = np.percentile(self.filterlist, (1, 99))
+            self._blink_bounds = bounds
+            age = 0
+        self._blink_bounds_age = age
+        lo, hi = bounds
     else:
         lo, hi = -np.inf, np.inf
 

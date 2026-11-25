@@ -27,7 +27,6 @@ LICENSE: Babble Software Distribution License 1.0
 import json
 import logging
 import os.path
-import sys
 import tempfile
 import threading
 import time
@@ -35,6 +34,7 @@ import numpy as np
 from pydantic import (
     BaseModel,
     PrivateAttr,
+    ValidationError,
     field_serializer,
     field_validator,
     model_validator,
@@ -43,41 +43,17 @@ from typing import Any, Union, List
 import os
 from eye import EyeId
 from next_eye_coupling import DEFAULT_SYNC
+from utils.user_data import user_data_path
 
 logger = logging.getLogger(__name__)
 
 # Eye threads, LEAP, calibration workers and the Tk thread all call save().
 _SAVE_LOCK = threading.Lock()
 
-
-def _user_data_dir() -> str:
-    """Directory holding the settings file.
-
-    Windows keeps the historical behavior: bare filenames relative to the CWD,
-    which is the install dir when launched from the Start-menu shortcut (the
-    installer marks it user-writable). On Linux/macOS a system install usually
-    is NOT writable and the launch CWD is arbitrary (e.g. $HOME from a .desktop
-    entry), so the config belongs in the XDG config dir. A config file already
-    present in the CWD wins on every platform: source checkouts and portable
-    unpacked installs keep working exactly as before.
-    """
-    if os.name == "nt" or os.path.exists("eyetrack_settings.json"):
-        return ""
-    if sys.platform == "darwin":
-        base = os.path.expanduser("~/Library/Application Support")
-    else:
-        base = os.environ.get("XDG_CONFIG_HOME") or os.path.expanduser("~/.config")
-    path = os.path.join(base, "EyeTrackVR")
-    try:
-        os.makedirs(path, exist_ok=True)
-    except OSError:
-        return ""
-    return path
-
-
-_USER_DATA_DIR = _user_data_dir()
-CONFIG_FILE_NAME: str = os.path.join(_USER_DATA_DIR, "eyetrack_settings.json")
-BACKUP_CONFIG_FILE_NAME: str = os.path.join(_USER_DATA_DIR, "eyetrack_settings.backup")
+# The folder is decided in utils.user_data (shared with calibration files and
+# the SteamVR manifest).
+CONFIG_FILE_NAME: str = user_data_path("eyetrack_settings.json")
+BACKUP_CONFIG_FILE_NAME: str = user_data_path("eyetrack_settings.backup")
 DEFAULT_LID_CLOSE_THRESHOLD = 0.1
 DEFAULT_LID_WIDEN_THRESHOLD = 0.9
 
@@ -322,12 +298,13 @@ class EyeTrackCameraConfig(BaseModel):
         return self.calib_axes is not None and self.calib_evecs is not None and self.calib_center is not None
 
     def update_capture_source(self, new_camera_address: str):
-        if not new_camera_address:
-            self.capture_source = None
+        # UVC index 0 is a valid source but falsy: test for it before "empty".
+        if isinstance(new_camera_address, int) and not isinstance(new_camera_address, bool):
+            self.capture_source = new_camera_address
             return
 
-        if isinstance(new_camera_address, int):
-            self.capture_source = new_camera_address
+        if not new_camera_address:
+            self.capture_source = None
             return
 
         new_camera_address = str(new_camera_address).strip()
@@ -336,7 +313,7 @@ class EyeTrackCameraConfig(BaseModel):
             self.capture_source = int(new_camera_address)
             return
 
-        if new_camera_address.startswith(("COM", "/dev")) or "://" in new_camera_address:
+        if new_camera_address.startswith(("COM", "/dev", "uvc:")) or "://" in new_camera_address:
             self.capture_source = new_camera_address
             return
 
@@ -425,8 +402,7 @@ class EyeTrackSettingsConfig(BaseModel):
     gui_NEXT_squint_y_hold: bool = False
     # Headset (HMD) the models were trained for: ETVR / BSB / PSVR (shown as
     # PSVR/TOBII). PSVR is a manual NEXT-only choice; setup-mode auto-selection remains
-    # limited to ETVR and BSB. Selects the NEXT Hybrid family and
-    # assets/models/Eyebrow_<VARIANT>.onnx.
+    # limited to ETVR and BSB. Selects the NEXT Hybrid family.
     gui_model_variant: str = "ETVR"
     # NEXT model size within that headset's family, lightest to best:
     # LITE / NORMAL / LARGE / XL (see next_model.MODEL_SIZES).
@@ -566,7 +542,6 @@ class EyeTrackSettingsConfig(BaseModel):
     gui_OutputMultiplier: float = 1
     gui_use_module: bool = False
     gui_use_gpu: bool = True  # simple checkbox vs drop down with cuda, openvino etc.
-    gui_eyebrow: bool = False
 
     gui_openvr_autostart: bool = False
     gui_show_et_debug: bool = False
@@ -595,6 +570,9 @@ class EyeTrackSettingsConfig(BaseModel):
     gui_language: str = "en"
     # Light theme instead of the default dark one (ui_theme); applied at startup.
     gui_light_mode: bool = False
+    # True once the user has accepted the notice shown on first opening an
+    # Advanced settings page (BaseSettingsWidget._build_advanced_notice).
+    gui_advanced_acknowledged: bool = False
 
     @model_validator(mode="before")
     @classmethod
@@ -637,6 +615,61 @@ def _atomic_write(path: str, text: str) -> None:
         raise
 
 
+def _drop_invalid_field(data: dict, loc, parent: bool = False) -> str | None:
+    """Delete from ``data`` the field a validation error at ``loc`` points at and
+    return its dotted name (None when nothing could be dropped).
+
+    Descends only through sub-model dicts, so a bad list item or dict entry
+    drops its whole field and an error on a sub-model itself drops that
+    sub-model. With ``parent`` the sub-model holding the field goes instead."""
+    model, node, steps = EyeTrackConfig, data, []  # steps: (container, key)
+    found = True  # False: the error names a key that isn't in the data
+    for part in loc:
+        if not (isinstance(node, dict) and isinstance(part, str)):
+            break
+        if part not in model.model_fields or part not in node:
+            # Already dropped for an earlier error on the same field (one per
+            # list item or union member), or recreated by a validator.
+            found = False
+            break
+        steps.append((node, part))
+        annotation = model.model_fields[part].annotation
+        if not (isinstance(annotation, type) and issubclass(annotation, BaseModel) and isinstance(node[part], dict)):
+            break
+        model, node = annotation, node[part]
+    if not found and not parent:
+        return None
+    if found and parent:
+        steps = steps[:-1]
+    if not steps:
+        return None
+    container, key = steps[-1]
+    del container[key]
+    return ".".join(key for _, key in steps)
+
+
+def _keep_corrupt_copy() -> None:
+    """Keep the settings file that failed to load (fully or in part) as
+    eyetrack_settings.corrupt before anything saves over it. Raw bytes: it may
+    not even be UTF-8. Never fails the load."""
+    path = os.path.splitext(CONFIG_FILE_NAME)[0] + ".corrupt"
+    try:
+        with open(CONFIG_FILE_NAME, "rb") as original:
+            data = original.read()
+        directory = os.path.dirname(os.path.abspath(path))
+        fd, tmp_path = tempfile.mkstemp(prefix=os.path.basename(path) + ".", suffix=".tmp", dir=directory)
+        try:
+            with os.fdopen(fd, "wb") as tmp_file:
+                tmp_file.write(data)
+            os.replace(tmp_path, path)
+        except BaseException:
+            os.remove(tmp_path)
+            raise
+        logger.warning("Kept a copy of the unreadable settings as %s", path)
+    except OSError as e:
+        logger.warning("Could not keep a copy of the unreadable settings: %r", e)
+
+
 class EyeTrackConfig(BaseModel):
     version: int = CURRENT_CONFIG_VERSION
     right_eye: EyeTrackCameraConfig = EyeTrackCameraConfig()
@@ -647,12 +680,35 @@ class EyeTrackConfig(BaseModel):
     _listeners: list = PrivateAttr(default_factory=list)
 
     @staticmethod
-    def _load_file(path: str) -> "EyeTrackConfig":
+    def _load_file(path: str) -> tuple["EyeTrackConfig", list[str]]:
+        """The config in ``path`` and the dotted names of fields that were
+        invalid and dropped (so they take their defaults)."""
         with open(path, "r", encoding="utf-8") as settings_file:
             raw = json.load(settings_file)
         if not isinstance(raw, dict):
             raise TypeError(f"root is {type(raw).__name__}, expected object")
-        return EyeTrackConfig(**_migrate_config_dict(raw))
+        data = _migrate_config_dict(raw)
+        dropped = []
+        while True:
+            try:
+                return EyeTrackConfig(**data), dropped
+            except ValidationError as e:
+                # One bad value must not cost every camera and calibration:
+                # drop just the offending fields and try again.
+                progress = False
+                # A before-validator can recreate a dropped field (the legacy
+                # leap thresholds); then the sub-model holding it goes instead.
+                for parent in (False, True):
+                    for error in e.errors():
+                        name = _drop_invalid_field(data, error["loc"], parent=parent)
+                        if name is not None and name not in dropped:
+                            logger.warning("Settings field %s is invalid (%s), using its default", name, error["msg"])
+                            dropped.append(name)
+                            progress = True
+                    if progress:
+                        break
+                if not progress:
+                    raise
 
     @staticmethod
     def load():
@@ -660,12 +716,17 @@ class EyeTrackConfig(BaseModel):
             logger.info("No settings file, using base settings")
             return EyeTrackConfig()
         try:
-            return EyeTrackConfig._load_file(CONFIG_FILE_NAME)
+            load_config, dropped = EyeTrackConfig._load_file(CONFIG_FILE_NAME)
+            if dropped:
+                _keep_corrupt_copy()
+            return load_config
         except Exception as e:
             logger.warning("Failed to load settings file: %r", e)
+        # main() saves straight after loading: keep what the user had first.
+        _keep_corrupt_copy()
         if os.path.exists(BACKUP_CONFIG_FILE_NAME):
             try:
-                load_config = EyeTrackConfig._load_file(BACKUP_CONFIG_FILE_NAME)
+                load_config, _ = EyeTrackConfig._load_file(BACKUP_CONFIG_FILE_NAME)
                 logger.info("Using backup settings")
                 return load_config
             except Exception as e:

@@ -7,6 +7,11 @@
 #define MyAppURL "https://github.com/EyeTrackVR/EyeTrackVR/"
 #define MyAppExeName "eyetrackapp.exe"
 
+; CloseApplicationsFilterExcludes (see [Setup]) needs Inno Setup 6.4.2 or newer. CI pins 6.7.4.
+#if VER < EncodeVer(6,4,2)
+  #error Inno Setup 6.4.2 or newer is required to compile this script
+#endif
+
 [Setup]
 ; NOTE: The value of AppId uniquely identifies this application. Do not use the same AppId value in installers for other applications.
 ; (To generate a new GUID, click Tools | Generate GUID inside the IDE.)
@@ -28,6 +33,27 @@ SetupIconFile=..\..\eyetrackapp\assets\images\logo.ico
 Compression=lzma/ultra64
 SolidCompression=yes
 WizardStyle=modern
+; The uninstaller removes per-user leftovers under {localappdata} (see [UninstallDelete]).
+UsedUserAreasWarning=no
+; SteamVR and running games must never be closed by this installer. utils/updater.py runs it
+; with /SILENT /SUPPRESSMSGBOXES /NORESTART, and with CloseApplications=yes a silent setup
+; "will always close" every process Restart Manager finds using a file it replaces. SteamVR's
+; vrserver.exe holds the gaze driver DLL while it runs, and OpenXR games hold the eye gaze
+; layer DLL, so by default an update would kill SteamVR and the game.
+;  - CloseApplications stays yes, but the two DLLs other programs load are excluded from the
+;    in-use check, so Restart Manager only ever finds (and closes) EyeTrackVR's own processes:
+;    eyetrackapp.exe if it has not finished exiting after starting the update, and its
+;    calibration overlay. CloseApplications=no would instead make a still-running
+;    eyetrackapp.exe a locked file, and /SUPPRESSMSGBOXES answers that error with Abort,
+;    so setup would stop partway through the update.
+;  - Those two DLLs carry restartreplace (see [Files]): when one is in use, Windows replaces it
+;    at the next reboot instead of setup failing. Setup then wants a restart: the updater's
+;    /NORESTART stops it from rebooting; an interactive install asks first. A silent install
+;    without /NORESTART would reboot (Inno Setup's documented /SILENT behaviour).
+;    Until then SteamVR / the game keep the old DLL, which the app keeps feeding through the
+;    same versioned shared memory (native/sdk/eyetrackvr_gaze.h).
+CloseApplications=yes
+CloseApplicationsFilterExcludes=driver_eyetrackvr.dll,XR_APILAYER_EYETRACKVR_eye_gaze.dll
 
 [Languages]
 Name: "english"; MessagesFile: "compiler:Default.isl"
@@ -37,16 +63,38 @@ Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{
 
 [Files]
 Source: "..\..\build\windows\dist\{#MyAppExeName}"; DestDir: "{app}"; Flags: ignoreversion
-; Excludes: never ship local user settings that ended up in dist\ from test runs
-Source: "..\..\build\windows\dist\*"; DestDir: "{app}"; Excludes: "eyetrack_settings.json,eyetrack_settings.backup,logs\*,app.vrmanifest"; Flags: ignoreversion recursesubdirs createallsubdirs
+; Excludes: never ship local user settings that ended up in dist\ from test runs, and the
+; two DLLs installed by their own entries below.
+Source: "..\..\build\windows\dist\*"; DestDir: "{app}"; Excludes: "eyetrack_settings.json,eyetrack_settings.backup,logs\*,app.vrmanifest,driver_eyetrackvr.dll,XR_APILAYER_EYETRACKVR_eye_gaze.dll"; Flags: ignoreversion recursesubdirs createallsubdirs
+; Loaded by SteamVR (vrserver.exe) and by OpenXR games, which this installer must not close
+; (see CloseApplications in [Setup]). If one is in use it is replaced, or on uninstall
+; deleted, at the next reboot.
+Source: "..\..\build\windows\dist\steamvr_driver\eyetrackvr\bin\win64\driver_eyetrackvr.dll"; DestDir: "{app}\steamvr_driver\eyetrackvr\bin\win64"; Flags: ignoreversion restartreplace uninsrestartdelete
+Source: "..\..\build\windows\dist\openxr_layer\XR_APILAYER_EYETRACKVR_eye_gaze.dll"; DestDir: "{app}\openxr_layer"; Flags: ignoreversion restartreplace uninsrestartdelete
 ; NOTE: Don't use "Flags: ignoreversion" on any shared system files
 
-[Dirs]
-Name: {app}; Permissions: users-full
+; No [Dirs] Permissions: the app keeps settings, logs, calibration files, recordings and
+; app.vrmanifest in %LOCALAPPDATA%\EyeTrackVR (utils/user_data.py). A user-writable {app}
+; let any user replace the exe, the SteamVR driver DLL and the elevated uninstaller.
 
 [UninstallDelete]
 ; Written at runtime for SteamVR auto-launch; without it SteamVR stops launching the removed app.
+; Older versions wrote it into {app}, current ones beside the settings.
 Type: files; Name: "{app}\app.vrmanifest"
+Type: files; Name: "{localappdata}\EyeTrackVR\app.vrmanifest"
+; Plaintext eye recordings not yet sealed for upload (data_collection.capture_dir).
+Type: filesandordirs; Name: "{localappdata}\EyeTrackVR\captures"
+; Downloads the app made into its own folder, used by nothing else: update installers
+; (utils/updater.py), its PimaxMagic4All copy (ovr/dfr_setup.py) and the Quad-Views-Foveated
+; MSI (ovr/quad_views.py; Windows keeps its own copy for repair/uninstall).
+; Deliberately NOT removed, because the app keeps no record of having put them there and
+; the user may have installed them independently: PimaxMagic4All's DLLs in System32, the
+; Quad-Views-Foveated install (it has its own entry in Apps), HKCU\SOFTWARE\FR-Utility
+; (PimaxMagic4All's own key). Settings are only removed when the user says so ([Code]);
+; contributions\ and issue-reports\ (receipts needed to withdraw uploaded data) never are.
+Type: filesandordirs; Name: "{localappdata}\EyeTrackVR\updates"
+Type: filesandordirs; Name: "{localappdata}\EyeTrackVR\PimaxMagic4All"
+Type: filesandordirs; Name: "{localappdata}\EyeTrackVR\Quad-Views-Foveated"
 
 [UninstallRun]
 ; Remove the SteamVR gaze driver registration and the OpenXR eye gaze layer (set up while foveation gaze is on).
@@ -57,6 +105,10 @@ Name: "{autoprograms}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"
 Name: "{autodesktop}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; Tasks: desktopicon
 
 [Run]
+; Older installers granted Users full control of {app}, and Inno Setup never takes a
+; granted permission back: restore the inherited (admin-only) ACLs on upgrade. Before
+; the launches below, which run in order after this.
+Filename: "{sys}\icacls.exe"; Parameters: """{app}"" /reset /T /C /Q"; StatusMsg: "Securing the install folder..."; Flags: runhidden waituntilterminated
 Filename: "{app}\{#MyAppExeName}"; Description: "{cm:LaunchProgram,{#StringChange(MyAppName, '&', '&&')}}"; Flags: nowait postinstall skipifsilent
 ; In-app update (utils/updater.py runs this installer with /SILENT /RELAUNCH): start the
 ; new version again, as the user who was running it rather than the elevated installer.
@@ -71,5 +123,33 @@ begin
   for I := 1 to ParamCount do
     if CompareText(ParamStr(I), '/RELAUNCH') = 0 then
       Result := True;
+end;
+
+// Settings and calibration (utils/user_data.py) are the user's: offer to remove them, with
+// No as the default, and never in a silent uninstall. Only these names are deleted;
+// contributions\ and issue-reports\ hold the receipts needed to withdraw uploaded data and
+// are always kept. The folder itself goes only if nothing else is left in it.
+procedure CurUninstallStepChanged(CurUninstallStep: TUninstallStep);
+var
+  DataDir: String;
+begin
+  if (CurUninstallStep <> usPostUninstall) or UninstallSilent then
+    Exit;
+  DataDir := ExpandConstant('{localappdata}\EyeTrackVR');
+  if not FileExists(DataDir + '\eyetrack_settings.json') then
+    Exit;
+  if MsgBox('Also delete your EyeTrackVR settings, calibration and logs?' + #13#10 + DataDir + #13#10#13#10 +
+            'Contribution receipts (needed to withdraw data you uploaded) are kept either way.',
+            mbConfirmation, MB_YESNO or MB_DEFBUTTON2) <> IDYES then
+    Exit;
+  DeleteFile(DataDir + '\eyetrack_settings.json');
+  DeleteFile(DataDir + '\eyetrack_settings.backup');
+  DeleteFile(DataDir + '\eyetrackapp.lock');
+  DeleteFile(DataDir + '\enable_tracking_log');
+  DelTree(DataDir + '\RANSAC_BLINK_*.cfg', False, True, False);
+  DelTree(DataDir + '\IBO_*.png', False, True, False);
+  DelTree(DataDir + '\EBPD_*.png', False, True, False);
+  DelTree(DataDir + '\logs', True, True, True);
+  RemoveDir(DataDir);
 end;
 

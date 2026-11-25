@@ -31,6 +31,32 @@ jobs:
       - name: Ruff format
         run: pipx run ruff==0.15.10 format --check
 
+  # The Linux releases install packaging/linux/requirements.txt (hash-pinned, exported from
+  # poetry.lock), and the release scripts refuse version stamps that differ from version.txt.
+  release-pins:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.14"
+
+      # The versions the committed file was exported with; the export can differ between them.
+      - name: Install Poetry and the export plugin
+        run: python -m pip install poetry==2.3.3 poetry-plugin-export==1.10.2
+
+      - name: Linux requirements match poetry.lock
+        run: python packaging/export_requirements.py --check
+
+      - name: Version stamps match version.txt
+        run: python packaging/apply_version.py --check
+
   test:
     strategy:
       fail-fast: false

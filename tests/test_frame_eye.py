@@ -334,11 +334,17 @@ def test_dsp_client_against_a_fake_service():
     os.close(mem)
 
 
-def test_both_eyes_of_a_pair_share_a_capture_time():
+def test_both_eyes_of_a_pair_share_a_capture_time(monkeypatch):
+    now = [100.0]
+    monkeypatch.setattr(fe.time, "perf_counter", lambda: now[0])
     svc = fe.FrameEyeService(client_factory=FakeClient)
     left = svc._capture_ts("left")
+    now[0] += svc.PAIR_WINDOW / 2
     assert svc._capture_ts("right") == left  # the pair's other half
     assert svc._capture_ts("left") > left  # the next pair starts
-    time.sleep(0.02)
+    now[0] += 0.02
     first = svc._capture_ts("right")
     assert first > left and svc._capture_ts("left") == first
+    # A late other half is a new pair, not part of an old one.
+    now[0] += svc.PAIR_WINDOW * 2
+    assert svc._capture_ts("right") == now[0]

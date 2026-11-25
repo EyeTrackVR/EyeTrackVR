@@ -4,6 +4,7 @@ import json
 from pathlib import Path
 import queue
 import re
+import logging
 import threading
 import time
 import tkinter as tk
@@ -44,6 +45,8 @@ _CONFIG_RETRY_MS = 15000
 # Short checkbox labels (language keys). Ticking them gives the two numbered confirmations at the
 # top of the notice, whose full wording is what the recorded notice version and hash cover.
 DATASET_CONSENTS = ("contributions.consent_agreement", "contributions.consent_sensitive")
+
+logger = logging.getLogger(__name__)
 
 
 def dataset_consents():
@@ -732,11 +735,19 @@ class ContributionWindow:
         self.status.set("")
 
     def clear_capture(self):
-        self._capture_path = None
+        # A new recording or a new session replaces this one: don't leave it behind.
+        self._discard_capture()
         self._capture_receipt = None
         self.selection.set(tr("contributions.selection_pending"))
         self.reset_consent()
         self.update_navigation()
+
+    def _discard_capture(self):
+        """Forget the attached recording and let the capture engine delete it
+        (it only deletes ZIPs it recorded itself into its private folder)."""
+        path, self._capture_path = self._capture_path, None
+        if path is not None and self.capture_controller is not None:
+            self.capture_controller.discard_capture(path)
 
     def start_capture(self):
         if self.busy or self.capture_active or not self.capture_controller:
@@ -854,7 +865,9 @@ class ContributionWindow:
                 self.events.put(("error", tr("contributions.error_connection")))
             except ValueError as error:
                 self.events.put(("error", str(error)))
-            except Exception:
+            except Exception as error:
+                # The type only: the message may hold private paths.
+                logger.warning("Contribution operation failed: %s", type(error).__name__)
                 self.events.put(("error", tr("contributions.error_operation")))
 
         threading.Thread(target=worker, daemon=True).start()
@@ -1129,6 +1142,10 @@ class ContributionWindow:
                     self.status.set("" if self.step == 3 and self.tabs.index("current") == 0 else detail)
                 elif kind == "prepared":
                     self._capture_receipt = value
+                    # Sealed into the encrypted bundle that uploads resume from:
+                    # the plaintext recording is no longer needed.
+                    self._discard_capture()
+                    self.capture_status.set(tr("contributions.capture_ready"))
                     self.refresh_history(value)
                     self.update_navigation()
                 elif kind == "consent":

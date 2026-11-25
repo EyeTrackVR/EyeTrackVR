@@ -1,10 +1,8 @@
 """The in-VR overlay and the data-collection voice prompts follow the app's
 UI language: every lang/*.toml carries the prompt table, every prompt the
-session uses exists, and the bundled overlay knows every shipped language."""
+session uses exists, and the overlay is launched in the app's language. (That the
+bundled overlay knows every shipped language: test_overlay_binaries.py.)"""
 
-import os
-import subprocess
-import sys
 import tomllib
 from pathlib import Path
 
@@ -72,23 +70,3 @@ def test_overlay_is_launched_in_the_app_language(monkeypatch):
     monkeypatch.setattr(localization, "_active_code", "ja")
     argv = overlay_launch.overlay_command("finetune", executable="overlay")
     assert argv == ["overlay", "finetune", "--lang=ja"]
-
-
-def _runnable_overlay():
-    dist = APP.parent / "overlay"
-    if sys.platform == "win32":
-        return dist / "windows" / "EyeTrackVR-Overlay.exe"
-    if sys.platform == "linux" and os.uname().machine in ("x86_64", "AMD64"):
-        return dist / "linux" / "EyeTrackVR-Overlay"
-    return None
-
-
-def test_bundled_overlay_supports_every_app_language():
-    exe = _runnable_overlay()
-    if exe is None or not exe.is_file():
-        pytest.skip("no runnable overlay binary for this platform")
-    out = subprocess.run(
-        [str(exe), "--list-langs"], capture_output=True, text=True, timeout=30, check=True
-    ).stdout.split()
-    missing = set(_codes()) - set(out)
-    assert not missing, f"overlay lacks built-in text for {sorted(missing)}; rebuild it"

@@ -3,7 +3,6 @@
 from pathlib import Path
 import re
 import sys
-import time
 import tkinter as tk
 
 import pytest
@@ -12,25 +11,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "eyetrackapp"))
 from contributions.client import ContributionClient, save
 from contributions.window import ContributionWindow, dataset_consents, version_label
 from localization import tr, tr_english
-
-
-@pytest.fixture(scope="module")
-def root():
-    try:
-        root = tk.Tk()
-    except tk.TclError:
-        pytest.skip("No desktop display available")
-    root.withdraw()
-    yield root
-    root.destroy()
-
-
-def drain(root, condition):
-    until = time.monotonic() + 4
-    while not condition() and time.monotonic() < until:
-        root.update()
-        time.sleep(0.01)
-    assert condition()
+from tests.tk_support import drain
 
 
 def window(root, tmp_path, enabled=True):
@@ -208,10 +189,11 @@ def test_capture_engine_uses_one_window_and_attaches_its_result(root, tmp_path, 
     )
     camera = SimpleNamespace(add_extra_output_queue=lambda _: None, remove_extra_output_queue=lambda _: None)
     eye = SimpleNamespace(started=lambda: True, _effective_camera=lambda: camera, eye_id=SimpleNamespace(name="LEFT"))
-    capture = tmp_path / "only_this_capture.zip"
-    capture.write_bytes(b"synthetic fixture")
+    monkeypatch.setattr(data_collection, "capture_dir", lambda: str(tmp_path))
+    capture = tmp_path / "v6_only_this_capture_ETVR_User_Data_Output.zip"
 
     def run(self):
+        capture.write_bytes(b"synthetic fixture")
         self.gui_queue.put(("capture_ready", str(capture)))
         self._cleanup_session()
 
@@ -238,6 +220,8 @@ def test_capture_engine_uses_one_window_and_attaches_its_result(root, tmp_path, 
     ui.start_capture()
     drain(root, lambda: not controller.session_running)
     assert ui._capture_path is None and ui.step == 1
+    # Replaced by the new recording: the app's plaintext ZIP is deleted.
+    assert not capture.exists()
     controller.close()
     assert ui.window.winfo_exists()  # Reused when Contribute is opened again.
     ui.window.destroy()
@@ -351,3 +335,42 @@ def test_windows_show_translated_text_and_never_raw_keys(root, tmp_path, languag
     )
     ui.close()
     report.window.destroy()
+
+
+def test_sealed_recording_deletes_only_the_apps_plaintext_zip(root, tmp_path, monkeypatch):
+    from types import SimpleNamespace
+    import data_collection
+
+    monkeypatch.setattr("contributions.client.receipt_home", lambda: tmp_path / "private")
+    monkeypatch.setattr(
+        ContributionClient,
+        "config",
+        lambda _: {"enabled": True, "terms": {"dataset": {"version": "test", "text": "Current terms"}}},
+    )
+    captures = tmp_path / "captures"
+    captures.mkdir()
+    monkeypatch.setattr(data_collection, "capture_dir", lambda: str(captures))
+    leftover = captures / "v6_earlier_run_ETVR_User_Data_Output.zip"
+    leftover.write_bytes(b"left by a run that quit before sealing")
+    recorded = captures / "v6_recorded_ETVR_User_Data_Output.zip"
+    controller = data_collection.DataCollectionWindow(root, [SimpleNamespace(started=lambda: False)])
+    controller.show()
+    assert not leftover.exists()
+    ui = controller._contributions
+    drain(root, lambda: not ui.busy)
+
+    recorded.write_bytes(b"synthetic fixture")
+    ui.capture_stopped(recorded)
+    ui.events.put(("prepared", "a" * 32))
+    drain(root, lambda: not recorded.exists())
+    assert ui._capture_receipt == "a" * 32 and ui._capture_path is None
+
+    # A ZIP anywhere else (one the user picked) is never deleted.
+    elsewhere = tmp_path / "v6_user_copy_ETVR_User_Data_Output.zip"
+    elsewhere.write_bytes(b"synthetic fixture")
+    ui.capture_stopped(elsewhere)
+    ui.events.put(("prepared", "b" * 32))
+    drain(root, lambda: ui._capture_receipt == "b" * 32)
+    assert elsewhere.exists()
+    controller.close()
+    ui.window.destroy()

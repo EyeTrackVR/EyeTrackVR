@@ -20,6 +20,7 @@ from next_stereo_model import StereoNextCoordinator, stereo_model_file
 from osc.foveation_gaze_sender import FoveationGazeSender
 from osc.osc_message import OSCMessage, OSCMessageType
 from tests import EyeInfoMock
+from tests.osc_helpers import isolate_gaze_outputs
 from utils.calibration_elipse import CalibrationEllipse
 
 
@@ -244,11 +245,8 @@ def _eye_msg(eye_id=EyeId.RIGHT, **kw):
 
 
 @pytest.fixture()
-def sender(monkeypatch):
-    from osc import gaze_shared_memory as shm
-
-    monkeypatch.setattr(shm, "WIN32_NAME", "Local\\EyeTrackVR.Gaze.test.unfiltered")
-    monkeypatch.setattr(shm, "POSIX_PATH", "/dev/shm/eyetrackvr_gaze_test_unfiltered")
+def sender(monkeypatch, tmp_path):
+    isolate_gaze_outputs(monkeypatch, tmp_path)  # a unique block: concurrent runs must not share one
     s = FoveationGazeSender()
     client = SimpleNamespace(messages=[])
     client.send_message = lambda address, value: client.messages.append(value)

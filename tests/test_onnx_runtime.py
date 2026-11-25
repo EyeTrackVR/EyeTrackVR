@@ -1,4 +1,10 @@
+"""ONNX Runtime provider choice (utils.onnx_runtime): CPU unless the GPU is
+asked for, accelerators in their order of preference, and a broken GPU
+provider falling back to CPU instead of stopping tracking."""
+
 import logging
+
+import pytest
 
 from utils import onnx_runtime as ort_utils
 
@@ -11,56 +17,46 @@ class _FakeSession:
         return self._providers
 
 
-def test_gpu_disabled_uses_cpu_only(monkeypatch):
-    calls = []
+@pytest.fixture
+def ort(monkeypatch):
+    """onnxruntime with the given providers installed; ``ort.calls`` lists the
+    provider lists sessions were requested with, ``ort.broken`` the providers
+    whose sessions fail to build."""
+    state = type("Ort", (), {})()
+    state.calls = []
+    state.broken = set()
+    state.available = ["DmlExecutionProvider", "CPUExecutionProvider"]
 
     def fake_session(_path, sess_options, providers):
-        calls.append(providers)
+        state.calls.append(providers)
+        first = providers[0][0] if isinstance(providers[0], tuple) else providers[0]
+        if first in state.broken:
+            raise RuntimeError("provider unavailable")
         return _FakeSession(providers)
 
     monkeypatch.setattr(ort_utils.onnxruntime, "InferenceSession", fake_session)
-    monkeypatch.setattr(
-        ort_utils.onnxruntime,
-        "get_available_providers",
-        lambda: ["DmlExecutionProvider", "CPUExecutionProvider"],
+    monkeypatch.setattr(ort_utils.onnxruntime, "get_available_providers", lambda: state.available)
+    return state
+
+
+def _create(use_gpu):
+    return ort_utils.create_inference_session(
+        "model.onnx", object(), use_gpu=use_gpu, component="test", logger=logging.getLogger(__name__)
     )
 
-    session, uses_dml = ort_utils.create_inference_session(
-        "model.onnx",
-        object(),
-        use_gpu=False,
-        component="test",
-        logger=logging.getLogger(__name__),
-    )
 
-    assert calls == [["CPUExecutionProvider"]]
+def test_gpu_disabled_uses_cpu_only(ort):
+    session, uses_dml = _create(use_gpu=False)
+
+    assert ort.calls == [["CPUExecutionProvider"]]
     assert session.get_providers() == ["CPUExecutionProvider"]
     assert uses_dml is False
 
 
-def test_gpu_enabled_prefers_directml_with_cpu_fallback(monkeypatch):
-    calls = []
+def test_gpu_enabled_prefers_directml_with_cpu_fallback(ort):
+    session, uses_dml = _create(use_gpu=True)
 
-    def fake_session(_path, sess_options, providers):
-        calls.append(providers)
-        return _FakeSession(providers)
-
-    monkeypatch.setattr(ort_utils.onnxruntime, "InferenceSession", fake_session)
-    monkeypatch.setattr(
-        ort_utils.onnxruntime,
-        "get_available_providers",
-        lambda: ["DmlExecutionProvider", "CPUExecutionProvider"],
-    )
-
-    session, uses_dml = ort_utils.create_inference_session(
-        "model.onnx",
-        object(),
-        use_gpu=True,
-        component="test",
-        logger=logging.getLogger(__name__),
-    )
-
-    assert calls == [
+    assert ort.calls == [
         [
             ("DmlExecutionProvider", {"enable_share_strategy": True}),
             "CPUExecutionProvider",
@@ -70,31 +66,22 @@ def test_gpu_enabled_prefers_directml_with_cpu_fallback(monkeypatch):
     assert uses_dml is True
 
 
-def test_broken_gpu_session_falls_back_to_cpu(monkeypatch):
-    calls = []
+def test_accelerators_are_tried_in_order_of_preference(ort):
+    ort.available = ["CoreMLExecutionProvider", "CPUExecutionProvider", "CUDAExecutionProvider", "AzureProvider"]
 
-    def fake_session(_path, sess_options, providers):
-        calls.append(providers)
-        if providers[0] != "CPUExecutionProvider":
-            raise RuntimeError("provider unavailable")
-        return _FakeSession(providers)
+    session, uses_dml = _create(use_gpu=True)
 
-    monkeypatch.setattr(ort_utils.onnxruntime, "InferenceSession", fake_session)
-    monkeypatch.setattr(
-        ort_utils.onnxruntime,
-        "get_available_providers",
-        lambda: ["DmlExecutionProvider", "CPUExecutionProvider"],
-    )
+    assert ort.calls == [["CUDAExecutionProvider", "CoreMLExecutionProvider", "CPUExecutionProvider"]]
+    assert uses_dml is False
 
-    session, uses_dml = ort_utils.create_inference_session(
-        "model.onnx",
-        object(),
-        use_gpu=True,
-        component="test",
-        logger=logging.getLogger(__name__),
-    )
 
-    assert len(calls) == 2
-    assert calls[1] == ["CPUExecutionProvider"]
+def test_broken_gpu_session_falls_back_to_cpu(ort, caplog):
+    ort.broken = {"DmlExecutionProvider"}
+
+    session, uses_dml = _create(use_gpu=True)
+
+    assert len(ort.calls) == 2
+    assert ort.calls[1] == ["CPUExecutionProvider"]
     assert session.get_providers() == ["CPUExecutionProvider"]
     assert uses_dml is False
+    assert "falling back to CPU" in caplog.text

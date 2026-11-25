@@ -77,7 +77,9 @@ exe = EXE(
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,
-    upx=True,
+    # No UPX: the output would depend on whether upx happens to be on the build machine's
+    # PATH, and UPX-packed binaries set off antivirus false positives.
+    upx=False,
     upx_exclude=[],
     runtime_tmpdir=None,
     console=False,
@@ -97,7 +99,7 @@ coll = COLLECT(
     a.binaries,
     a.datas,
     strip=False,
-    upx=True,
+    upx=False,
     upx_exclude=[],
     name='dist',
 )

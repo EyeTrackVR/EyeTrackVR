@@ -11,10 +11,13 @@ from logging import getLogger, WARN, INFO
 import tkinter as tk
 from colorama import Fore
 
-from config import _USER_DATA_DIR
+from utils.user_data import user_data_dir
 from localization import tr
 
 logger = logging.getLogger(__name__)
+
+# The manifest lives with the settings file (tests patch this name).
+_USER_DATA_DIR = user_data_dir()
 
 
 class OpenVRException(Exception):
@@ -180,8 +183,9 @@ class OpenVRService:
 
     @property
     def manifestPath(self) -> str:
-        # Keep the manifest with the settings file. On Windows and in source
-        # checkouts that is the app folder, elsewhere the user config folder.
+        # Keep the manifest with the settings file: the user data folder
+        # (never the install folder on an installed Windows build), or the
+        # app folder for source checkouts that keep settings in the CWD.
         return os.path.join(_USER_DATA_DIR or _app_dir(), "app.vrmanifest")
 
     def _old_manifest_path(self):

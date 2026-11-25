@@ -6,9 +6,10 @@ Reads <repo-root>/version.txt (single line, e.g. "0.3.0 BETA 7") and rewrites:
   - eyetrackapp/eyetrackapp.py           APP_VERSION = "EyeTrackApp <version>"
   - packaging/windows/installer.iss       #define MyAppVersion "<version>"
                                           OutputBaseFilename=EyeTrackVR-Setup-<version-with-dashes>
+  - pyproject.toml                        version = "<PEP 440 form>"  e.g. 0.3.0b7, 0.3.0rc1
 
 --check exits 1 if any file is out of sync without modifying anything
-(used by the build script to decide whether a rebuild is needed).
+(packaging/build_release.bat and CI refuse to build a release that is out of sync).
 
 Prints the version (and the file-safe variant) so batch callers can capture it:
   line 1: raw version        e.g. 0.3.0 BETA 7
@@ -25,10 +26,28 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 VERSION_FILE = REPO_ROOT / "version.txt"
 APP_PY = REPO_ROOT / "eyetrackapp" / "eyetrackapp.py"
 ISS_FILE = REPO_ROOT / "packaging" / "windows" / "installer.iss"
+PYPROJECT = REPO_ROOT / "pyproject.toml"
 
 APP_VERSION_RE = re.compile(r'^APP_VERSION = ".*"$', re.MULTILINE)
 ISS_VERSION_RE = re.compile(r'^#define MyAppVersion ".*"$', re.MULTILINE)
 ISS_OUTPUT_RE = re.compile(r"^OutputBaseFilename=.*$", re.MULTILINE)
+# The first top-level `version = ` line: [tool.poetry]'s (dependency tables are indented or inline).
+PYPROJECT_VERSION_RE = re.compile(r'^version = ".*"$', re.MULTILINE)
+
+# "0.3.0 BETA 7" / "0.3.0-RC1" / "0.3.0": release, then an optional pre-release tag and number.
+_VERSION_PARTS_RE = re.compile(
+    r"^(\d+(?:\.\d+)*)(?:[ ._-]*(ALPHA|A|BETA|B|RC|C|PRE|PREVIEW)[ ._-]*(\d+))?$", re.IGNORECASE
+)
+_PEP440_PRE = {"alpha": "a", "a": "a", "beta": "b", "b": "b", "rc": "rc", "c": "rc", "pre": "rc", "preview": "rc"}
+
+
+def pep440(version: str) -> str:
+    """0.3.0 BETA 7 -> 0.3.0b7, 0.3.0 RC1 -> 0.3.0rc1, 0.3.0 -> 0.3.0 (pyproject.toml)."""
+    match = _VERSION_PARTS_RE.match(version.strip())
+    if not match:
+        sys.exit(f"ERROR: cannot turn {version!r} into a PEP 440 version for pyproject.toml")
+    release, tag, number = match.groups()
+    return release + (f"{_PEP440_PRE[tag.lower()]}{number}" if tag else "")
 
 
 def file_safe(version: str) -> str:
@@ -57,6 +76,7 @@ def main() -> int:
         (APP_PY, APP_VERSION_RE, f'APP_VERSION = "EyeTrackApp {version}"'),
         (ISS_FILE, ISS_VERSION_RE, f'#define MyAppVersion "{version}"'),
         (ISS_FILE, ISS_OUTPUT_RE, f"OutputBaseFilename=EyeTrackVR-Setup-{safe}"),
+        (PYPROJECT, PYPROJECT_VERSION_RE, f'version = "{pep440(version)}"'),
     ]
 
     dirty = False
@@ -72,7 +92,9 @@ def main() -> int:
             text = apply(text, pattern, replacement, path)
         if text != original:
             dirty = True
-            if not check_only:
+            if check_only:
+                print(f"out of sync with version.txt: {path.relative_to(REPO_ROOT)}", file=sys.stderr)
+            else:
                 path.write_text(text, encoding="utf-8", newline="")
                 print(f"stamped {path.relative_to(REPO_ROOT)}", file=sys.stderr)
 

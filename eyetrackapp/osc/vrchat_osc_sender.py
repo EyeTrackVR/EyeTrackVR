@@ -5,6 +5,7 @@ from osc.osc_message import OSCMessage
 
 from config import EyeTrackConfig, EyeTrackSettingsConfig
 from enum import IntEnum
+import math
 import time
 
 # A closed eye is resent as a 5x burst (lost UDP packets must not leave the
@@ -19,14 +20,21 @@ def _eyelid_transformer(config, eye_blink):
         return float(eye_blink)
 
 
-def brow_expression(brow_val) -> float:
+def brow_expression(brow_val) -> float | None:
     """Tracker brow (0..1, 0.5 = neutral) -> VRCFT BrowExpression (-1..+1, 0 = neutral).
 
-    Every brow source (NEXT, the standalone eyebrow model) is 0 = fully
+    The brow source (NEXT) is 0 = fully
     lowered, 0.5 = rest, 1 = fully raised. Sent raw, a resting face read as a
     half raise and a full lower only reached the avatar's neutral.
+
+    None for NaN/inf: callers skip the frame so the avatar holds its last brow.
+    The clamp would otherwise turn NaN into 1.0 (a full raise), which no
+    downstream non-finite filter can catch.
     """
-    return max(-1.0, min(1.0, 2.0 * float(brow_val) - 1.0))
+    brow_val = float(brow_val)
+    if not math.isfinite(brow_val):
+        return None
+    return max(-1.0, min(1.0, 2.0 * brow_val - 1.0))
 
 
 class OutputType(IntEnum):
@@ -104,6 +112,18 @@ class VRChatOSCSender:
     def get_is_single_eye(eye_display_id):
         return eye_display_id in [EyeId.RIGHT, EyeId.LEFT, 0, 1]
 
+    def _mirror_eye(self, eye_id) -> bool:
+        """True when this eye's values go to both eyes: single-eye mode, or two
+        cameras are configured but the other one has not delivered a frame yet
+        (unplugged, wrong address). 621 is "no data yet"."""
+        if self.is_single_eye:
+            return True
+        if eye_id == EyeId.LEFT:
+            return self.left_y != 621 and self.right_y == 621
+        if eye_id == EyeId.RIGHT:
+            return self.right_y != 621 and self.left_y == 621
+        return False
+
     def _blink_burst_due(self, side_name: str) -> bool:
         """True (and the burst is recorded) when this eye's last burst is older than the interval."""
         now = time.monotonic()
@@ -159,7 +179,8 @@ class VRChatOSCSender:
             eye_squeeze=eye_squeeze,
         )
 
-        if self.is_single_eye:
+        mirror = self._mirror_eye(eye_id)
+        if mirror:
             self.output_osc_native_blink(
                 **default_eye_blink_params,
             )
@@ -168,10 +189,12 @@ class VRChatOSCSender:
                 [float(eye_x), float(eye_y), 1.0, float(eye_x), float(eye_y), 1.0],
             )
 
-        if eye_id in [EyeId.LEFT, EyeId.RIGHT, EyeId.BOTH] and not self.is_single_eye:
+        if eye_id in [EyeId.LEFT, EyeId.RIGHT, EyeId.BOTH] and not mirror:
             self.output_osc_native_blink(**default_eye_blink_params, single_eye_mode=False)
 
-        if not self.is_single_eye:
+        # 621 is "no data yet" and would point that eye straight up. One silent
+        # eye is covered by the mirror above.
+        if not mirror and self.left_y != 621 and self.right_y != 621:
             # vrc native ET (z values may need tweaking, they act like a scalar)
             client.send_message(
                 "/tracking/eye/LeftRightVec",
@@ -216,14 +239,15 @@ class VRChatOSCSender:
             eye_squeeze=eye_squeeze,
         )
 
-        if self.is_single_eye:
+        mirror = self._mirror_eye(eye_id)
+        if mirror:
             client.send_message(config.osc_left_eye_x_address, eye_x)
             client.send_message(config.osc_right_eye_x_address, eye_x)
             client.send_message(config.osc_eyes_y_address, eye_y)
             client.send_message(config.osc_eyes_pupil_dilation_address, pupil_dilation)
             self.output_vrcft_blink_data(**default_eye_blink_params)
 
-        if eye_id in [EyeId.LEFT, EyeId.RIGHT] and not self.is_single_eye:
+        if eye_id in [EyeId.LEFT, EyeId.RIGHT] and not mirror:
             self.output_vrcft_blink_data(**default_eye_blink_params, single_eye_mode=False)
 
             # The eyelid itself went out with output_vrcft_blink_data above.
@@ -274,7 +298,8 @@ class VRChatOSCSender:
             eye_squeeze=eye_squeeze,
         )
 
-        if self.is_single_eye:
+        mirror = self._mirror_eye(eye_id)
+        if mirror:
             client.send_message("/avatar/parameters/v2/EyeX", eye_x)
             client.send_message("/avatar/parameters/v2/EyeY", eye_y)
             client.send_message("/avatar/parameters/v2/PupilDilation", pupil_dilation)
@@ -289,8 +314,19 @@ class VRChatOSCSender:
                 left_eye_blink_address="/avatar/parameters/v2/EyeLid",
                 right_eye_blink_address="/avatar/parameters/v2/EyeLid",
             )
+            if not self.is_single_eye:
+                # Two cameras configured, one silent: also fill the per-eye
+                # parameters a two-eye avatar reads.
+                for side in ("Left", "Right"):
+                    client.send_message(f"/avatar/parameters/v2/Eye{side}X", eye_x)
+                    client.send_message(f"/avatar/parameters/v2/Eye{side}Y", eye_y)
+                self.output_vrcft_blink_data(
+                    **default_eye_blink_params,
+                    left_eye_blink_address="/avatar/parameters/v2/EyeLidLeft",
+                    right_eye_blink_address="/avatar/parameters/v2/EyeLidRight",
+                )
 
-        if eye_id in [EyeId.LEFT, EyeId.RIGHT] and not self.is_single_eye:
+        if eye_id in [EyeId.LEFT, EyeId.RIGHT] and not mirror:
             self.output_vrcft_blink_data(
                 **default_eye_blink_params,
                 left_eye_blink_address="/avatar/parameters/v2/EyeLidLeft",
@@ -393,10 +429,10 @@ class VRChatOSCSender:
             else:
                 averaged_eye_blink = 0
 
-            client.send_message(
-                blink_address,
-                _eyelid_transformer(config, 1 - averaged_eye_blink),
-            )
+            # EyesClosedAmount has a fixed meaning in VRChat (1 = closed), so the
+            # avatar-param invert setting does not apply. Inverting only this
+            # send made a held blink alternate with the raw burst below.
+            client.send_message(blink_address, float(1 - averaged_eye_blink))
 
             if averaged_eye_blink == 0.0:
                 send_native_binary_blink(blink_address, averaged_eye_blink)
@@ -413,16 +449,21 @@ class VRChatOSCSender:
 
     def output_eyebrow_info(self, eye_id, brow_val: float, client, main_config):
         self.is_single_eye = self.get_is_single_eye(main_config.eye_display_id)
-        brow_val = float(brow_val)
+        expr = brow_expression(brow_val)
+        if expr is None:
+            return  # NaN/inf: hold the last sent brow
 
         if eye_id == EyeId.LEFT:
-            self.l_brow = brow_val
+            self.l_brow = float(brow_val)
         elif eye_id == EyeId.RIGHT:
-            self.r_brow = brow_val
-        brow_val = brow_expression(brow_val)
+            self.r_brow = float(brow_val)
+        brow_val = expr
 
         if self.is_single_eye:
             client.send_message("/avatar/parameters/v2/BrowExpression", brow_val)
+        elif self._mirror_eye(eye_id):
+            client.send_message("/avatar/parameters/v2/BrowExpressionLeft", brow_val)
+            client.send_message("/avatar/parameters/v2/BrowExpressionRight", brow_val)
         elif eye_id == EyeId.LEFT:
             client.send_message("/avatar/parameters/v2/BrowExpressionLeft", brow_val)
         elif eye_id == EyeId.RIGHT:

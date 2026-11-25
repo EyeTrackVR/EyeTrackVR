@@ -389,8 +389,8 @@ def list_uvc_cameras() -> "list[dict]":
 
 def invalidate_uvc_camera_cache(force: bool = False) -> None:
     """Force the next ``list_uvc_cameras()`` call to re-enumerate devices.
-    Call this after a successful camera open, or with ``force=True`` when the
-    user asks for a fresh scan.
+    Call this when the cached list may be stale (a camera failed to resolve or
+    open), or with ``force=True`` when the user asks for a fresh scan.
 
     Without ``force`` this is rate-limited to once per TTL period: a flapping
     camera (opens then fails on read, over and over) would otherwise clear the

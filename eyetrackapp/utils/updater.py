@@ -197,6 +197,21 @@ def download_installer(
     return target
 
 
+def steamvr_running() -> bool:
+    """Whether SteamVR is up on Windows. vrserver.exe and the games it runs hold the
+    driver and OpenXR layer DLLs in the install folder open, so the silent installer
+    would close them or fail half-way. A check that raises doesn't block an update."""
+    if sys.platform != "win32":
+        return False
+    try:
+        from ovr.openvr_service import _windows_process_running
+
+        return bool(_windows_process_running("vrserver.exe"))
+    except Exception:
+        logger.debug("Could not check whether SteamVR is running", exc_info=True)
+        return False
+
+
 def launch_installer(path: Path) -> None:
     """Start the downloaded installer. The caller then closes the app so its files can
     be replaced. Through the shell: the installer asks for elevation itself (UAC)."""

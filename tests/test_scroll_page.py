@@ -6,17 +6,15 @@ import pytest
 
 import scroll_page
 from scroll_page import ScrollPage
+from tests import tk_support
 
 
 @pytest.fixture
 def root():
-    tk = pytest.importorskip("tkinter")
-    try:
-        root = tk.Tk()
-    except tk.TclError:
-        pytest.skip("No desktop display available")
+    # Shown, not withdrawn: the tests measure the mapped page.
+    root = tk_support.new_root(withdraw=False)
     yield root
-    root.destroy()
+    tk_support.destroy(root)
 
 
 def _page(root, content_height):

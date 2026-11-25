@@ -21,9 +21,8 @@ from ui_theme import color
 logger = logging.getLogger(__name__)
 
 
-# Selectable headsets, shared by the NEXT and eyebrow models. NEXT uses the
-# headset's NEXT family for ETVR/BSB/PSVR at the chosen model size.
-# Independent eyebrow inference uses the headset only (PSVR falls back to ETVR).
+# Selectable headsets: NEXT uses the headset's NEXT family for ETVR/BSB/PSVR at
+# the chosen model size.
 _MODEL_VARIANTS = HMD_TYPES
 # Dropdown text per stored headset. PSVR and Tobii share one model family.
 _HEADSET_LABELS = {"ETVR": "ETVR", "BSB": "BSB", "PSVR": "PSVR/TOBII"}
@@ -86,7 +85,7 @@ class TrackingAlgorithmModule(BaseSettingsModule):
         # Display order of the tracker radios: NEXT first (the default and the
         # one under active development), then LEAP, then DADDY.
         self._basic_entries = [
-            ("NEXT", "next", self.gui_NEXT, "gui_NEXT"),
+            (tr("algo_tracking.next_recommended"), "next", self.gui_NEXT, "gui_NEXT"),
             ("LEAP", "leap", self.gui_LEAP, "gui_LEAP"),
             ("DADDY", "daddy", self.gui_DADDY, "gui_DADDY"),
         ]
@@ -133,18 +132,6 @@ class TrackingAlgorithmModule(BaseSettingsModule):
             tip=tr("algo_tracking.max_tracking_speed_tip"),
         )
 
-        # Directly under the speed slider: opt out of having NEXT Smart Calib
-        # anchor this user's neutral eyelid / eyebrow readings.
-        lids_brows_var = tk.BooleanVar(value=bool(getattr(self.config, "gui_NEXT_calib_lids_brows", True)))
-        self.tk_vars[self.gui_NEXT_calib_lids_brows] = lids_brows_var
-        lids_brows_cb = ttk.Checkbutton(
-            parent,
-            text=tr("algo_tracking.next_calib_lids_brows"),
-            variable=lids_brows_var,
-        )
-        lids_brows_cb.grid(row=2, column=0, columnspan=3, sticky="w", padx=8, pady=(2, 4))
-        attach_tooltip(lids_brows_cb, tr("algo_tracking.next_calib_lids_brows_tip"))
-
         # Left/right sync: one slider per channel, in the speed slider's grid.
         for row, field, label in (
             (4, "gui_NEXT_lid_sync", "next_lid_sync"),
@@ -165,18 +152,36 @@ class TrackingAlgorithmModule(BaseSettingsModule):
             )
 
         # Per-eye gaze for strabismus / amblyopia (fused by default).
-        self._build_gaze_mode(parent, row=6)
+        gaze_frame = self._build_gaze_mode(parent, row=6)
 
         # NEXT model: headset family plus a size slider (lightest -> best).
         model_frame = ttk.Frame(parent)
         model_frame.grid(row=8, column=0, columnspan=6, sticky="w", padx=8, pady=(2, 4))
         self._build_model_selector(model_frame)
 
+        # Gaze mode, dominant eye, headset and model size only apply to NEXT:
+        # hide them while LEAP, DADDY or a classic tracker is selected. The
+        # widgets (and their tk vars) stay built, so saving is unaffected.
+        self._next_only_frames = (gaze_frame, model_frame)
+        self.selected_algo.trace_add("write", self._update_next_only_visibility)
+        self._update_next_only_visibility()
+
         # Keep the combobox in sync when the setup-mode auto-shift changes the
         # variant in config while this page is hidden (otherwise the stale tk var
         # would be saved back and revert the auto-shift on the next render tick).
         if self._main_config is not None:
             self._main_config.register_listener_callback(self._on_model_variant_synced)
+
+    def _update_next_only_visibility(self, *_args):
+        show = self.selected_algo.get() == "next"
+        for frame in getattr(self, "_next_only_frames", ()):
+            try:
+                if show:
+                    frame.grid()
+                else:
+                    frame.grid_remove()
+            except tk.TclError:
+                pass
 
     def _build_gaze_mode(self, parent, row):
         frame = ttk.Frame(parent)
@@ -203,6 +208,7 @@ class TrackingAlgorithmModule(BaseSettingsModule):
             combo.bind("<<ComboboxSelected>>", lambda _e, v=var, lv=label_var, m=by_label: v.set(m[lv.get()]))
             # Reset to defaults writes the key; keep the shown label in step.
             var.trace_add("write", lambda *_a, v=var, lv=label_var, t=labels, d=default: lv.set(t.get(v.get(), t[d])))
+        return frame
 
     def _build_model_selector(self, parent):
         hmd, legacy_size = split_variant(getattr(self.config, "gui_model_variant", "ETVR"))
@@ -320,6 +326,18 @@ class TrackingAlgorithmModule(BaseSettingsModule):
 
         # NEXT options few people need. Built here eagerly like everything under
         # Advanced, so their tk vars exist for validation and saving.
+        # On by default: opt out of having NEXT Smart Calib anchor this user's
+        # neutral eyelid / eyebrow readings.
+        lids_brows_var = tk.BooleanVar(value=bool(getattr(self.config, "gui_NEXT_calib_lids_brows", True)))
+        self.tk_vars[self.gui_NEXT_calib_lids_brows] = lids_brows_var
+        lids_brows_cb = ttk.Checkbutton(
+            parent,
+            text=tr("algo_tracking.next_calib_lids_brows"),
+            variable=lids_brows_var,
+        )
+        lids_brows_cb.grid(row=row, column=0, columnspan=4, sticky="w", padx=8, pady=(8, 2))
+        attach_tooltip(lids_brows_cb, tr("algo_tracking.next_calib_lids_brows_tip"))
+
         # Smart Calib: opt out of keeping each run's numbers in the log folder
         # (next_smartcal.save_recording).
         recording_var = tk.BooleanVar(value=bool(getattr(self.config, "gui_NEXT_smartcal_recording", True)))
@@ -329,14 +347,14 @@ class TrackingAlgorithmModule(BaseSettingsModule):
             text=tr("algo_tracking.next_smartcal_recording"),
             variable=recording_var,
         )
-        recording_cb.grid(row=row, column=0, columnspan=4, sticky="w", padx=8, pady=(8, 2))
+        recording_cb.grid(row=row + 1, column=0, columnspan=4, sticky="w", padx=8, pady=2)
         attach_tooltip(recording_cb, tr("algo_tracking.next_smartcal_recording_tip"))
 
         # Off by default: only for users whose vertical gaze breaks when squinting.
         squint_var = tk.BooleanVar(value=bool(getattr(self.config, "gui_NEXT_squint_y_hold", False)))
         self.tk_vars[self.gui_NEXT_squint_y_hold] = squint_var
         squint_cb = ttk.Checkbutton(parent, text=tr("algo_tracking.next_squint_y_hold"), variable=squint_var)
-        squint_cb.grid(row=row + 1, column=0, columnspan=4, sticky="w", padx=8, pady=2)
+        squint_cb.grid(row=row + 2, column=0, columnspan=4, sticky="w", padx=8, pady=2)
         attach_tooltip(squint_cb, tr("algo_tracking.next_squint_y_hold_tip"))
 
     def _render_radio_grid(self, parent, entries, ncol, row_offset=0) -> dict:

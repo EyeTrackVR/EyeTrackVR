@@ -8,6 +8,7 @@ from typing_extensions import Annotated
 
 from settings.modules.base_module import BaseSettingsModule, BaseValidationModel
 from settings.modules.common_field_validators import (
+    Port,
     check_is_ip_address,
     try_convert_to_float,
 )
@@ -16,7 +17,7 @@ from localization import tr
 
 
 class VRCFTSettingsModuleValidationModel(BaseValidationModel):
-    gui_VRCFTModulePort: int
+    gui_VRCFTModulePort: Port
     gui_VRCFTModuleIPAddress: Annotated[str, AfterValidator(check_is_ip_address)]
     gui_ShouldEmulateEyeWiden: bool
     gui_ShouldEmulateEyeSquint: bool

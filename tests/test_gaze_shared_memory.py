@@ -8,10 +8,6 @@ import re
 import struct
 import sys
 import time
-import uuid
-from queue import Queue
-from time import monotonic, sleep
-from unittest import mock
 
 import pytest
 
@@ -27,22 +23,30 @@ from osc.gaze_shared_memory import (
     FLAG_OPENNESS_VALID,
     GazeEye,
     GazeSharedMemory,
+    combine,
     direction_from_pitch_yaw,
     read,
 )
-from osc.osc import OSCManager
 from osc.osc_message import OSCMessage, OSCMessageType
-from tests import EyeInfoMock, SimpleUDPClientMock
+from tests import EyeInfoMock
+from tests.osc_helpers import collect_stray_garbage, isolate_gaze_outputs, running_manager, wait_until_sent
 
 HEADER_PATH = os.path.join(os.path.dirname(__file__), "..", "native", "sdk", "eyetrackvr_gaze.h")
 
 
+@pytest.fixture(autouse=True, scope="module")
+def _main_thread_gc():
+    collect_stray_garbage()
+
+
 @pytest.fixture(autouse=True)
-def private_names(monkeypatch):
-    """Never touch the block a running EyeTrackVR publishes."""
-    tag = uuid.uuid4().hex
-    monkeypatch.setattr(shm_module, "WIN32_NAME", f"Local\\EyeTrackVR.Gaze.test.{tag}")
-    monkeypatch.setattr(shm_module, "POSIX_PATH", f"/dev/shm/eyetrackvr_gaze_test_{tag}")
+def private_block(monkeypatch, tmp_path):
+    """Never touch the block a running EyeTrackVR publishes. Where the OS has no
+    supported clock (macOS) the writer is off in the app; the layout and seqlock
+    rules are platform independent, so run them against a plain file there."""
+    isolate_gaze_outputs(monkeypatch, tmp_path)
+    if shm_module.clock_id() is None:
+        monkeypatch.setattr(shm_module, "clock_id", lambda: CLOCK_MONOTONIC_NS)
 
 
 def _reader_view():
@@ -63,7 +67,7 @@ def _eye(pitch, yaw, openness=1.0):
 # ---------------------------------------------------------------- layout
 
 
-def test_layout_matches_c_header():
+def test_layout_matches_c_header(tmp_path):
     """Offsets in the Python writer agree with the struct in the C header."""
     with open(HEADER_PATH, encoding="utf-8") as f:
         header = f.read()
@@ -85,6 +89,7 @@ def test_layout_matches_c_header():
     assert 'L"Local\\\\EyeTrackVR.Gaze.v1"' in header
     assert '"/eyetrackvr_gaze_v1"' in header
     assert shm_module.POSIX_PATH != "/dev/shm/eyetrackvr_gaze_v1"  # fixture is active
+    assert shm_module.POSIX_PATH.startswith(str(tmp_path))
     # header 16 + body 32 + 3 eyes * 32 + fov 12 + reserved 100
     assert 16 + 32 + 3 * 32 + 12 + 100 == shm_module.SIZE
 
@@ -101,7 +106,6 @@ def test_direction_convention():
 # ------------------------------------------------------------ writer/reader
 
 
-@pytest.mark.skipif(shm_module.clock_id() is None, reason="no shared memory on this OS")
 def test_roundtrip_through_a_second_mapping():
     writer = GazeSharedMemory()
     writer.fov = (40.0, 15.0, 40.0)
@@ -138,7 +142,6 @@ def test_roundtrip_through_a_second_mapping():
         writer.close()
 
 
-@pytest.mark.skipif(shm_module.clock_id() is None, reason="no shared memory on this OS")
 def test_reader_rejects_mid_update_and_torn_samples():
     writer = GazeSharedMemory()
     assert writer.open()
@@ -162,7 +165,6 @@ def test_reader_rejects_mid_update_and_torn_samples():
         writer.close()
 
 
-@pytest.mark.skipif(shm_module.clock_id() is None, reason="no shared memory on this OS")
 def test_close_tells_readers_there_is_no_gaze():
     writer = GazeSharedMemory()
     assert writer.open()
@@ -182,7 +184,6 @@ def test_close_tells_readers_there_is_no_gaze():
         assert not os.path.exists(shm_module.POSIX_PATH)
 
 
-@pytest.mark.skipif(shm_module.clock_id() is None, reason="no shared memory on this OS")
 def test_reopen_keeps_seq_even_for_existing_readers():
     writer = GazeSharedMemory()
     assert writer.open()
@@ -205,14 +206,6 @@ def test_reopen_keeps_seq_even_for_existing_readers():
 # ------------------------------------------------------ foveation sender wiring
 
 
-def _wait_until_sent(msg_queue, timeout=5.0):
-    deadline = monotonic() + timeout
-    while msg_queue.unfinished_tasks and monotonic() < deadline:
-        sleep(0.005)
-    assert msg_queue.unfinished_tasks == 0, "sender stopped consuming the queue"
-
-
-@pytest.mark.skipif(shm_module.clock_id() is None, reason="no shared memory on this OS")
 def test_foveation_output_publishes_capture_time_and_direction(main_config_v2_params):
     s = main_config_v2_params.settings
     s.gui_foveation_gaze = True
@@ -220,17 +213,11 @@ def test_foveation_output_publishes_capture_time_and_direction(main_config_v2_pa
     capture = time.perf_counter()
     info = EyeInfoMock(x=0.5, y=0.5, blink=1.0, pupil_dilation=0.0, avg_velocity=0.0)
     info.capture_ts = capture
-    msg_queue = Queue()
-    with mock.patch("osc.osc.udp_client.SimpleUDPClient", SimpleUDPClientMock):
-        manager = OSCManager(config=main_config_v2_params, osc_message_in_queue=msg_queue)
-        manager.start()
-        try:
-            msg_queue.put(OSCMessage(type=OSCMessageType.EYE_INFO, data=(EyeId.LEFT, info)))
-            _wait_until_sent(msg_queue)
-            view = _reader_view()
-            sample = read(view)
-        finally:
-            manager.shutdown()
+    with running_manager(main_config_v2_params) as (_manager, msg_queue):
+        msg_queue.put(OSCMessage(type=OSCMessageType.EYE_INFO, data=(EyeId.LEFT, info)))
+        wait_until_sent(msg_queue)
+        view = _reader_view()
+        sample = read(view)
     assert sample["sample_time_ns"] == int(capture * 1e9)
     yaw = math.degrees(math.atan(0.5 * math.tan(math.radians(s.gui_gaze_yaw_max_deg))))
     pitch = -math.degrees(math.atan(0.5 * math.tan(math.radians(s.gui_gaze_pitch_up_deg))))
@@ -245,3 +232,22 @@ def test_foveation_output_publishes_capture_time_and_direction(main_config_v2_pa
     after = read(view)
     view.close()
     assert not after["eyes"][EYE_COMBINED].flags & FLAG_GAZE_VALID
+
+
+def test_unsupported_os_publishes_nothing(monkeypatch):
+    monkeypatch.setattr(shm_module, "clock_id", lambda: None)
+    writer = GazeSharedMemory()
+    assert not writer.open() and not writer.is_open
+    writer.publish(_eye(0, 0), _eye(0, 0))  # no-op, no error
+    writer.close()
+    assert not os.path.exists(shm_module.POSIX_PATH)
+
+
+def test_combined_eye_needs_a_valid_eye():
+    closed = GazeEye(openness=0.0, flags=FLAG_OPENNESS_VALID)
+    combined = combine(closed, closed)
+    assert combined.flags == FLAG_OPENNESS_VALID and combined.confidence == 0.0
+    assert combine(GazeEye(), GazeEye()).flags == 0  # nothing known about either eye
+    # Opposite directions cancel out: no direction rather than a garbage one.
+    opposite = combine(_eye(0, 90), _eye(0, -90))
+    assert not opposite.flags & FLAG_GAZE_VALID

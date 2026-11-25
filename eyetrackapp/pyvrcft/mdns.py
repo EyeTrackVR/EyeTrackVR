@@ -121,7 +121,12 @@ def discover_vrchat_oscquery(timeout: float = 3.0, instance_prefix: str = "VRCha
                 return None
             while resend_at and resend_at[0] <= now:
                 resend_at.pop(0)
-                sock.sendto(_build_query(SERVICE), (MDNS_GROUP, MDNS_PORT))
+                try:
+                    sock.sendto(_build_query(SERVICE), (MDNS_GROUP, MDNS_PORT))
+                except OSError:
+                    # Multicast refused (firewall, sandbox, no route): not found,
+                    # rather than an exception that ends the caller's discovery thread.
+                    return None
             sock.settimeout(min(remaining, (resend_at[0] - now) if resend_at else remaining))
             try:
                 data, _addr = sock.recvfrom(4096)

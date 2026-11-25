@@ -1,5 +1,8 @@
 """A stand-in for the overlay's interactive mode: a small Python script that
-answers the commands the way the overlay does and records them."""
+answers the commands the way the overlay does and records them.
+
+A shared test helper, not a test module (pytest collects only test_*.py): imported
+by test_smartcal_overlay.py and test_gaze_range_check.py through ``install()``."""
 
 import sys
 

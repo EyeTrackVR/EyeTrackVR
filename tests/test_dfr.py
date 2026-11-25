@@ -23,6 +23,7 @@ import pytest
 
 from config import EyeTrackSettingsConfig
 from ovr import dfr, dfr_monitor, dfr_setup
+from tests.tk_support import tk_module_root, tk_root  # noqa: F401
 
 LANG_EN = Path(__file__).resolve().parents[1] / "eyetrackapp" / "lang" / "en.toml"
 GAME = "steam.app.823500"  # a Direct3D 11 OpenVR game with no foveation of its own
@@ -664,7 +665,7 @@ def test_setup_installs_quad_views_with_the_system_files_in_one_step(tool, tmp_p
     assert run(c, offline) == str(tool) and calls == [(str(tool), None)]
 
 
-def test_quad_views_detection_and_download(tmp_path):
+def test_quad_views_detection_and_download(tmp_path, monkeypatch):
     from ovr import quad_views
 
     manifest = r"C:\Program Files\OpenXR-Quad-Views-Foveated\openxr-api-layer.json"
@@ -675,17 +676,13 @@ def test_quad_views_detection_and_download(tmp_path):
     assert not quad_views.installed({r"C:\x\XR_APILAYER_EYETRACKVR_eye_gaze.json": 0}, exists=lambda path: True)
 
     good = b"msi"
-    saved = quad_views.RELEASE_SHA256
-    quad_views.RELEASE_SHA256 = hashlib.sha256(good).hexdigest()
-    try:
-        with pytest.raises(ValueError):
-            quad_views.download(tmp_path, fetch=lambda url: b"tampered")
-        assert not list(tmp_path.iterdir())
-        path = quad_views.download(tmp_path, fetch=lambda url: good)
-        assert path.read_bytes() == good
-        assert quad_views.download(tmp_path, fetch=lambda url: pytest.fail("reuses the file")) == path
-    finally:
-        quad_views.RELEASE_SHA256 = saved
+    monkeypatch.setattr(quad_views, "RELEASE_SHA256", hashlib.sha256(good).hexdigest())
+    with pytest.raises(ValueError):
+        quad_views.download(tmp_path, fetch=lambda url: b"tampered")
+    assert not list(tmp_path.iterdir())
+    path = quad_views.download(tmp_path, fetch=lambda url: good)
+    assert path.read_bytes() == good
+    assert quad_views.download(tmp_path, fetch=lambda url: pytest.fail("reuses the file")) == path
     assert r'msiexec.exe /i "C:\a b\q.msi" /qn' in quad_views.install_command(Path(r"C:\a b\q.msi"))
     with pytest.raises(ValueError):
         quad_views.install_command(Path(r"C:\a&b\q.msi"))
@@ -845,8 +842,7 @@ def test_monitor_exits_when_the_app_closes_the_socket(monkeypatch):
         dfr.DISABLED,
     ],
 )
-def test_panel_shows_every_state(state, monkeypatch):
-    tk = pytest.importorskip("tkinter")
+def test_panel_shows_every_state(state, monkeypatch, tk_root):  # noqa: F811
     from settings import dfr_panel
 
     # The real strings: a state without one raises KeyError instead of showing its key.
@@ -856,38 +852,30 @@ def test_panel_shows_every_state(state, monkeypatch):
     for reason in ("DOWNLOAD_FAILED", "BAD_DOWNLOAD", "WRITE_FAILED", "STEAMVR_RUNNING", "SYSTEM_FILES_FAILED"):
         assert "setup_" + getattr(dfr_setup, reason) in strings
 
-    try:
-        root = tk.Tk()
-    except tk.TclError:
-        pytest.skip("needs a display")
-    root.withdraw()
     status = dfr.Status(state, game_key="steam.app.1", game_name="Game", enabled=True, mode="minimum", detail="EAC")
     controller = types.SimpleNamespace(status=lambda: status, tool_dir=lambda: "")
     config = types.SimpleNamespace(settings=types.SimpleNamespace(gui_foveation_gaze=False))
-    try:
-        panel = dfr_panel.DfrPanel(controller, config)
-        panel.build(root)
+    panel = dfr_panel.DfrPanel(controller, config)
+    panel.build(tk_root)
+    panel._refresh()
+    assert panel.enabled_var.get() is True
+    assert panel.status_label.cget("text").strip()
+    # Settings that don't apply are hidden, not greyed out.
+    in_setup = state in dfr.SETUP_STATES
+    usable = not in_setup and state not in dfr.NO_SWITCH_STATES
+    assert (panel.switch_row.winfo_manager() == "pack") is usable
+    assert (panel.quality_row.winfo_manager() == "pack") is usable
+    assert (panel.method_row.winfo_manager() == "pack") is (not in_setup and state != dfr.BLOCKED)
+    assert (panel.game_label.winfo_manager() == "pack") is not in_setup
+    can_set_up = state in dfr.SET_UP_STATES
+    assert (panel.setup_btn.winfo_manager() == "pack") is can_set_up
+    assert (panel.retry_btn.winfo_manager() == "pack") is (state == dfr.ATTACH_FAILED)
+    assert (panel.gaze_btn.winfo_manager() == "pack") is (state == dfr.GAZE_OFF)
+    status.quad_views = False  # Quad-Views-Foveated alone is missing: Set up
+    panel._refresh()
+    assert panel.setup_btn.winfo_manager() == "pack"
+    status.quad_views = True
+    for tracking in (dfr.TRACKING_NONE, "VRChat OSC (EyeTrackVR)"):
+        status.tracking = tracking
         panel._refresh()
-        assert panel.enabled_var.get() is True
         assert panel.status_label.cget("text").strip()
-        # Settings that don't apply are hidden, not greyed out.
-        in_setup = state in dfr.SETUP_STATES
-        usable = not in_setup and state not in dfr.NO_SWITCH_STATES
-        assert (panel.switch_row.winfo_manager() == "pack") is usable
-        assert (panel.quality_row.winfo_manager() == "pack") is usable
-        assert (panel.method_row.winfo_manager() == "pack") is (not in_setup and state != dfr.BLOCKED)
-        assert (panel.game_label.winfo_manager() == "pack") is not in_setup
-        can_set_up = state in dfr.SET_UP_STATES
-        assert (panel.setup_btn.winfo_manager() == "pack") is can_set_up
-        assert (panel.retry_btn.winfo_manager() == "pack") is (state == dfr.ATTACH_FAILED)
-        assert (panel.gaze_btn.winfo_manager() == "pack") is (state == dfr.GAZE_OFF)
-        status.quad_views = False  # Quad-Views-Foveated alone is missing: Set up
-        panel._refresh()
-        assert panel.setup_btn.winfo_manager() == "pack"
-        status.quad_views = True
-        for tracking in (dfr.TRACKING_NONE, "VRChat OSC (EyeTrackVR)"):
-            status.tracking = tracking
-            panel._refresh()
-            assert panel.status_label.cget("text").strip()
-    finally:
-        root.destroy()

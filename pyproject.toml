@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "EyeTrackVR"
-version = "0.3"
+version = "0.3.0rc1"
 description = "Opensource, affordable VR eye tracker for VRChat"
 authors = ["RedHawk989"]
 license = "Babble Software Distribution License 1.0"

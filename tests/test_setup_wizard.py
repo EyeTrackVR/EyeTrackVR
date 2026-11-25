@@ -2,8 +2,6 @@
 auto-open rule, the real-app adapter, the wizard driven by a fake adapter, and
 WizardPage putting it in place of the main window's pages."""
 
-import json
-import os
 import queue
 import re
 import tomllib
@@ -16,11 +14,11 @@ import pytest
 import setup_wizard as sw
 from config import EyeTrackConfig
 from frame_eye import FRAME_LEFT_SOURCE, FRAME_RIGHT_SOURCE
+from tests import tk_support
+from tests.tk_support import tk_module_root  # noqa: F401
 
 APP_DIR = Path(__file__).resolve().parents[1] / "eyetrackapp"
 LANG_EN = APP_DIR / "lang" / "en.toml"
-# The wizard's English strings before they are merged into lang/en.toml [wizard].
-STRINGS_ENV = "ETVR_WIZARD_STRINGS"
 
 
 def _en_catalog():
@@ -29,16 +27,8 @@ def _en_catalog():
 
 
 def _wizard_strings():
-    """{"wizard.<key>": text}: lang/en.toml's [wizard] table, else the JSON named by
-    ETVR_WIZARD_STRINGS, else None."""
-    table = _en_catalog().get("wizard")
-    if isinstance(table, dict) and table:
-        return {f"wizard.{key}": value for key, value in table.items()}
-    path = os.environ.get(STRINGS_ENV)
-    if path and os.path.exists(path):
-        with open(path, encoding="utf-8") as file:
-            return json.load(file)
-    return None
+    """{"wizard.<key>": text} from lang/en.toml's [wizard] table."""
+    return {f"wizard.{key}": value for key, value in _en_catalog()["wizard"].items()}
 
 
 def _lookup(catalog, key):
@@ -49,17 +39,11 @@ def _lookup(catalog, key):
 
 
 def _strict_tr():
-    """tr() that fails loudly on a missing key or placeholder (when the strings exist)."""
+    """tr() that fails loudly (KeyError) on a missing key or placeholder."""
     en = _en_catalog()
-    wizard = _wizard_strings()
 
     def tr(key, **fmt):
-        if key.startswith("wizard."):
-            if wizard is None:
-                return key
-            text = wizard[key]
-        else:
-            text = _lookup(en, key)
+        text = _lookup(en, key)
         return text.format(**fmt) if fmt else text
 
     return tr
@@ -286,8 +270,6 @@ def test_every_key_has_an_english_string():
     for key in used - wizard_keys:
         assert isinstance(_lookup(en, key), str), key
     strings = _wizard_strings()
-    if strings is None:
-        pytest.skip(f"no [wizard] table in lang/en.toml yet and {STRINGS_ENV} is not set")
     missing = sorted(wizard_keys - set(strings))
     assert not missing, missing
     unused = sorted(set(strings) - wizard_keys)
@@ -295,10 +277,7 @@ def test_every_key_has_an_english_string():
 
 
 def test_strings_use_named_placeholders_only():
-    strings = _wizard_strings()
-    if strings is None:
-        pytest.skip(f"no [wizard] table in lang/en.toml yet and {STRINGS_ENV} is not set")
-    for key, text in strings.items():
+    for key, text in _wizard_strings().items():
         assert "{}" not in text and not re.search(r"\{\d", text), key
 
 
@@ -589,31 +568,41 @@ class FakeAdapter:
 
 
 @pytest.fixture(scope="module")
-def _shared_root():
-    # One interpreter for the module: creating many in one process occasionally
-    # fails to find Tcl's own library files on this Windows Python build.
-    tk = pytest.importorskip("tkinter")
-    try:
-        root = tk.Tk()
-        root.withdraw()
-        import sv_ttk
+def themed_root(tk_module_root):  # noqa: F811
+    import sv_ttk
 
-        sv_ttk.set_theme("dark")  # the app's theme; also defines Accent.TButton
-    except tk.TclError as exc:
-        pytest.skip(f"needs a display ({exc})")
-    yield root
-    try:
-        root.destroy()
-    except tk.TclError:
-        pass
+    sv_ttk.set_theme("dark", tk_module_root)  # the app's theme; also defines Accent.TButton
+    return tk_module_root
 
 
 @pytest.fixture
-def tk_root(_shared_root, monkeypatch):
+def tk_root(themed_root, monkeypatch):
     monkeypatch.setattr(sw, "tr", _strict_tr())
-    yield _shared_root
-    for child in _shared_root.winfo_children():
-        child.destroy()
+    yield themed_root
+    tk_support.clear(themed_root)
+
+
+@pytest.fixture
+def inline_thread(monkeypatch):
+    """The wizard's worker thread runs at start(); its result still comes back through after(0)."""
+
+    class Inline:
+        def __init__(self, target, **_):
+            self.target = target
+
+        def start(self):
+            self.target()
+
+    monkeypatch.setattr(sw.threading, "Thread", Inline)
+
+
+def _wizard_on_cameras(root, **adapter_kw):
+    """A wizard moved past the language and headset steps; its scan has started."""
+    fake = FakeAdapter(**adapter_kw)
+    w = sw.SetupWizard(root, fake)
+    w.next()  # language
+    w.next()  # headset
+    return fake, w
 
 
 def _text(widget):
@@ -697,10 +686,7 @@ def test_full_etvr_walkthrough(tk_root):
 
 
 def test_two_unnamed_cameras_are_a_guess_and_choices_are_kept(tk_root):
-    fake = FakeAdapter()
-    w = sw.SetupWizard(tk_root, fake)
-    w.next()  # language
-    w.next()
+    fake, w = _wizard_on_cameras(tk_root)
     fake.scans[0]({"USB (COM3)": "COM3", "USB (COM4)": "COM4"}, True)
     assert (w.left_var.get(), w.right_var.get()) == ("USB (COM3)", "USB (COM4)")
     assert _shown(w.cam_guess)
@@ -716,10 +702,7 @@ def test_two_unnamed_cameras_are_a_guess_and_choices_are_kept(tk_root):
 
 
 def test_existing_sources_prefill_and_manual_entry(tk_root):
-    fake = FakeAdapter(sources=("COM5", None))
-    w = sw.SetupWizard(tk_root, fake)
-    w.next()  # language
-    w.next()
+    fake, w = _wizard_on_cameras(tk_root, sources=("COM5", None))
     assert w.left_var.get() == "COM5"
     # The scan skips ports in use, so COM5 is not found, but stays selectable.
     fake.scans[0]({RIGHT_URL: RIGHT_URL}, True)
@@ -736,10 +719,7 @@ def test_existing_sources_prefill_and_manual_entry(tk_root):
 
 
 def test_nothing_found_is_not_a_dead_end(tk_root):
-    fake = FakeAdapter()
-    w = sw.SetupWizard(tk_root, fake)
-    w.next()  # language
-    w.next()
+    fake, w = _wizard_on_cameras(tk_root)
     fake.scans[0]({}, True)
     assert _text(w.cam_status) == sw.tr("wizard.cameras_none_found")
     assert _text(w.cam_help) == sw.tr("wizard.cameras_help_etvr")
@@ -798,10 +778,7 @@ def test_psvr_uses_one_camera_like_the_bigscreen(tk_root):
 
 
 def test_one_eye_only_can_move_on(tk_root):
-    fake = FakeAdapter()
-    w = sw.SetupWizard(tk_root, fake)
-    w.next()  # language
-    w.next()
+    fake, w = _wizard_on_cameras(tk_root)
     fake.scans[0]({LEFT_URL: LEFT_URL}, True)
     assert (w.left_var.get(), w.right_var.get()) == (LEFT_URL, "")
     assert not _disabled(w.next_btn)
@@ -846,10 +823,7 @@ def test_picking_a_language_retexts_the_wizard(tk_root, monkeypatch):
 
 
 def test_steam_frame_needs_no_scan(tk_root):
-    fake = FakeAdapter(modes=("etvr", "bigscreen", "frame"), mode="frame")
-    w = sw.SetupWizard(tk_root, fake)
-    w.next()  # language
-    w.next()
+    fake, w = _wizard_on_cameras(tk_root, modes=("etvr", "bigscreen", "frame"), mode="frame")
     assert fake.calls[-1] == ("set_mode", "frame")
     assert fake.scans == []
     assert not _shown(w.cam_grid)
@@ -860,10 +834,7 @@ def test_steam_frame_needs_no_scan(tk_root):
 
 
 def test_switching_headset_on_the_way_back(tk_root):
-    fake = FakeAdapter()
-    w = sw.SetupWizard(tk_root, fake)
-    w.next()  # language
-    w.next()
+    fake, w = _wizard_on_cameras(tk_root)
     w.back()
     assert w.step == sw.STEP_HEADSET
     w.mode_var.set("bigscreen")
@@ -952,10 +923,7 @@ def test_skip_marks_done_on_every_step(tk_root):
         assert fake.calls[-2:] == [("mark_done",), ("show_tracking_page",)]
         assert not w.is_open()
     # Results that arrive after closing are ignored.
-    fake = FakeAdapter()
-    w = sw.SetupWizard(tk_root, fake)
-    w.next()  # language
-    w.next()
+    fake, w = _wizard_on_cameras(tk_root)
     w.skip()
     fake.scans[0]({LEFT_URL: LEFT_URL}, True)
     w.rescan()
@@ -1184,7 +1152,7 @@ def test_closing_the_main_window_on_the_wizard_page(tk_root):
     assert win.wizard_page.wizard is None
 
 
-def test_foveation_step_installs_both_tools(tk_root, monkeypatch):
+def test_foveation_step_installs_both_tools(tk_root, inline_thread):
     fake = FakeAdapter()
     w = sw.SetupWizard(tk_root, fake)
     w.show_step(sw.STEP_FOVEATION)
@@ -1193,15 +1161,6 @@ def test_foveation_step_installs_both_tools(tk_root, monkeypatch):
     assert _text(w.dfr_status["PimaxMagic4All"]) == sw.tr("wizard.foveation_missing")
     assert _text(w.dfr_message) == sw.tr("wizard.foveation_hint")
 
-    # The worker thread runs inline here; its result comes back through after(0).
-    class Inline:
-        def __init__(self, target, **_):
-            self.target = target
-
-        def start(self):
-            self.target()
-
-    monkeypatch.setattr(sw.threading, "Thread", Inline)
     w.install_dfr()
     tk_root.update()
     assert ("install_dfr",) in fake.calls and fake.calls[-1] == ("finish_dfr_install",)
@@ -1214,20 +1173,11 @@ def test_foveation_step_installs_both_tools(tk_root, monkeypatch):
     w.close()
 
 
-def test_foveation_step_reports_a_failed_install(tk_root, monkeypatch):
+def test_foveation_step_reports_a_failed_install(tk_root, inline_thread):
     fake = FakeAdapter()
     fake.install_result = "system_files_failed"
     w = sw.SetupWizard(tk_root, fake)
     w.show_step(sw.STEP_FOVEATION)
-
-    class Inline:
-        def __init__(self, target, **_):
-            self.target = target
-
-        def start(self):
-            self.target()
-
-    monkeypatch.setattr(sw.threading, "Thread", Inline)
     w.install_dfr()
     tk_root.update()
     assert _text(w.dfr_message) == sw.tr("dfr.setup_system_files_failed")
@@ -1242,4 +1192,34 @@ def test_foveation_step_without_installs_only_has_the_switch(tk_root):
     w = sw.SetupWizard(tk_root, fake)
     w.show_step(sw.STEP_FOVEATION)
     assert _shown(w.foveation_cb) and not _shown(w.dfr_box)
+    w.close()
+
+
+def test_language_change_during_a_foveation_install_keeps_it_running(tk_root, monkeypatch):
+    # Install started, back to step 1, new language: the rebuilt page must still
+    # know the install runs, or its button comes back and a second click starts another.
+    started = []
+
+    class Deferred:
+        def __init__(self, target, **_):
+            self.target = target
+
+        def start(self):
+            started.append(self.target)
+
+    monkeypatch.setattr(sw.threading, "Thread", Deferred)
+    fake = FakeAdapter()
+    w = sw.SetupWizard(tk_root, fake)
+    w.show_step(sw.STEP_FOVEATION)
+    w.install_dfr()
+    w.show_step(sw.STEP_LANGUAGE)
+    w.language_radios["de"].invoke()
+    tk_root.update()  # the rebuild
+    w.show_step(sw.STEP_FOVEATION)
+    assert _disabled(w.dfr_install_btn)
+    w.install_dfr()
+    assert len(started) == 1
+    started[0]()  # the install finishes
+    tk_root.update()
+    assert fake.calls.count(("install_dfr",)) == 1 and fake.calls[-1] == ("finish_dfr_install",)
     w.close()

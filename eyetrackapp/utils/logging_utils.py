@@ -9,6 +9,7 @@ import time
 from datetime import datetime
 from pathlib import Path
 
+from utils.user_data import log_startup_messages, user_data_path, windows_data_home
 
 LOG_DIR_NAME = "logs"
 LOG_RETENTION_COUNT = 3
@@ -133,6 +134,9 @@ def setup_logging(app_name: str = "EyeTrackApp") -> Path:
 
     _current_log_path = log_path
     logging.getLogger(__name__).info("%s logging to %s", app_name, log_path)
+    # The user data folder (and any settings migration) is resolved at import,
+    # before this handler existed.
+    log_startup_messages()
     return log_path
 
 
@@ -141,6 +145,12 @@ def current_log_path() -> Path | None:
 
 
 def log_directory() -> Path:
+    if os.name == "nt" and getattr(sys, "frozen", False):
+        # The install folder is not user-writable, and os.access() ignores
+        # Windows ACLs, so the probe below can't tell: use the user data home.
+        fallback = Path(windows_data_home()) / LOG_DIR_NAME
+        fallback.mkdir(parents=True, exist_ok=True)
+        return fallback
     log_dir = _app_root() / LOG_DIR_NAME
     try:
         log_dir.mkdir(parents=True, exist_ok=True)
@@ -150,7 +160,9 @@ def log_directory() -> Path:
         pass
     # App root is read-only (system-installed Linux/macOS build): fall back to
     # a per-user state dir so logging never silently disables itself.
-    if sys.platform == "darwin":
+    if os.name == "nt":
+        base = Path(windows_data_home()).parent
+    elif sys.platform == "darwin":
         base = Path.home() / "Library" / "Logs"
     else:
         base = Path(os.environ.get("XDG_STATE_HOME") or Path.home() / ".local" / "state")
@@ -163,7 +175,7 @@ class TrackingLogger:
     """Per-frame CSV logger for diagnosing gaze artifacts.
 
     Activated by dropping a file named ``enable_tracking_log`` in the app
-    root directory.  A new CSV is created in ``logs/`` each time the sentinel
+    root directory or the user data folder.  A new CSV is created in ``logs/`` each time the sentinel
     is detected.  Delete the sentinel file to stop logging and flush the CSV.
 
     Columns
@@ -212,6 +224,12 @@ class TrackingLogger:
         self._flush_counter = 0
 
     @classmethod
+    def _sentinel_present(cls) -> bool:
+        # The installed build's folder isn't user-writable, so the user data
+        # folder works too.
+        return (_app_root() / cls.SENTINEL).exists() or os.path.exists(user_data_path(cls.SENTINEL))
+
+    @classmethod
     def get(cls) -> "TrackingLogger | None":
         """Return the active logger if the sentinel file is present, else None.
         Creates or tears down the logger automatically as the sentinel changes.
@@ -221,7 +239,7 @@ class TrackingLogger:
             return cls._instance
         with cls._class_lock:
             cls._next_check = now + 1.0
-            if (_app_root() / cls.SENTINEL).exists():
+            if cls._sentinel_present():
                 if cls._instance is None:
                     ts = datetime.now().strftime("%Y%m%d-%H%M%S")
                     path = log_directory() / f"tracking-{ts}.csv"

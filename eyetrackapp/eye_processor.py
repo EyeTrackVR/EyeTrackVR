@@ -65,7 +65,6 @@ from intensity_based_openness import IntensityBasedOpeness
 from ellipse_based_pupil_dilation import EllipseBasedPupilDilation
 from one_euro_filter import OneEuroFilter
 from osc.osc_message import OSCMessageType, OSCMessage
-from eyebrow import EyeBrow
 from utils.calibration_elipse import CalibrationEllipse
 from utils.runtime_state import set_value as _set_runtime_value
 
@@ -75,15 +74,10 @@ sys.path.append(".")
 
 logger = logging.getLogger(__name__)
 
-
-def run_once(f):
-    def wrapper(*args, **kwargs):
-        if not wrapper.has_run:
-            wrapper.has_run = True
-            return f(*args, **kwargs)
-
-    wrapper.has_run = False
-    return wrapper
+# Stand-in gray image for NEXT-only frames (see EyeProcessor.run). Read-only so
+# no eye thread can draw into the instance both share.
+_NEXT_GRAY_PLACEHOLDER = np.zeros((1, 1), dtype=np.uint8)
+_NEXT_GRAY_PLACEHOLDER.setflags(write=False)
 
 
 class EyeProcessor(NextProcessingMixin):
@@ -148,7 +142,6 @@ class EyeProcessor(NextProcessingMixin):
         self.xmin = 69420
         self.ymax = -69420
         self.ymin = 69420
-        self.blink_clear = False
         # Time-based warmup gates (previously frame counters tuned for a 50 fps
         # source). Frame-counter versions silently broke on high-fps cameras
         # (e.g. 120 fps cut the warmup in half) and low-fps files.
@@ -230,7 +223,6 @@ class EyeProcessor(NextProcessingMixin):
         self.ebpd = EllipseBasedPupilDilation(self.eye_id)
         self.roi_include_set = {"rotation_angle", "roi_window_x", "roi_window_y"}
         self.failed = 0
-        self.skip_blink_detect = False
         self._last_tracking_pull_mono: float = 0.0
         self.out_y = 0.0
         self.out_x = 0.0
@@ -252,7 +244,6 @@ class EyeProcessor(NextProcessingMixin):
         self._preview_min_interval_s = 1.0 / 60.0
         self._preview_last_emit_ts = 0.0
         self.blinkvalue = False
-        self.hsrac_enabled = False
         self.radius = 10
         self.past_blink = 0.7
         self.prev_x = None
@@ -269,7 +260,6 @@ class EyeProcessor(NextProcessingMixin):
         self.avg_velocity = 0.0
         self.angle = 621
         self.ahsf_runner = None
-        self.eyebrow_runner: EyeBrow | None = None
         self.cal = CalibrationEllipse()
         self.squeeze = 0.0
         # Built on first use: AHSF pulls in numba (~0.5 s, ~36 MB) at import.
@@ -297,6 +287,14 @@ class EyeProcessor(NextProcessingMixin):
         if s.gui_HSRAC or s.gui_AHRAC or s.gui_RANSAC3D:
             return True
         return False
+
+    def _classical_tracker_selected(self) -> bool:
+        """Any tracker that reads the gray working images. The GUI selects one
+        tracker, but a hand-edited config can enable several."""
+        s = self.settings
+        return bool(
+            s.gui_AHRAC or s.gui_AHSF or s.gui_HSF or s.gui_HSRAC or s.gui_DADDY or s.gui_LEAP or s.gui_RANSAC3D
+        )
 
     def _record_tracking_metrics(self):
         now = time.perf_counter()
@@ -574,8 +572,7 @@ class EyeProcessor(NextProcessingMixin):
     def _next_active(self) -> bool:
         """True when NEXT is the tracker (mono or stereo: NEXTM picks per frame).
         It produces its own gaze/eyelid/squeeze/eyebrow end-to-end, so the
-        classical BLINK/IBO/LEAP-lid estimators and the eyebrow fallback must be
-        bypassed. gui_NEXT_BSB is the retired stereo tracker flag, kept here so
+        classical BLINK/IBO/LEAP-lid estimators must be bypassed. gui_NEXT_BSB is the retired stereo tracker flag, kept here so
         an unmigrated config still reads as NEXT."""
         return bool(self.settings.gui_NEXT or self.settings.gui_NEXT_BSB)
 
@@ -733,15 +730,13 @@ class EyeProcessor(NextProcessingMixin):
 
     def DADDYM(self):
         self.thresh = self.current_image_gray.copy()
-        # The third value is DADDY's eye aspect ratio, not a pupil radius.
-        self.rawx, self.rawy, _ear = self.daddy_runner.run(self.current_image_gray)
+        self.rawx, self.rawy = self.daddy_runner.run(self.current_image_gray)
         self.out_x, self.out_y, self.avg_velocity = cal.cal_osc(self, self.rawx, self.rawy, self.angle)
         self.current_algorithm = EyeInfoOrigin.DADDY
 
     def AHRACM(self):
         self._apply_circular_crop_if_enabled()
 
-        self.hsrac_enabled = True
         (
             self.current_image_gray,
             resize_img,
@@ -770,7 +765,6 @@ class EyeProcessor(NextProcessingMixin):
     def HSRACM(self):
         self._apply_circular_crop_if_enabled()
 
-        self.hsrac_enabled = True
         self.rawx, self.rawy, self.thresh, self.radius = self.hsf_runner.run(self.current_image_gray)
         (
             self.rawx,
@@ -796,7 +790,6 @@ class EyeProcessor(NextProcessingMixin):
 
     def RANSAC3DM(self):
         self._apply_circular_crop_if_enabled()
-        self.hsrac_enabled = False
         (
             self.rawx,
             self.rawy,
@@ -959,53 +952,9 @@ class EyeProcessor(NextProcessingMixin):
         self._algorithm_slots = algorithm_slots
 
     def _current_eyebrow(self) -> float:
-        """Eyebrow value for EyeInfo. NEXT's own eyebrow wins whenever NEXT is
-        the tracker (it is also the only EYEBROW_INFO sent then)."""
-        if self._next_active:
-            return self.next_eyebrow
-        if self.eyebrow_runner is not None:
-            return self.eyebrow_runner.get_result()
-        return float("nan")
-
-    def _service_eyebrow_runner(self, raw_frame: np.ndarray) -> None:
-        """Run the standalone eyebrow model when the EyeBrow toggle is on.
-        NEXT already outputs eyebrows, so while it is the active tracker the
-        runner is stopped: two models each sending EYEBROW_INFO every frame
-        made the OSC brow param flicker between them."""
-        if self.settings.gui_eyebrow and not self._next_active:
-            self._run_eyebrow(raw_frame)
-        elif self.eyebrow_runner is not None:
-            self.eyebrow_runner.stop()
-            self.eyebrow_runner = None
-
-    def _run_eyebrow(self, raw_frame: np.ndarray) -> None:
-        variant = getattr(self.settings, "gui_model_variant", "ETVR")
-        # Reload if the selected model variant changed at runtime.
-        if self.eyebrow_runner is not None and getattr(self.eyebrow_runner, "variant", None) != variant:
-            self.eyebrow_runner.stop()
-            self.eyebrow_runner = None
-        if self.eyebrow_runner is None:
-            if getattr(self, "_eyebrow_failed_variant", None) == variant:
-                return  # already failed for this model: don't rebuild a session every frame
-            try:
-                self.eyebrow_runner = EyeBrow(variant)
-            except Exception as e:
-                logger.warning("EyeBrow init failed for %s: %s", variant, e)
-                self.eyebrow_runner = None
-                self._eyebrow_failed_variant = variant
-                return
-        if self.settings.gui_setup_mode == "bigscreen":
-            mid = raw_frame.shape[1] // 2
-            frame = raw_frame[:, :mid] if self.eye_id == EyeId.LEFT else raw_frame[:, mid:]
-        else:
-            frame = raw_frame
-        self.eyebrow_runner.submit(frame)
-        self._enqueue_osc_message(
-            OSCMessage(
-                type=OSCMessageType.EYEBROW_INFO,
-                data=(self.eye_id, self.eyebrow_runner.get_result()),
-            )
-        )
+        """Eyebrow value for EyeInfo. Only NEXT tracks eyebrows: NaN (no value)
+        under the classical trackers."""
+        return self.next_eyebrow if self._next_active else float("nan")
 
     def run(self):
         # Reset HSF runner on each thread start so a fresh runner is built from
@@ -1100,13 +1049,19 @@ class EyeProcessor(NextProcessingMixin):
                 elif not self.capture_crop_rotate_image():
                     continue
 
-                self._service_eyebrow_runner(raw_frame)
-
-                self.current_image_gray = cv2.cvtColor(self.current_image, cv2.COLOR_BGR2GRAY)
-                if self._needs_gray_clean_copy():
-                    self.current_image_gray_clean = self.current_image_gray.copy()
+                if self._next_active and not self._classical_tracker_selected():
+                    # NEXT works on the colour frame and the preview converts its
+                    # own, so the full-frame gray conversion and copies were never
+                    # read. NEXTM still hands current_image_gray on as thresh
+                    # (unused for NEXT), hence a 1x1 stand-in rather than None.
+                    self.current_image_gray = _NEXT_GRAY_PLACEHOLDER
+                    self.current_image_gray_clean = _NEXT_GRAY_PLACEHOLDER
                 else:
-                    self.current_image_gray_clean = self.current_image_gray
+                    self.current_image_gray = cv2.cvtColor(self.current_image, cv2.COLOR_BGR2GRAY)
+                    if self._needs_gray_clean_copy():
+                        self.current_image_gray_clean = self.current_image_gray.copy()
+                    else:
+                        self.current_image_gray_clean = self.current_image_gray
 
                 if self.cancellation_event.is_set():
                     logger.info("Exiting tracking thread")

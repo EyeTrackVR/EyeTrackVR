@@ -1,6 +1,7 @@
 """The output visualizer places its static geometry once and moves only the
 gaze dot, ring and bars per frame."""
 
+import gc
 import tkinter as tk
 
 import pytest
@@ -13,7 +14,16 @@ MOVING = {"ring", "dot", "blink_bar", "brow_bar"}
 
 
 @pytest.fixture
-def root():
+def _collect_tk_on_main_thread():
+    """Torn down after root's cached value is dropped: the destroyed Tk sits in a
+    reference cycle, and a Tk finalised by a later test's thread aborts the process
+    (Tcl_AsyncDelete)."""
+    yield
+    gc.collect()
+
+
+@pytest.fixture
+def root(_collect_tk_on_main_thread):
     try:
         root = tk.Tk()
     except tk.TclError:

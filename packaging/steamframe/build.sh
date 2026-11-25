@@ -62,7 +62,8 @@ rsync -a --delete "$REPO_ROOT/packaging/" "$SRC_DIR/packaging/"
 # The spec downloads the pinned overlay unless overlay/ holds a local build.
 rm -rf "$SRC_DIR/overlay"
 if [ -d "$REPO_ROOT/overlay" ]; then cp -a "$REPO_ROOT/overlay" "$SRC_DIR/"; fi
-find "$SRC_DIR/packaging" -name "*.sh" -exec sed -i 's/\r$//' {} +
+# The requirements file's "\" line continuations break on a trailing CR too.
+find "$SRC_DIR/packaging" \( -name "*.sh" -o -name "requirements.txt" \) -exec sed -i 's/\r$//' {} +
 
 echo "[frame-build] fetching aarch64 libopenvr_api ($OPENVR_TAG)..."
 OPENVR_LIB="$BUILD_ROOT/openvr-arm64/libopenvr_api_64.so"
@@ -82,9 +83,12 @@ source "$VENV_DIR/bin/activate"
 
 echo "[frame-build] installing dependencies..."
 # pye3d has no aarch64 wheel and compiles from source (slow under QEMU; pip
-# caches the built wheel for the next run).
-python -m pip install -q --upgrade pip
-python -m pip install -r "$SRC_DIR/packaging/linux/requirements.txt"
+# caches the built wheel for the next run). The pip bundled with the pinned CPython
+# is used as is, not upgraded to whatever is newest. Exactly the poetry.lock versions
+# CI tests, hash-checked (packaging/export_requirements.py); pye3d's build-time
+# dependencies are resolved by its build backend and are not hash-pinned.
+python -m pip --version
+python -m pip install --require-hashes -r "$SRC_DIR/packaging/linux/requirements.txt"
 
 echo "[frame-build] running PyInstaller..."
 cd "$SRC_DIR"

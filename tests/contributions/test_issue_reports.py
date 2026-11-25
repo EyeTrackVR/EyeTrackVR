@@ -6,7 +6,6 @@ from pathlib import Path
 import sys
 import threading
 import time
-import tkinter as tk
 import zipfile
 
 import pyrage
@@ -16,6 +15,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "eyetrackapp"))
 from contributions.client import ContributionClient, ISSUE_QUOTA_MESSAGES, ServiceError, issue_home, receipt_home
 from contributions.report_window import ReportWindow, previous_log, write_tail
 from localization import tr
+from tests.tk_support import drain
 
 TERMS = {
     "dataset": {"version": "dataset-test", "text": "18+ dataset notice"},
@@ -116,25 +116,6 @@ def test_previous_log_skips_the_current_session(tmp_path, monkeypatch):
     assert previous_log(current) == older
     current.unlink()
     assert previous_log(None) == older
-
-
-@pytest.fixture(scope="module")
-def root():
-    try:
-        root = tk.Tk()
-    except tk.TclError:
-        pytest.skip("No desktop display available")
-    root.withdraw()
-    yield root
-    root.destroy()
-
-
-def drain(root, condition):
-    until = time.monotonic() + 4
-    while not condition() and time.monotonic() < until:
-        root.update()
-        time.sleep(0.01)
-    assert condition()
 
 
 class FakeClient:

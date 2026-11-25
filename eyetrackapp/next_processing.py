@@ -161,7 +161,9 @@ class NextProcessingMixin:
         shared by both paths via _next_apply()."""
         if self.current_raw_frame is None:
             return
-        self.thresh = self.current_image_gray.copy()
+        # No copy: nothing mutates or keeps thresh, and while NEXT is active the
+        # preview swaps it for the model input anyway (output_images_and_update).
+        self.thresh = self.current_image_gray
 
         base_cutoff = float(self.settings.gui_min_cutoff)
         base_beta = float(self.settings.gui_speed_coefficient)

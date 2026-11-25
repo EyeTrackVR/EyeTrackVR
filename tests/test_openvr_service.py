@@ -1,10 +1,12 @@
+"""SteamVR registration and lifecycle (ovr/openvr_service.py) against a stand-in pyopenvr:
+the app manifest, auto-launch that respects the user's SteamVR choice, connecting to a
+SteamVR started later, quitting with it, and never crashing on a read-only manifest."""
+
 import importlib.util
 import os
-import subprocess
 import sys
 import threading
 import types
-import unittest
 from pathlib import Path
 from unittest.mock import Mock, patch
 
@@ -47,46 +49,6 @@ def _load_openvr_service_module():
     ):
         spec.loader.exec_module(module)
     return module
-
-
-class OpenVRServiceRegistrationTests(unittest.TestCase):
-    @classmethod
-    def setUpClass(cls):
-        cls.module = _load_openvr_service_module()
-
-    def _service_with_api(self):
-        service = self.module.OpenVRService()
-        service.initialize = Mock(return_value=True)
-        service.write_manifest = Mock()
-        service.app = Mock()
-        return service
-
-    def test_none_return_from_binding_is_success(self):
-        service = self._service_with_api()
-        service.app.addApplicationManifest.return_value = None
-        service.app.setApplicationAutoLaunch.return_value = None
-
-        service.set_autostart(True)
-
-        service.app.addApplicationManifest.assert_called_once_with(service.manifestPath)
-        service.app.setApplicationAutoLaunch.assert_called_once_with(service.appKey, True)
-        self.assertTrue(service.autostart_enabled)
-
-    def test_binding_exception_becomes_actionable_openvr_error(self):
-        service = self._service_with_api()
-        service.app.addApplicationManifest.side_effect = FakeApplicationError()
-
-        with self.assertRaisesRegex(
-            self.module.OpenVRException,
-            "Register manifest failed: FakeApplicationError",
-        ):
-            service.set_autostart(True)
-
-        service.app.setApplicationAutoLaunch.assert_not_called()
-
-
-if __name__ == "__main__":
-    unittest.main()
 
 
 # --- SteamVR start/stop robustness -------------------------------------------------
@@ -165,12 +127,23 @@ def test_startup_enables_auto_launch_on_first_registration(ovr):
     service.app.setApplicationAutoLaunch.assert_called_once_with(service.appKey, True)
 
 
-def test_turning_the_option_on_always_enables_auto_launch(ovr):
+def test_turning_the_option_on_registers_and_always_enables_auto_launch(ovr):
     service = _connected(ovr)
-    service.app.isApplicationInstalled.return_value = True
+    service.app.isApplicationInstalled.return_value = True  # even when SteamVR knows the app already
     service.app.getApplicationPropertyString.return_value = ""
+    service.app.addApplicationManifest.return_value = None  # pyopenvr returns None on success
     service.set_autostart(True)
+    service.app.addApplicationManifest.assert_called_once_with(service.manifestPath)
     service.app.setApplicationAutoLaunch.assert_called_once_with(service.appKey, True)
+    assert service.autostart_enabled
+
+
+def test_a_failed_registration_is_an_openvr_error_that_says_why(ovr):
+    service = _connected(ovr)
+    service.app.addApplicationManifest.side_effect = FakeApplicationError()
+    with pytest.raises(ovr.OpenVRException, match="Register manifest failed: FakeApplicationError"):
+        service.set_autostart(True)
+    service.app.setApplicationAutoLaunch.assert_not_called()
 
 
 def _connect_later(ovr, monkeypatch, service, installed):
@@ -347,37 +320,6 @@ def test_enabling_while_steamvr_closed_is_soft(ovr):
     service.write_manifest.assert_called_once()
 
 
-def test_second_instance_is_refused(tmp_path):
-    import sys as _sys
-    from pathlib import Path as _Path
-
-    app_dir = _Path(__file__).parents[1] / "eyetrackapp"
-    lock = tmp_path / "eyetrackapp.lock"
-    code = (
-        "import sys; sys.path.insert(0, sys.argv[1]); from utils import single_instance; "
-        "print(single_instance.acquire(sys.argv[2]))"
-    )
-    holder = subprocess.Popen(
-        [_sys.executable, "-u", "-c", code + "; import time; time.sleep(3)", str(app_dir), str(lock)],
-        stdout=subprocess.PIPE,
-        text=True,
-    )
-    try:
-        assert holder.stdout.readline().strip() == "True"
-        second = subprocess.run(
-            [_sys.executable, "-c", code, str(app_dir), str(lock)], capture_output=True, text=True, timeout=30
-        )
-        assert second.stdout.strip() == "False"
-    finally:
-        holder.kill()
-        holder.wait()
-    # The OS releases the lock with the process: the next start is never blocked.
-    third = subprocess.run(
-        [_sys.executable, "-c", code, str(app_dir), str(lock)], capture_output=True, text=True, timeout=30
-    )
-    assert third.stdout.strip() == "True"
-
-
 def test_quit_poll_reuses_system_and_event_until_shutdown(ovr):
     service = _connected(ovr)
     service.autostart_enabled = True
@@ -408,3 +350,48 @@ def test_failed_interface_after_init_closes_the_session(ovr):
         service.initialize()
     ovr.openvr.shutdown.assert_called_once()
     assert not service.is_initialized
+
+
+# --- a manifest folder that can't be written -------------------------------------
+
+
+def _service_with_unwritable_manifest(module):
+    service = module.OpenVRService()
+    service.initialize = Mock(return_value=True)
+    service.app = Mock()
+    service.write_manifest = Mock(side_effect=PermissionError("read-only dir"))
+    return service
+
+
+def test_ensure_registered_survives_oserror(ovr):
+    service = _service_with_unwritable_manifest(ovr)
+    service.autostart_enabled = True
+
+    service.ensure_registered()  # must not raise
+
+
+def test_on_config_update_survives_oserror_and_turns_the_option_back_off(ovr, monkeypatch):
+    service = _service_with_unwritable_manifest(ovr)
+    service.window = Mock()
+    shown = []
+    monkeypatch.setattr(ovr, "_show_warning", lambda *args: shown.append(args))
+
+    service.on_config_update({"gui_openvr_autostart": True})
+
+    assert service.autostart_enabled is False
+    service.window.set_openvr_autostart.assert_called_once_with(False)
+    assert len(shown) == 1
+
+
+def test_show_warning_reuses_existing_root(ovr, monkeypatch):
+    root = object()
+    monkeypatch.setattr(ovr.tk, "_default_root", root, raising=False)
+    new_root = Mock(side_effect=AssertionError("second Tk root created"))
+    monkeypatch.setattr(ovr.tk, "Tk", new_root)
+    shown = []
+    monkeypatch.setattr("ui_dialog.show_warning", lambda *args: shown.append(args))
+
+    ovr._show_warning("title", "msg")
+
+    assert shown == [(root, "title", "msg")]
+    new_root.assert_not_called()

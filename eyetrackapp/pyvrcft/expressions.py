@@ -185,6 +185,14 @@ class SingleEyeData:
     gaze_y: float = 0.0
     pupil_diameter_mm: float = 0.0
     openness: float = 1.0
+    # Openness for VRChat's native endpoints (EyesClosedAmount, face/v1 EyeClosed*),
+    # whose meaning is fixed (1 = closed). Set it when ``openness`` carries an
+    # avatar-side remap such as an inverted eyelid; None means same as ``openness``.
+    native_openness: float | None = None
+
+    @property
+    def native_open(self) -> float:
+        return self.openness if self.native_openness is None else self.native_openness
 
     @property
     def gaze(self):
@@ -303,8 +311,11 @@ def compute_simple(w: ShapeWeights) -> dict:
 # Full v2 output set (UnifiedExpressionsParameters + UnifiedHeadParameters)
 
 
-def compute_outputs(data: UnifiedTrackingData):
+def compute_outputs(data: UnifiedTrackingData, face_v1: bool = True):
     """Compute VRCFT's complete output for one frame.
+
+    face_v1=False leaves the /tracking/face/v1 payload out (102 byte
+    conversions the caller would throw away).
 
     Returns (params, native):
       params contains {"v2/<name>": float} for every base, simple, combined, and
@@ -484,9 +495,10 @@ def compute_outputs(data: UnifiedTrackingData):
     rp, ry = native_pitch_yaw(right, data)
     native = {
         "/tracking/eye/LeftRightPitchYaw": (lp, ly, rp, ry),
-        "/tracking/eye/EyesClosedAmount": (1 - combined.openness,),
-        "/tracking/face/v1": (compute_face_v1(data, combined),),
+        "/tracking/eye/EyesClosedAmount": (1 - (left.native_open + right.native_open) / 2.0,),
     }
+    if face_v1:
+        native["/tracking/face/v1"] = (compute_face_v1(data, combined),)
     return out, native
 
 
@@ -521,8 +533,8 @@ def compute_face_v1(data: UnifiedTrackingData, combined: SingleEyeData | None = 
         "EyeLookInLeft": left.gaze_x,
         "EyeLookUpLeft": left.gaze_y,
         "EyeLookDownLeft": -left.gaze_y,
-        "EyeClosedRight": 1.0 - right.openness,
-        "EyeClosedLeft": 1.0 - left.openness,
+        "EyeClosedRight": 1.0 - right.native_open,
+        "EyeClosedLeft": 1.0 - left.native_open,
         "EyeDilationRight": dilation,
         "EyeDilationLeft": dilation,
         "EyeConstrictRight": -dilation,

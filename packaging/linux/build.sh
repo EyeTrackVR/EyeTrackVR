@@ -33,11 +33,14 @@ rsync -a --delete "$REPO_ROOT/packaging/" "$SRC_DIR/packaging/"
 # The spec downloads the pinned overlay unless overlay/ holds a local build.
 rm -rf "$SRC_DIR/overlay"
 if [ -d "$REPO_ROOT/overlay" ]; then cp -a "$REPO_ROOT/overlay" "$SRC_DIR/"; fi
-# Strip CRLF from anything bash/python parses out of the repo checkout.
-find "$SRC_DIR/packaging" -name "*.sh" -exec sed -i 's/\r$//' {} +
+# Strip CRLF from anything bash/python parses out of the repo checkout (the
+# requirements file's "\" line continuations break on a trailing CR).
+find "$SRC_DIR/packaging" \( -name "*.sh" -o -name "requirements.txt" \) -exec sed -i 's/\r$//' {} +
 
-echo "[linux-build] creating venv (python 3.14 via uv)..."
-uv venv --python 3.14 --clear "$VENV_DIR"
+# The pinned interpreter build; keep in sync with ETVR_PYTHON in wsl_provision.sh.
+ETVR_PYTHON="cpython-3.14.9-linux-x86_64-gnu"
+echo "[linux-build] creating venv ($ETVR_PYTHON via uv)..."
+uv venv --managed-python --python "$ETVR_PYTHON" --clear "$VENV_DIR"
 # shellcheck disable=SC1091
 source "$VENV_DIR/bin/activate"
 
@@ -46,7 +49,9 @@ echo "[linux-build] installing dependencies..."
 # leaves a stale _skbuild/CMakeCache in uv's sdist cache that poisons retries.
 # Cleaning just pye3d is cheap (small package) and makes installs deterministic.
 uv cache clean pye3d >/dev/null 2>&1 || true
-uv pip install -r "$SRC_DIR/packaging/linux/requirements.txt"
+# Exactly the poetry.lock versions CI tests, hash-checked (packaging/export_requirements.py).
+# pye3d's build-time dependencies are resolved by its build backend and are not hash-pinned.
+uv pip install --require-hashes -r "$SRC_DIR/packaging/linux/requirements.txt"
 
 echo "[linux-build] running PyInstaller..."
 cd "$SRC_DIR"

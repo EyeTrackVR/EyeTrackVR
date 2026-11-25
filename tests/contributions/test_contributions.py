@@ -317,6 +317,21 @@ def test_verification_cancel_terminates_helper_without_browser(monkeypatch):
     assert "--contribution-verification" in calls[0]
 
 
+@pytest.mark.parametrize("returncode, reason", [(-6, "killed by SIGABRT"), (1, "exit code 1")])
+def test_a_helper_that_dies_fails_verification_and_logs_how(monkeypatch, caplog, returncode, reason):
+    class Process:
+        def __init__(self):
+            self.returncode = returncode
+
+        def poll(self):
+            return self.returncode
+
+    monkeypatch.setattr(verification.subprocess, "Popen", lambda command, **kwargs: Process())
+    with caplog.at_level("WARNING", logger=verification.logger.name), pytest.raises(ValueError):
+        verification.verify_in_app("https://verify.example", threading.Event())
+    assert reason in caplog.text
+
+
 def test_embedded_helper_disables_external_navigation(monkeypatch):
     import webview
 

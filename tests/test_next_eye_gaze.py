@@ -1,9 +1,9 @@
-"""Per-eye NEXT gaze modes (strabismus / amblyopia): fused stays untouched,
-independent and dominant follow the Hybrid's monocular gaze [8:12], and Smart
-Calib / recenter keep a real deviation between the eyes."""
+"""Per-eye NEXT gaze modes (next_eye_gaze; strabismus / amblyopia): fused
+stays untouched, independent and dominant follow the Hybrid's monocular gaze
+[8:12], a missing or closed eye is rebuilt from the other, Smart Calib keeps a
+real deviation between the eyes, and the squint Y hold. The processor side
+(routing, recenter) is in test_next_processing."""
 
-import os
-from queue import Queue
 from types import SimpleNamespace
 from unittest.mock import Mock
 
@@ -11,7 +11,6 @@ import numpy as np
 import pytest
 
 from eye import EyeId
-from eye_processor import EyeProcessor
 from next_eye_gaze import (
     GAZE_MODE_DOMINANT,
     GAZE_MODE_FUSED,
@@ -25,7 +24,6 @@ from next_eye_gaze import (
     gaze_mode_from_settings,
     select_eye_gaze,
 )
-from next_stereo_model import NEXT_Stereo_cls, SharedPass, stereo_model_file
 from next_smartcal import (
     NEXT_SMARTCAL_DOTS,
     _SMARTCAL_ANGLE_REF,
@@ -35,20 +33,10 @@ from next_smartcal import (
     next_smartcal_apply,
     next_smartcal_dot_tangents,
 )
-from utils.misc_utils import resource_path
 
 STEP_S = 1.0 / 60.0
 # Esotropia-like right eye: points 0.2 further toward +x than the left.
 DEVIATION = np.array([0.2, 0.0])
-
-
-class _IdentityFilter:
-    def __init__(self, size):
-        self.min_cutoff = np.zeros(size, dtype=np.float32)
-        self.beta = np.zeros(size, dtype=np.float32)
-
-    def __call__(self, values):
-        return np.asarray(values, dtype=np.float32)
 
 
 def _settings(mode=GAZE_MODE_FUSED, dominant="left", **extra):
@@ -140,249 +128,6 @@ def test_no_eye_holds_the_last_value():
     out, ts = _settle(tracker, np.array([0.1, 0.1]), np.array([0.3, 0.1]))
     held = tracker.update([0.0, 0.0, 0.0, 0.0], False, False, 0.0, 0.0, ts + STEP_S)
     np.testing.assert_allclose(held, out)
-
-
-# ── model postprocess ────────────────────────────────────────────────────────
-
-HYBRID_PATH = stereo_model_file("ETVR")
-needs_hybrid = pytest.mark.skipif(
-    HYBRID_PATH is None or not os.path.exists(resource_path(HYBRID_PATH)),
-    reason="shipped Hybrid export not present",
-)
-
-
-@pytest.fixture
-def hybrid():
-    return NEXT_Stereo_cls(HYBRID_PATH)
-
-
-def _raw12(rng):
-    raw = rng.uniform(0.2, 0.9, 12).astype(np.float32)
-    raw[6:] = rng.uniform(-0.6, 0.6, 6)
-    return raw
-
-
-@needs_hybrid
-def test_fused_outputs_ignore_the_per_eye_channels(hybrid):
-    # Same [0:8] stream through two fresh runners, one with wildly different
-    # per-eye channels and one with none at all: the fused result is identical.
-    other = NEXT_Stereo_cls(HYBRID_PATH)
-    legacy = NEXT_Stereo_cls(HYBRID_PATH)
-    # The One-Euro step depends on wall-clock spacing between calls; identity
-    # filters keep the comparison exact (medians and the hold still run).
-    for runner in (hybrid, other, legacy):
-        runner.one_euro_filter = _IdentityFilter(8)
-    rng = np.random.default_rng(3)
-    valid = {EyeId.LEFT: True, EyeId.RIGHT: True}
-    for _ in range(30):
-        raw = _raw12(rng)
-        alt = raw.copy()
-        alt[8:12] = rng.uniform(-1.0, 1.0, 4)
-        a = hybrid.postprocess(raw, valid, 0.5, 0.2)
-        b = other.postprocess(alt, valid, 0.5, 0.2)
-        c = legacy.postprocess(raw[:8].copy(), valid, 0.5, 0.2)
-        # Expressions and the DFR gaze chain (identity filter + medians) are
-        # time-independent; the VRChat gaze smoother is not compared here.
-        np.testing.assert_array_equal(a[:6], b[:6])
-        np.testing.assert_array_equal(a[:6], c[:6])
-        assert hybrid.last_dfr_gaze == other.last_dfr_gaze == legacy.last_dfr_gaze
-    assert legacy.last_eye_gaze is None
-    assert hybrid.last_eye_gaze is not None
-
-
-@needs_hybrid
-def test_per_eye_y_uses_the_shared_gaze_y_sign(hybrid):
-    # The exporter negates channels 7, 9 and 11 together, so all three take
-    # the app's one Y sign.
-    hybrid.one_euro_filter = _IdentityFilter(8)
-    hybrid.eye_gaze_filter = _IdentityFilter(4)
-    raw = np.array([0.5, 0.8, 0.0, 0.5, 0.8, 0.0, 0.1, 0.2, 0.11, 0.21, 0.31, 0.41], dtype=np.float32)
-    out = hybrid.postprocess(raw.copy(), {EyeId.LEFT: True, EyeId.RIGHT: True}, 0.0, 0.0)
-    s = hybrid.gaze_y_sign
-    assert out[7] == pytest.approx(0.2 * s)
-    assert hybrid.last_dfr_gaze[1] == pytest.approx(0.2 * s)
-    np.testing.assert_allclose(hybrid.last_dfr_eye_gaze, [0.11, 0.21 * s, 0.31, 0.41 * s], atol=1e-6)
-    np.testing.assert_allclose(hybrid.last_eye_gaze, [0.11, 0.21 * s, 0.31, 0.41 * s], atol=1e-6)
-    np.testing.assert_allclose(hybrid.last_raw_eye_gaze, [0.11, 0.21 * s, 0.31, 0.41 * s], atol=1e-6)
-
-
-@needs_hybrid
-def test_black_eye_never_reaches_the_per_eye_filter(hybrid):
-    hybrid.eye_gaze_filter = _IdentityFilter(4)
-    both = {EyeId.LEFT: True, EyeId.RIGHT: True}
-    s = hybrid.gaze_y_sign
-    for _ in range(60):
-        raw = np.array([0.5, 0.8, 0.0, 0.5, 0.8, 0.0, 0.1, 0.0, 0.0, 0.0, 0.2, 0.0], dtype=np.float32)
-        hybrid.postprocess(raw, both, 0.0, 0.0)
-    # Right camera blacked out: the model zeroes its expressions and gaze.
-    raw = np.array([0.5, 0.8, 0.0, 0.0, 0.0, 0.0, -0.3, 0.1, -0.3, 0.1, 0.0, 0.0], dtype=np.float32)
-    for _ in range(5):
-        hybrid.postprocess(raw.copy(), {EyeId.LEFT: True, EyeId.RIGHT: False}, 0.0, 0.0)
-    np.testing.assert_allclose(hybrid.last_dfr_eye_gaze, [-0.3, 0.1 * s, -0.1, 0.1 * s], atol=1e-5)
-
-
-# ── eye processor routing ────────────────────────────────────────────────────
-
-
-def _routing_processor(eye, mode, dominant="left"):
-    processor = EyeProcessor.__new__(EyeProcessor)
-    processor.eye_id = eye
-    processor.current_raw_frame = np.zeros((64, 80, 3), dtype=np.uint8)
-    processor.config = SimpleNamespace(rotation_angle=0)
-    processor.current_image_gray = np.zeros((64, 80), dtype=np.uint8)
-    processor.current_capture_ts = 1000.0
-    processor.settings = _settings(
-        mode,
-        dominant,
-        gui_min_cutoff=0.0004,
-        gui_speed_coefficient=0.9,
-        gui_setup_mode="standard",
-        gui_model_variant="ETVR",
-        gui_use_gpu=False,
-    )
-    processor._next_apply = Mock()
-    processor._next_mode_changed = Mock()
-    return processor
-
-
-def _coord(served):
-    coord = SimpleNamespace(
-        supports_single_eye=True,
-        submit=Mock(),
-        run=Mock(return_value=(0.05, 0.06, 0.3, 0.4, 0.5)),
-        peer_active=Mock(),
-        raw_gaze=Mock(return_value=(0.07, 0.08)),
-        dfr_gaze=Mock(return_value=(0.075, 0.085)),
-        expression_coupler=Mock(),
-        served_pass=Mock(return_value=served),
-    )
-    return coord
-
-
-def _served():
-    result = np.zeros(8, dtype=np.float32)
-    return SharedPass(
-        1,
-        result,
-        True,
-        1.0,
-        np.array([0.1, 0.2, 0.3, 0.4], dtype=np.float32),
-        np.array([0.11, 0.21, 0.31, 0.41], dtype=np.float32),
-        np.array([0.12, 0.22, 0.32, 0.42], dtype=np.float32),
-    )
-
-
-@pytest.mark.parametrize("eye", [EyeId.LEFT, EyeId.RIGHT])
-def test_fused_mode_routes_the_shared_gaze_unchanged(monkeypatch, eye):
-    processor = _routing_processor(eye, GAZE_MODE_FUSED)
-    served = _served()
-    coord = _coord(served)
-    monkeypatch.setattr("next_processing.get_stereo_coordinator", lambda *args: coord)
-    processor.NEXTM()
-    processor._next_apply.assert_called_once_with(
-        0.05,
-        0.06,
-        0.3,
-        0.4,
-        0.5,
-        raw_gaze=(0.07, 0.08),
-        dfr_gaze=(0.075, 0.085),
-        shared=(coord.expression_coupler, served),
-    )
-
-
-@pytest.mark.parametrize(
-    "mode,dominant,eye,gaze,raw",
-    [
-        (GAZE_MODE_INDEPENDENT, "left", EyeId.LEFT, (0.1, 0.2), (0.11, 0.21)),
-        (GAZE_MODE_INDEPENDENT, "left", EyeId.RIGHT, (0.3, 0.4), (0.31, 0.41)),
-        (GAZE_MODE_DOMINANT, "right", EyeId.LEFT, (0.3, 0.4), (0.31, 0.41)),
-        (GAZE_MODE_DOMINANT, "left", EyeId.RIGHT, (0.1, 0.2), (0.11, 0.21)),
-    ],
-)
-def test_per_eye_modes_route_the_monocular_gaze(monkeypatch, mode, dominant, eye, gaze, raw):
-    processor = _routing_processor(eye, mode, dominant)
-    served = _served()
-    coord = _coord(served)
-    monkeypatch.setattr("next_processing.get_stereo_coordinator", lambda *args: coord)
-    processor.NEXTM()
-    args, kwargs = processor._next_apply.call_args
-    assert args[:2] == pytest.approx(gaze)
-    assert args[2:] == (0.3, 0.4, 0.5)
-    assert kwargs["raw_gaze"] == pytest.approx(raw)
-    assert kwargs["dfr_gaze"] == pytest.approx((raw[0] + 0.01, raw[1] + 0.01))
-    reference = (0.3, 0.4) if dominant == "right" else (0.1, 0.2)
-    assert kwargs["recenter_gaze"] == pytest.approx(reference)
-    assert kwargs["shared"] == (coord.expression_coupler, served)
-
-
-def test_per_eye_mode_without_per_eye_channels_stays_fused(monkeypatch):
-    # Legacy 8-output stereo: nothing to route, so the fused gaze is kept.
-    processor = _routing_processor(EyeId.RIGHT, GAZE_MODE_INDEPENDENT)
-    served = SharedPass(1, np.zeros(8, dtype=np.float32), True, 1.0)
-    coord = _coord(served)
-    monkeypatch.setattr("next_processing.get_stereo_coordinator", lambda *args: coord)
-    processor.NEXTM()
-    processor._next_apply.assert_called_once_with(
-        0.05,
-        0.06,
-        0.3,
-        0.4,
-        0.5,
-        raw_gaze=(0.07, 0.08),
-        dfr_gaze=(0.075, 0.085),
-        shared=(coord.expression_coupler, served),
-    )
-
-
-# ── recenter ─────────────────────────────────────────────────────────────────
-
-
-def _apply_processor(eye):
-    processor = EyeProcessor.__new__(EyeProcessor)
-    processor.eye_id = eye
-    processor.settings = SimpleNamespace(
-        gui_NEXT_calib_lids_brows=False,
-        gui_NEXT_lid_sync=0,
-        gui_NEXT_brow_sync=0,
-        gui_flip_x_axis_left=False,
-        gui_flip_x_axis_right=False,
-        gui_flip_y_axis=False,
-        gui_recenter_eyes=True,
-        leap_lid_close_threshold_left=0.1,
-        leap_lid_widen_threshold_left=0.9,
-        leap_lid_close_threshold_right=0.1,
-        leap_lid_widen_threshold_right=0.9,
-    )
-    processor._next_smartcal_trace = None
-    processor._next_smartcal_w = None
-    processor._next_smartcal_b = None
-    processor._next_smartcal_warp = None
-    processor._next_smartcal_lid_neutral = None
-    processor._next_smartcal_brow_neutral = None
-    processor._next_recenter_offset_x = 0.0
-    processor._next_recenter_offset_y = 0.0
-    processor._next_recenter_armed_at = None
-    processor._recenter_delay_s = 0.2
-    processor.out_x = 0.0
-    processor.out_y = 0.0
-    processor.osc_queue = Queue()
-    return processor
-
-
-def test_recenter_keeps_the_deviation_in_independent_mode():
-    left_gaze, right_gaze = (0.05, -0.02), (0.25, -0.02)
-    left, right = _apply_processor(EyeId.LEFT), _apply_processor(EyeId.RIGHT)
-    left._next_apply(*left_gaze, 0.5, 0.8, 0.0, recenter_gaze=left_gaze)
-    right._next_apply(*right_gaze, 0.5, 0.8, 0.0, recenter_gaze=left_gaze)
-    assert (left.out_x, left.out_y) == pytest.approx((0.0, 0.0))
-    assert (right.out_x, right.out_y) == pytest.approx(tuple(DEVIATION))
-
-
-def test_recenter_without_reference_zeroes_each_eye():
-    processor = _apply_processor(EyeId.RIGHT)
-    processor._next_apply(0.25, -0.02, 0.5, 0.8, 0.0)
-    assert (processor.out_x, processor.out_y) == pytest.approx((0.0, 0.0))
 
 
 # ── Smart Calib ──────────────────────────────────────────────────────────────
@@ -509,47 +254,3 @@ def test_squint_hold_does_not_prefer_a_direction():
     down.apply(-0.5, 0.75, 0.0)
     assert up.apply(0.0, 0.0, 0.01) == pytest.approx(0.5, abs=0.01)
     assert down.apply(0.0, 0.0, 0.01) == pytest.approx(-0.5, abs=0.01)
-
-
-class _Peer:
-    def __init__(self, peer_openness):
-        self.value = peer_openness
-
-    def peer_openness(self, _eye_id, _served):
-        return self.value
-
-
-def _squint_processor(mode=GAZE_MODE_FUSED, enabled=True, openness=0.0):
-    processor = EyeProcessor.__new__(EyeProcessor)
-    processor.eye_id = EyeId.LEFT
-    processor.eyeopen = openness
-    processor.settings = SimpleNamespace(gui_NEXT_squint_y_hold=enabled, gui_NEXT_gaze_mode=mode)
-    return processor
-
-
-def _held_y(processor, shared=None):
-    processor.eyeopen, closed = 1.0, processor.eyeopen
-    processor._next_squint_y(0.5, shared)
-    processor.eyeopen = closed
-    return processor._next_squint_y(-0.5, shared)
-
-
-def test_squint_hold_is_off_by_default():
-    processor = _squint_processor()
-    processor.settings = SimpleNamespace()
-    assert processor._next_squint_y(-0.5, None) == -0.5
-
-
-def test_processor_holds_gaze_once_enabled():
-    assert _held_y(_squint_processor()) == pytest.approx(0.5, abs=0.05)
-
-
-def test_a_wink_does_not_freeze_the_shared_gaze():
-    shared = (_Peer(0.9), object())
-    assert _held_y(_squint_processor(), shared) == -0.5
-
-
-def test_independent_eyes_only_trust_their_own_lid():
-    shared = (_Peer(0.9), object())
-    held = _held_y(_squint_processor(GAZE_MODE_INDEPENDENT), shared)
-    assert held == pytest.approx(0.5, abs=0.05)

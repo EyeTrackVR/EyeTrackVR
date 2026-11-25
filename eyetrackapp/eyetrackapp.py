@@ -592,7 +592,7 @@ def main():
 
             def _launch_bug_report():
                 self._on_issues_popup_close()
-                self._show_bug_report()
+                self.show_page("bug")
 
             ttk.Button(
                 _issues_content,
@@ -783,11 +783,13 @@ def main():
             # The same margin on every button, so the group's centre is the row's.
             self._global_calibration_btn.pack(side="left", padx=6)
             attach_tooltip(self._global_calibration_btn, tr("tracking.start_calibration_tip"))
-            ttk.Button(
+            recenter_btn = ttk.Button(
                 actions_inner,
                 text=tr("tracking.recenter_btn"),
                 command=self._on_global_recenter,
-            ).pack(side="left", padx=6)
+            )
+            recenter_btn.pack(side="left", padx=6)
+            attach_tooltip(recenter_btn, tr("tracking.recenter_btn_tip"))
             # Shows the output gaze live in the headset, over a reference dot,
             # so tracking and calibration can be checked without VRChat.
             self._preview_btn_text = tk.StringVar(value=tr("tracking.preview_btn"))
@@ -839,10 +841,16 @@ def main():
             actions_inner.bind("<Configure>", wrap_hint, add="+")
             bottom = ttk.Frame(self.root)
             bottom.pack(fill="x", padx=8, pady=4)
-            ttk.Button(bottom, text=tr("issues.title"), command=self._toggle_issues_popup).pack(side="left")
-            ttk.Button(bottom, text=tr("tracking.contribute_data_btn"), command=self._open_data_collection).pack(
-                side="left", padx=(10, 0)
-            )
+            # Help buttons; hidden on the Bug Report page, which is where they lead.
+            self._help_actions_row = ttk.Frame(bottom)
+            self._help_actions_row.pack(side="left")
+            # The "Having Issues?" button is hidden; its popup (_toggle_issues_popup) is kept for now.
+            ttk.Button(
+                self._help_actions_row, text=tr("tracking.contribute_data_btn"), command=self._open_data_collection
+            ).pack(side="left")
+            ttk.Button(
+                self._help_actions_row, text=tr("tracking.bug_report_btn"), command=lambda: self.show_page("bug")
+            ).pack(side="left", padx=(10, 0))
             self.focus_label = ttk.Label(bottom, text=tr("tracking.interface_paused"))
             self.focus_label.pack(side="left", padx=12)
             self.focus_label.pack_forget()
@@ -1276,6 +1284,8 @@ def main():
             """Switch tabs. Heavy work (camera thread joins, config apply) is deferred so the UI can redraw first."""
             if page_name == "vrcft" and not self._vrcft_module_settings_enabled():
                 page_name = "settings"
+            if page_name == "bug":
+                self._build_bug_report()
             if page_name == "data" and not self._data_collection.build():
                 page_name = "tracking"
             # "<page>_advanced": that settings page's Advanced page, built with it.
@@ -1291,11 +1301,22 @@ def main():
                 frame.pack_forget()
             if self._data_collection.window is not None:
                 self._data_collection.window.pack_forget()
+            if self._bug_report is not None:
+                self._bug_report.window.pack_forget()
             if not self._nav.winfo_manager():
                 self._nav.pack(**self._nav_pack, before=self.content)
             # Shows or pauses the setup wizard; hides the navigation while it shows.
             if not self._wizard_page.sync(page_name):
                 page_name = self.current_page = "tracking"
+
+            if page_name == "bug":
+                self._help_actions_row.pack_forget()
+                if self._issues_popup_visible:
+                    self._on_issues_popup_close()
+            elif not self._help_actions_row.winfo_manager():
+                bottom_row = self._help_actions_row.master
+                first = bottom_row.pack_slaves()
+                self._help_actions_row.pack(side="left", **({"before": first[0]} if first else {}))
 
             if base_page in ("settings", "algo", "vrcft"):
                 self._settings_actions_row.pack(side="right")
@@ -1342,6 +1363,13 @@ def main():
                 self._nav.pack_forget()
                 self._data_collection.window.pack(fill="both", expand=True)
                 # Cameras run as on the Tracking page so they can be recorded.
+                self.root.update_idletasks()
+                self.root.after(0, lambda s=seq: self._deferred_enter_tracking(s))
+            elif page_name == "bug":
+                # Like data collection: no navigation, its own Close button returns to Tracking.
+                self._nav.pack_forget()
+                self._bug_report.show()  # before packing, so it lays out at its final size
+                self._bug_report.window.pack(fill="both", expand=True)
                 self.root.update_idletasks()
                 self.root.after(0, lambda s=seq: self._deferred_enter_tracking(s))
 
@@ -1397,13 +1425,14 @@ def main():
             if self.current_page != "data":
                 self.show_page("data")
 
-        def _show_bug_report(self):
+        def _build_bug_report(self):
             # Built on first use so startup never pays for it.
-            if self._bug_report is None or not self._bug_report.window.winfo_exists():
+            if self._bug_report is None:
                 from contributions.report_window import ReportWindow
 
-                self._bug_report = ReportWindow(self.root, details=_bug_report_details)
-            self._bug_report.show()
+                self._bug_report = ReportWindow(
+                    self.content, details=_bug_report_details, on_hide=lambda: self.show_page("tracking")
+                )
 
         def _show_issues_popup(self):
             popup = self._issues_popup
@@ -1467,6 +1496,7 @@ def main():
                     "or switch to another tracker for the classic on-screen "
                     "calibration."
                 )
+                calibration_state.notify_user("status.next_needs_overlay")
                 return
             # Classic on-screen calibration toggle: stop if running, start if not.
             if self._any_eye_calibrating():
@@ -1575,7 +1605,7 @@ def main():
             if gaze_preview.is_running():
                 stop_gaze_preview()
             else:
-                gaze_preview_overlay(config.settings)
+                gaze_preview_overlay(config.settings, notify=True)
 
         def _sync_gaze_preview_button(self):
             text = tr("tracking.stop_preview") if gaze_preview.is_running() else tr("tracking.preview_btn")
@@ -1601,8 +1631,10 @@ def main():
                 ui_dialog.show_info(self.root, "EyeTrackVR", tr("status.overlay_busy"))
                 return
             eps = [eye.ransac for eye in eyes if eye.started() and getattr(eye, "ransac", None) is not None]
-            if eps:
-                gaze_range_check_overlay(eps, config.settings)
+            if not eps:
+                calibration_state.notify_user("status.no_camera")
+                return
+            gaze_range_check_overlay(eps, config.settings, notify=True)
 
         def _sync_range_check_button(self):
             # Without a gaze fit the angles come from the output limits, so the
@@ -1629,18 +1661,20 @@ def main():
 
             eps = [eye.ransac for eye in eyes if eye.started() and getattr(eye, "ransac", None) is not None]
             if not eps:
+                calibration_state.notify_user("status.no_camera")
                 return
             config.settings.calib_mode = "classic"
             config.save()
-            overlay_ellipse_calibrate(eps, config.settings, config)
+            overlay_ellipse_calibrate(eps, config.settings, config, notify=True)
 
         def _on_next_smartcal(self):
             from next_smartcal import next_smartcal_overlay
 
             eps = [eye.ransac for eye in eyes if eye.started() and getattr(eye, "ransac", None) is not None]
             if not eps:
+                calibration_state.notify_user("status.no_camera")
                 return
-            next_smartcal_overlay(eps, config.settings, config)
+            next_smartcal_overlay(eps, config.settings, config, notify=True)
 
         def _on_next_smartcal_reset(self):
             from next_smartcal import reset_next_smartcal
@@ -1757,6 +1791,18 @@ def main():
                 self.root.update_idletasks()
             except Exception:
                 logger.debug("Hiding the window failed", exc_info=True)
+            # os._exit below would leave a preview or calibration overlay in the
+            # headset, holding its exe open. First, so a teardown that hangs until
+            # the watchdog can't skip it; bounded, so a hung overlay is killed.
+            try:
+                from overlay_calibration import stop_gaze_preview
+                from utils.overlay_launch import stop_live_overlays
+
+                stop_gaze_preview()
+                calibration_state.request_overlay_stop()
+                stop_live_overlays(timeout=1.0)
+            except Exception:
+                logger.warning("Stopping the overlay failed", exc_info=True)
             try:
                 # Keep settings edited within the debounce window.
                 for setting in settings:
@@ -1808,6 +1854,21 @@ def main():
     app.root.after(2000, lambda: update_dialog.check_at_startup() if config.settings.gui_setup_wizard_done else None)
     # Buttons of the SteamVR dashboard panel do what the main window's buttons do.
     dfr_controller.run_on_ui = lambda action: app.root.after(0, action)
+
+    def _notify_user(key):
+        # Called from calibration worker threads too: Tk only on its own thread.
+        def show():
+            if not getattr(app, "_shutting_down", False):
+                import ui_dialog
+
+                ui_dialog.show_warning(app.root, "EyeTrackVR", tr(key))
+
+        try:
+            app.root.after(0, show)
+        except (tk.TclError, RuntimeError):
+            pass  # the window is gone
+
+    calibration_state.set_user_notifier(_notify_user)
     dfr_controller.actions.update(
         recenter=app._on_global_recenter,
         recalibrate=app._on_global_calibration_toggle,

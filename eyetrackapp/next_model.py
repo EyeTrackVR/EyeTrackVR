@@ -98,19 +98,21 @@ HMD_ALIASES = {"TOBII": "PSVR", "PSVR/TOBII": "PSVR"}
 DEFAULT_MODEL_VARIANT = "ETVR"
 # Model sizes, lightest first (the GUI slider runs left -> right in this order).
 # All are NEXT exports with the 12-output per-eye-gaze contract:
-#   LITE   NEXT_<HMD>.fp16.onnx    NORMAL at half precision
-#   NORMAL NEXT_<HMD>.onnx         MobileNetV3-Small, 1.46M (default)
-#   LARGE  NEXT_LARGE_<HMD>.onnx   MobileNetV3-Large, 3.85M
-#   XL     NEXT_XL_<HMD>.onnx      EfficientNet-B0, 5.17M (ETVR, BSB)
+#   LITE   NEXT_<HMD>_<DATE>.fp16.onnx    NORMAL at half precision
+#   NORMAL NEXT_<HMD>_<DATE>.onnx         MobileNetV3-Small, 1.46M (default)
+#   LARGE  NEXT_LARGE_<HMD>_<DATE>.onnx   MobileNetV3-Large, 3.85M
+#   XL     NEXT_XL_<HMD>_<DATE>.onnx      EfficientNet-B0, 5.17M (ETVR, BSB)
+# <DATE> is MODEL_DATE, the training run the shipped exports come from.
+MODEL_DATE = "111526"
 MODEL_SIZES = ("LITE", "NORMAL", "LARGE", "XL")
 DEFAULT_MODEL_SIZE = "NORMAL"
 # Files tried per size, in order; the first one on disk wins. PSVR has no XL,
 # so XL falls back to its Large model.
 _SIZE_FILES = {
-    "LITE": ("NEXT_{hmd}.fp16.onnx",),
+    "LITE": (f"NEXT_{{hmd}}_{MODEL_DATE}.fp16.onnx",),
     "NORMAL": (),
-    "LARGE": ("NEXT_LARGE_{hmd}.onnx",),
-    "XL": ("NEXT_XL_{hmd}.onnx", "NEXT_LARGE_{hmd}.onnx"),
+    "LARGE": (f"NEXT_LARGE_{{hmd}}_{MODEL_DATE}.onnx",),
+    "XL": (f"NEXT_XL_{{hmd}}_{MODEL_DATE}.onnx", f"NEXT_LARGE_{{hmd}}_{MODEL_DATE}.onnx"),
 }
 # Every selectable "<HMD>[ <SIZE>]" variant string (NORMAL carries no suffix).
 MODEL_VARIANTS = tuple(HMD_TYPES) + tuple(
@@ -155,7 +157,7 @@ def model_file_for_variant(variant: str) -> str:
         candidate = f"assets/models/{name.format(hmd=hmd)}"
         if os.path.exists(resource_path(candidate)):
             return candidate
-    return f"assets/models/NEXT_{hmd}.onnx"
+    return f"assets/models/NEXT_{hmd}_{MODEL_DATE}.onnx"
 
 
 # ImageNet normalization constants (CHW channel order after BGR->RGB)

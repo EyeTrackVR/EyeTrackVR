@@ -14,7 +14,6 @@ import pytest
 from osc import gaze_shared_memory as gsm
 from osc.gaze_shared_memory import FLAG_GAZE_VALID, FLAG_OPENNESS_VALID, GazeEye
 from ovr import gaze_selftest as st
-from ovr import openxr_layer_registration as xr
 from ovr import steamvr_driver_registration as reg
 from ovr.gaze_selftest import FAIL, PASS, SKIP, WARN
 
@@ -518,7 +517,10 @@ def test_foveation_query_paths():
 
 
 def test_foveation_query_against_the_installed_pyopenvr():
-    import openvr
+    if sys.platform in ("win32", "linux"):
+        import openvr  # a dependency there (pyproject.toml): missing must fail, not skip
+    else:
+        openvr = pytest.importorskip("openvr", reason="pyopenvr is only a dependency on Windows and Linux")
 
     system = SimpleNamespace(function_table=openvr.IVRSystem_FnTable())
     if hasattr(openvr.IVRSystem, "getEyeTrackedFoveationCenter"):
@@ -626,46 +628,6 @@ def test_driver_state_from_real_files(monkeypatch, tmp_path):
     assert paths.read_text() == json.dumps(
         {"jsonid": "vrpathreg", "version": 1, "external_drivers": ["C:\\other", str(ours)], "config": [str(config_dir)]}
     )  # read only
-
-
-def test_registration_read_helpers(tmp_path):
-    ours = tmp_path / "a" / "steamvr_driver" / "eyetrackvr"
-    ours.mkdir(parents=True)
-    (ours / reg.MANIFEST).write_text(json.dumps({"name": "eyetrackvr"}))
-    gone = str(tmp_path / "gone" / "steamvr_driver" / "eyetrackvr")  # an uninstalled copy
-    paths = _openvrpaths(tmp_path, [str(tmp_path / "other" / "driver"), str(ours), gone])
-    assert reg.registered_entries(paths) == [str(ours), gone]
-    assert reg.registered_entries(None) is None  # conftest: no openvrpaths.vrpath
-    paths.write_text("{not json")
-    assert reg.registered_entries(paths) is None
-
-
-def test_layer_read_helpers(tmp_path):
-    from tests.conftest import _FakeRegistry
-
-    layer = tmp_path / "layer"
-    registry = _FakeRegistry()
-    assert not xr.is_installed(layer, registry=registry) and xr.installed_entries(registry=registry) == []
-    xr.sync(True, layer, registry=registry)
-    assert xr.is_installed(layer, registry=registry)
-    assert xr.installed_entries(registry=registry) == [str(layer / xr.MANIFEST)]
-    registry.data["D:\\old\\XR_APILAYER_EYETRACKVR_eye_gaze.json"] = 0
-    assert not xr.is_installed(layer, registry=registry)
-    registry.data[str(layer / xr.MANIFEST)] = 1  # disabled
-    registry.data.pop("D:\\old\\XR_APILAYER_EYETRACKVR_eye_gaze.json")
-    assert not xr.is_installed(layer, registry=registry) and xr.installed_entries(registry=registry) == []
-
-
-def test_layer_read_helpers_linux(monkeypatch, tmp_path):
-    layer = tmp_path / "layer"
-    layer.mkdir()
-    (layer / xr.MANIFEST).write_text(json.dumps({"api_layer": {"library_path": "./x.so"}}))
-    implicit = tmp_path / "implicit.d"
-    monkeypatch.setattr(sys, "platform", "linux")
-    assert not xr.is_installed(layer, implicit_dir=implicit)
-    assert xr.sync(True, layer, implicit_dir=implicit) == xr.INSTALLED
-    assert xr.is_installed(layer, implicit_dir=implicit)
-    assert xr.installed_entries(implicit_dir=implicit) == [str(implicit / xr.MANIFEST)]
 
 
 def test_find_vrserver_log_via_openvrpaths(monkeypatch, tmp_path):

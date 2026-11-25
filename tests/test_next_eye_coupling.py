@@ -1,11 +1,14 @@
-from queue import Queue
+"""Lid and brow coupling between the eyes (next_eye_coupling): small
+differences collapse to the pair's mean, winks and one-sided brow raises pass
+through, a missing eye is released, the blend has no jumps, and the slider
+sets how strongly the eyes are synced."""
+
 from types import SimpleNamespace
 
 import numpy as np
 import pytest
 
 from eye import EyeId
-from eye_processor import EyeProcessor
 from next_processing import NextExpressionTransform
 from next_eye_coupling import (
     DEFAULT_SYNC,
@@ -15,7 +18,8 @@ from next_eye_coupling import (
     coupling_weight,
     lid_sync_range,
 )
-from next_stereo_model import SharedPass, StereoNextCoordinator, stereo_model_file
+from next_stereo_model import SharedPass
+from tests.next_stubs import next_processor
 
 STEP_S = 1.0 / 60.0
 # (sync_below, separate_above) gap ranges at the default slider position
@@ -226,34 +230,7 @@ def test_coupling_compares_calibrated_values():
 
 
 def _processor(eye_id, sync=DEFAULT_SYNC):
-    processor = EyeProcessor.__new__(EyeProcessor)
-    processor.eye_id = eye_id
-    processor.settings = SimpleNamespace(
-        gui_NEXT_calib_lids_brows=True,
-        gui_NEXT_lid_sync=sync,
-        gui_NEXT_brow_sync=sync,
-        gui_flip_x_axis_left=False,
-        gui_flip_x_axis_right=False,
-        gui_flip_y_axis=False,
-        gui_recenter_eyes=False,
-        leap_lid_close_threshold_left=0.1,
-        leap_lid_widen_threshold_left=0.9,
-        leap_lid_close_threshold_right=0.1,
-        leap_lid_widen_threshold_right=0.9,
-    )
-    processor._next_smartcal_trace = None
-    processor._next_smartcal_w = None
-    processor._next_smartcal_b = None
-    processor._next_smartcal_warp = None
-    processor._next_smartcal_lid_neutral = None
-    processor._next_smartcal_brow_neutral = None
-    processor._next_recenter_offset_x = 0.0
-    processor._next_recenter_offset_y = 0.0
-    processor._next_recenter_armed_at = None
-    processor.out_x = 0.0
-    processor.out_y = 0.0
-    processor.osc_queue = Queue()
-    return processor
+    return next_processor(eye_id, gui_NEXT_lid_sync=sync, gui_NEXT_brow_sync=sync)
 
 
 def _apply_pair(processors, coupler, shared):
@@ -297,24 +274,6 @@ def test_processor_near_closed_pair_snaps_together():
     for k in range(60):
         out = _apply_pair(processors, coupler, SharedPass(k, _result(0.05, 0.10), True, k * STEP_S))
     assert out[EyeId.LEFT][0] == out[EyeId.RIGHT][0] == 0.0
-
-
-def test_coordinator_marks_missing_eye_passes():
-    coord = StereoNextCoordinator(stereo_model_file("ETVR"))
-    image = np.random.default_rng(1).integers(0, 256, (64, 80, 3), dtype=np.uint8)
-    coord.submit(EyeId.LEFT, image, None)
-    coord.run(EyeId.LEFT, 0.0, 0.0)
-    left_only = coord.served_pass(EyeId.LEFT)
-    assert not left_only.both_eyes
-    assert coord.served_pass(EyeId.RIGHT) is None
-
-    coord.submit(EyeId.RIGHT, image, None)
-    coord.run(EyeId.RIGHT, 0.0, 0.0)
-    both = coord.served_pass(EyeId.RIGHT)
-    assert both.both_eyes and both.pass_id > left_only.pass_id
-    # The left eye reusing that pass is served the same one.
-    coord.run(EyeId.LEFT, 0.0, 0.0)
-    assert coord.served_pass(EyeId.LEFT) is both
 
 
 def test_peer_openness_reads_the_other_eye_of_the_pass():

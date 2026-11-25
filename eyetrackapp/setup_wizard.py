@@ -888,8 +888,10 @@ class SetupWizard:
             self.dfr_box, text=tr("wizard.foveation_install_btn"), command=self.install_dfr, style="Accent.TButton"
         )
         self.dfr_message = self._label(self.dfr_box, muted=True, small=True)
-        self._dfr_step = None  # set while the install runs
-        self._dfr_error = None
+        # Kept across a rebuild (a language change): an install still running
+        # must keep its button disabled, or a second click starts another one.
+        self._dfr_step = getattr(self, "_dfr_step", None)  # set while the install runs
+        self._dfr_error = getattr(self, "_dfr_error", None)
         return page
 
     def _build_done(self, parent):

@@ -3,14 +3,22 @@ setlocal EnableExtensions EnableDelayedExpansion
 REM ==========================================================================
 REM  EyeTrackVR one-shot release builder
 REM
-REM    1. Reads version.txt and stamps it into the app + Inno installer
+REM    0. Refuses a working tree with uncommitted or untracked files, runs the
+REM       test suite, and checks every version stamp matches version.txt
+REM    1. Reads the version from version.txt
 REM    2. Builds the Windows app (PyInstaller) and installer (Inno Setup)
 REM    3. Builds the Linux tarball inside WSL (Ubuntu-22.04, auto-installed)
 REM    4. Builds the Steam Frame zip + FrameDrop manifest in an arm64 Docker
 REM       container (Docker Desktop must be running; QEMU-emulated, slow)
 REM    5. Collects everything + SHA256SUMS into release\<version>\
 REM
-REM  Update version.txt, double-click this file, upload release\<version>\*
+REM  Update version.txt, run "python packaging\apply_version.py", commit,
+REM  double-click this file, upload release\<version>\*
+REM
+REM  Options (or the matching environment variable set to 1):
+REM    --allow-dirty   ETVR_ALLOW_DIRTY   build even with uncommitted/untracked files
+REM    --skip-tests    ETVR_SKIP_TESTS    don't run the test suite first
+REM  A build made with either is not a release build: don't upload it.
 REM ==========================================================================
 
 cd /d "%~dp0.."
@@ -18,11 +26,79 @@ set "REPO_WIN=%CD%"
 set "DISTRO=Ubuntu-22.04"
 set "ISCC=%ProgramFiles(x86)%\Inno Setup 6\ISCC.exe"
 
+REM After the cd: shift also shifts %0, which the cd above needs.
+set "ALLOW_DIRTY=%ETVR_ALLOW_DIRTY%"
+set "SKIP_TESTS=%ETVR_SKIP_TESTS%"
+:parse_args
+if "%~1"=="" goto :args_done
+if /i "%~1"=="--allow-dirty" (
+    set "ALLOW_DIRTY=1"
+    shift
+    goto :parse_args
+)
+if /i "%~1"=="--skip-tests" (
+    set "SKIP_TESTS=1"
+    shift
+    goto :parse_args
+)
+echo ERROR: unknown option "%~1" - use --allow-dirty and/or --skip-tests
+goto :fail
+:args_done
+
 echo.
-echo [1/6] Stamping version from version.txt ...
+echo [0/6] Checking the working tree ...
+git rev-parse --is-inside-work-tree >nul 2>&1
+if errorlevel 1 (
+    echo ERROR: git is not installed or this is not a git checkout
+    goto :fail
+)
+set "DIRTY="
+for /f "usebackq delims=" %%l in (`git status --porcelain`) do set "DIRTY=1"
+if defined DIRTY (
+    if "%ALLOW_DIRTY%"=="1" (
+        echo     WARNING: building with uncommitted or untracked files - not a release build:
+        git status --short
+    ) else (
+        echo ERROR: the working tree has uncommitted or untracked files:
+        git status --short
+        echo Commit or remove them, or pass --allow-dirty for a local test build.
+        goto :fail
+    )
+) else (
+    echo     clean at commit:
+    git log -1 --oneline
+)
+
+echo.
+echo [0/6] Checking version stamps against version.txt ...
+REM --check changes nothing and fails when any stamped file differs from version.txt.
+python packaging\apply_version.py --check >nul
+if errorlevel 1 (
+    echo ERROR: version stamps are out of sync with version.txt:
+    python packaging\apply_version.py --check
+    echo Run "python packaging\apply_version.py", commit the result and build again.
+    goto :fail
+)
+
+if "%SKIP_TESTS%"=="1" (
+    echo.
+    echo [0/6] WARNING: skipping the test suite - not a release build
+) else (
+    echo.
+    echo [0/6] Running the test suite, as .github\workflows\tests.yml does ...
+    python packaging\fetch_overlay.py windows linux linux-arm64
+    if errorlevel 1 goto :fail
+    poetry run python -m pytest tests --ignore=tests/contributions
+    if errorlevel 1 goto :fail
+    poetry run python -m pytest --confcutdir=tests/contributions tests/contributions
+    if errorlevel 1 goto :fail
+)
+
+echo.
+echo [1/6] Reading version from version.txt ...
 set "VERSION="
 set "SAFEVERSION="
-for /f "usebackq delims=" %%v in (`python packaging\apply_version.py`) do (
+for /f "usebackq delims=" %%v in (`python packaging\apply_version.py --check`) do (
     if not defined VERSION ( set "VERSION=%%v" ) else if not defined SAFEVERSION set "SAFEVERSION=%%v"
 )
 if not defined SAFEVERSION (
@@ -160,8 +236,9 @@ echo.
 echo  Tag the release EyeTrackApp-%SAFEVERSION% so the FrameDrop manifest URLs
 echo  resolve; the Install with FrameDrop link is printed as FRAMEDROP_LINK above.
 echo.
-echo  Reminder: version stamping may have modified eyetrackapp\eyetrackapp.py and
-echo  packaging\windows\installer.iss - commit those changes with the release.
+for /f "usebackq delims=" %%c in (`git rev-parse HEAD`) do echo  Built from commit %%c - tag that commit.
+if defined DIRTY echo  WARNING: built from a working tree with uncommitted changes - do not upload.
+if "%SKIP_TESTS%"=="1" echo  WARNING: the test suite was skipped - do not upload.
 echo.
 pause
 exit /b 0

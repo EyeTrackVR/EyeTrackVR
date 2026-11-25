@@ -28,15 +28,23 @@ LICENSE: Summer Software Distribution License 1.0
 """
 
 import logging
+import time
 
 import cv2
 import numpy as np
 from eye import EyeId
 from utils.img_utils import safe_crop
 from utils.misc_utils import clamp
+from utils.user_data import user_data_path
 import os
 
 logger = logging.getLogger(__name__)
+
+# The blink percentile is O(n) over up to 10k samples: while the window is
+# still growing, refresh it every this many frames instead of every frame
+# (every frame while it is short: cheap, and early samples move it most).
+_BLINK_PERCENTILE_EXACT_BELOW = 64
+_BLINK_PERCENTILE_REFRESH_FRAMES = 10
 
 
 def ellipse_model(data, y, f):
@@ -188,13 +196,29 @@ def get_center_noclamp(center_xy, radius):
     )
 
 
-def ransac_blink_file_path(eye_id) -> str:
-    """Per-eye RANSAC blink statistics file. Read and write must use the same
-    name: the reader used to say "blink" while the writer said "BLINK", so on
-    case-sensitive filesystems the saved statistics were never loaded."""
+def _ransac_blink_file_name(eye_id) -> str:
+    # Read and write must use the same name: the reader used to say "blink"
+    # while the writer said "BLINK", so on case-sensitive filesystems the saved
+    # statistics were never loaded.
     if eye_id == EyeId.LEFT:
         return "RANSAC_BLINK_LEFT.cfg"
     return "RANSAC_BLINK_RIGHT.cfg"
+
+
+def ransac_blink_file_path(eye_id) -> str:
+    """Per-eye RANSAC blink statistics file, in the user data folder (the
+    working directory may be read-only, e.g. an install dir)."""
+    return user_data_path(_ransac_blink_file_name(eye_id))
+
+
+def _ransac_blink_read_path(eye_id) -> str:
+    """Where to load the statistics from: the user data folder, or the working
+    directory older builds wrote to if only that copy exists."""
+    path = ransac_blink_file_path(eye_id)
+    legacy = _ransac_blink_file_name(eye_id)
+    if not os.path.exists(path) and os.path.exists(legacy):
+        return legacy
+    return path
 
 
 def RANSAC3D(self, hsrac_en):
@@ -258,7 +282,7 @@ def RANSAC3D(self, hsrac_en):
     if frame is None:
         logger.warning("RANSAC frame is empty")
         self.failed = self.failed + 1  # we have failed, move onto next algo
-        return 0, 0, 0, frame, blink, 0, 0
+        return self.rawx, self.rawy, 0, frame, blink, 0, 0
     else:
         frame_gray = cv2.GaussianBlur(frame, (9, 9), 10)
 
@@ -315,7 +339,10 @@ def RANSAC3D(self, hsrac_en):
         result_2d_final["diameter"] = w
         result_2d_final["location"] = (cx, cy)
         result_2d_final["confidence"] = 0.99
-        result_2d_final["timestamp"] = self.current_frame_number / self.current_fps
+        # pye3d needs monotonic seconds. frame_number / fps was neither (fps is a
+        # moving average) and divided by zero on the first frame.
+        capture_ts = getattr(self, "current_capture_ts", None)
+        result_2d_final["timestamp"] = capture_ts if capture_ts is not None else time.perf_counter()
         # Black magic happens here, but after this we have our reprojected pupil/eye, and all we had
         # to do was sell our soul to satan and/or C++.
 
@@ -349,7 +376,7 @@ def RANSAC3D(self, hsrac_en):
 
     if self.settings.gui_RANSACBLINK and contours:
         if self.ran_blink_check_for_file:
-            file_path = ransac_blink_file_path(self.eye_id)
+            file_path = _ransac_blink_read_path(self.eye_id)
             if os.path.exists(file_path):
                 with open(file_path, "r") as file:
                     self.blink_list = [float(line.strip()) for line in file]
@@ -370,19 +397,31 @@ def RANSAC3D(self, hsrac_en):
 
         for delta in blink_deltas:
             if len(self.blink_list) == 10000:
-                with open(ransac_blink_file_path(self.eye_id), "w") as file:
-                    for item in self.blink_list:
-                        file.write(str(item) + "\n")
+                # Saved once; a failed write must not raise (that stopped all
+                # tracking output) nor be retried every frame.
+                try:
+                    with open(ransac_blink_file_path(self.eye_id), "w") as file:
+                        for item in self.blink_list:
+                            file.write(str(item) + "\n")
+                except OSError as e:
+                    logger.warning("Could not save RANSAC blink statistics: %s", e)
                 self.blink_list.append(delta)
             elif len(self.blink_list) < 10000:
                 self.blink_list.append(delta)
 
-        # The 92nd percentile is O(n) over up to 10k samples: compute it once
-        # per frame (not per contour), and not at all once the list is frozen.
+        # The 92nd percentile is O(n) over up to 10k samples: compute it at most
+        # once per frame (not per contour), every few frames while the list
+        # grows, and not at all once the list is frozen.
         cached = getattr(self, "_ransac_blink_p92", None)
-        if cached is None or cached[0] != len(self.blink_list):
+        age = getattr(self, "_ransac_blink_p92_age", 0) + 1
+        if cached is None or (
+            cached[0] != len(self.blink_list)
+            and (len(self.blink_list) < _BLINK_PERCENTILE_EXACT_BELOW or age >= _BLINK_PERCENTILE_REFRESH_FRAMES)
+        ):
             cached = (len(self.blink_list), float(np.percentile(self.blink_list, 92)))
             self._ransac_blink_p92 = cached
+            age = 0
+        self._ransac_blink_p92_age = age
         if max(blink_deltas) >= cached[1]:
             blink = 0.0
 
@@ -405,5 +444,11 @@ def RANSAC3D(self, hsrac_en):
     self.current_image_gray = newFrame2
     y, x = self.current_image_gray.shape
     thresh = cv2.resize(thresh, (x, y))
+    if ranf and not hsrac_en:
+        # No fit and no HSF estimate to fall back on: (0, 0) would become a
+        # corner gaze. Repeat the previous point and let the next tracker slot
+        # run (see EyeProcessor.ALGOSELECT).
+        self.failed = self.failed + 1
+        return self.rawx, self.rawy, angle, thresh, blink, w, h
     self.failed = 0  # we have succeded, continue with this
     return cx, cy, angle, thresh, blink, w, h

@@ -6,7 +6,7 @@ from settings.modules.base_module import BaseSettingsModule, BaseValidationModel
 import tkinter as tk
 from tkinter import ttk
 
-from settings.modules.common_field_validators import check_is_float_convertible
+from settings.modules.common_field_validators import finite_float
 from utils.runtime_state import get_value as _get_runtime_value
 from utils.tooltips import attach_tooltip
 from next_processing import remap_leap_lid_openness
@@ -20,7 +20,6 @@ class BlinkAlgoSettingsValidationModel(BaseValidationModel):
     gui_BLINK: bool
     gui_IBO: bool
     gui_LEAP_lid: bool
-    gui_eyebrow: bool
     calibration_duration: int
     leap_lid_close_threshold_left: float
     leap_lid_close_threshold_right: float
@@ -39,10 +38,7 @@ class BlinkAlgoSettingsValidationModel(BaseValidationModel):
     )
     @classmethod
     def _coerce_leap_lid_threshold(cls, v):
-        if isinstance(v, str):
-            float(check_is_float_convertible(v.strip()))
-            return float(v.strip())
-        return float(v)
+        return finite_float(v)
 
 
 # Canvas geometry for the threshold visualizer.
@@ -71,7 +67,6 @@ class BlinkAlgoSettingsModule(BaseSettingsModule):
         self.gui_BLINK = f"-BLINK{widget_id}-"
         self.gui_IBO = f"-IBO{widget_id}-"
         self.gui_LEAP_lid = f"-LEAPLID{widget_id}-"
-        self.gui_eyebrow = f"-EYEBROW{widget_id}-"
         self.calibration_duration = f"-CALIBRATIONDURATION{widget_id}-"
         self.leap_lid_close_threshold_left = f"-LEAPLIDCLOSELEFT{widget_id}-"
         self.leap_lid_close_threshold_right = f"-LEAPLIDCLOSERIGHT{widget_id}-"
@@ -291,7 +286,7 @@ class BlinkAlgoSettingsModule(BaseSettingsModule):
         return col
 
     def build(self, parent):
-        # The LEAP Lid / EyeBrow algorithm toggles and Manual Eyelid Tuning live
+        # The LEAP Lid algorithm toggle and Manual Eyelid Tuning live
         # on the Advanced page (see build_advanced). The settings widget builds it
         # eagerly, so validation and the LEAP auto-check wiring find their tk vars
         # whether or not the page has been opened.
@@ -316,9 +311,9 @@ class BlinkAlgoSettingsModule(BaseSettingsModule):
         def _live_float(cfg, field, var):
             def _cb(*_):
                 try:
-                    value = float(var.get())
-                except (ValueError, TypeError):
-                    return
+                    value = finite_float(var.get())
+                except ValueError:
+                    return  # half-typed, or no finite number: validation reports it
                 setattr(cfg, field, value)
                 self.live_changes[field] = value  # or nothing would ever save it
 
@@ -372,13 +367,12 @@ class BlinkAlgoSettingsModule(BaseSettingsModule):
         right_widen.set(f"{DEFAULT_LID_WIDEN_THRESHOLD:.2f}")
 
     def build_advanced(self, parent):
-        # Row 0: the LEAP Lid / EyeBrow algorithm toggles, moved off the main
+        # Row 0: the LEAP Lid algorithm toggle, moved off the main
         # page. Built here (eagerly, page shown or not) so their tk vars exist for
         # validation and for the LEAP -> LEAP Lid auto-check wiring.
         for idx, (key, default, label, tip) in enumerate(
             [
                 (self.gui_LEAP_lid, self.config.gui_LEAP_lid, tr("algo_blink.leap_lid"), tr("algo_blink.leap_lid_tip")),
-                (self.gui_eyebrow, self.config.gui_eyebrow, tr("algo_blink.eyebrow"), tr("algo_blink.eyebrow_tip")),
             ]
         ):
             var = tk.BooleanVar(value=default)

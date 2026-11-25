@@ -50,13 +50,15 @@ encrypted payload on the original computer. Never share a receipt publicly.
 Withdrawal retains the capability, deletes local resume data only after the server
 confirms withdrawal (or confirms a never-created preparation is absent), and the
 service blocks hosted downloads while scheduled deletion runs. User-selected source
-ZIPs are never deleted by the contribution manager.
+ZIPs are never deleted by the contribution manager. Recordings the app itself makes
+are written to a private `captures` folder in the user data folder and deleted once
+they are sealed for upload, replaced or cancelled (data_collection.py).
 
 The default service targets staging, now publicly reachable with uploads enabled at the operator's request.
 The upload wizard separates recording selection, a full readable agreement, and transfer.
 A bundled public notice is readable offline; live terms are checked before any upload grant.
-Resume and withdrawal controls live in a separate Your contributions tab. The staging hostname is allowed in Turnstile. Keep processor agreements and privacy operations current. The Worker must retain its 200-submission / 5 GiB
-staging lifetime limits and other abuse controls. This is an aggregate upload
+Resume and withdrawal controls live in a separate Your contributions tab. The staging hostname is allowed in Turnstile. Keep processor agreements and privacy operations current. The Worker must enforce an aggregate
+limit of 200 submissions / 5 GiB per day, plus its other abuse controls. This is an aggregate upload
 budget, not a Cloudflare account-wide spending cap.
 
 bundles.py is the reviewed contributor packaging implementation shared with

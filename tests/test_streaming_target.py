@@ -133,3 +133,97 @@ def test_watcher_restarts_the_sender_only_when_the_pc_changes(manager, monkeypat
     monkeypatch.setattr(osc_mod.OSCManager, "AUTO_CHECK_INTERVAL", 0.001)
     m._watch_auto_target()
     assert restarts == ["stop", "setup"] and m._auto_address == "10.86.200.234"
+
+
+# ------------------------------------------------------- VRChat over mDNS
+
+
+def _vrchat_answer(instance):
+    """What a VRChat (or other OSCQuery app) answers to the PTR query."""
+    from osc import oscquery
+    from pyvrcft import mdns
+
+    responder = oscquery.MDNSResponder(instance, {oscquery.OSCJSON_SERVICE: 4321})
+    _, questions = oscquery.parse_query(mdns._build_query(mdns.SERVICE))
+    return oscquery.build_packet(*responder.answer(questions)[:2])
+
+
+@pytest.fixture
+def lan(monkeypatch):
+    """Datagrams (payload, source ip) the mDNS query gets back, through a stand-in socket."""
+    import socket as real_socket
+
+    replies, sent = [], []
+
+    class LanSocket:
+        def __init__(self, *args):
+            pass
+
+        def setsockopt(self, *args):
+            pass
+
+        def bind(self, address):
+            pass
+
+        def settimeout(self, timeout):
+            pass
+
+        def sendto(self, packet, address):
+            sent.append(address)
+
+        def recvfrom(self, size):
+            if not replies:
+                raise real_socket.timeout
+            return replies.pop(0)
+
+        def close(self):
+            pass
+
+    proxy = types.ModuleType("socket")
+    proxy.__dict__.update(real_socket.__dict__)
+    proxy.socket = LanSocket
+    monkeypatch.setattr(st, "socket", proxy)
+    monkeypatch.setattr(st, "_own_addresses", lambda: {"127.0.0.1", "10.0.0.2"})
+    return replies, sent
+
+
+def test_mdns_finds_the_pc_vrchat_answers_from(lan):
+    replies, sent = lan
+    replies += [
+        (_vrchat_answer("VRChat-Client-OWN"), ("10.0.0.2", 5353)),  # VRChat on this headset
+        (_vrchat_answer("EyeTrackVR-ABC123"), ("10.0.0.9", 5353)),  # another OSCQuery app
+        (_vrchat_answer("VRChat-Client-AB12"), ("10.0.0.255", 5353)),  # not a host address
+        (_vrchat_answer("VRChat-Client-AB12"), ("10.0.0.42", 5353)),
+    ]
+    assert st.mdns_vrchat_host(timeout=1.0) == "10.0.0.42"
+    assert sent == [("224.0.0.251", 5353)]
+
+
+def test_mdns_without_an_answer_gives_nothing(lan):
+    assert st.mdns_vrchat_host(timeout=0.1) is None
+
+
+def test_mdns_send_refused_gives_nothing(lan, monkeypatch):
+    def refused(self, packet, address):
+        raise PermissionError(1, "Operation not permitted")
+
+    monkeypatch.setattr(st.socket.socket, "sendto", refused)
+    assert st.mdns_vrchat_host(timeout=0.1) is None
+
+
+def test_watcher_survives_a_failed_lookup(manager, monkeypatch):
+    m, _settings, restarts, osc_mod = manager
+    m._auto_address = "10.0.0.79"
+    calls = []
+
+    def resolve(use_mdns=True):
+        calls.append(use_mdns)
+        if len(calls) == 1:
+            raise OSError("log file vanished")
+        m._auto_stop.set()
+        return "10.86.200.234", "Steam Link VR session"
+
+    monkeypatch.setattr(osc_mod.streaming_target, "resolve", resolve)
+    monkeypatch.setattr(osc_mod.OSCManager, "AUTO_CHECK_INTERVAL", 0.001)
+    m._watch_auto_target()
+    assert calls == [True, True] and restarts == ["stop", "setup"]

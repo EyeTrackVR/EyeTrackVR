@@ -1,4 +1,8 @@
-"""Invoked by ETVR-Dataset-Sync's optional real workerd integration test."""
+"""Invoked by ETVR-Dataset-Sync's optional real workerd integration test.
+
+Not collected by pytest: the Node suite in ETVR-Dataset-Sync runs it with
+ETVR_DESKTOP_E2E pointing here (see README.md in this folder) and passes the
+service URL, an age identity file and a scratch folder as arguments."""
 
 import io
 import json

@@ -4,7 +4,6 @@ import math
 import socket
 import struct
 import sys
-import time
 from types import SimpleNamespace
 
 import pytest
@@ -12,6 +11,7 @@ import pytest
 import overlay_calibration as calibration
 from utils import gaze_preview, logging_utils, overlay_launch
 from utils.gaze_preview import CMD_GAZE, CMD_QUIT, CMD_TEXT, GazePreviewStream, gaze_tangents
+from tests.osc_helpers import collect_stray_garbage, wait_for
 
 
 SETTINGS = SimpleNamespace(
@@ -20,6 +20,11 @@ SETTINGS = SimpleNamespace(
     gui_gaze_pitch_down_deg=40.0,
     osc_invert_eye_close=False,
 )
+
+
+@pytest.fixture(autouse=True, scope="module")
+def _main_thread_gc():
+    collect_stray_garbage()
 
 
 def _info(x, y, blink=1.0):
@@ -89,12 +94,23 @@ def test_inverted_eye_close_and_bad_samples(receiver):
     assert openness == pytest.approx(0.8)
 
 
+def test_unparseable_samples_are_skipped_and_a_gone_overlay_is_not_an_error(receiver):
+    stream = GazePreviewStream(SETTINGS, receiver.getsockname())
+    stream.feed("left", _info(0.1, 0.0, blink=None), single_eye=True)
+    stream.feed("left", _info("x", 0.0), single_eye=True)
+    stream.feed("left", _info(0.0, 0.0, 0.5), single_eye=True)
+    assert _gaze(receiver)[2] == pytest.approx(0.5)  # the first packet is the good sample
+    stream.close()
+    stream.send_text("closed socket")  # the overlay quit: the session notices, not the sender
+    stream.quit()
+
+
 FAKE_OVERLAY = """
 import socket, struct, sys, time
 cmd = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 cmd.bind(("127.0.0.1", {cmd_port}))
 cmd.settimeout(10)
-time.sleep(0.6)  # starting up takes longer than the app's polling interval
+time.sleep(0.3)  # starting up takes longer than the app's 0.1 s polling interval
 socket.socket(socket.AF_INET, socket.SOCK_DGRAM).sendto(struct.pack(">i", 255), ("127.0.0.1", {sig_port}))
 with open({record!r}, "w") as out:
     while True:
@@ -129,10 +145,7 @@ def fake_overlay(monkeypatch, tmp_path):
 
 
 def _wait_until_streaming():
-    deadline = time.monotonic() + 10
-    while gaze_preview._active is None and time.monotonic() < deadline:
-        time.sleep(0.02)
-    assert gaze_preview._active is not None
+    assert wait_for(lambda: gaze_preview._active is not None, timeout=10)
 
 
 def _assert_stopped():
@@ -148,7 +161,7 @@ def test_preview_runs_until_stopped(fake_overlay):
     _wait_until_streaming()
     assert gaze_preview.is_running()
     gaze_preview.feed("left", _info(0.1, 0.1), single_eye=True)
-    time.sleep(0.1)
+    assert wait_for(lambda: record.exists() and str(CMD_GAZE) in record.read_text().split(), timeout=10)
     calibration.stop_gaze_preview()
     run.wait(timeout=10)
 

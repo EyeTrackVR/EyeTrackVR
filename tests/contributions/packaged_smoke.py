@@ -2,7 +2,10 @@
 
 The loopback page supplies a fixture token only to exercise packaged WebView2 and
 nonce IPC. It cannot pass real Siteverify and is never used for an upload.
-Run manually with the packaging Python environment and the built executable path.
+Run manually with the packaging Python environment and the built executable path
+(not collected by pytest; eyetrackapp/contributions/README.md mentions it):
+
+    python tests/contributions/packaged_smoke.py build/windows/dist/eyetrackapp.exe
 """
 
 import argparse

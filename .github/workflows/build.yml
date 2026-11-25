@@ -3,6 +3,8 @@ on:
   workflow_dispatch:
   push:
     tags:
+      # Releases are tagged EyeTrackApp-<file-safe version> (packaging/build_release.bat).
+      - "EyeTrackApp-*"
       - "v*"
     branches:
       - main
@@ -18,14 +20,77 @@ permissions:
   contents: read
 
 jobs:
-  build:
+  # The SteamVR driver and OpenXR layer, with the test harnesses their READMEs describe
+  # (fake_vrserver, fake_runtime + gaze_probe). No gaze is published here, so this proves
+  # the binaries build, load, and get through the no-gaze path without an error.
+  native:
+    name: Native driver and layer (${{ matrix.os }})
     strategy:
+      fail-fast: false
       matrix:
-        os: [ubuntu-latest, windows-2022]
+        # 22.04: the Linux release is built on Ubuntu 22.04 (packaging/linux/build.sh).
+        os: [ubuntu-22.04, windows-2022]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
     defaults:
       run:
         shell: bash
-    runs-on: ${{ matrix.os }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Install Linux build tools
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y ninja-build
+
+      - name: Configure and build
+        run: |
+          set -euo pipefail
+          if [[ "$RUNNER_OS" == "Windows" ]]; then
+            gen=(-A x64)
+          else
+            gen=(-G Ninja -DCMAKE_BUILD_TYPE=Release)
+          fi
+          cmake -S native/steamvr_driver -B build/native/steamvr_driver "${gen[@]}" -DETVR_DRIVER_TESTS=ON
+          cmake --build build/native/steamvr_driver --config Release
+          cmake -S native/openxr_layer -B build/native/openxr_layer "${gen[@]}" -DETVR_LAYER_TESTS=ON
+          cmake --build build/native/openxr_layer --config Release
+
+      - name: Run test harnesses
+        run: |
+          set -euo pipefail
+          b=build/native
+          if [[ "$RUNNER_OS" == "Windows" ]]; then
+            driver="$(cygpath -w "$b/steamvr_driver/eyetrackvr/bin/win64/driver_eyetrackvr.dll")"
+            vrserver="$b/steamvr_driver/Release/fake_vrserver.exe"
+            layer="$(cygpath -w "$b/openxr_layer/eyetrackvr_openxr_layer/XR_APILAYER_EYETRACKVR_eye_gaze.dll")"
+            runtime="$(cygpath -w "$b/openxr_layer/tests/fake_runtime.dll")"
+            probe="$b/openxr_layer/tests/gaze_probe.exe"
+          else
+            driver="$PWD/$b/steamvr_driver/eyetrackvr/bin/linux64/driver_eyetrackvr.so"
+            vrserver="$b/steamvr_driver/fake_vrserver"
+            layer="$PWD/$b/openxr_layer/eyetrackvr_openxr_layer/libXR_APILAYER_EYETRACKVR_eye_gaze.so"
+            runtime="$PWD/$b/openxr_layer/tests/fake_runtime.so"
+            probe="$b/openxr_layer/tests/gaze_probe"
+          fi
+          for mode in shim direct; do
+            echo "::group::fake_vrserver $mode"
+            "$vrserver" "$driver" "$mode" 50
+            echo "::endgroup::"
+          done
+          echo "::group::gaze_probe --direct"
+          "$probe" 20 --direct "$layer" "$runtime"
+          echo "::endgroup::"
+
+  build-windows:
+    name: Windows installer
+    runs-on: windows-2022
+    timeout-minutes: 90
+    defaults:
+      run:
+        shell: bash
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -52,9 +117,6 @@ jobs:
           path: ~/.cache
           key: venv-${{ runner.os }}-${{ steps.setup-python.outputs.python-version }}-${{ hashFiles('**/poetry.lock') }}
 
-      #----------------------------------------------
-      #       load cached venv if cache exists
-      #----------------------------------------------
       - name: Load cached venv
         id: cached-poetry-dependencies
         uses: actions/cache@v4
@@ -63,12 +125,8 @@ jobs:
           key: venv-${{ runner.os }}-${{ steps.setup-python.outputs.python-version }}-${{ hashFiles('**/poetry.lock') }}
 
       # pye3d has no Python 3.14 wheels, so it is built from source and needs Eigen 3.
-      - name: Install Linux dependencies
-        if: ${{ matrix.os == 'ubuntu-latest'}}
-        run: sudo apt-get update && sudo apt-get install -y build-essential curl wget libssl-dev xvfb libgl1 libglib2.0-0 libeigen3-dev
-
       - name: Install Eigen on Windows
-        if: matrix.os == 'windows-2022' && steps.cached-poetry-dependencies.outputs.cache-hit != 'true'
+        if: steps.cached-poetry-dependencies.outputs.cache-hit != 'true'
         working-directory: ${{ runner.temp }}
         run: |
           curl -fsSL -o eigen.tar.gz https://gitlab.com/libeigen/eigen/-/archive/3.4.0/eigen-3.4.0.tar.gz
@@ -83,36 +141,115 @@ jobs:
         run: poetry install --no-interaction --no-root
 
       - name: Contribution security and integration tests
-        run: |
-          if [[ "$RUNNER_OS" == "Linux" ]]; then
-            xvfb-run -a poetry run python -m pytest --confcutdir=tests/contributions tests/contributions -q
-          else
-            poetry run python -m pytest --confcutdir=tests/contributions tests/contributions -q
-          fi
+        run: poetry run python -m pytest --confcutdir=tests/contributions tests/contributions -q
 
-      - name: Build Windows App
-        if: ${{ matrix.os == 'windows-2022' }}
+      # The same steps as packaging/build_release.bat [1/6]..[3/6].
+      - name: Check version stamps
+        id: version
+        run: |
+          set -euo pipefail
+          python packaging/apply_version.py --check | tr -d '\r' > "$RUNNER_TEMP/version.txt"
+          version="$(sed -n 1p "$RUNNER_TEMP/version.txt")"
+          safe="$(sed -n 2p "$RUNNER_TEMP/version.txt")"
+          if [[ "$GITHUB_REF" == refs/tags/EyeTrackApp-* && "${GITHUB_REF_NAME#EyeTrackApp-}" != "$safe" ]]; then
+            echo "::error::tag $GITHUB_REF_NAME does not match version.txt ($safe)"
+            exit 1
+          fi
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "safe=$safe" >> "$GITHUB_OUTPUT"
+
+      - name: Build Windows app
+        env:
+          # Bundles the release marker (eyetrackapp/build_info.py), like build_release.bat.
+          ETVR_RELEASE_BUILD: "1"
         # A folder build: the spec collects into build/windows/dist (exe + _internal).
         run: |
           poetry run pyinstaller --noconfirm --distpath build/windows --workpath build/windows/work packaging/windows/eyetrackapp.spec
-          mkdir -p dist
-          (cd build/windows/dist && 7z a -tzip "$GITHUB_WORKSPACE/dist/EyeTrackVR-windows.zip" .)
+          test -f build/windows/dist/eyetrackapp.exe
+          test -f build/windows/dist/_internal/release_build
 
-      - name: Build Linux App
-        if: ${{ matrix.os == 'ubuntu-latest' }}
-        run: poetry run pyinstaller --noconfirm --distpath build/linux-release --workpath build/linux/work packaging/linux/eyetrackapp.spec
-
-      - name: Package Linux runtime and resources
-        if: ${{ matrix.os == 'ubuntu-latest' }}
+      - name: Build SteamVR gaze driver and OpenXR eye gaze layer
         run: |
+          set -euo pipefail
+          rm -rf build/steamvr_driver build/openxr_layer build/windows/dist/steamvr_driver build/windows/dist/openxr_layer
+          cmake -S native/steamvr_driver -B build/steamvr_driver -A x64
+          cmake --build build/steamvr_driver --config Release
+          mkdir -p build/windows/dist/steamvr_driver
+          cp -r build/steamvr_driver/eyetrackvr build/windows/dist/steamvr_driver/eyetrackvr
+          test -f build/windows/dist/steamvr_driver/eyetrackvr/bin/win64/driver_eyetrackvr.dll
+          cmake -S native/openxr_layer -B build/openxr_layer -A x64
+          cmake --build build/openxr_layer --config Release
+          cp -r build/openxr_layer/eyetrackvr_openxr_layer build/windows/dist/openxr_layer
+          test -f build/windows/dist/openxr_layer/XR_APILAYER_EYETRACKVR_eye_gaze.dll
+
+      # Pinned and checksummed rather than whatever the runner image ships. To update,
+      # change the URL and the SHA-256 together (installer from jrsoftware/issrc releases).
+      - name: Install Inno Setup 6.7.4
+        shell: pwsh
+        working-directory: ${{ runner.temp }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          Invoke-WebRequest -Uri 'https://github.com/jrsoftware/issrc/releases/download/is-6_7_4/innosetup-6.7.4.exe' -OutFile innosetup.exe
+          $hash = (Get-FileHash innosetup.exe -Algorithm SHA256).Hash.ToLowerInvariant()
+          if ($hash -ne 'a549929319f9120716677c685535ca4671e4b937b5fdc87e2585f32d8eb30e8c') { throw "Inno Setup checksum mismatch: $hash" }
+          $dir = Join-Path $env:RUNNER_TEMP 'innosetup'
+          $p = Start-Process -FilePath .\innosetup.exe -ArgumentList '/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART', '/SP-', "/DIR=$dir" -Wait -PassThru
+          if ($p.ExitCode -ne 0) { throw "Inno Setup install failed with exit code $($p.ExitCode)" }
+          if (-not (Test-Path "$dir\ISCC.exe")) { throw "ISCC.exe missing from $dir" }
+          "ISCC=$dir\ISCC.exe" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+
+      # cmd, not bash: Git Bash would rewrite /Qp into a path.
+      - name: Build installer
+        shell: cmd
+        run: |
+          "%ISCC%" /Qp "packaging\windows\installer.iss"
+
+      - name: Collect installer
+        run: |
+          set -euo pipefail
           mkdir -p dist
-          tar -czf dist/EyeTrackVR-linux.tar.gz -C build/linux-release EyeTrackVR
+          cp "build/windows/installer/EyeTrackVR-Setup-${{ steps.version.outputs.safe }}.exe" dist/
+          (cd dist && sha256sum -- *.exe > SHA256SUMS.txt && cat SHA256SUMS.txt)
 
       - uses: actions/upload-artifact@v4
         with:
-          name: production-files-${{ matrix.os }}
+          name: production-files-windows
           path: dist
           if-no-files-found: error
+
+  # packaging/linux/build.sh, as build_release.bat runs it in WSL Ubuntu 22.04: pinned uv
+  # and CPython, the hash-checked requirements, the SteamVR driver and OpenXR layer, the
+  # smoke test, and the same tarball name.
+  build-linux:
+    name: Linux x86_64 tarball
+    runs-on: ubuntu-22.04
+    timeout-minutes: 90
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+          # Models live in Git LFS.
+          lfs: true
+      - name: Provision the build environment
+        run: sudo bash packaging/linux/wsl_provision.sh
+      - name: Build Linux tarball
+        run: |
+          set -euo pipefail
+          python3 packaging/apply_version.py --check > "$RUNNER_TEMP/version.txt"
+          VERSION="$(sed -n 1p "$RUNNER_TEMP/version.txt")"
+          SAFE_VERSION="$(sed -n 2p "$RUNNER_TEMP/version.txt")"
+          sudo bash packaging/linux/build.sh "$VERSION" "$SAFE_VERSION" "$GITHUB_WORKSPACE" "$GITHUB_WORKSPACE/dist"
+          sudo chown -R "$(id -u):$(id -g)" dist
+      - uses: actions/upload-artifact@v4
+        with:
+          name: production-files-linux
+          path: dist
+          if-no-files-found: error
+
   build-frame:
     name: Build Steam Frame (arm64)
     runs-on: ubuntu-24.04-arm

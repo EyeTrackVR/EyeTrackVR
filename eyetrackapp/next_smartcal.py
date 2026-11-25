@@ -15,7 +15,13 @@ from dataclasses import asdict, dataclass, field
 
 import numpy as np
 
-from calibration_state import OVERLAY_RUN_SMARTCAL, begin_overlay_run, end_overlay_run, overlay_keep_going
+from calibration_state import (
+    OVERLAY_RUN_SMARTCAL,
+    begin_overlay_run,
+    end_overlay_run,
+    overlay_keep_going,
+    report_overlay_failure,
+)
 from next_eye_gaze import GAZE_MODE_FUSED, dominant_eye_from_settings, gaze_mode_from_settings
 from utils.async_call import Async
 from utils.misc_utils import PlaySound, SND_ASYNC, SND_FILENAME, resource_path
@@ -1262,11 +1268,15 @@ def _overlay_gaze_range(overlay):
 
 
 @Async
-def next_smartcal_overlay(eye_processors: list, settings, baseconfig, layout=NEXT_SMARTCAL_DOTS) -> None:
+def next_smartcal_overlay(
+    eye_processors: list, settings, baseconfig, layout=NEXT_SMARTCAL_DOTS, *, notify: bool = False
+) -> None:
     """Show the Smart Calib dots in the overlay's interactive mode and fit the
-    NEXT smart-cal transform to what the eyes did."""
+    NEXT smart-cal transform to what the eyes did. ``notify`` shows the user a
+    dialog when the overlay can't run (the GUI button, not the in-VR trigger)."""
     if not begin_overlay_run(OVERLAY_RUN_SMARTCAL):
         return
+    overlay = None
     results = []
     events = []
     gaze_range = None
@@ -1302,6 +1312,7 @@ def next_smartcal_overlay(eye_processors: list, settings, baseconfig, layout=NEX
             "NEXT smart calibration overlay error (%s). Make sure SteamVR is running.",
             e,
         )
+        report_overlay_failure(e, overlay, notify)
     finally:
         # Taken away first: the eye threads stop appending to it.
         traces = trace.close() if trace is not None else {}

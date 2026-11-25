@@ -31,7 +31,7 @@ import numpy as np
 import cv2
 import onnxruntime
 from one_euro_filter import OneEuroFilter
-from utils.misc_utils import FastMedian, resource_path
+from utils.misc_utils import resource_path
 import os
 
 os.environ["OMP_NUM_THREADS"] = "1"
@@ -137,42 +137,6 @@ def get_final_preds(hm, realsize):
     return preds, maxvals
 
 
-# Better Eye aspEct Ratio
-class BEER(object):
-    def __init__(self):
-        self.ear_th = 0.2
-        self.ear_min = 0.05
-        self.ear_max = 0.2
-        self.p03_med = FastMedian(k=256)
-        self.prev_ear = 0.5
-        # todo https://peerj.com/articles/cs-943/
-
-    def ear(self, pred):
-        p15 = np.linalg.norm(pred[1] - pred[5])
-        p24 = np.linalg.norm(pred[2] - pred[4])
-        p03 = np.linalg.norm(pred[0] - pred[3])
-        self.p03_med + p03
-        if p03 > self.p03_med.median() * 1.5:
-            return self.prev_ear
-        ear = (p15 + p24) / (2 * self.p03_med.median())
-        self.ear_minmax(ear)
-        norm_ear = self.ear_norm(ear)
-        self.prev_ear = norm_ear.copy()
-        return norm_ear
-
-    def ear_minmax(self, ear):
-
-        if ear < self.ear_min:
-            self.ear_min = ear.copy()
-        if ear > self.ear_max:
-            self.ear_max = ear.copy()
-
-    def ear_norm(self, ear):
-        return (ear - self.ear_min) / (
-            self.ear_max - self.ear_min
-        )  # TODO: Add a small epsilon to avoid division by zero.
-
-
 #
 # loopnum = 0
 #
@@ -203,14 +167,6 @@ class DADDY_cls(object):
         beta = 0.9
         input_point = np.zeros((11, 2))  # np.array([1, 1])
         self.one_euro_filter = OneEuroFilter(input_point, min_cutoff=min_cutoff, beta=beta)
-        # self.ear_oef = OneEuroFilter(
-        #     np.zeros(1),
-        #     min_cutoff=min_cutoff,
-        #     beta=beta
-        # )  # memo: Parameters need tuning
-
-        self.beer = BEER()
-
         # filepath = 'test.mp4'
         # codec = cv2.VideoWriter_fourcc(*"mp4v")
         # video = cv2.VideoWriter(filepath, codec, 60.0, (200, 150), 0)  # (60, 60))  # (150, 200))
@@ -250,8 +206,6 @@ class DADDY_cls(object):
         kps = pred.astype(np.int32)
 
         # eyecenter = kps[:6].mean(axis=0).astype(int)
-        ear = self.beer.ear(pred)
-        # ear=self.ear_oef(ear[np.newaxis])#memo: Parameters need tuning
 
         pupil_center = pred[7:].mean(axis=0)
         pupil_center_x = int(pupil_center[0])
@@ -267,7 +221,6 @@ class DADDY_cls(object):
             # TODO: Move draw colors to named constants if this visualization stays.
             cv2.circle(self.current_image_gray, (kps[i, 0], kps[i, 1]), 1, color, 2)
             # cv2.putText(self.current_image_gray, str(i), (kps[i, 0] - 10,  kps[i, 1] - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.35, (0, 0, 255), 1)
-        # cv2.putText(self.current_image_gray, "EAR: "+str(ear), (self.current_image_gray.shape[1]//10, self.current_image_gray.shape[0]//10), cv2.FONT_HERSHEY_SIMPLEX, 0.75, (255,0,0), 1)
 
         # global loopnum
         # if loopnum < 1350*2:
@@ -285,7 +238,7 @@ class DADDY_cls(object):
         # i == [6] = pupil
         # i == [7:] = iris
 
-        return pupil_center_x, pupil_center_y, ear
+        return pupil_center_x, pupil_center_y
 
 
 class External_Run_DADDY(object):
@@ -294,5 +247,4 @@ class External_Run_DADDY(object):
 
     def run(self, current_image_gray):
         self.algo.current_image_gray = current_image_gray
-        pupil_x, pupil_y, ear = self.algo.single_run()
-        return pupil_x, pupil_y, ear
+        return self.algo.single_run()

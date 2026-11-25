@@ -6,9 +6,7 @@ import numpy as np
 import pytest
 
 from config import (
-    CURRENT_CONFIG_VERSION,
     EyeTrackSettingsConfig,
-    _migrate_config_dict,
 )
 from eye import EyeId
 from eye_processor import EyeProcessor
@@ -149,37 +147,8 @@ def test_next_calibrates_via_smart_calib_by_default():
     assert settings.gui_NEXT is True
 
 
-def test_config_migration_drops_the_legacy_next_calibration_opt_in():
-    raw = {"version": 4, "settings": {"gui_NEXT": True, "gui_NEXT_calibration": True}}
-
-    migrated = _migrate_config_dict(raw)
-
-    assert migrated["version"] == CURRENT_CONFIG_VERSION
-    assert "gui_NEXT_calibration" not in migrated["settings"]
-    assert migrated["settings"]["gui_NEXT"] is True
-
-
 def test_outer_eye_falloff_is_off_by_default():
     assert EyeTrackSettingsConfig().gui_outer_side_falloff is False
-
-
-def test_config_migration_preserves_explicit_legacy_next_calibration():
-    raw = {
-        "version": 2,
-        "settings": {"gui_NEXT_calibration": True},
-        "left_eye": {
-            "calib_axes": [1.0, 2.0],
-            "calib_evecs": [[1.0, 0.0], [0.0, 1.0]],
-            "calib_XOFF": 3.0,
-        },
-        "right_eye": {},
-    }
-
-    migrated = _migrate_config_dict(raw)
-
-    assert migrated["version"] == CURRENT_CONFIG_VERSION
-    assert migrated["left_eye"]["next_classic_calibration_active"] is True
-    assert migrated["right_eye"]["next_classic_calibration_active"] is False
 
 
 @pytest.mark.parametrize(

@@ -1,5 +1,8 @@
 /.vscode
 /.idea
+.DS_Store
+# In-project Poetry venv (CI, or virtualenvs.in-project); build_release.bat refuses untracked files.
+/.venv/
 **/__pycache__/**
 **/*.pyc
 *.cfg

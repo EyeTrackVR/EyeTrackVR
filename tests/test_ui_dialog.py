@@ -4,18 +4,12 @@ alerts, which crash the app on macOS."""
 import pytest
 
 import ui_dialog
+from tests.tk_support import tk_module_root, tk_root  # noqa: F401
 
 
 @pytest.fixture
-def root():
-    tk = pytest.importorskip("tkinter")
-    try:
-        root = tk.Tk()
-    except tk.TclError:
-        pytest.skip("No desktop display available")
-    root.withdraw()
-    yield root
-    root.destroy()
+def root(tk_root):  # noqa: F811
+    return tk_root
 
 
 def _dialog(root):

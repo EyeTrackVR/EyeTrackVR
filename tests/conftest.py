@@ -1,12 +1,55 @@
+import os
 import socket
 import sys
 
 import pytest
+import config
 from config import (
     EyeTrackConfig,
     EyeTrackCameraConfig,
     EyeTrackSettingsConfig,
 )
+from utils import logging_utils, user_data
+
+
+# Real locations, captured once at collection, before any test patches them.
+_REAL_CONFIG_PATHS = {
+    "CONFIG_FILE_NAME": config.CONFIG_FILE_NAME,
+    "BACKUP_CONFIG_FILE_NAME": config.BACKUP_CONFIG_FILE_NAME,
+}
+
+
+@pytest.fixture(autouse=True)
+def isolated_user_data(monkeypatch, tmp_path_factory):
+    """Every test gets an empty user data folder of its own and runs from an
+    empty working directory, so nothing a test saves (settings, calibration
+    statistics, IBO/EBPD images, captures, logs, the VR manifest) lands in the
+    developer's real EyeTrackVR folder or in the checkout, and nothing already
+    there leaks into a test. A test that patches one of these names itself
+    still wins: its patch is applied after this one and undone before it.
+    Returns the folder."""
+    folder = tmp_path_factory.mktemp("user_data")
+    # user_data_path()/user_data_dir() read this at call time, which covers
+    # ransac, intensity_based_openness, ellipse_based_pupil_dilation,
+    # data_collection.capture_dir() and logging_utils.
+    monkeypatch.setattr(user_data, "_USER_DATA_DIR", str(folder))
+    # Copies taken at import (ovr.openvr_service, which needs the optional
+    # openvr package, so it is only patched once something imported it).
+    for module in list(sys.modules.values()):
+        if module is not user_data and isinstance(getattr(module, "_USER_DATA_DIR", None), str):
+            monkeypatch.setattr(module, "_USER_DATA_DIR", str(folder))
+    for name, real in _REAL_CONFIG_PATHS.items():
+        isolated = str(folder / os.path.basename(real))
+        monkeypatch.setattr(config, name, isolated)
+        # Modules that imported the name itself (settings.base_settings) keep their own copy.
+        for module in list(sys.modules.values()):
+            if module is not config and getattr(module, name, None) == real:
+                monkeypatch.setattr(module, name, isolated)
+    # Log files and the tracking-log switch live beside the app, i.e. in the checkout.
+    monkeypatch.setattr(logging_utils, "_app_root", lambda: folder)
+    workdir = tmp_path_factory.mktemp("cwd")
+    monkeypatch.chdir(workdir)
+    return folder
 
 
 class _FakeRegistry:
@@ -193,3 +236,33 @@ def main_config_v2_params(main_config):
 def main_config_native_params(main_config):
     main_config.settings.gui_vrc_native = True
     return main_config
+
+
+@pytest.fixture
+def count_calls(monkeypatch):
+    """``count_calls(owner, name)`` wraps ``owner.name`` for this test and
+    returns the list that gets one entry per call, e.g. to check a tracker does
+    not recompute np.percentile over its whole window every frame."""
+
+    def count(owner, name):
+        calls = []
+        real = getattr(owner, name)
+
+        def counted(*args, **kwargs):
+            calls.append(1)
+            return real(*args, **kwargs)
+
+        monkeypatch.setattr(owner, name, counted)
+        return calls
+
+    return count
+
+
+@pytest.fixture(autouse=True)
+def isolated_gaze_outputs(monkeypatch, tmp_path):
+    """Foveation gaze is on by default, so any test that starts an OSCManager
+    publishes gaze: keep every test off the real shared memory block, mutex and
+    UDP port 9020 that a running EyeTrackVR / PimaxMagic4All use."""
+    from tests.osc_helpers import isolate_gaze_outputs
+
+    isolate_gaze_outputs(monkeypatch, tmp_path)

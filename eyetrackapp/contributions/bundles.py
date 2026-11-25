@@ -282,15 +282,36 @@ def inspect_bundle(path, kind="dataset"):
         raise ValueError("Corrupt or unsupported archive") from error
 
 
+# Anything shaped like an IPv6 address (with an optional zone, and a v4-mapped
+# tail); _redact_ipv6 lets clock times and ratios through.
+_IPV6_CANDIDATE = re.compile(r"(?<!\w)(?:[0-9a-fA-F]{0,4}:){2,}[0-9a-fA-F:.]{0,45}(?:%[\w.-]+)?(?!\w)")
+
+
+def _redact_ipv6(match):
+    groups = match.group(0).split("%", 1)[0].split(":")
+    # 15:56:01(.123) or 4:3:2: all-decimal groups, no "::", fewer than eight.
+    # Every IPv6 address has a "::", eight groups or a hex letter.
+    if "::" not in match.group(0) and len(groups) < 8 and all(re.fullmatch(r"[\d.]*", g) for g in groups):
+        return match.group(0)
+    return "<IP>"
+
+
 def redact(text):
     # Deliberately conservative; always inspect the prepared archive before submitting.
-    text = re.sub(r"(?i)(?:[A-Z]:[\\/]+Users[\\/]+|/home/|/Users/)[^\\/\s]+", "<HOME>", text)
+    # A Windows user name may hold spaces: up to the next separator when one
+    # follows. Otherwise (and for POSIX paths) whitespace ends the name.
+    text = re.sub(
+        r"(?i)(?:[A-Z]:[\\/]+Users[\\/]+(?:[^\\/\r\n:*?\"<>|]+(?=[\\/])|[^\\/\s]+)|(?:/home/|/Users/)[^\\/\s]+)",
+        "<HOME>",
+        text,
+    )
     text = re.sub(r"(?i)\bBearer\s+\S+", "Bearer <REDACTED>", text)
     text = re.sub(
         r"(?i)\b(password|passwd|token|secret|api[_-]?key|authorization)\s*[:=]\s*\S+", r"\1=<REDACTED>", text
     )
+    # Before IPv4, so a v4-mapped address goes as a whole.
+    text = _IPV6_CANDIDATE.sub(_redact_ipv6, text)
     text = re.sub(r"\b(?:\d{1,3}\.){3}\d{1,3}\b", "<IP>", text)
-    text = re.sub(r"(?<!\w)(?:[0-9a-fA-F]{0,4}:){2,}[0-9a-fA-F:]{0,39}(?!\w)", "<IP>", text)
     text = re.sub(r"\b[\w.+-]+@[\w.-]+\.[A-Za-z]{2,}\b", "<EMAIL>", text)
     text = re.sub(r"\bAKIA[A-Z0-9]{16}\b", "<AWS_ACCESS_KEY>", text)
     return text

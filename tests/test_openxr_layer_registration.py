@@ -3,14 +3,11 @@ per user, without disturbing other layers. Both platform paths run on any OS her
 
 import json
 import sys
-import time
-from queue import Queue
 from unittest import mock
 
 import pytest
 
 from ovr import openxr_layer_registration as reg
-from osc.osc import OSCManager
 from tests.conftest import _FakeRegistry
 
 
@@ -168,29 +165,36 @@ def test_sync_quietly_never_raises():
         assert reg.sync_quietly(True) is None
 
 
-def test_osc_manager_syncs_driver_and_layer_with_the_toggle(main_config_v2_params):
-    calls = []
+def test_installed_entries_and_is_installed(tmp_path):
+    layer = tmp_path / "layer"
+    registry = _FakeRegistry()
+    assert not reg.is_installed(layer, registry=registry) and reg.installed_entries(registry=registry) == []
+    reg.sync(True, layer, registry=registry)
+    assert reg.is_installed(layer, registry=registry)
+    assert reg.installed_entries(registry=registry) == [str(layer / reg.MANIFEST)]
+    registry.data["D:\\old\\XR_APILAYER_EYETRACKVR_eye_gaze.json"] = 0
+    assert not reg.is_installed(layer, registry=registry)
+    registry.data[str(layer / reg.MANIFEST)] = 1  # disabled
+    registry.data.pop("D:\\old\\XR_APILAYER_EYETRACKVR_eye_gaze.json")
+    assert not reg.is_installed(layer, registry=registry) and reg.installed_entries(registry=registry) == []
 
-    def wait_for(n):
-        deadline = time.monotonic() + 5
-        while len(calls) < n and time.monotonic() < deadline:
-            time.sleep(0.01)
-        assert len(calls) == n, calls
 
-    s = main_config_v2_params.settings
-    s.gui_foveation_gaze = False  # on by default; start from off
-    with (
-        mock.patch("ovr.steamvr_driver_registration.sync_quietly", side_effect=lambda e: calls.append(("driver", e))),
-        mock.patch("ovr.openxr_layer_registration.sync_quietly", side_effect=lambda e: calls.append(("layer", e))),
-        mock.patch("osc.osc.udp_client.SimpleUDPClient"),
-    ):
-        manager = OSCManager(config=main_config_v2_params, osc_message_in_queue=Queue())
-        manager.start()
-        try:
-            wait_for(2)
-            s.gui_foveation_gaze = True
-            manager.update({"gui_foveation_gaze": True})
-            wait_for(4)
-        finally:
-            manager.shutdown()
-    assert calls == [("driver", False), ("layer", False), ("driver", True), ("layer", True)]
+def test_installed_entries_and_is_installed_linux(tmp_path, linux):
+    layer = tmp_path / "layer"
+    layer.mkdir()
+    (layer / reg.MANIFEST).write_text(json.dumps({"api_layer": {"library_path": "./x.so"}}))
+    implicit = tmp_path / "implicit.d"
+    assert not reg.is_installed(layer, implicit_dir=implicit)
+    assert reg.sync(True, layer, implicit_dir=implicit) == reg.INSTALLED
+    assert reg.is_installed(layer, implicit_dir=implicit)
+    assert reg.installed_entries(implicit_dir=implicit) == [str(implicit / reg.MANIFEST)]
+
+
+def test_turning_it_on_without_a_built_layer_says_how_to_build_one(monkeypatch, caplog):
+    monkeypatch.setattr(reg, "bundled_layer_dir", lambda: None)
+    with caplog.at_level("WARNING", logger=reg.__name__):
+        assert reg.sync_quietly(True) == reg.NO_LAYER
+    assert "cmake -S native/openxr_layer -B build/openxr_layer" in caplog.text
+    caplog.clear()
+    assert reg.sync_quietly(False) == reg.NOT_INSTALLED  # turning it off needs no layer
+    assert caplog.text == ""

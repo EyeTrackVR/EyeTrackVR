@@ -87,6 +87,9 @@ class UpdateWindow:
         self.window: tk.Toplevel | None = None
         self._cancel = threading.Event()
         self._busy = False
+        # A verified installer kept while SteamVR blocks the install: a retry
+        # starts it without downloading again.
+        self._downloaded = None
 
     def show(self) -> None:
         win = self.window = tk.Toplevel(self.root)
@@ -170,6 +173,9 @@ class UpdateWindow:
         self._cancel.clear()
         self.install_btn.configure(state="disabled")
         self.skip_btn.configure(state="disabled")
+        if self._downloaded is not None and self._downloaded.is_file():
+            self._run_installer(self._downloaded)
+            return
         self.later_btn.configure(text=tr("update.cancel"))
         self.progress.pack(fill="x", pady=(6, 0), after=self.status)
         self.status.configure(text=tr("update.downloading", percent=0))
@@ -198,20 +204,27 @@ class UpdateWindow:
         self.progress.configure(value=percent)
         self.status.configure(text=tr("update.downloading", percent=percent))
 
-    def _failed(self) -> None:
+    def _failed(self, message: str | None = None) -> None:
         self._busy = False
         self.progress.pack_forget()
-        self.status.configure(text=tr("update.download_failed"))
+        self.status.configure(text=message or tr("update.download_failed"))
         self.install_btn.configure(state="normal")
         self.skip_btn.configure(state="normal")
         self.later_btn.configure(text=tr("update.later"))
 
     def _run_installer(self, path) -> None:
+        if updater.steamvr_running():
+            # Checked here, not before the download: SteamVR may have started since.
+            logger.info("Update held back: SteamVR is running.")
+            self._downloaded = path
+            self._failed(tr("update.close_steamvr"))
+            return
         self.status.configure(text=tr("update.installing"))
         try:
             updater.launch_installer(path)
         except OSError as e:  # e.g. the UAC prompt was declined
             logger.warning("Could not start the installer: %s", e)
+            self._downloaded = path
             self._failed()
             return
         logger.info("Installer started for %s; closing the app.", self.update.version)

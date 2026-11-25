@@ -12,7 +12,8 @@ send-on-change OSC bundles to VRChat's input port.
 This *replaces* VRCFT for eye tracking. Do not run VRCFT alongside it. Because
 the port owns its own background send/receive threads, this sender is driven
 purely by updating a shared ``UnifiedTrackingData`` frame; the actual OSC output
-happens on the port's own timer (~100 Hz), decoupled from tracking framerate.
+happens on the port's own send thread (woken by each update, at most ~100 Hz),
+decoupled from tracking framerate.
 """
 
 import logging
@@ -66,6 +67,8 @@ class PyVRCFTSender:
         # Advertise eye tracking as active so VRCFT-style avatars enable it.
         self.data.eye_tracking_active = True
         self.is_single_eye = False
+        # Eyes that have delivered data (see _mirror_eye).
+        self._eyes_seen: set = set()
 
     def start(self, config, send_host=None):
         """Spin up the embedded VRCFT client's background threads.
@@ -125,10 +128,16 @@ class PyVRCFTSender:
             self.client = None
             logger.info("pyVRCFT sender stopped")
 
+    def _mirror_eye(self, eye_id) -> bool:
+        """Two cameras configured but only this eye has delivered data so far
+        (the other is unplugged or still connecting): drive both eyes from it."""
+        return self._eyes_seen == {eye_id}
+
     @staticmethod
-    def _apply_eye(eye, eye_info, openness):
+    def _apply_eye(eye, eye_info, openness, native_openness):
         eye.gaze = (_finite(eye_info.x, eye.gaze_x), _finite(eye_info.y, eye.gaze_y))
         eye.openness = _finite(openness, eye.openness)
+        eye.native_openness = _finite(native_openness, eye.native_openness)
         # EyeTrackVR's pupil_dilation is already ~normalized; the port re-runs
         # VRCFT's stateful min/max normalization on top, treating this as a
         # diameter. Good enough for the beta mode.
@@ -145,42 +154,49 @@ class PyVRCFTSender:
 
         # eye_info.blink is the lid value (0 closed, 0.75 open, >0.75 wide);
         # mirror the eyelid inversion setting the other modes apply via
-        # _eyelid_transformer, then split it into openness + EyeWide.
-        lid = 1.0 - eye_info.blink if config.osc_invert_eye_close else eye_info.blink
-        lid = _finite(lid, float("nan"))
-        if math.isnan(lid):
-            openness = wide = float("nan")  # _finite below holds the last values
+        # _eyelid_transformer, then split it into openness + EyeWide. VRChat's
+        # native eyelid endpoints mean 1 = closed whatever the avatar does, so
+        # they get the un-inverted openness (as the classic native sender does).
+        raw_lid = _finite(eye_info.blink, float("nan"))
+        if math.isnan(raw_lid):
+            openness = wide = native_openness = float("nan")  # _finite below holds the last values
         else:
+            lid = 1.0 - raw_lid if config.osc_invert_eye_close else raw_lid
             openness, wide = lid_to_unified(lid)
+            native_openness = lid_to_unified(raw_lid)[0]
         squeeze = eye_info.squeeze
 
+        if eye_id in (EyeId.LEFT, EyeId.RIGHT):
+            self._eyes_seen.add(eye_id)
         sides = []
-        if self.is_single_eye:
+        if self.is_single_eye or self._mirror_eye(eye_id):
             sides = [(self.data.eye.left, "Left"), (self.data.eye.right, "Right")]
         elif eye_id == EyeId.LEFT:
             sides = [(self.data.eye.left, "Left")]
         elif eye_id == EyeId.RIGHT:
             sides = [(self.data.eye.right, "Right")]
         for eye, side in sides:
-            self._apply_eye(eye, eye_info, openness)
+            self._apply_eye(eye, eye_info, openness, native_openness)
             self._set_shape(f"EyeWide{side}", wide)
             self._set_shape(f"EyeSquint{side}", squeeze)
             self._set_shape(f"CheekSquint{side}", squeeze)
 
-        # Recomputes the full v2 parameter set from the shared frame and queues
-        # only changed values; the port's send thread puts them on the wire.
+        # Marks the shared frame dirty; the port's send thread recomputes the
+        # full parameter set once per tick and puts only changed values on the wire.
         self.client.update_tracking(self.data)
 
     def output_eyebrow_info(self, eye_id, brow_val: float, main_config):
         if self.client is None:
             return
-        is_single = VRChatOSCSender.get_is_single_eye(main_config.eye_display_id)
+        is_single = VRChatOSCSender.get_is_single_eye(main_config.eye_display_id) or self._mirror_eye(eye_id)
         # The other modes drive v2/BrowExpression directly. Here we set the
         # underlying brow shapes so the pipeline derives the same value:
         # BrowExpression = min(1, innerUp*0.5 + outerUp*0.5) - browDown, with
         # browDown = lowerer*0.75 + pinch*0.25. A raise drives the up shapes and
         # a lower drives lowerer + pinch, so both ends reach +-1.
         expr = brow_expression(brow_val)
+        if expr is None:
+            return  # NaN/inf: keep the last brow shapes
         up, down = max(expr, 0.0), max(-expr, 0.0)
         sides = [
             s

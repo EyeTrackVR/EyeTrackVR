@@ -9,7 +9,8 @@ Unified Expressions parameter namespace, without the VRCFT app.
     ft.stop()
 
 Behavior mirrors VRCFT:
-  * sends only changed values, packed into OSC bundles, ~100 Hz to :9000
+  * sends only changed values, packed into OSC bundles, to :9000 as soon as
+    new tracking arrives, at most ~100 Hz
   * listens on :9001 for /avatar/change and re-resolves parameters
   * avatar params come from VRChat's OSCQuery endpoint (mDNS-discovered)
     or, failing that, VRChat's avatar config JSON on disk
@@ -27,7 +28,7 @@ import threading
 import time
 
 from . import mdns, osc
-from .avatar import AvatarInfo, fetch_avatar_oscquery, load_avatar_config
+from .avatar import AvatarInfo, fetch_avatar_id_oscquery, fetch_avatar_oscquery, load_avatar_config
 from .expressions import (
     UnifiedTrackingData,
     compute_legacy_outputs,
@@ -54,6 +55,14 @@ FULL_FACE_ADDRESS = "/avatar/avatarfullfacetracking"
 # loop ticks at ~100 Hz, so a persistent sendto failure would otherwise log
 # a full traceback every ~10 ms.
 LOG_THROTTLE_S = 5.0
+
+# With nothing new to send, the send loop still ticks this often so values
+# re-resolved for a new avatar (or toggled forceRelevant) go out.
+IDLE_TICK_S = 0.1
+
+# Without a receive socket there is no /avatar/change; poll OSCQuery's
+# /avatar/change node this often instead (one small local HTTP GET).
+AVATAR_POLL_S = 3.0
 
 
 class _DirectSlot(OutputSlot):
@@ -124,6 +133,12 @@ class VRCFTClient:
         self._native_face_ok = False
         self._full_face_osc: bool | None = None
         self._lock = threading.Lock()
+        # Latest frame from update_tracking(), computed once per send tick
+        # (None = nothing new). _wake starts a tick early; see _send_loop.
+        self._pending_tracking: UnifiedTrackingData | None = None
+        self._wake = threading.Event()
+        # start() sets this when the receive port could not be bound.
+        self._poll_avatar = False
 
         self._oscquery_endpoint = None  # (host, port) of VRChat's HTTP server
         self._running = False
@@ -145,15 +160,20 @@ class VRCFTClient:
         """
         key = name if (not v2 or name.startswith(V2_PREFIX)) else V2_PREFIX + name
         value = float(value)
+        with self._lock:
+            self._store_value(key, value)
+        self._wake.set()
+
+    def _store_value(self, key: str, value: float) -> None:
+        """Hold one logical value (caller holds the lock)."""
         if not math.isfinite(value):
             # Hold the last good value rather than forwarding NaN/inf (one bad
             # tracking frame should not glitch or wedge the avatar).
             return
-        with self._lock:
-            new = key not in self._values
-            self._values[key] = value
-            if new:
-                self._resolve_one(key)
+        new = key not in self._values
+        self._values[key] = value
+        if new:
+            self._resolve_one(key)
 
     def set_many(self, values: dict, v2: bool = True) -> None:
         """Set several UE params at once: ft.set_many({"JawOpen": 0.3, ...})"""
@@ -164,10 +184,15 @@ class VRCFTClient:
         """Set a plain bool param sent as-is (e.g. "EyeTrackingActive").
         Unlike set(), no v2/ prefix and no threshold conversion."""
         with self._lock:
-            new = name not in self._bool_values
-            self._bool_values[name] = bool(value)
-            if new:
-                self._resolve_one_bool(name)
+            self._store_bool(name, value)
+        self._wake.set()
+
+    def _store_bool(self, name: str, value: bool) -> None:
+        """Caller holds the lock."""
+        new = name not in self._bool_values
+        self._bool_values[name] = bool(value)
+        if new:
+            self._resolve_one_bool(name)
 
     def update_tracking(self, data: UnifiedTrackingData) -> None:
         """Feed one frame of raw tracking data through VRCFT's full
@@ -182,33 +207,60 @@ class VRCFTClient:
         resolves each against the current avatar and only what the avatar
         declares reaches the wire, so a v2 avatar, a legacy v1 avatar, and an
         avatar with no FT params at all (native eye tracking) are each driven
-        correctly from the same tracking frame."""
-        params, native = compute_outputs(data)
-        self.set_many(params)
+        correctly from the same tracking frame.
+
+        Only the latest frame is kept: the pipeline runs once per send tick
+        (_collect_messages), not once per call. EyeTrackVR calls this for every
+        eye and brow message, several times per send tick."""
+        with self._lock:
+            self._pending_tracking = data
+        self._wake.set()
+
+    def _compute_tracking(self, data: UnifiedTrackingData):
+        """Run the expression pipeline for one frame (no lock held)."""
+        params, native = compute_outputs(data, face_v1=self.native_face and self._native_face_ok)
         # Legacy v1 eye params (bare names, no "v2/" prefix) for older avatars.
-        self.set_many(compute_legacy_outputs(data), v2=False)
-        if self._native_gaze_ok:
-            self.send_direct("/tracking/eye/LeftRightPitchYaw", *native["/tracking/eye/LeftRightPitchYaw"])
-        if self._native_lids_ok:
-            self.send_direct("/tracking/eye/EyesClosedAmount", *native["/tracking/eye/EyesClosedAmount"])
-        if self.native_face and self._native_face_ok:
-            self.send_direct(FACE_V1_ADDRESS, *native[FACE_V1_ADDRESS])
+        legacy = compute_legacy_outputs(data)
+        bools = {}
         if data.eye_tracking_active is not None:
-            self.set_bool("EyeTrackingActive", data.eye_tracking_active)
+            bools["EyeTrackingActive"] = data.eye_tracking_active
         if data.expression_tracking_active is not None:
-            self.set_bool("ExpressionTrackingActive", data.expression_tracking_active)
-            self.set_bool("LipTrackingActive", data.expression_tracking_active)
+            bools["ExpressionTrackingActive"] = data.expression_tracking_active
+            bools["LipTrackingActive"] = data.expression_tracking_active
+        return params, legacy, native, bools
+
+    def _apply_tracking(self, frame) -> None:
+        """Store a computed frame (caller holds the lock)."""
+        params, legacy, native, bools = frame
+        for key, value in params.items():
+            self._store_value(key, float(value))
+        for key, value in legacy.items():
+            self._store_value(key, float(value))
+        if self._native_gaze_ok:
+            self._store_direct("/tracking/eye/LeftRightPitchYaw", native["/tracking/eye/LeftRightPitchYaw"])
+        if self._native_lids_ok:
+            self._store_direct("/tracking/eye/EyesClosedAmount", native["/tracking/eye/EyesClosedAmount"])
+        # The gate may have opened since _compute_tracking skipped the payload.
+        if self.native_face and self._native_face_ok and FACE_V1_ADDRESS in native:
+            self._store_direct(FACE_V1_ADDRESS, native[FACE_V1_ADDRESS])
+        for name, value in bools.items():
+            self._store_bool(name, value)
 
     def send_direct(self, address: str, *values) -> None:
         """Queue a message to an absolute OSC address, always sent (deduped).
         e.g. ft.send_direct("/tracking/eye/EyesClosedAmount", 0.1)"""
-        if not is_finite_value(tuple(values)):
-            return  # keep the previous pending value; see set()
         with self._lock:
-            slot = self._direct.get(address)
-            if slot is None:
-                slot = self._direct[address] = _DirectSlot(address)
-            slot.pending = tuple(values) if len(values) != 1 else values[0]
+            self._store_direct(address, tuple(values))
+        self._wake.set()
+
+    def _store_direct(self, address: str, values: tuple) -> None:
+        """Caller holds the lock."""
+        if not is_finite_value(values):
+            return  # keep the previous pending value; see set()
+        slot = self._direct.get(address)
+        if slot is None:
+            slot = self._direct[address] = _DirectSlot(address)
+        slot.pending = values if len(values) != 1 else values[0]
 
     def start(self) -> None:
         if self._running:
@@ -228,6 +280,8 @@ class VRCFTClient:
                 self.recv_port,
             )
             self._recv_sock = None
+        # The discovery thread polls for avatar changes in this case.
+        self._poll_avatar = self._recv_sock is None
 
         self._threads = [threading.Thread(target=self._send_loop, daemon=True, name="pyvrcft-send")]
         if self._recv_sock is not None:
@@ -248,6 +302,7 @@ class VRCFTClient:
     def stop(self) -> None:
         self._running = False
         self._stop_event.set()
+        self._wake.set()  # end the send loop's wait now
         if self._recv_sock is not None and self._send_sock is not None:
             # Wake the receive thread now rather than at its 0.5 s timeout.
             try:
@@ -309,6 +364,7 @@ class VRCFTClient:
             if self._full_face_osc is None and info.full_face_tracking is not None:
                 self._set_full_face(info.full_face_tracking)
             resolved = sum(1 for s in self._slots.values() if s)
+        self._wake.set()  # new slots: send the held values now
 
         logger.info(
             "Avatar %s (%s): %d avatar params, %d/%d VRCFT params matched",
@@ -370,6 +426,13 @@ class VRCFTClient:
     def _collect_messages(self) -> list:
         messages = []
         with self._lock:
+            data, self._pending_tracking = self._pending_tracking, None
+        # The pipeline runs outside the lock, then everything it produced is
+        # stored and emitted under a single acquisition.
+        frame = self._compute_tracking(data) if data is not None else None
+        with self._lock:
+            if frame is not None:
+                self._apply_tracking(frame)
             force = self.force_relevant
             for name, value in self._values.items():
                 if force:
@@ -399,12 +462,28 @@ class VRCFTClient:
         return messages
 
     def _send_loop(self) -> None:
+        last_tick = float("-inf")
         while self._running:
-            start = time.monotonic()
+            # Send as soon as a frame arrives instead of on a fixed timer (which
+            # added ~half an interval of latency), but never sooner than
+            # `interval` after the last woken tick, so a burst of updates
+            # (even ones that dedupe to nothing) cannot exceed the old fixed
+            # rate. The timeout keeps idle ticks going.
+            woke = self._wake.wait(IDLE_TICK_S)
+            delay = last_tick + self.interval - time.monotonic()
+            if delay > 0:
+                time.sleep(delay)
+            if not self._running:
+                return
+            # Clear before collecting: a frame arriving mid-collect wakes the next tick.
+            self._wake.clear()
+            if woke:
+                last_tick = time.monotonic()
             try:
                 messages = self._collect_messages()
                 sock = self._send_sock
                 if messages and sock is not None:
+                    last_tick = time.monotonic()
                     try:
                         for bundle in osc.pack_bundles(messages):
                             sock.sendto(bundle, (self.send_host, self.send_port))
@@ -420,9 +499,6 @@ class VRCFTClient:
             except Exception:
                 # Never let one bad frame end avatar output for the session.
                 self._log_throttled("send-loop", "pyvrcft send loop error", exc_info=True)
-
-            elapsed = time.monotonic() - start
-            time.sleep(max(0.0, self.interval - elapsed))
 
     def _recv_loop(self) -> None:
         while self._running:
@@ -495,10 +571,19 @@ class VRCFTClient:
     def _discover_loop(self, stop: threading.Event) -> None:
         """Find VRChat's OSCQuery server so we can resolve the avatar even if
         we started after it loaded (no /avatar/change to catch). Runs until
-        stop: a failed avatar fetch forgets the endpoint, and it is found again."""
+        stop: a failed avatar fetch forgets the endpoint, and it is found again.
+
+        Without a receive socket (port taken by another app) it also polls the
+        endpoint for avatar changes, which would otherwise go unnoticed."""
+        polled_id = None  # last avatar id seen by polling
         while not stop.is_set():
-            if self._oscquery_endpoint is not None:
-                stop.wait(1.0)
+            endpoint = self._oscquery_endpoint
+            if endpoint is not None:
+                if self._poll_avatar:
+                    polled_id = self._poll_avatar_change(endpoint, polled_id, stop)
+                    stop.wait(AVATAR_POLL_S)
+                else:
+                    stop.wait(1.0)
                 continue
             endpoint = mdns.discover_vrchat_oscquery(timeout=3.0)
             if stop.is_set():
@@ -511,3 +596,23 @@ class VRCFTClient:
             if self._oscquery_endpoint is None:
                 # VRChat may not be running yet; retry quietly.
                 stop.wait(10.0)
+
+    def _poll_avatar_change(self, endpoint, polled_id, stop: threading.Event):
+        """One OSCQuery avatar-id poll; re-resolves when the id changed.
+        Returns the id to compare the next poll against."""
+        avatar_id = fetch_avatar_id_oscquery(*endpoint)
+        if stop.is_set():
+            return polled_id
+        if avatar_id is None:
+            if self._oscquery_endpoint == endpoint:
+                # Same as a failed full fetch: let discovery find VRChat again.
+                logger.info("VRChat OSCQuery at http://%s:%d stopped answering", *endpoint)
+                self._oscquery_endpoint = None
+            return None
+        if not avatar_id or avatar_id == polled_id:
+            return polled_id
+        current = self.avatar
+        if current is None or getattr(current, "id", None) != avatar_id:
+            # Same path as a received /avatar/change (resets the face flag too).
+            self._dispatch("/avatar/change", [avatar_id])
+        return avatar_id

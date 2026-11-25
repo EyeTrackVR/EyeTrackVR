@@ -28,7 +28,6 @@ LICENSE: Summer Software Distribution License 1.0
 """
 
 import logging
-import timeit
 from functools import lru_cache
 
 import cv2
@@ -126,12 +125,6 @@ class HaarSurroundFeature:
         self.val_out = float(val_outer)  # np.array(val_outer, dtype=np.float64)
         self.r_in = r_inner
         self.r_out = r_outer
-
-
-def to_gray(frame):
-    # Faster by quitting checking if the input image is already grayscale
-    # Perhaps it would be faster with less overhead to call cv2.cvtColor directly instead of using this function
-    return cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
 
 
 @lru_cache(maxsize=lru_maxsize_vvs)
@@ -522,12 +515,6 @@ class CenterCorrection(object):
 
 class HSF_cls(object):
     def __init__(self):
-        # I'd like to take into account things like print, end_time - start_time processing time, etc., but it's too much trouble.
-
-        # For measuring total processing time
-
-        self.main_start_time = timeit.default_timer()
-
         self.rng = np.random.default_rng()
         self.cvparam = CvParameters(default_radius, default_step)
 
@@ -543,14 +530,6 @@ class HSF_cls(object):
         # instance (one per eye thread) and rebuilt only when the geometry
         # changes. Small dict because radius_adjust cycles through radii.
         self._buffers: dict = {}
-
-        self.timedict = {
-            "to_gray": [],
-            "int_img": [],
-            "conv_int": [],
-            "crop": [],
-            "total_cv": [],
-        }
 
     def _get_buffers(self, frame_shape, pad, x_step, y_step, r_in, r_out):
         key = (frame_shape, pad, x_step, y_step, r_in, r_out)
@@ -644,7 +623,6 @@ class HSF_cls(object):
         )
         center_xy = get_hsf_center(pad, step[0], step[1], hsf_min_loc)
 
-        # self.timedict["conv_int"].append(timeit.default_timer() - conv_int_start_time)
         # Define the center point and radius
         center_x, center_y = center_xy
         upper_x = center_x + radius
@@ -730,8 +708,6 @@ class HSF_cls(object):
 
         # If you want to update response_max. it may be more cost-effective to rewrite response_list in the following way
         # https://stackoverflow.com/questions/42771110/fastest-way-to-left-cycle-a-numpy-array-like-pop-push-for-a-queue
-        #  self.timedict["crop"].append(cv_end_time - crop_start_time)
-        #   self.timedict["total_cv"].append(cv_end_time - cv_start_time)
 
         # if calc_print_enable:
         # the lower the response the better the likelyhood of there being a pupil. you can adujst the radius and steps accordingly

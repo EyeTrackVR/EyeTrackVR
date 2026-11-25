@@ -120,6 +120,25 @@ def fetch_avatar_oscquery(host: str, port: int, timeout: float = 3.0) -> AvatarI
     return info
 
 
+def fetch_avatar_id_oscquery(host: str, port: int, timeout: float = 1.0) -> str | None:
+    """Just the current avatar id from GET /avatar (the same tree
+    fetch_avatar_oscquery reads, without walking the parameters or reading
+    the disk config for a name).
+
+    Returns the id, "" when VRChat reports none, or None when the server did
+    not answer."""
+    try:
+        with urllib.request.urlopen(f"http://{host}:{port}/avatar", timeout=timeout) as resp:
+            tree = json.load(resp)
+    except (OSError, ValueError):
+        return None
+    node = tree.get("CONTENTS", {}).get("change", {}) if isinstance(tree, dict) else {}
+    values = node.get("VALUE") if isinstance(node, dict) else None
+    if isinstance(values, list) and values and isinstance(values[0], str):
+        return values[0]
+    return ""
+
+
 def _walk_oscquery_node(node: dict, out: list) -> None:
     contents = node.get("CONTENTS")
     if contents:

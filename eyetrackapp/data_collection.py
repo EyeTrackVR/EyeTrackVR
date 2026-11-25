@@ -16,6 +16,7 @@ import tkinter as tk
 
 from localization import tr
 from utils.overlay_launch import OverlaySession
+from utils.user_data import user_data_dir
 from frame_eye import is_steam_frame, models_paused_for_recording
 from data_collection_tts import prompt_text, say
 from data_collection_passes import (
@@ -26,6 +27,61 @@ from data_collection_passes import (
 )
 
 logger = logging.getLogger(__name__)
+
+CAPTURE_DIR_NAME = "captures"
+_ZIP_SUFFIX = "_ETVR_User_Data_Output.zip"
+_OUTPUT_SUFFIX = "_ETVR_Output"
+
+
+def capture_dir() -> str:
+    """Owner-only folder for recordings: plaintext eye video must not sit in
+    the install folder or the working directory for other users to read."""
+    path = os.path.abspath(os.path.join(user_data_dir(), CAPTURE_DIR_NAME))
+    os.makedirs(path, mode=0o700, exist_ok=True)
+    try:
+        from contributions.private_files import restrict_access
+
+        restrict_access(path, directory=True)
+    except OSError:
+        logger.warning("Could not restrict access to %s", path, exc_info=True)
+    return path
+
+
+def _is_app_capture(path) -> bool:
+    """Only recordings this app wrote into capture_dir() may be deleted by it."""
+    # realpath both sides: the page keeps Path.resolve()d paths, and a junction
+    # or redirected profile must not make a recording look foreign.
+    folder, name = os.path.split(os.path.realpath(path))
+    return os.path.normcase(folder) == os.path.normcase(os.path.realpath(capture_dir())) and name.endswith(_ZIP_SUFFIX)
+
+
+def discard_capture(path) -> None:
+    """Delete an app-recorded ZIP once it is sealed, replaced or abandoned."""
+    if not path or not _is_app_capture(path):
+        return
+    try:
+        os.remove(path)
+        logger.info("Deleted the plaintext recording %s", path)
+    except FileNotFoundError:
+        pass
+    except OSError:
+        logger.warning("Could not delete the recording %s", path, exc_info=True)
+
+
+def _sweep_captures() -> None:
+    """Remove recordings an earlier run left behind (quit before sealing, or a
+    crash). Only names this module writes, inside its own private folder."""
+    try:
+        root = capture_dir()
+        names = os.listdir(root)
+    except OSError:
+        return
+    for name in names:
+        path = os.path.join(root, name)
+        if name.endswith(_ZIP_SUFFIX):
+            discard_capture(path)
+        elif name.endswith(_OUTPUT_SUFFIX) and os.path.isdir(path):
+            shutil.rmtree(path, ignore_errors=True)
 
 
 def get_best_codec():
@@ -44,7 +100,9 @@ def get_best_codec():
     for codec, container in codecs_to_try:
         try:
             fourcc = cv2.VideoWriter_fourcc(*codec)
-            tmp = os.path.join(os.getcwd(), f"_tmp_test_{codec}.{container}")
+            # Probe where the recording will go: the working directory may be
+            # the read-only install folder, which would fail every codec.
+            tmp = os.path.join(capture_dir(), f"_tmp_test_{codec}.{container}")
             w = cv2.VideoWriter(tmp, fourcc, 30, (240, 240), False)
             ok = w.isOpened()
             w.release()
@@ -59,7 +117,8 @@ def get_best_codec():
 
 
 def _zip_output(seed, output_dir):
-    zip_name = f"{DATA_COLLECTION_VERSION}_{seed}_ETVR_User_Data_Output.zip"
+    # Beside the working folder, inside the private capture folder.
+    zip_name = os.path.join(os.path.dirname(output_dir), f"{DATA_COLLECTION_VERSION}_{seed}{_ZIP_SUFFIX}")
     with zipfile.ZipFile(zip_name, "w", zipfile.ZIP_DEFLATED) as zf:
         for root, _, files in os.walk(output_dir):
             for file in files:
@@ -211,6 +270,8 @@ class DataCollectionWindow(OverlayPassesMixin):
     def _create_window(self):
         from contributions.window import ContributionWindow
 
+        # Once per run, before this run records anything.
+        _sweep_captures()
         self._contributions = ContributionWindow(self.parent, capture_controller=self, on_hide=self._hide)
         self.window = self._contributions.window
         self._status_var = self._contributions.capture_status
@@ -292,6 +353,10 @@ class DataCollectionWindow(OverlayPassesMixin):
     def _stop_collection(self):
         self.session_cancel.set()
 
+    def discard_capture(self, path):
+        """Called by the contribution page when a recording is sealed or dropped."""
+        discard_capture(path)
+
     def _capture_worker(self):
         try:
             self._run_collection()
@@ -306,9 +371,10 @@ class DataCollectionWindow(OverlayPassesMixin):
         # Re-roll on the (unlikely) clash instead of wiping a folder an
         # earlier session left behind: this session only ever deletes the
         # folder it created.
+        root = capture_dir()
         while True:
             seed = "".join(random.choices(string.ascii_letters + string.digits, k=9))
-            output_dir = os.path.join(os.getcwd(), f"{DATA_COLLECTION_VERSION}_{seed}_ETVR_Output")
+            output_dir = os.path.join(root, f"{DATA_COLLECTION_VERSION}_{seed}{_OUTPUT_SUFFIX}")
             if not os.path.exists(output_dir):
                 break
 
@@ -662,14 +728,18 @@ class DataCollectionWindow(OverlayPassesMixin):
             if not self.session_cancel.is_set():
                 zip_name = _zip_output(seed, output_dir)
                 self.gui_queue.put(("capture_ready", os.path.abspath(zip_name)))
-                # The ZIP sits beside the folder in cwd, so this only drops
-                # the working copy.
+                # The ZIP sits beside the folder, so this only drops the
+                # working copy.
                 self._discard_session_output()
                 say("done").wait()
-                self.gui_queue.put(("status", tr("data_collection.status_done", path=zip_name)))
+                if self.session_cancel.is_set():
+                    # Stop pressed during "done": _poll_gui_queue deletes the ZIP.
+                    self.gui_queue.put(("status", tr("data_collection.status_cancelled")))
+                else:
+                    self.gui_queue.put(("status", tr("data_collection.status_done", path=zip_name)))
             else:
                 # Cancelled or failed: nothing is handed on, so don't leave
-                # the full AVI and PNGs behind in cwd.
+                # the full AVI and PNGs behind.
                 self._discard_session_output()
                 self.gui_queue.put(("status", tr("data_collection.status_cancelled")))
 
@@ -741,9 +811,12 @@ class DataCollectionWindow(OverlayPassesMixin):
                 elif msg_type == "capture_ready":
                     if not self.session_cancel.is_set():
                         self._latest_capture = data
+                    else:
+                        discard_capture(data)  # stopped while it was being saved
                 elif msg_type == "session_done":
                     self.session_running = False
                     if self.session_cancel.is_set():
+                        discard_capture(self._latest_capture)
                         self._latest_capture = None
                     self._contributions.capture_stopped(self._latest_capture)
             except queue.Empty:

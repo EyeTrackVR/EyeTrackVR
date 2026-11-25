@@ -51,14 +51,6 @@ WAIT_TIME = 0.1
 # Wireless trackers that lose power or Wi-Fi send no TCP reset: give up after these.
 _NETWORK_CAPTURE_TIMEOUTS = [cv2.CAP_PROP_OPEN_TIMEOUT_MSEC, 5000, cv2.CAP_PROP_READ_TIMEOUT_MSEC, 5000]
 logger = logging.getLogger(__name__)
-# Serial communication protocol:
-# header-begin (2 bytes)
-# header-type (2 bytes)
-# packet-size (2 bytes)
-# packet (packet-size bytes)
-ETVR_HEADER = b"\xff\xa0"
-ETVR_HEADER_FRAME = b"\xff\xa1"
-ETVR_HEADER_LEN = 6
 
 
 class CameraState(Enum):
@@ -188,6 +180,8 @@ class Camera:
         # Monotonic deadline for the "not found, retrying" log; throttled to once per 5 s
         # so the log isn't flooded during the 3-second UVC backoff window.
         self._retry_log_backoff: float = 0.0
+        # Monotonic deadline for the serial "Failed to connect" log (same 5 s throttle).
+        self._serial_fail_log_backoff: float = 0.0
         # Network (HTTP) reconnect backoff: monotonic deadline before the next reopen
         # attempt, and the current (exponentially growing) delay used to set it.
         self._network_reconnect_backoff: float = 0.0
@@ -362,6 +356,8 @@ class Camera:
                 logger.info("Exiting capture thread")
                 # Release ALL backends regardless of which one is active, since we may be mid-
                 # transition between them. Guarded against None so early shutdown doesn't crash.
+                # The reconnect waits below never return directly: they continue here, so a
+                # stop during one still releases the capture handle and the UVC claim.
                 self._release_cv2_camera()
                 self._close_serial_connection()
                 self._close_frame_eye()
@@ -393,6 +389,11 @@ class Camera:
                     ):
                         self.current_capture_source = new_source
                         self.start_serial_connection(new_source)
+                        if self.camera_status == CameraState.DISCONNECTED:
+                            # Port absent or busy: without this wait the loop re-scans
+                            # comports() thousands of times a second and pegs a core.
+                            self.cancellation_event.wait(WAIT_TIME)
+                            continue
                 else:
                     # Switching to cv2 (local UVC / HTTP MJPEG / file) from any other backend.
                     if source_changed:
@@ -418,8 +419,7 @@ class Camera:
                             and time.monotonic() < self._network_reconnect_backoff
                         ):
                             self.camera_status = CameraState.DISCONNECTED
-                            if self.cancellation_event.wait(WAIT_TIME):
-                                return
+                            self.cancellation_event.wait(WAIT_TIME)
                             continue
                         _now_log = time.monotonic()
                         if source_changed or _now_log >= self._retry_log_backoff:
@@ -427,7 +427,7 @@ class Camera:
                             self._retry_log_backoff = _now_log + 5.0
                         # Give camera firmware time to settle before retrying the backend open.
                         if self.cancellation_event.wait(WAIT_TIME):
-                            return
+                            continue
                         # Release any previously opened handle before replacing it, otherwise we
                         # leak OS resources and can block the new open on busy backends (DSHOW/MSMF).
                         self._release_cv2_camera()
@@ -445,8 +445,7 @@ class Camera:
                             # competes with active cv2 DSHOW handles on the other camera.
                             if time.monotonic() < self._uvc_not_found_backoff:
                                 self.camera_status = CameraState.DISCONNECTED
-                                if self.cancellation_event.wait(WAIT_TIME):
-                                    return
+                                self.cancellation_event.wait(WAIT_TIME)
                                 continue
                             _result = resolve_uvc_address_to_index(_name, _addr, owner_id=id(self))
                             if _result is None:
@@ -458,8 +457,10 @@ class Camera:
                                 # Back off for the same duration as the enum cache TTL so
                                 # we don't trigger a new pygrabber scan on every loop tick.
                                 self._uvc_not_found_backoff = time.monotonic() + 3.0
-                                if self.cancellation_event.wait(WAIT_TIME):
-                                    return
+                                # A stale list may be what missed it (camera replugged
+                                # since the scan): let the retry re-enumerate.
+                                invalidate_uvc_camera_cache()
+                                self.cancellation_event.wait(WAIT_TIME)
                                 continue
                             _idx, _resolved_addr = _result
                             # Claim this address immediately so that sibling camera threads
@@ -535,8 +536,7 @@ class Camera:
                             self._release_cv2_camera()
                             if _is_network_source:
                                 self._bump_network_reconnect_backoff()
-                            if self.cancellation_event.wait(WAIT_TIME):
-                                return
+                            self.cancellation_event.wait(WAIT_TIME)
                             continue
                         if is_uvc and cam.isOpened():
                             self._negotiate_uvc_profile(cam)
@@ -547,12 +547,14 @@ class Camera:
                             self.camera_status = CameraState.DISCONNECTED
                             self._release_cv2_camera()
                             self._bump_network_reconnect_backoff()
-                            if self.cancellation_event.wait(WAIT_TIME):
-                                return
+                            self.cancellation_event.wait(WAIT_TIME)
                             continue
-                        # Invalidate the UVC cache so the next scan sees the current
-                        # device state (e.g. the camera is now held by this process).
-                        invalidate_uvc_camera_cache()
+                        # A failed UVC open may mean the cached list is stale (device
+                        # moved): re-enumerate on the next try. Not after a successful
+                        # open, which would make the other eye's resolve run the slow
+                        # OS enumeration (PowerShell / system_profiler) a second time.
+                        if not cam.isOpened():
+                            invalidate_uvc_camera_cache()
             else:
                 # We don't have a capture source to try yet, wait for one to show up in the GUI.
                 # Release any lingering handles so swapping "no source" then "new source" works cleanly.
@@ -561,8 +563,7 @@ class Camera:
                 self._close_frame_eye()
                 self.current_capture_source = None
                 self.camera_status = CameraState.DISCONNECTED
-                if self.cancellation_event.wait(WAIT_TIME):
-                    return
+                self.cancellation_event.wait(WAIT_TIME)
                 continue
             if self.config.capture_source is not None:
                 addr = str(self.current_capture_source)
@@ -570,8 +571,7 @@ class Camera:
                     self.get_frame_eye_picture(True)
                 elif is_frame_capture_source(addr):
                     # Bad frame:// address; already logged, wait for a fix in the GUI.
-                    if self.cancellation_event.wait(WAIT_TIME):
-                        return
+                    self.cancellation_event.wait(WAIT_TIME)
                     continue
                 elif is_serial_capture_source(addr):
                     self.get_serial_camera_picture(True)
@@ -805,7 +805,11 @@ class Camera:
             self.serial_connection = conn
             self.camera_status = CameraState.CONNECTED
         except Exception:
-            logger.info("Failed to connect on %s", port)
+            # run() retries every WAIT_TIME while the port stays busy: log once per 5 s.
+            now = time.monotonic()
+            if now >= self._serial_fail_log_backoff:
+                logger.info("Failed to connect on %s", port)
+                self._serial_fail_log_backoff = now + 5.0
             self.camera_status = CameraState.DISCONNECTED
 
     def _put_frame_drop_oldest(self, q: "queue.Queue", item: tuple) -> None:

@@ -1,0 +1,234 @@
+"""Foveation gaze output: VRChat-style LeftRightPitchYaw to UDP 9020 for
+PimaxMagic4All (plus the gaze shared memory block), sent alongside whichever
+VRChat output mode is active."""
+
+import math
+import socket
+import sys
+from unittest import mock
+
+import pytest
+
+from eye import EyeId
+from osc import foveation_gaze_sender as foveation_module
+from osc import osc as osc_module
+from pyvrcft import osc as pyosc
+from tests.osc_helpers import (
+    collect_stray_garbage,
+    eye_msg,
+    isolate_gaze_outputs,
+    run_messages,
+    running_manager,
+    use_free_ports,
+    wait_until_sent,
+)
+
+ADDRESS = foveation_module.FOVEATION_ADDRESS
+WIRE = foveation_module.pm4a_wire_angles  # what PimaxMagic4All needs for a gaze
+
+
+@pytest.fixture(autouse=True, scope="module")
+def _main_thread_gc():
+    collect_stray_garbage()
+
+
+@pytest.fixture(autouse=True)
+def _private_gaze_outputs(monkeypatch, tmp_path):
+    isolate_gaze_outputs(monkeypatch, tmp_path)
+
+
+def _eye_msg(eye_id=EyeId.RIGHT, **kw):
+    return eye_msg(eye_id, **kw)
+
+
+def _run(config, messages):
+    """Feed messages through a mocked-UDP OSCManager; return (manager, foveation sends)."""
+    manager = run_messages(config, messages)
+    client = manager.osc_sender.foveation_client
+    sent = [v for a, v in client.messages if a == ADDRESS] if client is not None else None
+    return manager, sent
+
+
+def _expected(x, y, s):
+    """Degrees for normalized gaze, using the configured FOV caps."""
+    yaw = math.degrees(math.atan(x * math.tan(math.radians(s.gui_gaze_yaw_max_deg))))
+    cap = s.gui_gaze_pitch_up_deg if y >= 0 else s.gui_gaze_pitch_down_deg
+    pitch = -math.degrees(math.atan(y * math.tan(math.radians(cap))))
+    return pitch, yaw
+
+
+@pytest.fixture()
+def two_eye_config(main_config_v2_params):
+    main_config_v2_params.eye_display_id = EyeId.BOTH
+    main_config_v2_params.settings.gui_foveation_gaze = True
+    return main_config_v2_params
+
+
+def test_on_by_default_and_off_sends_nothing(main_config_v2_params):
+    assert main_config_v2_params.settings.gui_foveation_gaze is True
+    main_config_v2_params.settings.gui_foveation_gaze = False
+    manager, sent = _run(main_config_v2_params, [_eye_msg(x=0.5)])
+    assert sent is None
+    # VRChat output is untouched.
+    assert ("/avatar/parameters/v2/EyeX", 0.5) in manager.osc_sender.vrc_client.messages
+
+
+def test_sends_to_localhost_9020_alongside_vrchat(main_config_v2_params, monkeypatch):
+    monkeypatch.setattr(osc_module, "FOVEATION_PORT", 9020)  # recorded by the mock client, never sent
+    main_config_v2_params.settings.gui_foveation_gaze = True
+    manager, sent = _run(main_config_v2_params, [_eye_msg(x=0.5, y=0.5)])
+    client = manager.osc_sender.foveation_client
+    assert (client.osc_address, client.port) == ("127.0.0.1", 9020)
+    p, y = _expected(0.5, 0.5, main_config_v2_params.settings)
+    assert sent == [pytest.approx(WIRE(p, y, p, y))]
+    # Looking up and right: pitch negative (VRChat: positive is down), yaw positive.
+    assert p < 0 < y
+    assert ("/avatar/parameters/v2/EyeX", 0.5) in manager.osc_sender.vrc_client.messages
+
+
+@pytest.mark.parametrize("mode", ["gui_pyvrcft", "gui_vrc_native", "gui_osc_vrcft_v2"])
+def test_runs_with_every_output_mode(main_config, mode):
+    s = main_config.settings
+    s.gui_pyvrcft = s.gui_vrc_native = s.gui_osc_vrcft_v1 = s.gui_osc_vrcft_v2 = False
+    setattr(s, mode, True)
+    s.gui_foveation_gaze = True
+    with mock.patch("pyvrcft.client.VRCFTClient.start"), mock.patch("pyvrcft.client.VRCFTClient.stop"):
+        _, sent = _run(main_config, [_eye_msg(x=-0.25, y=-0.5)])
+    p, y = _expected(-0.25, -0.5, s)
+    assert sent == [pytest.approx(WIRE(p, y, p, y))]
+
+
+def test_two_eyes_tracked_separately(two_eye_config):
+    s = two_eye_config.settings
+    _, sent = _run(
+        two_eye_config,
+        [_eye_msg(EyeId.LEFT, x=-0.2, y=0.1), _eye_msg(EyeId.RIGHT, x=0.3, y=-0.4)],
+    )
+    lp, ly = _expected(-0.2, 0.1, s)
+    rp, ry = _expected(0.3, -0.4, s)
+    # Before the right eye's first sample it borrows the left eye's gaze.
+    assert sent == [pytest.approx(WIRE(lp, ly, lp, ly)), pytest.approx(WIRE(lp, ly, rp, ry))]
+
+
+def test_closed_eye_borrows_open_eye_and_blink_sends_nothing(two_eye_config):
+    s = two_eye_config.settings
+    _, sent = _run(
+        two_eye_config,
+        [
+            _eye_msg(EyeId.LEFT, x=0.4, y=0.0),
+            _eye_msg(EyeId.RIGHT, x=-0.9, y=0.9, blink=0.1),  # right lid closed
+            _eye_msg(EyeId.LEFT, x=0.4, y=0.0, blink=0.0),  # both closed now
+        ],
+    )
+    p, y = _expected(0.4, 0.0, s)
+    assert sent == [pytest.approx(WIRE(p, y, p, y))] * 2
+
+
+def test_inverted_eyelid_setting_is_respected(two_eye_config):
+    two_eye_config.settings.osc_invert_eye_close = True
+    # blink=1.0 means closed under inversion.
+    _, sent = _run(two_eye_config, [_eye_msg(EyeId.LEFT, x=0.4, blink=1.0)])
+    assert sent == []
+
+
+def test_non_finite_gaze_is_not_sent(main_config_v2_params):
+    main_config_v2_params.settings.gui_foveation_gaze = True
+    _, sent = _run(
+        main_config_v2_params,
+        [_eye_msg(x=float("nan"), y=0.0), _eye_msg(x=0.1, y=float("inf")), _eye_msg(x=0.1, y=0.0)],
+    )
+    p, y = _expected(0.1, 0.0, main_config_v2_params.settings)
+    assert sent == [pytest.approx(WIRE(p, y, p, y))]
+
+
+def test_foveation_failure_does_not_cost_vrchat_output(main_config_v2_params):
+    main_config_v2_params.settings.gui_foveation_gaze = True
+    with mock.patch.object(foveation_module.FoveationGazeSender, "output_osc_info", side_effect=RuntimeError("boom")):
+        manager, _ = _run(main_config_v2_params, [_eye_msg(x=0.3)])
+    assert ("/avatar/parameters/v2/EyeX", 0.3) in manager.osc_sender.vrc_client.messages
+
+
+def test_real_udp_packet_matches_pimax_parser(main_config_v2_params, monkeypatch):
+    """On the wire: one message, four float32 args, as vrchat_osc.cpp reads them."""
+    main_config_v2_params.settings.gui_foveation_gaze = True
+    use_free_ports(main_config_v2_params.settings)  # the real VRChat client sends too
+    with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as pimax:
+        pimax.bind(("127.0.0.1", 0))
+        pimax.settimeout(2.0)
+        monkeypatch.setattr(osc_module, "FOVEATION_PORT", pimax.getsockname()[1])
+        with running_manager(main_config_v2_params, mock_udp=False) as (_manager, msg_queue):
+            msg_queue.put(_eye_msg(x=0.5, y=-0.5))
+            wait_until_sent(msg_queue)
+            data, _ = pimax.recvfrom(65535)
+    assert data.startswith(ADDRESS.encode() + b"\0")
+    assert b",ffff\0" in data
+    [(address, args)] = pyosc.parse(data)
+    p, y = _expected(0.5, -0.5, main_config_v2_params.settings)
+    assert address == ADDRESS
+    assert args == pytest.approx(WIRE(p, y, p, y), abs=1e-4)
+
+
+@pytest.mark.skipif(sys.platform != "win32", reason="named mutex is Windows-only")
+def test_mutex_held_only_while_running(main_config_v2_params):
+    import ctypes
+
+    kernel32 = ctypes.WinDLL("kernel32")
+    kernel32.OpenMutexW.restype = ctypes.c_void_p
+
+    def mutex_exists():
+        handle = kernel32.OpenMutexW(0x00100000, False, foveation_module.FOVEATION_MUTEX)  # SYNCHRONIZE
+        if handle:
+            kernel32.CloseHandle(ctypes.c_void_p(handle))
+        return bool(handle)
+
+    main_config_v2_params.settings.gui_foveation_gaze = True
+    with running_manager(main_config_v2_params) as (_manager, msg_queue):
+        msg_queue.put(_eye_msg())
+        wait_until_sent(msg_queue)
+        assert mutex_exists()
+    assert not mutex_exists()
+
+
+def test_wire_angles_give_pimaxmagic4all_the_true_tangents():
+    def pimaxmagic4all(lp, ly, rp, ry):
+        """What its VRChat OSC tracker hands on as "tangents": x and y of the mean direction."""
+        vectors = []
+        for pitch, yaw in ((lp, ly), (rp, ry)):
+            p, w = math.radians(-pitch), math.radians(yaw)
+            vectors.append((math.sin(w) * math.cos(p), math.sin(p)))
+        return tuple(sum(axis) / 2 for axis in zip(*vectors))
+
+    for pitch, yaw in ((0, 0), (0, 30), (-20, 0), (15, -25), (-10, 35)):
+        x, y = pimaxmagic4all(*WIRE(pitch, yaw, pitch, yaw, yaw_bias_tan=0.0))
+        up, right = math.radians(-pitch), math.radians(yaw)
+        # tangents of the direction's horizontal and vertical angles from straight ahead
+        assert x == pytest.approx(math.tan(right), abs=1e-6)
+        assert y == pytest.approx(math.tan(up) / math.cos(right), abs=1e-6)
+    assert pimaxmagic4all(0, 30, 0, 30)[0] == pytest.approx(0.5)  # unconverted: a sine, 3 degrees short
+
+
+def test_headset_with_wider_outward_view_shifts_the_gaze_left(monkeypatch):
+    monkeypatch.setattr(foveation_module, "_pm4a_yaw_bias_tan", 0.0)
+    assert foveation_module.set_headset_projection([-1.0, 1.0, -1.0, 1.0]) == 0.0  # symmetric: no shift
+    bias = foveation_module.set_headset_projection([-1.376, 0.839, -1.428, 0.966])  # Quest 3, left eye
+    assert bias == pytest.approx(-(1.376 - 0.839) / 4)
+    yaw = WIRE(0.0, 0.0, 0.0, 0.0)[1]
+    assert math.sin(math.radians(yaw)) == pytest.approx(bias)  # 7.6 degrees left of straight ahead
+    assert foveation_module.set_headset_projection(None) == bias  # junk keeps the last good value
+    assert foveation_module.set_headset_projection([float("nan"), 1.0]) == bias
+
+
+def test_gaze_pointing_sideways_is_passed_through_unconverted():
+    # The mean direction is not ahead of the viewer: no tangent exists to convert to.
+    assert WIRE(0.0, 90.0, 0.0, 90.0, yaw_bias_tan=0.0) == [0.0, 90.0, 0.0, 90.0]
+
+
+def test_unusable_samples_send_nothing(two_eye_config):
+    _, sent = _run(
+        two_eye_config,
+        [
+            _eye_msg(EyeId.LEFT, x=0.1, blink=float("nan")),  # no openness
+            _eye_msg(EyeId.BOTH, x=0.1),  # neither eye in two-eye mode
+        ],
+    )
+    assert sent == []

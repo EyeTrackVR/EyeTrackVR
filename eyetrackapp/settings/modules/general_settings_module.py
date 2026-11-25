@@ -93,25 +93,17 @@ class GeneralSettingsModule(BaseSettingsModule):
 
         bool_pairs = [
             (
-                (self.gui_flip_x_axis_left, self.config.gui_flip_x_axis_left),
-                (self.gui_flip_x_axis_right, self.config.gui_flip_x_axis_right),
-            ),
-            (
                 (self.gui_openvr_autostart, self.config.gui_openvr_autostart),
                 (self.gui_use_gpu, self.config.gui_use_gpu),
             ),
             (
-                (self.gui_flip_y_axis, self.config.gui_flip_y_axis),
+                (self.gui_vr_dashboard, self.config.gui_vr_dashboard),
                 (self.gui_update_check, self.config.gui_update_check),
             ),
-            ((self.gui_vr_dashboard, self.config.gui_vr_dashboard), None),
         ]
 
         # Map widget-key string → config attr so we can look up label + tooltip.
         key_to_attr = {
-            self.gui_flip_x_axis_left: "gui_flip_x_axis_left",
-            self.gui_flip_x_axis_right: "gui_flip_x_axis_right",
-            self.gui_flip_y_axis: "gui_flip_y_axis",
             self.gui_openvr_autostart: "gui_openvr_autostart",
             self.gui_use_gpu: "gui_use_gpu",
             self.gui_update_check: "gui_update_check",
@@ -213,6 +205,14 @@ class GeneralSettingsModule(BaseSettingsModule):
         )
         combo.pack(side="left")
         combo.bind("<<ComboboxSelected>>", self._on_language_selected)
+
+        # Reset to defaults and changes made elsewhere (the setup wizard) set the
+        # code var only; without this the box kept showing the old language.
+        def _show_code(*_):
+            code = code_var.get()
+            self._lang_display_var.set(self._lang_code_to_display.get(code, code))
+
+        code_var.trace_add("write", _show_code)
         return lang_row
 
     def _on_language_selected(self, _event=None):
@@ -238,6 +238,21 @@ class GeneralSettingsModule(BaseSettingsModule):
 
     def build_advanced(self, parent):
         fields = [
+            (
+                self.gui_flip_x_axis_left,
+                self.config.gui_flip_x_axis_left,
+                "gui_flip_x_axis_left",
+            ),
+            (
+                self.gui_flip_x_axis_right,
+                self.config.gui_flip_x_axis_right,
+                "gui_flip_x_axis_right",
+            ),
+            (
+                self.gui_flip_y_axis,
+                self.config.gui_flip_y_axis,
+                "gui_flip_y_axis",
+            ),
             (
                 self.gui_use_overlay_cal,
                 self.config.gui_use_overlay_cal,

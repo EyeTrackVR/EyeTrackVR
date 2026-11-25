@@ -1,7 +1,7 @@
 from typing import Iterable, Optional, NamedTuple, Any
 
 import pydantic
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 
 from config import EyeTrackSettingsConfig
 
@@ -15,7 +15,10 @@ class MissingValidationConfigException(Exception):
 
 
 class BaseValidationModel(BaseModel):
-    pass
+    # Every float field rejects NaN and infinity the way it rejects text that is no number
+    # (common_field_validators.finite_float). NaN never equals itself, so the page would
+    # report it as a change on every tick, and it must not reach the tracking or the config.
+    model_config = ConfigDict(allow_inf_nan=False)
 
 
 class ValidationResult(NamedTuple):

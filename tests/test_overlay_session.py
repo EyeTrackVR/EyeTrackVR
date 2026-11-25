@@ -235,3 +235,91 @@ def test_a_stop_is_only_taken_from_a_run_that_can_stop():
     finally:
         end_overlay_run()
     assert not var.overlay_active and var.overlay_run is None and not var.overlay_stop_requested
+
+
+# ------------------------------------------------------------------ the app's end of it
+
+
+# Ignores SIGTERM like a hung overlay would, and says so once it does.
+HUNG_OVERLAY = (
+    "import signal, time; signal.signal(signal.SIGTERM, signal.SIG_IGN); print('ready', flush=True); time.sleep(60)"
+)
+
+
+def test_stop_live_overlays_kills_a_hung_overlay_within_its_budget(monkeypatch, tmp_path):
+    monkeypatch.setattr(logging_utils, "log_directory", lambda: tmp_path)
+    monkeypatch.setattr(overlay_launch, "overlay_command", lambda *_a: [sys.executable, "-c", HUNG_OVERLAY])
+    overlay = OverlaySession("preview").start()
+    try:
+        log = tmp_path / "calibration-overlay.log"
+        deadline = time.monotonic() + 10
+        while "ready" not in (log.read_text() if log.exists() else "") and time.monotonic() < deadline:
+            time.sleep(0.01)
+        assert "ready" in log.read_text(), "the stand-in never started ignoring SIGTERM"
+        started = time.monotonic()
+        overlay_launch.stop_live_overlays(timeout=0.5)
+        overlay.process.wait(timeout=2)
+        assert time.monotonic() - started < 2
+    finally:
+        overlay.close()
+    assert overlay.process not in overlay_launch._live
+
+
+@pytest.fixture
+def notices(monkeypatch):
+    """What the app would tell the user (calibration_state.notify_user)."""
+    import calibration_state
+
+    shown = []
+    monkeypatch.setattr(calibration_state, "_user_notifier", shown.append)
+    return shown
+
+
+@pytest.fixture
+def no_overlay_binary(monkeypatch):
+    def missing(*_args):
+        raise FileNotFoundError("in-VR overlay binary not found")
+
+    monkeypatch.setattr(overlay_launch, "overlay_command", missing)
+
+
+OVERLAY_RUN_SETTINGS = SimpleNamespace(
+    calib_mode="next",
+    gui_NEXT_gaze_mode="fused",
+    gui_NEXT_calib_lids_brows=False,
+    gui_gaze_yaw_max_deg=40.0,
+    gui_gaze_pitch_up_deg=15.0,
+    gui_gaze_pitch_down_deg=40.0,
+    osc_invert_eye_close=False,
+)
+
+
+def test_a_missing_overlay_is_reported_only_when_the_user_asked(monkeypatch, no_overlay_binary, notices):
+    import gaze_range_check
+    import next_smartcal
+
+    monkeypatch.setattr(next_smartcal, "_save_recording_safely", lambda *_a: None)
+    runs = [
+        lambda **kw: calibration.overlay_ellipse_calibrate([], OVERLAY_RUN_SETTINGS, None, **kw),
+        lambda **kw: next_smartcal.next_smartcal_overlay([], OVERLAY_RUN_SETTINGS, None, **kw),
+        lambda **kw: gaze_range_check.gaze_range_check_overlay([], OVERLAY_RUN_SETTINGS, **kw),
+    ]
+    for run in runs:
+        run().wait(timeout=10)  # started by an OSC trigger: nobody is at the window
+    assert notices == []
+    for run in runs:
+        run(notify=True).wait(timeout=10)  # the user clicked the button
+    assert notices == ["status.overlay_missing"] * 3
+    assert not calibration.var.overlay_active
+
+
+def test_overlay_quitting_before_its_first_signal_asks_for_steamvr(fake_overlay, notices):
+    fake_overlay(signals=[], linger=0.0)  # what the overlay does without a VR runtime
+    calibration.overlay_ellipse_calibrate([], SimpleNamespace(calib_mode="next"), None, notify=True).wait(timeout=10)
+    assert notices == ["status.steamvr_not_running"]
+
+
+def test_overlay_closed_after_it_started_is_not_an_error(fake_overlay, notices):
+    fake_overlay(signals=[0], linger=0.3)
+    calibration.overlay_ellipse_calibrate([], SimpleNamespace(calib_mode="next"), None, notify=True).wait(timeout=10)
+    assert notices == []

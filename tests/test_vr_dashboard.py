@@ -11,6 +11,7 @@ from types import SimpleNamespace
 import pytest
 
 from ovr import dfr, dfr_monitor, vr_dashboard
+from tests.test_dfr import FakeRegistry
 
 GAME = "steam.app.823500"  # a Direct3D 11 OpenVR game with no foveation of its own
 
@@ -355,18 +356,9 @@ def controller(tmp_path, dashboard=True, complete=True):
     config = SimpleNamespace(settings=settings)
     config.update = lambda data, save=False: [setattr(settings, key, value) for key, value in data.items()]
 
-    class Registry:
-        values: dict = {}
-
-        def get(self, name):
-            return self.values.get(name)
-
-        def set(self, name, value):
-            self.values[name] = value
-
     c = dfr.DfrController(
         config=config,
-        registry=Registry(),
+        registry=FakeRegistry(),
         attach=lambda d, pid: True,
         steamvr_running=lambda: True,
         dfr_ui_running=lambda: False,
@@ -477,5 +469,8 @@ def test_a_failing_handler_does_not_stop_the_reader(tmp_path):
     def broken():
         raise RuntimeError("boom")
 
-    c.actions["recenter"] = broken
+    done = []
+    c.actions.update(recenter=broken, recalibrate=lambda: done.append("recalibrate"))
     c.on_monitor_message({"type": "action", "name": "recenter"})  # logged, not raised
+    c.on_monitor_message({"type": "action", "name": "recalibrate"})
+    assert done == ["recalibrate"]

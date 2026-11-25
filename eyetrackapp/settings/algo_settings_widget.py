@@ -77,10 +77,18 @@ class AlgoSettingsWidget(BaseSettingsWidget):
 
         self.frame = ttk.Frame(parent)
         self._build_module_sections()
-        self._wire_leap_lid_auto_check()
 
         if self._eye_widgets:
             self._build_eye_preview_section()
+
+        # The Advanced button goes last, below the eye previews (the base class
+        # packs it before they exist).
+        if self._advanced_toggle_row is not None:
+            self._advanced_toggle_row.pack_forget()
+            self._advanced_toggle_row.pack(fill="x", padx=8, pady=(2, 0))
+
+        # After the reorder: the Blink box remembers what follows it.
+        self._wire_leap_lid_auto_check()
 
         return self.frame
 
@@ -111,6 +119,36 @@ class AlgoSettingsWidget(BaseSettingsWidget):
             prev[0] = current
 
         algo_mod.selected_algo.trace_add("write", _on_algo_change)
+
+        self._wire_blink_section_visibility(algo_mod, blink_mod, leap_lid_var)
+
+    def _wire_blink_section_visibility(self, algo_mod, blink_mod, leap_lid_var):
+        """The Blink Algorithm box only holds Redo Eyelid Calib, which restarts
+        the LEAP lid calibration. It does nothing under NEXT (Smart Calib), nor
+        when no LEAP lid estimator is running, so hide the box then."""
+        section = self._module_sections.get(id(blink_mod))
+        if section is None:
+            return
+        # Whatever follows it on the page, so it comes back in the same spot.
+        slaves = self.frame.pack_slaves()
+        idx = slaves.index(section) if section in slaves else -1
+        anchor = slaves[idx + 1] if 0 <= idx < len(slaves) - 1 else None
+
+        def _update(*_):
+            algo = algo_mod.selected_algo.get()
+            useful = algo != "next" and (algo == "leap" or bool(leap_lid_var.get()))
+            shown = section.winfo_manager() != ""
+            if useful and not shown:
+                opts = {"fill": "x", "padx": 8, "pady": 6, "anchor": "n"}
+                if anchor is not None:
+                    opts["before"] = anchor
+                section.pack(**opts)
+            elif not useful and shown:
+                section.pack_forget()
+
+        algo_mod.selected_algo.trace_add("write", _update)
+        leap_lid_var.trace_add("write", _update)
+        _update()
 
     # ------------------------------------------------------------------
     # Eye preview section

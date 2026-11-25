@@ -380,7 +380,11 @@ class PupilDetectorHaar:
         areas = stats[1:, cv2.CC_STAT_AREA]
         mask = areas > 0.04 * bw.size
         if not np.any(mask):
-            mask = areas.argmax()[None]
+            # Keep a boolean mask (indexed by label - 1 below), with only the
+            # largest blob selected. An index array here made the background
+            # component (stats[0]) the pupil.
+            mask = np.zeros_like(mask)
+            mask[areas.argmax()] = True
 
         cx_local = patch.shape[1] // 2
         cy_local = patch.shape[0] // 2

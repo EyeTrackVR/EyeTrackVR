@@ -73,3 +73,40 @@ def request_overlay_stop() -> None:
 def overlay_keep_going() -> bool:
     """False once the run that has the overlay was asked to stop."""
     return var.overlay_active and not var.overlay_stop_requested
+
+
+# Set by the app: shows the message for a lang key to the user, from any thread
+# (it marshals onto the Tk thread). Unset in tests and headless runs.
+_user_notifier = None
+
+
+def set_user_notifier(notifier) -> None:
+    global _user_notifier
+    _user_notifier = notifier
+
+
+def notify_user(key: str) -> None:
+    """Tell the user about ``key`` (a lang key) if the app wired a notifier."""
+    notifier = _user_notifier
+    if notifier is not None:
+        try:
+            notifier(key)
+        except Exception:
+            pass  # the window is gone; the failure was logged by the caller
+
+
+def report_overlay_failure(error, overlay, notify: bool) -> None:
+    """Tell the user why an overlay run they started failed with ``error``
+    (``overlay`` is its OverlaySession, None when it never launched). Only a
+    missing binary, or an overlay that quit before its first signal (no
+    SteamVR), is worth a dialog: a later exit is the user closing it, SteamVR
+    quitting mid-run or the app shutting down. Runs triggered from VR pass
+    ``notify=False``: nobody is at the desktop to read it."""
+    from utils.overlay_launch import OverlayExited
+
+    if not notify:
+        return
+    if isinstance(error, FileNotFoundError):
+        notify_user("status.overlay_missing")
+    elif isinstance(error, OverlayExited) and not getattr(overlay, "signalled", False):
+        notify_user("status.steamvr_not_running")

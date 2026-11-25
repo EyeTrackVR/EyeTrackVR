@@ -16,6 +16,7 @@ import socket
 import struct
 import subprocess
 import sys
+import threading
 import time
 from pathlib import Path
 from typing import Self
@@ -114,6 +115,36 @@ class OverlayStopped(Exception):
     """The app stopped waiting for the overlay."""
 
 
+# Overlay processes still running, so shutdown can end them: the app exits with
+# os._exit, which would leave one in the headset holding its exe open.
+_live: set = set()
+_live_lock = threading.Lock()
+
+
+def stop_live_overlays(timeout: float = 1.0) -> None:
+    """Terminate every running overlay, kill what is left after ``timeout`` in
+    total. Never waits longer than that (a hung overlay must not block exit)."""
+    with _live_lock:
+        processes = list(_live)
+    for process in processes:
+        try:
+            if process.poll() is None:
+                process.terminate()
+        except OSError:
+            pass
+    deadline = time.monotonic() + timeout
+    for process in processes:
+        try:
+            process.wait(timeout=max(0.0, deadline - time.monotonic()))
+        except subprocess.TimeoutExpired:
+            try:
+                process.kill()
+            except OSError:
+                pass
+        except OSError:
+            pass
+
+
 class OverlaySession:
     """One calibration overlay run, from launch until the overlay has stopped.
 
@@ -143,6 +174,8 @@ class OverlaySession:
         self._cmd_sock: socket.socket | None = None
         self._log = None
         self._finished = False
+        # The overlay has sent something: it got as far as SteamVR.
+        self.signalled = False
         self._deadline = 0.0
         self._started_wall = 0.0
 
@@ -169,6 +202,8 @@ class OverlaySession:
                 stderr=subprocess.STDOUT,
                 creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
             )
+            with _live_lock:
+                _live.add(self.process)
             self._deadline = time.monotonic() + self.timeout
             return self
         except BaseException:
@@ -183,6 +218,7 @@ class OverlaySession:
                 raise OverlayStopped
             try:
                 data, _ = self.sock.recvfrom(bufsize)
+                self.signalled = True
                 self._deadline = time.monotonic() + self.timeout
                 return data
             except TimeoutError:
@@ -260,6 +296,8 @@ class OverlaySession:
                         pass
                 _stop(self.process, self.TERMINATE_GRACE_S)
         finally:
+            with _live_lock:
+                _live.discard(self.process)
             for resource in (self.sock, self._cmd_sock, self._log):
                 if resource is not None:
                     try:

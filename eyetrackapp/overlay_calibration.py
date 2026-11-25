@@ -11,7 +11,7 @@ import struct
 import threading
 import time
 
-from calibration_state import var
+from calibration_state import report_overlay_failure, var
 from utils import gaze_preview
 from utils.async_call import Async
 from utils.misc_utils import PlaySound, SND_ASYNC, SND_FILENAME, resource_path
@@ -73,12 +73,13 @@ def stop_gaze_preview() -> None:
 
 
 @Async
-def gaze_preview_overlay(settings) -> None:
+def gaze_preview_overlay(settings, *, notify: bool = False) -> None:
     """Show the output gaze live in the headset until stopped or the overlay
     is closed. The overlay signals 255 once it is up; samples go to it only
-    from then on."""
+    from then on. ``notify`` tells the user when the overlay can't run."""
     if var.overlay_active:
         return
+    overlay = None
     var.overlay_active = True
     _gaze_preview_stop.clear()
     gaze_preview.set_running(True)
@@ -101,6 +102,7 @@ def gaze_preview_overlay(settings) -> None:
             overlay.finish()
     except (OSError, struct.error) as e:
         logger.warning("Gaze preview overlay stopped (%s). Make sure SteamVR is running.", e)
+        report_overlay_failure(e, overlay, notify)
     finally:
         gaze_preview.set_active(None)
         gaze_preview.set_running(False)
@@ -130,13 +132,15 @@ ELLIPSE_PARTIAL_MIN_S = 9.0
 
 
 @Async
-def overlay_ellipse_calibrate(eye_processors: list, settings, baseconfig) -> None:
+def overlay_ellipse_calibrate(eye_processors: list, settings, baseconfig, *, notify: bool = False) -> None:
     """
     Launch the overlay in ellipse-calibration (spiral) mode and drive classic
-    CalibrationEllipse per eye via continuous frame sampling.
+    CalibrationEllipse per eye via continuous frame sampling. ``notify`` tells
+    the user when the overlay can't run (the GUI button, not the in-VR trigger).
     """
     if var.overlay_active:
         return
+    overlay = None
     var.overlay_active = True
     try:
         with OverlaySession("ellipse") as overlay:
@@ -152,6 +156,7 @@ def overlay_ellipse_calibrate(eye_processors: list, settings, baseconfig) -> Non
                     data = overlay.recv()
                 except (socket.timeout, OverlayExited) as e:
                     logger.warning("Overlay ellipse calibration ended early: %s", e)
+                    report_overlay_failure(e, overlay, notify)
                     # Save a partial fit if enough of the path was sampled before
                     # the overlay stopped. This handles the case where signal 0
                     # was received and the spiral ran but signal 9 never arrived.
@@ -213,6 +218,7 @@ def overlay_ellipse_calibrate(eye_processors: list, settings, baseconfig) -> Non
 
     except (OSError, struct.error) as e:
         logger.warning("Ellipse overlay calibration error: %s", e)
+        report_overlay_failure(e, overlay, notify)
     finally:
         # Always clear collect flag so cal_osc doesn't keep sampling
         for ep in eye_processors:

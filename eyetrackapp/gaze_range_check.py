@@ -27,7 +27,13 @@ from types import SimpleNamespace
 
 import numpy as np
 
-from calibration_state import OVERLAY_RUN_RANGE_CHECK, begin_overlay_run, end_overlay_run, overlay_keep_going
+from calibration_state import (
+    OVERLAY_RUN_RANGE_CHECK,
+    begin_overlay_run,
+    end_overlay_run,
+    overlay_keep_going,
+    report_overlay_failure,
+)
 from gaze_capture import OPEN_LID, GazeTrace
 from next_eye_gaze import GAZE_MODE_FUSED, dominant_eye_from_settings, gaze_mode_from_settings
 from next_smartcal import (
@@ -295,12 +301,14 @@ def _show_points(overlay, trace, points, settings, events: list) -> dict:
 
 
 @Async
-def gaze_range_check_overlay(eye_processors: list, settings) -> None:
-    """Run the gaze range check in the headset and report the result."""
+def gaze_range_check_overlay(eye_processors: list, settings, *, notify: bool = False) -> None:
+    """Run the gaze range check in the headset and report the result.
+    ``notify`` shows the user a dialog when the overlay can't run."""
     from gaze_range_report import headset_report, log_report
 
     if not begin_overlay_run(OVERLAY_RUN_RANGE_CHECK):
         return
+    overlay = None
     points = check_points()
     result = None
     no_range = False
@@ -331,6 +339,7 @@ def gaze_range_check_overlay(eye_processors: list, settings) -> None:
         logger.warning("Gaze range check timed out before completion.")
     except OSError as e:
         logger.warning("Gaze range check overlay error (%s). Make sure SteamVR is running.", e)
+        report_overlay_failure(e, overlay, notify)
     finally:
         if trace is not None:
             trace.close()
