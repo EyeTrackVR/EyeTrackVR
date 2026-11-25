@@ -69,6 +69,13 @@ test -x "$BUNDLE/eyetrackvr" || { echo "ERROR: bundle missing eyetrackvr binary"
 
 test -x "$BUNDLE/_internal/tools/linux/EyeTrackVR-Overlay"
 
+# The spec strips the build host's C++ runtime; a bundled copy older than the
+# user's breaks their GPU drivers inside the verification window.
+if find "$BUNDLE" \( -name 'libstdc++.so*' -o -name 'libgcc_s.so*' \) | grep -q .; then
+    echo "ERROR: bundle ships libstdc++/libgcc_s; they must stay system-provided"
+    exit 1
+fi
+
 echo "[linux-build] smoke test: bundled binary starts and imports..."
 # Run WITHOUT the build env's LD_LIBRARY_PATH, exactly like an end-user machine.
 # Pass conditions:
