@@ -367,6 +367,7 @@ def test_bundled_espeak_speaks_first_with_its_own_libraries(monkeypatch, tmp_pat
     assert env["ESPEAK_DATA_PATH"] == str(tts) and env["LD_LIBRARY_PATH"] == str(tts / "lib")
 
 
+@pytest.mark.skipif(os.name == "nt", reason="LD_LIBRARY_PATH handling is POSIX-only")
 @pytest.mark.parametrize(
     "launch, expected",
     [
