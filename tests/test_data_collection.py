@@ -367,6 +367,41 @@ def test_bundled_espeak_speaks_first_with_its_own_libraries(monkeypatch, tmp_pat
     assert env["ESPEAK_DATA_PATH"] == str(tts) and env["LD_LIBRARY_PATH"] == str(tts / "lib")
 
 
+@pytest.mark.parametrize(
+    "launch, expected",
+    [
+        ({"LD_LIBRARY_PATH_ORIG": "/opt/lib"}, "/opt/lib"),  # the user's own path survives
+        ({}, None),  # launched without one: none at all
+        ({"LD_LIBRARY_PATH_ORIG": "{b}:/opt/lib"}, "/opt/lib"),  # leap.py re-exec saved the bundle in ORIG
+    ],
+)
+def test_frozen_linux_build_runs_system_tts_without_its_bundled_libraries(monkeypatch, tmp_path, launch, expected):
+    """The bootloader puts the bundle's libraries first on LD_LIBRARY_PATH;
+    a system espeak-ng/spd-say loading them instead of the host's can fail
+    or play nothing (reported silent on Arch)."""
+    import utils.misc_utils as misc_utils
+
+    bundle = str(tmp_path / "_internal")
+    monkeypatch.setattr(misc_utils, "is_linux", True)
+    monkeypatch.setattr(misc_utils.sys, "frozen", True, raising=False)
+    monkeypatch.setattr(misc_utils.sys, "_MEIPASS", bundle, raising=False)
+    monkeypatch.delenv("LD_LIBRARY_PATH_ORIG", raising=False)
+    monkeypatch.setenv("LD_LIBRARY_PATH", f"{bundle}:{bundle}/lib")
+    for name, value in launch.items():
+        monkeypatch.setenv(name, value.format(b=bundle))
+    monkeypatch.setattr(data_collection_tts.shutil, "which", lambda name: "/usr/bin/" + name)
+    seen = []
+
+    def run(command, **kwargs):
+        seen.append(kwargs["env"])
+        return types.SimpleNamespace(returncode=0)
+
+    monkeypatch.setattr(data_collection_tts.subprocess, "run", run)
+
+    assert data_collection_tts._run_tts_command(["espeak-ng", "hi"], timeout=1)
+    assert seen[0].get("LD_LIBRARY_PATH") == expected and "LD_LIBRARY_PATH_ORIG" not in seen[0]
+
+
 def test_reading_time_scales_with_the_prompt():
     reading = data_collection_tts._reading_seconds
     assert reading("Captured") < reading("Look up and to the left and squint") <= 8.0

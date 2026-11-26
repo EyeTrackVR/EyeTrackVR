@@ -12,6 +12,31 @@ is_linux = sys.platform.startswith("linux")
 
 SND_FILENAME = SND_ASYNC = 1
 
+
+def host_env():
+    """Environment for running a system program (a TTS engine, a sound
+    player). The frozen Linux build's bootloader puts the bundle's own
+    libraries first on LD_LIBRARY_PATH, and a system program loading those
+    instead of the host's can fail or play nothing, so they are taken back
+    out. Unchanged everywhere else."""
+    env = dict(os.environ)
+    bundle = getattr(sys, "_MEIPASS", None)
+    if not (is_linux and getattr(sys, "frozen", False) and bundle):
+        return env
+    # PyInstaller saves the launch value as LD_LIBRARY_PATH_ORIG; fall back to
+    # the current one, and filter both, since leap.py may re-exec with the
+    # bundle's path already in it.
+    original = env.pop("LD_LIBRARY_PATH_ORIG", None)
+    paths = (original if original is not None else env.get("LD_LIBRARY_PATH", "")).split(os.pathsep)
+    bundle = os.path.realpath(bundle)
+    kept = [p for p in paths if p and not (os.path.realpath(p) + os.sep).startswith(bundle + os.sep)]
+    if kept:
+        env["LD_LIBRARY_PATH"] = os.pathsep.join(kept)
+    else:
+        env.pop("LD_LIBRARY_PATH", None)
+    return env
+
+
 if is_nt:
     import winsound
 
@@ -35,6 +60,7 @@ else:
         try:
             subprocess.Popen(
                 [_PLAYER, str(sound)],
+                env=host_env(),
                 stdout=subprocess.DEVNULL,
                 stderr=subprocess.DEVNULL,
             )

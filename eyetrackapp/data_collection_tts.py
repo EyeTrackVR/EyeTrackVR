@@ -44,9 +44,14 @@ def prompt_text(key):
 
 
 def _run_tts_command(command, timeout, stdin_text=None, env=None):
+    """Run one TTS command; True when it exits cleanly. System engines get the
+    host's environment (see ``host_env``) unless ``env`` is given."""
+    from utils.misc_utils import host_env
 
     if shutil.which(command[0]) is None:
         return False
+    if env is None:
+        env = host_env()
     try:
         if stdin_text is None:
             result = subprocess.run(
@@ -54,7 +59,7 @@ def _run_tts_command(command, timeout, stdin_text=None, env=None):
             )
             return result.returncode == 0
         proc = subprocess.Popen(
-            command, stdin=subprocess.PIPE, creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0)
+            command, stdin=subprocess.PIPE, env=env, creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0)
         )
         try:
             proc.communicate(input=stdin_text.encode("utf-8"), timeout=timeout)
@@ -97,22 +102,37 @@ def _speak_linux(text, lang, fallback):
     if lang != "en":
         voice = _ESPEAK_VOICES.get(lang, lang)
         for command in (
-            ["spd-say", "--wait", "-l", lang, text],
             ["espeak-ng", "-v", voice, text],
             ["espeak", "-v", voice, text],
+            ["spd-say", "--wait", "-l", lang, text],
         ):
             if _run_tts_command(command, timeout=20):
                 return True
         text = fallback  # no voice for this language: say it in English
+    # espeak first: spd-say can exit 0 when speech-dispatcher has no working
+    # synthesizer (it is often only pulled in as a dependency, e.g. by KDE),
+    # which would end the search on silence.
     linux_tts_commands = (
-        ["spd-say", "--wait", text],
         ["espeak-ng", text],
         ["espeak", text],
+        ["spd-say", "--wait", text],
     )
     for command in linux_tts_commands:
         if _run_tts_command(command, timeout=20):
             return True
-    return _run_tts_command(["festival", "--tts"], timeout=20, stdin_text=text)
+    if _run_tts_command(["festival", "--tts"], timeout=20, stdin_text=text):
+        return True
+    global _warned_no_engine
+    if not _warned_no_engine:
+        _warned_no_engine = True
+        logger.warning(
+            "No working text-to-speech engine: data collection prompts are shown but not spoken. "
+            "Install espeak-ng (or speech-dispatcher with a voice) to hear them."
+        )
+    return False
+
+
+_warned_no_engine = False
 
 
 def _reading_seconds(text):
